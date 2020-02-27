@@ -130,7 +130,8 @@ Status DefaultEngine::processClientCommand(const proto::ControlCommand& command)
         return Status::SUCCESS;
     }
     if (command.has_death_notification()) {
-        mErrorQueue.push(ComponentError("ClientInterface", "Client death", mCurrentPhase, false));
+        mCurrentPhaseError = std::make_unique<ComponentError>(
+                "ClientInterface", "Client death", mCurrentPhase, false);
         mWakeLooper.notify_all();
         return Status::SUCCESS;
     }
@@ -154,6 +155,7 @@ void DefaultEngine::DispatchPixelData(int streamId, int64_t timestamp, const Inp
               << timestamp;
     if (mStreamManagers.find(streamId) == mStreamManagers.end()) {
         LOG(ERROR) << "Engine::Received bad stream id from prebuilt graph";
+        return;
     }
     mStreamManagers[streamId]->queuePacket(frame, timestamp);
 }
@@ -162,6 +164,7 @@ void DefaultEngine::DispatchSerializedData(int streamId, int64_t timestamp, std:
     LOG(INFO) << "Engine::Received data for stream  " << streamId << " with timestamp " << timestamp;
     if (mStreamManagers.find(streamId) == mStreamManagers.end()) {
         LOG(ERROR) << "Engine::Received bad stream id from prebuilt graph";
+        return;
     }
     std::string data(output);
     mStreamManagers[streamId]->queuePacket(data.c_str(), data.size(), timestamp);
@@ -303,6 +306,7 @@ void DefaultEngine::broadcastAbortRun(const std::vector<int>& streamIds,
             (void)mGraph->handleExecutionPhase(runEvent);
         }
     }
+    (void)mClient->handleExecutionPhase(runEvent);
 }
 
 Status DefaultEngine::broadcastStopWithFlush() {
@@ -460,6 +464,8 @@ Status DefaultEngine::forwardOutputDataToClient(int streamId,
         // TODO: dispatch to display
         if (mConfigBuilder.clientConfigEnablesDisplayStream()) {
             return mClient->dispatchPacketToClient(streamId, dataHandle);
+        } else {
+            return Status::SUCCESS;
         }
     }
     return mClient->dispatchPacketToClient(streamId, dataHandle);

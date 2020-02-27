@@ -29,24 +29,32 @@ import android.car.CarOccupantZoneManager.OccupantTypeEnum;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.ICarUserService;
 import android.car.settings.CarSettings;
+import android.car.user.CarUserManager;
 import android.car.userlib.CarUserManagerHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.graphics.Bitmap;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
+import android.hardware.automotive.vehicle.V2_0.UsersInfo;
 import android.location.LocationManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.util.Log;
+import android.util.SparseArray;
 import android.util.TimingsTraceLog;
 
 import com.android.car.CarServiceBase;
 import com.android.car.R;
+import com.android.car.hal.UserHalHelper;
+import com.android.car.hal.UserHalService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.UserIcons;
 
 import java.io.PrintWriter;
@@ -68,6 +76,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <ol/>
  */
 public final class CarUserService extends ICarUserService.Stub implements CarServiceBase {
+
+    /** {@code int} extra used to represent a user id in a {@link IResultReceiver} response. */
+    public static final String BUNDLE_USER_ID = "user.id";
+    /** {@code int} extra used to represent user flags in a {@link IResultReceiver} response. */
+    public static final String BUNDLE_USER_FLAGS = "user.flags";
+    /** {@code String} extra used to represent a user name in a {@link IResultReceiver} response. */
+    public static final String BUNDLE_USER_NAME = "user.name";
+    /** {@code int} extra used to represent the info action {@link IResultReceiver} response. */
+    public static final String BUNDLE_INITIAL_INFO_ACTION = "initial_info.action";
+
     private final Context mContext;
     private final CarUserManagerHelper mCarUserManagerHelper;
     private final IActivityManager mAm;
@@ -95,8 +113,18 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     @GuardedBy("mLockUser")
     private final ArrayList<Integer> mBackgroundUsersRestartedHere = new ArrayList<>();
 
+    // TODO(b/144120654): mege then
     private final CopyOnWriteArrayList<UserCallback> mUserCallbacks = new CopyOnWriteArrayList<>();
 
+    private final UserHalService mHal;
+
+    /**
+     * List of lifecycle listeners by uid.
+     */
+    @GuardedBy("mLockUser")
+    private final SparseArray<IResultReceiver> mLifecycleListeners = new SparseArray<>();
+
+    // TODO(b/144120654): replace by CarUserManager listener
     /** Interface for callbacks related to user activities. */
     public interface UserCallback {
         /** Gets called when user lock status has been changed. */
@@ -133,13 +161,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     @GuardedBy("mLockHelper")
     private ZoneUserBindingHelper mZoneUserBindingHelper;
 
-    public CarUserService(
-            @NonNull Context context, @NonNull CarUserManagerHelper carUserManagerHelper,
+    public CarUserService(@NonNull Context context, @NonNull UserHalService hal,
+            @NonNull CarUserManagerHelper carUserManagerHelper,
             @NonNull UserManager userManager, @NonNull IActivityManager am, int maxRunningUsers) {
         if (Log.isLoggable(TAG_USER, Log.DEBUG)) {
             Log.d(TAG_USER, "constructed");
         }
         mContext = context;
+        mHal = hal;
         mCarUserManagerHelper = carUserManagerHelper;
         mAm = am;
         mMaxRunningUsers = maxRunningUsers;
@@ -166,7 +195,19 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     public void dump(@NonNull PrintWriter writer) {
         checkAtLeastOnePermission("dump()", android.Manifest.permission.DUMP);
         writer.println("*CarUserService*");
+        String indent = "  ";
         synchronized (mLockUser) {
+            int numberListeners = mLifecycleListeners.size();
+            if (numberListeners == 0) {
+                writer.println("No lifecycle listeners");
+            } else {
+                writer.printf("%d lifecycle listeners\n", numberListeners);
+                for (int i = 0; i < numberListeners; i++) {
+                    int uid = mLifecycleListeners.keyAt(i);
+                    IResultReceiver listener = mLifecycleListeners.valueAt(i);
+                    writer.printf("%suid: %d Listener %s\n", indent, uid, listener);
+                }
+            }
             writer.println("User0Unlocked: " + mUser0Unlocked);
             writer.println("MaxRunningUsers: " + mMaxRunningUsers);
             writer.println("BackgroundUsersToRestart: " + mBackgroundUsersToRestart);
@@ -174,10 +215,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             List<UserInfo> allDrivers = getAllDrivers();
             int driversSize = allDrivers.size();
             writer.println("NumberOfDrivers: " + driversSize);
-            String prefix = "  ";
             for (int i = 0; i < driversSize; i++) {
                 int driverId = allDrivers.get(i).id;
-                writer.print(prefix + "#" + i + ": id=" + driverId);
+                writer.print(indent + "#" + i + ": id=" + driverId);
                 List<UserInfo> passengers = getPassengers(driverId);
                 int passengersSize = passengers.size();
                 writer.print(" NumberPassengers: " + passengersSize);
@@ -401,6 +441,106 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
     }
 
+    @Override
+    public void setLifecycleListenerForUid(IResultReceiver listener) {
+        int uid = Binder.getCallingUid();
+        checkInteractAcrossUsersPermission("setLifecycleListenerForUid" + uid);
+
+        try {
+            listener.asBinder().linkToDeath(() -> onListenerDeath(uid), 0);
+        } catch (RemoteException e) {
+            Log.wtf(TAG_USER, "Cannot listen to death of " + uid);
+        }
+        synchronized (mLockUser) {
+            mLifecycleListeners.append(uid, listener);
+        }
+    }
+
+    private void onListenerDeath(int uid) {
+        Log.i(TAG_USER, "Removing listeners for uid " + uid + " on binder death");
+        synchronized (mLockUser) {
+            removeLifecycleListenerLocked(uid);
+        }
+    }
+
+    @Override
+    public void resetLifecycleListenerForUid() {
+        int uid = Binder.getCallingUid();
+        checkInteractAcrossUsersPermission("resetLifecycleListenerForUid-" + uid);
+
+        synchronized (mLockUser) {
+            removeLifecycleListenerLocked(uid);
+        }
+    }
+
+    private void removeLifecycleListenerLocked(int uid) {
+        mLifecycleListeners.remove(uid);
+    }
+
+    @Override
+    public void getInitialUserInfo(int requestType, int timeoutMs,
+            @NonNull IResultReceiver receiver) {
+        UsersInfo usersInfo = getUsersInfo();
+        mHal.getInitialUserInfo(requestType, timeoutMs, usersInfo, (status, resp) -> {
+            try {
+                Bundle resultData = null;
+                if (resp != null) {
+                    switch (resp.action) {
+                        case InitialUserInfoResponseAction.SWITCH:
+                            resultData = new Bundle();
+                            resultData.putInt(BUNDLE_INITIAL_INFO_ACTION, resp.action);
+                            resultData.putInt(BUNDLE_USER_ID, resp.userToSwitchOrCreate.userId);
+                            break;
+                        case InitialUserInfoResponseAction.CREATE:
+                            resultData = new Bundle();
+                            resultData.putInt(BUNDLE_INITIAL_INFO_ACTION, resp.action);
+                            resultData.putInt(BUNDLE_USER_FLAGS, resp.userToSwitchOrCreate.flags);
+                            resultData.putString(BUNDLE_USER_NAME, resp.userNameToCreate);
+                            break;
+                        case InitialUserInfoResponseAction.DEFAULT:
+                            // do nothing
+                            break;
+                        default:
+                            // That's ok, it will be the same as DEFAULT...
+                            Log.w(TAG_USER, "invalid response action on " + resp);
+                    }
+                }
+                receiver.send(status, resultData);
+            } catch (RemoteException e) {
+                Log.w(TAG_USER, "Could not send result back to receiver", e);
+            }
+        });
+    }
+
+    // TODO(b/144120654): use helper to generate UsersInfo
+    private UsersInfo getUsersInfo() {
+        UserInfo currentUser;
+        try {
+            currentUser = mAm.getCurrentUser();
+        } catch (RemoteException e) {
+            // shouldn't happen
+            throw new IllegalStateException("Could not get current user: ", e);
+        }
+        List<UserInfo> existingUsers = mUserManager.getUsers();
+        int size = existingUsers.size();
+
+        UsersInfo usersInfo = new UsersInfo();
+        usersInfo.numberUsers = size;
+        usersInfo.currentUser.userId = currentUser.id;
+        usersInfo.currentUser.flags = UserHalHelper.convertFlags(currentUser);
+
+        for (int i = 0; i < size; i++) {
+            UserInfo androidUser = existingUsers.get(i);
+            android.hardware.automotive.vehicle.V2_0.UserInfo halUser =
+                    new android.hardware.automotive.vehicle.V2_0.UserInfo();
+            halUser.userId = androidUser.id;
+            halUser.flags = UserHalHelper.convertFlags(androidUser);
+            usersInfo.existingUsers.add(halUser);
+        }
+
+        return usersInfo;
+    }
+
     /** Returns whether the given user is a system user. */
     private static boolean isSystemUser(@UserIdInt int userId) {
         return userId == UserHandle.USER_SYSTEM;
@@ -608,9 +748,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      * @param userId User id of new user.
      */
     public void onSwitchUser(@UserIdInt int userId) {
-        TimingsTraceLog t = new TimingsTraceLog(TAG_USER,
-                Trace.TRACE_TAG_SYSTEM_SERVER);
+        Log.i(TAG_USER, "onSwitchUser() callback for user " + userId);
+        TimingsTraceLog t = new TimingsTraceLog(TAG_USER, Trace.TRACE_TAG_SYSTEM_SERVER);
         t.traceBegin("onSwitchUser-" + userId);
+
         if (!isSystemUser(userId)) {
             mCarUserManagerHelper.setLastActiveUser(userId);
         }
@@ -621,12 +762,52 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             setupPassengerUser();
             startFirstPassenger(userId);
         }
+
+        // TODO(b/144120654): right now just the app listeners are running in the background so the
+        // CTS tests pass (as otherwise they might fail if a car service callback takes too long),
+        // but once we refactor the car service callback into lifecycle listeners, we should use a
+        // proper thread management (like a Threadpool / executor);
+
+        int listenersSize = mLifecycleListeners.size();
+        if (listenersSize == 0) {
+            Log.i(TAG_USER, "Not notifying app listeners");
+        } else {
+            new Thread(() -> {
+                // Must use a different TimingsTraceLog because it's another thread
+                TimingsTraceLog t2 = new TimingsTraceLog(TAG_USER, Trace.TRACE_TAG_SYSTEM_SERVER);
+                Log.i(TAG_USER, "Notifying " + listenersSize + " listeners");
+                for (int i = 0; i < listenersSize; i++) {
+                    int uid = mLifecycleListeners.keyAt(i);
+                    IResultReceiver listener = mLifecycleListeners.valueAt(i);
+                    t2.traceBegin("notify-listener-" + uid);
+                    Bundle data = new Bundle();
+                    data.putInt(CarUserManager.BUNDLE_PARAM_ACTION,
+                            CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+                    // TODO(b/144120654): should pass currentId from CarServiceHelperService so it
+                    // can set BUNDLE_PARAM_PREVIOUS_USER_HANDLE
+                    if (Log.isLoggable(TAG_USER, Log.DEBUG)) {
+                        Log.d(TAG_USER, "Notifying listener for uid " + uid);
+                    }
+                    try {
+                        listener.send(userId, data);
+                    } catch (RemoteException e) {
+                        Log.e(TAG_USER, "Error calling lifecycle listener", e);
+                    } finally {
+                        t2.traceEnd();
+                    }
+                }
+
+            }, "SwitchUser-" + userId + "-Listeners").start();
+        }
+
+        Log.i(TAG_USER, "Notifying " + mUserCallbacks.size() + " callbacks");
         for (UserCallback callback : mUserCallbacks) {
-            t.traceBegin("onSwitchUser-" + callback.getClass().getSimpleName());
+            t.traceBegin("onSwitchUser-" + callback.getClass().getName());
             callback.onSwitchUser(userId);
             t.traceEnd();
         }
-        t.traceEnd();
+        t.traceEnd(); // onSwitchUser
+
     }
 
     /**
@@ -742,11 +923,16 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 android.Manifest.permission.DUMP);
     }
 
+    private void checkInteractAcrossUsersPermission(String message) {
+        checkAtLeastOnePermission(message, android.Manifest.permission.INTERACT_ACROSS_USERS,
+                android.Manifest.permission.INTERACT_ACROSS_USERS_FULL);
+    }
+
     private static void checkAtLeastOnePermission(String message, String...permissions) {
         int callingUid = Binder.getCallingUid();
         if (!hasAtLeastOnePermissionGranted(callingUid, permissions)) {
             throw new SecurityException("You need one of " + Arrays.toString(permissions)
-            + " to: " + message);
+                    + " to: " + message);
         }
     }
 

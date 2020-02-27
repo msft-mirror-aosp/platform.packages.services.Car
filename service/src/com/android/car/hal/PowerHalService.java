@@ -213,7 +213,7 @@ public class PowerHalService extends HalServiceBase {
      */
     public void sendSleepEntry(int wakeupTimeSec) {
         Log.i(CarLog.TAG_POWER, "send sleep entry");
-        setPowerState(VehicleApPowerStateReport.DEEP_SLEEP_ENTRY, wakeupTimeSec * 1000);
+        setPowerState(VehicleApPowerStateReport.DEEP_SLEEP_ENTRY, wakeupTimeSec);
     }
 
     /**
@@ -238,7 +238,7 @@ public class PowerHalService extends HalServiceBase {
      */
     public void sendShutdownStart(int wakeupTimeSec) {
         Log.i(CarLog.TAG_POWER, "send shutdown start");
-        setPowerState(VehicleApPowerStateReport.SHUTDOWN_START, wakeupTimeSec * 1000);
+        setPowerState(VehicleApPowerStateReport.SHUTDOWN_START, wakeupTimeSec);
     }
 
     /**
@@ -274,6 +274,10 @@ public class PowerHalService extends HalServiceBase {
             brightness = 0;
         } else if (brightness > 100) {
             brightness = 100;
+        }
+        VehiclePropConfig prop = mProperties.get(DISPLAY_BRIGHTNESS);
+        if (prop == null) {
+            return;
         }
         try {
             mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, 0).to(brightness);
@@ -385,7 +389,7 @@ public class PowerHalService extends HalServiceBase {
     }
 
     @Override
-    public void handleHalEvents(List<VehiclePropValue> values) {
+    public void onHalEvents(List<VehiclePropValue> values) {
         PowerEventListener listener;
         synchronized (mLock) {
             if (mListener == null) {

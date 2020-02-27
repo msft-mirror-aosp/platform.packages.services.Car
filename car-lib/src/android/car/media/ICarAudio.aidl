@@ -17,7 +17,7 @@
 package android.car.media;
 
 import android.car.media.CarAudioPatchHandle;
-import android.media.AudioDeviceAddress;
+import android.media.AudioDeviceAttributes;
 /**
  * Binder interface for {@link android.car.media.CarAudioManager}.
  * Check {@link android.car.media.CarAudioManager} APIs for expected behavior of each call.
@@ -52,7 +52,7 @@ interface ICarAudio {
 
     String getOutputDeviceAddressForUsage(int zoneId, int usage);
 
-    List<AudioDeviceAddress> getInputDevicesAddressesForZoneId(int zoneId);
+    List<AudioDeviceAttributes> getInputDevicesForZoneId(int zoneId);
     /**
      * IBinder is ICarVolumeCallback but passed as IBinder due to aidl hidden.
      */

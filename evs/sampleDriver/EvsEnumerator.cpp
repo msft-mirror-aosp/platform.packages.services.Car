@@ -45,6 +45,8 @@ wp<EvsGlDisplay>                                             EvsEnumerator::sAct
 std::mutex                                                   EvsEnumerator::sLock;
 std::condition_variable                                      EvsEnumerator::sCameraSignal;
 std::unique_ptr<ConfigManager>                               EvsEnumerator::sConfigManager;
+sp<IAutomotiveDisplayProxyService>                           EvsEnumerator::sDisplayProxy;
+std::unordered_map<uint8_t, uint64_t>                        EvsEnumerator::sDisplayPortList;
 
 // Constants
 const auto kEnumerationTimeout = 10s;
@@ -139,7 +141,7 @@ void EvsEnumerator::EvsUeventThread(std::atomic<bool>& running) {
     return;
 }
 
-EvsEnumerator::EvsEnumerator() {
+EvsEnumerator::EvsEnumerator(sp<IAutomotiveDisplayProxyService> proxyService) {
     ALOGD("EvsEnumerator created");
 
     if (sConfigManager == nullptr) {
@@ -148,10 +150,16 @@ EvsEnumerator::EvsEnumerator() {
             ConfigManager::Create("/vendor/etc/automotive/evs/evs_sample_configuration.xml");
     }
 
-    enumerateDevices();
+    if (sDisplayProxy == nullptr) {
+        /* sets a car-window service handle */
+        sDisplayProxy = proxyService;
+    }
+
+    enumerateCameras();
+    enumerateDisplays();
 }
 
-void EvsEnumerator::enumerateDevices() {
+void EvsEnumerator::enumerateCameras() {
     // For every video* entry in the dev folder, see if it reports suitable capabilities
     // WARNING:  Depending on the driver implementations this could be slow, especially if
     //           there are timeouts or round trips to hardware required to collect the needed
@@ -190,6 +198,28 @@ void EvsEnumerator::enumerateDevices() {
 
     ALOGI("Found %d qualified video capture devices of %d checked\n", captureCount, videoCount);
 }
+
+
+void EvsEnumerator::enumerateDisplays() {
+    ALOGI("%s: Starting display enumeration", __FUNCTION__);
+    if (!sDisplayProxy) {
+        ALOGE("AutomotiveDisplayProxyService is not available!");
+        return;
+    }
+
+    sDisplayProxy->getDisplayIdList(
+        [](const auto& displayIds) {
+            for (const auto& id : displayIds) {
+                const auto port = id & 0xF;
+                ALOGI("Display 0x%lX is detected on the port %ld", (unsigned long)id, (long)port);
+                sDisplayPortList.insert_or_assign(port, id);
+            }
+        }
+    );
+
+    ALOGI("Found %d displays", (int)sDisplayPortList.size());
+}
+
 
 // Methods from ::android::hardware::automotive::evs::V1_0::IEvsEnumerator follow.
 Return<void> EvsEnumerator::getCameraList(getCameraList_cb _hidl_cb)  {
@@ -284,7 +314,7 @@ Return<void> EvsEnumerator::closeCamera(const ::android::sp<IEvsCamera_1_0>& pCa
 }
 
 
-Return<sp<IEvsDisplay>> EvsEnumerator::openDisplay() {
+Return<sp<IEvsDisplay_1_0>> EvsEnumerator::openDisplay() {
     ALOGD("openDisplay");
     if (!checkPermission()) {
         return nullptr;
@@ -307,7 +337,7 @@ Return<sp<IEvsDisplay>> EvsEnumerator::openDisplay() {
 }
 
 
-Return<void> EvsEnumerator::closeDisplay(const ::android::sp<IEvsDisplay>& pDisplay) {
+Return<void> EvsEnumerator::closeDisplay(const ::android::sp<IEvsDisplay_1_0>& pDisplay) {
     ALOGD("closeDisplay");
 
     // Do we still have a display object we think should be active?
@@ -333,7 +363,7 @@ Return<EvsDisplayState> EvsEnumerator::getDisplayState()  {
     }
 
     // Do we still have a display object we think should be active?
-    sp<IEvsDisplay> pActiveDisplay = sActiveDisplay.promote();
+    sp<IEvsDisplay_1_0> pActiveDisplay = sActiveDisplay.promote();
     if (pActiveDisplay != nullptr) {
         return pActiveDisplay->getDisplayState();
     } else {
@@ -456,6 +486,43 @@ Return<sp<IEvsCamera_1_1>> EvsEnumerator::openCamera_1_1(const hidl_string& came
 }
 
 
+Return<void> EvsEnumerator::getDisplayIdList(getDisplayIdList_cb _list_cb) {
+    hidl_vec<uint8_t> ids;
+
+    ids.resize(sDisplayPortList.size());
+    unsigned i = 0;
+    for (const auto& [port, id] : sDisplayPortList) {
+        ids[i++] = port;
+    }
+
+    _list_cb(ids);
+    return Void();
+}
+
+
+Return<sp<IEvsDisplay_1_1>> EvsEnumerator::openDisplay_1_1(uint8_t port) {
+    ALOGD("%s", __FUNCTION__);
+    if (!checkPermission()) {
+        return nullptr;
+    }
+
+    // If we already have a display active, then we need to shut it down so we can
+    // give exclusive access to the new caller.
+    sp<EvsGlDisplay> pActiveDisplay = sActiveDisplay.promote();
+    if (pActiveDisplay != nullptr) {
+        ALOGW("Killing previous display because of new caller");
+        closeDisplay(pActiveDisplay);
+    }
+
+    // Create a new display interface and return it
+    pActiveDisplay = new EvsGlDisplay(sDisplayProxy, sDisplayPortList[port]);
+    sActiveDisplay = pActiveDisplay;
+
+    ALOGD("Returning new EvsGlDisplay object %p", pActiveDisplay.get());
+    return pActiveDisplay;
+}
+
+
 void EvsEnumerator::closeCamera_impl(const sp<IEvsCamera_1_0>& pCamera,
                                      const std::string& cameraId) {
     // Find the named camera
@@ -558,6 +625,29 @@ EvsEnumerator::CameraRecord* EvsEnumerator::findCameraById(const std::string& ca
     return nullptr;
 }
 
+
+// TODO(b/149874793): Add implementation for EVS Manager and Sample driver
+Return<void> EvsEnumerator::getUltrasonicsArrayList(getUltrasonicsArrayList_cb _hidl_cb) {
+    hidl_vec<UltrasonicsArrayDesc> ultrasonicsArrayDesc;
+    _hidl_cb(ultrasonicsArrayDesc);
+    return Void();
+}
+
+
+// TODO(b/149874793): Add implementation for EVS Manager and Sample driver
+Return<sp<IEvsUltrasonicsArray>> EvsEnumerator::openUltrasonicsArray(
+        const hidl_string& ultrasonicsArrayId) {
+    (void)ultrasonicsArrayId;
+    return sp<IEvsUltrasonicsArray>();
+}
+
+
+// TODO(b/149874793): Add implementation for EVS Manager and Sample driver
+Return<void> EvsEnumerator::closeUltrasonicsArray(
+        const ::android::sp<IEvsUltrasonicsArray>& evsUltrasonicsArray)  {
+    (void)evsUltrasonicsArray;
+    return Void();
+}
 
 } // namespace implementation
 } // namespace V1_1

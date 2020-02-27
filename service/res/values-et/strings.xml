@@ -64,21 +64,19 @@
     <string name="car_permission_desc_car_ux_restrictions_configuration" msgid="5711926927484813777">"Kasutuskogemuse piirangute seadistamine"</string>
     <string name="car_permission_label_car_handle_usb_aoap_device" msgid="72783989504378036">"AOAP-režiimis USB-seadmega suhtlemine"</string>
     <string name="car_permission_desc_car_handle_usb_aoap_device" msgid="273505990971317034">"Lubab rakendusel seadmega AOAP-režiimis suhelda"</string>
-    <!-- no translation found for car_permission_label_read_car_occupant_awareness_state (2159193236907855160) -->
-    <skip />
-    <!-- no translation found for car_permission_desc_read_car_occupant_awareness_state (8751783483050138428) -->
-    <skip />
-    <!-- no translation found for car_permission_label_control_car_occupant_awareness_system (892555160615735102) -->
-    <skip />
-    <!-- no translation found for car_permission_desc_control_car_occupant_awareness_system (7351274916809484681) -->
-    <skip />
+    <string name="car_permission_label_read_car_occupant_awareness_state" msgid="125517953575032758">"Lugemisega juurdepääs süsteemile Occupant Awareness System"</string>
+    <string name="car_permission_desc_read_car_occupant_awareness_state" msgid="188865882598414986">"Võimaldab lugeda süsteemi Occupant Awareness System oleku- ja tuvastamisandmeid"</string>
+    <string name="car_permission_label_control_car_occupant_awareness_system" msgid="7163330266691094542">"Süsteemi Occupant Awareness System graafiku juhtimine"</string>
+    <string name="car_permission_desc_control_car_occupant_awareness_system" msgid="7123482622084531911">"Võimaldab juhtida süsteemi Occupant Awareness System tuvastamisgraafiku käivitamist ja peatamist"</string>
     <string name="car_permission_label_bind_input_service" msgid="6698489034024273750">"Auto sisendteenus"</string>
     <string name="car_permission_desc_bind_input_service" msgid="1670323419931890170">"Sisestussündmuste töötlemine"</string>
     <string name="car_can_bus_failure" msgid="2334035748788283914">"CAN-siin ebaõnnestus"</string>
     <string name="car_can_bus_failure_desc" msgid="4125516222786484733">"CAN-siin ei reageeri. Eemaldage autoraadio üksus ja pange see tagasi ning taaskäivitage auto"</string>
-    <string name="activity_blocked_text" msgid="5342114426610711378">"Teie turvalisuse tõttu ei ole see toiming sõitmise ajal saadaval.\nJätkamiseks oodake, kuni olete parkinud."</string>
+    <string name="activity_blocked_text" msgid="8088902789540147995">"Te ei saa seda funktsiooni sõidu ajal kasutada"</string>
     <string name="exit_button_message" msgid="8554690915924055685">"Uuesti alustamiseks turvaliste rakenduste funktsioonidega valige <xliff:g id="EXIT_BUTTON">%s</xliff:g>."</string>
     <string name="exit_button" msgid="5829638404777671253">"Tagasi"</string>
+    <string name="exit_button_close_application" msgid="8824289547809332460">"Sule rakendus"</string>
+    <string name="exit_button_go_back" msgid="3469083862100560326">"Tagasi"</string>
     <string name="car_permission_label_diag_read" msgid="7248894224877702604">"diagnostikaandmete lugemine"</string>
     <string name="car_permission_desc_diag_read" msgid="1121426363040966178">"Auto diagnostikaandmete lugemine."</string>
     <string name="car_permission_label_diag_clear" msgid="4783070510879698157">"diagnostikaandmete kustutamine"</string>
@@ -97,6 +95,8 @@
     <string name="car_permission_desc_car_engine_detailed" msgid="1746863362811347700">"Juurdepääs auto üksikasjalikule mootoriteabele."</string>
     <string name="car_permission_label_car_energy_ports" msgid="8548990315169219454">"juurdepääs auto kütusepaagi luugile ja avale"</string>
     <string name="car_permission_desc_car_energy_ports" msgid="7771185999828794949">"Juurdepääs auto kütusepaagi luugile ja avale."</string>
+    <string name="car_permission_label_control_car_energy_ports" msgid="4375137311026313475">"auto kütusepaagi luugi ja ava juhtimine"</string>
+    <string name="car_permission_desc_control_car_energy_ports" msgid="7364633710492525387">"Auto kütusepaagi luugi ja ava juhtimine."</string>
     <string name="car_permission_label_car_identification" msgid="5896712510164020478">"auto tuvastamisteabe lugemine"</string>
     <string name="car_permission_desc_car_identification" msgid="4132040867171275059">"Juurdepääs auto tuvastamisteabele."</string>
     <string name="car_permission_label_control_car_doors" msgid="3032058819250195700">"autouste juhtimine"</string>

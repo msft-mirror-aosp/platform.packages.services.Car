@@ -187,37 +187,36 @@ static GLuint buildShaderProgram(const char* vtxSrc, const char* pxlSrc) {
 
 
 // Main entry point
-bool GlWrapper::initialize() {
+bool GlWrapper::initialize(sp<IAutomotiveDisplayProxyService> pWindowProxy,
+                           uint64_t displayId) {
     ALOGD("%s", __FUNCTION__);
 
-    mCarWindowService = ICarWindowService::getService("default");
-    if (mCarWindowService == nullptr) {
-        ALOGE("Could not get ICarWindowService.");
+    if (pWindowProxy == nullptr) {
+        ALOGE("Could not get IAutomotiveDisplayProxyService.");
         return false;
     }
 
-    mGfxBufferProducer = mCarWindowService->getIGraphicBufferProducer();
-    if (mGfxBufferProducer == nullptr) {
-        ALOGE("Failed to get IGraphicBufferProducer from ICarWindowService.");
-        return false;
-    }
+    // We will use the first display in the list as the primary.
+    pWindowProxy->getDisplayInfo(displayId, [this](auto dpyConfig, auto dpyState) {
+        DisplayConfig *pConfig = (DisplayConfig*)dpyConfig.data();
+        mWidth = pConfig->resolution.getWidth();
+        mHeight = pConfig->resolution.getHeight();
 
-    mCarWindowService->getDisplayInfo(
-        [this](auto dpyCfg, auto dpyState) {
-            DisplayConfig *pCfg = (DisplayConfig*)dpyCfg.data();
-            mWidth = pCfg->resolution.getWidth();
-            mHeight = pCfg->resolution.getHeight();
-
-            android::ui::DisplayState *pState = (android::ui::DisplayState*)dpyState.data();
-            if ((pState->orientation != ui::ROTATION_0) &&
-                (pState->orientation != ui::ROTATION_180)) {
-                // rotate
-                std::swap(mWidth, mHeight);
-            }
-
-            ALOGD("Display resolution is %d x %d", mWidth, mHeight);
+        ui::DisplayState* pState = (ui::DisplayState*)dpyState.data();
+        if (pState->orientation != ui::ROTATION_0 &&
+            pState->orientation != ui::ROTATION_180) {
+            // rotate
+            std::swap(mWidth, mHeight);
         }
-    );
+
+        ALOGD("Display resolution is %d x %d", mWidth, mHeight);
+    });
+
+    mGfxBufferProducer = pWindowProxy->getIGraphicBufferProducer(displayId);
+    if (mGfxBufferProducer == nullptr) {
+        ALOGE("Failed to get IGraphicBufferProducer from IAutomotiveDisplayProxyService.");
+        return false;
+    }
 
     mSurfaceHolder = getSurfaceFromHGBP(mGfxBufferProducer);
     if (mSurfaceHolder == nullptr) {
@@ -336,20 +335,20 @@ void GlWrapper::shutdown() {
 }
 
 
-void GlWrapper::showWindow() {
-    if (mCarWindowService != nullptr) {
-        mCarWindowService->showWindow();
+void GlWrapper::showWindow(sp<IAutomotiveDisplayProxyService>& pWindowProxy, uint64_t id) {
+    if (pWindowProxy != nullptr) {
+        pWindowProxy->showWindow(id);
     } else {
-        ALOGE("ICarWindowService is not available.");
+        ALOGE("IAutomotiveDisplayProxyService is not available.");
     }
 }
 
 
-void GlWrapper::hideWindow() {
-    if (mCarWindowService != nullptr) {
-        mCarWindowService->hideWindow();
+void GlWrapper::hideWindow(sp<IAutomotiveDisplayProxyService>& pWindowProxy, uint64_t id) {
+    if (pWindowProxy != nullptr) {
+        pWindowProxy->hideWindow(id);
     } else {
-        ALOGE("ICarWindowService is not available.");
+        ALOGE("IAutomotiveDisplayProxyService is not available.");
     }
 }
 

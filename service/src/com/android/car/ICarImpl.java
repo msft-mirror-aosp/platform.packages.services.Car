@@ -25,6 +25,7 @@ import android.car.Car;
 import android.car.CarFeatures;
 import android.car.ICar;
 import android.car.cluster.renderer.IInstrumentClusterNavigation;
+import android.car.user.CarUserManager;
 import android.car.userlib.CarUserManagerHelper;
 import android.content.ComponentName;
 import android.content.Context;
@@ -32,6 +33,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.hardware.automotive.vehicle.V2_0.IVehicle;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
+import android.hardware.automotive.vehicle.V2_0.UsersInfo;
 import android.hardware.automotive.vehicle.V2_0.VehicleArea;
 import android.os.Binder;
 import android.os.Build;
@@ -54,6 +57,9 @@ import com.android.car.audio.CarAudioService;
 import com.android.car.cluster.InstrumentClusterService;
 import com.android.car.garagemode.GarageModeService;
 import com.android.car.hal.InputHalService;
+import com.android.car.hal.UserHalHelper;
+import com.android.car.hal.UserHalService;
+import com.android.car.hal.UserHalService.HalCallback;
 import com.android.car.hal.VehicleHal;
 import com.android.car.pm.CarPackageManagerService;
 import com.android.car.stats.CarStatsService;
@@ -61,8 +67,8 @@ import com.android.car.systeminterface.SystemInterface;
 import com.android.car.trust.CarTrustedDeviceService;
 import com.android.car.user.CarUserNoticeService;
 import com.android.car.user.CarUserService;
-import com.android.car.vms.VmsBrokerService;
-import com.android.car.vms.VmsClientManager;
+import com.android.car.user.UserMetrics;
+import com.android.car.vms.VmsNewBrokerService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.ICarServiceHelper;
@@ -73,13 +79,14 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class ICarImpl extends ICar.Stub {
 
     public static final String INTERNAL_INPUT_SERVICE = "internal_input";
     public static final String INTERNAL_SYSTEM_ACTIVITY_MONITORING_SERVICE =
             "system_activity_monitoring";
-    public static final String INTERNAL_VMS_MANAGER = "vms_manager";
 
     private final Context mContext;
     private final VehicleHal mHal;
@@ -116,10 +123,7 @@ public class ICarImpl extends ICar.Stub {
     private final CarUserService mCarUserService;
     private final CarOccupantZoneService mCarOccupantZoneService;
     private final CarUserNoticeService mCarUserNoticeService;
-    private final VmsClientManager mVmsClientManager;
-    private final VmsBrokerService mVmsBrokerService;
-    private final VmsSubscriberService mVmsSubscriberService;
-    private final VmsPublisherService mVmsPublisherService;
+    private final VmsNewBrokerService mVmsBrokerService;
     private final CarBugreportManagerService mCarBugreportManagerService;
     private final CarStatsService mCarStatsService;
     private final CarExperimentalFeatureServiceController mCarExperimentalFeatureServiceController;
@@ -139,6 +143,8 @@ public class ICarImpl extends ICar.Stub {
     private ICarServiceHelper mICarServiceHelper;
 
     private final String mVehicleInterfaceName;
+
+    private final UserMetrics mUserMetrics = new UserMetrics();
 
     public ICarImpl(Context serviceContext, IVehicle vehicle, SystemInterface systemInterface,
             CanBusErrorNotifier errorNotifier, String vehicleInterfaceName) {
@@ -171,8 +177,8 @@ public class ICarImpl extends ICar.Stub {
                     (UserManager) serviceContext.getSystemService(Context.USER_SERVICE);
             int maxRunningUsers = res.getInteger(
                     com.android.internal.R.integer.config_multiuserMaxRunningUsers);
-            mCarUserService = new CarUserService(serviceContext, mUserManagerHelper, userManager,
-                    ActivityManager.getService(), maxRunningUsers);
+            mCarUserService = new CarUserService(serviceContext, mHal.getUserHal(),
+                    mUserManagerHelper, userManager, ActivityManager.getService(), maxRunningUsers);
         }
         mCarOccupantZoneService = new CarOccupantZoneService(serviceContext);
         mSystemActivityMonitoringService = new SystemActivityMonitoringService(serviceContext);
@@ -212,21 +218,11 @@ public class ICarImpl extends ICar.Stub {
                 serviceContext, mCarAudioService, this);
         mCarStatsService = new CarStatsService(serviceContext);
         mCarStatsService.init();
-        if (mFeatureController.isFeatureEnabled(Car.VMS_SUBSCRIBER_SERVICE)) {
-            mVmsBrokerService = new VmsBrokerService();
-            mVmsClientManager = new VmsClientManager(
-                    // CarStatsService needs to be passed to the constructor due to HAL init order
-                    serviceContext, mCarStatsService, mCarUserService, mVmsBrokerService,
-                    mHal.getVmsHal());
-            mVmsSubscriberService = new VmsSubscriberService(
-                    serviceContext, mVmsBrokerService, mVmsClientManager, mHal.getVmsHal());
-            mVmsPublisherService = new VmsPublisherService(
-                    serviceContext, mCarStatsService, mVmsBrokerService, mVmsClientManager);
+        if (mFeatureController.isFeatureEnabled(Car.VEHICLE_MAP_SERVICE)
+                || mFeatureController.isFeatureEnabled(Car.VMS_SUBSCRIBER_SERVICE)) {
+            mVmsBrokerService = new VmsNewBrokerService(mContext, mCarStatsService);
         } else {
             mVmsBrokerService = null;
-            mVmsClientManager = null;
-            mVmsSubscriberService = null;
-            mVmsPublisherService = null;
         }
         if (mFeatureController.isFeatureEnabled(Car.DIAGNOSTIC_SERVICE)) {
             mCarDiagnosticService = new CarDiagnosticService(serviceContext,
@@ -261,6 +257,7 @@ public class ICarImpl extends ICar.Stub {
         CarLocalServices.addService(CarDrivingStateService.class, mCarDrivingStateService);
         CarLocalServices.addService(PerUserCarServiceHelper.class, mPerUserCarServiceHelper);
         CarLocalServices.addService(FixedActivityService.class, mFixedActivityService);
+        CarLocalServices.addService(VmsNewBrokerService.class, mVmsBrokerService);
 
         // Be careful with order. Service depending on other service should be inited later.
         List<CarServiceBase> allServices = new ArrayList<>();
@@ -289,9 +286,7 @@ public class ICarImpl extends ICar.Stub {
         addServiceIfNonNull(allServices, mCarDiagnosticService);
         addServiceIfNonNull(allServices, mCarStorageMonitoringService);
         allServices.add(mCarConfigurationService);
-        addServiceIfNonNull(allServices, mVmsClientManager);
-        addServiceIfNonNull(allServices, mVmsSubscriberService);
-        addServiceIfNonNull(allServices, mVmsPublisherService);
+        addServiceIfNonNull(allServices, mVmsBrokerService);
         allServices.add(mCarTrustedDeviceService);
         allServices.add(mCarMediaService);
         allServices.add(mCarLocationService);
@@ -357,6 +352,17 @@ public class ICarImpl extends ICar.Stub {
 
         Log.i(TAG, "Foreground user switched to " + userId);
         mCarUserService.onSwitchUser(userId);
+    }
+
+    // TODO(b/146207078): this method is currently used just for metrics logging purposes, but we
+    // should fold the other too (onSwitchUser() and setUserLockStatus()) onto it.
+    @Override
+    public void onUserLifecycleEvent(int eventType, long timestampMs, int fromUserId,
+            int toUserId) {
+        assertCallingFromSystemProcess();
+        Log.i(TAG, "onUserLifecycleEvent(" + CarUserManager.lifecycleEventTypeToString(eventType)
+                + ", " + toUserId);
+        mUserMetrics.onEvent(eventType, timestampMs, fromUserId, toUserId);
     }
 
     @Override
@@ -458,9 +464,12 @@ public class ICarImpl extends ICar.Stub {
                 return mInstrumentClusterService.getManagerService();
             case Car.PROJECTION_SERVICE:
                 return mCarProjectionService;
+            case Car.VEHICLE_MAP_SERVICE:
+                assertAnyVmsPermission(mContext);
+                return mVmsBrokerService;
             case Car.VMS_SUBSCRIBER_SERVICE:
                 assertVmsSubscriberPermission(mContext);
-                return mVmsSubscriberService;
+                return mVmsBrokerService;
             case Car.TEST_SERVICE: {
                 assertPermission(mContext, Car.PERMISSION_CAR_TEST_SERVICE);
                 synchronized (this) {
@@ -519,9 +528,6 @@ public class ICarImpl extends ICar.Stub {
                 return mCarInputService;
             case INTERNAL_SYSTEM_ACTIVITY_MONITORING_SERVICE:
                 return mSystemActivityMonitoringService;
-            // TODO(b/144027497): temporary until tests are refactored to not use it
-            case INTERNAL_VMS_MANAGER:
-                return mVmsClientManager;
             default:
                 Log.w(CarLog.TAG_SERVICE, "getCarInternalService for unknown service:" +
                         serviceName);
@@ -562,6 +568,16 @@ public class ICarImpl extends ICar.Stub {
 
     public static void assertDrivingStatePermission(Context context) {
         assertPermission(context, Car.PERMISSION_CAR_DRIVING_STATE);
+    }
+
+    /**
+     * Verify the calling context has either {@link Car#PERMISSION_VMS_SUBSCRIBER} or
+     * {@link Car#PERMISSION_VMS_PUBLISHER}
+     */
+    public static void assertAnyVmsPermission(Context context) {
+        assertAnyPermission(context,
+                Car.PERMISSION_VMS_SUBSCRIBER,
+                Car.PERMISSION_VMS_PUBLISHER);
     }
 
     public static void assertVmsPublisherPermission(Context context) {
@@ -617,19 +633,9 @@ public class ICarImpl extends ICar.Stub {
 
         if (args == null || args.length == 0 || (args.length > 0 && "-a".equals(args[0]))) {
             writer.println("*Dump car service*");
-            writer.println("*Dump all services*");
-
             dumpAllServices(writer);
-
-            writer.println("*Dump Vehicle HAL*");
-            writer.println("Vehicle HAL Interface: " + mVehicleInterfaceName);
-            try {
-                // TODO dump all feature flags by creating a dumpable interface
-                mHal.dump(writer);
-            } catch (Exception e) {
-                writer.println("Failed dumping: " + mHal.getClass().getName());
-                e.printStackTrace(writer);
-            }
+            dumpAllHals(writer);
+            mUserMetrics.dump(writer);
         } else if ("--list".equals(args[0])) {
             dumpListOfServices(writer);
             return;
@@ -649,11 +655,66 @@ public class ICarImpl extends ICar.Stub {
             mCarStatsService.dump(fd, writer, Arrays.copyOfRange(args, 1, args.length));
         } else if ("--vms-hal".equals(args[0])) {
             mHal.getVmsHal().dumpMetrics(fd);
+        } else if ("--hal".equals(args[0])) {
+            if (args.length == 1) {
+                dumpAllHals(writer);
+                return;
+            }
+            int length = args.length - 1;
+            String[] halNames = new String[length];
+            System.arraycopy(args, 1, halNames, 0, length);
+            mHal.dumpSpecificHals(writer, halNames);
+
+        } else if ("--list-hals".equals(args[0])) {
+            mHal.dumpListHals(writer);
+            return;
+        } else if ("--user-metrics".equals(args[0])) {
+            mUserMetrics.dump(writer);
+        } else if ("--help".equals(args[0])) {
+            showDumpHelp(writer);
         } else if (Build.IS_USERDEBUG || Build.IS_ENG) {
             execShellCmd(args, writer);
         } else {
             writer.println("Commands not supported in " + Build.TYPE);
         }
+    }
+
+    private void dumpAllHals(PrintWriter writer) {
+        writer.println("*Dump Vehicle HAL*");
+        writer.println("Vehicle HAL Interface: " + mVehicleInterfaceName);
+        try {
+            // TODO dump all feature flags by creating a dumpable interface
+            mHal.dump(writer);
+        } catch (Exception e) {
+            writer.println("Failed dumping: " + mHal.getClass().getName());
+            e.printStackTrace(writer);
+        }
+    }
+
+    private void showDumpHelp(PrintWriter writer) {
+        writer.println("Car service dump usage:");
+        writer.println("[NO ARG]");
+        writer.println("\t  dumps everything (all services and HALs)");
+        writer.println("--help");
+        writer.println("\t  shows this help");
+        writer.println("--list");
+        writer.println("\t  lists the name of all services");
+        writer.println("--list-hals");
+        writer.println("\t  lists the name of all HALs");
+        writer.println("--services <SVC1> [SVC2] [SVCN]");
+        writer.println("\t  dumps just the specific services, where SVC is just the service class");
+        writer.println("\t  name (like CarUserService)");
+        writer.println("--vms-hal");
+        writer.println("\t  dumps the VMS HAL metrics");
+        writer.println("--hal [HAL1] [HAL2] [HALN]");
+        writer.println("\t  dumps just the specified HALs (or all of them if none specified),");
+        writer.println("\t  where HAL is just the class name (like UserHalService)");
+        writer.println("--user-metrics");
+        writer.println("\t  dumps user switching and stopping metrics ");
+        writer.println("-h");
+        writer.println("\t  shows commands usage (NOTE: commands are not available on USER builds");
+        writer.println("[ANYTHING ELSE]");
+        writer.println("\t  runs the given command (use --h to see the available commands)");
     }
 
     @Override
@@ -670,6 +731,7 @@ public class ICarImpl extends ICar.Stub {
     }
 
     private void dumpAllServices(PrintWriter writer) {
+        writer.println("*Dump all services*");
         for (CarServiceBase service : mAllServices) {
             dumpService(service, writer);
         }
@@ -744,6 +806,7 @@ public class ICarImpl extends ICar.Stub {
         private static final String COMMAND_ENABLE_FEATURE = "enable-feature";
         private static final String COMMAND_DISABLE_FEATURE = "disable-feature";
         private static final String COMMAND_INJECT_KEY = "inject-key";
+        private static final String COMMAND_GET_INITIAL_USER_INFO = "get-initial-user-info";
 
         private static final String PARAM_DAY_MODE = "day";
         private static final String PARAM_NIGHT_MODE = "night";
@@ -752,6 +815,7 @@ public class ICarImpl extends ICar.Stub {
         private static final String PARAM_ON_MODE = "on";
         private static final String PARAM_OFF_MODE = "off";
         private static final String PARAM_QUERY_MODE = "query";
+        private static final String PARAM_REBOOT = "reboot";
 
         private static final int RESULT_OK = 0;
         private static final int RESULT_ERROR = -1; // Arbitrary value, any non-0 is fine
@@ -794,8 +858,9 @@ public class ICarImpl extends ICar.Stub {
             pw.println("\t  Inject an error event from VHAL for testing.");
             pw.println("\tenable-uxr true|false");
             pw.println("\t  Enable/Disable UX restrictions and App blocking.");
-            pw.println("\tgarage-mode [on|off|query]");
-            pw.println("\t  Force into garage mode or check status.");
+            pw.println("\tgarage-mode [on|off|query|reboot]");
+            pw.println("\t  Force into or out of garage mode, or check status.");
+            pw.println("\t  With 'reboot', enter garage mode, then reboot when it completes.");
             pw.println("\tget-do-activities pkgname");
             pw.println("\t  Get Distraction Optimized activities in given package.");
             pw.println("\tget-carpropertyconfig [propertyId]");
@@ -817,7 +882,7 @@ public class ICarImpl extends ICar.Stub {
             pw.println("\t--metrics");
             pw.println("\t  When used with dumpsys, only metrics will be in the dumpsys output.");
             pw.println("\tset-zoneid-for-uid [zoneid] [uid]");
-            pw.println("\t Maps the audio zoneid to uid.");
+            pw.println("\t  Maps the audio zoneid to uid.");
             pw.println("\tstart-fixed-activity displayId packageName activityName");
             pw.println("\t  Start an Activity the specified display as fixed mode");
             pw.println("\tstop-fixed-mode displayId");
@@ -835,6 +900,12 @@ public class ICarImpl extends ICar.Stub {
             pw.println("\t  down_delay_ms: delay from down to up key event. If not specified,");
             pw.println("\t                 it will be 0");
             pw.println("\t  key_code: int key code defined in android KeyEvent");
+            pw.printf("\t%s <REQ_TYPE> [--timeout TIMEOUT_MS]\n", COMMAND_GET_INITIAL_USER_INFO);
+            pw.println("\t  Calls the Vehicle HAL to get the initial boot info, passing the given");
+            pw.println("\t  REQ_TYPE (which could be either FIRST_BOOT, FIRST_BOOT_AFTER_OTA, ");
+            pw.println("\t  COLD_BOOT, RESUME, or any numeric value that would be passed 'as-is')");
+            pw.println("\t  and an optional TIMEOUT_MS to wait for the HAL response (if not set,");
+            pw.println("\t  it will use a  default value).");
         }
 
         private int dumpInvalidArguments(PrintWriter pw) {
@@ -946,7 +1017,7 @@ public class ICarImpl extends ICar.Stub {
                     writer.println("Resume: Simulating resuming from Deep Sleep");
                     break;
                 case COMMAND_SUSPEND:
-                    mCarPowerManagementService.forceSimulatedSuspend();
+                    mCarPowerManagementService.forceSuspendAndMaybeReboot(false);
                     writer.println("Resume: Simulating powering down to Deep Sleep");
                     break;
                 case COMMAND_ENABLE_TRUSTED_DEVICE:
@@ -995,6 +1066,9 @@ public class ICarImpl extends ICar.Stub {
                         return dumpInvalidArguments(writer);
                     }
                     handleInjectKey(args, writer);
+                    break;
+                case COMMAND_GET_INITIAL_USER_INFO:
+                    handleGetInitialUserInfo(args, writer);
                     break;
                 default:
                     writer.println("Unknown command: \"" + arg + "\"");
@@ -1144,6 +1218,78 @@ public class ICarImpl extends ICar.Stub {
             writer.println("Succeeded");
         }
 
+        private void handleGetInitialUserInfo(String[] args, PrintWriter writer) {
+            if (args.length < 2) {
+                writer.println("Insufficient number of args");
+                return;
+            }
+
+            // Gets the request type
+            String typeArg = args[1];
+            int requestType = UserHalHelper.parseInitialUserInfoRequestType(typeArg);
+
+            int timeout = 1_000;
+            for (int i = 2; i < args.length; i++) {
+                String arg = args[i];
+                switch (arg) {
+                    case "--timeout":
+                        timeout = Integer.parseInt(args[++i]);
+                        break;
+                    default:
+                        writer.println("Invalid option at index " + i + ": " + arg);
+                        return;
+
+                }
+            }
+
+            Log.d(TAG, "handleGetInitialUserInfo(): type=" + requestType + " (" + typeArg
+                    + "), timeout=" + timeout);
+
+            UserHalService userHal = mHal.getUserHal();
+            // TODO(b/146207078): use UserHalHelper to populate it with current users
+            UsersInfo usersInfo = new UsersInfo();
+            CountDownLatch latch = new CountDownLatch(1);
+
+            userHal.getInitialUserInfo(requestType, timeout, usersInfo, (status, resp) -> {
+                try {
+                    Log.d(TAG, "GetUserInfoResponse: status=" + status + ", resp=" + resp);
+                    writer.printf("Status: %s\n", UserHalHelper.halCallbackStatusToString(status));
+                    if (status != HalCallback.STATUS_OK) {
+                        return;
+                    }
+                    writer.printf("Request id: %d\n", resp.requestId);
+                    writer.printf("Action: ");
+                    switch (resp.action) {
+                        case InitialUserInfoResponseAction.DEFAULT:
+                            writer.println("default");
+                            break;
+                        case InitialUserInfoResponseAction.SWITCH:
+                            writer.printf("switch to user %d\n", resp.userToSwitchOrCreate.userId);
+                            break;
+                        case InitialUserInfoResponseAction.CREATE:
+                            writer.printf("create user: name=%s, flags=%d\n", resp.userNameToCreate,
+                                    resp.userToSwitchOrCreate.flags);
+                            break;
+                        default:
+                            writer.printf("unknown (%d)\n", resp.action);
+                            break;
+                    }
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            try {
+                if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+                    writer.printf("HAL didn't respond in %dms\n", timeout);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                writer.println("Interrupted waiting for HAL");
+            }
+            return;
+        }
+
         private void forceDayNightMode(String arg, PrintWriter writer) {
             int mode;
             switch (arg) {
@@ -1180,19 +1326,25 @@ public class ICarImpl extends ICar.Stub {
         private void forceGarageMode(String arg, PrintWriter writer) {
             switch (arg) {
                 case PARAM_ON_MODE:
+                    mSystemInterface.setDisplayState(false);
                     mGarageModeService.forceStartGarageMode();
                     writer.println("Garage mode: " + mGarageModeService.isGarageModeActive());
                     break;
                 case PARAM_OFF_MODE:
+                    mSystemInterface.setDisplayState(true);
                     mGarageModeService.stopAndResetGarageMode();
                     writer.println("Garage mode: " + mGarageModeService.isGarageModeActive());
                     break;
                 case PARAM_QUERY_MODE:
                     mGarageModeService.dump(writer);
                     break;
+                case PARAM_REBOOT:
+                    mCarPowerManagementService.forceSuspendAndMaybeReboot(true);
+                    writer.println("Entering Garage Mode. Will reboot when it completes.");
+                    break;
                 default:
                     writer.println("Unknown value. Valid argument: " + PARAM_ON_MODE + "|"
-                            + PARAM_OFF_MODE + "|" + PARAM_QUERY_MODE);
+                            + PARAM_OFF_MODE + "|" + PARAM_QUERY_MODE + "|" + PARAM_REBOOT);
             }
         }
 
