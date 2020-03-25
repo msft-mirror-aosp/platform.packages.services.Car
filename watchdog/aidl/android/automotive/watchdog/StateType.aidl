@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,27 @@
  * limitations under the License.
  */
 
-package android.car.watchdog;
+package android.automotive.watchdog;
 
-import android.automotive.watchdog.ICarWatchdogClient;
-import android.automotive.watchdog.TimeoutLength;
+/**
+ * Used by ICarWatchdog to describe the change type.
+ */
 
-/** @hide */
-interface ICarWatchdogService {
-    // registerClient needs to get callingPid, so cannot be oneway.
-    void registerClient(in ICarWatchdogClient client, in TimeoutLength timeout);
-    void unregisterClient(in ICarWatchdogClient client);
-    void tellClientAlive(in ICarWatchdogClient client, in int sessionId);
+@VintfStability
+@Backing(type="int")
+enum StateType {
+  /**
+   * Device power status change.
+   */
+  POWER_CYCLE,
+
+  /**
+   * User state change.
+   */
+  USER_STATE,
+
+  /**
+   * Boot phase change.
+   */
+  BOOT_PHASE,
 }

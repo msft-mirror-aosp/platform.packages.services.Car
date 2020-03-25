@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-package android.car.watchdog;
+package android.automotive.watchdog;
 
-import android.automotive.watchdog.ICarWatchdogClient;
-import android.automotive.watchdog.TimeoutLength;
+/**
+ * Used by ICarWatchdog to describe the boot phase.
+ */
 
-/** @hide */
-interface ICarWatchdogService {
-    // registerClient needs to get callingPid, so cannot be oneway.
-    void registerClient(in ICarWatchdogClient client, in TimeoutLength timeout);
-    void unregisterClient(in ICarWatchdogClient client);
-    void tellClientAlive(in ICarWatchdogClient client, in int sessionId);
+@VintfStability
+@Backing(type="int")
+enum BootPhase {
+  /**
+   * Boot completed and the home application has started.
+   */
+  BOOT_COMPLETED = 1000,
 }
