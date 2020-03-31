@@ -41,6 +41,7 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponse;
 import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
+import android.hardware.automotive.vehicle.V2_0.SwitchUserStatus;
 import android.hardware.automotive.vehicle.V2_0.UsersInfo;
 import android.location.LocationManager;
 import android.os.Binder;
@@ -537,6 +538,65 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     /**
+     * Calls the User HAL to switch user.
+     *
+     * @param targetUser - target user info
+     * @param timeoutMs - timeout for HAL to wait
+     * @param receiver - receiver for the results
+     */
+    public void switchUser(@NonNull UserInfo targetUser, int timeoutMs,
+            @NonNull IResultReceiver receiver) {
+        checkManageUsersPermission("switchUser");
+        UsersInfo usersInfo = getUsersInfo();
+        android.hardware.automotive.vehicle.V2_0.UserInfo halUser =
+                new android.hardware.automotive.vehicle.V2_0.UserInfo();
+        halUser.userId = targetUser.id;
+        halUser.flags = UserHalHelper.convertFlags(targetUser);
+        mHal.switchUser(halUser, timeoutMs, usersInfo, (status, resp) -> {
+            Bundle resultData = null;
+            resultData = new Bundle();
+            resultData.putInt(CarUserManager.BUNDLE_USER_SWITCH_STATUS, resp.status);
+            resultData.putInt(CarUserManager.BUNDLE_USER_SWITCH_MSG_TYPE, resp.messageType);
+            int resultStatus = CarUserManager.USER_SWICTH_STATUS_UNKNOWN;
+            if (resp != null) {
+                switch (resp.status) {
+                    case SwitchUserStatus.SUCCESS:
+                        boolean result;
+                        try {
+                            result = mAm.switchUser(targetUser.id);
+                            // TODO(b/150409110): post user switch OK/FAIL to Hal using
+                            // ANDROID_POST_SWITCH
+                            if (result) {
+                                resultStatus = CarUserManager.USER_SWICTH_STATUS_SUCCESSFUL;
+                            } else {
+                                resultStatus = CarUserManager.USER_SWICTH_STATUS_ANDROID_FAILURE;
+                            }
+                        } catch (RemoteException e) {
+                            // ignore
+                            Log.w(TAG_USER,
+                                    "error while switching user " + targetUser.toFullString(), e);
+                        }
+                        break;
+                    case SwitchUserStatus.FAILURE:
+                        // HAL failed to switch user
+                        resultStatus = CarUserManager.USER_SWICTH_STATUS_HAL_FAILURE;
+                        if (resp.errorMessage != null) {
+                            resultData.putString(CarUserManager.BUNDLE_USER_SWITCH_ERROR_MSG,
+                                    resp.errorMessage);
+                        }
+                        break;
+                }
+                try {
+                    receiver.send(resultStatus, resultData);
+                } catch (RemoteException e) {
+                    // ignore
+                    Log.w(TAG_USER, "error while sending results", e);
+                }
+            }
+        });
+    }
+
+    /**
      * Checks if the User HAL is supported.
      */
     public boolean isUserHalSupported() {
@@ -643,12 +703,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     public void setUserLockStatus(@UserIdInt int userId, boolean unlocked) {
         TimingsTraceLog t = new TimingsTraceLog(TAG_USER,
                 Trace.TRACE_TAG_SYSTEM_SERVER);
-        // TODO(b/152043575): we should overload the UserLifecycleEvent constructor with a
-        //     /* hidden */ method that takes int userId directly.
-        notifyUserLifecycleListeners(t, new UserLifecycleEvent(
-                CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
-                /* from= */ null,
-                /* to= */ UserHandle.of(userId)));
+        notifyUserLifecycleListeners(t,
+                new UserLifecycleEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, userId));
 
         if (!unlocked) { // nothing else to do when it is locked back.
             return;
@@ -821,7 +877,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                     data.putInt(CarUserManager.BUNDLE_PARAM_ACTION,
                             CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
                     // TODO(b/144120654): should pass currentId from CarServiceHelperService so it
-                    // can set BUNDLE_PARAM_PREVIOUS_USER_HANDLE
+                    // can set BUNDLE_PARAM_PREVIOUS_USER_ID (and unit test it)
                     if (Log.isLoggable(TAG_USER, Log.DEBUG)) {
                         Log.d(TAG_USER, "Notifying listener for uid " + uid);
                     }
@@ -837,13 +893,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             }, "SwitchUser-" + userId + "-Listeners").start();
         }
 
-        // TODO(b/145689885): passing null for `from` parameter until it gets properly replaced
+        // TODO(b/145689885): not passing `from` parameter until it gets properly replaced
         //     the expected Binder call.
-        // TODO(b/152043575): we should overload the UserLifecycleEvent constructor with a
-        //     /* hidden */ method that takes int userId directly.
-        notifyUserLifecycleListeners(t, new UserLifecycleEvent(
-                /* eventType= */ CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
-                /* from= */ null, /* to= */ new UserHandle(userId)));
+        notifyUserLifecycleListeners(t,
+                new UserLifecycleEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING, userId));
     }
 
     private void notifyUserLifecycleListeners(TimingsTraceLog t, UserLifecycleEvent event) {
