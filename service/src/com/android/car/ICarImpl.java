@@ -185,7 +185,7 @@ public class ICarImpl extends ICar.Stub {
         mCarOccupantZoneService = new CarOccupantZoneService(serviceContext);
         mSystemActivityMonitoringService = new SystemActivityMonitoringService(serviceContext);
         mCarPowerManagementService = new CarPowerManagementService(mContext, mHal.getPowerHal(),
-                systemInterface, mUserManagerHelper, mCarUserService);
+                systemInterface, mCarUserService);
         if (mFeatureController.isFeatureEnabled(CarFeatures.FEATURE_CAR_USER_NOTICE_SERVICE)) {
             mCarUserNoticeService = new CarUserNoticeService(serviceContext);
         } else {
@@ -351,12 +351,8 @@ public class ICarImpl extends ICar.Stub {
         assertCallingFromSystemProcess();
         Log.i(TAG, "onUserLifecycleEvent("
                 + CarUserManager.lifecycleEventTypeToString(eventType) + ", " + toUserId + ")");
-        mCarUserService.onUserLifecycleEvent(new UserLifecycleEvent(eventType, toUserId));
-        if (eventType == CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING) {
-            // TODO(b/145689885): CarMediaService should implement UserLifecycleListener,
-            //     eliminiating the need for this check.
-            mCarMediaService.setUserLockStatus(toUserId, /* unlocked= */ true);
-        }
+        UserLifecycleEvent event = new UserLifecycleEvent(eventType, toUserId);
+        mCarUserService.onUserLifecycleEvent(event);
         mUserMetrics.onEvent(eventType, timestampMs, fromUserId, toUserId);
     }
 
