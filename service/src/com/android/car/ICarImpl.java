@@ -125,11 +125,13 @@ public class ICarImpl extends ICar.Stub {
 
     private TimingsTraceLog mBootTiming;
 
+    private final Object mLock = new Object();
+
     /** Test only service. Populate it only when necessary. */
-    @GuardedBy("this")
+    @GuardedBy("mLock")
     private CarTestService mCarTestService;
 
-    @GuardedBy("this")
+    @GuardedBy("mLock")
     private ICarServiceHelper mICarServiceHelper;
 
     private final String mVehicleInterfaceName;
@@ -339,10 +341,12 @@ public class ICarImpl extends ICar.Stub {
     @Override
     public void setCarServiceHelper(IBinder helper) {
         assertCallingFromSystemProcess();
-        synchronized (this) {
-            mICarServiceHelper = ICarServiceHelper.Stub.asInterface(helper);
-            mSystemInterface.setCarServiceHelper(mICarServiceHelper);
+        ICarServiceHelper carServiceHelper = ICarServiceHelper.Stub.asInterface(helper);
+        synchronized (mLock) {
+            mICarServiceHelper = carServiceHelper;
         }
+        mSystemInterface.setCarServiceHelper(carServiceHelper);
+        mCarOccupantZoneService.setCarServiceHelper(carServiceHelper);
     }
 
     @Override
@@ -474,7 +478,7 @@ public class ICarImpl extends ICar.Stub {
                 return mVmsBrokerService;
             case Car.TEST_SERVICE: {
                 assertPermission(mContext, Car.PERMISSION_CAR_TEST_SERVICE);
-                synchronized (this) {
+                synchronized (mLock) {
                     if (mCarTestService == null) {
                         mCarTestService = new CarTestService(mContext, this);
                     }
@@ -734,10 +738,10 @@ public class ICarImpl extends ICar.Stub {
     }
 
     private CarShellCommand newCarShellCommand() {
-        return new CarShellCommand(mHal, mCarAudioService, mCarPackageManagerService,
+        return new CarShellCommand(mContext, mHal, mCarAudioService, mCarPackageManagerService,
                 mCarProjectionService, mCarPowerManagementService, mCarTrustedDeviceService,
-                mFixedActivityService, mFeatureController, mCarInputService,
-                mCarNightService, mSystemInterface, mGarageModeService);
+                mFixedActivityService, mFeatureController, mCarInputService, mCarNightService,
+                mSystemInterface, mGarageModeService, mCarUserService);
     }
 
     private void dumpListOfServices(PrintWriter writer) {
