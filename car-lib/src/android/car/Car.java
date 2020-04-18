@@ -1559,12 +1559,14 @@ public final class Car {
     }
 
     /** @hide */
-    Handler getEventHandler() {
+    @VisibleForTesting
+    public Handler getEventHandler() {
         return mEventHandler;
     }
 
     /** @hide */
-    <T> T handleRemoteExceptionFromCarService(RemoteException e, T returnValue) {
+    @VisibleForTesting
+    public <T> T handleRemoteExceptionFromCarService(RemoteException e, T returnValue) {
         handleRemoteExceptionFromCarService(e);
         return returnValue;
     }
