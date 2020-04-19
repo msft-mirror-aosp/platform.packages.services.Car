@@ -391,9 +391,9 @@ TEST(IoPerfCollectionTest, TestValidCollectionSequence) {
                                  .totalCpuTime = 21400,
                                  .ioBlockedProcessesCnt = 8,
                                  .totalProcessesCnt = 18},
-            .processIoPerfData = {.topNIoBlockedUids = {{0, "mount", 2}},
+            .processIoPerfData = {.topNIoBlockedUids = {{0, "mount", 2, {{"disk I/O", 2}}}},
                                   .topNIoBlockedUidsTotalTaskCnt = {2},
-                                  .topNMajorFaults = {{0, "mount", 5000}},
+                                  .topNMajorFaultUids = {{0, "mount", 5000, {{"disk I/O", 5000}}}},
                                   .totalMajorFaults = 5000,
                                   .majorFaultsPercentChange = ((5000.0 - 11000.0) / 11000.0) * 100},
     };
