@@ -17,6 +17,7 @@
 package com.android.car.user;
 
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserInfo;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUsers;
 import static android.car.test.util.UserTestingHelper.UserInfoBuilder;
 import static android.content.pm.UserInfo.FLAG_EPHEMERAL;
 import static android.content.pm.UserInfo.FLAG_GUEST;
@@ -84,7 +85,6 @@ import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -172,8 +172,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder builder) {
         builder
-            .spyStatic(ActivityManager.class)
-            .mockStatic(Settings.Global.class);
+            .spyStatic(ActivityManager.class);
     }
 
     /**
@@ -202,24 +201,6 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
                         3, mUserMetrics);
 
         mFakeCarOccupantZoneService = new FakeCarOccupantZoneService(mCarUserService);
-        // Restore default value at the beginning of each test.
-        mockSettingsGlobal();
-        putSettingsInt(CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, 0);
-    }
-
-    /**
-     * Test that the {@link CarUserService} does not set restrictions on user 0 if they have already
-     * been set.
-     */
-    @Test
-    public void testDoesNotSetSystemUserRestrictions_IfRestrictionsAlreadySet() {
-        putSettingsInt(CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, 1);
-        sendUserUnlockedEvent(UserHandle.USER_SYSTEM);
-        verify(mMockedUserManager, never())
-                .setUserRestriction(
-                        UserManager.DISALLOW_MODIFY_ACCOUNTS,
-                        true,
-                        UserHandle.of(UserHandle.USER_SYSTEM));
     }
 
     @Test
@@ -294,7 +275,6 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         UserInfo persistentUser = new UserInfo(lastActiveUserId, "persistent user",
                 NO_USER_INFO_FLAGS);
         doReturn(persistentUser).when(mMockedUserManager).getUserInfo(lastActiveUserId);
-
         sendUserSwitchingEvent(lastActiveUserId);
 
         verify(mMockedCarUserManagerHelper).setLastActiveUser(lastActiveUserId);
@@ -307,16 +287,6 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     public void testInitializeGuestRestrictions_IfNotAlreadySet() {
         sendUserUnlockedEvent(UserHandle.USER_SYSTEM);
         assertThat(getSettingsInt(CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET)).isEqualTo(1);
-    }
-
-    /**
-     * Test that the {@link CarUserService} does not set restrictions after they have been set once.
-     */
-    @Test
-    public void test_DoesNotInitializeGuestRestrictions_IfAlreadySet() {
-        putSettingsInt(CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, 1);
-        sendUserUnlockedEvent(UserHandle.USER_SYSTEM);
-        verify(mMockedUserManager, never()).setDefaultGuestRestrictions(any(Bundle.class));
     }
 
     @Test
@@ -742,9 +712,10 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockAmSwitchUser(mRegularUser, true);
         AndroidFuture<UserSwitchResult> futureNewRequest = new AndroidFuture<>();
         mCarUserService.switchUser(mRegularUser.id, mAsyncCallTimeoutMs, futureNewRequest);
+
+        assertThat(getUserSwitchResult().getStatus()).isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
         assertThat(getResult(futureNewRequest).getStatus())
                 .isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
-
         assertNoPostSwitch();
         assertHalSwitch(mAdminUser.id, mGuestUser.id, mAdminUser.id, mRegularUser.id);
     }
@@ -772,6 +743,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockCurrentUser(mRegularUser);
         sendUserUnlockedEvent(mRegularUser.id);
 
+        assertThat(getResult(futureNewRequest).getStatus())
+                .isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
         assertPostSwitch(newRequestId, mRegularUser.id, mRegularUser.id);
         assertHalSwitch(mAdminUser.id, mGuestUser.id, mAdminUser.id, mRegularUser.id);
     }
@@ -794,9 +767,9 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockAmSwitchUser(mRegularUser, true);
         AndroidFuture<UserSwitchResult> futureNewRequest = new AndroidFuture<>();
         mCarUserService.switchUser(mRegularUser.id, mAsyncCallTimeoutMs, futureNewRequest);
+
         assertThat(getResult(futureNewRequest).getStatus())
                 .isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
-
         assertNoPostSwitch();
         assertHalSwitch(mAdminUser.id, mGuestUser.id, mAdminUser.id, mRegularUser.id);
     }
@@ -822,6 +795,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockCurrentUser(mRegularUser);
         sendUserUnlockedEvent(mRegularUser.id);
 
+        assertThat(getResult(futureNewRequest).getStatus())
+                .isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
         assertPostSwitch(newRequestId, mRegularUser.id, mRegularUser.id);
         assertHalSwitch(mAdminUser.id, mGuestUser.id, mAdminUser.id, mRegularUser.id);
     }
@@ -853,6 +828,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         UserSwitchResult result = getUserSwitchResult();
         assertThat(result.getStatus())
                 .isEqualTo(UserSwitchResult.STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST);
+        assertThat(getResult(futureNewRequest).getStatus())
+                .isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
         assertPostSwitch(newRequestId, mRegularUser.id, mRegularUser.id);
         assertHalSwitch(mAdminUser.id, mGuestUser.id, mAdminUser.id, mRegularUser.id);
     }
@@ -889,6 +866,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         AndroidFuture<UserSwitchResult> futureNewRequest = new AndroidFuture<>();
         mCarUserService.switchUser(mGuestUser.id, mAsyncCallTimeoutMs, futureNewRequest);
 
+        assertThat(getUserSwitchResult().getStatus()).isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
         assertThat(getResult(futureNewRequest).getStatus())
                 .isEqualTo(UserSwitchResult.STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO);
         assertNoPostSwitch();
@@ -910,11 +888,14 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mSwitchUserResponse.requestId = newRequestId;
 
         // calling another user switch before unlock
-        AndroidFuture<UserSwitchResult> future = new AndroidFuture<>();
-        mCarUserService.switchUser(mGuestUser.id, mAsyncCallTimeoutMs, future);
+        AndroidFuture<UserSwitchResult> futureNewRequest = new AndroidFuture<>();
+        mCarUserService.switchUser(mGuestUser.id, mAsyncCallTimeoutMs, futureNewRequest);
         mockCurrentUser(mGuestUser);
         sendUserUnlockedEvent(mGuestUser.id);
 
+        assertThat(getUserSwitchResult().getStatus()).isEqualTo(UserSwitchResult.STATUS_SUCCESSFUL);
+        assertThat(getResult(futureNewRequest).getStatus())
+                .isEqualTo(UserSwitchResult.STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO);
         assertPostSwitch(requestId, mGuestUser.id, mGuestUser.id);
         assertHalSwitch(mAdminUser.id, mGuestUser.id);
     }
@@ -1153,7 +1134,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void mockExistingUsers() {
-        when(mMockedUserManager.getUsers()).thenReturn(mExistingUsers);
+        mockUmGetUsers(mMockedUserManager, mExistingUsers);
         for (UserInfo user : mExistingUsers) {
             when(mMockedUserManager.getUserInfo(user.id)).thenReturn(user);
         }
@@ -1396,7 +1377,6 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(usersInfo.getAllValues().get(1).currentUser.userId).isEqualTo(currentId2);
     }
 
-
     static final class FakeCarOccupantZoneService {
         private final SparseArray<Integer> mZoneUserMap = new SparseArray<Integer>();
         private final CarUserService.ZoneUserBindingHelper mZoneUserBindigHelper =
@@ -1437,30 +1417,6 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         FakeCarOccupantZoneService(CarUserService carUserService) {
             carUserService.setZoneUserBindingHelper(mZoneUserBindigHelper);
         }
-    }
-
-    // TODO(b/148403316): Refactor to use common fake settings provider
-    private void mockSettingsGlobal() {
-        when(Settings.Global.putInt(any(), eq(CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET),
-                anyInt())).thenAnswer(invocation -> {
-                            int value = (int) invocation.getArguments()[2];
-                            when(Settings.Global.getInt(any(),
-                                    eq(CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET), anyInt()))
-                                    .thenReturn(value);
-                            return null;
-                        }
-        );
-    }
-
-    private void putSettingsInt(String key, int value) {
-        Settings.Global.putInt(InstrumentationRegistry.getTargetContext().getContentResolver(),
-                key, value);
-    }
-
-    private int getSettingsInt(String key) {
-        return Settings.Global.getInt(
-                InstrumentationRegistry.getTargetContext().getContentResolver(),
-                key, /* default= */ 0);
     }
 
     private void sendUserLifecycleEvent(@UserIdInt int userId,
