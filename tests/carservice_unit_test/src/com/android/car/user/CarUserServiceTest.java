@@ -16,6 +16,7 @@
 
 package com.android.car.user;
 
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetSystemUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserInfo;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUsers;
 import static android.car.test.util.UserTestingHelper.UserInfoBuilder;
@@ -54,6 +55,7 @@ import android.car.CarOccupantZoneManager.OccupantTypeEnum;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.settings.CarSettings;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
+import android.car.test.mocks.AndroidMockitoHelper;
 import android.car.test.mocks.BlockingAnswer;
 import android.car.test.util.BlockingResultReceiver;
 import android.car.testapi.BlockingUserLifecycleListener;
@@ -61,11 +63,12 @@ import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.car.user.CarUserManager.UserLifecycleEventType;
 import android.car.user.CarUserManager.UserLifecycleListener;
-import android.car.user.GetUserIdentificationAssociationResponse;
+import android.car.user.UserIdentificationAssociationResponse;
 import android.car.user.UserSwitchResult;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.HalCallback;
 import android.car.userlib.UserHalHelper;
+import android.car.userlib.UserHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
@@ -79,6 +82,7 @@ import android.hardware.automotive.vehicle.V2_0.UserFlags;
 import android.hardware.automotive.vehicle.V2_0.UserIdentificationAssociation;
 import android.hardware.automotive.vehicle.V2_0.UserIdentificationGetRequest;
 import android.hardware.automotive.vehicle.V2_0.UserIdentificationResponse;
+import android.hardware.automotive.vehicle.V2_0.UserIdentificationSetRequest;
 import android.hardware.automotive.vehicle.V2_0.UsersInfo;
 import android.location.LocationManager;
 import android.os.Bundle;
@@ -153,6 +157,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
     private final int mGetUserInfoRequestType = InitialUserInfoRequestType.COLD_BOOT;
     private final AndroidFuture<UserSwitchResult> mUserSwitchFuture = new AndroidFuture<>();
+    private final AndroidFuture<UserIdentificationAssociationResponse> mUserAssociationRespFuture =
+            new AndroidFuture<>();
     private final int mAsyncCallTimeoutMs = 100;
     private final BlockingResultReceiver mReceiver =
             new BlockingResultReceiver(mAsyncCallTimeoutMs);
@@ -174,7 +180,11 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder builder) {
         builder
-            .spyStatic(ActivityManager.class);
+            .spyStatic(ActivityManager.class)
+            // TODO(b/156299496): it cannot spy on UserManager, as it would slow down the tests
+            // considerably (more than 5 minutes total, instead of just a couple seconds). So, it's
+            // mocking UserHelper.isHeadlessSystemUser() (on mockIsHeadlessSystemUser()) instead...
+            .spyStatic(UserHelper.class);
     }
 
     /**
@@ -218,7 +228,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testOnUserLifecycleEvent_nofityListener() throws Exception {
+    public void testOnUserLifecycleEvent_notifyListener() throws Exception {
         // Arrange
         mCarUserService.addUserLifecycleListener(mUserLifecycleListener);
         mockExistingUsers();
@@ -259,6 +269,14 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(actualEvent.getUserId()).isEqualTo(expectedNewUserId);
     }
 
+    private void verifyLastActiveUserSet(@UserIdInt int userId) {
+        verify(mMockedCarUserManagerHelper).setLastActiveUser(userId);
+    }
+
+    private void verifyLastActiveUserNotSet() {
+        verify(mMockedCarUserManagerHelper, never()).setLastActiveUser(anyInt());
+    }
+
     /**
      * Test that the {@link CarUserService} disables the location service for headless user 0 upon
      * first run.
@@ -274,10 +292,24 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
      * Test that the {@link CarUserService} updates last active user on user switch.
      */
     @Test
-    public void testLastActiveUserUpdatedOnUserSwitch() throws Exception {
+    public void testLastActiveUserUpdatedOnUserSwitch_nonHeadlessSystemUser() throws Exception {
+        mockIsHeadlessSystemUser(mRegularUser.id, false);
         mockExistingUsers();
+
         sendUserSwitchingEvent(mAdminUser.id, mRegularUser.id);
-        verify(mMockedCarUserManagerHelper).setLastActiveUser(mRegularUser.id);
+
+        verifyLastActiveUserSet(mRegularUser.id);
+    }
+
+    @Test
+    public void testLastActiveUserUpdatedOnUserSwitch_headlessSystemUser() throws Exception {
+        mockIsHeadlessSystemUser(mRegularUser.id, true);
+        mockUmGetSystemUser(mMockedUserManager);
+        mockExistingUsers();
+
+        sendUserSwitchingEvent(mAdminUser.id, UserHandle.USER_SYSTEM);
+
+        verifyLastActiveUserNotSet();
     }
 
     /**
@@ -1123,39 +1155,133 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserIdentificationAssociation_service_returnNull() throws Exception {
-        // Must use the real user id - and not mock it - as the service will infer the id from
-        // the Binder call - it's not worth the effort of mocking that.
-        int currentUserId = ActivityManager.getCurrentUser();
-        Log.d(TAG, "testGetUserIdentificationAssociation_ok(): current user is " + currentUserId);
-        UserInfo currentUser = mockUmGetUserInfo(mMockedUserManager, currentUserId,
-                UserInfo.FLAG_ADMIN);
+        mockCurrentUserForBinderCalls();
 
         // Not mocking service call, so it will return null
 
-        GetUserIdentificationAssociationResponse response = mCarUserService
+        UserIdentificationAssociationResponse response = mCarUserService
                 .getUserIdentificationAssociation(new int[] { 108 });
 
-        assertThat(response).isNull();
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getValues()).isNull();
+        assertThat(response.getErrorMessage()).isNull();
     }
 
     @Test
     public void testGetUserIdentificationAssociation_ok() throws Exception {
-        // Must use the real user id - and not mock it - as the service will infer the id from
-        // the Binder call - it's not worth the effort of mocking that.
-        int currentUserId = ActivityManager.getCurrentUser();
-        Log.d(TAG, "testGetUserIdentificationAssociation_ok(): current user is " + currentUserId);
-        UserInfo currentUser = mockUmGetUserInfo(mMockedUserManager, currentUserId,
-                UserInfo.FLAG_ADMIN);
+        UserInfo currentUser = mockCurrentUserForBinderCalls();
 
         int[] types = new int[] { 1, 2, 3 };
-        mockHalGetUserIdentificationAssociation(currentUser, types, new int[] { 10, 20, 30 },
-                "D'OH!");
+        int[] values = new int[] { 10, 20, 30 };
+        mockHalGetUserIdentificationAssociation(currentUser, types, values, "D'OH!");
 
-        GetUserIdentificationAssociationResponse response = mCarUserService
+        UserIdentificationAssociationResponse response = mCarUserService
                 .getUserIdentificationAssociation(types);
 
-        assertThat(response.getValues()).asList().containsExactly(10, 20, 30)
-                .inOrder();
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getValues()).asList().containsAllOf(10, 20, 30).inOrder();
+        assertThat(response.getErrorMessage()).isEqualTo("D'OH!");
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_nullTypes() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> mCarUserService
+                .setUserIdentificationAssociation(mAsyncCallTimeoutMs,
+                        null, new int[] {42}, mUserAssociationRespFuture));
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_emptyTypes() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> mCarUserService
+                .setUserIdentificationAssociation(mAsyncCallTimeoutMs,
+                        new int[0], new int[] {42}, mUserAssociationRespFuture));
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_nullValues() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> mCarUserService
+                .setUserIdentificationAssociation(mAsyncCallTimeoutMs,
+                        new int[] {42}, null, mUserAssociationRespFuture));
+    }
+    @Test
+    public void testSetUserIdentificationAssociation_sizeMismatch() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> mCarUserService
+                .setUserIdentificationAssociation(mAsyncCallTimeoutMs,
+                        new int[] {1}, new int[] {2, 2}, mUserAssociationRespFuture));
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_nullFuture() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> mCarUserService
+                .setUserIdentificationAssociation(mAsyncCallTimeoutMs,
+                        new int[] {42}, new int[] {42}, null));
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_noPermission() throws Exception {
+        mockManageUsersPermission(android.Manifest.permission.MANAGE_USERS, false);
+        assertThrows(SecurityException.class, () -> mCarUserService
+                .setUserIdentificationAssociation(mAsyncCallTimeoutMs,
+                        new int[] {42}, new int[] {42}, mUserAssociationRespFuture));
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_noCurrentUser() throws Exception {
+        // Should fail because we're not mocking UserManager.getUserInfo() to set the flag
+        assertThrows(IllegalArgumentException.class, () -> mCarUserService
+                .setUserIdentificationAssociation(mAsyncCallTimeoutMs,
+                        new int[] {42}, new int[] {42}, mUserAssociationRespFuture));
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_halFailedWithErrorMessage() throws Exception {
+        mockCurrentUserForBinderCalls();
+        mockHalSetUserIdentificationAssociationFailure("D'OH!");
+        int[] types = new int[] { 1, 2, 3 };
+        int[] values = new int[] { 10, 20, 30 };
+        mCarUserService.setUserIdentificationAssociation(mAsyncCallTimeoutMs, types, values,
+                mUserAssociationRespFuture);
+
+        UserIdentificationAssociationResponse response = getUserAssociationRespResult();
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getValues()).isNull();
+        assertThat(response.getErrorMessage()).isEqualTo("D'OH!");
+
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_halFailedWithoutErrorMessage()
+            throws Exception {
+        mockCurrentUserForBinderCalls();
+        mockHalSetUserIdentificationAssociationFailure(/* errorMessage= */ null);
+        int[] types = new int[] { 1, 2, 3 };
+        int[] values = new int[] { 10, 20, 30 };
+        mCarUserService.setUserIdentificationAssociation(mAsyncCallTimeoutMs, types, values,
+                mUserAssociationRespFuture);
+
+        UserIdentificationAssociationResponse response = getUserAssociationRespResult();
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getValues()).isNull();
+        assertThat(response.getErrorMessage()).isNull();
+    }
+
+    @Test
+    public void testSetUserIdentificationAssociation_ok() throws Exception {
+        UserInfo currentUser = mockCurrentUserForBinderCalls();
+
+        int[] types = new int[] { 1, 2, 3 };
+        int[] values = new int[] { 10, 20, 30 };
+        mockHalSetUserIdentificationAssociationSuccess(currentUser, types, values, "D'OH!");
+
+        mCarUserService.setUserIdentificationAssociation(mAsyncCallTimeoutMs, types, values,
+                mUserAssociationRespFuture);
+
+        UserIdentificationAssociationResponse response = getUserAssociationRespResult();
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getValues()).asList().containsAllOf(10, 20, 30).inOrder();
         assertThat(response.getErrorMessage()).isEqualTo("D'OH!");
     }
 
@@ -1185,12 +1311,31 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @NonNull
+    private UserIdentificationAssociationResponse getUserAssociationRespResult()
+            throws Exception {
+        return getResult(mUserAssociationRespFuture);
+    }
+
+    @NonNull
     private <T> T getResult(@NonNull AndroidFuture<T> future) throws Exception {
         try {
             return future.get(mAsyncCallTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             throw new IllegalStateException("not called in " + mAsyncCallTimeoutMs + "ms", e);
         }
+    }
+
+    /**
+     * This method must be called for cases where the service infers the user id of the caller
+     * using Binder - it's not worth the effort of mocking such (native) calls.
+     */
+    @NonNull
+    private UserInfo mockCurrentUserForBinderCalls() {
+        int currentUserId = ActivityManager.getCurrentUser();
+        Log.d(TAG, "testetUserIdentificationAssociation_ok(): current user is " + currentUserId);
+        UserInfo currentUser = mockUmGetUserInfo(mMockedUserManager, currentUserId,
+                UserInfo.FLAG_ADMIN);
+        return currentUser;
     }
 
     /**
@@ -1205,7 +1350,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     private void mockExistingUsers() {
         mockUmGetUsers(mMockedUserManager, mExistingUsers);
         for (UserInfo user : mExistingUsers) {
-            when(mMockedUserManager.getUserInfo(user.id)).thenReturn(user);
+            AndroidMockitoHelper.mockUmGetUserInfo(mMockedUserManager, user);
         }
     }
 
@@ -1230,6 +1375,10 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
             return null;
         }).when(mUserHal).getInitialUserInfo(eq(mGetUserInfoRequestType), eq(mAsyncCallTimeoutMs),
                 eq(usersInfo), notNull());
+    }
+
+    private void mockIsHeadlessSystemUser(@UserIdInt int userId, boolean mode) {
+        doReturn(mode).when(() -> UserHelper.isHeadlessSystemUser(userId));
     }
 
     private void mockHalSwitch(@UserIdInt int currentUserId, @NonNull UserInfo androidTargetUser,
@@ -1294,6 +1443,53 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
         when(mUserHal.getUserAssociation(isUserIdentificationGetRequest(user, types)))
                 .thenReturn(response);
+    }
+
+    private void mockHalSetUserIdentificationAssociationSuccess(@NonNull UserInfo user,
+            @NonNull int[] types, @NonNull int[] values,  @Nullable String errorMessage) {
+        assertWithMessage("mismatch on number of types and values").that(types.length)
+                .isEqualTo(values.length);
+
+        UserIdentificationResponse response = new UserIdentificationResponse();
+        response.numberAssociation = types.length;
+        response.errorMessage = errorMessage;
+        for (int i = 0; i < types.length; i++) {
+            UserIdentificationAssociation association = new UserIdentificationAssociation();
+            association.type = types[i];
+            association.value = values[i];
+            response.associations.add(association);
+        }
+
+        doAnswer((invocation) -> {
+            Log.d(TAG, "Answering " + invocation + " with " + response);
+            @SuppressWarnings("unchecked")
+            UserIdentificationSetRequest request =
+                    (UserIdentificationSetRequest) invocation.getArguments()[1];
+            assertWithMessage("Wrong user on %s", request)
+                    .that(request.userInfo.userId)
+                    .isEqualTo(user.id);
+            assertWithMessage("Wrong flags on %s", request)
+                    .that(UserHalHelper.toUserInfoFlags(request.userInfo.flags))
+                    .isEqualTo(user.flags);
+            @SuppressWarnings("unchecked")
+            HalCallback<UserIdentificationResponse> callback =
+                    (HalCallback<UserIdentificationResponse>) invocation.getArguments()[2];
+            callback.onResponse(HalCallback.STATUS_OK, response);
+            return null;
+        }).when(mUserHal).setUserAssociation(eq(mAsyncCallTimeoutMs), notNull(), notNull());
+    }
+
+    private void mockHalSetUserIdentificationAssociationFailure(@NonNull String errorMessage) {
+        UserIdentificationResponse response = new UserIdentificationResponse();
+        response.errorMessage = errorMessage;
+        doAnswer((invocation) -> {
+            Log.d(TAG, "Answering " + invocation + " with " + response);
+            @SuppressWarnings("unchecked")
+            HalCallback<UserIdentificationResponse> callback =
+                    (HalCallback<UserIdentificationResponse>) invocation.getArguments()[2];
+            callback.onResponse(HalCallback.STATUS_WRONG_HAL_RESPONSE, response);
+            return null;
+        }).when(mUserHal).setUserAssociation(eq(mAsyncCallTimeoutMs), notNull(), notNull());
     }
 
     private void mockManageUsersPermission(String permission, boolean granted) {
