@@ -72,7 +72,8 @@ typedef struct {
 static const size_t kStreamCfgSz = sizeof(RawStreamConfig);
 static const uint8_t kGrayColor = 128;
 static const int kNumFrames = 4;
-static const int kNumChannels = 4;
+static const int kInputNumChannels = 4;
+static const int kOutputNumChannels = 4;
 static const float kUndistortionScales[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
 SurroundView3dSession::FramesHandler::FramesHandler(
@@ -232,24 +233,10 @@ bool SurroundView3dSession::copyFromBufferToPointers(
         LOG(INFO) << "Managed to get read access to GraphicBuffer";
     }
 
-    int stride = pDesc->stride;
-
-    // readPtr comes from EVS, and it is with 4 channels
-    uint8_t* readPtr = static_cast<uint8_t*>(inputDataPtr);
-
-    // writePtr is with 3 channels, since that is what SV core lib expects.
-    uint8_t* writePtr = static_cast<uint8_t*>(pointers.cpu_data_pointer);
-
-    for (int i = 0; i < pDesc->width; i++)
-        for (int j = 0; j < pDesc->height; j++) {
-            writePtr[(i + j * stride) * 3 + 0] =
-                readPtr[(i + j * stride) * 4 + 0];
-            writePtr[(i + j * stride) * 3 + 1] =
-                readPtr[(i + j * stride) * 4 + 1];
-            writePtr[(i + j * stride) * 3 + 2] =
-                readPtr[(i + j * stride) * 4 + 2];
-        }
-    LOG(INFO) << "Brute force copying finished";
+    // Both source and destination are with 4 channels
+    memcpy(pointers.cpu_data_pointer, inputDataPtr,
+           pDesc->height * pDesc->width * kInputNumChannels);
+    LOG(INFO) << "Buffer copying finished";
 
     return true;
 }
@@ -416,6 +403,11 @@ Return<SvResult> SurroundView3dSession::setViews(
     const hidl_vec<View3d>& views) {
     LOG(DEBUG) << __FUNCTION__;
     scoped_lock <mutex> lock(mAccessLock);
+
+    if (views.size() == 0) {
+        LOG(ERROR) << "Empty view argument, at-least one view is required.";
+        return SvResult::VIEW_NOT_SET;
+    }
 
     mViews.resize(views.size());
     for (int i=0; i<views.size(); i++) {
@@ -641,7 +633,7 @@ bool SurroundView3dSession::handleFrames(int sequenceId) {
         mOutputPointer.width = mOutputWidth;
         mOutputPointer.format = Format::RGBA;
         mOutputPointer.data_pointer =
-            new char[mOutputHeight * mOutputWidth * kNumChannels];
+            new char[mOutputHeight * mOutputWidth * kOutputNumChannels];
 
         if (!mOutputPointer.data_pointer) {
             LOG(ERROR) << "Memory allocation failed. Exiting.";
@@ -676,18 +668,6 @@ bool SurroundView3dSession::handleFrames(int sequenceId) {
         }
     }
 
-    // TODO(b/150412555): do not use the setViews for frames generation
-    // since there is a discrepancy between the HIDL APIs and core lib APIs.
-    array<array<float, 4>, 4> matrix;
-
-    // TODO(b/150412555): use hard-coded views for now. Change view every
-    // frame.
-    int recViewId = sequenceId % 16;
-    for (int i=0; i<4; i++)
-        for (int j=0; j<4; j++) {
-            matrix[i][j] = kRecViews[recViewId][i*4+j];
-    }
-
     // Get the latest VHal property values
     if (mVhalHandler != nullptr) {
         if (!mVhalHandler->getPropertyValues(&mPropertyValues)) {
@@ -710,14 +690,22 @@ bool SurroundView3dSession::handleFrames(int sequenceId) {
         LOG(INFO) << "AnimationParams is empty. Ignored";
     }
 
+    // Get the view.
+    // TODO(161399517): Only single view is currently supported, add support for multiple views.
+    const View3d view3d = mViews[0];
+    const RotationQuat quat = view3d.pose.rotation;
+    const Translation trans = view3d.pose.translation;
+    const std::array<float, 4> viewQuaternion = {quat.x, quat.y, quat.z, quat.w};
+    const std::array<float, 3> viewTranslation = {trans.x, trans.y, trans.z};
+
     if (mSurroundView->Get3dSurroundView(
-        mInputPointers, matrix, &mOutputPointer)) {
+            mInputPointers, viewQuaternion, viewTranslation, &mOutputPointer)) {
         LOG(INFO) << "Get3dSurroundView succeeded";
     } else {
         LOG(ERROR) << "Get3dSurroundView failed. "
                    << "Using memset to initialize to gray.";
         memset(mOutputPointer.data_pointer, kGrayColor,
-               mOutputHeight * mOutputWidth * kNumChannels);
+               mOutputHeight * mOutputWidth * kOutputNumChannels);
     }
 
     void* textureDataPtr = nullptr;
@@ -735,8 +723,8 @@ bool SurroundView3dSession::handleFrames(int sequenceId) {
     // data line by line, instead of single memcpy.
     uint8_t* writePtr = static_cast<uint8_t*>(textureDataPtr);
     uint8_t* readPtr = static_cast<uint8_t*>(mOutputPointer.data_pointer);
-    const int readStride = mOutputWidth * kNumChannels;
-    const int writeStride = mSvTexture->getStride() * kNumChannels;
+    const int readStride = mOutputWidth * kOutputNumChannels;
+    const int writeStride = mSvTexture->getStride() * kOutputNumChannels;
     if (readStride == writeStride) {
         memcpy(writePtr, readPtr, readStride * mSvTexture->getHeight());
     } else {
@@ -808,11 +796,11 @@ bool SurroundView3dSession::initialize() {
     for (int i = 0; i < kNumFrames; i++) {
         mInputPointers[i].width = mCameraParams[i].size.width;
         mInputPointers[i].height = mCameraParams[i].size.height;
-        mInputPointers[i].format = Format::RGB;
+        mInputPointers[i].format = Format::RGBA;
         mInputPointers[i].cpu_data_pointer =
                 (void*)new uint8_t[mInputPointers[i].width *
                                    mInputPointers[i].height *
-                                   kNumChannels];
+                                   kInputNumChannels];
     }
     LOG(INFO) << "Allocated " << kNumFrames << " input pointers";
 
@@ -827,7 +815,7 @@ bool SurroundView3dSession::initialize() {
     mOutputPointer.width = mOutputWidth;
     mOutputPointer.format = Format::RGBA;
     mOutputPointer.data_pointer = new char[
-        mOutputHeight * mOutputWidth * kNumChannels];
+        mOutputHeight * mOutputWidth * kOutputNumChannels];
 
     if (!mOutputPointer.data_pointer) {
         LOG(ERROR) << "Memory allocation failed. Exiting.";
