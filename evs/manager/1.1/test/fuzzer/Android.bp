@@ -14,13 +14,16 @@
 
 cc_defaults {
     name: "evs_fuzz_default",
+
+    defaults: ["android.automotive.evs.manager_defaults"],
+
     static_libs: [
+        "libevsmanager_static",
         "libgmock",
         "libgtest",
     ],
 
     shared_libs: [
-        "android.automotive.evs.manager.fuzzlib",
         "android.hardware.automotive.evs@1.0",
         "android.hardware.automotive.evs@1.1",
         "libbase",
@@ -38,10 +41,6 @@ cc_defaults {
     cflags: [
         "-Wno-unused-parameter",
     ],
-
-    include_dirs: [
-        "system/core/libsync",
-    ],
 }
 
 cc_fuzz {
@@ -56,6 +55,22 @@ cc_fuzz {
     name: "evs_virtual_camera_fuzzer",
     srcs: [
         "VirtualCameraFuzzer.cpp",
+    ],
+    defaults: ["evs_fuzz_default"],
+}
+
+cc_fuzz {
+    name: "evs_haldisplay_fuzzer",
+    srcs: [
+        "HalDisplayFuzzer.cpp",
+    ],
+    defaults: ["evs_fuzz_default"],
+}
+
+cc_fuzz {
+    name: "evs_enumerator_fuzzer",
+    srcs: [
+        "EnumeratorFuzzer.cpp",
     ],
     defaults: ["evs_fuzz_default"],
 }
