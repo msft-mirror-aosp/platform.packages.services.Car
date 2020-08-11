@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,47 +14,54 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_HARDWARE_AUTOMOTIVE_EVS_V1_1_EVSV4LCAMERA_H
-#define ANDROID_HARDWARE_AUTOMOTIVE_EVS_V1_1_EVSV4LCAMERA_H
+#ifndef ANDROID_HARDWARE_AUTOMOTIVE_EVS_V1_1_EVSEMULATEDCAMERA_H
+#define ANDROID_HARDWARE_AUTOMOTIVE_EVS_V1_1_EVSEMULATEDCAMERA_H
 
 #include "VideoCapture.h"
-#include "ConfigManager.h"
 
 #include <functional>
-#include <thread>
+#include <unordered_map>
 
 #include <android/hardware/automotive/evs/1.1/types.h>
 #include <android/hardware/automotive/evs/1.1/IEvsCamera.h>
 #include <android/hardware/automotive/evs/1.1/IEvsCameraStream.h>
 #include <android/hardware/automotive/evs/1.1/IEvsDisplay.h>
 #include <android/hardware/camera/device/3.2/ICameraDevice.h>
-#include <android-base/result.h>
 #include <ui/GraphicBuffer.h>
 
 using ::android::hardware::hidl_string;
 using ::android::hardware::camera::device::V3_2::Stream;
 using ::android::hardware::automotive::evs::V1_0::EvsResult;
-using ::android::hardware::automotive::evs::V1_0::CameraDesc;
+using ::android::hardware::automotive::evs::V1_1::CameraDesc;
+
 using IEvsDisplay_1_0      = ::android::hardware::automotive::evs::V1_0::IEvsDisplay;
 using IEvsDisplay_1_1      = ::android::hardware::automotive::evs::V1_1::IEvsDisplay;
 using BufferDesc_1_0       = ::android::hardware::automotive::evs::V1_0::BufferDesc;
 using BufferDesc_1_1       = ::android::hardware::automotive::evs::V1_1::BufferDesc;
+using IEvsCamera_1_1       = ::android::hardware::automotive::evs::V1_1::IEvsCamera;
 using IEvsCameraStream_1_0 = ::android::hardware::automotive::evs::V1_0::IEvsCameraStream;
 using IEvsCameraStream_1_1 = ::android::hardware::automotive::evs::V1_1::IEvsCameraStream;
 
+using ::android::hardware::Return;
+using ::android::hardware::hidl_vec;
+using namespace ::android::hardware::automotive::evs::V1_1;
+
 namespace android {
-namespace hardware {
 namespace automotive {
 namespace evs {
 namespace V1_1 {
 namespace implementation {
 
+struct EmulatedCameraDesc {
+    int width;                          // Camera output width in pixels
+    int height;                         // Camera output height in pixels
+    std::string path;                   // Path to the directory where source files are stored
+    std::chrono::nanoseconds interval;  // Interval between two consecutive frames; this is
+                                        // a reciprocal of the framerate
+};
 
-// From EvsEnumerator.h
-class EvsEnumerator;
 
-
-class EvsV4lCamera : public IEvsCamera {
+class EvsEmulatedCamera : public IEvsCamera_1_1 {
 public:
     // Methods from ::android::hardware::automotive::evs::V1_0::IEvsCamera follow.
     Return<void>      getCameraInfo(getCameraInfo_cb _hidl_cb)  override;
@@ -89,26 +96,22 @@ public:
     Return<void>      importExternalBuffers(const hidl_vec<BufferDesc_1_1>& buffers,
                                             importExternalBuffers_cb _hidl_cb) override;
 
-    static sp<EvsV4lCamera> Create(const char *deviceName);
-    static sp<EvsV4lCamera> Create(const char *deviceName,
-                                   unique_ptr<ConfigManager::CameraInfo> &camInfo,
-                                   const Stream *streamCfg = nullptr);
-    EvsV4lCamera(const EvsV4lCamera&) = delete;
-    EvsV4lCamera& operator=(const EvsV4lCamera&) = delete;
+    static sp<EvsEmulatedCamera> Create(const char *deviceName,
+                                        const EmulatedCameraDesc& desc);
+    EvsEmulatedCamera(const EvsEmulatedCamera&) = delete;
+    EvsEmulatedCamera& operator=(const EvsEmulatedCamera&) = delete;
 
-    virtual ~EvsV4lCamera() override;
+    virtual ~EvsEmulatedCamera() override;
     void shutdown();
 
     const CameraDesc& getDesc() { return mDescription; };
 
-    // Dump captured frames to the filesystem
-    android::base::Result<void> startDumpFrames(const std::string& path);
-    android::base::Result<void> stopDumpFrames();
+    bool openDevice();
 
 private:
     // Constructors
-    EvsV4lCamera(const char *deviceName,
-                 unique_ptr<ConfigManager::CameraInfo> &camInfo);
+    EvsEmulatedCamera(const char *deviceName,
+                      const EmulatedCameraDesc& desc);
 
     // These three functions are expected to be called while mAccessLock is held
     bool setAvailableFrames_Locked(unsigned bufferCount);
@@ -116,17 +119,16 @@ private:
     unsigned decreaseAvailableFrames_Locked(unsigned numToRemove);
 
     void forwardFrame(imageBuffer* tgt, void* data);
-    inline bool convertToV4l2CID(CameraParam id, uint32_t& v4l2cid);
 
-    sp <IEvsCameraStream_1_0> mStream     = nullptr;  // The callback used to deliver each frame
-    sp <IEvsCameraStream_1_1> mStream_1_1 = nullptr;  // The callback used to deliver each frame
+    sp<IEvsCameraStream_1_1> mStream = nullptr;  // The callback used to deliver each frame
 
-    VideoCapture              mVideo;                 // Interface to the v4l device
-    CameraDesc                mDescription = {};      // The properties of this camera
+    sp<VideoCapture> mVideo;        // Virtual video device
+    CameraDesc       mDescription;  // The properties of this camera
 
     uint32_t mFormat = 0;           // Values from android_pixel_format_t
     uint32_t mUsage  = 0;           // Values from from Gralloc.h
-    uint32_t mStride = 0;           // Pixels per row (may be greater than image width)
+    uint32_t mStride = 0;           // Number of bytes from one row of pixels in memory
+                                    // to the next
 
     struct BufferRecord {
         buffer_handle_t handle;
@@ -135,11 +137,9 @@ private:
         explicit BufferRecord(buffer_handle_t h) : handle(h), inUse(false) {};
     };
 
-    std::vector <BufferRecord> mBuffers;    // Graphics buffers to transfer images
-    unsigned mFramesAllowed;                // How many buffers are we currently using
-    unsigned mFramesInUse;                  // How many buffers are currently outstanding
-
-    std::set<uint32_t> mCameraControls;     // Available camera controls
+    std::vector <BufferRecord> mBuffers;  // Graphics buffers to transfer images
+    unsigned mFramesAllowed;              // How many buffers are we currently using
+    unsigned mFramesInUse;                // How many buffers are currently outstanding
 
     // Which format specific function we need to use to move camera imagery into our output buffers
     void(*mFillBufferFromVideo)(const BufferDesc& tgtBuff, uint8_t* tgt,
@@ -152,27 +152,17 @@ private:
     // Note that the service interface remains single threaded (ie: not reentrant)
     std::mutex mAccessLock;
 
-    // Static camera module information
-    unique_ptr<ConfigManager::CameraInfo> &mCameraInfo;
-
     // Extended information
     std::unordered_map<uint32_t, std::vector<uint8_t>> mExtInfo;
 
-    // Dump captured frames
-    std::atomic<bool> mDumpFrame = false;
-
-    // Path to store captured frames
-    std::string mDumpPath;
-
-    // Frame counter
-    uint64_t mFrameCounter = 0;
+    // Emulated device description
+    EmulatedCameraDesc mCaptureDeviceDesc;
 };
 
 } // namespace implementation
 } // namespace V1_1
 } // namespace evs
 } // namespace automotive
-} // namespace hardware
 } // namespace android
 
-#endif  // ANDROID_HARDWARE_AUTOMOTIVE_EVS_V1_1_EVSV4LCAMERA_H
+#endif  // ANDROID_HARDWARE_AUTOMOTIVE_EVS_V1_1_EVSEMULATEDCAMERA_H

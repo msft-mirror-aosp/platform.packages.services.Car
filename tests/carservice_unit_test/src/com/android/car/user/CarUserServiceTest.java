@@ -70,7 +70,6 @@ import android.car.user.UserSwitchResult;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.HalCallback;
 import android.car.userlib.HalCallback.HalCallbackStatus;
-import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.userlib.UserHelper;
 import android.content.Context;
@@ -1570,17 +1569,6 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
         verify(mUserMetrics).onEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
                 DEFAULT_LIFECYCLE_TIMESTAMP, mAdminUser.id, mRegularUser.id);
-    }
-
-    @Test
-    public void testUserMetric_FirstUnlock() {
-        int userId = 99;
-        long timestampMs = 0;
-        long duration = 153;
-        int halResponseTime = 5;
-        mCarUserService.onFirstUserUnlocked(userId, timestampMs, duration, halResponseTime);
-
-        verify(mUserMetrics).logFirstUnlockedUser(userId, timestampMs, duration, halResponseTime);
     }
 
     @Test
