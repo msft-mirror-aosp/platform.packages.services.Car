@@ -40,8 +40,6 @@ import android.car.user.UserSwitchResult;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.CommonConstants.CarUserServiceConstants;
 import android.car.userlib.HalCallback;
-import android.car.userlib.InitialUserSetter;
-import android.car.userlib.InitialUserSetter.InitialUserInfo;
 import android.car.userlib.UserHalHelper;
 import android.car.userlib.UserHelper;
 import android.content.ComponentName;
@@ -86,6 +84,7 @@ import com.android.car.CarServiceUtils;
 import com.android.car.R;
 import com.android.car.hal.UserHalService;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.user.InitialUserSetter.InitialUserInfo;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.EventLogTags;
@@ -347,13 +346,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      */
     public void dumpUserMetrics(@NonNull PrintWriter writer) {
         mUserMetrics.dump(writer);
-    }
-
-    /**
-     * Dumps first user unlocking time.
-     */
-    public void dumpFirstUserUnlockDuration(PrintWriter writer) {
-        mUserMetrics.dumpFirstUserUnlockDuration(writer);
     }
 
     private void handleDumpListeners(@NonNull PrintWriter writer, String indent) {
@@ -1623,14 +1615,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             // Finally, update metrics.
             mUserMetrics.onEvent(eventType, timestampMs, fromUserId, toUserId);
         }
-    }
-
-    /**
-     * Sets the first user unlocking metrics.
-     */
-    public void onFirstUserUnlocked(@UserIdInt int userId, long timestampMs, long duration,
-            int halResponseTime) {
-        mUserMetrics.logFirstUnlockedUser(userId, timestampMs, duration, halResponseTime);
     }
 
     private void sendPostSwitchToHalLocked(@UserIdInt int userId) {
