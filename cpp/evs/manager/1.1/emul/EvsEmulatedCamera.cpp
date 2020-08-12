@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,47 +14,99 @@
  * limitations under the License.
  */
 
-#include "EvsV4lCamera.h"
-#include "EvsEnumerator.h"
-#include "bufferCopy.h"
+#include "EvsEmulatedCamera.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <filesystem>
 
 #include <android/hardware_buffer.h>
 #include <android-base/logging.h>
-#include <android-base/unique_fd.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
 #include <utils/SystemClock.h>
 
+using BufferDesc_1_0 = ::android::hardware::automotive::evs::V1_0::BufferDesc;
+using BufferDesc_1_1 = ::android::hardware::automotive::evs::V1_1::BufferDesc;
+
+namespace {
+    // Arbitrary limit on number of graphics buffers allowed to be allocated
+    // Safeguards against unreasonable resource consumption and provides a testable limit
+    static const unsigned MAX_BUFFERS_IN_FLIGHT = 100;
+
+};
 
 namespace android {
-namespace hardware {
 namespace automotive {
 namespace evs {
 namespace V1_1 {
 namespace implementation {
 
-// Default camera output image resolution
-const std::array<int32_t, 2> kDefaultResolution = {640, 480};
+static uint32_t yuvToRgbx(
+        const unsigned char Y, const unsigned char Uin, const unsigned char Vin) {
+    const float U = Uin - 128.0f;
+    const float V = Vin - 128.0f;
 
-// Arbitrary limit on number of graphics buffers allowed to be allocated
-// Safeguards against unreasonable resource consumption and provides a testable limit
-static const unsigned MAX_BUFFERS_IN_FLIGHT = 100;
+    const float Rf = Y + 1.140f*V;
+    const float Gf = Y - 0.395f*U - 0.581f*V;
+    const float Bf = Y + 2.032f*U;
+    const unsigned char R = static_cast<unsigned char>(std::clamp(Rf, 0.0f, 255.0f));
+    const unsigned char G = static_cast<unsigned char>(std::clamp(Gf, 0.0f, 255.0f));
+    const unsigned char B = static_cast<unsigned char>(std::clamp(Bf, 0.0f, 255.0f));
 
-EvsV4lCamera::EvsV4lCamera(const char *deviceName,
-                           unique_ptr<ConfigManager::CameraInfo> &camInfo) :
+    return ((R & 0xFF))       |
+           ((G & 0xFF) << 8)  |
+           ((B & 0xFF) << 16) |
+           0xFF000000;  // Fill the alpha channel with ones
+}
+
+
+static void fillRGBAFromYUYV(
+        const BufferDesc& tgtBuff, uint8_t* tgt, void* imgData, unsigned imgStride) {
+    const AHardwareBuffer_Desc* pDesc =
+        reinterpret_cast<const AHardwareBuffer_Desc*>(&tgtBuff.buffer.description);
+    unsigned width = pDesc->width;
+    unsigned height = pDesc->height;
+    uint32_t* src = (uint32_t*)imgData;
+    uint32_t* dst = (uint32_t*)tgt;
+    unsigned srcStridePixels = imgStride / 2;
+    unsigned dstStridePixels = pDesc->stride;
+
+    const int srcRowPadding32 =
+        srcStridePixels / 2 - width / 2;  // 2 bytes per pixel, 4 bytes per word
+    const int dstRowPadding32 =
+        dstStridePixels - width;    // 4 bytes per pixel, 4 bytes per word
+
+    for (unsigned r=0; r<height; r++) {
+        for (unsigned c=0; c<width/2; c++) {
+            // Note:  we're walking two pixels at a time here (even/odd)
+            uint32_t srcPixel = *src++;
+
+            uint8_t Y1 = (srcPixel)       & 0xFF;
+            uint8_t U  = (srcPixel >> 8)  & 0xFF;
+            uint8_t Y2 = (srcPixel >> 16) & 0xFF;
+            uint8_t V  = (srcPixel >> 24) & 0xFF;
+
+            // On the RGB output, we're writing one pixel at a time
+            *(dst+0) = yuvToRgbx(Y1, U, V);
+            *(dst+1) = yuvToRgbx(Y2, U, V);
+            dst += 2;
+        }
+
+        // Skip over any extra data or end of row alignment padding
+        src += srcRowPadding32;
+        dst += dstRowPadding32;
+    }
+}
+
+
+EvsEmulatedCamera::EvsEmulatedCamera(const char *deviceName,
+                                     const EmulatedCameraDesc& desc) :
         mFramesAllowed(0),
         mFramesInUse(0),
-        mCameraInfo(camInfo) {
-    LOG(DEBUG) << "EvsV4lCamera instantiated";
-
+        mCaptureDeviceDesc(desc) {
+    LOG(INFO) << "EvsEmulatedCamera instantiated";
     mDescription.v1.cameraId = deviceName;
-    if (camInfo != nullptr) {
-        mDescription.metadata.setToExternal((uint8_t *)camInfo->characteristics,
-                                            get_camera_metadata_size(camInfo->characteristics));
-    }
+
+    mVideo = new VideoCapture();
 
     // Default output buffer format.
     mFormat = HAL_PIXEL_FORMAT_RGBA_8888;
@@ -63,21 +115,33 @@ EvsV4lCamera::EvsV4lCamera(const char *deviceName,
     mUsage  = GRALLOC_USAGE_HW_TEXTURE     |
               GRALLOC_USAGE_SW_READ_RARELY |
               GRALLOC_USAGE_SW_WRITE_OFTEN;
+
+    mDescription.v1.cameraId = deviceName;
 }
 
 
-EvsV4lCamera::~EvsV4lCamera() {
-    LOG(DEBUG) << "EvsV4lCamera being destroyed";
+EvsEmulatedCamera::~EvsEmulatedCamera() {
+    LOG(INFO) << "EvsEmulatedCamera being destroyed";
     shutdown();
 }
 
 
-//
-// This gets called if another caller "steals" ownership of the camera
-//
-void EvsV4lCamera::shutdown()
+bool EvsEmulatedCamera::openDevice() {
+    bool opened = false;
+    if (mVideo) {
+        opened = mVideo->open(mCaptureDeviceDesc.path,
+                              mCaptureDeviceDesc.width,
+                              mCaptureDeviceDesc.height,
+                              mCaptureDeviceDesc.interval);
+    }
+
+    return opened;
+}
+
+
+void EvsEmulatedCamera::shutdown()
 {
-    LOG(DEBUG) << "EvsV4lCamera shutdown";
+    LOG(INFO) << "EvsEmulatedCamera shutdown";
 
     // Make sure our output stream is cleaned up
     // (It really should be already)
@@ -86,7 +150,7 @@ void EvsV4lCamera::shutdown()
     // Note:  Since stopVideoStream is blocking, no other threads can now be running
 
     // Close our video capture device
-    mVideo.close();
+    mVideo->close();
 
     // Drop all the graphics buffers we've been using
     if (mBuffers.size() > 0) {
@@ -104,22 +168,22 @@ void EvsV4lCamera::shutdown()
 
 
 // Methods from ::android::hardware::automotive::evs::V1_0::IEvsCamera follow.
-Return<void> EvsV4lCamera::getCameraInfo(getCameraInfo_cb _hidl_cb) {
+Return<void> EvsEmulatedCamera::getCameraInfo(getCameraInfo_cb _hidl_cb) {
     LOG(DEBUG) << __FUNCTION__;
 
     // Send back our self description
     _hidl_cb(mDescription.v1);
-    return Void();
+    return {};
 }
 
 
-Return<EvsResult> EvsV4lCamera::setMaxFramesInFlight(uint32_t bufferCount) {
+Return<EvsResult> EvsEmulatedCamera::setMaxFramesInFlight(uint32_t bufferCount) {
     LOG(DEBUG) << __FUNCTION__;
-    std::lock_guard<std::mutex> lock(mAccessLock);
+    std::scoped_lock<std::mutex> lock(mAccessLock);
 
-    // If we've been displaced by another owner of the camera, then we can't do anything else
-    if (!mVideo.isOpen()) {
-        LOG(WARNING) << "Ignoring setMaxFramesInFlight call when camera has been lost.";
+    // Check whether underlying device is still open
+    if (!mVideo->isOpen()) {
+        LOG(WARNING) << "Ignoring startVideoStream call when camera has been lost.";
         return EvsResult::OWNERSHIP_LOST;
     }
 
@@ -138,18 +202,25 @@ Return<EvsResult> EvsV4lCamera::setMaxFramesInFlight(uint32_t bufferCount) {
 }
 
 
-Return<EvsResult> EvsV4lCamera::startVideoStream(const sp<IEvsCameraStream_1_0>& stream)  {
+Return<EvsResult> EvsEmulatedCamera::startVideoStream(const sp<IEvsCameraStream_1_0>& stream)  {
     LOG(DEBUG) << __FUNCTION__;
-    std::lock_guard<std::mutex> lock(mAccessLock);
+    std::scoped_lock<std::mutex> lock(mAccessLock);
 
-    // If we've been displaced by another owner of the camera, then we can't do anything else
-    if (!mVideo.isOpen()) {
+    // Check whether underlying device is still open
+    if (!mVideo->isOpen()) {
         LOG(WARNING) << "Ignoring startVideoStream call when camera has been lost.";
         return EvsResult::OWNERSHIP_LOST;
     }
-    if (mStream.get() != nullptr) {
+
+    if (mStream != nullptr) {
         LOG(ERROR) << "Ignoring startVideoStream call when a stream is already running.";
         return EvsResult::STREAM_ALREADY_RUNNING;
+    }
+
+    mStream = IEvsCameraStream_1_1::castFrom(stream).withDefault(nullptr);
+    if (mStream == nullptr) {
+        LOG(ERROR) << "A given IEvsCameraStream does not supoprt v1.1 interface.";
+        return EvsResult::INVALID_ARG;
     }
 
     // If the client never indicated otherwise, configure ourselves for a single streaming buffer
@@ -160,58 +231,15 @@ Return<EvsResult> EvsV4lCamera::startVideoStream(const sp<IEvsCameraStream_1_0>&
         }
     }
 
-    // Choose which image transfer function we need
-    // Map from V4L2 to Android graphic buffer format
-    const uint32_t videoSrcFormat = mVideo.getV4LFormat();
-    LOG(INFO) << "Configuring to accept " << (char*)&videoSrcFormat
-              << " camera data and convert to " << std::hex << mFormat;
-
-    switch (mFormat) {
-    case HAL_PIXEL_FORMAT_YCRCB_420_SP:
-        switch (videoSrcFormat) {
-        case V4L2_PIX_FMT_NV21:     mFillBufferFromVideo = fillNV21FromNV21;    break;
-        case V4L2_PIX_FMT_YUYV:     mFillBufferFromVideo = fillNV21FromYUYV;    break;
-        default:
-            LOG(ERROR) << "Unhandled camera output format: "
-                       << ((char*)&videoSrcFormat)[0]
-                       << ((char*)&videoSrcFormat)[1]
-                       << ((char*)&videoSrcFormat)[2]
-                       << ((char*)&videoSrcFormat)[3]
-                       << std::hex << videoSrcFormat;
-        }
-        break;
-    case HAL_PIXEL_FORMAT_RGBA_8888:
-        switch (videoSrcFormat) {
-        case V4L2_PIX_FMT_YUYV:     mFillBufferFromVideo = fillRGBAFromYUYV;    break;
-        default:
-            LOG(ERROR) << "Unhandled camera format " << (char*)&videoSrcFormat;
-        }
-        break;
-    case HAL_PIXEL_FORMAT_YCBCR_422_I:
-        switch (videoSrcFormat) {
-        case V4L2_PIX_FMT_YUYV:     mFillBufferFromVideo = fillYUYVFromYUYV;    break;
-        case V4L2_PIX_FMT_UYVY:     mFillBufferFromVideo = fillYUYVFromUYVY;    break;
-        default:
-            LOG(ERROR) << "Unhandled camera format " << (char*)&videoSrcFormat;
-        }
-        break;
-    default:
-        LOG(ERROR) << "Unhandled camera format " << (char*)&mFormat;
-    }
-
-
-    // Record the user's callback for use when we have a frame ready
-    mStream = stream;
-    mStream_1_1 = IEvsCameraStream_1_1::castFrom(mStream).withDefault(nullptr);
-
+    // TODO(b/162946784): Support more input data format.
     // Set up the video stream with a callback to our member function forwardFrame()
-    if (!mVideo.startStream([this](VideoCapture*, imageBuffer* tgt, void* data) {
+    mFillBufferFromVideo = fillRGBAFromYUYV;
+    if (!mVideo->startStream([this](VideoCapture*, imageBuffer* tgt, void* data) {
                                 this->forwardFrame(tgt, data);
                             })
     ) {
         // No need to hold onto this if we failed to start
         mStream = nullptr;
-        mStream_1_1 = nullptr;
         LOG(ERROR) << "Underlying camera start stream failed";
         return EvsResult::UNDERLYING_SERVICE_ERROR;
     }
@@ -220,66 +248,53 @@ Return<EvsResult> EvsV4lCamera::startVideoStream(const sp<IEvsCameraStream_1_0>&
 }
 
 
-Return<void> EvsV4lCamera::doneWithFrame(const BufferDesc_1_0& buffer)  {
+Return<void> EvsEmulatedCamera::doneWithFrame(const BufferDesc_1_0& buffer)  {
     LOG(DEBUG) << __FUNCTION__;
     doneWithFrame_impl(buffer.bufferId, buffer.memHandle);
 
-    return Void();
+    return {};
 }
 
 
-Return<void> EvsV4lCamera::stopVideoStream()  {
+Return<void> EvsEmulatedCamera::stopVideoStream()  {
     LOG(DEBUG) << __FUNCTION__;
 
-    // Tell the capture device to stop (and block until it does)
-    mVideo.stopStream();
+    // Tells the capture device to stop (and block until it does)
+    mVideo->stopStream();
 
-    if (mStream_1_1 != nullptr) {
+    if (mStream != nullptr) {
         // V1.1 client is waiting on STREAM_STOPPED event.
-        std::unique_lock <std::mutex> lock(mAccessLock);
+        std::scoped_lock<std::mutex> lock(mAccessLock);
 
         EvsEventDesc event;
         event.aType = EvsEventType::STREAM_STOPPED;
-        auto result = mStream_1_1->notify(event);
+        auto result = mStream->notify(event);
         if (!result.isOk()) {
             LOG(ERROR) << "Error delivering end of stream event";
-        }
-
-        // Drop our reference to the client's stream receiver
-        mStream_1_1 = nullptr;
-        mStream     = nullptr;
-    } else if (mStream != nullptr) {
-        std::unique_lock <std::mutex> lock(mAccessLock);
-
-        // Send one last NULL frame to signal the actual end of stream
-        BufferDesc_1_0 nullBuff = {};
-        auto result = mStream->deliverFrame(nullBuff);
-        if (!result.isOk()) {
-            LOG(ERROR) << "Error delivering end of stream marker";
         }
 
         // Drop our reference to the client's stream receiver
         mStream = nullptr;
     }
 
-    return Void();
+    return {};
 }
 
 
-Return<int32_t> EvsV4lCamera::getExtendedInfo(uint32_t /*opaqueIdentifier*/)  {
+Return<int32_t> EvsEmulatedCamera::getExtendedInfo(uint32_t /*opaqueIdentifier*/)  {
     LOG(DEBUG) << __FUNCTION__;
     // Return zero by default as required by the spec
     return 0;
 }
 
 
-Return<EvsResult> EvsV4lCamera::setExtendedInfo(uint32_t /*opaqueIdentifier*/,
-                                                int32_t  /*opaqueValue*/)  {
+Return<EvsResult> EvsEmulatedCamera::setExtendedInfo(uint32_t /*opaqueIdentifier*/,
+                                                     int32_t  /*opaqueValue*/)  {
     LOG(DEBUG) << __FUNCTION__;
-    std::lock_guard<std::mutex> lock(mAccessLock);
+    std::scoped_lock<std::mutex> lock(mAccessLock);
 
     // If we've been displaced by another owner of the camera, then we can't do anything else
-    if (!mVideo.isOpen()) {
+    if (!mVideo->isOpen()) {
         LOG(WARNING) << "Ignoring setExtendedInfo call when camera has been lost.";
         return EvsResult::OWNERSHIP_LOST;
     }
@@ -290,27 +305,26 @@ Return<EvsResult> EvsV4lCamera::setExtendedInfo(uint32_t /*opaqueIdentifier*/,
 
 
 // Methods from ::android::hardware::automotive::evs::V1_1::IEvsCamera follow.
-Return<void> EvsV4lCamera::getCameraInfo_1_1(getCameraInfo_1_1_cb _hidl_cb) {
+Return<void> EvsEmulatedCamera::getCameraInfo_1_1(getCameraInfo_1_1_cb _hidl_cb) {
     LOG(DEBUG) << __FUNCTION__;
 
     // Send back our self description
     _hidl_cb(mDescription);
-    return Void();
+    return {};
 }
 
 
-Return<void> EvsV4lCamera::getPhysicalCameraInfo(const hidl_string& id,
-                                                 getPhysicalCameraInfo_cb _hidl_cb) {
+Return<void> EvsEmulatedCamera::getPhysicalCameraInfo(const hidl_string& /*id*/,
+                                                      getPhysicalCameraInfo_cb _hidl_cb) {
     LOG(DEBUG) << __FUNCTION__;
 
-    // This method works exactly same as getCameraInfo_1_1() in EVS HW module.
-    (void)id;
+    // This method works exactly the same as getCameraInfo_1_1() in EVS HW module.
     _hidl_cb(mDescription);
-    return Void();
+    return {};
 }
 
 
-Return<EvsResult> EvsV4lCamera::doneWithFrame_1_1(const hidl_vec<BufferDesc_1_1>& buffers)  {
+Return<EvsResult> EvsEmulatedCamera::doneWithFrame_1_1(const hidl_vec<BufferDesc_1_1>& buffers)  {
     LOG(DEBUG) << __FUNCTION__;
 
     for (auto&& buffer : buffers) {
@@ -321,124 +335,82 @@ Return<EvsResult> EvsV4lCamera::doneWithFrame_1_1(const hidl_vec<BufferDesc_1_1>
 }
 
 
-Return<EvsResult> EvsV4lCamera::pauseVideoStream() {
+Return<EvsResult> EvsEmulatedCamera::pauseVideoStream() {
     return EvsResult::UNDERLYING_SERVICE_ERROR;
 }
 
 
-Return<EvsResult> EvsV4lCamera::resumeVideoStream() {
+Return<EvsResult> EvsEmulatedCamera::resumeVideoStream() {
     return EvsResult::UNDERLYING_SERVICE_ERROR;
 }
 
 
-Return<EvsResult> EvsV4lCamera::setMaster() {
-    /* Because EVS HW module reference implementation expects a single client at
-     * a time, this returns a success code always.
-     */
+Return<EvsResult> EvsEmulatedCamera::setMaster() {
+    // TODO(b/162946784): Implement this operation
     return EvsResult::OK;
 }
 
 
-Return<EvsResult> EvsV4lCamera::forceMaster(const sp<IEvsDisplay_1_0>&) {
-    /* Because EVS HW module reference implementation expects a single client at
-     * a time, this returns a success code always.
-     */
+Return<EvsResult> EvsEmulatedCamera::forceMaster(const sp<IEvsDisplay_1_0>&) {
+    // TODO(b/162946784): Implement this operation
     return EvsResult::OK;
 }
 
 
-Return<EvsResult> EvsV4lCamera::unsetMaster() {
-    /* Because EVS HW module reference implementation expects a single client at
-     * a time, there is no chance that this is called by the secondary client and
-     * therefore returns a success code always.
-     */
+Return<EvsResult> EvsEmulatedCamera::unsetMaster() {
+    // TODO(b/162946784): Implement this operation
     return EvsResult::OK;
 }
 
 
-Return<void> EvsV4lCamera::getParameterList(getParameterList_cb _hidl_cb) {
+Return<void> EvsEmulatedCamera::getParameterList(getParameterList_cb _hidl_cb) {
+    // TODO(b/162946784): reads emulated controls from the configuration and
+    //                    returns.
     hidl_vec<CameraParam> hidlCtrls;
-    if (mCameraInfo != nullptr) {
-        hidlCtrls.resize(mCameraInfo->controls.size());
-        unsigned idx = 0;
-        for (auto& [cid, range]: mCameraInfo->controls) {
-            hidlCtrls[idx++] = cid;
-        }
-    }
-
     _hidl_cb(hidlCtrls);
-    return Void();
+    return {};
 }
 
 
-Return<void> EvsV4lCamera::getIntParameterRange(CameraParam id,
+Return<void> EvsEmulatedCamera::getIntParameterRange(CameraParam /*id*/,
                                                 getIntParameterRange_cb _hidl_cb) {
-    if (mCameraInfo != nullptr) {
-        auto range = mCameraInfo->controls[id];
-        _hidl_cb(get<0>(range), get<1>(range), get<2>(range));
-    } else {
-        _hidl_cb(0, 0, 0);
-    }
-
-    return Void();
+    // TODO(b/162946784): reads emulated controls from the configuration and
+    //                    returns.
+    _hidl_cb(0, 0, 0);
+    return {};
 }
 
 
-Return<void> EvsV4lCamera::setIntParameter(CameraParam id, int32_t value,
-                                           setIntParameter_cb _hidl_cb) {
-    uint32_t v4l2cid = V4L2_CID_BASE;
+Return<void> EvsEmulatedCamera::setIntParameter(CameraParam /*id*/,
+                                                int32_t /*value*/,
+                                                setIntParameter_cb _hidl_cb) {
+    // TODO(b/162946784): Implement this operation
     hidl_vec<int32_t> values;
     values.resize(1);
-    if (!convertToV4l2CID(id, v4l2cid)) {
-        _hidl_cb(EvsResult::INVALID_ARG, values);
-    } else {
-        EvsResult result = EvsResult::OK;
-        v4l2_control control = {v4l2cid, value};
-        if (mVideo.setParameter(control) < 0 ||
-            mVideo.getParameter(control) < 0) {
-            result = EvsResult::UNDERLYING_SERVICE_ERROR;
-        }
-
-        values[0] = control.value;
-        _hidl_cb(result, values);
-    }
-
-    return Void();
+    _hidl_cb(EvsResult::INVALID_ARG, values);
+    return {};
 }
 
 
-Return<void> EvsV4lCamera::getIntParameter(CameraParam id,
-                                           getIntParameter_cb _hidl_cb) {
-    uint32_t v4l2cid = V4L2_CID_BASE;
+Return<void> EvsEmulatedCamera::getIntParameter(CameraParam /*id*/,
+                                                getIntParameter_cb _hidl_cb) {
+    // TODO(b/162946784): Implement this operation
     hidl_vec<int32_t> values;
     values.resize(1);
-    if (!convertToV4l2CID(id, v4l2cid)) {
-        _hidl_cb(EvsResult::INVALID_ARG, values);
-    } else {
-        EvsResult result = EvsResult::OK;
-        v4l2_control control = {v4l2cid, 0};
-        if (mVideo.getParameter(control) < 0) {
-            result = EvsResult::INVALID_ARG;
-        }
-
-        // Report a result
-        values[0] = control.value;
-        _hidl_cb(result, values);
-    }
-
-    return Void();
+    _hidl_cb(EvsResult::INVALID_ARG, values);
+    return {};
 }
 
 
-Return<EvsResult> EvsV4lCamera::setExtendedInfo_1_1(uint32_t opaqueIdentifier,
-                                                    const hidl_vec<uint8_t>& opaqueValue) {
+Return<EvsResult> EvsEmulatedCamera::setExtendedInfo_1_1(uint32_t opaqueIdentifier,
+                                                         const hidl_vec<uint8_t>& opaqueValue) {
     mExtInfo.insert_or_assign(opaqueIdentifier, opaqueValue);
     return EvsResult::OK;
 }
 
 
-Return<void> EvsV4lCamera::getExtendedInfo_1_1(uint32_t opaqueIdentifier,
-                                               getExtendedInfo_1_1_cb _hidl_cb) {
+Return<void> EvsEmulatedCamera::getExtendedInfo_1_1(uint32_t opaqueIdentifier,
+                                                    getExtendedInfo_1_1_cb _hidl_cb) {
     const auto it = mExtInfo.find(opaqueIdentifier);
     hidl_vec<uint8_t> value;
     auto status = EvsResult::OK;
@@ -449,17 +421,16 @@ Return<void> EvsV4lCamera::getExtendedInfo_1_1(uint32_t opaqueIdentifier,
     }
 
     _hidl_cb(status, value);
-    return Void();
+    return {};
 }
 
 
-Return<void>
-EvsV4lCamera::importExternalBuffers(const hidl_vec<BufferDesc_1_1>& buffers,
-                                    importExternalBuffers_cb _hidl_cb) {
+Return<void> EvsEmulatedCamera::importExternalBuffers(const hidl_vec<BufferDesc_1_1>& buffers,
+                                                      importExternalBuffers_cb _hidl_cb) {
     LOG(DEBUG) << __FUNCTION__;
 
     // If we've been displaced by another owner of the camera, then we can't do anything else
-    if (!mVideo.isOpen()) {
+    if (!mVideo->isOpen()) {
         LOG(WARNING) << "Ignoring a request add external buffers "
                      << "when camera has been lost.";
         _hidl_cb(EvsResult::UNDERLYING_SERVICE_ERROR, mFramesAllowed);
@@ -485,7 +456,6 @@ EvsV4lCamera::importExternalBuffers(const hidl_vec<BufferDesc_1_1>& buffers,
         GraphicBufferMapper& mapper = GraphicBufferMapper::get();
         const auto before = mFramesAllowed;
         for (auto i = 0; i < numBuffersToAdd; ++i) {
-            // TODO: reject if external buffer is configured differently.
             auto& b = buffers[i];
             const AHardwareBuffer_Desc* pDesc =
                 reinterpret_cast<const AHardwareBuffer_Desc *>(&b.buffer.description);
@@ -495,7 +465,7 @@ EvsV4lCamera::importExternalBuffers(const hidl_vec<BufferDesc_1_1>& buffers,
             status_t result = mapper.importBuffer(b.buffer.nativeHandle,
                                                   pDesc->width,
                                                   pDesc->height,
-                                                  1,
+                                                  pDesc->layers,
                                                   pDesc->format,
                                                   pDesc->usage,
                                                   pDesc->stride,
@@ -531,12 +501,12 @@ EvsV4lCamera::importExternalBuffers(const hidl_vec<BufferDesc_1_1>& buffers,
 }
 
 
-EvsResult EvsV4lCamera::doneWithFrame_impl(const uint32_t bufferId,
-                                           const buffer_handle_t memHandle) {
-    std::lock_guard <std::mutex> lock(mAccessLock);
+EvsResult EvsEmulatedCamera::doneWithFrame_impl(const uint32_t bufferId,
+                                                const buffer_handle_t memHandle) {
+    std::scoped_lock <std::mutex> lock(mAccessLock);
 
     // If we've been displaced by another owner of the camera, then we can't do anything else
-    if (!mVideo.isOpen()) {
+    if (!mVideo->isOpen()) {
         LOG(WARNING) << "Ignoring doneWithFrame call when camera has been lost.";
     } else {
         if (memHandle == nullptr) {
@@ -550,7 +520,7 @@ EvsResult EvsV4lCamera::doneWithFrame_impl(const uint32_t bufferId,
         } else {
             // Mark the frame as available
             mBuffers[bufferId].inUse = false;
-            mFramesInUse--;
+            --mFramesInUse;
 
             // If this frame's index is high in the array, try to move it down
             // to improve locality after mFramesAllowed has been reduced.
@@ -571,13 +541,14 @@ EvsResult EvsV4lCamera::doneWithFrame_impl(const uint32_t bufferId,
 }
 
 
-bool EvsV4lCamera::setAvailableFrames_Locked(unsigned bufferCount) {
+bool EvsEmulatedCamera::setAvailableFrames_Locked(unsigned bufferCount) {
     if (bufferCount < 1) {
-        LOG(ERROR) << "Ignoring request to set buffer count to zero";
+        LOG(ERROR) << "Rejecting a buffer request to set buffer count to zero";
         return false;
     }
+
     if (bufferCount > MAX_BUFFERS_IN_FLIGHT) {
-        LOG(ERROR) << "Rejecting buffer request in excess of internal limit";
+        LOG(ERROR) << "Rejecting a buffer request in excess of internal limit";
         return false;
     }
 
@@ -612,30 +583,31 @@ bool EvsV4lCamera::setAvailableFrames_Locked(unsigned bufferCount) {
 }
 
 
-unsigned EvsV4lCamera::increaseAvailableFrames_Locked(unsigned numToAdd) {
+unsigned EvsEmulatedCamera::increaseAvailableFrames_Locked(unsigned numToAdd) {
     // Acquire the graphics buffer allocator
     GraphicBufferAllocator &alloc(GraphicBufferAllocator::get());
 
     unsigned added = 0;
 
-
     while (added < numToAdd) {
         unsigned pixelsPerLine;
         buffer_handle_t memHandle = nullptr;
-        status_t result = alloc.allocate(mVideo.getWidth(), mVideo.getHeight(),
+        status_t result = alloc.allocate(mVideo->getWidth(), mVideo->getHeight(),
                                          mFormat, 1,
                                          mUsage,
-                                         &memHandle, &pixelsPerLine, 0, "EvsV4lCamera");
+                                         &memHandle, &pixelsPerLine, 0, "EvsEmulatedCamera");
         if (result != NO_ERROR) {
             LOG(ERROR) << "Error " << result << " allocating "
-                       << mVideo.getWidth() << " x " << mVideo.getHeight()
+                       << mVideo->getWidth() << " x " << mVideo->getHeight()
                        << " graphics buffer";
             break;
         }
+
         if (!memHandle) {
             LOG(ERROR) << "We didn't get a buffer handle back from the allocator";
             break;
         }
+
         if (mStride) {
             if (mStride != pixelsPerLine) {
                 LOG(ERROR) << "We did not expect to get buffers with different strides!";
@@ -656,6 +628,7 @@ unsigned EvsV4lCamera::increaseAvailableFrames_Locked(unsigned numToAdd) {
                 break;
             }
         }
+
         if (!stored) {
             // Add a BufferRecord wrapping this handle to our set of available buffers
             mBuffers.emplace_back(memHandle);
@@ -669,7 +642,7 @@ unsigned EvsV4lCamera::increaseAvailableFrames_Locked(unsigned numToAdd) {
 }
 
 
-unsigned EvsV4lCamera::decreaseAvailableFrames_Locked(unsigned numToRemove) {
+unsigned EvsEmulatedCamera::decreaseAvailableFrames_Locked(unsigned numToRemove) {
     // Acquire the graphics buffer allocator
     GraphicBufferAllocator &alloc(GraphicBufferAllocator::get());
 
@@ -696,13 +669,13 @@ unsigned EvsV4lCamera::decreaseAvailableFrames_Locked(unsigned numToRemove) {
 
 
 // This is the async callback from the video camera that tells us a frame is ready
-void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
+void EvsEmulatedCamera::forwardFrame(imageBuffer* /*pTargetBuf*/, void* pData) {
     bool readyForFrame = false;
     size_t idx = 0;
 
     // Lock scope for updating shared state
     {
-        std::lock_guard<std::mutex> lock(mAccessLock);
+        std::scoped_lock<std::mutex> lock(mAccessLock);
 
         // Are we allowed to issue another buffer?
         if (mFramesInUse >= mFramesAllowed) {
@@ -718,46 +691,29 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
                     }
                 }
             }
+
             if (idx >= mBuffers.size()) {
                 // This shouldn't happen since we already checked mFramesInUse vs mFramesAllowed
                 LOG(ERROR) << "Failed to find an available buffer slot";
             } else {
                 // We're going to make the frame busy
                 mBuffers[idx].inUse = true;
-                mFramesInUse++;
                 readyForFrame = true;
+                ++mFramesInUse;
             }
-        }
-    }
-
-    if (mDumpFrame) {
-        // Construct a target filename with the device identifier
-        std::string filename = std::string(mDescription.v1.cameraId);
-        std::replace(filename.begin(), filename.end(), '/', '_');
-        filename = mDumpPath + filename + "_" + to_string(mFrameCounter) + ".bin";
-
-        android::base::unique_fd fd(open(filename.c_str(),
-                                         O_WRONLY | O_CREAT,
-                                         S_IRUSR | S_IWUSR | S_IRGRP));
-        LOG(ERROR) << filename << ", " << fd;
-        if (fd == -1) {
-            PLOG(ERROR) << "Failed to open a file, " << filename;
-        } else {
-            auto len = write(fd.get(), pData, pV4lBuff->length);
-            LOG(INFO) << len << " bytes are written to " << filename;
         }
     }
 
     if (!readyForFrame) {
         // We need to return the video buffer so it can capture a new frame
-        mVideo.markFrameConsumed(pV4lBuff->index);
+        mVideo->markFrameConsumed();
     } else {
         // Assemble the buffer description we'll transmit below
         BufferDesc_1_1 bufDesc_1_1 = {};
         AHardwareBuffer_Desc* pDesc =
             reinterpret_cast<AHardwareBuffer_Desc *>(&bufDesc_1_1.buffer.description);
-        pDesc->width  = mVideo.getWidth();
-        pDesc->height = mVideo.getHeight();
+        pDesc->width  = mVideo->getWidth();
+        pDesc->height = mVideo->getHeight();
         pDesc->layers = 1;
         pDesc->format = mFormat;
         pDesc->usage  = mUsage;
@@ -766,13 +722,9 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
         bufDesc_1_1.bufferId = idx;
         bufDesc_1_1.deviceId = mDescription.v1.cameraId;
         // timestamp in microseconds.
-        bufDesc_1_1.timestamp =
-            pV4lBuff->timestamp.tv_sec * 1e+6 + pV4lBuff->timestamp.tv_usec;
+        bufDesc_1_1.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
 
         // Lock our output buffer for writing
-        // TODO(b/145459970): Sometimes, physical camera device maps a buffer
-        // into the address that is about to be unmapped by another device; this
-        // causes SEGV_MAPPER.
         void *targetPixels = nullptr;
         GraphicBufferMapper &mapper = GraphicBufferMapper::get();
         status_t result =
@@ -783,9 +735,6 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
 
         // If we failed to lock the pixel buffer, we're about to crash, but log it first
         if (!targetPixels) {
-            // TODO(b/145457727): When EvsHidlTest::CameraToDisplayRoundTrip
-            // test case was repeatedly executed, EVS occasionally fails to map
-            // a buffer.
             LOG(ERROR) << "Camera failed to gain access to image buffer for writing - "
                        << " status: " << statusToString(result)
                        << " , error: " << strerror(errno);
@@ -793,7 +742,7 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
 
         // Transfer the video image into the output buffer, making any needed
         // format conversion along the way
-        mFillBufferFromVideo(bufDesc_1_1, (uint8_t *)targetPixels, pData, mVideo.getStride());
+        mFillBufferFromVideo(bufDesc_1_1, (uint8_t *)targetPixels, pData, mVideo->getStride());
 
         // Unlock the output buffer
         mapper.unlock(bufDesc_1_1.buffer.nativeHandle);
@@ -801,30 +750,16 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
         // Give the video frame back to the underlying device for reuse
         // Note that we do this before making the client callback to give the
         // underlying camera more time to capture the next frame
-        mVideo.markFrameConsumed(pV4lBuff->index);
+        mVideo->markFrameConsumed();
 
         // Issue the (asynchronous) callback to the client -- can't be holding
         // the lock
         bool flag = false;
-        if (mStream_1_1 != nullptr) {
+        {
             hidl_vec<BufferDesc_1_1> frames;
             frames.resize(1);
             frames[0] = bufDesc_1_1;
-            auto result = mStream_1_1->deliverFrame_1_1(frames);
-            flag = result.isOk();
-        } else {
-            BufferDesc_1_0 bufDesc_1_0 = {
-                pDesc->width,
-                pDesc->height,
-                pDesc->stride,
-                bufDesc_1_1.pixelSize,
-                static_cast<uint32_t>(pDesc->format),
-                static_cast<uint32_t>(pDesc->usage),
-                bufDesc_1_1.bufferId,
-                bufDesc_1_1.buffer.nativeHandle
-            };
-
-            auto result = mStream->deliverFrame(bufDesc_1_0);
+            auto result = mStream->deliverFrame_1_1(frames);
             flag = result.isOk();
         }
 
@@ -839,169 +774,30 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
             LOG(ERROR) << "Frame delivery call failed in the transport layer.";
 
             // Since we didn't actually deliver it, mark the frame as available
-            std::lock_guard<std::mutex> lock(mAccessLock);
+            std::scoped_lock<std::mutex> lock(mAccessLock);
             mBuffers[idx].inUse = false;
 
-            mFramesInUse--;
+            --mFramesInUse;
         }
     }
-
-    // Increse a frame counter
-    ++mFrameCounter;
 }
 
 
-bool EvsV4lCamera::convertToV4l2CID(CameraParam id, uint32_t& v4l2cid) {
-    switch (id) {
-        case CameraParam::BRIGHTNESS:
-            v4l2cid = V4L2_CID_BRIGHTNESS;
-            break;
-        case CameraParam::CONTRAST:
-            v4l2cid = V4L2_CID_CONTRAST;
-            break;
-        case CameraParam::AUTO_WHITE_BALANCE:
-            v4l2cid = V4L2_CID_AUTO_WHITE_BALANCE;
-            break;
-        case CameraParam::WHITE_BALANCE_TEMPERATURE:
-            v4l2cid = V4L2_CID_WHITE_BALANCE_TEMPERATURE;
-            break;
-        case CameraParam::SHARPNESS:
-            v4l2cid = V4L2_CID_SHARPNESS;
-            break;
-        case CameraParam::AUTO_EXPOSURE:
-            v4l2cid = V4L2_CID_EXPOSURE_AUTO;
-            break;
-        case CameraParam::ABSOLUTE_EXPOSURE:
-            v4l2cid = V4L2_CID_EXPOSURE_ABSOLUTE;
-            break;
-        case CameraParam::AUTO_FOCUS:
-            v4l2cid = V4L2_CID_FOCUS_AUTO;
-            break;
-        case CameraParam::ABSOLUTE_FOCUS:
-            v4l2cid = V4L2_CID_FOCUS_ABSOLUTE;
-            break;
-        case CameraParam::ABSOLUTE_ZOOM:
-            v4l2cid = V4L2_CID_ZOOM_ABSOLUTE;
-            break;
-        default:
-            LOG(ERROR) << "Camera parameter " << static_cast<unsigned>(id) << " is unknown.";
-            return false;
-    }
-
-    return mCameraControls.find(v4l2cid) != mCameraControls.end();
-}
-
-
-sp<EvsV4lCamera> EvsV4lCamera::Create(const char *deviceName) {
-    unique_ptr<ConfigManager::CameraInfo> nullCamInfo = nullptr;
-
-    return Create(deviceName, nullCamInfo);
-}
-
-
-sp<EvsV4lCamera> EvsV4lCamera::Create(const char *deviceName,
-                                      unique_ptr<ConfigManager::CameraInfo> &camInfo,
-                                      const Stream *requestedStreamCfg) {
+sp<EvsEmulatedCamera> EvsEmulatedCamera::Create(const char *deviceName,
+                                                const EmulatedCameraDesc& desc) {
     LOG(INFO) << "Create " << deviceName;
-    sp<EvsV4lCamera> evsCamera = new EvsV4lCamera(deviceName, camInfo);
-    if (evsCamera == nullptr) {
+    sp<EvsEmulatedCamera> pCamera = new EvsEmulatedCamera(deviceName, desc);
+    if (pCamera->openDevice()) {
+        return pCamera;
+    } else {
+        LOG(ERROR) << "Failed to open a video device.";
         return nullptr;
     }
-
-    // Initialize the video device
-    bool success = false;
-    if (camInfo != nullptr && requestedStreamCfg != nullptr) {
-        // Validate a given stream configuration.  If there is no exact match,
-        // this will try to find the best match based on:
-        // 1) same output format
-        // 2) the largest resolution that is smaller that a given configuration.
-        int32_t streamId = -1, area = INT_MIN;
-        for (auto& [id, cfg] : camInfo->streamConfigurations) {
-            // RawConfiguration has id, width, height, format, direction, and
-            // fps.
-            if (cfg[3] == static_cast<uint32_t>(requestedStreamCfg->format)) {
-                if (cfg[1] == requestedStreamCfg->width &&
-                    cfg[2] == requestedStreamCfg->height) {
-                    // Find exact match.
-                    streamId = id;
-                    break;
-                } else if (requestedStreamCfg->width  > cfg[1] &&
-                           requestedStreamCfg->height > cfg[2] &&
-                           cfg[1] * cfg[2] > area) {
-                    streamId = id;
-                    area = cfg[1] * cfg[2];
-                }
-            }
-
-        }
-
-        if (streamId >= 0) {
-            LOG(INFO) << "Try to open a video with "
-                      << "width: " << camInfo->streamConfigurations[streamId][1]
-                      << ", height: " << camInfo->streamConfigurations[streamId][2]
-                      << ", format: " << camInfo->streamConfigurations[streamId][3];
-            success =
-                evsCamera->mVideo.open(deviceName,
-                                       camInfo->streamConfigurations[streamId][1],
-                                       camInfo->streamConfigurations[streamId][2]);
-            evsCamera->mFormat = static_cast<uint32_t>(camInfo->streamConfigurations[streamId][3]);
-        }
-    }
-
-    if (!success) {
-        // Create a camera object with the default resolution and format
-        // , HAL_PIXEL_FORMAT_RGBA_8888.
-        LOG(INFO) << "Open a video with default parameters";
-        success =
-            evsCamera->mVideo.open(deviceName, kDefaultResolution[0], kDefaultResolution[1]);
-        if (!success) {
-            LOG(ERROR) << "Failed to open a video stream";
-            return nullptr;
-        }
-    }
-
-    // List available camera parameters
-    evsCamera->mCameraControls = evsCamera->mVideo.enumerateCameraControls();
-
-    // Please note that the buffer usage flag does not come from a given stream
-    // configuration.
-    evsCamera->mUsage  = GRALLOC_USAGE_HW_TEXTURE     |
-                         GRALLOC_USAGE_SW_READ_RARELY |
-                         GRALLOC_USAGE_SW_WRITE_OFTEN;
-
-    return evsCamera;
 }
 
-
-using android::base::Result;
-using android::base::Error;
-Result<void> EvsV4lCamera::startDumpFrames(const std::string& path) {
-    struct stat info;
-    if (stat(path.c_str(), &info) != 0) {
-        return Error(BAD_VALUE) << "Cannot access " << path;
-    } else if (!(info.st_mode & S_IFDIR)) {
-        return Error(BAD_VALUE) << path << " is not a directory";
-    }
-
-    mDumpPath = path;
-    mDumpFrame = true;
-
-    return {};
-}
-
-
-Result<void> EvsV4lCamera::stopDumpFrames() {
-    if (!mDumpFrame) {
-        return Error(INVALID_OPERATION) << "Device is not dumping frames";
-    }
-
-    mDumpFrame = false;
-    return {};
-}
 
 } // namespace implementation
 } // namespace V1_1
 } // namespace evs
 } // namespace automotive
-} // namespace hardware
 } // namespace android
