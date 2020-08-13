@@ -26,7 +26,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
-import android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateReq;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -89,6 +88,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private static final String WIFI_STATE_FILENAME = "wifi_state";
     private static final String WIFI_STATE_MODIFIED = "forcibly_disabled";
     private static final String WIFI_STATE_ORIGINAL = "original";
+    // If Suspend to RAM fails, we retry with an exponential back-off:
+    // 10 msec, 20 msec, ..., 1280 msec, for a maximum of about 2.5 seconds.
+    private static final int MAX_SUSPEND_TRIES = 9; // Initial + 8 retries
+    private static final long INITIAL_SUSPEND_RETRY_INTERVAL_MS = 10;
 
     private final Object mLock = new Object();
     private final Object mSimulationWaitObject = new Object();
@@ -428,33 +431,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         mHal.sendOn();
 
         try {
-            switchUserOnResumeIfNecessary(allowUserSwitch);
+            mUserService.switchUserIfNecessary(/* onSuspend= */ false, allowUserSwitch);
         } catch (Exception e) {
             Slog.e(TAG, "Could not switch user on resume", e);
         }
-    }
-
-    // TODO(b/160819016): Move all user switch logic to CarUserService if possible.
-    @VisibleForTesting // Ideally it should not be exposed, but it speeds up the unit tests
-    void switchUserOnResumeIfNecessary(boolean allowSwitching) {
-        Slog.d(TAG, "switchUserOnResumeIfNecessary(): allowSwitching=" + allowSwitching
-                + ", mSwitchGuestUserBeforeSleep=" + mSwitchGuestUserBeforeSleep);
-        if (!allowSwitching) {
-            if (mSwitchGuestUserBeforeSleep) { // already handled
-                return;
-            }
-            switchToNewGuestIfNecessary();
-            return;
-        }
-
-        switchUserOnResumeIfNecessaryUsingHal();
-    }
-
-    /**
-     * Replaces the current user if it's a guest.
-     */
-    private void switchToNewGuestIfNecessary() {
-        mUserService.initResumeReplaceGuest();
     }
 
     /**
@@ -467,14 +447,6 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         synchronized (mLock) {
             return mGarageModeShouldExitImmediately;
         }
-    }
-
-    /**
-     * Switches the initial user by calling the User HAL to define the behavior.
-     */
-    private void switchUserOnResumeIfNecessaryUsingHal() {
-        Slog.i(TAG, "Using User HAL to define initial user behavior");
-        mUserService.initBootUser(InitialUserInfoRequestType.RESUME, !mSwitchGuestUserBeforeSleep);
     }
 
     private void handleShutdownPrepare(CpmsState newState) {
@@ -667,9 +639,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     0 /*delay*/,
                     intervalMs);
         }
-        if (mSwitchGuestUserBeforeSleep) {
-            switchToNewGuestIfNecessary();
-        }
+        // allowUserSwitch value doesn't matter for onSuspend = true
+        mUserService.switchUserIfNecessary(/* onSuspend= */ true, /* allowUserSwitch= */ true);
     }
 
     private void sendPowerManagerEvent(int newState) {
@@ -1075,15 +1046,12 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     // Send the command to enter Suspend to RAM.
-    // If the command is not successful, try again.
+    // If the command is not successful, try again with an exponential back-off.
     // If it fails repeatedly, send the command to shut down.
-    // If we decide to go to a different power state, abort this
-    // retry mechanism.
+    // If we decide to go to a different power state, abort this retry mechanism.
     // Returns true if we successfully suspended.
     private boolean suspendWithRetries() {
-        final int maxTries = 9; // 0, 10, 20, ..., 1280 msec
-        final long initialRetryIntervalMs = 10;
-        long retryIntervalMs = initialRetryIntervalMs;
+        long retryIntervalMs = INITIAL_SUSPEND_RETRY_INTERVAL_MS;
         int tryCount = 0;
 
         while (true) {
@@ -1093,7 +1061,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 return true;
             }
             tryCount++;
-            if (tryCount >= maxTries) {
+            if (tryCount >= MAX_SUSPEND_TRIES) {
                 break;
             }
             // We failed to suspend. Block the thread briefly and try again.
@@ -1102,7 +1070,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     Slog.w(TAG, "Failed to Suspend; will retry later.");
                     try {
                         mLock.wait(retryIntervalMs);
-                    } catch (InterruptedException ignored) { }
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                    }
                     retryIntervalMs *= 2;
                 }
                 // Check for a new power state now, before going around the loop again
