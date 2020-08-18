@@ -68,10 +68,11 @@ android_app {
     libs: ["android.car"],
 
     static_libs: common_lib_deps + [
-        "car-frameworks-service",
+        "com.android.car.internal.all",
+        "com.android.car.internal.system",
     ],
 
-    required: ["privapp_whitelist_com.android.car"],
+    required: ["allowed_privapp_com.android.car"],
 
     // Disable build in PDK, missing aidl import breaks build
     product_variables: {
