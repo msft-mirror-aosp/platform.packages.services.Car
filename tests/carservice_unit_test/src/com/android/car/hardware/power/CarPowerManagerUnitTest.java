@@ -35,10 +35,10 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.car.CarLocalServices;
 import com.android.car.R;
+import com.android.car.hal.MockedPowerHalService;
 import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.power.CarPowerManagementService;
-import com.android.car.power.MockedPowerHalService;
 import com.android.car.power.SilentModeController;
 import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.SystemInterface;
@@ -209,8 +209,6 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
      */
     private void setService() throws Exception {
         Log.i(TAG, "setService(): overridden overlay properties: "
-                + "config_disableUserSwitchDuringResume="
-                + mResources.getBoolean(R.bool.config_disableUserSwitchDuringResume)
                 + ", maxGarageModeRunningDurationInSecs="
                 + mResources.getInteger(R.integer.maxGarageModeRunningDurationInSecs));
         mSilentModeController = new SilentModeController(mContext, mSystemInterface,
