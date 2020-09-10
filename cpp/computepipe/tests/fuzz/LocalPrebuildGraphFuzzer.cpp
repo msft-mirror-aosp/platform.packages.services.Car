@@ -20,7 +20,7 @@
 #include "ClientConfig.pb.h"
 #include "Common.h"
 #include "LocalPrebuiltGraph.h"
-#include "PrebuiltEngineInterface.h"
+#include "PrebuiltEngineInterfaceImpl.h"
 
 using ::android::automotive::computepipe::runner::ClientConfig;
 
@@ -31,56 +31,7 @@ namespace graph {
 
 namespace {
 
-enum LOCAL_PREBUILD_GRAPH_FUZZ_FUNCS {
-    GET_GRAPH_TYPE,
-    GET_GRAPH_STATE,
-    GET_STATUS,
-    GET_ERROR_MESSAGE,
-    GET_SUPPORTED_GRAPH_CONFIGS,
-    SET_INPUT_STREAM_DATA,
-    SET_INPUT_STREAM_PIXEL_DATA,
-    START_GRAPH_PROFILING,
-    STOP_GRAPH_PROFILING,
-    RUNNER_COMP_BASE_ENUM
-};
-
-// Barebones implementation of the PrebuiltEngineInterface. This implementation should suffice for
-// basic cases. More complicated use cases might need their own implementation of it.
-typedef std::function<void(int, int64_t, const runner::InputFrame&)> PixelCallback;
-typedef std::function<void(int, int64_t, std::string&&)> SerializedStreamCallback;
-typedef std::function<void(Status, std::string&&)> GraphTerminationCallback;
-class PrebuiltEngineInterfaceImpl : public PrebuiltEngineInterface {
-  private:
-    PixelCallback mPixelCallbackFn;
-    SerializedStreamCallback mSerializedStreamCallbackFn;
-    GraphTerminationCallback mGraphTerminationCallbackFn;
-
-  public:
-    virtual ~PrebuiltEngineInterfaceImpl() = default;
-
-    void DispatchPixelData(int streamId, int64_t timestamp,
-                           const runner::InputFrame& frame) override {
-        mPixelCallbackFn(streamId, timestamp, frame);
-    }
-
-    void DispatchSerializedData(int streamId, int64_t timestamp, std::string&& data) override {
-        mSerializedStreamCallbackFn(streamId, timestamp, std::move(data));
-    }
-
-    void DispatchGraphTerminationMessage(Status status, std::string&& msg) override {
-        mGraphTerminationCallbackFn(status, std::move(msg));
-    }
-
-    void SetPixelCallback(PixelCallback callback) { mPixelCallbackFn = callback; }
-
-    void SetSerializedStreamCallback(SerializedStreamCallback callback) {
-        mSerializedStreamCallbackFn = callback;
-    }
-
-    void SetGraphTerminationCallback(GraphTerminationCallback callback) {
-        mGraphTerminationCallbackFn = callback;
-    }
-};
+enum LOCAL_PREBUILD_GRAPH_FUZZ_FUNCS { GRAPH_RUNNER_BASE_ENUM, RUNNER_COMP_BASE_ENUM };
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // Initialization goes here
