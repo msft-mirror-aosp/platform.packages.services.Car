@@ -13,32 +13,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-
-android_test {
-    name: "CarSecurityPermissionTest",
-
-    srcs: ["src/**/*.java"],
-
-    libs: [
-        "android.car",
-        "android.hardware.automotive.vehicle-V2.0-java",
-        "android.test.runner",
-        "android.test.base",
-        "android.test.mock",
-    ],
-
-    static_libs: [
-        "androidx.test.core",
-        "androidx.test.ext.junit",
-        "androidx.test.rules",
-        "car-frameworks-service",
-        "compatibility-device-util-axt",
-        "mockito-target-minus-junit4",
-        "testng",
-        "truth-prebuilt",
-    ],
-
+android_app {
+    name: "CarDeveloperOptions2",
     platform_apis: true,
-
     certificate: "platform",
+    system_ext_specific: true,
+    privileged: true,
+    required: [
+        "privapp_whitelist_com.android.settings",
+        "settings-platform-compat-config",
+    ],
+    libs: ["android.car-stubs"],
+    static_libs: ["Settings-core", "car-ui-lib"],
+    srcs: ["src/**/*.java"],
+    resource_dirs: ["res"],
+    optimize: {
+        proguard_flags_files: ["proguard.flags"],
+    },
 }
