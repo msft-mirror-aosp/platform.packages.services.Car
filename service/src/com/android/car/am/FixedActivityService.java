@@ -17,6 +17,7 @@ package com.android.car.am;
 
 import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.os.Process.INVALID_UID;
+import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG;
 
 import static com.android.car.CarLog.TAG_AM;
 
@@ -24,8 +25,8 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
-import android.app.ActivityManager.StackInfo;
 import android.app.ActivityOptions;
+import android.app.ActivityTaskManager.RootTaskInfo;
 import android.app.IActivityManager;
 import android.app.IProcessObserver;
 import android.app.Presentation;
@@ -380,9 +381,9 @@ public final class FixedActivityService implements CarServiceBase {
     }
 
     @Nullable
-    private List<StackInfo> getStackInfos() {
+    private List<RootTaskInfo> getRootTaskInfos() {
         try {
-            return mAm.getAllStackInfos();
+            return mAm.getAllRootTaskInfos();
         } catch (RemoteException e) {
             Log.e(TAG_AM, "remote exception from AM", e);
         }
@@ -397,9 +398,9 @@ public final class FixedActivityService implements CarServiceBase {
      *         launched. It will return false for {@link Display#INVALID_DISPLAY} {@code displayId}.
      */
     private boolean launchIfNecessary(int displayId) {
-        List<StackInfo> infos = getStackInfos();
+        List<RootTaskInfo> infos = getRootTaskInfos();
         if (infos == null) {
-            Log.e(TAG_AM, "cannot get StackInfo from AM");
+            Log.e(TAG_AM, "cannot get RootTaskInfo from AM");
             return false;
         }
         long now = SystemClock.elapsedRealtime();
@@ -444,31 +445,35 @@ public final class FixedActivityService implements CarServiceBase {
                             }
                             mBlockingPresentations.append(displayIdForActivity, p);
                         }
+                        // Change the window type, since we can't show the Presentation window
+                        // in the internal display.
+                        p.getWindow().setType(TYPE_SYSTEM_DIALOG);
                         p.show();
                     });
                 }
                 mRunningActivities.removeAt(i);
             }
-            for (StackInfo stackInfo : infos) {
-                RunningActivityInfo activityInfo = mRunningActivities.get(stackInfo.displayId);
+            for (RootTaskInfo taskInfo : infos) {
+                RunningActivityInfo activityInfo = mRunningActivities.get(taskInfo.displayId);
                 if (activityInfo == null) {
                     continue;
                 }
-                int topUserId = stackInfo.taskUserIds[stackInfo.taskUserIds.length - 1];
-                if (activityInfo.intent.getComponent().equals(stackInfo.topActivity)
-                        && activityInfo.userId == topUserId && stackInfo.visible) {
+                int topUserId = taskInfo.childTaskUserIds[taskInfo.childTaskUserIds.length - 1];
+                if (activityInfo.intent.getComponent().equals(taskInfo.topActivity)
+                        && activityInfo.userId == topUserId && taskInfo.visible) {
                     // top one is matching.
                     activityInfo.isVisible = true;
-                    activityInfo.taskId = stackInfo.taskIds[stackInfo.taskIds.length - 1];
+                    activityInfo.taskId = taskInfo.childTaskIds[taskInfo.childTaskIds.length - 1];
                     continue;
                 }
-                activityInfo.previousTaskId = stackInfo.taskIds[stackInfo.taskIds.length - 1];
+                activityInfo.previousTaskId =
+                        taskInfo.childTaskIds[taskInfo.childTaskIds.length - 1];
                 Log.i(TAG_AM, "Unmatched top activity will be removed:"
-                        + stackInfo.topActivity + " top task id:" + activityInfo.previousTaskId
-                        + " user:" + topUserId + " display:" + stackInfo.displayId);
+                        + taskInfo.topActivity + " top task id:" + activityInfo.previousTaskId
+                        + " user:" + topUserId + " display:" + taskInfo.displayId);
                 activityInfo.inBackground = false;
-                for (int i = 0; i < stackInfo.taskIds.length - 1; i++) {
-                    if (activityInfo.taskId == stackInfo.taskIds[i]) {
+                for (int i = 0; i < taskInfo.childTaskIds.length - 1; i++) {
+                    if (activityInfo.taskId == taskInfo.childTaskIds[i]) {
                         activityInfo.inBackground = true;
                     }
                 }
