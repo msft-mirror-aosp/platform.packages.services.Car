@@ -21,7 +21,7 @@ PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/priv
 
 PRODUCT_PACKAGES += \
     Bluetooth \
-    CarDeveloperOptions \
+    CarDeveloperOptions2 \
     CompanionDeviceSupport \
     OneTimeInitializer \
     Provision \
@@ -70,7 +70,7 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 # Enable user pre-creation
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     android.car.number_pre_created_users?=1 \
-    android.car.number_pre_created_guests?=2
+    android.car.number_pre_created_guests?=1
 
 ### end of multi-user properties ###
 
