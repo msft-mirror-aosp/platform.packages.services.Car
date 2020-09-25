@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef WATCHDOG_SERVER_SRC_UIDIOSTATS_H_
-#define WATCHDOG_SERVER_SRC_UIDIOSTATS_H_
+#ifndef CPP_WATCHDOG_SERVER_SRC_UIDIOSTATS_H_
+#define CPP_WATCHDOG_SERVER_SRC_UIDIOSTATS_H_
 
 #include <android-base/result.h>
 #include <stdint.h>
@@ -38,23 +38,10 @@ enum UidState {
 };
 
 enum MetricType {
-    READ_BYTES = 0,
-    WRITE_BYTES,
-    FSYNC_COUNT,
+    READ_BYTES = 0,  // bytes read (from storage layer)
+    WRITE_BYTES,     // bytes written (to storage layer)
+    FSYNC_COUNT,     // number of fsync syscalls
     METRIC_TYPES,
-};
-
-struct IoStat {
-    uint64_t rchar = 0;       // characters read
-    uint64_t wchar = 0;       // characters written
-    uint64_t readBytes = 0;   // bytes read (from storage layer)
-    uint64_t writeBytes = 0;  // bytes written (to storage layer)
-    uint64_t fsync = 0;       // number of fsync syscalls
-};
-
-struct UidIoStat {
-    uid_t uid = 0;  // linux user id
-    IoStat io[UID_STATES] = {{}};
 };
 
 class IoUsage {
@@ -69,6 +56,7 @@ class IoUsage {
         metrics[FSYNC_COUNT][FOREGROUND] = fgFsync;
         metrics[FSYNC_COUNT][BACKGROUND] = bgFsync;
     }
+    IoUsage& operator-=(const IoUsage& rhs);
     bool operator==(const IoUsage& usage) const {
         return memcmp(&metrics, &usage.metrics, sizeof(metrics)) == 0;
     }
@@ -84,8 +72,12 @@ class IoUsage {
 };
 
 struct UidIoUsage {
-    uid_t uid = 0;
+    uid_t uid = 0;  // Linux user id.
     IoUsage ios = {};
+    UidIoUsage& operator-=(const UidIoUsage& rhs) {
+        ios -= rhs.ios;
+        return *this;
+    }
 };
 
 class UidIoStats : public RefBase {
@@ -95,8 +87,18 @@ public:
 
     virtual ~UidIoStats() {}
 
-    // Collects the I/O usage since the last collection.
-    virtual android::base::Result<std::unordered_map<uid_t, UidIoUsage>> collect();
+    // Collects the per-UID I/O usage.
+    virtual android::base::Result<void> collect();
+
+    virtual const std::unordered_map<uid_t, UidIoUsage> latestStats() const {
+        Mutex::Autolock lock(mMutex);
+        return mLatestUidIoUsages;
+    }
+
+    virtual const std::unordered_map<uid_t, UidIoUsage> deltaStats() const {
+        Mutex::Autolock lock(mMutex);
+        return mDeltaUidIoUsages;
+    }
 
     // Returns true when the uid_io stats file is accessible. Otherwise, returns false.
     // Called by IoPerfCollection and tests.
@@ -106,13 +108,16 @@ public:
 
 private:
     // Reads the contents of |kPath|.
-    android::base::Result<std::unordered_map<uid_t, UidIoStat>> getUidIoStatsLocked() const;
+    android::base::Result<std::unordered_map<uid_t, UidIoUsage>> getUidIoUsagesLocked() const;
 
     // Makes sure only one collection is running at any given time.
-    Mutex mMutex;
+    mutable Mutex mMutex;
 
-    // Last dump from the file at |kPath|.
-    std::unordered_map<uid_t, UidIoStat> mLastUidIoStats GUARDED_BY(mMutex);
+    // Latest dump from the file at |kPath|.
+    std::unordered_map<uid_t, UidIoUsage> mLatestUidIoUsages GUARDED_BY(mMutex);
+
+    // Delta of per-UID I/O usage since last before collection.
+    std::unordered_map<uid_t, UidIoUsage> mDeltaUidIoUsages GUARDED_BY(mMutex);
 
     // True if kPath is accessible.
     const bool kEnabled;
@@ -125,4 +130,4 @@ private:
 }  // namespace automotive
 }  // namespace android
 
-#endif  //  WATCHDOG_SERVER_SRC_UIDIOSTATS_H_
+#endif  //  CPP_WATCHDOG_SERVER_SRC_UIDIOSTATS_H_
