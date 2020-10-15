@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "powerpolicydaemon"
+#define LOG_TAG "carpowerpolicyd"
 
 #include "CarPowerPolicyServer.h"
 
 #include <android-base/result.h>
 #include <binder/IPCThreadState.h>
-#include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <log/log.h>
 #include <signal.h>
