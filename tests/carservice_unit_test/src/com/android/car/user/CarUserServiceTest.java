@@ -56,6 +56,7 @@ import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.car.CarOccupantZoneManager.OccupantTypeEnum;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
+import android.car.drivingstate.CarUxRestrictions;
 import android.car.settings.CarSettings;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.mocks.BlockingAnswer;
@@ -107,6 +108,7 @@ import android.util.SparseArray;
 
 import androidx.test.InstrumentationRegistry;
 
+import com.android.car.CarUxRestrictionsManagerService;
 import com.android.car.hal.UserHalService;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
@@ -160,6 +162,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     @Mock private UserPreCreator mUserPreCreator;
     @Mock private IResultReceiver mSwitchUserUiReceiver;
     @Mock private PackageManager mPackageManager;
+    @Mock private CarUxRestrictionsManagerService mUxRestrictionService;
 
     private final BlockingUserLifecycleListener mUserLifecycleListener =
             BlockingUserLifecycleListener.forAnyEvent().build();
@@ -183,14 +186,19 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     private final @NonNull UserInfo mAdminUser = new UserInfoBuilder(100)
             .setAdmin(true)
             .build();
+    private final @NonNull UserInfo mAnotherAdminUser = new UserInfoBuilder(108)
+            .setAdmin(true)
+            .build();
     private final @NonNull UserInfo mGuestUser = new UserInfoBuilder(111)
             .setGuest(true)
             .setEphemeral(true)
             .build();
     private final @NonNull UserInfo mRegularUser = new UserInfoBuilder(222)
             .build();
-    private final List<UserInfo> mExistingUsers =
-            Arrays.asList(mAdminUser, mGuestUser, mRegularUser);
+    private final @NonNull UserInfo mAnotherRegularUser = new UserInfoBuilder(333)
+            .build();
+    private final List<UserInfo> mExistingUsers = Arrays
+            .asList(mAdminUser, mAnotherAdminUser, mGuestUser, mRegularUser, mAnotherRegularUser);
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder builder) {
@@ -201,7 +209,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
             // mocking UserHelper.isHeadlessSystemUser() (on mockIsHeadlessSystemUser()) instead...
             .spyStatic(UserHelper.class)
             .spyStatic(UserHelperLite.class)
-            .spyStatic(CarProperties.class);
+            .spyStatic(CarProperties.class)
+            .spyStatic(Binder.class);
     }
 
     /**
@@ -599,6 +608,19 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    public void testSwitchDriver_failUxRestrictions() throws Exception {
+        mockExistingUsersAndCurrentUser(mAdminUser);
+        mockUxRestrictions();
+
+        mCarUserService.switchDriver(mRegularUser.id, mUserSwitchFuture);
+
+        assertThat(getUserSwitchResult().getStatus())
+                .isEqualTo(UserSwitchResult.STATUS_UX_RESTRICTION_FAILURE);
+        verifyNoUserSwitch();
+        assertNoHalUserSwitch();
+    }
+
+    @Test
     public void testSwitchDriver_IfUserSwitchIsNotAllowed() throws Exception {
         when(mMockedUserManager.getUserSwitchability())
                 .thenReturn(UserManager.SWITCHABILITY_STATUS_USER_SWITCH_DISALLOWED);
@@ -720,7 +742,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     public void testRemoveUser_currentUserCannotBeRemoved() throws Exception {
         mockCurrentUser(mAdminUser);
 
-        UserRemovalResult result = mCarUserService.removeUser(mAdminUser.id);
+        UserRemovalResult result = mCarUserService.removeUser(mAdminUser.id,
+                /* hasCallerRestrictions= */ false);
 
         assertThat(result.getStatus())
                 .isEqualTo(UserRemovalResult.STATUS_TARGET_USER_IS_CURRENT_USER);
@@ -728,7 +751,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testRemoveUser_userNotExist() throws Exception {
-        UserRemovalResult result = mCarUserService.removeUser(15);
+        UserRemovalResult result = mCarUserService.removeUser(15,
+                /* hasCallerRestrictions= */ false);
 
         assertThat(result.getStatus())
                 .isEqualTo(UserRemovalResult.STATUS_USER_DOES_NOT_EXIST);
@@ -737,11 +761,14 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testRemoveUser_LastAdminUser_success() throws Exception {
         UserInfo currentUser = mRegularUser;
-        mockExistingUsersAndCurrentUser(mExistingUsers, currentUser);
         UserInfo removeUser = mAdminUser;
+        List<UserInfo> existingUsers = Arrays.asList(mAdminUser, mRegularUser);
+
+        mockExistingUsersAndCurrentUser(existingUsers, currentUser);
         mockRemoveUser(removeUser.id);
 
-        UserRemovalResult result = mCarUserService.removeUser(mAdminUser.id);
+        UserRemovalResult result = mCarUserService.removeUser(mAdminUser.id,
+                /* hasCallerRestrictions= */ false);
 
         assertThat(result.getStatus())
                 .isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL_LAST_ADMIN_REMOVED);
@@ -757,7 +784,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         UserInfo removeUser = mAdminUser;
         mockRemoveUser(removeUser.id);
 
-        UserRemovalResult result = mCarUserService.removeUser(removeUser.id);
+        UserRemovalResult result = mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ false);
 
         assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL);
         assertHalRemove(currentUser, removeUser);
@@ -770,7 +798,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         UserInfo removeUser = mRegularUser;
         mockRemoveUser(removeUser.id);
 
-        UserRemovalResult result = mCarUserService.removeUser(removeUser.id);
+        UserRemovalResult result = mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ false);
 
         assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL);
         assertHalRemove(currentUser, removeUser);
@@ -783,7 +812,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockUserHalSupported(false);
         mockRemoveUser(removeUser.id);
 
-        UserRemovalResult result = mCarUserService.removeUser(removeUser.id);
+        UserRemovalResult result = mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ false);
 
         assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL);
         verify(mUserHal, never()).removeUser(any());
@@ -795,9 +825,98 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         int targetUserId = mRegularUser.id;
         // No need to mock um.removeUser as it returns false by default
 
-        UserRemovalResult result = mCarUserService.removeUser(targetUserId);
+        UserRemovalResult result = mCarUserService.removeUser(targetUserId,
+                /* hasCallerRestrictions= */ false);
 
         assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_ANDROID_FAILURE);
+    }
+
+    @Test
+    public void testRemoveUserWithRestriction_nonAdminRemovingAdmin() throws Exception {
+        UserInfo currentUser = mRegularUser;
+        UserInfo removeUser = mAdminUser;
+        mockGetCallingUserHandle(currentUser.id);
+        mockExistingUsersAndCurrentUser(mExistingUsers, currentUser);
+        mockRemoveUser(removeUser.id);
+
+        assertThrows(SecurityException.class, () -> mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ true));
+    }
+
+    @Test
+    public void testRemoveUserWithRestriction_nonAdminRemovingNonAdmin() throws Exception {
+        UserInfo currentUser = mRegularUser;
+        UserInfo removeUser = mAnotherRegularUser;
+        mockGetCallingUserHandle(currentUser.id);
+        mockExistingUsersAndCurrentUser(mExistingUsers, currentUser);
+        mockRemoveUser(removeUser.id);
+
+        assertThrows(SecurityException.class, () -> mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ true));
+    }
+
+    @Test
+    public void testRemoveUserWithRestriction_nonAdminRemovingItself() throws Exception {
+        UserInfo currentUser = mRegularUser;
+        UserInfo removeUser = mRegularUser;
+        mockGetCallingUserHandle(currentUser.id);
+        mockExistingUsersAndCurrentUser(mExistingUsers, currentUser);
+        mockRemoveUser(removeUser.id);
+
+        UserRemovalResult result = mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ true);
+
+        // TODO(b/155913815): return STATUS_SUCCESSFUL_SET_EPHEMERAL instead
+        assertThat(result.getStatus())
+                .isEqualTo(UserRemovalResult.STATUS_TARGET_USER_IS_CURRENT_USER);
+        assertNoHalUserRemoval();
+    }
+
+    @Test
+    public void testRemoveUserWithRestriction_adminRemovingAdmin() throws Exception {
+        UserInfo currentUser = mAdminUser;
+        UserInfo removeUser = mAnotherAdminUser;
+        mockGetCallingUserHandle(currentUser.id);
+        mockExistingUsersAndCurrentUser(mExistingUsers, currentUser);
+        mockRemoveUser(removeUser.id);
+
+        UserRemovalResult result = mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ true);
+
+        assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL);
+        assertHalRemove(currentUser, removeUser);
+    }
+
+    @Test
+    public void testRemoveUserWithRestriction_adminRemovingNonAdmin() throws Exception {
+        UserInfo currentUser = mAdminUser;
+        UserInfo removeUser = mRegularUser;
+        mockGetCallingUserHandle(currentUser.id);
+        mockExistingUsersAndCurrentUser(mExistingUsers, currentUser);
+        mockRemoveUser(removeUser.id);
+
+        UserRemovalResult result = mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ true);
+
+        assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL);
+        assertHalRemove(currentUser, removeUser);
+    }
+
+    @Test
+    public void testRemoveUserWithRestriction_adminRemovingItself() throws Exception {
+        UserInfo currentUser = mAdminUser;
+        UserInfo removeUser = mAdminUser;
+        mockGetCallingUserHandle(currentUser.id);
+        mockExistingUsersAndCurrentUser(mExistingUsers, currentUser);
+        mockRemoveUser(removeUser.id);
+
+        UserRemovalResult result = mCarUserService.removeUser(removeUser.id,
+                /* hasCallerRestrictions= */ true);
+
+        // TODO(b/155913815): return STATUS_SUCCESSFUL_SET_EPHEMERAL instead
+        assertThat(result.getStatus())
+                .isEqualTo(UserRemovalResult.STATUS_TARGET_USER_IS_CURRENT_USER);
+        assertNoHalUserRemoval();
     }
 
     @Test
@@ -822,6 +941,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertThat(getUserSwitchResult().getStatus())
                 .isEqualTo(UserSwitchResult.STATUS_OK_USER_ALREADY_IN_FOREGROUND);
+
+        verifyNoUserSwitch();
     }
 
     @Test
@@ -839,6 +960,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         // update current user due to successful user switch
         mockCurrentUser(mRegularUser);
         sendUserUnlockedEvent(mRegularUser.id);
+        assertNoHalUserSwitch();
         assertNoPostSwitch();
     }
 
@@ -851,7 +973,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertThat(getUserSwitchResult().getStatus())
                 .isEqualTo(UserSwitchResult.STATUS_ANDROID_FAILURE);
-        verify(mUserHal, never()).switchUser(any(), anyInt(), any());
+
+        assertNoHalUserSwitch();
     }
 
     @Test
@@ -901,6 +1024,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         UserSwitchResult result = getUserSwitchResult();
         assertThat(result.getStatus()).isEqualTo(UserSwitchResult.STATUS_HAL_FAILURE);
         assertThat(result.getErrorMessage()).isEqualTo(mSwitchUserResponse.errorMessage);
+        verifyNoUserSwitch();
     }
 
     @Test
@@ -914,6 +1038,20 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertThat(getUserSwitchResult().getStatus())
                 .isEqualTo(UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE);
+        verifyNoUserSwitch();
+    }
+
+    @Test
+    public void testSwitchUser_failUxRestrictions() throws Exception {
+        mockUxRestrictions();
+        mockExistingUsersAndCurrentUser(mAdminUser);
+
+        mCarUserService.switchUser(mGuestUser.id, mAsyncCallTimeoutMs, mUserSwitchFuture);
+
+        assertThat(getUserSwitchResult().getStatus())
+                .isEqualTo(UserSwitchResult.STATUS_UX_RESTRICTION_FAILURE);
+        assertNoHalUserSwitch();
+        verifyNoUserSwitch();
     }
 
     @Test
@@ -1805,7 +1943,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
                 mMockedIActivityManager,
                 /* maxRunningUsers= */ 3,
                 mInitialUserSetter,
-                mUserPreCreator);
+                mUserPreCreator,
+                mUxRestrictionService);
     }
 
     /**
@@ -2047,6 +2186,14 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         when(mUserHal.isUserAssociationSupported()).thenReturn(result);
     }
 
+    private void mockUxRestrictions() {
+        CarUxRestrictions restrictions = new CarUxRestrictions.Builder(/* reqOpt= */ false,
+                CarUxRestrictions.UX_RESTRICTIONS_NO_SETUP,
+                System.currentTimeMillis()).build();
+        Log.v(TAG, "Mocking UX restrictions: " + restrictions);
+        when(mUxRestrictionService.getCurrentUxRestrictions()).thenReturn(restrictions);
+    }
+
     /**
      * Asserts a {@link UsersInfo} that was created based on {@link #mockCurrentUsers(UserInfo)}.
      */
@@ -2075,6 +2222,11 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void verifyNoUserRemoved() {
         verify(mMockedUserManager, never()).removeUser(anyInt());
+    }
+
+    private void verifyNoUserSwitch() throws Exception {
+        verify(mMockedIActivityManager, never()).switchUser(anyInt());
+        assertNoPostSwitch();
     }
 
     @NonNull
@@ -2172,6 +2324,10 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     private void assertHalSwitch(int currentId, int targetId) {
         verify(mUserHal).switchUser(isSwitchUserRequest(0, currentId, targetId),
                 eq(mAsyncCallTimeoutMs), any());
+    }
+
+    private void assertNoHalUserSwitch() {
+        verify(mUserHal, never()).switchUser(any(), anyInt(), any());
     }
 
     private void assertNoHalUserCreation() {
