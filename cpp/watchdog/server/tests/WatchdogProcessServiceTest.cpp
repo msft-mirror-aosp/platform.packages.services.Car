@@ -14,30 +14,27 @@
  * limitations under the License.
  */
 
+#include "MockCarWatchdogServiceForSystem.h"
+#include "MockWatchdogServiceHelper.h"
 #include "WatchdogProcessService.h"
+#include "WatchdogServiceHelper.h"
 
+#include <android/automotive/watchdog/internal/BnCarWatchdogServiceForSystem.h>
 #include <gmock/gmock.h>
 
 namespace android {
 namespace automotive {
 namespace watchdog {
 
+namespace aawi = android::automotive::watchdog::internal;
+
+using android::IBinder;
 using android::sp;
-using binder::Status;
+using android::binder::Status;
 using ::testing::_;
 using ::testing::Return;
 
 namespace {
-
-class MockBinder : public BBinder {
-public:
-    MOCK_METHOD(status_t, linkToDeath,
-                (const sp<DeathRecipient>& recipient, void* cookie, uint32_t flags), (override));
-    MOCK_METHOD(status_t, unlinkToDeath,
-                (const wp<DeathRecipient>& recipient, void* cookie, uint32_t flags,
-                 wp<DeathRecipient>* outRecipient),
-                (override));
-};
 
 class MockCarWatchdogClient : public ICarWatchdogClientDefault {
 public:
@@ -50,7 +47,7 @@ private:
     sp<MockBinder> mBinder;
 };
 
-class MockCarWatchdogMonitor : public ICarWatchdogMonitorDefault {
+class MockCarWatchdogMonitor : public aawi::ICarWatchdogMonitorDefault {
 public:
     MockCarWatchdogMonitor() { mBinder = new MockBinder(); }
     sp<MockBinder> getBinder() const { return mBinder; }
@@ -70,13 +67,13 @@ protected:
         mWatchdogProcessService = new WatchdogProcessService(looper);
     }
 
-    void TearDown() override { mWatchdogProcessService = nullptr; }
+    void TearDown() override { mWatchdogProcessService.clear(); }
 
     sp<WatchdogProcessService> mWatchdogProcessService;
 };
 
 sp<MockCarWatchdogClient> createMockCarWatchdogClient(status_t linkToDeathResult) {
-    sp<MockCarWatchdogClient> client = new MockCarWatchdogClient;
+    sp<MockCarWatchdogClient> client = new MockCarWatchdogClient();
     sp<MockBinder> binder = client->getBinder();
     EXPECT_CALL(*binder, linkToDeath(_, nullptr, 0)).WillRepeatedly(Return(linkToDeathResult));
     EXPECT_CALL(*binder, unlinkToDeath(_, nullptr, 0, nullptr)).WillRepeatedly(Return(OK));
@@ -85,7 +82,7 @@ sp<MockCarWatchdogClient> createMockCarWatchdogClient(status_t linkToDeathResult
 }
 
 sp<MockCarWatchdogMonitor> createMockCarWatchdogMonitor(status_t linkToDeathResult) {
-    sp<MockCarWatchdogMonitor> monitor = new MockCarWatchdogMonitor;
+    sp<MockCarWatchdogMonitor> monitor = new MockCarWatchdogMonitor();
     sp<MockBinder> binder = monitor->getBinder();
     EXPECT_CALL(*binder, linkToDeath(_, nullptr, 0)).WillRepeatedly(Return(linkToDeathResult));
     EXPECT_CALL(*binder, unlinkToDeath(_, nullptr, 0, nullptr)).WillRepeatedly(Return(OK));
@@ -127,39 +124,40 @@ TEST_F(WatchdogProcessServiceTest, TestUnregisterClient) {
             << "Unregistering an unregistered client shoud return an error";
 }
 
-TEST_F(WatchdogProcessServiceTest, TestRegisterClient_BinderDied) {
+TEST_F(WatchdogProcessServiceTest, TestErrorOnRegisterClientWithDeadBinder) {
     sp<MockCarWatchdogClient> client = expectCarWatchdogClientBinderDied();
     ASSERT_FALSE(
             mWatchdogProcessService->registerClient(client, TimeoutLength::TIMEOUT_CRITICAL).isOk())
             << "When linkToDeath fails, registerClient should return an error";
 }
 
-TEST_F(WatchdogProcessServiceTest, TestRegisterMediator) {
-    sp<ICarWatchdogClient> mediator = expectNormalCarWatchdogClient();
-    Status status = mWatchdogProcessService->registerMediator(mediator);
+TEST_F(WatchdogProcessServiceTest, TestRegisterCarWatchdogService) {
+    sp<MockWatchdogServiceHelper> mockServiceHelper = new MockWatchdogServiceHelper();
+    ASSERT_RESULT_OK(mWatchdogProcessService->registerWatchdogServiceHelper(mockServiceHelper));
+
+    sp<MockCarWatchdogServiceForSystem> mockService = new MockCarWatchdogServiceForSystem();
+    sp<IBinder> binder = mockService->getBinder();
+
+    Status status = mWatchdogProcessService->registerCarWatchdogService(binder);
     ASSERT_TRUE(status.isOk()) << status;
-    status = mWatchdogProcessService->registerMediator(mediator);
+
+    status = mWatchdogProcessService->registerCarWatchdogService(binder);
     ASSERT_TRUE(status.isOk()) << status;
 }
 
-TEST_F(WatchdogProcessServiceTest, TestRegisterMediator_BinderDied) {
-    sp<MockCarWatchdogClient> mediator = expectCarWatchdogClientBinderDied();
-    ASSERT_FALSE(mWatchdogProcessService->registerMediator(mediator).isOk())
-            << "When linkToDeath fails, registerMediator should return an error";
-}
+TEST_F(WatchdogProcessServiceTest,
+       TestErrorOnRegisterCarWatchdogServiceWithUninitializedWatchdogServiceHelper) {
+    sp<MockCarWatchdogServiceForSystem> mockService = new MockCarWatchdogServiceForSystem();
+    sp<IBinder> binder = mockService->getBinder();
 
-TEST_F(WatchdogProcessServiceTest, TestUnregisterMediator) {
-    sp<ICarWatchdogClient> mediator = expectNormalCarWatchdogClient();
-    mWatchdogProcessService->registerMediator(mediator);
-    Status status = mWatchdogProcessService->unregisterMediator(mediator);
-    ASSERT_TRUE(status.isOk()) << status;
-    ASSERT_FALSE(mWatchdogProcessService->unregisterMediator(mediator).isOk())
-            << "Unregistering an unregistered mediator shoud return an error";
+    ASSERT_FALSE(mWatchdogProcessService->registerCarWatchdogService(binder).isOk())
+            << "Registering car watchdog service should fail when watchdog service helper is "
+               "uninitialized";
 }
 
 TEST_F(WatchdogProcessServiceTest, TestRegisterMonitor) {
-    sp<ICarWatchdogMonitor> monitorOne = expectNormalCarWatchdogMonitor();
-    sp<ICarWatchdogMonitor> monitorTwo = expectNormalCarWatchdogMonitor();
+    sp<aawi::ICarWatchdogMonitor> monitorOne = expectNormalCarWatchdogMonitor();
+    sp<aawi::ICarWatchdogMonitor> monitorTwo = expectNormalCarWatchdogMonitor();
     Status status = mWatchdogProcessService->registerMonitor(monitorOne);
     ASSERT_TRUE(status.isOk()) << status;
     status = mWatchdogProcessService->registerMonitor(monitorOne);
@@ -168,14 +166,14 @@ TEST_F(WatchdogProcessServiceTest, TestRegisterMonitor) {
     ASSERT_TRUE(status.isOk()) << status;
 }
 
-TEST_F(WatchdogProcessServiceTest, TestRegisterMonitor_BinderDied) {
+TEST_F(WatchdogProcessServiceTest, TestErrorOnRegisterMonitorWithDeadBinder) {
     sp<MockCarWatchdogMonitor> monitor = expectCarWatchdogMonitorBinderDied();
     ASSERT_FALSE(mWatchdogProcessService->registerMonitor(monitor).isOk())
             << "When linkToDeath fails, registerMonitor should return an error";
 }
 
 TEST_F(WatchdogProcessServiceTest, TestUnregisterMonitor) {
-    sp<ICarWatchdogMonitor> monitor = expectNormalCarWatchdogMonitor();
+    sp<aawi::ICarWatchdogMonitor> monitor = expectNormalCarWatchdogMonitor();
     mWatchdogProcessService->registerMonitor(monitor);
     Status status = mWatchdogProcessService->unregisterMonitor(monitor);
     ASSERT_TRUE(status.isOk()) << status;
@@ -190,16 +188,20 @@ TEST_F(WatchdogProcessServiceTest, TestTellClientAlive) {
             << "tellClientAlive not synced with checkIfAlive should return an error";
 }
 
-TEST_F(WatchdogProcessServiceTest, TestTellMediatorAlive) {
-    sp<ICarWatchdogClient> mediator = expectNormalCarWatchdogClient();
-    mWatchdogProcessService->registerMediator(mediator);
+TEST_F(WatchdogProcessServiceTest, TestTellCarWatchdogServiceAlive) {
+    sp<MockWatchdogServiceHelper> mockServiceHelper = new MockWatchdogServiceHelper();
+    ASSERT_RESULT_OK(mWatchdogProcessService->registerWatchdogServiceHelper(mockServiceHelper));
+
+    sp<MockCarWatchdogServiceForSystem> mockService = new MockCarWatchdogServiceForSystem();
+
     std::vector<int32_t> pids = {111, 222};
-    ASSERT_FALSE(mWatchdogProcessService->tellMediatorAlive(mediator, pids, 1234).isOk())
-            << "tellMediatorAlive not synced with checkIfAlive should return an error";
+    ASSERT_FALSE(
+            mWatchdogProcessService->tellCarWatchdogServiceAlive(mockService, pids, 1234).isOk())
+            << "tellCarWatchdogServiceAlive not synced with checkIfAlive should return an error";
 }
 
 TEST_F(WatchdogProcessServiceTest, TestTellDumpFinished) {
-    sp<ICarWatchdogMonitor> monitor = expectNormalCarWatchdogMonitor();
+    sp<aawi::ICarWatchdogMonitor> monitor = expectNormalCarWatchdogMonitor();
     ASSERT_FALSE(mWatchdogProcessService->tellDumpFinished(monitor, 1234).isOk())
             << "Unregistered monitor cannot call tellDumpFinished";
     mWatchdogProcessService->registerMonitor(monitor);

@@ -18,9 +18,11 @@
 #define CPP_WATCHDOG_SERVER_SRC_WATCHDOGPROCESSSERVICE_H_
 
 #include <android-base/result.h>
-#include <android/automotive/watchdog/BnCarWatchdog.h>
-#include <android/automotive/watchdog/PowerCycle.h>
-#include <android/automotive/watchdog/UserState.h>
+#include <android/automotive/watchdog/ICarWatchdogClient.h>
+#include <android/automotive/watchdog/internal/ICarWatchdogMonitor.h>
+#include <android/automotive/watchdog/internal/ICarWatchdogServiceForSystem.h>
+#include <android/automotive/watchdog/internal/PowerCycle.h>
+#include <android/automotive/watchdog/internal/UserState.h>
 #include <android/hardware/automotive/vehicle/2.0/IVehicle.h>
 #include <binder/IBinder.h>
 #include <binder/Status.h>
@@ -39,52 +41,91 @@ namespace android {
 namespace automotive {
 namespace watchdog {
 
+class WatchdogServiceHelperInterface;
+
 class WatchdogProcessService : public android::RefBase {
 public:
     explicit WatchdogProcessService(const android::sp<Looper>& handlerLooper);
-
-    virtual android::base::Result<void> dump(int fd, const android::Vector<String16>& args);
-
-    virtual binder::Status registerClient(const android::sp<ICarWatchdogClient>& client,
-                                          TimeoutLength timeout);
-    virtual binder::Status unregisterClient(const sp<ICarWatchdogClient>& client);
-    virtual binder::Status registerMediator(const sp<ICarWatchdogClient>& mediator);
-    virtual binder::Status unregisterMediator(const sp<ICarWatchdogClient>& mediator);
-    virtual binder::Status registerMonitor(const sp<ICarWatchdogMonitor>& monitor);
-    virtual binder::Status unregisterMonitor(const sp<ICarWatchdogMonitor>& monitor);
-    virtual binder::Status tellClientAlive(const sp<ICarWatchdogClient>& client, int32_t sessionId);
-    virtual binder::Status tellMediatorAlive(const sp<ICarWatchdogClient>& mediator,
-                                             const std::vector<int32_t>& clientsNotResponding,
-                                             int32_t sessionId);
-    virtual binder::Status tellDumpFinished(const android::sp<ICarWatchdogMonitor>& monitor,
-                                            int32_t pid);
-    virtual binder::Status notifyPowerCycleChange(PowerCycle cycle);
-    virtual binder::Status notifyUserStateChange(userid_t userId, UserState state);
+    ~WatchdogProcessService() { terminate(); }
 
     android::base::Result<void> start();
     void terminate();
+    virtual android::base::Result<void> dump(int fd, const android::Vector<String16>& args);
     void doHealthCheck(int what);
+
+    virtual android::base::Result<void> registerWatchdogServiceHelper(
+            const android::sp<WatchdogServiceHelperInterface>& helper);
+
+    virtual android::binder::Status registerClient(const android::sp<ICarWatchdogClient>& client,
+                                                   TimeoutLength timeout);
+    virtual android::binder::Status unregisterClient(const android::sp<ICarWatchdogClient>& client);
+    virtual android::binder::Status registerCarWatchdogService(const android::sp<IBinder>& binder);
+    virtual void unregisterCarWatchdogService(const android::sp<IBinder>& binder);
+    virtual android::binder::Status registerMonitor(
+            const android::sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&
+                    monitor);
+    virtual android::binder::Status unregisterMonitor(
+            const android::sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&
+                    monitor);
+    virtual android::binder::Status tellClientAlive(const android::sp<ICarWatchdogClient>& client,
+                                                    int32_t sessionId);
+    virtual android::binder::Status tellCarWatchdogServiceAlive(
+            const android::sp<
+                    android::automotive::watchdog::internal::ICarWatchdogServiceForSystem>& service,
+            const std::vector<int32_t>& clientsNotResponding, int32_t sessionId);
+    virtual android::binder::Status tellDumpFinished(
+            const android::sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&
+                    monitor,
+            int32_t pid);
+    virtual android::binder::Status notifyPowerCycleChange(
+            android::automotive::watchdog::internal::PowerCycle cycle);
+    virtual android::binder::Status notifyUserStateChange(
+            userid_t userId, android::automotive::watchdog::internal::UserState state);
 
 private:
     enum ClientType {
         Regular,
-        Mediator,
+        Service,
     };
 
     struct ClientInfo {
-        ClientInfo(const android::sp<ICarWatchdogClient>& client, pid_t pid, userid_t userId,
-                   ClientType type) :
-              client(client),
+        ClientInfo(const android::sp<ICarWatchdogClient>& client, pid_t pid, userid_t userId) :
               pid(pid),
               userId(userId),
-              type(type) {}
-        std::string toString();
+              type(ClientType::Regular),
+              client(client) {}
+        ClientInfo(const android::sp<WatchdogServiceHelperInterface>& helper,
+                   const android::sp<android::IBinder>& binder, pid_t pid, userid_t userId) :
+              pid(pid),
+              userId(userId),
+              type(ClientType::Service),
+              watchdogServiceHelper(helper),
+              watchdogServiceBinder(binder) {}
 
-        android::sp<ICarWatchdogClient> client;
+        std::string toString() const;
+        status_t linkToDeath(const android::sp<android::IBinder::DeathRecipient>& recipient) const;
+        status_t unlinkToDeath(
+                const android::wp<android::IBinder::DeathRecipient>& recipient) const;
+        android::binder::Status checkIfAlive(TimeoutLength timeout) const;
+        android::binder::Status prepareProcessTermination() const;
+        bool operator!=(const ClientInfo& clientInfo) const {
+            return getBinder() != clientInfo.getBinder() || type != clientInfo.type;
+        }
+        bool matchesBinder(const android::sp<android::IBinder>& binder) const {
+            return binder == getBinder();
+        }
+
         pid_t pid;
         userid_t userId;
         int sessionId;
+
+    private:
+        android::sp<android::IBinder> getBinder() const;
+
         ClientType type;
+        android::sp<ICarWatchdogClient> client = nullptr;
+        android::sp<WatchdogServiceHelperInterface> watchdogServiceHelper = nullptr;
+        android::sp<IBinder> watchdogServiceBinder = nullptr;
     };
 
     struct HeartBeat {
@@ -146,13 +187,13 @@ private:
     };
 
 private:
-    binder::Status registerClientLocked(const android::sp<ICarWatchdogClient>& client,
-                                        TimeoutLength timeout, ClientType clientType);
-    binder::Status unregisterClientLocked(const std::vector<TimeoutLength>& timeouts,
-                                          android::sp<IBinder> binder, ClientType clientType);
-    bool isRegisteredLocked(const android::sp<ICarWatchdogClient>& client);
-    binder::Status tellClientAliveLocked(const android::sp<ICarWatchdogClient>& client,
-                                         int32_t sessionId);
+    android::binder::Status registerClientLocked(const ClientInfo& clientInfo,
+                                                 TimeoutLength timeout);
+    android::binder::Status unregisterClientLocked(const std::vector<TimeoutLength>& timeouts,
+                                                   android::sp<IBinder> binder,
+                                                   ClientType clientType);
+    android::binder::Status tellClientAliveLocked(const android::sp<android::IBinder>& binder,
+                                                  int32_t sessionId);
     android::base::Result<void> startHealthCheckingLocked(TimeoutLength timeout);
     android::base::Result<void> dumpAndKillClientsIfNotResponding(TimeoutLength timeout);
     android::base::Result<void> dumpAndKillAllProcesses(
@@ -178,6 +219,8 @@ private:
     using Processor =
             std::function<void(std::vector<ClientInfo>&, std::vector<ClientInfo>::const_iterator)>;
     bool findClientAndProcessLocked(const std::vector<TimeoutLength> timeouts,
+                                    const ClientInfo& clientInfo, const Processor& processor);
+    bool findClientAndProcessLocked(const std::vector<TimeoutLength> timeouts,
                                     const android::sp<android::IBinder> binder,
                                     const Processor& processor);
 
@@ -188,7 +231,8 @@ private:
     std::unordered_map<TimeoutLength, std::vector<ClientInfo>> mClients GUARDED_BY(mMutex);
     std::unordered_map<TimeoutLength, PingedClientMap> mPingedClients GUARDED_BY(mMutex);
     std::unordered_set<userid_t> mStoppedUserIds GUARDED_BY(mMutex);
-    android::sp<ICarWatchdogMonitor> mMonitor GUARDED_BY(mMutex);
+    android::sp<android::automotive::watchdog::internal::ICarWatchdogMonitor> mMonitor
+            GUARDED_BY(mMutex);
     bool mWatchdogEnabled GUARDED_BY(mMutex);
     // mLastSessionId is accessed only within main thread. No need for mutual-exclusion.
     int32_t mLastSessionId;
@@ -201,6 +245,7 @@ private:
             mNotSupportedVhalProperties;
     android::sp<PropertyChangeListener> mPropertyChangeListener;
     HeartBeat mVhalHeartBeat GUARDED_BY(mMutex);
+    android::sp<WatchdogServiceHelperInterface> mWatchdogServiceHelper GUARDED_BY(mMutex);
 };
 
 }  // namespace watchdog
