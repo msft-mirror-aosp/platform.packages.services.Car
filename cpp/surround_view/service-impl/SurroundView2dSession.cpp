@@ -556,8 +556,8 @@ bool SurroundView2dSession::handleFrames(int sequenceId) {
     }
 
     ATRACE_BEGIN("SV core lib method: Get2dSurroundView");
-    const string gpuEnabledText = mGpuAccelerationEnabled ? "with GPU acceleration flag enabled"
-                                                          : "with GPU acceleration flag disabled";
+    const string gpuEnabledText = mGpuAccelerationEnabled ? " with GPU acceleration flag enabled"
+                                                          : " with GPU acceleration flag disabled";
     if (mSurroundView->Get2dSurroundView(mInputPointers, &mOutputPointer)) {
         LOG(INFO) << "Get2dSurroundView succeeded" << gpuEnabledText;
     } else {
@@ -626,12 +626,19 @@ bool SurroundView2dSession::handleFrames(int sequenceId) {
         AHardwareBuffer_Desc* pDesc =
             reinterpret_cast<AHardwareBuffer_Desc*>(
                 &svBuffer.hardwareBuffer.description);
-        pDesc->width = mOutputWidth;
-        pDesc->height = mOutputHeight;
+        if (mGpuAccelerationEnabled) {
+            pDesc->width = mOutputPointer.width;
+            pDesc->height = mOutputPointer.height;
+            pDesc->stride = mOutputHolder->getStride();
+            pDesc->format = HAL_PIXEL_FORMAT_RGBA_8888;
+        } else {
+            pDesc->width = mOutputWidth;
+            pDesc->height = mOutputHeight;
+            pDesc->stride = mSvTexture->getStride();
+            pDesc->format = HAL_PIXEL_FORMAT_RGB_888;
+        }
         pDesc->layers = 1;
         pDesc->usage = GRALLOC_USAGE_HW_TEXTURE;
-        pDesc->stride = mSvTexture->getStride();
-        pDesc->format = HAL_PIXEL_FORMAT_RGB_888;
         mFramesRecord.frames.timestampNs = elapsedRealtimeNano();
         mFramesRecord.frames.sequenceId = sequenceId;
 
@@ -732,17 +739,23 @@ bool SurroundView2dSession::initialize() {
     ATRACE_BEGIN("Allocate output texture");
     if (mGpuAccelerationEnabled) {
         mOutputHolder = new GraphicBuffer(mOutputWidth, mOutputHeight, HAL_PIXEL_FORMAT_RGBA_8888,
-                                          1, GRALLOC_USAGE_HW_TEXTURE, "SvOutput");
-        mOutputPointer.gpu_data_pointer = static_cast<void*>(mOutputHolder->toAHardwareBuffer());
+                                          1, GRALLOC_USAGE_HW_TEXTURE, "SvOutputHolder");
         if (mOutputHolder->initCheck() == OK) {
-            LOG(INFO) << "Successfully allocated Graphic Buffer for SvOutput";
+            LOG(INFO) << "Successfully allocated Graphic Buffer for SvOutputHolder";
         } else {
-            LOG(ERROR) << "Failed to allocate Graphic Buffer for SvOutput";
+            LOG(ERROR) << "Failed to allocate Graphic Buffer for SvOutputHolder";
             return false;
         }
+        mOutputPointer.gpu_data_pointer = static_cast<void*>(mOutputHolder->toAHardwareBuffer());
     } else {
         mSvTexture = new GraphicBuffer(mOutputWidth, mOutputHeight, HAL_PIXEL_FORMAT_RGB_888, 1,
                                        GRALLOC_USAGE_HW_TEXTURE, "SvTexture");
+        if (mSvTexture->initCheck() == OK) {
+            LOG(INFO) << "Successfully allocated Graphic Buffer";
+        } else {
+            LOG(ERROR) << "Failed to allocate Graphic Buffer";
+            return false;
+        }
     }
 
     // Note: sv2dParams is in meters while mInfo must be in milli-meters.
@@ -751,13 +764,6 @@ bool SurroundView2dSession::initialize() {
     mInfo.center.isValid = true;
     mInfo.center.x = mIOModuleConfig->sv2dConfig.sv2dParams.physical_center.x * 1000.0;
     mInfo.center.y = mIOModuleConfig->sv2dConfig.sv2dParams.physical_center.y * 1000.0;
-
-    if (mSvTexture->initCheck() == OK) {
-        LOG(INFO) << "Successfully allocated Graphic Buffer";
-    } else {
-        LOG(ERROR) << "Failed to allocate Graphic Buffer";
-        return false;
-    }
 
     mIsInitialized = true;
 
