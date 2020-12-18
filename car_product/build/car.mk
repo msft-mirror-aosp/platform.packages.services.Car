@@ -21,7 +21,7 @@ PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/priv
 
 PRODUCT_PACKAGES += \
     Bluetooth \
-    CarDeveloperOptions2 \
+    CarDeveloperOptions \
     CompanionDeviceSupport \
     OneTimeInitializer \
     CarProvision \
@@ -43,6 +43,7 @@ PRODUCT_PACKAGES += \
     GarageModeTestApp \
     ExperimentalCarService \
     BugReportApp \
+    NetworkPreferenceApp \
 
 # SEPolicy for test apps / services
 BOARD_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
