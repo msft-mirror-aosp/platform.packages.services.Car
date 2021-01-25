@@ -83,6 +83,7 @@ import android.provider.Settings;
 import android.sysprop.CarProperties;
 import android.text.TextUtils;
 import android.util.EventLog;
+import android.util.IndentingPrintWriter;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -293,7 +294,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @Nullable UserPreCreator userPreCreator,
             @NonNull CarUxRestrictionsManagerService uxRestrictionService) {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "constructed");
+            Slog.d(TAG, "constructed for user " + context.getUserId());
         }
         mContext = context;
         mHal = hal;
@@ -334,7 +335,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     @Override
-    public void dump(@NonNull PrintWriter writer) {
+    public void dump(@NonNull IndentingPrintWriter writer) {
         checkHasDumpPermissionGranted("dump()");
 
         writer.println("*CarUserService*");
@@ -1144,7 +1145,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
         // First remove user from android and then remove from HAL because HAL remove user is one
         // way call.
-        int result = mUserManager.removeUserOrSetEphemeral(userId);
+        // TODO(b/170887769): rename hasCallerRestrictions to fromCarDevicePolicyManager (or use an
+        // int / enum to indicate if it's called from CarUserManager or CarDevicePolicyManager), as
+        // it's counter-intuitive that it's "allowed even when disallowed" when it
+        // "has caller restrictions"
+        boolean evenWhenDisallowed = hasCallerRestrictions;
+        int result = mUserManager.removeUserOrSetEphemeral(userId, evenWhenDisallowed);
         if (result == UserManager.REMOVE_RESULT_ERROR) {
             return logAndGetResults(userId, UserRemovalResult.STATUS_ANDROID_FAILURE);
         }

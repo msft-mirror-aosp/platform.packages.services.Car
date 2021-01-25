@@ -28,6 +28,7 @@ import android.car.user.UserRemovalResult;
 import android.content.pm.UserInfo;
 import android.os.UserManager;
 import android.sysprop.CarProperties;
+import android.util.IndentingPrintWriter;
 import android.util.Slog;
 
 import com.android.car.CarServiceBase;
@@ -36,7 +37,6 @@ import com.android.car.user.CarUserService;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.infra.AndroidFuture;
 
-import java.io.PrintWriter;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -48,7 +48,7 @@ public final class CarDevicePolicyService extends ICarDevicePolicyService.Stub
         implements CarServiceBase {
 
     private static final String TAG = CarDevicePolicyService.class.getSimpleName();
-    private static final boolean DEBUG = false;
+    static final boolean DEBUG = false;
 
     private static final int HAL_TIMEOUT_MS = CarProperties.user_hal_timeout().orElse(5_000);
 
@@ -124,7 +124,7 @@ public final class CarDevicePolicyService extends ICarDevicePolicyService.Stub
     }
 
     @Override
-    public void dump(@NonNull PrintWriter writer) {
+    public void dump(@NonNull IndentingPrintWriter writer) {
         checkHasDumpPermissionGranted("dump()");
 
         writer.println("*CarDevicePolicyService*");
