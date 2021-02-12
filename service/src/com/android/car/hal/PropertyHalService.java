@@ -22,6 +22,7 @@ import static com.android.car.hal.CarPropertyUtils.toVehiclePropValue;
 
 import static java.lang.Integer.toHexString;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyConfig;
@@ -33,15 +34,16 @@ import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
 import android.hardware.automotive.vehicle.V2_0.VehicleProperty;
 import android.hardware.automotive.vehicle.V2_0.VehiclePropertyType;
 import android.os.Build;
+import android.util.Pair;
 import android.util.Slog;
 import android.util.SparseArray;
 
+import com.android.car.CarLog;
 import com.android.car.CarServiceUtils;
 import com.android.internal.annotations.GuardedBy;
 
 import java.io.PrintWriter;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -56,11 +58,14 @@ import java.util.Set;
 public class PropertyHalService extends HalServiceBase {
     private final boolean mDbg = true;
     private final LinkedList<CarPropertyEvent> mEventsToDispatch = new LinkedList<>();
+    // Use SparseArray to save memory.
     @GuardedBy("mLock")
-    private final Map<Integer, CarPropertyConfig<?>> mMgrPropIdToCarPropConfig = new HashMap<>();
+    private final SparseArray<CarPropertyConfig<?>> mMgrPropIdToCarPropConfig = new SparseArray<>();
     @GuardedBy("mLock")
     private final SparseArray<VehiclePropConfig> mHalPropIdToVehiclePropConfig =
             new SparseArray<>();
+    @GuardedBy("mLock")
+    private final SparseArray<Pair<String, String>> mMgrPropIdToPermissions = new SparseArray<>();
     // Only contains propId if the property Id is different in HAL and manager
     private static final Map<Integer, Integer> PROPERTY_ID_HAL_TO_MANAGER = Map.of(
             VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS,
@@ -69,7 +74,7 @@ public class PropertyHalService extends HalServiceBase {
     private static final Map<Integer, Integer> PROPERTY_ID_MANAGER_TO_HAL = Map.of(
             VehiclePropertyIds.VEHICLE_SPEED_DISPLAY_UNITS,
             VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS);
-    private static final String TAG = "PropertyHalService";
+    private static final String TAG = CarLog.tagFor(PropertyHalService.class);
     private final VehicleHal mVehicleHal;
     private final PropertyHalServiceIds mPropIds;
 
@@ -83,14 +88,14 @@ public class PropertyHalService extends HalServiceBase {
     /**
      * Converts manager property ID to Vehicle HAL property ID.
      */
-    private int managerToHalPropId(int mgrPropId) {
+    private static int managerToHalPropId(int mgrPropId) {
         return PROPERTY_ID_MANAGER_TO_HAL.getOrDefault(mgrPropId, mgrPropId);
     }
 
     /**
      * Converts Vehicle HAL property ID to manager property ID.
      */
-    private int halToManagerPropId(int halPropId) {
+    private static int halToManagerPropId(int halPropId) {
         return PROPERTY_ID_HAL_TO_MANAGER.getOrDefault(halPropId, halPropId);
     }
 
@@ -139,9 +144,9 @@ public class PropertyHalService extends HalServiceBase {
 
     /**
      *
-     * @return List<CarPropertyConfig> List of configs available.
+     * @return SparseArray<CarPropertyConfig> List of configs available.
      */
-    public Map<Integer, CarPropertyConfig<?>> getPropertyList() {
+    public SparseArray<CarPropertyConfig<?>> getPropertyList() {
         if (mDbg) {
             Slog.d(TAG, "getPropertyList");
         }
@@ -214,6 +219,26 @@ public class PropertyHalService extends HalServiceBase {
     public String getWritePermission(int mgrPropId) {
         int halPropId = managerToHalPropId(mgrPropId);
         return mPropIds.getWritePermission(halPropId);
+    }
+
+    /**
+     * Get permissions for all properties in the vehicle.
+     * @return a SparseArray. key: propertyId, value: Pair(readPermission, writePermission).
+     */
+    @NonNull
+    public SparseArray<Pair<String, String>> getPermissionsForAllProperties() {
+        synchronized (mLock) {
+            if (mMgrPropIdToPermissions.size() != 0) {
+                return mMgrPropIdToPermissions;
+            }
+            for (int i = 0; i < mHalPropIdToVehiclePropConfig.size(); i++) {
+                int halPropId = mHalPropIdToVehiclePropConfig.keyAt(i);
+                mMgrPropIdToPermissions.put(halToManagerPropId(halPropId),
+                        new Pair<>(mPropIds.getReadPermission(halPropId),
+                                mPropIds.getWritePermission(halPropId)));
+            }
+        }
+        return mMgrPropIdToPermissions;
     }
 
     /**
@@ -319,6 +344,7 @@ public class PropertyHalService extends HalServiceBase {
             mSubscribedHalPropIds.clear();
             mHalPropIdToVehiclePropConfig.clear();
             mMgrPropIdToCarPropConfig.clear();
+            mMgrPropIdToPermissions.clear();
             mListener = null;
         }
     }
@@ -333,6 +359,7 @@ public class PropertyHalService extends HalServiceBase {
         return CarServiceUtils.EMPTY_INT_ARRAY;
     }
 
+    // The method is called in HAL init(). Avoid handling complex things in here.
     @Override
     public void takeProperties(Collection<VehiclePropConfig> allProperties) {
         for (VehiclePropConfig p : allProperties) {
