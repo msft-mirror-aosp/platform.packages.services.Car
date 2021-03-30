@@ -33,6 +33,7 @@ import static org.testng.Assert.assertThrows;
 
 import android.app.ActivityManager;
 import android.car.Car;
+import android.car.hardware.power.CarPowerPolicy;
 import android.car.hardware.power.CarPowerPolicyFilter;
 import android.car.hardware.power.ICarPowerPolicyListener;
 import android.car.hardware.power.PowerComponent;
@@ -48,6 +49,7 @@ import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateShutdownParam
 import android.os.UserManager;
 import android.sysprop.CarProperties;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.AtomicFile;
 import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -73,7 +75,6 @@ import com.android.internal.os.IResultReceiver;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 
@@ -91,6 +92,7 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
     private static final long WAIT_TIMEOUT_LONG_MS = 5000;
     private static final int WAKE_UP_DELAY = 100;
     private static final String NONSILENT_STRING = "0";
+    private static final String NORMAL_BOOT = "reboot,shell";
 
     private static final int CURRENT_USER_ID = 42;
     private static final int CURRENT_GUEST_ID = 108; // must be different than CURRENT_USER_ID;
@@ -103,13 +105,15 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
     private final PowerSignalListener mPowerSignalListener = new PowerSignalListener();
     @Spy
     private final Context mContext = InstrumentationRegistry.getInstrumentation().getContext();
+    private final TemporaryFile mComponentStateFile;
 
     private MockedPowerHalService mPowerHal;
     private SystemInterface mSystemInterface;
+    private PowerComponentHandler mPowerComponentHandler;
     private CarPowerManagementService mService;
     private CompletableFuture<Void> mFuture;
-    private SilentModeController mSilentModeController;
-    private TemporaryFile mSilentModeFile;
+    private TemporaryFile mFileHwStateMonitoring;
+    private TemporaryFile mFileKernelSilentMode;
     private FakeCarPowerPolicyDaemon mPowerPolicyDaemon;
 
     @Mock
@@ -120,8 +124,10 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
     private CarUserService mUserService;
     @Mock
     private IVoiceInteractionManagerService mVoiceInteractionManagerService;
-    @Mock
-    private PowerComponentHandler mPowerComponentHandler;
+
+    public CarPowerManagementServiceUnitTest() throws Exception {
+        mComponentStateFile = new TemporaryFile("COMPONENT_STATE_FILE");
+    }
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
@@ -139,6 +145,8 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
             .withSystemStateInterface(mSystemStateInterface)
             .withWakeLockInterface(mWakeLockInterface)
             .withIOInterface(mIOInterface).build();
+        mPowerComponentHandler = new PowerComponentHandler(mContext, mSystemInterface,
+                mVoiceInteractionManagerService, new AtomicFile(mComponentStateFile.getFile()));
 
         setCurrentUser(CURRENT_USER_ID, /* isGuest= */ false);
         setService();
@@ -150,7 +158,6 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
             mService.release();
         }
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
-        CarLocalServices.removeServiceForTest(SilentModeController.class);
         CarServiceUtils.finishAllHandlerTasks();
         mIOInterface.tearDown();
     }
@@ -164,17 +171,18 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
         Log.i(TAG, "setService(): overridden overlay properties: "
                 + ", maxGarageModeRunningDurationInSecs="
                 + mResources.getInteger(R.integer.maxGarageModeRunningDurationInSecs));
-        mSilentModeFile = new TemporaryFile(TAG);
-        mSilentModeFile.write(NONSILENT_STRING);
-        mSilentModeController = new SilentModeController(mContext, mSystemInterface,
-                mVoiceInteractionManagerService, mSilentModeFile.getPath().toString());
+        mFileHwStateMonitoring = new TemporaryFile("HW_STATE_MONITORING");
+        mFileKernelSilentMode = new TemporaryFile("KERNEL_SILENT_MODE");
+        mFileHwStateMonitoring.write(NONSILENT_STRING);
         mPowerPolicyDaemon = new FakeCarPowerPolicyDaemon();
-        CarLocalServices.addService(SilentModeController.class, mSilentModeController);
+        mPowerComponentHandler = new PowerComponentHandler(mContext, mSystemInterface,
+                mVoiceInteractionManagerService, new AtomicFile(mComponentStateFile.getFile()));
         mService = new CarPowerManagementService(mContext, mResources, mPowerHal, mSystemInterface,
-                mUserManager, mUserService, mPowerPolicyDaemon, mPowerComponentHandler);
+                mUserManager, mUserService, mPowerPolicyDaemon, mPowerComponentHandler,
+                mFileHwStateMonitoring.getFile().getPath(),
+                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
         CarLocalServices.addService(CarPowerManagementService.class, mService);
         mService.init();
-        mSilentModeController.init();
         mService.setShutdownTimersForTest(0, 0);
         mPowerHal.setSignalListener(mPowerSignalListener);
         mService.scheduleNextWakeupTime(WAKE_UP_DELAY);
@@ -351,6 +359,7 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
      */
     @Test
     public void testSleepEntryAndWakeUpForProcessing() throws Exception {
+        mService.handleOn();
         // Speed up the polling for power state transitions
         mService.setShutdownTimersForTest(10, 40);
 
@@ -394,17 +403,13 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
         // Power policy which doesn't change any components.
         String policyId = "policy_id_no_changes";
         mService.definePowerPolicy(policyId, new String[0], new String[0]);
-        ArgumentCaptor<android.car.hardware.power.CarPowerPolicy> captor =
-                ArgumentCaptor.forClass(
-                        android.car.hardware.power.CarPowerPolicy.class);
 
         mService.applyPowerPolicy(policyId);
 
-        android.car.hardware.power.CarPowerPolicy policy = mService.getCurrentPowerPolicy();
+        CarPowerPolicy policy = mService.getCurrentPowerPolicy();
         assertThat(policy.getPolicyId()).isEqualTo(policyId);
         assertThat(mPowerPolicyDaemon.getLastNotifiedPolicyId()).isEqualTo(policyId);
-        verify(mPowerComponentHandler).applyPowerPolicy(captor.capture());
-        assertThat(captor.getValue().getPolicyId()).isEqualTo(policyId);
+        assertThat(mPowerComponentHandler.getAccumulatedPolicy().getPolicyId()).isEqualTo(policyId);
     }
 
     @Test
@@ -485,10 +490,10 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
         // second processing after wakeup
         assertThat(mDisplayInterface.isDisplayEnabled()).isFalse();
 
-        mService.setStateForTesting(/* isBooting= */ false);
-
-        mSilentModeFile.write(NONSILENT_STRING); // Wake non-silently
+        mFileHwStateMonitoring.write(NONSILENT_STRING); // Wake non-silently
+        mService.setStateForWakeUp();
         mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
+
         mDisplayInterface.waitForDisplayOn(WAIT_TIMEOUT_MS);
         // Should wait until Handler has finished ON processing.
         CarServiceUtils.runOnLooperSync(mService.getHandlerThread().getLooper(), () -> { });
@@ -789,14 +794,15 @@ public class CarPowerManagementServiceUnitTest extends AbstractExtendedMockitoTe
     }
 
     private final class MockedPowerPolicyListener extends ICarPowerPolicyListener.Stub {
-        private android.car.hardware.power.CarPowerPolicy mCurrentPowerPolicy;
+        private CarPowerPolicy mCurrentPowerPolicy;
 
         @Override
-        public void onPolicyChanged(android.car.hardware.power.CarPowerPolicy policy) {
-            mCurrentPowerPolicy = policy;
+        public void onPolicyChanged(CarPowerPolicy appliedPolicy,
+                CarPowerPolicy accumulatedPolicy) {
+            mCurrentPowerPolicy = accumulatedPolicy;
         }
 
-        public android.car.hardware.power.CarPowerPolicy getCurrentPowerPolicy() {
+        public CarPowerPolicy getCurrentPowerPolicy() {
             return mCurrentPowerPolicy;
         }
     }

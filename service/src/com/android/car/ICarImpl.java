@@ -57,15 +57,14 @@ import com.android.car.audio.CarAudioService;
 import com.android.car.cluster.ClusterHomeService;
 import com.android.car.cluster.ClusterNavigationService;
 import com.android.car.cluster.InstrumentClusterService;
+import com.android.car.evs.CarEvsService;
 import com.android.car.garagemode.GarageModeService;
 import com.android.car.hal.VehicleHal;
-import com.android.car.evs.CarEvsService;
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.common.EventLogTags;
 import com.android.car.pm.CarPackageManagerService;
 import com.android.car.power.CarPowerManagementService;
-import com.android.car.power.SilentModeController;
 import com.android.car.stats.CarStatsService;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.user.CarUserNoticeService;
@@ -101,7 +100,6 @@ public class ICarImpl extends ICar.Stub {
 
     private final SystemActivityMonitoringService mSystemActivityMonitoringService;
     private final CarPowerManagementService mCarPowerManagementService;
-    private final SilentModeController mSilentModeController;
     private final CarPackageManagerService mCarPackageManagerService;
     private final CarInputService mCarInputService;
     private final CarDrivingStateService mCarDrivingStateService;
@@ -236,9 +234,6 @@ public class ICarImpl extends ICar.Stub {
                 t, CarPowerManagementService.class,
                 () -> new CarPowerManagementService(mContext, mHal.getPowerHal(),
                         systemInterface, mCarUserService, powerPolicyDaemon));
-        mSilentModeController = constructWithTrace(
-                t, SilentModeController.class,
-                () -> new SilentModeController(mContext, systemInterface));
         if (mFeatureController.isFeatureEnabled(CarFeatures.FEATURE_CAR_USER_NOTICE_SERVICE)) {
             mCarUserNoticeService = constructWithTrace(
                     t, CarUserNoticeService.class, () -> new CarUserNoticeService(serviceContext));
@@ -362,7 +357,6 @@ public class ICarImpl extends ICar.Stub {
         allServices.add(mCarUserService);
         allServices.add(mSystemActivityMonitoringService);
         allServices.add(mCarPowerManagementService);
-        allServices.add(mSilentModeController);
         allServices.add(mCarPropertyService);
         allServices.add(mCarDrivingStateService);
         allServices.add(mCarOccupantZoneService);
@@ -533,11 +527,19 @@ public class ICarImpl extends ICar.Stub {
      * Note that car service runs as system user but test like car service test will not.
      */
     public static void assertCallingFromSystemProcessOrSelf() {
-        int uid = Binder.getCallingUid();
-        int pid = Binder.getCallingPid();
-        if (uid != Process.SYSTEM_UID && pid != Process.myPid()) {
+        if (isCallingFromSystemProcessOrSelf()) {
             throw new SecurityException("Only allowed from system or self");
         }
+    }
+
+    /**
+     * @return true if binder call is coming from system process like system server or if it is
+     * called from its own process even if it is not system.
+     */
+    public static boolean isCallingFromSystemProcessOrSelf() {
+        int uid = Binder.getCallingUid();
+        int pid = Binder.getCallingPid();
+        return uid != Process.SYSTEM_UID && pid != Process.myPid();
     }
 
     @Override
@@ -924,23 +926,15 @@ public class ICarImpl extends ICar.Stub {
         @Override
         public void initBootUser() throws RemoteException {
             assertCallingFromSystemProcess();
-            // TODO(b/160819016): add events log
+            EventLog.writeEvent(EventLogTags.CAR_SERVICE_INIT_BOOT_USER);
             if (DBG) Slog.d(TAG, "initBootUser(): ");
             mCarUserService.initBootUser();
         }
 
         @Override
-        public void preCreateUsers() throws RemoteException {
-            assertCallingFromSystemProcess();
-            // TODO(b/160819016): add events log
-            if (DBG) Slog.d(TAG, "preCreateUsers(): ");
-            mCarUserService.preCreateUsers();
-        }
-
-        @Override
         public void onUserRemoved(UserInfo user) throws RemoteException {
             assertCallingFromSystemProcess();
-            // TODO(b/160819016): add events log
+            EventLog.writeEvent(EventLogTags.CAR_SERVICE_ON_USER_REMOVED, user.id);
             if (DBG) Slog.d(TAG, "onUserRemoved(): " + user.toFullString());
             mCarUserService.onUserRemoved(user);
         }

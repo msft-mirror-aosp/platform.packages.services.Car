@@ -16,6 +16,25 @@
 
 package com.android.car.hardware.power;
 
+import static android.car.hardware.power.PowerComponent.AUDIO;
+import static android.car.hardware.power.PowerComponent.BLUETOOTH;
+import static android.car.hardware.power.PowerComponent.CELLULAR;
+import static android.car.hardware.power.PowerComponent.CPU;
+import static android.car.hardware.power.PowerComponent.DISPLAY;
+import static android.car.hardware.power.PowerComponent.ETHERNET;
+import static android.car.hardware.power.PowerComponent.INPUT;
+import static android.car.hardware.power.PowerComponent.LOCATION;
+import static android.car.hardware.power.PowerComponent.MEDIA;
+import static android.car.hardware.power.PowerComponent.MICROPHONE;
+import static android.car.hardware.power.PowerComponent.NFC;
+import static android.car.hardware.power.PowerComponent.PROJECTION;
+import static android.car.hardware.power.PowerComponent.TRUSTED_DEVICE_DETECTION;
+import static android.car.hardware.power.PowerComponent.VISUAL_INTERACTION;
+import static android.car.hardware.power.PowerComponent.VOICE_INTERACTION;
+import static android.car.hardware.power.PowerComponent.WIFI;
+
+import static com.android.car.test.power.CarPowerPolicyUtil.assertPolicyIdentical;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.doReturn;
@@ -37,21 +56,21 @@ import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemN
 import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateReq;
 import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateShutdownParam;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.AtomicFile;
 import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.car.CarLocalServices;
 import com.android.car.R;
 import com.android.car.hal.MockedPowerHalService;
 import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.power.PowerComponentHandler;
-import com.android.car.power.SilentModeController;
 import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
+import com.android.car.test.utils.TemporaryFile;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.IVoiceInteractionManagerService;
@@ -83,12 +102,13 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
     private final Context mContext =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
     private final Executor mExecutor = mContext.getMainExecutor();
+    private final TemporaryFile mComponentStateFile;
 
     private MockedPowerHalService mPowerHal;
     private SystemInterface mSystemInterface;
     private CarPowerManagementService mService;
     private CarPowerManager mCarPowerManager;
-    private SilentModeController mSilentModeController;
+    private PowerComponentHandler mPowerComponentHandler;
 
     @Mock
     private Resources mResources;
@@ -100,8 +120,10 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
     private IVoiceInteractionManagerService mVoiceInteractionManagerService;
     @Mock
     private ICarPowerPolicySystemNotification mPowerPolicyDaemon;
-    @Mock
-    private PowerComponentHandler mPowerComponentHandler;
+
+    public CarPowerManagerUnitTest() throws Exception {
+        mComponentStateFile = new TemporaryFile("COMPONENT_STATE_FILE");
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -117,7 +139,6 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
 
     @After
     public void tearDown() throws Exception {
-        CarLocalServices.removeServiceForTest(SilentModeController.class);
         if (mService != null) {
             mService.release();
         }
@@ -222,6 +243,33 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
         assertStateReceivedForShutdownOrSleepWithPostpone(PowerHalService.SET_DEEP_SLEEP_ENTRY, 0);
         assertThat(mCarPowerManager.getPowerState())
                 .isEqualTo(PowerHalService.SET_DEEP_SLEEP_ENTRY);
+    }
+
+    @Test
+    public void testGetCurrentPowerPolicy() throws Exception {
+        grantPowerPolicyPermission();
+        CarPowerPolicy expected = new CarPowerPolicy("test_policy4",
+                new int[]{AUDIO, MEDIA, DISPLAY, INPUT, CPU},
+                new int[]{BLUETOOTH, CELLULAR, ETHERNET, LOCATION, MICROPHONE, NFC, PROJECTION,
+                        TRUSTED_DEVICE_DETECTION, VISUAL_INTERACTION, VOICE_INTERACTION, WIFI});
+        PolicyDefinition[] policyDefinitions = new PolicyDefinition[]{
+                new PolicyDefinition("test_policy1", new String[]{"WIFI"}, new String[]{"AUDIO"}),
+                new PolicyDefinition("test_policy2", new String[]{"WIFI", "DISPLAY"},
+                        new String[]{"NFC"}),
+                new PolicyDefinition("test_policy3", new String[]{"CPU", "INPUT"},
+                        new String[]{"WIFI"}),
+                new PolicyDefinition("test_policy4", new String[]{"MEDIA", "AUDIO"},
+                        new String[]{})};
+        for (PolicyDefinition definition : policyDefinitions) {
+            mService.definePowerPolicy(definition.policyId, definition.enabledComponents,
+                    definition.disabledComponents);
+        }
+
+        for (PolicyDefinition definition : policyDefinitions) {
+            mCarPowerManager.applyPowerPolicy(definition.policyId);
+        }
+
+        assertPolicyIdentical(expected, mCarPowerManager.getCurrentPowerPolicy());
     }
 
     @Test
@@ -355,11 +403,12 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
         Log.i(TAG, "setService(): overridden overlay properties: "
                 + ", maxGarageModeRunningDurationInSecs="
                 + mResources.getInteger(R.integer.maxGarageModeRunningDurationInSecs));
-        mSilentModeController = new SilentModeController(mContext, mSystemInterface,
-                mVoiceInteractionManagerService, "");
-        CarLocalServices.addService(SilentModeController.class, mSilentModeController);
+        mPowerComponentHandler = new PowerComponentHandler(mContext, mSystemInterface,
+                mVoiceInteractionManagerService, new AtomicFile(mComponentStateFile.getFile()));
         mService = new CarPowerManagementService(mContext, mResources, mPowerHal, mSystemInterface,
-                null, mCarUserService, mPowerPolicyDaemon, mPowerComponentHandler);
+                null, mCarUserService, mPowerPolicyDaemon, mPowerComponentHandler,
+                /* silentModeHwStatePath= */ null, /* silentModeKernelStatePath= */ null,
+                /* bootReason= */ null);
         mService.init();
         mService.setShutdownTimersForTest(0, 0);
         assertStateReceived(MockedPowerHalService.SET_WAIT_FOR_VHAL, 0);
@@ -580,6 +629,19 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
                 return mCurrentPolicyId;
             }
             return null;
+        }
+    }
+
+    private static final class PolicyDefinition {
+        public final String policyId;
+        public final String[] enabledComponents;
+        public final String[] disabledComponents;
+
+        private PolicyDefinition(String policyId, String[] enabledComponents,
+                String[] disabledComponents) {
+            this.policyId = policyId;
+            this.enabledComponents = enabledComponents;
+            this.disabledComponents = disabledComponents;
         }
     }
 }
