@@ -17,8 +17,8 @@ package android.car {
     field public static final String APP_FOCUS_SERVICE = "app_focus";
     field public static final String AUDIO_SERVICE = "audio";
     field public static final String CAR_EXTRA_BROWSE_SERVICE_FOR_SESSION = "android.media.session.BROWSE_SERVICE";
-    field public static final String CAR_EXTRA_MEDIA_COMPONENT = "android.car.intent.extra.MEDIA_COMPONENT";
-    field public static final String CAR_INTENT_ACTION_MEDIA_TEMPLATE = "android.car.intent.action.MEDIA_TEMPLATE";
+    field @Deprecated public static final String CAR_EXTRA_MEDIA_COMPONENT = "android.car.intent.extra.MEDIA_COMPONENT";
+    field @Deprecated public static final String CAR_INTENT_ACTION_MEDIA_TEMPLATE = "android.car.intent.action.MEDIA_TEMPLATE";
     field public static final String CAR_NAVIGATION_SERVICE = "car_navigation_service";
     field public static final String CAR_OCCUPANT_ZONE_SERVICE = "car_occupant_zone_service";
     field public static final String CAR_UX_RESTRICTION_SERVICE = "uxrestriction";
@@ -240,6 +240,8 @@ package android.car {
     field @RequiresPermission("android.car.permission.CONTROL_CAR_DOORS") public static final int DOOR_LOCK = 371198722; // 0x16200b02
     field @RequiresPermission("android.car.permission.CONTROL_CAR_DOORS") public static final int DOOR_MOVE = 373295873; // 0x16400b01
     field @RequiresPermission("android.car.permission.CONTROL_CAR_DOORS") public static final int DOOR_POS = 373295872; // 0x16400b00
+    field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int ELECTRONIC_TOLL_COLLECTION_CARD_STATUS = 289410874; // 0x11400f3a
+    field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int ELECTRONIC_TOLL_COLLECTION_CARD_TYPE = 289410873; // 0x11400f39
     field @RequiresPermission("android.car.permission.CAR_ENGINE_DETAILED") public static final int ENGINE_COOLANT_TEMP = 291504897; // 0x11600301
     field @RequiresPermission("android.car.permission.CAR_ENGINE_DETAILED") public static final int ENGINE_OIL_LEVEL = 289407747; // 0x11400303
     field @RequiresPermission("android.car.permission.CAR_ENGINE_DETAILED") public static final int ENGINE_OIL_TEMP = 291504900; // 0x11600304
@@ -349,10 +351,12 @@ package android.car {
     field @RequiresPermission("android.car.permission.CONTROL_CAR_SEATS") public static final int SEAT_OCCUPANCY = 356518832; // 0x15400bb0
     field @RequiresPermission("android.car.permission.CONTROL_CAR_SEATS") public static final int SEAT_TILT_MOVE = 356518800; // 0x15400b90
     field @RequiresPermission("android.car.permission.CONTROL_CAR_SEATS") public static final int SEAT_TILT_POS = 356518799; // 0x15400b8f
+    field @RequiresPermission("android.car.permission.STORAGE_ENCRYPTION_BINDING_SEED") public static final int STORAGE_ENCRYPTION_BINDING_SEED = 292554247; // 0x11700607
     field @RequiresPermission("android.car.permission.CAR_TIRES") public static final int TIRE_PRESSURE = 392168201; // 0x17600309
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DISPLAY_UNITS)) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(allOf={android.car.Car.PERMISSION_CONTROL_DISPLAY_UNITS, "android.car.permission.CAR_VENDOR_EXTENSION"})) public static final int TIRE_PRESSURE_DISPLAY_UNITS = 289408514; // 0x11400602
     field @RequiresPermission("android.car.permission.CAR_DYNAMICS_STATE") public static final int TRACTION_CONTROL_ACTIVE = 287310859; // 0x1120040b
     field @RequiresPermission("android.car.permission.CAR_EXTERIOR_LIGHTS") public static final int TURN_SIGNAL_STATE = 289408008; // 0x11400408
+    field @RequiresPermission("android.car.permission.CAR_UNIX_TIME") public static final int UNIX_TIME = 290457094; // 0x11500606
     field @RequiresPermission(anyOf={"android.car.permission.VMS_PUBLISHER", "android.car.permission.VMS_SUBSCRIBER"}) public static final int VEHICLE_MAP_SERVICE = 299895808; // 0x11e00c00
     field @RequiresPermission(android.car.Car.PERMISSION_SPEED) public static final int WHEEL_TICK = 290521862; // 0x11510306
     field @RequiresPermission("android.car.permission.CONTROL_CAR_WINDOWS") public static final int WINDOW_LOCK = 320867268; // 0x13200bc4
@@ -655,6 +659,19 @@ package android.car.hardware.property {
   public class PropertyNotAvailableException extends java.lang.IllegalStateException {
   }
 
+  public class VehicleElectronicTollCollectionCardStatus {
+    field public static final int ELECTRONIC_TOLL_COLLECTION_CARD_INVALID = 2; // 0x2
+    field public static final int ELECTRONIC_TOLL_COLLECTION_CARD_NOT_INSERTED = 3; // 0x3
+    field public static final int ELECTRONIC_TOLL_COLLECTION_CARD_VALID = 1; // 0x1
+    field public static final int UNKNOWN = 0; // 0x0
+  }
+
+  public final class VehicleElectronicTollCollectionCardType {
+    field public static final int JP_ELECTRONIC_TOLL_COLLECTION_CARD = 1; // 0x1
+    field public static final int JP_ELECTRONIC_TOLL_COLLECTION_CARD_V2 = 2; // 0x2
+    field public static final int UNKNOWN = 0; // 0x0
+  }
+
 }
 
 package android.car.media {
@@ -672,6 +689,12 @@ package android.car.media {
     method public void onGroupMuteChanged(int, int, int);
     method public void onGroupVolumeChanged(int, int, int);
     method public void onMasterMuteChanged(int, int);
+  }
+
+  public final class CarMediaIntents {
+    field public static final String ACTION_MEDIA_TEMPLATE = "android.car.intent.action.MEDIA_TEMPLATE";
+    field public static final String EXTRA_MEDIA_COMPONENT = "android.car.intent.extra.MEDIA_COMPONENT";
+    field public static final String EXTRA_SEARCH_QUERY = "android.car.media.extra.SEARCH_QUERY";
   }
 
 }

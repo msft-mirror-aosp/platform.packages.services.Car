@@ -17,6 +17,8 @@
 package android.car;
 
 import android.annotation.RequiresPermission;
+import android.car.hardware.property.VehicleElectronicTollCollectionCardStatus;
+import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
 
 /**
  * Copy from android.hardware.automotive.vehicle-V2.0-java_gen_java/gen/android/hardware/automotive
@@ -1167,7 +1169,48 @@ public final class VehiclePropertyIds {
      *
      * @hide
      */
-    public static final int CLUSTER_NAVIGATION_STATE_LEGACY = 292556600;
+    public static final int CLUSTER_NAVIGATION_STATE = 292556600;
+
+    /**
+     * Current date and time, encoded as Unix time.
+     *
+     * <p>This value denotes the number of milliseconds that have elapsed since 1/1/1970 UTC.
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_UNIX_TIME)
+    public static final int UNIX_TIME = 290457094;
+
+    /**
+     * External encryption binding seed.
+     *
+     * <p>This value is mixed with the local storage encryption seed. This property holds 16 bytes,
+     * and is expected to be persisted on an ECU separate from the IVI. The property is initially
+     * set by AAOS, who generates it using a CSRNG. AAOS will then read the property on subsequent
+     * boots.
+     */
+    @RequiresPermission(Car.PERMISSION_STORAGE_ENCRYPTION_BINDING_SEED)
+    public static final int STORAGE_ENCRYPTION_BINDING_SEED = 292554247;
+
+    /**
+     * Electronic Toll Collection card type.
+     *
+     * <p>This property indicates the type of ETC(Electronic Toll Collection) card in the vehicle.
+     * If the head unit is aware of an ETC card attached to the vehicle, this property should return
+     * the type of card attached; otherwise, this property should be UNAVAILABLE.
+     * The property value should be one of {@link VehicleElectronicTollCollectionCardType}.
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_INFO)
+    public static final int ELECTRONIC_TOLL_COLLECTION_CARD_TYPE = 289410873;
+
+    /**
+     * Electronic Toll Collection card status.
+     *
+     * <p>This property indicates the status of ETC(Electronic Toll Collection) card in the vehicle.
+     * If the head unit is aware of an ETC card attached to the vehicle, ETC_CARD_STATUS gives
+     * that status of the card; otherwise, this property should be UNAVAILABLE.
+     * The property value should be one of {@link VehicleElectronicTollCollectionCardStatus}.
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_INFO)
+    public static final int ELECTRONIC_TOLL_COLLECTION_CARD_STATUS = 289410874;
 
     /**
      * Gets a user-friendly representation of a property.
@@ -1468,8 +1511,16 @@ public final class VehiclePropertyIds {
                 return "CLUSTER_REPORT_STATE";
             case CLUSTER_REQUEST_DISPLAY:
                 return "CLUSTER_REQUEST_DISPLAY";
-            case CLUSTER_NAVIGATION_STATE_LEGACY:
-                return "CLUSTER_NAVIGATION_STATE_LEGACY";
+            case CLUSTER_NAVIGATION_STATE:
+                return "CLUSTER_NAVIGATION_STATE";
+            case UNIX_TIME:
+                return "UNIX_TIME";
+            case STORAGE_ENCRYPTION_BINDING_SEED:
+                return "STORAGE_ENCRYPTION_BINDING_SEED";
+            case ELECTRONIC_TOLL_COLLECTION_CARD_STATUS:
+                return "ELECTRONIC_TOLL_COLLECTION_CARD_STATUS";
+            case ELECTRONIC_TOLL_COLLECTION_CARD_TYPE:
+                return "ELECTRONIC_TOLL_COLLECTION_CARD_TYPE";
             default:
                 return "0x" + Integer.toHexString(property);
         }
