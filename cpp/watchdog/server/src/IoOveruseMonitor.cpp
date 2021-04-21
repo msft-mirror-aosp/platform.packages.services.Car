@@ -38,6 +38,7 @@ using ::android::automotive::watchdog::internal::PackageIdentifier;
 using ::android::automotive::watchdog::internal::PackageInfo;
 using ::android::automotive::watchdog::internal::PackageIoOveruseStats;
 using ::android::automotive::watchdog::internal::PackageResourceOveruseAction;
+using ::android::automotive::watchdog::internal::ResourceOveruseConfiguration;
 using ::android::automotive::watchdog::internal::UidType;
 using ::android::base::Error;
 using ::android::base::Result;
@@ -110,7 +111,8 @@ Result<void> IoOveruseMonitor::init() {
     mIoOveruseConfigs = new IoOveruseConfigs();
     // TODO(b/167240592): Read the vendor package prefixes from disk before the below call.
     mPackageInfoResolver = PackageInfoResolver::getInstance();
-    mPackageInfoResolver->setVendorPackagePrefixes(mIoOveruseConfigs->vendorPackagePrefixes());
+    mPackageInfoResolver->setPackageConfigurations(mIoOveruseConfigs->vendorPackagePrefixes(),
+                                                   mIoOveruseConfigs->packagesToAppCategories());
     return {};
 }
 
@@ -205,17 +207,19 @@ Result<void> IoOveruseMonitor::onPeriodicCollection(
         if (remainingWriteBytes.foregroundBytes == 0 || remainingWriteBytes.backgroundBytes == 0 ||
             remainingWriteBytes.garageModeBytes == 0) {
             stats.ioOveruseStats.totalOveruses = ++dailyIoUsage->totalOveruses;
-            // Reset counters as the package may be disabled/killed by the watchdog service.
+            /*
+             * Reset counters as the package may be disabled/killed by the watchdog service.
+             * NOTE: If this logic is updated, update watchdog service side logic as well.
+             */
             dailyIoUsage->forgivenWriteBytes = dailyIoUsage->writtenBytes;
             dailyIoUsage->isPackageWarned = false;
+            /*
+             * Send notifications for native service I/O overuses as well because system listeners
+             * need to be notified of all I/O overuses.
+             */
+            stats.shouldNotify = true;
             if (dailyIoUsage->packageInfo.uidType == UidType::NATIVE) {
                 overusingNativeStats[uid] = stats.ioOveruseStats;
-            } else {
-                /*
-                 * Native services are handled by the daemon so notify only applications from
-                 * watchdog service.
-                 */
-                stats.shouldNotify = true;
             }
             mLatestIoOveruseStats.emplace_back(std::move(stats));
             continue;
@@ -275,6 +279,8 @@ Result<void> IoOveruseMonitor::onPeriodicMonitor(
     if (procDiskStats == nullptr) {
         return Error() << "Proc disk stats collector must not be null";
     }
+
+    std::unique_lock writeLock(mRwMutex);
     if (mLastSystemWideIoMonitorTime == 0) {
         /*
          * Do not record the first disk stats as it reflects the aggregated disks stats since the
@@ -348,13 +354,23 @@ void IoOveruseMonitor::notifyNativePackagesLocked(
     // TODO(b/167240592): Upload I/O overuse metrics for native packages.
 }
 
-Result<void> IoOveruseMonitor::updateIoOveruseConfiguration(ComponentType type,
-                                                            const IoOveruseConfiguration& config) {
+Result<void> IoOveruseMonitor::updateResourceOveruseConfigurations(
+        const std::vector<ResourceOveruseConfiguration>& configs) {
     std::unique_lock writeLock(mRwMutex);
     if (!isInitializedLocked()) {
         return Error(Status::EX_ILLEGAL_STATE) << name() << " is not initialized";
     }
-    return mIoOveruseConfigs->update(type, config);
+    return mIoOveruseConfigs->update(configs);
+}
+
+Result<void> IoOveruseMonitor::getResourceOveruseConfigurations(
+        std::vector<ResourceOveruseConfiguration>* configs) {
+    std::shared_lock readLock(mRwMutex);
+    if (!isInitializedLocked()) {
+        return Error(Status::EX_ILLEGAL_STATE) << name() << " is not initialized";
+    }
+    mIoOveruseConfigs->get(configs);
+    return {};
 }
 
 Result<void> IoOveruseMonitor::actionTakenOnIoOveruse(

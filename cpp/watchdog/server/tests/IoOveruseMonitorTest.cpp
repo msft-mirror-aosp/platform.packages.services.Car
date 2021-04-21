@@ -171,7 +171,7 @@ public:
           mIoOveruseMonitor(ioOveruseMonitor) {}
 
     Result<void> init(const sp<IIoOveruseConfigs>& ioOveruseConfigs,
-                      const sp<IPackageInfoResolverInterface>& packageInfoResolver) {
+                      const sp<IPackageInfoResolver>& packageInfoResolver) {
         if (const auto result = mIoOveruseMonitor->init(); !result.ok()) {
             return result;
         }
@@ -319,7 +319,7 @@ TEST_F(IoOveruseMonitorTest, TestOnPeriodicCollection) {
             << "\nActual: " << actualOverusingNativeStats.toString();
 
     expectedIoOveruseStats =
-            {constructPackageIoOveruseStats(/*uid*=*/1001000, /*shouldNotify=*/false,
+            {constructPackageIoOveruseStats(/*uid*=*/1001000, /*shouldNotify=*/true,
                                             /*isKillable=*/false, /*remaining=*/
                                             constructPerStateBytes(0, 20'000, 100'000),
                                             /*written=*/constructPerStateBytes(100'000, 20'000, 0),

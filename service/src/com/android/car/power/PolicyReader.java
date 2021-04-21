@@ -61,7 +61,10 @@ import java.util.stream.Collectors;
  * <p>{@code CarPowerManagementService} manages power policies through {@code PolicyReader}. This
  * class is not thread-safe, and must be used in the main thread or with additional serialization.
  */
-final class PolicyReader {
+public final class PolicyReader {
+    public static final String POWER_STATE_WAIT_FOR_VHAL = "WaitForVHAL";
+    public static final String POWER_STATE_ON = "On";
+
     static final String SYSTEM_POWER_POLICY_PREFIX = "system_power_policy_";
     // Preemptive system power policy used for disabling user interaction in Silent Mode or Garage
     // Mode.
@@ -75,8 +78,10 @@ final class PolicyReader {
     // Non-preemptive system power policy used to represent minimally on state.
     static final String POWER_POLICY_ID_INITIAL_ON = SYSTEM_POWER_POLICY_PREFIX + "initial_on";
 
+    static final int INVALID_POWER_STATE = -1;
+
     private static final String TAG = CarLog.tagFor(PolicyReader.class);
-    private static final String VENDOR_POLICY_PATH = "/vendor/etc/power_policy.xml";
+    private static final String VENDOR_POLICY_PATH = "/vendor/etc/car/power_policy.xml";
 
     private static final String NAMESPACE = null;
     private static final Set<String> VALID_VERSIONS = new ArraySet<>(Arrays.asList("1.0"));
@@ -98,12 +103,6 @@ final class PolicyReader {
     private static final String POWER_ONOFF_OFF = "off";
     private static final String POWER_ONOFF_UNTOUCHED = "untouched";
 
-    private static final int INVALID_POWER_STATE = -1;
-    private static final String POWER_STATE_WAIT_FOR_VHAL = "WaitForVHAL";
-    private static final String POWER_STATE_ON = "On";
-    private static final String POWER_STATE_DEEP_SLEEP_ENTRY = "DeepSleepEntry";
-    private static final String POWER_STATE_SHUTDOWN_START = "ShutdownStart";
-
     private static final int[] ALL_COMPONENTS;
     private static final int[] NO_COMPONENTS = new int[0];
     private static final int[] INITIAL_ON_COMPONENTS = {
@@ -111,14 +110,13 @@ final class PolicyReader {
     };
     private static final int[] NO_USER_INTERACTION_ENABLED_COMPONENTS = {
             PowerComponent.WIFI, PowerComponent.CELLULAR,
-            PowerComponent.ETHERNET, PowerComponent.TRUSTED_DEVICE_DETECTION
+            PowerComponent.ETHERNET, PowerComponent.TRUSTED_DEVICE_DETECTION, PowerComponent.CPU
     };
     private static final int[] NO_USER_INTERACTION_DISABLED_COMPONENTS = {
             PowerComponent.AUDIO, PowerComponent.MEDIA, PowerComponent.DISPLAY,
             PowerComponent.BLUETOOTH, PowerComponent.PROJECTION, PowerComponent.NFC,
             PowerComponent.INPUT, PowerComponent.VOICE_INTERACTION,
-            PowerComponent.VISUAL_INTERACTION, PowerComponent.LOCATION, PowerComponent.MICROPHONE,
-            PowerComponent.CPU
+            PowerComponent.VISUAL_INTERACTION, PowerComponent.LOCATION, PowerComponent.MICROPHONE
     };
     private static final Set<Integer> SYSTEM_POLICY_CONFIGURABLE_COMPONENTS =
             new ArraySet<>(Arrays.asList(PowerComponent.BLUETOOTH, PowerComponent.NFC,
@@ -132,15 +130,21 @@ final class PolicyReader {
     private static final CarPowerPolicy POWER_POLICY_SUSPEND_TO_RAM;
 
     static {
-        ALL_COMPONENTS = new int[LAST_POWER_COMPONENT - FIRST_POWER_COMPONENT + 1];
+        int allCount = LAST_POWER_COMPONENT - FIRST_POWER_COMPONENT + 1;
+        ALL_COMPONENTS = new int[allCount];
+        int[] initialOnDisabledComponents = new int[allCount - INITIAL_ON_COMPONENTS.length];
+        int pos = 0;
         for (int c = FIRST_POWER_COMPONENT; c <= LAST_POWER_COMPONENT; c++) {
             ALL_COMPONENTS[c - FIRST_POWER_COMPONENT] = c;
+            if (!containsComponent(INITIAL_ON_COMPONENTS, c)) {
+                initialOnDisabledComponents[pos++] = c;
+            }
         }
 
         POWER_POLICY_ALL_ON = new CarPowerPolicy(POWER_POLICY_ID_ALL_ON, ALL_COMPONENTS.clone(),
                 NO_COMPONENTS.clone());
         POWER_POLICY_INITIAL_ON = new CarPowerPolicy(POWER_POLICY_ID_INITIAL_ON,
-                INITIAL_ON_COMPONENTS.clone(), ALL_COMPONENTS.clone());
+                INITIAL_ON_COMPONENTS.clone(), initialOnDisabledComponents);
         POWER_POLICY_SUSPEND_TO_RAM = new CarPowerPolicy(POWER_POLICY_ID_SUSPEND_TO_RAM,
                 NO_COMPONENTS.clone(), SUSPEND_TO_RAM_DISABLED_COMPONENTS.clone());
     }
@@ -230,6 +234,30 @@ final class PolicyReader {
         return null;
     }
 
+    /**
+     * Defines and registers a new power policy group.
+     *
+     * @return {@code null}, if successful. Otherwise, error message.
+     */
+    @Nullable
+    String definePowerPolicyGroup(String policyGroupId, SparseArray<String> defaultPolicyPerState) {
+        if (policyGroupId == null) {
+            return "policyGroupId cannot be null";
+        }
+        if (mPolicyGroups.containsKey(policyGroupId)) {
+            return policyGroupId + " is already registered";
+        }
+        for (int i = 0; i < defaultPolicyPerState.size(); i++) {
+            int state = defaultPolicyPerState.keyAt(i);
+            String policyId = defaultPolicyPerState.valueAt(i);
+            if (!mRegisteredPowerPolicies.containsKey(policyId)) {
+                return policyId + " for " + powerStateToString(state) + " is not registered";
+            }
+        }
+        mPolicyGroups.put(policyGroupId, defaultPolicyPerState);
+        return null;
+    }
+
     void dump(IndentingPrintWriter writer) {
         writer.printf("Registered power policies:%s\n",
                 mRegisteredPowerPolicies.size() == 0 ? " none" : "");
@@ -251,7 +279,7 @@ final class PolicyReader {
             writer.decreaseIndent();
         }
         writer.decreaseIndent();
-        writer.println("Preemptive power policy:\n");
+        writer.println("Preemptive power policy:");
         writer.increaseIndent();
         for (int i = 0; i < mPreemptivePowerPolicies.size(); i++) {
             writer.println(toString(mPreemptivePowerPolicies.valueAt(i)));
@@ -633,20 +661,6 @@ final class PolicyReader {
         return SYSTEM_POLICY_CONFIGURABLE_COMPONENTS.contains(component);
     }
 
-    private int toPowerState(String state) {
-        if (state == null) {
-            return INVALID_POWER_STATE;
-        }
-        switch (state) {
-            case POWER_STATE_WAIT_FOR_VHAL:
-                return VehicleApPowerStateReport.WAIT_FOR_VHAL;
-            case POWER_STATE_ON:
-                return VehicleApPowerStateReport.ON;
-            default:
-                return INVALID_POWER_STATE;
-        }
-    }
-
     private String toString(CarPowerPolicy policy) {
         return policy.getPolicyId() + "(enabledComponents: "
                 + componentsToString(policy.getEnabledComponents()) + " | disabledComponents: "
@@ -678,6 +692,20 @@ final class PolicyReader {
         return null;
     }
 
+    static int toPowerState(String state) {
+        if (state == null) {
+            return INVALID_POWER_STATE;
+        }
+        switch (state) {
+            case POWER_STATE_WAIT_FOR_VHAL:
+                return VehicleApPowerStateReport.WAIT_FOR_VHAL;
+            case POWER_STATE_ON:
+                return VehicleApPowerStateReport.ON;
+            default:
+                return INVALID_POWER_STATE;
+        }
+    }
+
     static String powerStateToString(int state) {
         switch (state) {
             case VehicleApPowerStateReport.WAIT_FOR_VHAL:
@@ -707,6 +735,13 @@ final class PolicyReader {
             }
         }
         return ret;
+    }
+
+    private static boolean containsComponent(int[] arr, int component) {
+        for (int element : arr) {
+            if (element == component) return true;
+        }
+        return false;
     }
 
     @VisibleForTesting

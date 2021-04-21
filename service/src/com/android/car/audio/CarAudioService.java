@@ -20,6 +20,7 @@ import static android.car.media.CarAudioManager.AUDIO_FEATURE_VOLUME_GROUP_MUTIN
 import static android.car.media.CarAudioManager.CarAudioFeature;
 import static android.car.media.CarAudioManager.INVALID_VOLUME_GROUP_ID;
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
+import static android.media.AudioManager.FLAG_PLAY_SOUND;
 
 import static com.android.car.audio.CarVolume.VERSION_TWO;
 import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_DUCKING;
@@ -81,6 +82,7 @@ import com.android.car.audio.hal.AudioControlWrapperV1;
 import com.android.car.audio.hal.HalAudioFocus;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
+import com.android.server.utils.Slogf;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -403,23 +405,24 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
      */
     @Override
     public void setGroupVolume(int zoneId, int groupId, int index, int flags) {
+        enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
+        callbackGroupVolumeChange(zoneId, groupId, flags);
+        // For legacy stream type based volume control
+        if (!mUseDynamicRouting) {
+            mAudioManager.setStreamVolume(
+                    CarAudioDynamicRouting.STREAM_TYPES[groupId], index, flags);
+            return;
+        }
         synchronized (mImplLock) {
-            enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
-
-            callbackGroupVolumeChange(zoneId, groupId, flags);
-            // For legacy stream type based volume control
-            if (!mUseDynamicRouting) {
-                mAudioManager.setStreamVolume(
-                        CarAudioDynamicRouting.STREAM_TYPES[groupId], index, flags);
-                return;
-            }
-
             CarVolumeGroup group = getCarVolumeGroupLocked(zoneId, groupId);
             group.setCurrentGainIndex(index);
         }
     }
 
     private void callbackGroupVolumeChange(int zoneId, int groupId, int flags) {
+        if (mUseDynamicRouting && !isPlaybackOnVolumeGroupActive(zoneId, groupId)) {
+            flags |= FLAG_PLAY_SOUND;
+        }
         mCarVolumeCallbackHandler.onVolumeGroupChange(zoneId, groupId, flags);
     }
 
@@ -623,7 +626,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
         // Configure our AudioPolicy to handle focus events.
         // This gives us the ability to decide which audio focus requests to accept and bypasses
         // the framework ducking logic.
-        mFocusHandler = new CarZonesAudioFocus(mAudioManager,
+        mFocusHandler = CarZonesAudioFocus.createCarZonesAudioFocus(mAudioManager,
                 mContext.getPackageManager(),
                 mCarAudioZones,
                 mCarAudioSettings,
@@ -1241,17 +1244,21 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
     }
 
     void disableAudio() {
-        // Todo (b/176258537) abandon focus and mute everything
-        if (Log.isLoggable(CarLog.TAG_AUDIO, Log.DEBUG)) {
-            Slog.d(CarLog.TAG_AUDIO, "Disabling audio");
+        // TODO(b/176258537) mute everything
+        if (Slogf.isLoggable(CarLog.TAG_AUDIO, Log.DEBUG)) {
+            Slogf.d(CarLog.TAG_AUDIO, "Disabling audio");
         }
+
+        mFocusHandler.setRestrictFocus(/* isFocusRestricted= */ true);
     }
 
     void enableAudio() {
-        // Todo (b/176258537) resume focus and unmute appropriate things
-        if (Log.isLoggable(CarLog.TAG_AUDIO, Log.DEBUG)) {
-            Slog.d(CarLog.TAG_AUDIO, "Enabling audio");
+        // TODO(b/176258537) unmute appropriate things
+        if (Slogf.isLoggable(CarLog.TAG_AUDIO, Log.DEBUG)) {
+            Slogf.d(CarLog.TAG_AUDIO, "Enabling audio");
         }
+
+        mFocusHandler.setRestrictFocus(/* isFocusRestricted= */ false);
     }
 
     private void enforcePermission(String permissionName) {
