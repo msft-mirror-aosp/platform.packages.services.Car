@@ -44,6 +44,8 @@ import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.UserCreationResult;
 import android.car.user.UserIdentificationAssociationResponse;
 import android.car.user.UserRemovalResult;
+import android.car.user.UserStartResult;
+import android.car.user.UserStopResult;
 import android.car.user.UserSwitchResult;
 import android.car.userlib.HalCallback;
 import android.car.userlib.UserHalHelper;
@@ -110,6 +112,7 @@ import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.FunctionalUtils;
 import com.android.internal.util.Preconditions;
 import com.android.internal.util.UserIcons;
+import com.android.server.utils.Slogf;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -964,10 +967,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             sendUserSwitchResult(receiver, UserSwitchResult.STATUS_NOT_SWITCHABLE);
             return;
         }
-        mHandler.post(()-> switchUserInternal(targetUser, timeoutMs, receiver));
+        mHandler.post(() -> handleSwitchUser(targetUser, timeoutMs, receiver));
     }
 
-    private void switchUserInternal(@NonNull UserInfo targetUser, int timeoutMs,
+    private void handleSwitchUser(@NonNull UserInfo targetUser, int timeoutMs,
             @NonNull AndroidFuture<UserSwitchResult> receiver) {
         int currentUser = ActivityManager.getCurrentUser();
         int targetUserId = targetUser.id;
@@ -1129,10 +1132,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         + " can only remove itself");
             }
         }
-        mHandler.post(()-> removeUserInternal(userId, hasCallerRestrictions, receiver));
+        mHandler.post(() -> handleRemoveUser(userId, hasCallerRestrictions, receiver));
     }
 
-    private void removeUserInternal(@UserIdInt int userId, boolean hasCallerRestrictions,
+    private void handleRemoveUser(@UserIdInt int userId, boolean hasCallerRestrictions,
             AndroidFuture<UserRemovalResult> receiver) {
         UserInfo userInfo = mUserManager.getUserInfo(userId);
         if (userInfo == null) {
@@ -1301,12 +1304,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         EventLog.writeEvent(EventLogTags.CAR_USER_SVC_CREATE_USER_REQ,
                 UserHelperLite.safeName(name), userType, flags, timeoutMs,
                 hasCallerRestrictions ? 1 : 0);
-        mHandler.post(() -> createUserInternal(name, userType, flags, timeoutMs, receiver,
+        mHandler.post(() -> handleCreateUser(name, userType, flags, timeoutMs, receiver,
                 hasCallerRestrictions));
 
     }
 
-    private void createUserInternal(@Nullable String name, @NonNull String userType,
+    private void handleCreateUser(@Nullable String name, @NonNull String userType,
             @UserInfoFlag int flags, int timeoutMs,
             @NonNull AndroidFuture<UserCreationResult> receiver,
             boolean hasCallerRestrictions) {
@@ -1840,6 +1843,53 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     /**
+     * Starts the specified user in the background.
+     *
+     * @param userId user to start in background
+     * @param receiver to post results
+     */
+    public void startUserInBackground(@UserIdInt int userId,
+            @NonNull AndroidFuture<UserStartResult> receiver) {
+        mHandler.post(() -> handleStartUserInBackground(userId, receiver));
+    }
+
+    private void handleStartUserInBackground(@UserIdInt int userId,
+            @NonNull AndroidFuture<UserStartResult> receiver) {
+        // If the requested user is the current user, do nothing and return success.
+        if (ActivityManager.getCurrentUser() == userId) {
+            sendUserStartResult(UserStartResult.STATUS_SUCCESSFUL_USER_IS_CURRENT_USER, receiver);
+            return;
+        }
+        // If requested user does not exist, return error.
+        if (mUserManager.getUserInfo(userId) == null) {
+            Slogf.w(TAG, "User %d does not exist", userId);
+            sendUserStartResult(UserStartResult.STATUS_USER_DOES_NOT_EXIST, receiver);
+            return;
+        }
+
+        try {
+            if (!mAm.startUserInBackground(userId)) {
+                Slogf.w(TAG, "Failed to start user %d in background", userId);
+                sendUserStartResult(UserStartResult.STATUS_ANDROID_FAILURE, receiver);
+                return;
+            }
+        } catch (RemoteException e) {
+            Slogf.w(TAG, e, "Failed to start user %d in background", userId);
+        }
+
+        // TODO(b/181331178): We are not updating mBackgroundUsersToRestart or
+        // mBackgroundUsersRestartedHere, which were only used for the garage mode. Consider
+        // renaming them to make it more clear.
+        sendUserStartResult(UserStartResult.STATUS_SUCCESSFUL, receiver);
+    }
+
+    private void sendUserStartResult(@UserStartResult.Status int result,
+            @NonNull AndroidFuture<UserStartResult> receiver) {
+        // TODO(b/181331178): Add event log calls.
+        receiver.complete(new UserStartResult(result));
+    }
+
+    /**
      * Starts all background users that were active in system.
      *
      * @return list of background users started successfully.
@@ -1891,36 +1941,67 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     /**
-     * Stops all background users that were active in system.
+     * Stops the specified background user.
+     *
+     * @param userId user to stop
+     * @param receiver to post results
+     */
+    public void stopUser(@UserIdInt int userId, @NonNull AndroidFuture<UserStopResult> receiver) {
+        mHandler.post(() -> handleStopUser(userId, receiver));
+    }
+
+    private void handleStopUser(
+            @UserIdInt int userId, @NonNull AndroidFuture<UserStopResult> receiver) {
+        @UserStopResult.Status int userStopStatus = stopBackgroundUserInternal(userId);
+        sendUserStopResult(userStopStatus, receiver);
+    }
+
+    private void sendUserStopResult(@UserStopResult.Status int result,
+            @NonNull AndroidFuture<UserStopResult> receiver) {
+        // TODO(b/181331178): Add event log calls.
+        receiver.complete(new UserStopResult(result));
+    }
+
+    private @UserStopResult.Status int stopBackgroundUserInternal(@UserIdInt int userId) {
+        try {
+            int r = mAm.stopUserWithDelayedLocking(userId, true, null);
+            switch(r) {
+                case ActivityManager.USER_OP_SUCCESS:
+                    return UserStopResult.STATUS_SUCCESSFUL;
+                case ActivityManager.USER_OP_ERROR_IS_SYSTEM:
+                    Slogf.w(TAG, "Cannot stop the system user: %d", userId);
+                    return UserStopResult.STATUS_FAILURE_SYSTEM_USER;
+                case ActivityManager.USER_OP_IS_CURRENT:
+                    Slogf.w(TAG, "Cannot stop the current user: %d", userId);
+                    return UserStopResult.STATUS_FAILURE_CURRENT_USER;
+                case ActivityManager.USER_OP_UNKNOWN_USER:
+                    Slogf.w(TAG, "Cannot stop the user that does not exist: %d", userId);
+                    return UserStopResult.STATUS_USER_DOES_NOT_EXIST;
+                default:
+                    Slogf.w(TAG, "stopUser failed, user: %d, err: %d", userId, r);
+            }
+        } catch (RemoteException e) {
+            // ignore the exception
+            Slogf.w(TAG, e, "error while stopping user: %d", userId);
+        }
+        return UserStopResult.STATUS_ANDROID_FAILURE;
+    }
+
+    /**
+     * Stops a background user.
      *
      * @return whether stopping succeeds.
      */
     public boolean stopBackgroundUser(@UserIdInt int userId) {
-        if (userId == UserHandle.USER_SYSTEM) {
-            return false;
-        }
-        if (userId == ActivityManager.getCurrentUser()) {
-            Slog.i(TAG, "stopBackgroundUser, already a FG user:" + userId);
-            return false;
-        }
-        try {
-            int r = mAm.stopUserWithDelayedLocking(userId, true, null);
-            if (r == ActivityManager.USER_OP_SUCCESS) {
-                synchronized (mLockUser) {
-                    Integer user = userId;
-                    mBackgroundUsersRestartedHere.remove(user);
-                }
-            } else if (r == ActivityManager.USER_OP_IS_CURRENT) {
-                return false;
-            } else {
-                Slog.i(TAG, "stopBackgroundUser failed, user:" + userId + " err:" + r);
-                return false;
+        @UserStopResult.Status int userStopStatus = stopBackgroundUserInternal(userId);
+        if (UserStopResult.isSuccess(userStopStatus)) {
+            // Remove the stopped user from the mBackgroundUserRestartedHere list.
+            synchronized (mLockUser) {
+                mBackgroundUsersRestartedHere.remove(Integer.valueOf(userId));
             }
-        } catch (RemoteException e) {
-            // ignore
-            Slog.w(TAG, "error while stopping user", e);
+            return true;
         }
-        return true;
+        return false;
     }
 
     /**
