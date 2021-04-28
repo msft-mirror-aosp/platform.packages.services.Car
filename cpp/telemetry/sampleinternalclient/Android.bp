@@ -18,18 +18,17 @@ package {
 }
 
 cc_binary {
-    name: "android.automotive.telemetryd-sampleclient",
+    name: "android.automotive.telemetryd-sampleinternalclient",
     srcs: [
         "main.cpp",
     ],
-    vendor: true,
     cflags: [
         "-Werror",
         "-Wall",
         "-Wno-unused-parameter",
     ],
     shared_libs: [
-        "android.frameworks.automotive.telemetry-V1-ndk_platform",
+        "android.automotive.telemetry.internal-ndk_platform",
         "libbase",
         "libbinder_ndk",
         "libutils",

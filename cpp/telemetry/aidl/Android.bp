@@ -12,26 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Sample client for ICarTelemetry service.
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-cc_binary {
-    name: "android.automotive.telemetryd-sampleclient",
+aidl_interface {
+    name: "android.automotive.telemetry.internal",
+    unstable: true,
+    vendor_available: false,
     srcs: [
-        "main.cpp",
+        "android/automotive/telemetry/internal/*.aidl",
     ],
-    vendor: true,
-    cflags: [
-        "-Werror",
-        "-Wall",
-        "-Wno-unused-parameter",
-    ],
-    shared_libs: [
-        "android.frameworks.automotive.telemetry-V1-ndk_platform",
-        "libbase",
-        "libbinder_ndk",
-        "libutils",
-    ],
+    backend: {
+        ndk: {
+            enabled: true,
+        },
+        java: {
+            platform_apis: true,
+            enabled: true,
+        },
+    }
 }
