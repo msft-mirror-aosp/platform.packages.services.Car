@@ -34,6 +34,7 @@ car_service_sources = [
 ]
 
 common_lib_deps = [
+    "android.car.cluster.navigation",
     "android.car.userlib",
     "android.car.watchdoglib",
     "android.frameworks.automotive.powerpolicy.internal-java",
@@ -55,6 +56,7 @@ common_lib_deps = [
     // to CarSettings
     "car-admin-ui-lib",
     "Slogf",
+    "cartelemetry-protos",
 ]
 
 android_app {

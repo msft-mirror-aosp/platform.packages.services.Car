@@ -74,4 +74,20 @@ public final class CarDevicePolicyManagerPermissionTest {
         assertThat(e.getMessage()).contains(CREATE_USERS);
         assertThat(e.getMessage()).contains(MANAGE_USERS);
     }
+
+    @Test
+    public void testStartUserInBackgroundPermission() throws Exception {
+        Exception e = expectThrows(SecurityException.class,
+                () -> mManager.startUserInBackground(UserHandle.of(100)));
+        assertThat(e.getMessage()).contains(CREATE_USERS);
+        assertThat(e.getMessage()).contains(MANAGE_USERS);
+    }
+
+    @Test
+    public void testStopUserPermission() throws Exception {
+        Exception e = expectThrows(SecurityException.class,
+                () -> mManager.stopUser(UserHandle.of(100)));
+        assertThat(e.getMessage()).contains(CREATE_USERS);
+        assertThat(e.getMessage()).contains(MANAGE_USERS);
+    }
 }
