@@ -1634,7 +1634,7 @@
     <string name="tether_settings_title_bluetooth" msgid="1999590158102569959">"Dijeljenje Bluetooth veze"</string>
     <string name="tether_settings_title_usb_bluetooth" msgid="1159128764162788159">"Povezivanje putem mobitela"</string>
     <string name="tether_settings_title_all" msgid="6935843543433954181">"Pristupna tačka i povezivanje putem mobitela"</string>
-    <string name="tether_settings_summary_hotspot_on_tether_on" msgid="1289593649526514499">"Pristupna tačka je uključena, veza se dijeli"</string>
+    <string name="tether_settings_summary_hotspot_on_tether_on" msgid="1289593649526514499">"Pristupna tačka je uključenapovezivanje putem mobitela"</string>
     <string name="tether_settings_summary_hotspot_on_tether_off" msgid="8010689354668285422">"Pristupna tačka je uključena"</string>
     <string name="tether_settings_summary_hotspot_off_tether_on" msgid="1349909238672649877">"Povezivanje putem mobitela"</string>
     <string name="tether_settings_disabled_on_data_saver" msgid="3682544845899910726">"Dok je upaljena Ušteda podataka nije moguće povezati uređaj niti koristiti prijenosne pristupne tačke"</string>
@@ -2241,7 +2241,7 @@
     <string name="print_menu_item_add_service" msgid="6803000110578493782">"Dodajte uslugu"</string>
     <string name="print_menu_item_add_printer" msgid="8529196211179574921">"Dodaj štampač"</string>
     <string name="print_menu_item_search" msgid="1165316329772287360">"Pretražite"</string>
-    <string name="print_searching_for_printers" msgid="6538687129687642542">"Pretraživanje štampača"</string>
+    <string name="print_searching_for_printers" msgid="6538687129687642542">"Traženje štampača"</string>
     <string name="print_service_disabled" msgid="6376344992705893436">"Usluga je onemogućena"</string>
     <string name="print_print_jobs" msgid="7357841034181762157">"Zadaci štampanja"</string>
     <string name="print_print_job" msgid="6846889971435170443">"Zadatak ispisivanja"</string>
@@ -3415,11 +3415,11 @@
     <string name="notification_assistant_title" msgid="8216604031352764011">"Asistent za obavještenja"</string>
     <string name="no_notification_assistant" msgid="9140123568386413264">"Nema asistenta"</string>
     <string name="no_notification_listeners" msgid="1366386609506834717">"Nijedna instalirana aplikacija nije zatražila pristup obavještenjima."</string>
-    <string name="notification_assistant_security_warning_title" msgid="4190584438086738496">"Dozvoliti pristup obavještenjima za uslugu <xliff:g id="SERVICE">%1$s</xliff:g>?"</string>
+    <string name="notification_assistant_security_warning_title" msgid="4190584438086738496">"Dozvoliti aplikaciji <xliff:g id="SERVICE">%1$s</xliff:g> pristup obavještenjima?"</string>
     <string name="notification_assistant_security_warning_summary" msgid="6924513399671031930">"<xliff:g id="NOTIFICATION_ASSISTANT_NAME">%1$s</xliff:g> će moći čitati sva obavještenja, uključujući lične informacije kao što su imena kontakata i tekst primljenih poruka. Takođe će moći izmijeniti ili odbaciti obavještenja ili koristiti dugmad za radnje u obavještenjima. \n\nNa ovaj način će se aplikaciji dati i mogućnost da uključi i isključi način rada Ne ometaj te da promijeni postavke povezane s tom opcijom."</string>
-    <string name="notification_listener_security_warning_title" msgid="4902253246428777797">"Želite li dozvoliti pristup obavještenjima za uslugu <xliff:g id="SERVICE">%1$s</xliff:g>?"</string>
+    <string name="notification_listener_security_warning_title" msgid="4902253246428777797">"Dozvoliti aplikaciji <xliff:g id="SERVICE">%1$s</xliff:g> pristup obavještenjima?"</string>
     <string name="notification_listener_security_warning_summary" msgid="4454702907350100288">"<xliff:g id="NOTIFICATION_LISTENER_NAME">%1$s</xliff:g> će moći čitati sva obavještenja, uključujući lične informacije kao što su imena kontakata i tekst primljenih poruka. Također će moći odbaciti obavještenja ili koristiti dugmad za radnje u obavještenjima. \n\nTime će se aplikaciji dati i mogućnost da uključi i isključi način rada Ne ometaj te da promijeni postavke povezane s tom opcijom."</string>
-    <string name="notification_listener_disable_warning_summary" msgid="162165151519082978">"Ako korisniku <xliff:g id="NOTIFICATION_LISTENER_NAME">%1$s</xliff:g> isključite pristup obavještenjima, može se isključiti i pristup načinu rada Ne ometaj."</string>
+    <string name="notification_listener_disable_warning_summary" msgid="162165151519082978">"Ako aplikaciji <xliff:g id="NOTIFICATION_LISTENER_NAME">%1$s</xliff:g> isključite pristup obavještenjima, može se isključiti i pristup načinu rada Ne ometaj."</string>
     <string name="notification_listener_disable_warning_confirm" msgid="7863495391671154188">"Isključi"</string>
     <string name="notification_listener_disable_warning_cancel" msgid="6264631825225298458">"Otkaži"</string>
     <string name="vr_listeners_title" msgid="511483902408792832">"Usluge pomagača za VR"</string>
@@ -3893,7 +3893,7 @@
     <string name="screen_zoom_title" msgid="164369086350486104">"Veličina prikaza"</string>
     <string name="screen_zoom_short_summary" msgid="5508079362742276703">"Povećajte ili smanjite stavke na ekranu"</string>
     <string name="screen_zoom_keywords" msgid="8358462497896524092">"gustoća prikaza, uvećanje ekrana, promijeni veličinu, mijenjanje veličine"</string>
-    <string name="screen_zoom_summary" msgid="5294003755961312560">"Smanjite ili povećajte stavke na ekranu. Neke aplikacije s vašeg ekrana mogu promijeniti svoj položaj."</string>
+    <string name="screen_zoom_summary" msgid="5294003755961312560">"Smanjite ili povećajte stavke na ekranu. Neke aplikacije mogu promijeniti položaj na ekranu."</string>
     <string name="screen_zoom_preview_title" msgid="2924312934036753091">"Pregled"</string>
     <string name="screen_zoom_make_smaller_desc" msgid="1374501139722916729">"Smanji"</string>
     <string name="screen_zoom_make_larger_desc" msgid="5306684807895846141">"Povećaj"</string>
