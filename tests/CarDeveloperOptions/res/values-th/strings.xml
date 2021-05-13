@@ -914,7 +914,7 @@
     <string name="wifi_ip_address" msgid="5572539114989914831">"ที่อยู่ IP"</string>
     <string name="passpoint_label" msgid="7429247462404128615">"บันทึกผ่านทาง"</string>
     <string name="passpoint_content" msgid="340527524510304327">"ข้อมูลรับรองของ <xliff:g id="NAME">%1$s</xliff:g>"</string>
-    <string name="wifi_eap_method" msgid="3752116941487485859">"เมธอด EAP"</string>
+    <string name="wifi_eap_method" msgid="3752116941487485859">"วิธีการ EAP"</string>
     <string name="please_select_phase2" msgid="5848080896810435677">"การตรวจสอบสิทธิ์เฟส 2"</string>
     <string name="wifi_eap_ca_cert" msgid="1496395241849383785">"ใบรับรอง CA"</string>
     <string name="wifi_eap_domain" msgid="3298302320003640130">"โดเมน"</string>
@@ -1861,7 +1861,7 @@
     <string name="internal_storage" msgid="7392373600013294853">"ที่เก็บข้อมูลภายใน"</string>
     <string name="recompute_size" msgid="4290692197892743928">"กำลังคำนวณขนาดใหม่..."</string>
     <string name="clear_data_dlg_title" msgid="7388024498687029597">"ลบข้อมูลในแอปหรือไม่"</string>
-    <string name="clear_data_dlg_text" msgid="6849657743695013414">"ข้อมูลทั้งหมดของแอปนี้จะถูกลบอย่างถาวร ซึ่งรวมถึงไฟล์ การตั้งค่า บัญชี และฐานข้อมูล"</string>
+    <string name="clear_data_dlg_text" msgid="6849657743695013414">"ระบบจะลบข้อมูลทั้งหมดของแอปนี้โดยถาวร ซึ่งรวมถึงไฟล์ การตั้งค่า บัญชี ฐานข้อมูล ฯลฯ ทั้งหมด"</string>
     <string name="dlg_ok" msgid="4666570206507476557">"ตกลง"</string>
     <string name="dlg_cancel" msgid="2434951039156262467">"ยกเลิก"</string>
     <string name="app_not_found_dlg_title" msgid="394147475018718483"></string>
@@ -2898,8 +2898,8 @@
     <string name="user_delete_user_description" msgid="3627684990761268859">"ลบผู้ใช้"</string>
     <string name="user_delete_button" msgid="6747802570634772774">"ลบ"</string>
     <string name="user_guest" msgid="6226240869459683235">"ผู้เข้าร่วม"</string>
-    <string name="user_exit_guest_title" msgid="7279886200373071797">"นำผู้เข้าร่วมออก"</string>
-    <string name="user_exit_guest_confirm_title" msgid="4767911571671099844">"ต้องการนำผู้เข้าร่วมออกไหม"</string>
+    <string name="user_exit_guest_title" msgid="7279886200373071797">"นำผู้ใช้ชั่วคราวออก"</string>
+    <string name="user_exit_guest_confirm_title" msgid="4767911571671099844">"ต้องการนำผู้ใช้ชั่วคราวออกไหม"</string>
     <string name="user_exit_guest_confirm_message" msgid="6955182181145748919">"ระบบจะลบแอปและข้อมูลทั้งหมดในเซสชันนี้"</string>
     <string name="user_exit_guest_dialog_remove" msgid="1878866060881115716">"นำออก"</string>
     <string name="user_enable_calling" msgid="864760054792249503">"เปิดการโทร"</string>
@@ -3555,7 +3555,7 @@
     <string name="switch_on_text" msgid="7100491749799298324">"เปิด"</string>
     <string name="switch_off_text" msgid="3539551289454353555">"ปิด"</string>
     <string name="screen_pinning_title" msgid="578020318289781102">"การตรึงหน้าจอ"</string>
-    <string name="screen_pinning_description" msgid="3814537379086412278">"เมื่อเปิดการตั้งค่านี้ คุณจะใช้การตรึงหน้าจอเพื่อให้หน้าจอปัจจุบันอยู่ในมุมมองตลอดได้จนกว่าจะเลิกตรึง\n\nวิธีใช้การตรึงหน้าจอ\n\n1. ดูว่าคุณเปิดใช้การตรึงหน้าจอแล้ว\n\n2. เปิด \"ภาพรวม\"\n\n3. แตะไอคอนแอปที่ด้านบนของหน้าจอ แล้วแตะ \"ตรึง\""</string>
+    <string name="screen_pinning_description" msgid="3814537379086412278">"เมื่อเปิดการตั้งค่านี้ คุณจะใช้การปักหมุดหน้าจอเพื่อให้หน้าจอปัจจุบันอยู่ในมุมมองตลอดได้จนกว่าจะเลิกปักหมุด\n\nวิธีใช้การปักหมุดหน้าจอ\n\n1. ดูว่าคุณเปิดใช้การปักหมุดหน้าจอแล้ว\n\n2. เปิด \"ภาพรวม\"\n\n3. แตะไอคอนแอปที่ด้านบนของหน้าจอ แล้วแตะ \"ปักหมุด\""</string>
     <string name="screen_pinning_unlock_pattern" msgid="1060334707088339444">"ขอรูปแบบการปลดล็อกก่อนเลิกปักหมุด"</string>
     <string name="screen_pinning_unlock_pin" msgid="1441705536015645023">"ขอ PIN ก่อนเลิกตรึง"</string>
     <string name="screen_pinning_unlock_password" msgid="1017776884000170841">"ขอรหัสผ่านก่อนเลิกตรึง"</string>
@@ -3677,7 +3677,7 @@
     <string name="default_app" msgid="8861276008866619872">"(ค่าเริ่มต้น)"</string>
     <string name="system_app" msgid="4111402206594443265">"(ระบบ)"</string>
     <string name="system_default_app" msgid="1454719098589351197">"(ค่าเริ่มต้นของระบบ)"</string>
-    <string name="apps_storage" msgid="5658466038269046038">"พื้นที่เก็บแอป"</string>
+    <string name="apps_storage" msgid="5658466038269046038">"พื้นที่เก็บข้อมูลแอป"</string>
     <string name="usage_access" msgid="2023443456361489516">"การเข้าถึงการใช้งาน"</string>
     <string name="permit_usage_access" msgid="3321727608629752758">"อนุญาตการเข้าถึงการใช้งาน"</string>
     <string name="app_usage_preference" msgid="5691545073101551727">"ค่ากำหนดการใช้งานแอป"</string>
@@ -3756,7 +3756,7 @@
     <string name="usb_summary_tether_power" msgid="5684170912136320002">"การเชื่อมต่ออินเทอร์เน็ตผ่าน USB และจ่ายไฟ"</string>
     <string name="usb_summary_photo_transfers_power" msgid="4424106272137720464">"PTP และจ่ายไฟ"</string>
     <string name="usb_summary_MIDI_power" msgid="7685597621357005180">"MIDI และจ่ายไฟ"</string>
-    <string name="background_check_pref" msgid="664081406854758392">"การตรวจสอบพื้นหลัง"</string>
+    <string name="background_check_pref" msgid="664081406854758392">"การตรวจสอบเบื้องหลัง"</string>
     <string name="background_check_title" msgid="4136736684290307970">"การเข้าถึงพื้นหลังอย่างเต็มรูปแบบ"</string>
     <string name="assist_access_context_title" msgid="2274614501747710439">"ใช้ข้อความจากหน้าจอ"</string>
     <string name="assist_access_context_summary" msgid="5867997494395842785">"อนุญาตให้แอปผู้ช่วยสามารถเข้าถึงเนื้อหาบนหน้าจอเป็นข้อความ"</string>
