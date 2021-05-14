@@ -478,7 +478,7 @@
     <string name="security_settings_fingerprint_enroll_repeat_title" msgid="1764145704166303842">"Podnieś palec i przyłóż ponownie"</string>
     <string name="security_settings_fingerprint_enroll_repeat_message" msgid="4434560313661204448">"Unoś palec, by odcisk był dokładniejszy"</string>
     <string name="security_settings_fingerprint_enroll_finish_title" msgid="2987918958909117821">"Odcisk palca dodany"</string>
-    <string name="security_settings_fingerprint_enroll_finish_message" msgid="5862643337893923347">"Gdy zobaczysz tę ikonę, możesz użyć odcisku palca, aby się zidentyfikować lub zatwierdzić zakup"</string>
+    <string name="security_settings_fingerprint_enroll_finish_message" msgid="5862643337893923347">"Gdy zobaczysz tę ikonę, możesz użyć odcisku palca, aby potwierdzić swoją tożsamość lub zatwierdzić zakup."</string>
     <string name="security_settings_fingerprint_enroll_enrolling_skip" msgid="1473280156532146933">"Później"</string>
     <string name="setup_fingerprint_enroll_enrolling_skip_title" msgid="2816424026528101690">"Pominąć konfigurację odcisku palca?"</string>
     <string name="setup_fingerprint_enroll_enrolling_skip_message" msgid="8139299964344809780">"Chcesz odblokowywać telefon m.in. odciskiem palca. Jeśli nie skonfigurujesz tej funkcji teraz, musisz to zrobić później. Zajmie Ci to około minuty."</string>
@@ -507,7 +507,7 @@
     <string name="fingerprint_intro_error_max" msgid="3247720976621039437">"Dodano maksymalną liczbę odcisków palców"</string>
     <string name="fingerprint_intro_error_unknown" msgid="3975674268256524015">"Nie można dodać więcej odcisków palców"</string>
     <string name="fingerprint_last_delete_title" msgid="3104596858161269635">"Usunąć wszystkie odciski palców?"</string>
-    <string name="fingerprint_delete_title" msgid="3120894112324235536">"Usuń odcisk palca „<xliff:g id="FINGERPRINT_ID">%1$s</xliff:g>”"</string>
+    <string name="fingerprint_delete_title" msgid="3120894112324235536">"Usuń „<xliff:g id="FINGERPRINT_ID">%1$s</xliff:g>”"</string>
     <string name="fingerprint_delete_message" msgid="5895802741486967970">"Czy chcesz usunąć ten odcisk palca?"</string>
     <string name="fingerprint_last_delete_message" msgid="3346252479778971442">"Odcisków palców nie będzie można używać do odblokowywania telefonu, autoryzowania zakupów ani logowania się w aplikacjach"</string>
     <string name="fingerprint_last_delete_message_profile_challenge" msgid="5385095150532247025">"Nie będziesz mieć możliwości używania odcisków palców, by odblokować profil służbowy, autoryzować zakupy czy logować się w aplikacjach służbowych"</string>
@@ -968,7 +968,7 @@
     <string name="wifi_ip_settings" msgid="4636102290236116946">"Ustawienia IP"</string>
     <string name="wifi_privacy_settings" msgid="4462092795794247809">"Prywatność"</string>
     <string name="wifi_privacy_settings_ephemeral_summary" msgid="2411375348287064283">"Randomizowany adres MAC"</string>
-    <string name="wifi_dpp_add_device_to_network" msgid="8871041525483253430">"Dodawanie urządzenia"</string>
+    <string name="wifi_dpp_add_device_to_network" msgid="8871041525483253430">"Dodaj urządzenie"</string>
     <string name="wifi_dpp_center_qr_code" msgid="3826108361797476758">"Wyśrodkuj kod QR poniżej, by podłączyć urządzenie do sieci „<xliff:g id="SSID">%1$s</xliff:g>”"</string>
     <string name="wifi_dpp_scan_qr_code" msgid="6021600592661235546">"Zeskanuj kod QR"</string>
     <string name="wifi_dpp_scan_qr_code_join_network" msgid="3085162928804379545">"Wyśrodkuj kod QR poniżej, by połączyć się z siecią „<xliff:g id="SSID">%1$s</xliff:g>”"</string>
@@ -2319,9 +2319,9 @@
     <string name="awake" msgid="8956720170442161285">"Czas aktywności urządzenia"</string>
     <string name="wifi_on_time" msgid="2487820618265936068">"Czas z włączonym Wi-Fi"</string>
     <string name="bluetooth_on_time" msgid="6400569492287292639">"Czas z wł. Wi-Fi"</string>
-    <string name="advanced_battery_title" msgid="5026866913848464170">"Zużycie baterii"</string>
+    <string name="advanced_battery_title" msgid="5026866913848464170">"Wykorzystanie baterii"</string>
     <string name="history_details_title" msgid="8608193822257799936">"Historia – szczegóły"</string>
-    <string name="battery_details_title" msgid="5358230551490703067">"Zużycie baterii"</string>
+    <string name="battery_details_title" msgid="5358230551490703067">"Wykorzystanie baterii"</string>
     <string name="details_subtitle" msgid="7279638828004951382">"Szczegóły użycia"</string>
     <string name="controls_subtitle" msgid="6920199888882834620">"Dostosuj wykorzystanie energii"</string>
     <string name="packages_subtitle" msgid="6506269487892204413">"Dołączone pakiety"</string>
@@ -2504,9 +2504,9 @@
     <string name="battery_footer_summary" msgid="4828444679643906943">"Dane o wykorzystaniu baterii są przybliżone i mogą się zmienić w zależności od wykorzystania"</string>
     <string name="battery_detail_foreground" msgid="6616408559186553085">"Podczas aktywnej pracy"</string>
     <string name="battery_detail_background" msgid="7938146832943604280">"W tle"</string>
-    <string name="battery_detail_power_usage" msgid="3606930232257489212">"Zużycie baterii"</string>
+    <string name="battery_detail_power_usage" msgid="3606930232257489212">"Wykorzystanie baterii"</string>
     <string name="battery_detail_info_title" msgid="4617514228447481336">"Od pełnego naładowania"</string>
-    <string name="battery_detail_manage_title" msgid="745194290572617507">"Zarządzaj zużyciem baterii"</string>
+    <string name="battery_detail_manage_title" msgid="745194290572617507">"Zarządzaj wykorzystaniem baterii"</string>
     <string name="advanced_battery_graph_subtext" msgid="3349760453669664057">"Pozostały czas pracy na baterii jest szacowany na podstawie wykorzystania urządzenia"</string>
     <string name="estimated_time_left" msgid="8849913193475011250">"Szacowany pozostały czas"</string>
     <string name="estimated_charging_time_left" msgid="7597080379844486777">"Do pełnego naładowania"</string>
@@ -3002,7 +3002,7 @@
     <string name="nfc_payment_app_and_desc" msgid="102312684211458190">"<xliff:g id="APP">%1$s</xliff:g> – <xliff:g id="DESCRIPTION">%2$s</xliff:g>"</string>
     <string name="nfc_payment_use_default" msgid="3098724195746409476">"Użyj domyślnej"</string>
     <string name="nfc_payment_favor_default" msgid="7555356982142464260">"Zawsze"</string>
-    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"Z wyjątkiem, gdy jest otwarta inna aplikacja płatnicza"</string>
+    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"Z wyjątkiem, gdy otwarta jest inna aplikacja płatnicza"</string>
     <string name="nfc_payment_pay_with" msgid="8412558374792061266">"Na terminalu „Zbliż i zapłać” płać przy użyciu:"</string>
     <string name="nfc_how_it_works_title" msgid="6531433737926327904">"Płacenie na terminalu"</string>
     <string name="nfc_how_it_works_content" msgid="9174575836302449343">"Skonfiguruj aplikację płatniczą, a później przyłóż tylną część telefonu do terminala z symbolem płatności zbliżeniowej."</string>
@@ -3324,10 +3324,10 @@
     <string name="zen_mode_settings_dnd_custom_settings_footer_link" msgid="4007974052885089379"><annotation id="link">" Wyświetl ustawienia niestandardowe "</annotation></string>
     <string name="zen_interruption_level_priority" msgid="9178419297408319234">"Tylko priorytet"</string>
     <string name="zen_mode_and_condition" msgid="4123722186007123567">"<xliff:g id="ZEN_MODE">%1$s</xliff:g>. <xliff:g id="EXIT_CONDITION">%2$s</xliff:g>"</string>
-    <string name="zen_mode_sound_summary_on_with_info" msgid="2539952366467518398">"Wł. / <xliff:g id="ID_1">%1$s</xliff:g>"</string>
-    <string name="zen_mode_sound_summary_off_with_info" msgid="3910718455243440265">"Wyłączono / <xliff:g id="ID_1">%1$s</xliff:g>"</string>
-    <string name="zen_mode_sound_summary_off" msgid="2800265178411749309">"Wyłączono"</string>
-    <string name="zen_mode_sound_summary_on" msgid="6964666541479146310">"Wł."</string>
+    <string name="zen_mode_sound_summary_on_with_info" msgid="2539952366467518398">"Włączone / <xliff:g id="ID_1">%1$s</xliff:g>"</string>
+    <string name="zen_mode_sound_summary_off_with_info" msgid="3910718455243440265">"Wyłączone / <xliff:g id="ID_1">%1$s</xliff:g>"</string>
+    <string name="zen_mode_sound_summary_off" msgid="2800265178411749309">"Wyłączone"</string>
+    <string name="zen_mode_sound_summary_on" msgid="6964666541479146310">"Włączone"</string>
     <string name="zen_mode_duration_summary_always_prompt" msgid="7642321938427056823">"Pytaj za każdym razem (chyba że został włączony automatycznie)"</string>
     <string name="zen_mode_duration_summary_forever" msgid="4563938129424903030">"Dopóki nie wyłączysz (chyba że został włączony automatycznie)"</string>
     <plurals name="zen_mode_duration_summary_time_hours" formatted="false" msgid="8872000022033647725">
@@ -3846,7 +3846,7 @@
     <string name="decline_remote_bugreport_action" msgid="706319275774199033">"Odrzuć"</string>
     <string name="usb_use_charging_only" msgid="2344625733377110164">"Tylko ładowanie"</string>
     <string name="usb_use_charging_only_desc" msgid="3283518562582478950">"Tylko ładowanie tego urządzenia"</string>
-    <string name="usb_use_power_only" msgid="6595783381323810697">"Ładowanie podłączonego urządzenia"</string>
+    <string name="usb_use_power_only" msgid="6595783381323810697">"Ładuj połączone urządzenie"</string>
     <string name="usb_use_file_transfers" msgid="6153021302176151884">"Przesyłanie plików"</string>
     <string name="usb_use_file_transfers_desc" msgid="6953866660041189580">"Przesyłaj pliki do innego urządzenia"</string>
     <string name="usb_use_photo_transfers" msgid="5974236250197451257">"PTP"</string>
@@ -4059,7 +4059,7 @@
     <string name="ota_disable_automatic_update" msgid="7630249692207340986">"Automatyczne aktualizacje systemu"</string>
     <string name="ota_disable_automatic_update_summary" msgid="5650682441097227162">"Zastosuj aktualizacje po ponownym uruchomieniu urządzenia"</string>
     <string name="usage" msgid="9172908720164431622">"Wykorzystanie danych"</string>
-    <string name="cellular_data_usage" msgid="1236562234207782386">"Zużycie danych"</string>
+    <string name="cellular_data_usage" msgid="1236562234207782386">"Użycie danych"</string>
     <string name="app_cellular_data_usage" msgid="8499761516172121957">"Użycie danych przez aplikację"</string>
     <string name="wifi_data_usage" msgid="275569900562265895">"Użycie danych (Wi-Fi)"</string>
     <string name="ethernet_data_usage" msgid="747614925362556718">"Użycie danych w sieci Ethernet"</string>
@@ -4217,7 +4217,7 @@
     <string name="sensors_off_quick_settings_title" msgid="3655699045300438902">"Wyłącz czujniki"</string>
     <string name="managed_profile_settings_title" msgid="4340409321523532402">"Ustawienia profilu służbowego"</string>
     <string name="managed_profile_contact_search_title" msgid="7337225196804457095">"Wyszukiwanie kontaktów"</string>
-    <string name="managed_profile_contact_search_summary" msgid="7278267480246726951">"Zezwalaj na wyszukiwanie kontaktów do identyfikacji rozmówców i kontaktów przez Twoją organizację"</string>
+    <string name="managed_profile_contact_search_summary" msgid="7278267480246726951">"Zezwalaj swojej organizacji na wyszukiwanie kontaktów do identyfikacji rozmówców i kontaktów"</string>
     <string name="cross_profile_calendar_title" msgid="2351605904015067145">"Wszystkie profile w kalendarzu"</string>
     <string name="cross_profile_calendar_summary" msgid="3196258680438896098">"Pokazuj zdarzenia w profilu służbowym w kalendarzu osobistym"</string>
     <string name="cross_profile_calendar_restricted_summary" msgid="6892589892357409107">"Twoja organizacja nie zezwala aplikacjom osobistym na dostęp do Twojego kalendarza służbowego"</string>
