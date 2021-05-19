@@ -129,7 +129,7 @@
     <string name="bluetooth_notif_title" msgid="5090288898529286011">"בקשת התאמה"</string>
     <string name="bluetooth_notif_message" msgid="6612367890895077938">"הקש כדי ליצור התאמה עם <xliff:g id="DEVICE_NAME">%1$s</xliff:g>."</string>
     <string name="bluetooth_show_received_files" msgid="5060846395852236652">"קבצים שהתקבלו"</string>
-    <string name="bluetooth_show_files_received_via_bluetooth" msgid="1699095577431389560">"הקבצים התקבלו באמצעות Bluetooth"</string>
+    <string name="bluetooth_show_files_received_via_bluetooth" msgid="1699095577431389560">"קבצים שהתקבלו באמצעות Bluetooth"</string>
     <string name="device_picker" msgid="8345264486071697705">"בחר מכשיר Bluetooth"</string>
     <string name="bluetooth_ask_enablement" msgid="8716802066127746062">"<xliff:g id="APP_NAME">%1$s</xliff:g> רוצה להפעיל את ה-Bluetooth"</string>
     <string name="bluetooth_ask_disablement" msgid="7125319551097350783">"<xliff:g id="APP_NAME">%1$s</xliff:g> רוצה לכבות את ה-Bluetooth"</string>
@@ -805,11 +805,11 @@
     <string name="bluetooth_connect_failed" msgid="1151234676456333786">"לא ניתן להתחבר. יש לנסות שוב."</string>
     <string name="device_details_title" msgid="726517818032923222">"פרטי מכשיר"</string>
     <string name="bluetooth_device_mac_address" msgid="5328203122581150405">"כתובת המכשיר לחיבור דרך Bluetooth: <xliff:g id="ADDRESS">%1$s</xliff:g>"</string>
-    <string name="bluetooth_unpair_dialog_title" msgid="3669848977755142047">"לשכוח את ההתקן?"</string>
+    <string name="bluetooth_unpair_dialog_title" msgid="3669848977755142047">"לשכוח את המכשיר?"</string>
     <string name="bluetooth_unpair_dialog_body" product="default" msgid="5998071227980078077">"ההתאמה בין הטלפון שלך להתקן <xliff:g id="DEVICE_NAME">%1$s</xliff:g> תבוטל"</string>
     <string name="bluetooth_unpair_dialog_body" product="tablet" msgid="4696157463230518866">"ההתאמה בין הטאבלט שלך להתקן <xliff:g id="DEVICE_NAME">%1$s</xliff:g> תבוטל"</string>
     <string name="bluetooth_unpair_dialog_body" product="device" msgid="6385091489719875730">"ההתאמה בין המכשיר שלך להתקן <xliff:g id="DEVICE_NAME">%1$s</xliff:g> תבוטל"</string>
-    <string name="bluetooth_unpair_dialog_forget_confirm_button" msgid="8485211340349958886">"שכח התקן"</string>
+    <string name="bluetooth_unpair_dialog_forget_confirm_button" msgid="8485211340349958886">"כן, אפשר לשכוח"</string>
     <string name="bluetooth_connect_specific_profiles_title" msgid="2381509181266180406">"התחברות אל…"</string>
     <string name="bluetooth_disconnect_a2dp_profile" msgid="8072503764470451567">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> ינותק מהאודיו של המדיה."</string>
     <string name="bluetooth_disconnect_headset_profile" msgid="8384028101155317339">"<xliff:g id="DEVICE_NAME">%1$s</xliff:g> ינותק מהאודיו של הדיבורית."</string>
@@ -1702,9 +1702,9 @@
     <string name="location_low_battery_use" msgid="5030448574501435888">"שימוש בסוללה חלשה"</string>
     <string name="location_scanning_screen_title" msgid="7663329319689413454">"חיפוש נקודות Wi‑Fi ו-Bluetooth"</string>
     <string name="location_scanning_wifi_always_scanning_title" msgid="6750542206763112172">"חיפוש נקודות Wi-Fi"</string>
-    <string name="location_scanning_wifi_always_scanning_description" msgid="4956048135941851712">"אפליקציות ושירותים יוכלו לסרוק רשתות Wi‑Fi בכל עת, גם כאשר ה-Wi‑Fi כבוי. ניתן להשתמש בכך, למשל, כדי לשפר תכונות ושירותים מבוססי מיקום."</string>
+    <string name="location_scanning_wifi_always_scanning_description" msgid="4956048135941851712">"אפליקציות ושירותים יוכלו לסרוק רשתות Wi‑Fi בכל שלב, גם כאשר ה-Wi‑Fi כבוי. ניתן להשתמש בכך, למשל, כדי לשפר את הביצועים של תכונות ושירותים מבוססי מיקום."</string>
     <string name="location_scanning_bluetooth_always_scanning_title" msgid="196241746742607453">"סריקת Bluetooth"</string>
-    <string name="location_scanning_bluetooth_always_scanning_description" msgid="3796673798637848690">"אפליקציות ושירותים יוכלו לסרוק מכשירים בקרבת מקום בכל עת, גם כאשר ה-Bluetooth כבוי. ניתן להשתמש בכך, למשל, כדי לשפר תכונות ושירותים מבוססי מיקום."</string>
+    <string name="location_scanning_bluetooth_always_scanning_description" msgid="3796673798637848690">"אפליקציות ושירותים יוכלו לסרוק מכשירים בקרבת מקום בכל שלב, גם כאשר ה-Bluetooth כבוי. ניתן להשתמש בכך, למשל, כדי לשפר את הביצועים של תכונות ושירותים מבוססי מיקום."</string>
     <string name="managed_profile_location_services" msgid="224925483299159541">"שירותי מיקום לעבודה"</string>
     <string name="location_network_based" msgid="1535812159327454835">"מיקום רשת Wi-Fi ורשת סלולרית"</string>
     <string name="location_neighborhood_level" msgid="8459352741296587916">"אפשר לאפליקציות להשתמש בשירות המיקום של Google כדי להעריך את מיקומך מהר יותר. נתוני מיקום אנונימיים ייאספו ויישלחו אל Google."</string>
@@ -2326,7 +2326,7 @@
     <string name="controls_subtitle" msgid="6920199888882834620">"התאמת צריכת סוללה"</string>
     <string name="packages_subtitle" msgid="6506269487892204413">"חבילות כלולות"</string>
     <string name="battery_tip_summary_title" msgid="2750922152518825526">"האפליקציות פועלות כרגיל"</string>
-    <string name="battery_tip_summary_summary" product="default" msgid="6294900413896440006">"דפוס השימוש בסוללה בטלפון זה של אפליקציות הפועלות ברקע הוא אופייני"</string>
+    <string name="battery_tip_summary_summary" product="default" msgid="6294900413896440006">"דפוס השימוש בסוללה של אפליקציות הפועלות ברקע בטלפון זה הוא אופייני"</string>
     <string name="battery_tip_summary_summary" product="tablet" msgid="5280099016800644130">"דפוס השימוש בסוללה בטאבלט זה של אפליקציות הפועלות ברקע הוא אופייני"</string>
     <string name="battery_tip_summary_summary" product="device" msgid="4459840492610842705">"דפוס השימוש בסוללה במכשיר זה של אפליקציות הפועלות ברקע הוא אופייני"</string>
     <string name="battery_tip_low_battery_title" msgid="6784043681672161175">"קיבולת הסוללה נמוכה"</string>
@@ -2391,9 +2391,9 @@
     <string name="smart_battery_manager_title" msgid="5744035036663849515">"מנהל הסוללה"</string>
     <string name="smart_battery_title" msgid="4919670408532804351">"ניהול אפליקציות באופן אוטומטי"</string>
     <string name="smart_battery_summary" msgid="640027046471198174">"הגבלת שימוש בסוללה לאפליקציות שבהן לא נעשה שימוש לעתים קרובות"</string>
-    <string name="smart_battery_footer" product="default" msgid="3971715848890205632">"כשמנהל הסוללה יזהה שאפליקציות גורמות להתרוקנות הסוללה, תהיה לך אפשרות להגביל אותן. ייתכן שהאפליקציות שיש להן הגבלה לא יפעלו כראוי ויהיה עיכוב בקבלת התראות."</string>
-    <string name="smart_battery_footer" product="tablet" msgid="3971715848890205632">"כשמנהל הסוללה יזהה שאפליקציות גורמות להתרוקנות הסוללה, תהיה לך אפשרות להגביל אותן. ייתכן שהאפליקציות שיש להן הגבלה לא יפעלו כראוי ויהיה עיכוב בקבלת התראות."</string>
-    <string name="smart_battery_footer" product="device" msgid="3971715848890205632">"כשמנהל הסוללה יזהה שאפליקציות גורמות להתרוקנות הסוללה, תהיה לך אפשרות להגביל אותן. ייתכן שהאפליקציות שיש להן הגבלה לא יפעלו כראוי ויהיה עיכוב בקבלת התראות."</string>
+    <string name="smart_battery_footer" product="default" msgid="3971715848890205632">"כשהתכונה \'ניהול הסוללה\' תזהה שאפליקציות גורמות להתרוקנות הסוללה, תהיה לך אפשרות להגביל אותן. ייתכן שהאפליקציות שיוגבלו לא יפעלו כראוי ויהיה עיכוב בקבלת התראות."</string>
+    <string name="smart_battery_footer" product="tablet" msgid="3971715848890205632">"כשהתכונה \'ניהול הסוללה\' תזהה שאפליקציות גורמות להתרוקנות הסוללה, תהיה לך אפשרות להגביל אותן. ייתכן שהאפליקציות שיוגבלו לא יפעלו כראוי ויהיה עיכוב בקבלת התראות."</string>
+    <string name="smart_battery_footer" product="device" msgid="3971715848890205632">"כשהתכונה \'ניהול הסוללה\' תזהה שאפליקציות גורמות להתרוקנות הסוללה, תהיה לך אפשרות להגביל אותן. ייתכן שהאפליקציות שיוגבלו לא יפעלו כראוי ויהיה עיכוב בקבלת התראות."</string>
     <string name="restricted_app_title" msgid="4957644700640127606">"אפליקציות בשימוש מוגבל"</string>
     <plurals name="restricted_app_summary" formatted="false" msgid="7609538735465186040">
       <item quantity="two">מגביל שימוש בסוללה של %1$d אפליקציות</item>
@@ -2538,7 +2538,7 @@
     <string name="battery_saver_turn_on_automatically_never" msgid="2623381258359775227">"אף פעם"</string>
     <string name="battery_saver_turn_on_automatically_pct" msgid="434270432432390307">"סוללה ברמת טעינה של <xliff:g id="PERCENT">%1$s</xliff:g>"</string>
     <string name="battery_percentage" msgid="7782252476471033843">"אחוז הטעינה של הסוללה"</string>
-    <string name="battery_percentage_description" msgid="9219875229166700610">"הצגה של אחוז הטעינה של הסוללה בשורת הסטטוס"</string>
+    <string name="battery_percentage_description" msgid="9219875229166700610">"הצגת אחוז הטעינה של הסוללה בשורת הסטטוס"</string>
     <string name="process_stats_summary_title" msgid="9189588417488537954">"סטטיסטיקה של תהליך"</string>
     <string name="process_stats_summary" msgid="8077998499161221885">"סטטיסטיקה של מומחי מחשבים על התהליכים הפועלים"</string>
     <string name="app_memory_use" msgid="5126237308545653706">"זיכרון בשימוש"</string>
@@ -2594,7 +2594,7 @@
     <string name="tts_reset" msgid="8864073594540705579">"איפוס המכשיר"</string>
     <string name="tts_play" msgid="9023430029380675514">"הפעלה"</string>
     <string name="vpn_settings_title" msgid="7008219502396889192">"VPN"</string>
-    <string name="credentials_title" msgid="7119207354982673965">"אחסון אישורים"</string>
+    <string name="credentials_title" msgid="7119207354982673965">"אחסון פרטי כניסה"</string>
     <string name="credentials_install" product="nosdcard" msgid="8509362500537206883">"התקנה מאמצעי אחסון"</string>
     <string name="credentials_install" product="default" msgid="8997183776710118353">"התקנה מכרטיס SD"</string>
     <string name="credentials_install_summary" product="nosdcard" msgid="3426661965567059596">"התקנת אישורים מאמצעי אחסון"</string>
@@ -2671,7 +2671,7 @@
     <string name="add_account_label" msgid="4461298847239641874">"הוספת חשבון"</string>
     <string name="managed_profile_not_available_label" msgid="8784246681719821917">"פרופיל עבודה עדיין אינו זמין"</string>
     <string name="work_mode_label" msgid="6845849194740195757">"פרופיל עבודה"</string>
-    <string name="work_mode_on_summary" msgid="1682781113156323592">"מנוהל בידי הארגון"</string>
+    <string name="work_mode_on_summary" msgid="1682781113156323592">"מנוהל על ידי הארגון"</string>
     <string name="work_mode_off_summary" msgid="1688885392211178315">"אפליקציות והתראות מושבתות"</string>
     <string name="remove_managed_profile_label" msgid="4625542553784793536">"הסר פרופיל עבודה"</string>
     <string name="background_data" msgid="8275750862371471171">"נתוני רקע"</string>
@@ -2845,7 +2845,7 @@
     <string name="vpn_forget" msgid="7662717604542624887">"אפשר לשכוח"</string>
     <string name="vpn_connect_to" msgid="7926776854873218762">"התחברות אל <xliff:g id="PROFILE">%s</xliff:g>"</string>
     <string name="vpn_disconnect_confirm" msgid="3505111947735651082">"האם לנתק את ה-VPN הזה?"</string>
-    <string name="vpn_disconnect" msgid="4625914562388652486">"נתק"</string>
+    <string name="vpn_disconnect" msgid="4625914562388652486">"ניתוק"</string>
     <string name="vpn_version" msgid="2006792987077940456">"גרסה <xliff:g id="VERSION">%s</xliff:g>"</string>
     <string name="vpn_forget_long" msgid="8457511440635534478">"שכח VPN"</string>
     <string name="vpn_replace_vpn_title" msgid="8517436922021598103">"האם להחליף רשת VPN קיימת?"</string>
@@ -2888,9 +2888,7 @@
     <string name="one_userkey" msgid="5349738921509013845">"מקש משתמש אחד"</string>
     <string name="one_usercrt" msgid="856282310586987313">"אישור למשתמש אחד"</string>
     <string name="one_cacrt" msgid="4757720453112732485">"אישור CA אחד"</string>
-    <!-- String.format failed for translation -->
-    <!-- no translation found for n_cacrts (7539893176217891549) -->
-    <skip />
+    <string name="n_cacrts" msgid="7539893176217891549">"‏%d אישורי CA"</string>
     <string name="user_credential_title" msgid="6237611303219831419">"פרטי כניסה"</string>
     <string name="user_credential_removed" msgid="6243576567538844852">"פרטי הכניסה שהוסרו: <xliff:g id="CREDENTIAL_NAME">%s</xliff:g>"</string>
     <string name="user_credential_none_installed" msgid="4129252817676332368">"לא הותקנו פרטי כניסה של המשתמש"</string>
@@ -3002,12 +3000,12 @@
     <string name="nfc_payment_default" msgid="7869273092463612271">"ברירת המחדל לתשלום"</string>
     <string name="nfc_payment_default_not_set" msgid="955804193510335338">"לא מוגדרת"</string>
     <string name="nfc_payment_app_and_desc" msgid="102312684211458190">"<xliff:g id="APP">%1$s</xliff:g> - <xliff:g id="DESCRIPTION">%2$s</xliff:g>"</string>
-    <string name="nfc_payment_use_default" msgid="3098724195746409476">"השתמש בברירת המחדל"</string>
+    <string name="nfc_payment_use_default" msgid="3098724195746409476">"שימוש בברירת המחדל"</string>
     <string name="nfc_payment_favor_default" msgid="7555356982142464260">"תמיד"</string>
-    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"מלבד כשאפליקציית תשלום אחרת פועלת"</string>
+    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"רק אם לא פועלת אפליקציית תשלום אחרת"</string>
     <string name="nfc_payment_pay_with" msgid="8412558374792061266">"במסוף \'הקש ושלם\', שלם באמצעות:"</string>
     <string name="nfc_how_it_works_title" msgid="6531433737926327904">"תשלום במסוף"</string>
-    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"הגדר אפליקציית תשלום. לאחר מכן עליך רק להצמיד את גב הטלפון למסוף שעליו מופיע סמל התשלום ללא מגע."</string>
+    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"יש להגדיר אפליקציית תשלום. לאחר מכן עליך רק להצמיד את גב הטלפון למסוף שעליו מופיע סמל התשלום ללא מגע."</string>
     <string name="nfc_how_it_works_got_it" msgid="2432535672153247411">"הבנתי"</string>
     <string name="nfc_more_title" msgid="2825856411836382264">"עוד..."</string>
     <string name="nfc_payment_set_default_label" msgid="3997927342761454042">"האם להגדיר בתור ההעדפה שלך?"</string>
@@ -3813,7 +3811,7 @@
     <string name="high_power_apps" msgid="2518319744362028920">"אופטימיזציה של סוללה"</string>
     <string name="additional_battery_info" msgid="6877663897819271203">"התראות על ניצול סוללה"</string>
     <string name="show_all_apps" msgid="5442552004569634846">"הצג נתונים מלאים על השימוש במכשיר"</string>
-    <string name="hide_extra_apps" msgid="6798261081113299441">"הצג את נתוני השימוש באפליקציה"</string>
+    <string name="hide_extra_apps" msgid="6798261081113299441">"הצגת נתוני השימוש באפליקציה"</string>
     <plurals name="power_high_usage_summary" formatted="false" msgid="4658343710126205199">
       <item quantity="two"><xliff:g id="NUMBER">%2$d</xliff:g> אפליקציות מתנהגות באופן חריג</item>
       <item quantity="many"><xliff:g id="NUMBER">%2$d</xliff:g> אפליקציות מתנהגות באופן חריג</item>
@@ -4136,7 +4134,7 @@
     <string name="suggestion_additional_fingerprints" msgid="3434467207282466411">"הוספת טביעת אצבע"</string>
     <string name="suggestion_additional_fingerprints_summary" msgid="1916547587832484196">"ביטול נעילה עם אצבע אחרת"</string>
     <string name="battery_saver_on_summary" msgid="6841062406467435672">"פועל"</string>
-    <string name="battery_saver_off_scheduled_summary" msgid="3740414764069188669">"יופעל ב-<xliff:g id="BATTERY_PERCENTAGE">%1$s</xliff:g>"</string>
+    <string name="battery_saver_off_scheduled_summary" msgid="3740414764069188669">"יופעל כשהסוללה תגיע ל-<xliff:g id="BATTERY_PERCENTAGE">%1$s</xliff:g>"</string>
     <string name="battery_saver_off_summary" msgid="8736555723004299721">"כבוי"</string>
     <string name="battery_saver_button_turn_on" msgid="3748696527267573793">"הפעלה עכשיו"</string>
     <string name="battery_saver_button_turn_off" msgid="2912950982503267828">"כיבוי עכשיו"</string>

@@ -899,7 +899,7 @@
     <string name="wifi_settings_scanning_required_turn_on" msgid="4327570180594277049">"ਚਾਲੂ ਕਰੋ"</string>
     <string name="wifi_settings_scanning_required_enabled" msgid="3336102100425307040">"ਵਾਈ-ਫਾਈ ਸਕੈਨਿੰਗ ਚਾਲੂ ਕੀਤੀ ਗਈ ਹੈ"</string>
     <string name="wifi_show_advanced" msgid="8199779277168030597">"ਉਨੱਤ ਵਿਕਲਪ"</string>
-    <string name="wifi_advanced_toggle_description_expanded" msgid="1506697245302596510">"ਡ੍ਰੌਪ-ਡਾਊਨ ਸੂਚੀ ਉੱਨਤ ਵਿਕਲਪ। ਸੰਖਿਪਤ ਲਈ ਡਬਲ ਟੈਪ ਕਰੋ।"</string>
+    <string name="wifi_advanced_toggle_description_expanded" msgid="1506697245302596510">"ਡ੍ਰੌਪ-ਡਾਊਨ ਸੂਚੀ ਉੱਨਤ ਵਿਕਲਪ। ਸਮੇਟਣ ਲਈ ਡਬਲ ਟੈਪ ਕਰੋ।"</string>
     <string name="wifi_advanced_toggle_description_collapsed" msgid="3014965593695454879">"ਡ੍ਰੌਪ-ਡਾਊਨ ਸੂਚੀ ਉੱਨਤ ਵਿਕਲਪ। ਵਿਸਤਾਰ ਕਰਨ ਲਈ ਡਬਲ ਟੈਪ ਕਰੋ।"</string>
     <string name="wifi_ssid" msgid="6746270925975522641">"ਨੈੱਟਵਰਕ ਦਾ ਨਾਮ"</string>
     <string name="wifi_ssid_hint" msgid="5010024648106585165">"SSID ਦਾਖਲ ਕਰੋ"</string>
@@ -2065,7 +2065,7 @@
     <string name="accessibility_shortcut_service_title" msgid="3516052294376744060">"ਸ਼ਾਰਟਕੱਟ ਸੇਵਾ"</string>
     <string name="accessibility_shortcut_service_on_lock_screen_title" msgid="1279441617927949980">" ਲਾਕ  ਸਕ੍ਰੀਨ ਤੋਂ ਇਜਾਜ਼ਤ ਦਿਓ"</string>
     <string name="accessibility_shortcut_description" msgid="1427049334225166395">"ਜਦੋਂ ਸ਼ਾਰਟਕੱਟ ਚਾਲੂ ਹੋਵੇ, ਤਾਂ ਤੁਸੀਂ ਕਿਸੇ ਪਹੁੰਚਯੋਗਤਾ ਵਿਸ਼ੇਸ਼ਤਾ ਨੂੰ ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਦੋਵੇਂ ਅਵਾਜ਼ ਕੁੰਜੀਆਂ ਨੂੰ 3 ਸਕਿੰਟਾਂ ਲਈ ਦੱਬ ਸਕਦੇ ਹੋ।"</string>
-    <string name="accessibility_toggle_high_text_contrast_preference_title" msgid="5652244684961877255">"ਉੱਚ ਵਖਰੇਵਾਂ ਲਿਖਤ"</string>
+    <string name="accessibility_toggle_high_text_contrast_preference_title" msgid="5652244684961877255">"ਉੱਚ ਕੰਟ੍ਰਾਸਟ ਲਿਖਤ"</string>
     <string name="accessibility_toggle_screen_magnification_auto_update_preference_title" msgid="2466317284195934003">"ਸਕ੍ਰੀਨ ਵਿਸਤਰੀਕਰਨ ਸਵੈ-ਅੱਪਡੇਟ ਕਰੋ"</string>
     <string name="accessibility_toggle_screen_magnification_auto_update_preference_summary" msgid="6625473745911276917">"ਐਪ ਟ੍ਰਾਂਜਿਸ਼ਨਾਂ ਤੇ ਸਕ੍ਰੀਨ ਵਿਸਤਰੀਕਰਨ ਅੱਪਡੇਟ ਕਰੋ"</string>
     <string name="accessibility_power_button_ends_call_prerefence_title" msgid="6172987104538172869">"ਪਾਵਰ ਬਟਨ ਨਾਲ ਕਾਲ ਕੱਟਣਾ"</string>
@@ -2212,7 +2212,7 @@
     <string name="print_menu_item_add_service" msgid="6803000110578493782">"ਸੇਵਾ ਸ਼ਾਮਲ ਕਰੋ"</string>
     <string name="print_menu_item_add_printer" msgid="8529196211179574921">"ਪ੍ਰਿੰਟਰ ਸ਼ਾਮਲ ਕਰੋ"</string>
     <string name="print_menu_item_search" msgid="1165316329772287360">"ਖੋਜੋ"</string>
-    <string name="print_searching_for_printers" msgid="6538687129687642542">"ਪ੍ਰਿੰਟਰ ਖੋਜ ਰਿਹਾ ਹੈ"</string>
+    <string name="print_searching_for_printers" msgid="6538687129687642542">"ਪ੍ਰਿੰਟਰ ਖੋਜਿਆ ਜਾ ਰਿਹਾ ਹੈ"</string>
     <string name="print_service_disabled" msgid="6376344992705893436">"ਸੇਵਾ ਅਯੋਗ ਬਣਾਈ ਗਈ ਹੈ"</string>
     <string name="print_print_jobs" msgid="7357841034181762157">"ਪ੍ਰਿੰਟ ਜੌਬਸ"</string>
     <string name="print_print_job" msgid="6846889971435170443">"ਪ੍ਰਿੰਟ ਜੌਬ"</string>
@@ -3046,7 +3046,7 @@
     <string name="account_dashboard_title" msgid="4734300939532555885">"ਖਾਤੇ"</string>
     <string name="account_dashboard_default_summary" msgid="6822549669771936206">"ਕੋਈ ਖਾਤੇ ਸ਼ਾਮਲ ਨਹੀਂ ਕੀਤੇ ਗਏ"</string>
     <string name="app_default_dashboard_title" msgid="6575301028225232193">"ਪੂਰਵ-ਨਿਰਧਾਰਤ ਐਪਾਂ"</string>
-    <string name="system_dashboard_summary" msgid="6582464466735779394">"ਭਾਸ਼ਾਵਾਂ, ਸੰਕੇਤ, ਸਮਾਂ, ਬੈਕਅੱਪ"</string>
+    <string name="system_dashboard_summary" msgid="6582464466735779394">"ਭਾਸ਼ਾਵਾਂ, ਇਸ਼ਾਰੇ, ਸਮਾਂ, ਬੈਕਅੱਪ"</string>
     <string name="search_results_title" msgid="4160717656435503940">"ਸੈਟਿੰਗਾਂ"</string>
     <string name="keywords_wifi" msgid="8477688080895466846">"ਵਾਈਫਾਈ, ਵਾਈ-ਫਾਈ, ਨੈੱਟਵਰਕ ਕਨੈਕਸ਼ਨ, ਇੰਟਰਨੈੱਟ, ਵਾਇਰਲੈੱਸ, ਡਾਟਾ, ਵਾਈ ਫਾਈ"</string>
     <string name="keywords_wifi_notify_open_networks" msgid="1031260564121854773">"ਵਾਈ-ਫਾਈ ਸੂਚਨਾ, ਵਾਈ-ਫਾਈ ਸੂਚਨਾ"</string>
@@ -4060,13 +4060,13 @@
     <string name="special_access_more" msgid="7086690625048471400">"ਹੋਰ ਦੇਖੋ"</string>
     <string name="confirm_convert_to_fbe_warning" msgid="4972595831034280189">"ਕੀ ਸੱਚਮੁੱਚ ਵਰਤੋਂਕਾਰ  ਡਾਟੇ  ਨੂੰ ਮਿਟਾਉਣਾ ਅਤੇ ਫ਼ਾਈਲ ਇਨਕ੍ਰਿਪਸ਼ਨ ਵਿੱਚ ਤਬਦੀਲ ਕਰਨਾ ਹੈ?"</string>
     <string name="button_confirm_convert_fbe" msgid="419832223125147297">"ਮਿਟਾਓ ਅਤੇ ਰੁਪਾਂਤਰਣ ਕਰੋ"</string>
-    <string name="reset_shortcut_manager_throttling" msgid="1912184636360233397">"ShortcutManager ਰੇਟ-ਲਿਮਟਿੰਗ ਰੀਸੈੱਟ ਕਰੋ"</string>
+    <string name="reset_shortcut_manager_throttling" msgid="1912184636360233397">"ShortcutManager ਰੇਟ-ਲਿਮਿਟਿੰਗ ਰੀਸੈੱਟ ਕਰੋ"</string>
     <string name="reset_shortcut_manager_throttling_complete" msgid="2932990541160593632">"ShortcutManager ਰੇਟ-ਲਿਮਟਿੰਗ ਰੀਸੈੱਟ ਕੀਤੀ ਜਾ ਚੁੱਕੀ ਹੈ"</string>
     <string name="notification_suggestion_title" msgid="3292107671498148560">" ਲਾਕ  ਸਕ੍ਰੀਨ \'ਤੇ ਜਾਣਕਾਰੀ ਨੂੰ ਕੰਟਰੋਲ ਕਰੋ"</string>
     <string name="notification_suggestion_summary" msgid="6516827892359614597">"ਸੂਚਨਾ ਸਮੱਗਰੀ ਨੂੰ ਦਿਖਾਓ ਜਾਂ ਲੁਕਾਓ"</string>
     <string name="page_tab_title_summary" msgid="4824744863994538006">"ਸਭ"</string>
     <string name="page_tab_title_support" msgid="5569262185010367870">"ਨੁਕਤੇ ਅਤੇ ਸਹਾਇਤਾ"</string>
-    <string name="developer_smallest_width" msgid="2603134476228805075">"ਸਭ ਤੋਂ ਘੱਟ ਚੁੜਾਈ"</string>
+    <string name="developer_smallest_width" msgid="2603134476228805075">"ਸਭ ਤੋਂ ਘੱਟ ਚੌੜਾਈ"</string>
     <string name="premium_sms_none" msgid="940723020871007898">"ਕਿਸੇ ਵੀ ਸਥਾਪਤ ਐਪ ਨੇ ਪ੍ਰੀਮੀਅਮ SMS ਪਹੁੰਚ ਦੀ ਬੇਨਤੀ ਨਹੀਂ ਕੀਤੀ"</string>
     <string name="premium_sms_warning" msgid="7604011651486294515">"ਪ੍ਰੀਮੀਅਮ SMS ਦਾ ਤੁਹਾਡੇ ਤੋਂ ਖਰਚਾ ਲਿਆ ਜਾ ਸਕਦਾ ਹੈ ਅਤੇ ਤੁਹਾਡੇ ਕੈਰੀਅਰ ਬਿੱਲਾਂ ਵਿੱਚ ਵਾਧਾ ਹੋ ਜਾਵੇਗਾ। ਜੇਕਰ ਤੁਸੀਂ ਕਿਸੇ ਐਪ ਲਈ ਇਜਾਜ਼ਤ ਨੂੰ ਯੋਗ ਬਣਾਉਂਦੇ ਹੋ, ਤਾਂ ਤੁਸੀਂ ਉਸ ਐਪ ਦੀ ਵਰਤੋਂ ਨਾਲ ਪ੍ਰੀਮੀਅਮ SMS ਭੇਜਣ ਦੇ ਯੋਗ ਹੋ ਜਾਵੋਗੇ।"</string>
     <string name="premium_sms_access" msgid="4550027460595822851">"ਪ੍ਰੀਮੀਅਮ SMS ਤੱਕ ਪਹੁੰਚ"</string>
@@ -4174,7 +4174,7 @@
     <string name="enterprise_privacy_device_access_category" msgid="2967602674816237833">"ਇਸ ਡੀਵਾਈਸ \'ਤੇ ਤੁਹਾਡੀ ਪਹੁੰਚ"</string>
     <string name="enterprise_privacy_enterprise_data" msgid="6551504749971424942">"ਤੁਹਾਡੇ ਕਾਰਜ ਖਾਤੇ ਨਾਲ ਸਬੰਧਿਤ ਡਾਟਾ, ਜਿਵੇਂ ਕਿ ਈਮੇਲ ਅਤੇ ਕੈਲੰਡਰ"</string>
     <string name="enterprise_privacy_installed_packages" msgid="4376014821459811800">"ਤੁਹਾਡੇ ਡੀਵਾਈਸ \'ਤੇ ਸਥਾਪਤ ਕੀਤੀਆਂ ਐਪਾਂ ਦੀ ਸੂਚੀ"</string>
-    <string name="enterprise_privacy_usage_stats" msgid="445762931318731975">"ਹਰੇਕ ਐਪ ਵਿੱਚ ਲਗਾਇਆ ਸਮਾਂ ਅਤੇ ਵਰਤਿਆ ਗਿਆ  ਡਾਟਾ"</string>
+    <string name="enterprise_privacy_usage_stats" msgid="445762931318731975">"ਹਰੇਕ ਐਪ ਵਿੱਚ ਲਗਾਇਆ ਸਮਾਂ ਅਤੇ ਵਰਤਿਆ ਗਿਆ ਡਾਟਾ"</string>
     <string name="enterprise_privacy_network_logs" msgid="5427398751599441159">"ਸਭ ਤੋਂ ਹਾਲੀਆ ਨੈੱਟਵਰਕ ਟਰੈਫਿਕ ਲੌਗ"</string>
     <string name="enterprise_privacy_bug_reports" msgid="283443567328836380">"ਸਭ ਤੋਂ ਹਾਲੀਆ ਬੱਗ ਰਿਪੋਰਟ"</string>
     <string name="enterprise_privacy_security_logs" msgid="8936969480449604726">"ਸਭ ਤੋਂ ਹਾਲੀਆ ਸੁਰੱਖਿਆ ਲੌਗ"</string>
@@ -4258,7 +4258,7 @@
     <string name="autofill_logging_level_title" msgid="2577340324541102626">"ਲੌਗ ਕੀਤੀ ਜਾਣਕਾਰੀ ਦਾ ਪੱਧਰ"</string>
     <string name="autofill_max_partitions" msgid="125269645910590057">"ਹਰ ਸੈਸ਼ਨ ਮੁਤਾਬਕ ਵੱਧ ਤੋਂ ਵੱਧ ਬੇਨਤੀਆਂ"</string>
     <string name="autofill_max_visible_datasets" msgid="2791081640248423492">"ਵੱਧ-ਤੋਂ-ਵੱਧ ਦਿਖਣਯੋਗ ਡਾਟਾਸੈੱਟ"</string>
-    <string name="autofill_reset_developer_options" msgid="7208417230269613101">"ਪੂਰਵ-ਨਿਰਧਾਰਤ ਮੁੱਲਾਂ \'ਤੇ ਰੀਸੈੱਟ ਕਰੋ"</string>
+    <string name="autofill_reset_developer_options" msgid="7208417230269613101">"ਪੂਰਵ-ਨਿਰਧਾਰਿਤ ਮੁੱਲਾਂ \'ਤੇ ਰੀਸੈੱਟ ਕਰੋ"</string>
     <string name="autofill_reset_developer_options_complete" msgid="5686061993002179524">"ਆਟੋਫਿਲ ਵਿਕਾਸਕਾਰ ਵਿਕਲਪਾਂ ਨੂੰ ਰੀਸੈੱਟ ਕਰ ਦਿੱਤਾ ਹੈ"</string>
     <string name="device_theme" msgid="8992291311481135893">"ਡੀਵਾਈਸ ਥੀਮ"</string>
     <string name="default_theme" msgid="5986996377385956138">"ਪੂਰਵ-ਨਿਰਧਾਰਤ"</string>
@@ -4466,8 +4466,8 @@
     <string name="internet_connectivity_panel_title" msgid="341712994620215750">"ਇੰਟਰਨੈੱਟ ਕਨੈਕਟੀਵਿਟੀ"</string>
     <string name="volume_connectivity_panel_title" msgid="4998755371496690971">"ਅਵਾਜ਼"</string>
     <string name="mobile_data_ap_mode_disabled" msgid="2452716524753472885">"ਹਵਾਈ-ਜਹਾਜ਼ ਮੋਡ ਚਾਲੂ ਹੋਣ ਵੇਲੇ ਉਪਲਬਧ ਨਹੀਂ ਹੈ"</string>
-    <string name="force_desktop_mode" msgid="6973100177551040740">"ਜ਼ਬਰਦਸਤੀ ਡੈਸਕਟਾਪ ਮੋਡ ਵਿੱਚ ਲਿਆਓ"</string>
-    <string name="force_desktop_mode_summary" msgid="8865007610266954719">"ਸੈਕੰਡਰੀ ਡਿਸਪਲੇਆਂ \'ਤੇ ਜ਼ਬਰਦਸਤੀ ਪ੍ਰਯੋਗਮਈ ਡੈਸਕਟਾਪ ਮੋਡ"</string>
+    <string name="force_desktop_mode" msgid="6973100177551040740">"ਡੈਸਕਟਾਪ ਮੋਡ ਵਿੱਚ ਜ਼ਬਰਦਸਤੀ ਲਾਗੂ ਕਰੋ"</string>
+    <string name="force_desktop_mode_summary" msgid="8865007610266954719">"ਸੈਕੰਡਰੀ ਡਿਸਪਲੇ \'ਤੇ ਪ੍ਰਯੋਗਮਈ ਡੈਸਕਟਾਪ ਮੋਡ ਜ਼ਬਰਦਸਤੀ ਲਾਗੂ ਕਰੋ"</string>
     <string name="hwui_force_dark_title" msgid="3744825212652331461">"ਜ਼ਬਰਦਸਤੀ ਗੂੜ੍ਹਾ ਮੋਡ ਓਵਰਰਾਈਡ ਕਰੋ"</string>
     <string name="hwui_force_dark_summary" msgid="2051891908674765817">"ਜ਼ਬਰਦਸਤੀ ਨਾਲ ਗੂੜ੍ਹਾ ਮੋਡ ਲਾਗੂ ਕਰਨ ਵਾਲੀ ਵਿਸ਼ੇਸ਼ਤਾ ਨੂੰ ਹਮੇਸ਼ਾਂ-ਚਾਲੂ ਰੱਖਣ ਲਈ ਓਵਰਰਾਈਡ ਕਰਦੀ ਹੈ"</string>
     <string name="privacy_dashboard_title" msgid="8764930992456607513">"ਪਰਦੇਦਾਰੀ"</string>

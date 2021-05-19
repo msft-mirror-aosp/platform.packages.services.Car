@@ -1777,7 +1777,7 @@
     <string name="lock_settings_profile_title" msgid="3928992050074556160">"工作资料安全"</string>
     <string name="lock_settings_profile_screen_lock_title" msgid="285267471459162203">"工作资料屏幕锁定"</string>
     <string name="lock_settings_profile_unification_title" msgid="2629698644191935287">"使用同一种锁定方式"</string>
-    <string name="lock_settings_profile_unification_summary" msgid="4797188229308317207">"让工作资料和设备屏幕使用同一种锁定方式"</string>
+    <string name="lock_settings_profile_unification_summary" msgid="4797188229308317207">"为工作资料和设备屏幕使用同一种锁定方式"</string>
     <string name="lock_settings_profile_unification_dialog_title" msgid="1690211342491067179">"要使用同一种锁定方式吗？"</string>
     <string name="lock_settings_profile_unification_dialog_body" msgid="8629158560032603101">"您的设备将使用工作资料屏幕锁定方式。这两种锁定方式都需要符合相关工作规范。"</string>
     <string name="lock_settings_profile_unification_dialog_uncompliant_body" msgid="1217609779267643474">"您的工作资料锁定方式不符合贵单位的安全要求。您可以为自己的设备屏幕和工作资料使用同一种锁定方式，但是必须遵守所有相关的工作屏幕锁定规范。"</string>
@@ -2036,14 +2036,14 @@
     <string name="usage_time_label" msgid="5615725415876461039">"使用时间"</string>
     <string name="accessibility_settings" msgid="9140621093888234485">"无障碍"</string>
     <string name="accessibility_settings_title" msgid="1687226556576913576">"无障碍设置"</string>
-    <string name="accessibility_settings_summary" msgid="5742379519336396561">"屏幕阅读器、显示、互动控件"</string>
+    <string name="accessibility_settings_summary" msgid="5742379519336396561">"屏幕阅读器、显示、互动控制"</string>
     <string name="vision_settings_title" msgid="7315352351051423944">"阅读辅助设置"</string>
     <string name="vision_settings_description" msgid="3476589459009287332">"您可以根据自己的需求对此设备进行自定义。以后，您可以在“设置”中更改这些辅助功能设置。"</string>
     <string name="vision_settings_suggestion_title" msgid="7268661419110951128">"更改字体大小"</string>
     <string name="screen_reader_category_title" msgid="6300714148519645544">"屏幕阅读器"</string>
     <string name="audio_and_captions_category_title" msgid="6140472938769619212">"音频和屏幕上的文字"</string>
     <string name="display_category_title" msgid="545168481672250195">"显示"</string>
-    <string name="interaction_control_category_title" msgid="8775039211811947683">"互动控件"</string>
+    <string name="interaction_control_category_title" msgid="8775039211811947683">"互动控制"</string>
     <string name="user_installed_services_category_title" msgid="4288689493753221319">"已下载的服务"</string>
     <string name="experimental_category_title" msgid="3797000069740110717">"实验性功能"</string>
     <string name="feature_flags_dashboard_title" msgid="3153034144122754381">"功能标记"</string>
@@ -2323,9 +2323,9 @@
     <string name="smart_battery_manager_title" msgid="5744035036663849515">"电池管理器"</string>
     <string name="smart_battery_title" msgid="4919670408532804351">"自动管理应用"</string>
     <string name="smart_battery_summary" msgid="640027046471198174">"限制不常用的应用的耗电量"</string>
-    <string name="smart_battery_footer" product="default" msgid="3971715848890205632">"当电池管理器检测到应用正在使用电量时，您可以选择限制这些应用。受限应用可能无法正常运行，相应通知也可能会有所延迟。"</string>
-    <string name="smart_battery_footer" product="tablet" msgid="3971715848890205632">"当电池管理器检测到应用正在使用电量时，您可以选择限制这些应用。受限应用可能无法正常运行，相应通知也可能会有所延迟。"</string>
-    <string name="smart_battery_footer" product="device" msgid="3971715848890205632">"当电池管理器检测到应用正在使用电量时，您可以选择限制这些应用。受限应用可能无法正常运行，相应通知也可能会有所延迟。"</string>
+    <string name="smart_battery_footer" product="default" msgid="3971715848890205632">"当电池管理器检测到应用正在严重耗电时，您可以选择限制这些应用。受限应用可能无法正常运行，相应通知也可能会有所延迟。"</string>
+    <string name="smart_battery_footer" product="tablet" msgid="3971715848890205632">"当电池管理器检测到应用正在严重耗电时，您可以选择限制这些应用。受限应用可能无法正常运行，相应通知也可能会有所延迟。"</string>
+    <string name="smart_battery_footer" product="device" msgid="3971715848890205632">"当电池管理器检测到应用正在严重耗电时，您可以选择限制这些应用。受限应用可能无法正常运行，相应通知也可能会有所延迟。"</string>
     <string name="restricted_app_title" msgid="4957644700640127606">"受限应用"</string>
     <plurals name="restricted_app_summary" formatted="false" msgid="7609538735465186040">
       <item quantity="other">正在限制 %1$d 个应用的电池用量</item>
@@ -2435,7 +2435,7 @@
     <string name="battery_detail_power_usage" msgid="3606930232257489212">"电池用量"</string>
     <string name="battery_detail_info_title" msgid="4617514228447481336">"自充满电后"</string>
     <string name="battery_detail_manage_title" msgid="745194290572617507">"管理电池用量"</string>
-    <string name="advanced_battery_graph_subtext" msgid="3349760453669664057">"系统会根据设备使用情况估算电池的剩余电量"</string>
+    <string name="advanced_battery_graph_subtext" msgid="3349760453669664057">"系统会根据设备使用情况估算电池的剩余续航时间"</string>
     <string name="estimated_time_left" msgid="8849913193475011250">"预计剩余时间"</string>
     <string name="estimated_charging_time_left" msgid="7597080379844486777">"剩余充电时间"</string>
     <string name="estimated_time_description" msgid="9220355793080184567">"估算时间可能会因使用情形而有所改变"</string>
@@ -2922,7 +2922,7 @@
     <string name="nfc_payment_app_and_desc" msgid="102312684211458190">"<xliff:g id="APP">%1$s</xliff:g> - <xliff:g id="DESCRIPTION">%2$s</xliff:g>"</string>
     <string name="nfc_payment_use_default" msgid="3098724195746409476">"使用默认应用"</string>
     <string name="nfc_payment_favor_default" msgid="7555356982142464260">"始终"</string>
-    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"但其他付款应用开启时除外"</string>
+    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"其他付款应用开启时除外"</string>
     <string name="nfc_payment_pay_with" msgid="8412558374792061266">"通过触碰付款终端进行付款时使用以下应用："</string>
     <string name="nfc_how_it_works_title" msgid="6531433737926327904">"通过支付终端付款"</string>
     <string name="nfc_how_it_works_content" msgid="9174575836302449343">"设置付款应用，然后只需将手机背面靠近任何带有感应式标志的终端即可。"</string>
@@ -4134,7 +4134,7 @@
     <string name="ambient_display_tap_screen_title" product="default" msgid="2784322628239960695">"点按手机即显示"</string>
     <string name="ambient_display_tap_screen_title" product="tablet" msgid="6434521782016864148">"点按即可查看平板电脑相关信息"</string>
     <string name="ambient_display_tap_screen_title" product="device" msgid="4396793721852647356">"点按即可查看设备相关信息"</string>
-    <string name="ambient_display_tap_screen_summary" msgid="7869039870571925213">"要查看时间、通知和其他信息，请点按您的屏幕。"</string>
+    <string name="ambient_display_tap_screen_summary" msgid="7869039870571925213">"点按屏幕即可查看时间、通知和其他信息。"</string>
     <string name="fingerprint_swipe_for_notifications_title" msgid="3676002930672489760">"滑动指纹即可查看通知"</string>
     <string name="fingerprint_gesture_screen_title" msgid="8638932855807473479">"滑动指纹"</string>
     <string name="fingerprint_swipe_for_notifications_summary" product="default" msgid="4347999905190477310">"要查看通知，请在手机背面的指纹传感器上向下滑动手指。"</string>
@@ -4150,7 +4150,7 @@
     <string name="oem_lock_info_message" msgid="5090850412279403901">"请重启设备以启用设备保护功能。"</string>
     <string name="automatic_storage_manager_freed_bytes" msgid="7360443072390107772">"总共释放空间：<xliff:g id="SIZE">%1$s</xliff:g>\n\n上次执行日期：<xliff:g id="DATE">%2$s</xliff:g>"</string>
     <string name="web_action_enable_title" msgid="4462106633708675959">"免安装应用"</string>
-    <string name="web_action_enable_summary" msgid="1729016644691793085">"在应用中打开链接（即使未安装相关应用也无妨）"</string>
+    <string name="web_action_enable_summary" msgid="1729016644691793085">"在应用中打开链接，即使未安装相关应用"</string>
     <string name="web_action_section_title" msgid="5563229447734734662">"免安装应用"</string>
     <string name="instant_apps_settings" msgid="879003203555847537">"免安装应用偏好设置"</string>
     <string name="domain_url_section_title" msgid="206403507921518321">"已安装的应用"</string>
@@ -4324,7 +4324,7 @@
     <string name="battery_suggestion_title" product="default" msgid="3295786171830183688">"延长手机的电池续航时间"</string>
     <string name="battery_suggestion_summary" msgid="2669070349482656490"></string>
     <string name="gesture_prevent_ringing_screen_title" msgid="4173494225145223638">"阻止响铃"</string>
-    <string name="gesture_prevent_ringing_title" msgid="8827963588425673557">"同时按电源和音量调高按钮即可"</string>
+    <string name="gesture_prevent_ringing_title" msgid="8827963588425673557">"同时按电源和音量调高按钮即可设置为"</string>
     <string name="gesture_prevent_ringing_sound_title" msgid="8642330448721033641">"阻止响铃的快捷方式"</string>
     <string name="prevent_ringing_option_vibrate" msgid="6456505293904544108">"振动"</string>
     <string name="prevent_ringing_option_mute" msgid="53662688921253613">"静音"</string>
