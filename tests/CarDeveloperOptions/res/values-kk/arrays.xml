@@ -144,12 +144,12 @@
     <item msgid="7427377376024106344">"PWD"</item>
   </string-array>
   <string-array name="wifi_peap_phase2_entries">
-    <item msgid="8934819312374410084">"Ешқандай"</item>
+    <item msgid="8934819312374410084">"Жоқ"</item>
     <item msgid="8655686691660180616">"MSCHAPV2"</item>
     <item msgid="1354245862267605928">"GTC"</item>
   </string-array>
   <string-array name="wifi_peap_phase2_entries_with_sim_auth">
-    <item msgid="7122038588318037831">"Ешқандай"</item>
+    <item msgid="7122038588318037831">"Жоқ"</item>
     <item msgid="212906109313512425">"MSCHAPV2"</item>
     <item msgid="6333849991499980140">"GTC"</item>
     <item msgid="6226796534844879034">"SIM"</item>
@@ -157,7 +157,7 @@
     <item msgid="5244120184217604552">"AKA\'"</item>
   </string-array>
   <string-array name="wifi_phase2_entries">
-    <item msgid="5865367433072785952">"Ешқандай"</item>
+    <item msgid="5865367433072785952">"Жоқ"</item>
     <item msgid="7901133332272818442">"PAP (кілтсөз арқылы растау)"</item>
     <item msgid="8549879045980332977">"MSCHAP"</item>
     <item msgid="7330627471456865502">"MSCHAPV2"</item>
@@ -168,12 +168,12 @@
     <item msgid="4377002609760712163">"Статикалық"</item>
   </string-array>
   <string-array name="wifi_proxy_settings">
-    <item msgid="9032900195127165132">"Ешқандай"</item>
+    <item msgid="9032900195127165132">"Жоқ"</item>
     <item msgid="1464741437353223198">"Қолмен"</item>
     <item msgid="5793600062487886090">"Прокси автоконфигурациясы"</item>
   </string-array>
   <string-array name="apn_auth_entries">
-    <item msgid="7099647881902405997">"Ешқандай"</item>
+    <item msgid="7099647881902405997">"Жоқ"</item>
     <item msgid="1950796738039490374">"PAP (кілтсөз арқылы растау)"</item>
     <item msgid="8166687999538788787">"CHAP"</item>
     <item msgid="1276004657191968988">"PAP (кілтсөз арқылы) немесе CHAP (сұрақ қою арқылы)"</item>
@@ -202,7 +202,7 @@
     <item msgid="3778273775365258534">"IS95A"</item>
   </string-array>
   <string-array name="mvno_type_entries">
-    <item msgid="6984770764726663331">"Ешқандай"</item>
+    <item msgid="6984770764726663331">"Жоқ"</item>
     <item msgid="1469208769491004112">"SPN"</item>
     <item msgid="7556656048009090524">"IMSI"</item>
     <item msgid="8636516530542473799">"GID"</item>
@@ -213,7 +213,7 @@
     <item msgid="6902033473986647035">"Жүйені өзі шешсін"</item>
   </string-array>
   <string-array name="app_ops_categories">
-    <item msgid="1102693344156734891">"Орналасу"</item>
+    <item msgid="1102693344156734891">"Локация"</item>
     <item msgid="6842381562497597649">"Жеке"</item>
     <item msgid="3966700236695683444">"Хабар алмасу"</item>
     <item msgid="8563996233342430477">"Meдиа"</item>
@@ -278,7 +278,7 @@
     <item msgid="7775674394089376306">"саусақ ізі"</item>
     <item msgid="3182815133441738779">"дене датчиктері"</item>
     <item msgid="2793100005496829513">"ұялы таратылымдарды оқу"</item>
-    <item msgid="2633626056029384366">"жалған орын"</item>
+    <item msgid="2633626056029384366">"жалған локация"</item>
     <item msgid="8356842191824684631">"жадты оқу"</item>
     <item msgid="5671906070163291500">"жадқа жазу"</item>
     <item msgid="2791955098549340418">"экранды қосу"</item>
@@ -287,9 +287,9 @@
     <item msgid="6423861043647911030">"арнайы мүмкіндіктердің дыбыс деңгейі"</item>
   </string-array>
   <string-array name="app_ops_labels">
-    <item msgid="7892361636570580123">"Орналасу"</item>
-    <item msgid="6656077694190491067">"Орналасу"</item>
-    <item msgid="8790228218278477369">"Орналасу"</item>
+    <item msgid="7892361636570580123">"Локация"</item>
+    <item msgid="6656077694190491067">"Локация"</item>
+    <item msgid="8790228218278477369">"Локация"</item>
     <item msgid="7836406246005211990">"Діріл"</item>
     <item msgid="3951439024549922598">"Контактілерді оқу"</item>
     <item msgid="8802152411647068">"Контактілерді жөндеу"</item>
@@ -297,9 +297,9 @@
     <item msgid="7396102294405899613">"Қоңыраулар тіркелімін өзгерту"</item>
     <item msgid="3597797992398484655">"Күнтізбені оқу"</item>
     <item msgid="2705975774250907343">"Күнтізбені жөндеу"</item>
-    <item msgid="4668747371441932697">"Орналасу"</item>
+    <item msgid="4668747371441932697">"Локация"</item>
     <item msgid="1487578921720243646">"Пост хабарлары"</item>
-    <item msgid="4636080349724146638">"Орналасу"</item>
+    <item msgid="4636080349724146638">"Локация"</item>
     <item msgid="673510900286463926">"Қоңырау шалу"</item>
     <item msgid="542083422784609790">"SMS/MMS оқу"</item>
     <item msgid="1033780373029588436">"SMS/MMS жазу"</item>
@@ -329,7 +329,7 @@
     <item msgid="2311478519251301183">"Bluetooth дыбысының қаттылығы"</item>
     <item msgid="5133991377896747027">"Ұйқы бермеу"</item>
     <item msgid="2464189519136248621">"Орын"</item>
-    <item msgid="2062677934050803037">"Орналасу"</item>
+    <item msgid="2062677934050803037">"Локация"</item>
     <item msgid="1735171933192715957">"Пайдалану статистикасын алу"</item>
     <item msgid="1014093788778383554">"Микрофон дыбысын өшіру/қосу"</item>
     <item msgid="4199297950608622850">"Қалқымалы хабарландыру көрсету"</item>
@@ -345,7 +345,7 @@
     <item msgid="125513972170580692">"Саусақ ізі"</item>
     <item msgid="2556071024281275619">"Дене датчиктері"</item>
     <item msgid="617168514928339387">"Ұялы таратылымдарды оқу"</item>
-    <item msgid="7134693570516523585">"Жалған орын"</item>
+    <item msgid="7134693570516523585">"Жалған локация"</item>
     <item msgid="7224489175375229399">"Жадты оқу"</item>
     <item msgid="8472735063903258202">"Жадқа жазу"</item>
     <item msgid="4069276819909595110">"Экранды қосу"</item>
@@ -378,7 +378,7 @@
   </string-array>
   <string-array name="captioning_edge_type_selector_titles">
     <item msgid="3865198759294188069">"Әдепкі"</item>
-    <item msgid="6488643537808152001">"Ешқандай"</item>
+    <item msgid="6488643537808152001">"Жоқ"</item>
     <item msgid="552332815156010137">"Контур"</item>
     <item msgid="7187891159463789272">"Көлеңке түсіру"</item>
     <item msgid="8019330250538856521">"Көтерілген"</item>
@@ -392,7 +392,7 @@
   </string-array>
   <string-array name="captioning_preset_selector_titles">
     <item msgid="326819345272910536">"Әдепкі параметр"</item>
-    <item msgid="8611890312638868524">"Қара түсте ақпен"</item>
+    <item msgid="8611890312638868524">"Қарада ақ"</item>
     <item msgid="5891360837786277638">"Ақта қарамен"</item>
     <item msgid="2798457065945456853">"Қара түсте сарымен"</item>
     <item msgid="5799049811524553967">"Көк түсте сарымен"</item>
@@ -407,7 +407,7 @@
     <item msgid="8258927774145391041">"IPSec ВЖЖ, сертификаттары және гибридті растамасы бар"</item>
   </string-array>
   <string-array name="vpn_proxy_settings">
-    <item msgid="2958623927055120839">"Ешқандай"</item>
+    <item msgid="2958623927055120839">"Жоқ"</item>
     <item msgid="1157046369795346308">"Қолмен"</item>
   </string-array>
   <string-array name="vpn_states">
@@ -453,7 +453,7 @@
     <item msgid="6248998242443333892">"Кэштелген (бос)"</item>
   </string-array>
   <string-array name="color_picker">
-    <item msgid="3151827842194201728">"Көгілдір"</item>
+    <item msgid="3151827842194201728">"Көкшіл жасыл"</item>
     <item msgid="3228505970082457852">"Көк"</item>
     <item msgid="6590260735734795647">"Индиго түсі"</item>
     <item msgid="3521763377357218577">"Күлгін"</item>
@@ -490,7 +490,7 @@
   </string-array>
   <string-array name="autofill_logging_level_entries">
     <item msgid="6882729786516723474">"Өшірулі"</item>
-    <item msgid="4072198137051566919">"Жөндеу"</item>
+    <item msgid="4072198137051566919">"Түзету"</item>
     <item msgid="2473005316958868509">"Толық ақпарат"</item>
   </string-array>
   <string-array name="cdma_system_select_choices">

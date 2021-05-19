@@ -534,7 +534,7 @@
     <string name="crypt_keeper_data_corrupt_title" msgid="6561535293845985713">"Dekripsi gagal"</string>
     <string name="crypt_keeper_data_corrupt_summary" product="tablet" msgid="7018748502706237323">"Sandi yang Anda masukkan benar, namun sayangnya data rusak. \n\nUntuk melanjutkan dengan tablet, Anda harus mengembalikannya ke setelan pabrik. Saat menyiapkan tablet setelah direset, akan ada kesempatan untuk memulihkan data apa pun yang telah dicadangkan ke Akun Google Anda."</string>
     <string name="crypt_keeper_data_corrupt_summary" product="default" msgid="5798580588985326937">"Sandi yang Anda masukkan benar, namun sayangnya data rusak. \n\nUntuk melanjutkan dengan ponsel, Anda harus mengembalikannya ke setelan pabrik. Jika Anda menyiapkan ponsel setelah reset, akan ada kesempatan untuk memulihkan data apa pun yang telah dicadangkan ke Akun Google Anda."</string>
-    <string name="crypt_keeper_switch_input_method" msgid="4744137470890459582">"Beralih metode masukan"</string>
+    <string name="crypt_keeper_switch_input_method" msgid="4744137470890459582">"Beralih metode input"</string>
     <string name="suggested_lock_settings_title" msgid="1518155558803371661">"Amankan ponsel Anda"</string>
     <string name="suggested_lock_settings_summary" product="tablet" msgid="1861066918594412519">"Setel kunci layar untuk melindungi tablet"</string>
     <string name="suggested_lock_settings_summary" product="device" msgid="7127114417250029182">"Setel kunci layar untuk melindungi perangkat"</string>
@@ -848,7 +848,7 @@
     <string name="wifi_in_airplane_mode" msgid="4729571191578262246">"Dalam mode Pesawat"</string>
     <string name="wifi_notify_open_networks" msgid="4782239203624619655">"Notifikasi jaringan terbuka"</string>
     <string name="wifi_notify_open_networks_summary" msgid="1383681260705466715">"Beri tahu ketika jaringan publik verkualitas tinggi tersedia"</string>
-    <string name="wifi_wakeup" msgid="4963732992164721548">"Aktifkan Wi‑Fi secara otomatis"</string>
+    <string name="wifi_wakeup" msgid="4963732992164721548">"Otomatis aktifkan Wi‑Fi"</string>
     <string name="wifi_wakeup_summary" msgid="1152699417411690">"Wi‑Fi akan aktif kembali di dekat jaringan berkualitas tinggi yang tersimpan, seperti jaringan rumah Anda"</string>
     <string name="wifi_wakeup_summary_no_location" msgid="3007457288587966962">"Tidak tersedia karena lokasi dinonaktifkan. Aktifkan "<annotation id="link">"lokasi"</annotation>"."</string>
     <string name="wifi_wakeup_summary_scanning_disabled" msgid="6820040651529910914">"Tidak tersedia karena pemindaian Wi-Fi dinonaktifkan"</string>
@@ -1299,7 +1299,7 @@
     <string name="sim_change_data_title" msgid="2512227368681250054">"Gunakan <xliff:g id="CARRIER">%1$s</xliff:g> untuk data seluler?"</string>
     <string name="sim_change_data_message" msgid="51004703157782900">"Anda menggunakan <xliff:g id="CARRIER2_0">%2$s</xliff:g> untuk data seluler. Jika Anda beralih ke <xliff:g id="CARRIER1">%1$s</xliff:g>, <xliff:g id="CARRIER2_1">%2$s</xliff:g> tidak akan digunakan lagi untuk data seluler."</string>
     <string name="sim_change_data_ok" msgid="7491552537317573235">"Gunakan <xliff:g id="CARRIER">%1$s</xliff:g>"</string>
-    <string name="sim_preferred_title" msgid="3389680276182899407">"Perbarui kartu SIM piihan?"</string>
+    <string name="sim_preferred_title" msgid="3389680276182899407">"Perbarui kartu SIM pilihan?"</string>
     <string name="sim_preferred_message" msgid="3751011329746359050">"<xliff:g id="NEW_SIM">%1$s</xliff:g> satu-satunya SIM di perangkat. Ingin menggunakan SIM ini untuk data seluler, panggilan telepon, dan SMS?"</string>
     <string name="wrong_pin_code_pukked" msgid="3214670264775760428">"Kode PIN SIM salah, sekarang Anda harus menghubungi operator untuk membuka kunci perangkat."</string>
     <plurals name="wrong_pin_code" formatted="false" msgid="2934318793525717627">
@@ -1318,7 +1318,7 @@
     <string name="fcc_equipment_id" msgid="8681995718533066093">"ID Peralatan"</string>
     <string name="baseband_version" msgid="9115560821840757786">"Versi pita basis"</string>
     <string name="kernel_version" msgid="8226014277756019297">"Versi kernel"</string>
-    <string name="build_number" msgid="8648447688306248633">"Nomor versi"</string>
+    <string name="build_number" msgid="8648447688306248633">"Nomor build"</string>
     <string name="module_version" msgid="1127871672527968730">"Versi modul mainline"</string>
     <string name="device_info_not_available" msgid="3762481874992799474">"Tidak tersedia"</string>
     <string name="device_status_activity_title" msgid="4046298541311839468">"Status"</string>
@@ -1662,9 +1662,9 @@
     <string name="location_low_battery_use" msgid="5030448574501435888">"Penggunaan baterai rendah"</string>
     <string name="location_scanning_screen_title" msgid="7663329319689413454">"Pemindaian Wi‑Fi dan Bluetooth"</string>
     <string name="location_scanning_wifi_always_scanning_title" msgid="6750542206763112172">"Pemindaian Wi-Fi"</string>
-    <string name="location_scanning_wifi_always_scanning_description" msgid="4956048135941851712">"Izinkan aplikasi dan layanan untuk memindai jaringan Wi-Fi kapan saja, meski Wi-Fi nonaktif. Ini dapat dilakukan, misalnya, untuk menyempurnakan fitur dan layanan berbasis lokasi."</string>
+    <string name="location_scanning_wifi_always_scanning_description" msgid="4956048135941851712">"Izinkan aplikasi dan layanan untuk memindai jaringan Wi-Fi kapan saja, meski Wi-Fi nonaktif. Ini dapat dilakukan, misalnya, untuk meningkatkan fitur dan layanan berbasis lokasi."</string>
     <string name="location_scanning_bluetooth_always_scanning_title" msgid="196241746742607453">"Pemindaian Bluetooth"</string>
-    <string name="location_scanning_bluetooth_always_scanning_description" msgid="3796673798637848690">"Izinkan aplikasi dan layanan untuk memindai perangkat di sekitar kapan saja, meski Bluetooth nonaktif. Ini dapat dilakukan, misalnya, untuk menyempurnakan fitur dan layanan berbasis lokasi."</string>
+    <string name="location_scanning_bluetooth_always_scanning_description" msgid="3796673798637848690">"Izinkan aplikasi dan layanan untuk memindai perangkat di sekitar kapan saja, meski Bluetooth nonaktif. Ini dapat dilakukan, misalnya, untuk meningkatkan fitur dan layanan berbasis lokasi."</string>
     <string name="managed_profile_location_services" msgid="224925483299159541">"Layanan lokasi untuk profil kerja"</string>
     <string name="location_network_based" msgid="1535812159327454835">"Lokasi Wi-Fi &amp; seluler"</string>
     <string name="location_neighborhood_level" msgid="8459352741296587916">"Izinkan aplikasi menggunakan layanan lokasi Google untuk memperkirakan lokasi Anda dengan lebih cepat. Data lokasi anonim akan dikumpulkan dan dikirim ke Google."</string>
@@ -2069,7 +2069,7 @@
     <string name="accessibility_toggle_screen_magnification_auto_update_preference_title" msgid="2466317284195934003">"Perbarui otomatis pembesaran layar"</string>
     <string name="accessibility_toggle_screen_magnification_auto_update_preference_summary" msgid="6625473745911276917">"Perbarui pembesaran layar di transisi aplikasi"</string>
     <string name="accessibility_power_button_ends_call_prerefence_title" msgid="6172987104538172869">"Tombol daya untuk tutup telepon"</string>
-    <string name="accessibility_toggle_large_pointer_icon_title" msgid="9127905775116570565">"Penunjuk mouse besar"</string>
+    <string name="accessibility_toggle_large_pointer_icon_title" msgid="9127905775116570565">"Kursor mouse besar"</string>
     <string name="accessibility_disable_animations" msgid="8378441317115710009">"Hapus animasi"</string>
     <string name="accessibility_toggle_master_mono_title" msgid="899550848196702565">"Audio mono"</string>
     <string name="accessibility_toggle_master_mono_summary" msgid="3847052868469033235">"Gabungkan saluran saat memutar audio"</string>
@@ -2506,7 +2506,7 @@
     <string name="voice_input_settings" msgid="4983011614890521505">"Setelan masukan suara"</string>
     <string name="voice_input_settings_title" msgid="6865032806501269306">"Masukan suara"</string>
     <string name="voice_service_preference_section_title" msgid="2984112696100778038">"Layanan masukan suara"</string>
-    <string name="voice_interactor_preference_summary" msgid="7321365727286121067">"Kata cepat dan interaksi lengkap"</string>
+    <string name="voice_interactor_preference_summary" msgid="7321365727286121067">"Frasa pengaktif dan interaksi lengkap"</string>
     <string name="voice_recognizer_preference_summary" msgid="3681161319745912594">"Speech to text yang sederhana"</string>
     <string name="voice_interaction_security_warning" msgid="4986261746316889768">"Layanan masukan suara ini akan dapat melakukan pemantauan suara yang selalu aktif dan mengontrol aplikasi yang aktif untuk suara atas nama Anda. Layanan ini berasal dari aplikasi <xliff:g id="VOICE_INPUT_SERVICE_APP_NAME">%s</xliff:g>. Aktifkan penggunaan layanan ini?"</string>
     <string name="tts_engine_preference_title" msgid="1183116842356275061">"Mesin yang dipilih"</string>
@@ -2538,7 +2538,7 @@
     <string name="credential_storage_type_hardware" msgid="5054143224259023600">"Menggunakan hardware"</string>
     <string name="credential_storage_type_software" msgid="1335905150062717150">"Khusus software"</string>
     <string name="credentials_settings_not_available" msgid="5490259681690183274">"Kredensial tidak tersedia untuk pengguna ini"</string>
-    <string name="credential_for_vpn_and_apps" msgid="2462642486949593841">"Dipasang untuk VPN dan aplikasi"</string>
+    <string name="credential_for_vpn_and_apps" msgid="2462642486949593841">"Diinstal untuk VPN dan aplikasi"</string>
     <string name="credential_for_wifi" msgid="2903295786961726388">"Dipasang untuk Wi-Fi"</string>
     <string name="credentials_reset_hint" msgid="3484350477764088169">"Hapus semua konten?"</string>
     <string name="credentials_erased" msgid="7287088033523869085">"Penyimpanan kredensial dihapus."</string>
@@ -2690,15 +2690,15 @@
     <string name="data_usage_tab_3g" msgid="4262659656028408064">"2G-3G"</string>
     <string name="data_usage_list_mobile" msgid="5623011459774885900">"Ponsel"</string>
     <string name="data_usage_list_none" msgid="5948870220795490796">"Tidak ada"</string>
-    <string name="data_usage_enable_mobile" msgid="7238385042860001374">"Kuota seluler"</string>
+    <string name="data_usage_enable_mobile" msgid="7238385042860001374">"Data seluler"</string>
     <string name="data_usage_enable_3g" msgid="3725838726334043367">"Data 2G-3G"</string>
     <string name="data_usage_enable_4g" msgid="8872517106293561179">"Data 4G"</string>
     <string name="data_roaming_enable_mobile" msgid="5886394350890765947">"Roaming"</string>
     <string name="data_usage_forground_label" msgid="8992577451178005406">"Latar depan:"</string>
     <string name="data_usage_background_label" msgid="8460891123904985128">"Latar belakang:"</string>
     <string name="data_usage_app_settings" msgid="3276444867375694809">"Setelan aplikasi"</string>
-    <string name="data_usage_app_restrict_background" msgid="649167881583859169">"Kuota latar belakang"</string>
-    <string name="data_usage_app_restrict_background_summary" msgid="2703967920234671881">"Aktifkan penggunaan kuota seluler di latar belakang"</string>
+    <string name="data_usage_app_restrict_background" msgid="649167881583859169">"Data latar belakang"</string>
+    <string name="data_usage_app_restrict_background_summary" msgid="2703967920234671881">"Aktifkan penggunaan data seluler di latar belakang"</string>
     <string name="data_usage_app_restrict_background_summary_disabled" msgid="7211921499365814638">"Untuk membatasi data latar belakang pada apl ini, setel batas data seluler terlebih dulu."</string>
     <string name="data_usage_app_restrict_dialog_title" msgid="750037964591673167">"Batasi data latar belakang?"</string>
     <string name="data_usage_app_restrict_dialog" msgid="4022530391896478031">"Fitur ini dapat menghentikan aplikasi yang bergantung pada data latar saat hanya ada jaringan seluler.\n\nAnda dapat menemukan kontrol penggunaan data yang lebih sesuai dalam setelan yang tersedia dalam aplikasi."</string>
@@ -2708,7 +2708,7 @@
     <string name="data_usage_auto_sync_on_dialog" product="default" msgid="5004823486046340090">"Perubahan apa pun yang dilakukan pada akun Anda di web akan disalin ke ponsel secara otomatis.\n\nBeberapa akun juga dapat otomatis menyalin setiap perubahan yang dilakukan di ponsel ke web. Akun Google mengikuti cara kerja tersebut."</string>
     <string name="data_usage_auto_sync_off_dialog_title" msgid="7105334544291643305">"Nonaktifkan sinkronisasi data otomatis?"</string>
     <string name="data_usage_auto_sync_off_dialog" msgid="4057984234450947964">"Ini akan menghemat penggunaan baterai dan data, tapi Anda perlu menyinkronkan setiap akun secara manual untuk mengumpulkan informasi terkini. Anda juga tidak akan menerima pemberitahuan ketika ada update."</string>
-    <string name="data_usage_cycle_editor_title" msgid="4967309390043599889">"Tanggal peresetan siklus penggunaan"</string>
+    <string name="data_usage_cycle_editor_title" msgid="4967309390043599889">"Tanggal reset siklus penggunaan"</string>
     <string name="data_usage_cycle_editor_subtitle" msgid="6043098041946166597">"Tanggal setiap bulannya:"</string>
     <string name="data_usage_cycle_editor_positive" msgid="9155752056537811646">"Setel"</string>
     <string name="data_usage_warning_editor_title" msgid="1431385383278389290">"Setel peringatan penggunaan kuota"</string>
@@ -2759,7 +2759,7 @@
     <string name="vpn_not_used" msgid="2889520789132261454">"(tidak digunakan)"</string>
     <string name="vpn_no_ca_cert" msgid="486605757354800838">"(jangan verifikasi server)"</string>
     <string name="vpn_no_server_cert" msgid="679622228649855629">"(diterima dari server)"</string>
-    <string name="vpn_always_on_invalid_reason_type" msgid="165810330614905489">"Jenis VPN ini tidak dapat selalu tersambung"</string>
+    <string name="vpn_always_on_invalid_reason_type" msgid="165810330614905489">"Jenis VPN ini tidak dapat selalu terhubung"</string>
     <string name="vpn_always_on_invalid_reason_server" msgid="3864424127328210700">"VPN selalu aktif hanya mendukung alamat server numerik"</string>
     <string name="vpn_always_on_invalid_reason_no_dns" msgid="3814114757059738225">"Server DNS untuk VPN selalu aktif harus ditentukan"</string>
     <string name="vpn_always_on_invalid_reason_dns" msgid="501388894176868973">"Alamat server DNS untuk VPN selalu aktif harus numerik"</string>
@@ -3785,7 +3785,7 @@
     </plurals>
     <string name="running_frequency" msgid="7545170806968474449">"Frekuensi"</string>
     <string name="memory_maximum_usage" msgid="4734981118293469479">"Penggunaan maksimum"</string>
-    <string name="no_data_usage" msgid="903383745620135746">"Tidak ada kuota yang digunakan"</string>
+    <string name="no_data_usage" msgid="903383745620135746">"Tidak ada data seluler yang digunakan"</string>
     <string name="zen_access_warning_dialog_title" msgid="7704910289810337055">"Izinkan akses ke status Jangan Ganggu untuk <xliff:g id="APP">%1$s</xliff:g>?"</string>
     <string name="zen_access_warning_dialog_summary" msgid="2717755746850874577">"Aplikasi akan dapat mengaktifkan/menonaktifkan status Jangan Ganggu dan mengubah setelan terkait."</string>
     <string name="zen_access_disabled_package_warning" msgid="7086237569177576966">"Harus tetap aktif karena akses notifikasi juga aktif"</string>
@@ -3933,7 +3933,7 @@
     <string name="ota_disable_automatic_update" msgid="7630249692207340986">"Update sistem otomatis"</string>
     <string name="ota_disable_automatic_update_summary" msgid="5650682441097227162">"Terapkan update saat perangkat dinyalakan ulang"</string>
     <string name="usage" msgid="9172908720164431622">"Penggunaan"</string>
-    <string name="cellular_data_usage" msgid="1236562234207782386">"Penggunaan kuota seluler"</string>
+    <string name="cellular_data_usage" msgid="1236562234207782386">"Penggunaan data seluler"</string>
     <string name="app_cellular_data_usage" msgid="8499761516172121957">"Penggunaan kuota aplikasi"</string>
     <string name="wifi_data_usage" msgid="275569900562265895">"Penggunaan data Wi-Fi"</string>
     <string name="ethernet_data_usage" msgid="747614925362556718">"Penggunaan data ethernet"</string>
@@ -4067,7 +4067,7 @@
     <string name="page_tab_title_summary" msgid="4824744863994538006">"Semua"</string>
     <string name="page_tab_title_support" msgid="5569262185010367870">"Tips &amp; dukungan"</string>
     <string name="developer_smallest_width" msgid="2603134476228805075">"Lebar terkecil"</string>
-    <string name="premium_sms_none" msgid="940723020871007898">"Tidak ada aplikasi yang terpasang yang meminta akses SMS Premium"</string>
+    <string name="premium_sms_none" msgid="940723020871007898">"Tidak ada aplikasi terinstal yang meminta akses SMS Premium"</string>
     <string name="premium_sms_warning" msgid="7604011651486294515">"SMS Premium mungkin memerlukan biaya dan akan menambah tagihan operator. Jika izin aplikasi diaktifkan, Anda dapat mengirim SMS premium menggunakan aplikasi tersebut."</string>
     <string name="premium_sms_access" msgid="4550027460595822851">"Akses SMS Premium"</string>
     <string name="bluetooth_disabled" msgid="6588102116819268238">"Nonaktif"</string>
@@ -4414,7 +4414,7 @@
     <string name="mobile_network_use_sim_on" msgid="1944823242539751387">"Gunakan SIM"</string>
     <string name="mobile_network_use_sim_off" msgid="2077820358051946635">"Nonaktif"</string>
     <string name="mobile_network_esim_swap_confirm_title" msgid="6077154427380613615">"Beralih ke <xliff:g id="CARRIER">%1$s</xliff:g>?"</string>
-    <string name="mobile_network_esim_swap_confirm_body" msgid="1192274915146275063">"Hanya satu SIM hasil download yang dapat diaktifkan pada satu waktu.\n\nBeralih ke <xliff:g id="CARRIER1">%1$s</xliff:g> tidak akan membatalkan layanan <xliff:g id="CARRIER2">%2$s</xliff:g> Anda."</string>
+    <string name="mobile_network_esim_swap_confirm_body" msgid="1192274915146275063">"Hanya satu SIM hasil download yang dapat diaktifkan pada satu waktu.\n\nBeralih ke <xliff:g id="CARRIER1">%1$s</xliff:g> tidak akan membatalkan layanan <xliff:g id="CARRIER2">%2$s</xliff:g>."</string>
     <string name="mobile_network_esim_swap_confirm_ok" msgid="4253442720111626242">"Beralih ke <xliff:g id="CARRIER">%1$s</xliff:g>"</string>
     <string name="mobile_network_erase_sim" msgid="7813251003613841044">"Hapus SIM"</string>
     <string name="mobile_network_erase_sim_dialog_title" msgid="3796268164204467499">"Hapus SIM yang didownload?"</string>
