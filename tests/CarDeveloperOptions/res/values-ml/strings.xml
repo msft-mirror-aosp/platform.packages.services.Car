@@ -389,7 +389,7 @@
     <string name="security_passwords_title" msgid="6853942836045862315">"സ്വകാര്യത"</string>
     <string name="disabled_by_administrator_summary" msgid="6099821045360491127">"അഡ്‌മിൻ പ്രവർത്തനരഹിതമാക്കി"</string>
     <string name="security_status_title" msgid="1261960357751754428">"സുരക്ഷാ നില"</string>
-    <string name="security_dashboard_summary_face" msgid="2536136110153593745">"സ്ക്രീൻ ലോക്ക്, മുഖം തിരിച്ചറിഞ്ഞുള്ള അൺലോക്ക്"</string>
+    <string name="security_dashboard_summary_face" msgid="2536136110153593745">"സ്ക്രീൻ ലോക്ക്, ഫെയ്‌സ് അൺലോക്ക്"</string>
     <string name="security_dashboard_summary" msgid="4048877125766167227">"സ്‌ക്രീൻ ലോക്കും ഫിംഗർപ്രിന്റും"</string>
     <string name="security_dashboard_summary_no_fingerprint" msgid="8861903321053490658">"സ്ക്രീൻ ലോക്ക്"</string>
     <string name="security_settings_face_preference_summary" msgid="4437701024542221434">"മുഖം ചേർത്തു"</string>
@@ -426,7 +426,7 @@
     <string name="security_settings_face_settings_remove_face_data" msgid="2821359954483136239">"മുഖ ഡാറ്റ നീക്കം ചെയ്യുക"</string>
     <string name="security_settings_face_settings_footer" msgid="4627175759990550715">"ഉപകരണം അൺലോക്ക് ചെയ്യാനും ആപ്പുകൾ ആക്‌സസ് ചെയ്യാനും നിങ്ങളുടെ മുഖം ഉപയോഗിക്കാനാവും. "<annotation id="url">"കൂടുതലറിയുക"</annotation></string>
     <string name="security_settings_face_settings_remove_dialog_title" msgid="5675319895815271094">"മുഖ ഡാറ്റ ഇല്ലാതാക്കണോ?"</string>
-    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"മുഖം തിരിച്ചറിഞ്ഞുള്ള അൺലോക്ക് ഉപയോഗിച്ച് റിക്കോർഡ് ചെയ്‌ത ഡാറ്റ ശാശ്വതമായും സുരക്ഷിതമായും ഇല്ലാതാക്കും. നീക്കം ചെയ്‌തതിനു ശേഷം, ആപ്പുകളിലേക്ക് സൈൻ ഇൻ ചെയ്യാനും ഫോൺ അൺലോക്ക് ചെയ്യാനും പേയ്മെന്റുകൾ സ്ഥിരീകരിക്കാനും നിങ്ങളുടെ PIN, പാറ്റേൺ, പാസ്‍വേഡ് എന്നിവ വേണം."</string>
+    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"ഫെയ്‌സ് അൺലോക്ക് ഉപയോഗിച്ച് റിക്കോർഡ് ചെയ്‌ത ഡാറ്റ ശാശ്വതമായും സുരക്ഷിതമായും ഇല്ലാതാക്കും. നീക്കം ചെയ്‌തതിനു ശേഷം, ആപ്പുകളിലേക്ക് സൈൻ ഇൻ ചെയ്യാനും ഫോൺ അൺലോക്ക് ചെയ്യാനും പേയ്മെന്റുകൾ സ്ഥിരീകരിക്കാനും നിങ്ങളുടെ PIN, പാറ്റേൺ, പാസ്‍വേഡ് എന്നിവ വേണം."</string>
     <string name="security_settings_fingerprint_preference_title" msgid="4177132225930582928">"വിരലടയാളം"</string>
     <string name="fingerprint_manage_category_title" msgid="1463406696801542090">"വിരലടയാളങ്ങൾ നിയന്ത്രിക്കുക"</string>
     <string name="fingerprint_usage_category_title" msgid="7298369141954599706">"ഇതിനായി വിരലടയാളം ഉപയോഗിക്കുക"</string>
@@ -1777,7 +1777,7 @@
     <string name="lock_settings_profile_title" msgid="3928992050074556160">"ഔദ്യോഗിക പ്രൊഫൈൽ സുരക്ഷ"</string>
     <string name="lock_settings_profile_screen_lock_title" msgid="285267471459162203">"ഔദ്യോഗിക പ്രൊഫൈൽ സ്ക്രീൻ ലോക്ക്"</string>
     <string name="lock_settings_profile_unification_title" msgid="2629698644191935287">"ഒരു ലോക്ക് ഉപയോഗിക്കുക"</string>
-    <string name="lock_settings_profile_unification_summary" msgid="4797188229308317207">"ഔദ്യോഗിക പ്രൊഫൈലിനും ഉപകരണ സ്ക്രീനിനും ഒരൊറ്റ ലോക്ക് ഉപയോഗിക്കുക"</string>
+    <string name="lock_settings_profile_unification_summary" msgid="4797188229308317207">"ഔദ്യോഗിക പ്രൊഫൈലിനും ഉപകരണ സ്ക്രീനിനും ഒറ്റ ലോക്ക് ഉപയോഗിക്കുക"</string>
     <string name="lock_settings_profile_unification_dialog_title" msgid="1690211342491067179">"ഒരു ലോക്ക് ഉപയോഗിക്കണോ?"</string>
     <string name="lock_settings_profile_unification_dialog_body" msgid="8629158560032603101">"ഉപകരണം നിങ്ങളുടെ ഔദ്യോഗിക പ്രൊഫൈൽ സ്‌ക്രീൻ ലോക്ക് ഉപയോഗിക്കും. രണ്ട് ലോക്കുകൾക്കും ഔദ്യോഗിക നയങ്ങൾ ബാധകമാണ്."</string>
     <string name="lock_settings_profile_unification_dialog_uncompliant_body" msgid="1217609779267643474">"നിങ്ങളുടെ സ്ഥാപനത്തിന്റെ സുരക്ഷാ ആവശ്യകതകളെ നിങ്ങളുടെ ഔദ്യോഗിക പ്രൊഫൈൽ ലോക്ക് പാലിക്കുന്നില്ല. ഉപകരണ സ്ക്രീനിനും നിങ്ങളുടെ ഔദ്യോഗിക പ്രൊഫൈലിനും നിങ്ങൾക്ക് ഒരേ ലോക്ക് സജ്ജമാക്കാവുന്നതാണ്, ഔദ്യോഗിക സ്‌ക്രീൻ ലോക്കിന് എന്തെങ്കിലും നയങ്ങളുണ്ടെങ്കിൽ നിങ്ങളുടെ ഉപകരണ സ്‌ക്രീൻ ലോക്കിനും അവ ബാധകമാവും."</string>
@@ -2511,7 +2511,7 @@
     <string name="voice_interaction_security_warning" msgid="4986261746316889768">"ഈ വോയ്‌സ് ഇൻപുട്ട് സേവനത്തിന് നിങ്ങൾക്കായി എപ്പോഴും വോയ്‌സ് നിരീക്ഷിക്കാനും വോയ്‌സ് പ്രവർത്തനക്ഷമമാക്കിയ അപ്ലിക്കേഷനുകളെ നിയന്ത്രിക്കാനുമാകും. ഇത് <xliff:g id="VOICE_INPUT_SERVICE_APP_NAME">%s</xliff:g> അപ്‌ലിക്കേഷനിൽ നിന്നുള്ളതാണ്. ഈ സേവനത്തിന്റ ഉപയോഗം പ്രവർത്തനക്ഷമമാക്കണോ?"</string>
     <string name="tts_engine_preference_title" msgid="1183116842356275061">"തിരഞ്ഞെടുത്ത എഞ്ചിൻ"</string>
     <string name="tts_engine_settings_title" msgid="4079757915136562358">"എഞ്ചിൻ ക്രമീകരണം"</string>
-    <string name="tts_sliders_title" msgid="1927481069989092278">"സംഭാഷണ നിരക്ക്, ഉച്ചത"</string>
+    <string name="tts_sliders_title" msgid="1927481069989092278">"വായനയുടെ വേഗത, ഉച്ചത"</string>
     <string name="tts_engine_section_title" msgid="7796486438271227076">"എഞ്ചിൻ"</string>
     <string name="tts_install_voice_title" msgid="3143328760690690254">"ശബ്‌ദങ്ങൾ"</string>
     <string name="tts_spoken_language" msgid="8057256621711361944">"സംസാര ഭാഷ"</string>
@@ -3046,7 +3046,7 @@
     <string name="account_dashboard_title" msgid="4734300939532555885">"അക്കൗണ്ടുകൾ"</string>
     <string name="account_dashboard_default_summary" msgid="6822549669771936206">"അക്കൗണ്ടുകളൊന്നും ചേർത്തില്ല"</string>
     <string name="app_default_dashboard_title" msgid="6575301028225232193">"ഡിഫോൾട്ട് ആപ്പുകൾ"</string>
-    <string name="system_dashboard_summary" msgid="6582464466735779394">"ഭാഷകൾ, വിരൽചലനം, സമയം, ബാക്കപ്പ്"</string>
+    <string name="system_dashboard_summary" msgid="6582464466735779394">"ഭാഷകൾ, ജെസ്ച്ചറുകൾ, സമയം, ബാക്കപ്പ്"</string>
     <string name="search_results_title" msgid="4160717656435503940">"ക്രമീകരണം"</string>
     <string name="keywords_wifi" msgid="8477688080895466846">"വൈഫൈ, വൈ-ഫൈ, നെറ്റ്‌വർക്ക് കണക്ഷൻ, ഇന്റർനെറ്റ്, വയർലെസ്സ്, ഡാറ്റ, വൈ ഫൈ"</string>
     <string name="keywords_wifi_notify_open_networks" msgid="1031260564121854773">"വൈഫൈ അറിയിപ്പ്, വൈഫൈ അറിയിപ്പ്"</string>
@@ -3098,7 +3098,7 @@
     <string name="keywords_payment_settings" msgid="4745023716567666052">"പണമടയ്ക്കുക. ടാപ്പുചെയ്യുക, പേയ്‌മെന്റുകൾ"</string>
     <string name="keywords_backup" msgid="7433356270034921627">"ബാക്കപ്പ് ചെയ്യൂ"</string>
     <string name="keywords_assist_gesture_launch" msgid="2711433664837843513">"വിരൽചലനം"</string>
-    <string name="keywords_face_unlock" msgid="651615819291927262">"ഫേസ്, അൺലോക്ക് ചെയ്യുക, പരിശോധിച്ചുറപ്പിക്കുക, സൈൻ ഇൻ ചെയ്യുക"</string>
+    <string name="keywords_face_unlock" msgid="651615819291927262">"ഫേസ്, അൺലോക്ക്, പരിശോധിച്ചുറപ്പിക്കുക, സൈൻ ഇൻ ചെയ്യുക"</string>
     <string name="keywords_imei_info" msgid="4325847870422053408">"imei, meid, min, prl പതിപ്പ്, imei sv"</string>
     <string name="keywords_sim_status" msgid="3852088576719874387">"നെറ്റ്‌വർക്ക്, മൊബൈൽ നെറ്റ്‌വർക്ക് നില, സേവന നില, സിഗ്നൽ ശക്തി, മൊബൈൽ നെറ്റ്‌വർക്ക് നില, റോമിംഗ്, iccid"</string>
     <string name="keywords_model_and_hardware" msgid="2743197096210895251">"സീരിയൽ നമ്പർ, ഹാർഡ്‌വെയർ പതിപ്പ്"</string>
