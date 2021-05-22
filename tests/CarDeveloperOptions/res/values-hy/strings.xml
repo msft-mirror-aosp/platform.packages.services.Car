@@ -3098,7 +3098,7 @@
     <string name="keywords_payment_settings" msgid="4745023716567666052">"վճարել, հպել, վճարումներ"</string>
     <string name="keywords_backup" msgid="7433356270034921627">"պահուստավորում, պահուստավորել"</string>
     <string name="keywords_assist_gesture_launch" msgid="2711433664837843513">"ժեստ"</string>
-    <string name="keywords_face_unlock" msgid="651615819291927262">"դեմք, ապակողպում, ճանաչում, մուտք"</string>
+    <string name="keywords_face_unlock" msgid="651615819291927262">"դեմք, դեմքով, բացել, ապակողպում, ճանաչում, մուտք"</string>
     <string name="keywords_imei_info" msgid="4325847870422053408">"imei, meid, min, prl-ի տարբերակ, imei sv"</string>
     <string name="keywords_sim_status" msgid="3852088576719874387">"ցանց, բջջային ցանցի կարգավիճակ, ազդանշանի հզորություն, բջջային ցանցի տեսակ, ռոումինգ, iccid"</string>
     <string name="keywords_model_and_hardware" msgid="2743197096210895251">"սերիական համար, սարքակազմի տարբերակ"</string>
@@ -3280,7 +3280,7 @@
     <string name="zen_onboarding_new_setting_summary" msgid="8264430315983860075">"Ծանուցումներն ամբողջությամբ կանջատվեն։ Զանգեր կստանաք միայն աստղանշված և հաճախակի զանգող բաժանորդներից։"</string>
     <string name="zen_onboarding_current_setting_summary" msgid="3569246708507270821">"(ընթացիկ կարգավորումը)"</string>
     <string name="zen_onboarding_dnd_visual_disturbances_header" msgid="7584229011611927613">"Փոփոխե՞լ «Չանհանգստացնել» ռեժիմի ծանուցումների կարգավորումները"</string>
-    <string name="sound_work_settings" msgid="4140215240360927923">"Աշխատանքային պրոֆիլի ձայները"</string>
+    <string name="sound_work_settings" msgid="4140215240360927923">"Աշխատանքային պրոֆիլի ձայներ"</string>
     <string name="work_use_personal_sounds_title" msgid="531727195073003599">"Օգտագործել անձնական պրոֆիլի ձայները"</string>
     <string name="work_use_personal_sounds_summary" msgid="2886871383995187441">"Զանգերանգները նույնն են աշխատանքային և անձնական պրոֆիլների համար"</string>
     <string name="work_ringtone_title" msgid="5499360583947410224">"Հեռախոսի զանգերանգը"</string>
