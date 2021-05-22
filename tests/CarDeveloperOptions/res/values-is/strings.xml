@@ -3098,7 +3098,7 @@
     <string name="keywords_payment_settings" msgid="4745023716567666052">"borga, ýta, greiðslur"</string>
     <string name="keywords_backup" msgid="7433356270034921627">"afrita, afritun"</string>
     <string name="keywords_assist_gesture_launch" msgid="2711433664837843513">"bendingar"</string>
-    <string name="keywords_face_unlock" msgid="651615819291927262">"andlit, opna, taka úr lás, sannvottun, innskráning, skrá inn"</string>
+    <string name="keywords_face_unlock" msgid="651615819291927262">"andlit, opna, taka úr lás, sannvottun, skrá inn"</string>
     <string name="keywords_imei_info" msgid="4325847870422053408">"imei, meid, min, prl-útgáfa, imei sv"</string>
     <string name="keywords_sim_status" msgid="3852088576719874387">"netkerfi, staða farsímakerfis, staða þjónustu, sendistyrkur, tegund farsímakerfis, reiki, iccid"</string>
     <string name="keywords_model_and_hardware" msgid="2743197096210895251">"raðnúmer, vélbúnaðarútgáfa"</string>
@@ -3283,7 +3283,7 @@
     <string name="sound_work_settings" msgid="4140215240360927923">"Hljóð vinnuprófils"</string>
     <string name="work_use_personal_sounds_title" msgid="531727195073003599">"Nota hljóð úr persónulegum prófíl"</string>
     <string name="work_use_personal_sounds_summary" msgid="2886871383995187441">"Hljóð vinnuprófíls eru þau sömu og í persónulegum prófíl"</string>
-    <string name="work_ringtone_title" msgid="5499360583947410224">"Vinnuhringingartónn"</string>
+    <string name="work_ringtone_title" msgid="5499360583947410224">"Vinnuhringitónn"</string>
     <string name="work_notification_ringtone_title" msgid="8059159087214025757">"Sjálfgefið hljóð vinnutilkynninga"</string>
     <string name="work_alarm_ringtone_title" msgid="5328487181385375130">"Sjálfgefið hljóð í vekjara fyrir vinnu"</string>
     <string name="work_sound_same_as_personal" msgid="7728560881697159758">"Sama og í persónulegum prófíl"</string>

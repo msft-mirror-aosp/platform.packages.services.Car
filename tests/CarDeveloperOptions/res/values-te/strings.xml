@@ -389,7 +389,7 @@
     <string name="security_passwords_title" msgid="6853942836045862315">"గోప్యత"</string>
     <string name="disabled_by_administrator_summary" msgid="6099821045360491127">"అడ్మిన్ డిజేబుల్ చేశారు"</string>
     <string name="security_status_title" msgid="1261960357751754428">"భద్రత స్థితి"</string>
-    <string name="security_dashboard_summary_face" msgid="2536136110153593745">"స్క్రీన్ లాక్, ముఖం అన్‌లాక్"</string>
+    <string name="security_dashboard_summary_face" msgid="2536136110153593745">"స్క్రీన్ లాక్, ఫేస్ అన్‌లాక్"</string>
     <string name="security_dashboard_summary" msgid="4048877125766167227">"స్క్రీన్ లాక్, వేలిముద్ర"</string>
     <string name="security_dashboard_summary_no_fingerprint" msgid="8861903321053490658">"స్క్రీన్ లాక్"</string>
     <string name="security_settings_face_preference_summary" msgid="4437701024542221434">"ముఖం జోడించబడింది"</string>
@@ -426,7 +426,7 @@
     <string name="security_settings_face_settings_remove_face_data" msgid="2821359954483136239">"ముఖం డేటాను తీసివేయండి"</string>
     <string name="security_settings_face_settings_footer" msgid="4627175759990550715">"మీ పరికరాన్ని అన్‌లాక్ చేయడానికి మరియు యాప్‌లను యాక్సెస్ చేయడానికి మీ ముఖాన్ని ఉపయోగించవచ్చు. "<annotation id="url">"మరింత తెలుసుకోండి"</annotation></string>
     <string name="security_settings_face_settings_remove_dialog_title" msgid="5675319895815271094">"ముఖ డేటాను తొలగించాలా?"</string>
-    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"ముఖంతో అన్‌లాక్ ద్వారా రికార్డ్ చేయబడిన డేటా శాశ్వతంగా, అలాగే సురక్షితమైన విధంగా తొలగించబడుతుంది. తీసివేసిన తర్వాత, మీ ఫోన్‌ను అన్‌లాక్ చేయడానికి, యాప్‌లకు సైన్ ఇన్ చేయడానికి, అలాగే చెల్లింపులను నిర్ధారించడానికి మీకు మీ PIN, ఆకృతి లేదా పాస్‌వర్డ్ అవసరం అవుతాయి."</string>
+    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"ఫేస్ అన్‌లాక్ ద్వారా రికార్డ్ చేయబడిన డేటా శాశ్వతంగా, అలాగే సురక్షితమైన విధంగా తొలగించబడుతుంది. తీసివేసిన తర్వాత, మీ ఫోన్‌ను అన్‌లాక్ చేయడానికి, యాప్‌లకు సైన్ ఇన్ చేయడానికి, అలాగే పేమెంట్‌లను నిర్ధారించడానికి మీకు మీ PIN, ఆకృతి లేదా పాస్‌వర్డ్ అవసరం అవుతాయి."</string>
     <string name="security_settings_fingerprint_preference_title" msgid="4177132225930582928">"వేలిముద్ర"</string>
     <string name="fingerprint_manage_category_title" msgid="1463406696801542090">"వేలిముద్రలు నిర్వహిం."</string>
     <string name="fingerprint_usage_category_title" msgid="7298369141954599706">"దీనికి వేలిముద్రను ఉప."</string>
@@ -3041,7 +3041,7 @@
     <string name="connected_devices_dashboard_no_driving_mode_summary" msgid="3524409078596318803">"బ్లూటూత్, NFC"</string>
     <string name="connected_devices_dashboard_no_driving_mode_no_nfc_summary" msgid="7881286613528299400">"బ్లూటూత్"</string>
     <string name="app_and_notification_dashboard_title" msgid="8448096608058843730">"యాప్‌లు &amp; నోటిఫికేషన్‌లు"</string>
-    <string name="app_and_notification_dashboard_summary" msgid="4165181440955038145">"Assistant, ఇటీవలి యాప్‌లు, డిఫాల్ట్ యాప్‌లు"</string>
+    <string name="app_and_notification_dashboard_summary" msgid="4165181440955038145">"Assistant, ఇటీవలి యాప్‌లు, ఆటోమేటిక్‌ యాప్‌లు"</string>
     <string name="notification_settings_work_profile" msgid="7190550347842400029">"కార్యాలయ ప్రొఫైల్‌లో ఉన్న యాప్‌లకు సంబంధించి నోటిఫికేషన్ యాక్సెస్ అందుబాటులో లేదు."</string>
     <string name="account_dashboard_title" msgid="4734300939532555885">"ఖాతాలు"</string>
     <string name="account_dashboard_default_summary" msgid="6822549669771936206">"ఖాతాలు జోడించబడలేదు"</string>
@@ -3098,7 +3098,7 @@
     <string name="keywords_payment_settings" msgid="4745023716567666052">"చెల్లించడం, నొక్కడం, చెల్లింపులు"</string>
     <string name="keywords_backup" msgid="7433356270034921627">"బ్యాకప్, బ్యాకప్"</string>
     <string name="keywords_assist_gesture_launch" msgid="2711433664837843513">"సంజ్ఞ"</string>
-    <string name="keywords_face_unlock" msgid="651615819291927262">"ముఖం, అన్‌లాక్, ప్రామాణీకరణ, సైన్ ఇన్"</string>
+    <string name="keywords_face_unlock" msgid="651615819291927262">"ఫేస్, అన్‌లాక్, ప్రామాణీకరణ, సైన్ ఇన్"</string>
     <string name="keywords_imei_info" msgid="4325847870422053408">"imei, meid, min, prl వెర్షన్, imei sv"</string>
     <string name="keywords_sim_status" msgid="3852088576719874387">"నెట్‌వర్క్, మొబైల్ నెట్‌వర్క్ స్థితి, సేవ స్థితి, సిగ్నల్ సామర్థ్యం, మొబైల్ నెట్‌వర్క్ రకం, రోమింగ్, iccid"</string>
     <string name="keywords_model_and_hardware" msgid="2743197096210895251">"క్రమ సంఖ్య, హార్డ్‌వేర్ వెర్షన్"</string>
@@ -4067,7 +4067,7 @@
     <string name="notification_suggestion_title" msgid="3292107671498148560">"లాక్ స్క్రీన్‌పై నియంత్రణ సమాచారం"</string>
     <string name="notification_suggestion_summary" msgid="6516827892359614597">"నోటిఫికేషన్ కంటెంట్‌ను చూపు లేదా దాచు"</string>
     <string name="page_tab_title_summary" msgid="4824744863994538006">"అన్నీ"</string>
-    <string name="page_tab_title_support" msgid="5569262185010367870">"చిట్కాలు &amp; మద్దతు"</string>
+    <string name="page_tab_title_support" msgid="5569262185010367870">"చిట్కాలు &amp; సపోర్ట్"</string>
     <string name="developer_smallest_width" msgid="2603134476228805075">"అతితక్కువ వెడల్పు"</string>
     <string name="premium_sms_none" msgid="940723020871007898">"ఇన్‌స్టాల్ చేసిన యాప్‌లు ఏవీ ప్రీమియం SMS ప్రాప్యతను అభ్యర్థించలేదు"</string>
     <string name="premium_sms_warning" msgid="7604011651486294515">"ప్రీమియం SMSతో మీకు డబ్బు ఖర్చు కావచ్చు, ఈ ఛార్జీ మీ క్యారియర్ బిల్లుల్లో విధించబడుతుంది. మీరు ఒక అనువర్తనానికి అనుమతిని అందిస్తే, ఆ యాప్‌ను ఉపయోగించి ప్రీమియం SMSను పంపగలరు."</string>
