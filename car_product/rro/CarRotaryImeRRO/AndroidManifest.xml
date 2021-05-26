@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (C) 2021 The Android Open Source Project
   ~
@@ -13,12 +14,11 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<overlay>
-    <item target="id/bottom_card" value="@id/bottom_card" />
-
-    <item target="layout/car_launcher" value="@layout/car_launcher"/>
-
-    <item target="integer/enter_exit_animation_foreground_display_area_duration_ms" value="@integer/enter_exit_animation_foreground_display_area_duration_ms"/>
-
-    <item target="array/config_homeCardModuleClasses" value="@array/config_homeCardModuleClasses"/>
-</overlay>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.android.car.rotary.ime.rro">
+    <application android:hasCode="false"/>
+    <overlay android:targetName="CarRotaryController"
+             android:targetPackage="com.android.car.rotary"
+             android:resourcesMap="@xml/overlays"
+             android:isStatic="true" />
+</manifest>

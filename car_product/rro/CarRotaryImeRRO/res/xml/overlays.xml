@@ -13,12 +13,7 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
+
 <overlay>
-    <item target="id/bottom_card" value="@id/bottom_card" />
-
-    <item target="layout/car_launcher" value="@layout/car_launcher"/>
-
-    <item target="integer/enter_exit_animation_foreground_display_area_duration_ms" value="@integer/enter_exit_animation_foreground_display_area_duration_ms"/>
-
-    <item target="array/config_homeCardModuleClasses" value="@array/config_homeCardModuleClasses"/>
+    <item target="string/rotary_input_method" value="@string/rotary_input_method"/>
 </overlay>
