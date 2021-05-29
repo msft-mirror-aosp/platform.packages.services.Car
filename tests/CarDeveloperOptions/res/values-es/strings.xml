@@ -730,7 +730,7 @@
     <string name="bluetooth_settings_title" msgid="7261244857456521825">"Bluetooth"</string>
     <string name="bluetooth_settings_summary" msgid="1221689092429277887">"Administrar conexiones, establecer el nombre del dispositivo y la visibilidad"</string>
     <string name="bluetooth_pairing_request" msgid="7221745525632573125">"¿Emparejar con <xliff:g id="DEVICE_NAME">%1$s</xliff:g>?"</string>
-    <string name="bluetooth_pairing_key_msg" msgid="1139230917419961975">"Código de vinculación por Bluetooth"</string>
+    <string name="bluetooth_pairing_key_msg" msgid="1139230917419961975">"Código de emparejamiento por Bluetooth"</string>
     <string name="bluetooth_enter_passkey_msg" msgid="6205151011298670207">"Escribe el código de vinculación y, a continuación, pulsa la tecla Intro"</string>
     <string name="bluetooth_enable_alphanumeric_pin" msgid="9138308197078115672">"El PIN contiene letras o símbolos."</string>
     <string name="bluetooth_pin_values_hint" msgid="8044671726261326240">"Normalmente: 0000 o 1234"</string>
@@ -765,7 +765,7 @@
     <string name="bluetooth_device_context_connect_advanced" msgid="423463405499392444">"Opciones…"</string>
     <string name="bluetooth_menu_advanced" msgid="7566858513372603652">"Ajustes avanzados"</string>
     <string name="bluetooth_advanced_titlebar" msgid="6459469494039004784">"Ajustes avanzados de Bluetooth"</string>
-    <string name="bluetooth_empty_list_bluetooth_off" msgid="6255367297830430459">"Cuando el Bluetooth está activado, tu dispositivo se puede comunicar con otros dispositivos con Bluetooth cercanos"</string>
+    <string name="bluetooth_empty_list_bluetooth_off" msgid="6255367297830430459">"Cuando el Bluetooth está activado, tu dispositivo se puede comunicar con otros dispositivos cercanos que tengan Bluetooth"</string>
     <string name="bluetooth_scanning_on_info_message" msgid="5460370815156050550">"Si el Bluetooth está activado, el dispositivo se puede comunicar con otros dispositivos Bluetooth cercanos.\n\nPara mejorar la experiencia de uso del dispositivo, las aplicaciones y los servicios pueden seguir buscando dispositivos cercanos en cualquier momento, aunque el Bluetooth esté desactivado. Esta opción se puede utilizar, por ejemplo, para mejorar los servicios y funciones basados en la ubicación, y puedes cambiarla en los "<annotation id="link">"ajustes de búsqueda"</annotation>"."</string>
     <string name="ble_scan_notify_text" msgid="6290170236546386932">"Para mejorar la precisión de la ubicación, los servicios y las aplicaciones del sistema pueden seguir detectando dispositivos Bluetooth. Puedes cambiar esta opción en los <xliff:g id="LINK_BEGIN_0">LINK_BEGIN</xliff:g>ajustes de búsqueda de Bluetooth<xliff:g id="LINK_END_1">LINK_END</xliff:g>."</string>
     <string name="bluetooth_connect_failed" msgid="1151234676456333786">"No se ha podido establecer conexión. Vuelve a intentarlo."</string>
@@ -934,7 +934,7 @@
     <string name="wifi_ip_settings" msgid="4636102290236116946">"Ajustes de IP"</string>
     <string name="wifi_privacy_settings" msgid="4462092795794247809">"Privacidad"</string>
     <string name="wifi_privacy_settings_ephemeral_summary" msgid="2411375348287064283">"Dirección MAC aleatoria"</string>
-    <string name="wifi_dpp_add_device_to_network" msgid="8871041525483253430">"Añadir un dispositivo"</string>
+    <string name="wifi_dpp_add_device_to_network" msgid="8871041525483253430">"Añade un dispositivo"</string>
     <string name="wifi_dpp_center_qr_code" msgid="3826108361797476758">"Encuadra el código QR abajo para añadir el dispositivo a \"<xliff:g id="SSID">%1$s</xliff:g>\""</string>
     <string name="wifi_dpp_scan_qr_code" msgid="6021600592661235546">"Escanea el código QR"</string>
     <string name="wifi_dpp_scan_qr_code_join_network" msgid="3085162928804379545">"Encuadra el código QR abajo para conectarte a \"<xliff:g id="SSID">%1$s</xliff:g>\""</string>
@@ -2451,7 +2451,7 @@
     <string name="battery_saver_auto_no_schedule" msgid="739814529432092706">"Sin programación"</string>
     <string name="battery_saver_auto_routine" msgid="886514412067906980">"Basado en tu rutina"</string>
     <string name="battery_saver_auto_percentage" msgid="5791982309331921556">"Según el porcentaje"</string>
-    <string name="battery_saver_auto_routine_summary" msgid="9182044424547482889">"Ahorro de batería se activa si es probable que te quedes sin batería antes de tu próxima carga normal."</string>
+    <string name="battery_saver_auto_routine_summary" msgid="9182044424547482889">"Ahorro de batería se activa si es probable que te quedes sin batería antes de tu próxima carga habitual"</string>
     <string name="battery_saver_auto_percentage_summary" msgid="2036128588460338677">"Se activará cuando llegue al <xliff:g id="PERCENT">%1$s</xliff:g>"</string>
     <string name="battery_saver_schedule_settings_title" msgid="574233428557678128">"Establecer una programación"</string>
     <string name="battery_saver_sticky_title_new" msgid="5328707297110866082">"Desactivar con la carga al máximo"</string>
@@ -2530,7 +2530,7 @@
     <string name="credentials_reset" msgid="355080737664731678">"Borrar credenciales"</string>
     <string name="credentials_reset_summary" msgid="7622528359699428555">"Quita todos los certificados"</string>
     <string name="trusted_credentials" msgid="6989242522455395200">"Credenciales de confianza"</string>
-    <string name="trusted_credentials_summary" msgid="7411781319056251582">"Muestra los certificados de CA de confianza"</string>
+    <string name="trusted_credentials_summary" msgid="7411781319056251582">"Muestra los certificados AC de confianza"</string>
     <string name="user_credentials" msgid="8365731467650306757">"Credenciales de usuario"</string>
     <string name="user_credentials_summary" msgid="7350223899317423252">"Consulta y modifica credenciales almacenadas"</string>
     <string name="advanced_security_title" msgid="286883005673855845">"Ajustes avanzados"</string>
@@ -2576,7 +2576,7 @@
     <string name="sms_access_restriction_enabled" msgid="3006320256764718303">"Restringir acceso al registro de llamadas y SMS"</string>
     <string name="sms_access_restriction_enabled_summary" msgid="9011946580977780063">"Solo las aplicaciones de teléfono y mensajería predeterminadas tienen permiso para acceder al registro de llamadas y SMS"</string>
     <string name="no_trust_agents" msgid="5757792915019113084">"No hay agentes de confianza disponibles"</string>
-    <string name="add_device_admin_msg" msgid="3573765823476931173">"¿Activar administrador de dispositivos?"</string>
+    <string name="add_device_admin_msg" msgid="3573765823476931173">"¿Activar aplicación de administrador de dispositivos?"</string>
     <string name="add_device_admin" msgid="1621152410207260584">"Activar esta aplicación de administrador de dispositivos"</string>
     <string name="device_admin_add_title" msgid="6097881332139146897">"Administrador de dispositivos"</string>
     <string name="device_admin_warning" msgid="4421817419326480449">"Activar esta aplicación de administrador permitirá que <xliff:g id="APP_NAME">%1$s</xliff:g> pueda hacer lo siguiente:"</string>
@@ -2816,7 +2816,7 @@
     <string name="one_userkey" msgid="5349738921509013845">"una clave de usuario"</string>
     <string name="one_usercrt" msgid="856282310586987313">"un certificado de usuario"</string>
     <string name="one_cacrt" msgid="4757720453112732485">"un certificado AC"</string>
-    <string name="n_cacrts" msgid="7539893176217891549">"%d certificados de CA"</string>
+    <string name="n_cacrts" msgid="7539893176217891549">"%d certificados AC"</string>
     <string name="user_credential_title" msgid="6237611303219831419">"Detalles de credenciales"</string>
     <string name="user_credential_removed" msgid="6243576567538844852">"Quitar credencial: <xliff:g id="CREDENTIAL_NAME">%s</xliff:g>"</string>
     <string name="user_credential_none_installed" msgid="4129252817676332368">"No hay credenciales de usuario instaladas"</string>
@@ -2925,7 +2925,7 @@
     <string name="nfc_payment_favor_open" msgid="3739055715000436749">"Excepto si hay otra aplicación de pago abierta"</string>
     <string name="nfc_payment_pay_with" msgid="8412558374792061266">"En terminales Toca y paga, pagar con:"</string>
     <string name="nfc_how_it_works_title" msgid="6531433737926327904">"Cómo pagar en el terminal"</string>
-    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"Configura una aplicación de pago. A continuación, solo tienes que sostener la parte trasera del teléfono sobre cualquier terminal con el símbolo de pago contactless."</string>
+    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"Primero configura una aplicación de pago. Cuando lo hayas hecho, solo tienes que acercar la parte trasera del dispositivo sobre cualquier terminal con el símbolo de pago contactless."</string>
     <string name="nfc_how_it_works_got_it" msgid="2432535672153247411">"Entendido"</string>
     <string name="nfc_more_title" msgid="2825856411836382264">"Más..."</string>
     <string name="nfc_payment_set_default_label" msgid="3997927342761454042">"¿Establecer como preferencia?"</string>
@@ -4203,7 +4203,7 @@
     <string name="enterprise_privacy_ca_certs_personal" msgid="1356447417193483802">"Credenciales de confianza en tu perfil personal"</string>
     <string name="enterprise_privacy_ca_certs_work" msgid="836419648894546893">"Credenciales de confianza en tu perfil de trabajo"</string>
     <plurals name="enterprise_privacy_number_ca_certs" formatted="false" msgid="7953528945502561752">
-      <item quantity="other">Como mínimo, <xliff:g id="COUNT_1">%d</xliff:g> certificados de CA</item>
+      <item quantity="other">Como mínimo, <xliff:g id="COUNT_1">%d</xliff:g> certificados AC</item>
       <item quantity="one">Como mínimo, <xliff:g id="COUNT_0">%d</xliff:g> certificado de CA</item>
     </plurals>
     <string name="enterprise_privacy_lock_device" msgid="1533125067038409945">"El administrador puede bloquear el dispositivo y cambiar la contraseña"</string>
