@@ -181,7 +181,7 @@
     <string name="connected_device_add_device_summary" msgid="7960491471270158891">"ജോടിയാക്കുന്നതിന് Bluetooth ഓണാക്കപ്പെടും"</string>
     <string name="connected_device_connections_title" msgid="9205000271382018428">"കണക്ഷൻ മുൻഗണനകൾ"</string>
     <string name="connected_device_previously_connected_title" msgid="225918223397410428">"മുമ്പ് കണക്‌റ്റ് ചെയ്തിട്ടുള്ള ഉപകരണങ്ങൾ"</string>
-    <string name="connected_device_previously_connected_screen_title" msgid="2018789662358162716">"മുമ്പേ കണക്‌റ്റ് ചെയ്‌തവ"</string>
+    <string name="connected_device_previously_connected_screen_title" msgid="2018789662358162716">"മുമ്പ് കണക്‌റ്റ് ചെയ്‌തവ"</string>
     <string name="connected_device_bluetooth_turned_on_toast" msgid="4652326177920814476">"Bluetooth ഓണാക്കി"</string>
     <string name="previous_connected_see_all" msgid="7237095013087310923">"എല്ലാം കാണുക"</string>
     <string name="date_and_time" msgid="2957463607025909857">"തീയതിയും സമയവും"</string>
@@ -1458,7 +1458,7 @@
     <string name="storage_detail_system" msgid="6784247618772153283">"സിസ്‌റ്റം"</string>
     <string name="storage_detail_explore" msgid="8206900269596580264">"<xliff:g id="NAME">^1</xliff:g> അടുത്തറിയുക"</string>
     <string name="storage_detail_dialog_other" msgid="5073511663616043370">"മറ്റുള്ളവയിൽ, ആപ്പുകൾ സംരക്ഷിച്ചിട്ടുള്ള പങ്കിട്ട ഫയലുകളും ഇന്‍റർനെറ്റിൽ നിന്നോ Bluetooth-ൽ നിന്നോ ഡൗൺലോഡ് ചെയ്തിട്ടുള്ള ഫയലുകളും Android ഫയലുകളും മറ്റും ഉൾപ്പെടുന്നു. \n\nഈ <xliff:g id="NAME">^1</xliff:g> എന്നതിന്‍റെ മുഴുവൻ ഉള്ളടക്കങ്ങളും കാണാൻ, ടാപ്പ് ചെയ്യുക."</string>
-    <string name="storage_detail_dialog_system" msgid="1472572861360014226">"സിസ്‌റ്റത്തിൽ Android പതിപ്പ് <xliff:g id="VERSION">%s</xliff:g> റൺ ചെയ്യാൻ ഉപയോഗിച്ച ഫയലുകളും ഉൾപ്പെടുന്നു"</string>
+    <string name="storage_detail_dialog_system" msgid="1472572861360014226">"സിസ്‌റ്റത്തിൽ Android <xliff:g id="VERSION">%s</xliff:g> പതിപ്പ് റൺ ചെയ്യാൻ ഉപയോഗിച്ച ഫയലുകളും ഉൾപ്പെടുന്നു"</string>
     <string name="storage_detail_dialog_user" msgid="1663117417635010371">"<xliff:g id="USER_0">^1</xliff:g> എന്ന ഉപയോക്താവിന്, സ്റ്റോറേജിന്റെ <xliff:g id="SIZE">^2</xliff:g> ഉപയോഗിക്കുന്ന, സംരക്ഷിച്ചിട്ടുള്ള ഫോട്ടോകളോ സംഗീതമോ ആപ്‌സോ മറ്റ് ഡാറ്റയോ ഉണ്ടായേക്കാം. \n\nകൂടുതൽ വിശദാംശങ്ങൾ കാണുന്നതിന്, <xliff:g id="USER_1">^1</xliff:g> എന്ന ഉപയോക്താവിലേക്ക് മാറുക."</string>
     <string name="storage_wizard_init_title" msgid="3407283236421089014">"നിങ്ങളുടെ <xliff:g id="NAME">^1</xliff:g> സജ്ജമാക്കുക"</string>
     <string name="storage_wizard_init_external_title" msgid="6853250619674645478">"പോർട്ടബിൾ സംഭരണമായി ഉപയോഗിക്കുക"</string>
@@ -2328,8 +2328,8 @@
     <string name="smart_battery_footer" product="device" msgid="3971715848890205632">"ആപ്പുകൾ ബാറ്ററി ഉപയോഗിച്ചുതീർക്കുന്നതായി ബാറ്ററി മാനേജർ കണ്ടെത്തുമ്പോൾ, ഈ ആപ്പുകൾ നിയന്ത്രിക്കാനുള്ള ഓപ്‌ഷൻ നിങ്ങൾക്കുണ്ട്. നിയന്ത്രിത ആപ്പുകൾ ശരിയായ രീതിയിൽ പ്രവർത്തിക്കാതിരിക്കുകയും അറിയിപ്പുകൾ വൈകുകയും ചെയ്‌തേക്കാം."</string>
     <string name="restricted_app_title" msgid="4957644700640127606">"നിയന്ത്രിത ആപ്പുകൾ"</string>
     <plurals name="restricted_app_summary" formatted="false" msgid="7609538735465186040">
-      <item quantity="other">%1$d ആപ്പുകൾക്കായി ബാറ്ററി ഉപഭോഗം നിയന്ത്രിക്കുന്നു</item>
-      <item quantity="one">%1$d ആപ്പിനായി ബാറ്ററി ഉപഭോഗം നിയന്ത്രിക്കുന്നു</item>
+      <item quantity="other">%1$d ആപ്പുകളുടെ ബാറ്ററി ഉപഭോഗം നിയന്ത്രിക്കുന്നു</item>
+      <item quantity="one">%1$d ആപ്പിന്റെ ബാറ്ററി ഉപഭോഗം നിയന്ത്രിക്കുന്നു</item>
     </plurals>
     <string name="restricted_app_time_summary" msgid="5205881852523135226">"<xliff:g id="TIME">%1$s</xliff:g> നിയന്ത്രിതം"</string>
     <string name="restricted_app_detail_footer" msgid="482460517275754465">"ഈ ആപ്പുകൾ പശ്ചാത്തലത്തിൽ ബാറ്ററി ഉപയോഗിച്ച് കൊണ്ടിരിക്കുന്നു. നിയന്ത്രിത ആപ്പുകൾ ശരിയായ രീതിയിൽ പ്രവർത്തിക്കാതിരിക്കുകയും അറിയിപ്പുകൾ വൈകുകയും ചെയ്‌തേക്കാം."</string>
@@ -2449,7 +2449,7 @@
     <string name="battery_saver" msgid="3989710213758938398">"ബാറ്ററി ലാഭിക്കൽ"</string>
     <string name="battery_saver_auto_title" msgid="4158659069641849952">"സ്വമേധയാ ഓണാക്കുക"</string>
     <string name="battery_saver_auto_no_schedule" msgid="739814529432092706">"ഷെഡ്യൂള്‍‌ ഒന്നുമില്ല"</string>
-    <string name="battery_saver_auto_routine" msgid="886514412067906980">"പതിവ് ഷെഡ്യൂള്‍‌ അടിസ്ഥാനമാക്കി"</string>
+    <string name="battery_saver_auto_routine" msgid="886514412067906980">"ദിനചര്യ അടിസ്ഥാനമാക്കി"</string>
     <string name="battery_saver_auto_percentage" msgid="5791982309331921556">"ശതമാനം അടിസ്ഥാനമാക്കി"</string>
     <string name="battery_saver_auto_routine_summary" msgid="9182044424547482889">"അടുത്ത ചാർജ് ചെയ്യലിന് മുമ്പായി നിങ്ങളുടെ ബാറ്ററിയുടെ ചാർജ് തീരാൻ സാധ്യതയുണ്ടെങ്കിൽ, ബാറ്ററി ലാഭിക്കൽ ഓണാകുന്നു"</string>
     <string name="battery_saver_auto_percentage_summary" msgid="2036128588460338677">"<xliff:g id="PERCENT">%1$s</xliff:g>-ത്തിൽ ഇത് ഓണാകും"</string>
@@ -3286,7 +3286,7 @@
     <string name="work_ringtone_title" msgid="5499360583947410224">"ഔദ്യോഗിക ഫോൺ റിംഗ്‌ടോൺ"</string>
     <string name="work_notification_ringtone_title" msgid="8059159087214025757">"ഡിഫോൾട്ട് ഔദ്യോഗിക അറിയിപ്പ് ശബ്‌ദം"</string>
     <string name="work_alarm_ringtone_title" msgid="5328487181385375130">"ഡിഫോൾട്ട് ഔദ്യോഗിക അലാറം ശബ്‌ദം"</string>
-    <string name="work_sound_same_as_personal" msgid="7728560881697159758">"വ്യക്തിഗത പ്രൊഫൈലിന് സമാനം"</string>
+    <string name="work_sound_same_as_personal" msgid="7728560881697159758">"വ്യക്തിപര പ്രൊഫൈലിന് സമാനം"</string>
     <string name="work_sync_dialog_title" msgid="4799120971202956837">"ശബ്‌ദങ്ങൾ മാറ്റി സ്ഥാപിക്കണോ?"</string>
     <string name="work_sync_dialog_yes" msgid="2110726233746476066">"മാറ്റിസ്ഥാപിക്കുക"</string>
     <string name="work_sync_dialog_message" msgid="944233463059129156">"നിങ്ങളുടെ  വ്യക്തിഗത പ്രൊഫൈൽ ശബ്ദങ്ങൾ ഔദ്യോഗിക പ്രൊഫൈലുകൾക്കും ഉപയോഗിക്കും"</string>
@@ -3480,7 +3480,7 @@
     <string name="zen_mode_calls" msgid="1844534357711539325">"കോളുകൾ അനുവദിക്കുക"</string>
     <string name="zen_mode_calls_title" msgid="2024387562355793661">"കോളുകൾ"</string>
     <string name="zen_mode_calls_footer" msgid="6319824006810688433">"കോളുകൾ വരുമ്പോൾ ശബ്‌ദം ഉണ്ടാകുന്നുണ്ട് എന്ന് ഉറപ്പാക്കാനായി നിങ്ങളുടെ ഫോൺ റിംഗ്, വൈബ്രേറ്റ് അല്ലെങ്കിൽ നിശബ്‌ദ മോഡ് ഇവയിൽ ഏതിലാണ് സജ്ജീകരിച്ചിരിക്കുന്നതെന്ന് പരിശോധിക്കുക."</string>
-    <string name="zen_mode_custom_calls_footer" msgid="7329231648477682337">"‘<xliff:g id="SCHEDULE_NAME">%1$s</xliff:g>’ എന്നതിനായുള്ള ഇന്‍‌കമിംഗ് കോളുകള്‍ ബ്ലോക്ക് ചെയ്‌തിരിക്കുന്നു. സുഹൃത്തുക്കളേയും കുടുംബാംഗങ്ങളേയും മറ്റ് കോണ്‍‌ടാക്‌റ്റുകളേയും നിങ്ങളിലേക്ക് എത്തിച്ചേരാന്‍ അനുവദിക്കുന്നതിന്‌ ക്രമീകരണങ്ങളിൽ മാറ്റം വരുത്താനാവും."</string>
+    <string name="zen_mode_custom_calls_footer" msgid="7329231648477682337">"‘<xliff:g id="SCHEDULE_NAME">%1$s</xliff:g>’ എന്നതിന് ഇന്‍‌കമിംഗ് കോളുകള്‍ ബ്ലോക്ക് ചെയ്‌തിരിക്കുന്നു. സുഹൃത്തുക്കളേയും കുടുംബാംഗങ്ങളേയും മറ്റ് കോണ്‍‌ടാക്‌റ്റുകളേയും നിങ്ങളിലേക്ക് എത്തിച്ചേരാന്‍ അനുവദിക്കുന്നതിന്‌ ക്രമീകരണങ്ങളിൽ മാറ്റം വരുത്താം."</string>
     <string name="zen_mode_starred_contacts_title" msgid="7099621384597127058">"നക്ഷത്രചിഹ്നമിട്ട കോൺടാക്‌റ്റുകൾ"</string>
     <plurals name="zen_mode_starred_contacts_summary_additional_contacts" formatted="false" msgid="1904181007981570805">
       <item quantity="other">മറ്റ് <xliff:g id="NUM_PEOPLE">%d</xliff:g> പേർ</item>
@@ -3888,7 +3888,7 @@
     <string name="condition_expand_show" msgid="4118818022763913777">"കാണിക്കുക"</string>
     <string name="condition_expand_hide" msgid="1112721783024332643">"മറയ്ക്കുക"</string>
     <string name="condition_hotspot_title" msgid="4143299802283098506">"ഹോട്ട്‌സ്പോട്ട് സജീവമാണ്"</string>
-    <string name="condition_airplane_title" msgid="8484582712516148433">"വിമാന മോഡ് ഓണാണ്"</string>
+    <string name="condition_airplane_title" msgid="8484582712516148433">"ഫ്ലൈറ്റ് മോഡ് ഓണാണ്"</string>
     <string name="condition_airplane_summary" msgid="3021193218494740742">"നെറ്റ്‌വർക്ക് നിലവിൽ ലഭ്യമല്ല"</string>
     <string name="condition_zen_title" msgid="2128184708916052585">"\'ശല്യപ്പെടുത്തരുത്\' ഓണാണ്"</string>
     <string name="condition_zen_summary_phone_muted" msgid="4396050395522974654">"ഫോൺ മ്യൂട്ട് ചെയ്‌തു"</string>
