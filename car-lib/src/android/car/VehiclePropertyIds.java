@@ -67,7 +67,7 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_FUEL_TYPE = 289472773;
     /**
-     * Battery capacity of the vehicle, if EV or hybrid.  This is the nominal
+     * Battery capacity of the vehicle in watt-hours (Wh), if EV or hybrid. This is the nominal
      * battery capacity when the vehicle is new.
      * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
@@ -130,19 +130,29 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EXTERIOR_DIMENSIONS = 289472779;
     /**
-     * Current odometer value of the vehicle
+     * Current odometer value of the vehicle in kilometers.
      * The property is protected by the signature permission: android.car.permission.CAR_MILEAGE.
      */
     @RequiresPermission(Car.PERMISSION_MILEAGE)
     public static final int PERF_ODOMETER = 291504644;
     /**
-     * Speed of the vehicle
-     * Requires permission: {@link Car#PERMISSION_SPEED}.
+     * Speed of the vehicle in meters per second.
+     *
+     * <p>PERF_VEHICLE_SPEED property is {@link VehiclePropertyAccess#READ} access, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}, and returns a Float type value.
+     *
+     * <p>When the vehicle is moving forward, PERF_VEHICLE_SPEED is positive and negative when the
+     * vehicle is moving backward. Also, this value is independent of gear value (CURRENT_GEAR or
+     * GEAR_SELECTION). For example, if GEAR_SELECTION is GEAR_NEUTRAL, PERF_VEHICLE_SPEED is
+     * positive when the vehicle is moving forward, negative when moving backward, and zero when
+     * not moving.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_SPEED}.
      */
     @RequiresPermission(Car.PERMISSION_SPEED)
     public static final int PERF_VEHICLE_SPEED = 291504647;
     /**
-     * Speed of the vehicle for displays
+     * Speed of the vehicle in meters per second for displays.
      *
      * Some cars display a slightly slower speed than the actual speed. This is
      * usually displayed on the speedometer.
@@ -151,23 +161,23 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_SPEED)
     public static final int PERF_VEHICLE_SPEED_DISPLAY = 291504648;
     /**
-     * Front bicycle model steering angle for vehicle
+     * Front bicycle model steering angle for vehicle in degrees.
      *
-     * Angle is in degrees. Left is negative.
+     * Left is negative.
      * Requires permission: {@link Car#PERMISSION_READ_STEERING_STATE}.
      */
     @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
     public static final int PERF_STEERING_ANGLE = 291504649;
     /**
-     * Rear bicycle model steering angle for vehicle
+     * Rear bicycle model steering angle for vehicle in degrees.
      *
-     * Angle is in degrees. Left is negative.
+     * Left is negative.
      * Requires permission: {@link Car#PERMISSION_READ_STEERING_STATE}.
      */
     @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
     public static final int PERF_REAR_STEERING_ANGLE = 291504656;
     /**
-     * Temperature of engine coolant
+     * Temperature of engine coolant in celsius.
      * The property is protected by the signature permission:
      * android.car.permission.CAR_ENGINE_DETAILED.
      */
@@ -181,7 +191,7 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_OIL_LEVEL = 289407747;
     /**
-     * Temperature of engine oil
+     * Temperature of engine oil in celsius.
      * The property is protected by the signature permission:
      * android.car.permission.CAR_ENGINE_DETAILED.
      */
@@ -195,8 +205,44 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_RPM = 291504901;
     /**
-     * Reports wheel ticks
-     * Requires permission: {@link Car#PERMISSION_SPEED}.
+     * Reports wheel ticks.
+     *
+     * <p>WHEEL_TICK property is {@link VehiclePropertyAccess#Read} access,
+     * {@link CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} and returns a Long[] type
+     * value.
+     *
+     * <p>The first element in the array is a reset count.  A reset indicates
+     * previous tick counts are not comparable with this and future ones.  Some
+     * sort of discontinuity in tick counting has occurred.
+     *
+     * <p>The next four elements represent ticks for individual wheels in the
+     * following order: front left, front right, rear right, rear left.  All
+     * tick counts are cumulative.  Tick counts increment when the vehicle
+     * moves forward, and decrement when vehicles moves in reverse.  The ticks
+     * should be reset to 0 when the vehicle is started by the user.
+     *
+     * <ul>
+     *  <li>Long[0] = reset count
+     *  <li>Long[1] = front left ticks
+     *  <li>Long[2] = front right ticks
+     *  <li>Long[3] = rear right ticks
+     *  <li>Long[4] = rear left ticks
+     * </ul>
+     *
+     * <p>configArray is used to indicate the micrometers-per-wheel-tick value and
+     * which wheels are supported. configArray is set as follows:
+     *
+     * <ul>
+     *  <li>configArray[0], bits [0:3] = supported wheels.  Uses enum Wheel.
+     *  <li>configArray[1] = micrometers per front left wheel tick
+     *  <li>configArray[2] = micrometers per front right wheel tick
+     *  <li>configArray[3] = micrometers per rear right wheel tick
+     *  <li>configArray[4] = micrometers per rear left wheel tick
+     * </ul>
+     *
+     * <p>NOTE:  If a wheel is not supported, its value is always 0.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_SPEED}.
      */
     @RequiresPermission(Car.PERMISSION_SPEED)
     public static final int WHEEL_TICK = 290521862;
@@ -216,7 +262,7 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ENERGY_PORTS))
     public static final int FUEL_DOOR_OPEN = 287310600;
     /**
-     * EV battery level in WH, if EV or hybrid
+     * EV battery level in watt-hours (Wh), if EV or hybrid.
      * Requires permission: {@link Car#PERMISSION_ENERGY}.
      */
     @RequiresPermission(Car.PERMISSION_ENERGY)
@@ -256,7 +302,7 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_ADJUST_RANGE_REMAINING))
     public static final int RANGE_REMAINING = 291504904;
     /**
-     * Tire pressure
+     * Tire pressure in kilopascals.
      *
      * min/max value indicates tire pressure sensor range.  Each tire will have a separate min/max
      * value denoted by its areaConfig.areaId.
@@ -358,7 +404,7 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_FAN_DIRECTION = 356517121;
     /**
-     * HVAC current temperature.
+     * HVAC current temperature in celsius.
      * The property is protected by the signature permission:
      * android.car.permission.CONTROL_CAR_CLIMATE.
      */
@@ -625,7 +671,7 @@ public final class VehiclePropertyIds {
             Car.PERMISSION_VENDOR_EXTENSION}))
     public static final int FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME = 287311364;
     /**
-     * Outside temperature
+     * Outside temperature in celsius.
      * Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_ENVIRONMENT)

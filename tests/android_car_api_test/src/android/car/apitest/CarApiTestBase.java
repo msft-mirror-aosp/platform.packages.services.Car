@@ -26,13 +26,16 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 
 import android.annotation.NonNull;
+import android.app.UiAutomation;
 import android.car.Car;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ServiceConnection;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
@@ -44,6 +47,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 
+import java.io.BufferedReader;
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -135,17 +143,62 @@ abstract class CarApiTestBase {
         }
     }
 
-    protected static void suspendToRamAndResume() throws Exception {
+    protected static void suspendToRamAndResume(boolean disableBackgroundUsersStart)
+            throws Exception {
         Log.d(TAG, "Emulate suspend to RAM and resume");
-        PowerManager powerManager = sContext.getSystemService(PowerManager.class);
-        runShellCommand("cmd car_service suspend");
-        // Check for suspend success
-        waitUntil("screen is still on after suspend",
-                SUSPEND_TIMEOUT_MS, () -> !powerManager.isScreenOn());
+        try {
+            if (disableBackgroundUsersStart) {
+                runShellCommand("cmd car_service set-start-bg-users-on-garage-mode false");
+            }
 
-        // Force turn off garage mode
-        runShellCommand("cmd car_service garage-mode off");
-        runShellCommand("cmd car_service resume");
+            PowerManager powerManager = sContext.getSystemService(PowerManager.class);
+            // clear log
+            runShellCommand("logcat -b all -c");
+            runShellCommand("cmd car_service suspend");
+            // Check for suspend success
+            waitUntil("screen is still on after suspend",
+                    SUSPEND_TIMEOUT_MS, () -> !powerManager.isScreenOn());
+
+            // Force turn off garage mode
+            runShellCommand("cmd car_service garage-mode off");
+            runShellCommand("cmd car_service resume");
+            waitForLogcatMessage("logcat -b events", "car_user_svc_initial_user_info_req_complete: "
+                    + InitialUserInfoRequestType.RESUME, 60_000);
+        } catch (Exception e) {
+            runShellCommand("cmd car_service set-start-bg-users-on-garage-mode true");
+        }
+    }
+
+    /**
+     * Wait for a particular logcat message.
+     *
+     * @param cmd is logcat command with buffer or filters
+     * @param match is the string to be found in the log
+     * @param timeoutMs for which call should wait for the match
+     */
+    protected static void waitForLogcatMessage(String cmd, String match, int timeoutMs) {
+        Log.d(TAG, "waiting for logcat match: " + match);
+        long startTime = SystemClock.elapsedRealtime();
+        UiAutomation automation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        ParcelFileDescriptor output = automation.executeShellCommand(cmd);
+        FileDescriptor fd = output.getFileDescriptor();
+        FileInputStream fileInputStream = new FileInputStream(fd);
+        try (BufferedReader bufferedReader = new BufferedReader(
+                new InputStreamReader(fileInputStream))) {
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                if (line.contains(match)) {
+                    Log.d(TAG, "match found in "
+                            + (SystemClock.elapsedRealtime() - startTime) + " ms");
+                    break;
+                }
+                if ((SystemClock.elapsedRealtime() - startTime) > timeoutMs) {
+                    fail("match was not found, Timeout: " + timeoutMs + " ms");
+                }
+            }
+        } catch (IOException e) {
+            fail("match was not found, IO exception: " + e);
+        }
     }
 
     protected static boolean waitUntil(String msg, long timeoutMs,

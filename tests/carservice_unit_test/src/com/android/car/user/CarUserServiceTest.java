@@ -548,15 +548,15 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
         when(mMockedIActivityManager.startUserInBackground(user2)).thenReturn(true);
         when(mMockedIActivityManager.unlockUser(user2, null, null, null)).thenReturn(true);
-        assertThat(mCarUserService.startAllBackgroundUsers()).containsExactly(user2);
+        assertThat(mCarUserService.startAllBackgroundUsersInGarageMode()).containsExactly(user2);
         sendUserUnlockedEvent(user2);
         assertThat(mCarUserService.getBackgroundUsersToRestart()).containsExactly(user2, user3);
 
         when(mMockedIActivityManager.stopUser(user2, true, null))
                 .thenReturn(ActivityManager.USER_OP_SUCCESS);
         // should not stop the current fg user
-        assertThat(mCarUserService.stopBackgroundUser(user3)).isFalse();
-        assertThat(mCarUserService.stopBackgroundUser(user2)).isTrue();
+        assertThat(mCarUserService.stopBackgroundUserInGagageMode(user3)).isFalse();
+        assertThat(mCarUserService.stopBackgroundUserInGagageMode(user2)).isTrue();
         assertThat(mCarUserService.getBackgroundUsersToRestart()).containsExactly(user2, user3);
         assertThat(mCarUserService.getBackgroundUsersToRestart()).containsExactly(user2, user3);
     }
@@ -568,7 +568,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockStopUserWithDelayedLocking(userId, ActivityManager.USER_OP_SUCCESS);
 
         AndroidFuture<UserStopResult> userStopResult = new AndroidFuture<>();
-        mCarUserService.stopUser(userId, userStopResult);
+        stopUser(userId, userStopResult);
 
         assertThat(getResult(userStopResult).getStatus())
                 .isEqualTo(UserStopResult.STATUS_SUCCESSFUL);
@@ -582,8 +582,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockManageUsersPermission(android.Manifest.permission.CREATE_USERS, false);
 
         AndroidFuture<UserStopResult> userStopResult = new AndroidFuture<>();
-        assertThrows(SecurityException.class,
-                () -> mCarUserService.stopUser(userId, userStopResult));
+        assertThrows(SecurityException.class, () -> stopUser(userId, userStopResult));
     }
 
     @Test
@@ -593,7 +592,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockStopUserWithDelayedLockingThrowsRemoteException(userId);
 
         AndroidFuture<UserStopResult> userStopResult = new AndroidFuture<>();
-        mCarUserService.stopUser(userId, userStopResult);
+        stopUser(userId, userStopResult);
 
         assertThat(getResult(userStopResult).getStatus())
                 .isEqualTo(UserStopResult.STATUS_ANDROID_FAILURE);
@@ -607,7 +606,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockStopUserWithDelayedLocking(userId, ActivityManager.USER_OP_UNKNOWN_USER);
 
         AndroidFuture<UserStopResult> userStopResult = new AndroidFuture<>();
-        mCarUserService.stopUser(userId, userStopResult);
+        stopUser(userId, userStopResult);
 
         assertThat(getResult(userStopResult).getStatus())
                 .isEqualTo(UserStopResult.STATUS_USER_DOES_NOT_EXIST);
@@ -620,7 +619,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
                 UserHandle.USER_SYSTEM, ActivityManager.USER_OP_ERROR_IS_SYSTEM);
 
         AndroidFuture<UserStopResult> userStopResult = new AndroidFuture<>();
-        mCarUserService.stopUser(UserHandle.USER_SYSTEM, userStopResult);
+        stopUser(UserHandle.USER_SYSTEM, userStopResult);
 
         assertThat(getResult(userStopResult).getStatus())
                 .isEqualTo(UserStopResult.STATUS_FAILURE_SYSTEM_USER);
@@ -634,7 +633,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockStopUserWithDelayedLocking(userId, ActivityManager.USER_OP_IS_CURRENT);
 
         AndroidFuture<UserStopResult> userStopResult = new AndroidFuture<>();
-        mCarUserService.stopUser(userId, userStopResult);
+        stopUser(userId, userStopResult);
 
         assertThat(getResult(userStopResult).getStatus())
                 .isEqualTo(UserStopResult.STATUS_FAILURE_CURRENT_USER);
@@ -646,7 +645,8 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockStopUserWithDelayedLocking(
                 UserHandle.USER_SYSTEM, ActivityManager.USER_OP_ERROR_IS_SYSTEM);
 
-        assertThat(mCarUserService.stopBackgroundUser(UserHandle.USER_SYSTEM)).isFalse();
+        assertThat(mCarUserService.stopBackgroundUserInGagageMode(UserHandle.USER_SYSTEM))
+                .isFalse();
     }
 
     @Test
@@ -654,7 +654,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         int userId = 101;
         mockStopUserWithDelayedLocking(userId, ActivityManager.USER_OP_IS_CURRENT);
 
-        assertThat(mCarUserService.stopBackgroundUser(userId)).isFalse();
+        assertThat(mCarUserService.stopBackgroundUserInGagageMode(userId)).isFalse();
     }
 
     @Test
@@ -1864,7 +1864,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockAmStartUserInBackground(userId, true);
 
         AndroidFuture<UserStartResult> userStartResult = new AndroidFuture<>();
-        mCarUserService.startUserInBackground(userId, userStartResult);
+        startUserInBackground(userId, userStartResult);
 
         assertThat(getResult(userStartResult).getStatus())
                 .isEqualTo(UserStartResult.STATUS_SUCCESSFUL);
@@ -1879,7 +1879,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
 
         AndroidFuture<UserStartResult> userStartResult = new AndroidFuture<>();
         assertThrows(SecurityException.class,
-                () -> mCarUserService.startUserInBackground(userId, userStartResult));
+                () -> startUserInBackground(userId, userStartResult));
     }
 
     @Test
@@ -1891,7 +1891,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockAmStartUserInBackground(userId, false);
 
         AndroidFuture<UserStartResult> userStartResult = new AndroidFuture<>();
-        mCarUserService.startUserInBackground(userId, userStartResult);
+        startUserInBackground(userId, userStartResult);
 
         assertThat(getResult(userStartResult).getStatus())
                 .isEqualTo(UserStartResult.STATUS_ANDROID_FAILURE);
@@ -1907,7 +1907,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockAmStartUserInBackground(userId, true);
 
         AndroidFuture<UserStartResult> userStartResult = new AndroidFuture<>();
-        mCarUserService.startUserInBackground(userId, userStartResult);
+        startUserInBackground(userId, userStartResult);
 
         assertThat(getResult(userStartResult).getStatus())
                 .isEqualTo(UserStartResult.STATUS_SUCCESSFUL_USER_IS_CURRENT_USER);
@@ -1922,7 +1922,7 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
         mockAmStartUserInBackground(userId, true);
 
         AndroidFuture<UserStartResult> userStartResult = new AndroidFuture<>();
-        mCarUserService.startUserInBackground(userId, userStartResult);
+        startUserInBackground(userId, userStartResult);
 
         assertThat(getResult(userStartResult).getStatus())
                 .isEqualTo(UserStartResult.STATUS_USER_DOES_NOT_EXIST);
@@ -2354,6 +2354,18 @@ public final class CarUserServiceTest extends AbstractExtendedMockitoTestCase {
     private void removeUser(@UserIdInt int userId, boolean hasCallerRestrictions,
             @NonNull AndroidFuture<UserRemovalResult> userRemovalFuture) {
         mCarUserService.removeUser(userId, hasCallerRestrictions, userRemovalFuture);
+        waitForHandlerThreadToFinish();
+    }
+
+    private void startUserInBackground(@UserIdInt int userId,
+            @NonNull AndroidFuture<UserStartResult> userStartResultFuture) {
+        mCarUserService.startUserInBackground(userId, userStartResultFuture);
+        waitForHandlerThreadToFinish();
+    }
+
+    private void stopUser(@UserIdInt int userId,
+            @NonNull AndroidFuture<UserStopResult> userStopResultFuture) {
+        mCarUserService.stopUser(userId, userStopResultFuture);
         waitForHandlerThreadToFinish();
     }
 
