@@ -324,7 +324,7 @@
     <string name="date_and_time_settings_summary" msgid="4617979434474713417">"ရက်စွဲ အချိန် အချိန်ဇုန်နှင့် ပုံစံများအား သတ်မှတ်ရန်"</string>
     <string name="date_time_auto" msgid="2679132152303750218">"ကွန်ရက်က ပြသောအချိန် သုံးပါ"</string>
     <string name="zone_auto_title" msgid="5500880975376882488">"ကွန်ရက်က ဖော်ပြထားသောအချိန်ဇုန်ကို အသုံးပြုရန်"</string>
-    <string name="date_time_24hour_auto" msgid="7499659679134962547">"အသုံးပြုမည့် ဒေသဘာသာစကား၏စနစ်ကို သုံးရန်"</string>
+    <string name="date_time_24hour_auto" msgid="7499659679134962547">"ဒေသ၏ ဘာသာစကားစနစ်ကို သုံးရန်"</string>
     <string name="date_time_24hour_title" msgid="6209923858891621283">"၂၄-နာရီပုံစံ"</string>
     <string name="date_time_24hour" msgid="1265706705061608742">"၂၄-နာရီပုံစံကို အသုံးပြုမည်"</string>
     <string name="date_time_set_time_title" msgid="7116850506333406367">"အချိန်"</string>
@@ -1837,7 +1837,7 @@
     <string name="unknown" msgid="2780743426415501227">"မသိ"</string>
     <string name="sort_order_alpha" msgid="6689698854460261212">"အမည်အလိုက် စီရန်"</string>
     <string name="sort_order_size" msgid="3167376197248713027">"အရွယ်အစားအလိုက် စီရန်"</string>
-    <string name="sort_order_recent_notification" msgid="5592496977404445941">"လတ်တလော"</string>
+    <string name="sort_order_recent_notification" msgid="5592496977404445941">"မကြာသေးမီက"</string>
     <string name="sort_order_frequent_notification" msgid="5640245013098010347">"မကြာခဏ အသုံးအများဆုံး"</string>
     <string name="show_running_services" msgid="1895994322704667543">"လုပ်နေသောဆားဗစ်များပြရန်"</string>
     <string name="show_background_processes" msgid="88012264528093617">"cachedလုပ်ငန်းများပြသရန်"</string>
@@ -1995,7 +1995,7 @@
     <string name="user_dict_settings_add_dialog_less_options" msgid="5678408488188525719">"ရွေးစရာလျှော့ရန်"</string>
     <string name="user_dict_settings_add_dialog_confirm" msgid="7279673661732968137">"OK"</string>
     <string name="user_dict_settings_add_word_option_name" msgid="5310204485783762787">"စာလုံး"</string>
-    <string name="user_dict_settings_add_shortcut_option_name" msgid="1494012163016712256">"အတိုကောက်"</string>
+    <string name="user_dict_settings_add_shortcut_option_name" msgid="1494012163016712256">"ဖြတ်လမ်းလင့်ခ်-"</string>
     <string name="user_dict_settings_add_locale_option_name" msgid="6589803829089582686">"ဘာသာစကား"</string>
     <string name="user_dict_settings_add_word_hint" msgid="4184010899351180735">"စကားလုံးတစ်လုံး ရိုက်ပါ"</string>
     <string name="user_dict_settings_add_shortcut_hint" msgid="2212771507741334156">"ရွေးစရာအတိုကောက်"</string>
@@ -3420,7 +3420,7 @@
     <string name="app_notification_block_summary" msgid="4502146897785692336">"ဤအကြောင်းကြားချက်များကို ဘယ်တော့မှ မပြပါနှင့်"</string>
     <string name="notification_content_block_title" msgid="2805138591864484587">"အကြောင်းကြားချက်များ ပြပါ"</string>
     <string name="notification_content_block_summary" msgid="2743896875255591743">"အရိပ်ထဲ သို့မဟုတ် တွဲချိတ်ထားသည့် စက်ပစ္စည်းများပေါ်တွင် အကြောင်းကြားချက်များကို ဘယ်တော့မှ မပြပါနှင့်"</string>
-    <string name="notification_badge_title" msgid="8989086619255666442">"အကြောင်းကြားချက်အမှတ်အသားကို ခွင့်ပြုရန်"</string>
+    <string name="notification_badge_title" msgid="8989086619255666442">"အကြောင်းကြားချက် အစက်ကို ခွင့်ပြုရန်"</string>
     <string name="notification_channel_badge_title" msgid="8228215248332054612">"အကြောင်းကြားချက် အစက် ပြရန်"</string>
     <string name="app_notification_override_dnd_title" msgid="1757042206738172601">"\'မနှောင့်ယှက်ရ\' နေရာတွင် အစားထိုးခြင်း"</string>
     <string name="app_notification_override_dnd_summary" msgid="3152957611171210980">"\"မနှောင့်ယှက်ရ\" ဖွင့်ထားသည့်အခါ ဤသတိပေးချက်များကို ဆက်ပြီး ဖော်ပြခွင့် ပြုပါ"</string>
@@ -3822,7 +3822,7 @@
     <string name="write_settings_title" msgid="5852614614193830632">"စနစ်ချိန်ညှိချက်များကို ပြန်ပြင်နိုင်သည်"</string>
     <string name="write_system_settings" msgid="20450765210832463">"စနစ်ဆက်တင်များ ပြန်ပြင်ခြင်း"</string>
     <string name="permit_write_settings" msgid="4198491281216818756">"စက်စနစ် ဆက်တင်များကို ပြင်ဆင်ခွင့် ပြုရန်"</string>
-    <string name="write_settings_description" msgid="2536706293042882500">"ဤခွင့်ပြုချက်သည် အပ်ဖ်ကို စနစ်ချိန်ညှိချက်များအား ပြန်ပြင်ခွင့်ပေးသည်။"</string>
+    <string name="write_settings_description" msgid="2536706293042882500">"ဤခွင့်ပြုချက်က အက်ပ်ကို စနစ်ဆက်တင်များ ပြင်ခွင့်ပေးသည်။"</string>
     <string name="write_settings_on" msgid="7328986337962635118">"Yes"</string>
     <string name="write_settings_off" msgid="5708257434958406202">"No"</string>
     <string name="external_source_switch_title" msgid="5947220058496373178">"ဤထုတ်လုပ်သူကို ခွင့်ပြုရန်"</string>
@@ -3833,7 +3833,7 @@
     <string name="screen_zoom_title" msgid="164369086350486104">"ပြသမှု အရွယ်အစား"</string>
     <string name="screen_zoom_short_summary" msgid="5508079362742276703">"မျက်နှာပြင်ပေါ်ရှိ အရာဝတ္ထုများကို ပိုကြီးအောင် သို့မဟုတ် ပိုသေးအောင်ပြုလုပ်ပါ"</string>
     <string name="screen_zoom_keywords" msgid="8358462497896524092">"ဖော်ပြမှု သိပ်သည်းဆ၊ မျက်နှာပြင်ဇူးမ်းထည့်ခြင်း၊ စကေးလ်၊ စကေးလ်သတ်မှတ်ခြင်း"</string>
-    <string name="screen_zoom_summary" msgid="5294003755961312560">"မျက်နှာပြင်ပေါ်ရှိ အရာဝတ္ထုများကို ပိုသေးအောင် သို့မဟုတ် ပိုကြီးအောင်ပြုလုပ်ပါ။ မျက်နှာပြင်ပေါ်ရှိ အချို့အက်ပ်များ တည်နေရာပြောင်းလဲသွားနိုင်ပါသည်။"</string>
+    <string name="screen_zoom_summary" msgid="5294003755961312560">"ဖန်သားပြင်ပေါ်ရှိ အရာများကို ပိုသေးအောင် သို့မဟုတ် ပိုကြီးအောင်ပြုလုပ်သည်။ ဖန်သားပြင်ပေါ်ရှိ အချို့အက်ပ်များ နေရာပြောင်းသွားနိုင်ပါသည်။"</string>
     <string name="screen_zoom_preview_title" msgid="2924312934036753091">"အစမ်းကြည့်မှု"</string>
     <string name="screen_zoom_make_smaller_desc" msgid="1374501139722916729">"ချုံ့ပါ"</string>
     <string name="screen_zoom_make_larger_desc" msgid="5306684807895846141">"ချဲ့ပါ"</string>
@@ -4123,18 +4123,18 @@
     <string name="ambient_display_title" product="default" msgid="6785677099744344088">"ဖုန်းကိုစစ်ရန် နှစ်ချက်တို့ခြင်း"</string>
     <string name="ambient_display_title" product="tablet" msgid="1106285490888683613">"တက်ဘလက်ကို စစ်ဆေးကြည့်ရန် နှစ်ချက်တို့ပါ"</string>
     <string name="ambient_display_title" product="device" msgid="5064644474876041478">"စက်ပစ္စည်းကို စစ်ဆေးကြည့်ရန် နှစ်ချက်တို့ပါ"</string>
-    <string name="ambient_display_summary" msgid="4882910328216411109">"အချိန်၊ အကြောင်းကြားချက်များနှင့် အခြားအချက်အလက်များကို စစ်ရန် သင့်ဖန်သားပြင်ကို နှစ်ချက်တို့ပါ။"</string>
+    <string name="ambient_display_summary" msgid="4882910328216411109">"အချိန်၊ အကြောင်းကြားချက်နှင့် အခြားအချက်အလက်များ ကြည့်ရန် ဖန်သားပြင်ကို နှစ်ချက်တို့ပါ။"</string>
     <string name="ambient_display_pickup_title" product="default" msgid="7141652156907066938">"ဖုန်းစစ်ရန် ကောက်ယူခြင်း"</string>
     <string name="ambient_display_pickup_title" product="tablet" msgid="1555456400210301959">"တက်ဘလက်ကို စစ်ဆေးကြည့်ရန် မ လိုက်ပါ"</string>
     <string name="ambient_display_pickup_title" product="device" msgid="2480126522988135037">"စက်ပစ္စည်းကို စစ်ဆေးကြည့်ရန် မ လိုက်ပါ"</string>
     <string name="ambient_display_wake_screen_title" msgid="3376988352851077102">"မျက်နှာပြင်ကို ဖွင့်ရန်"</string>
-    <string name="ambient_display_pickup_summary" product="default" msgid="8798915340594367449">"အချိန်၊ အကြောင်းကြားချက်များနှင့် အခြားအချက်အလက်များကို စစ်ရန် သင့်ဖုန်းကို မ လိုက်ပါ။"</string>
-    <string name="ambient_display_pickup_summary" product="tablet" msgid="1077745287100012928">"အချိန်၊ အကြောင်းကြားချက်များနှင့် အခြားအချက်အလက်များကို စစ်ရန် သင့်တက်ဘလက်ကို မ လိုက်ပါ။"</string>
-    <string name="ambient_display_pickup_summary" product="device" msgid="404199660076598026">"အချိန်၊ အကြောင်းကြားချက်များနှင့် အခြားအချက်အလက်များကို စစ်ရန် သင့်စက်ပစ္စည်းကို မ လိုက်ပါ။"</string>
+    <string name="ambient_display_pickup_summary" product="default" msgid="8798915340594367449">"အချိန်၊ အကြောင်းကြားချက်နှင့် အခြားအချက်အလက်များ ကြည့်ရန် ဖုန်းကို ကောက်ကိုင်လိုက်ပါ။"</string>
+    <string name="ambient_display_pickup_summary" product="tablet" msgid="1077745287100012928">"အချိန်၊ အကြောင်းကြားချက်နှင့် အခြားအချက်အလက်များ ကြည့်ရန် တက်ဘလက်ကို ကောက်ကိုင်လိုက်ပါ။"</string>
+    <string name="ambient_display_pickup_summary" product="device" msgid="404199660076598026">"အချိန်၊ အကြောင်းကြားချက်နှင့် အခြားအချက်အလက်များ ကြည့်ရန် စက်ပစ္စည်းကို ကောက်ကိုင်လိုက်ပါ။"</string>
     <string name="ambient_display_tap_screen_title" product="default" msgid="2784322628239960695">"ဖုန်းစစ်ရန် တို့ခြင်း"</string>
     <string name="ambient_display_tap_screen_title" product="tablet" msgid="6434521782016864148">"တက်ဘလက်ကို စစ်ဆေးရန် တို့ပါ"</string>
     <string name="ambient_display_tap_screen_title" product="device" msgid="4396793721852647356">"စက်ပစ္စည်းကို စစ်ဆေးရန် တို့ပါ"</string>
-    <string name="ambient_display_tap_screen_summary" msgid="7869039870571925213">"အချိန်၊ အကြောင်းကြားချက်များနှင့် အခြားအချက်အလက်များကို စစ်ဆေးရန် သင့်ဖန်သားပြင်ကို တို့ပါ။"</string>
+    <string name="ambient_display_tap_screen_summary" msgid="7869039870571925213">"အချိန်၊ အကြောင်းကြားချက်နှင့် အခြားအချက်အလက်များ ကြည့်ရန် ဖန်သားပြင်ကို တို့ပါ။"</string>
     <string name="fingerprint_swipe_for_notifications_title" msgid="3676002930672489760">"သတိပေးချက်အတွက် လက်ဗွေပွတ်ဆွဲခြင်း"</string>
     <string name="fingerprint_gesture_screen_title" msgid="8638932855807473479">"လက်ဗွေပွတ်ဆွဲခြင်း"</string>
     <string name="fingerprint_swipe_for_notifications_summary" product="default" msgid="4347999905190477310">"အကြောင်းကြားချက်များကို ကြည့်ရန် ဖုန်း၏ နောက်ကျောဘက်ရှိ လက်ဗွေ အာရုံခံကိရိယာပေါ်တွင် အောက်သို့ ပွတ်ဆွဲပါ။"</string>
@@ -4152,7 +4152,7 @@
     <string name="web_action_enable_title" msgid="4462106633708675959">"ချက်ခြင်းသုံး အက်ပ်များ"</string>
     <string name="web_action_enable_summary" msgid="1729016644691793085">"ထည့်သွင်းထားခြင်း မရှိသေးလျှင်ပင် လင့်ခ်များကို အက်ပ်တွင် ဖွင့်ပါသည်"</string>
     <string name="web_action_section_title" msgid="5563229447734734662">"ချက်ခြင်းသုံး အက်ပ်များ"</string>
-    <string name="instant_apps_settings" msgid="879003203555847537">"Instant Apps ရွေးချယ်မှုများ"</string>
+    <string name="instant_apps_settings" msgid="879003203555847537">"ဦးစားပေး အသင့်သုံးအက်ပ်များ"</string>
     <string name="domain_url_section_title" msgid="206403507921518321">"ထည့်ထားသည့် အက်ပ်များ"</string>
     <string name="automatic_storage_manager_activation_warning" msgid="2630083316417707308">"သင့်သိုလှောင်မှုကို သိုလှောင်မှုမန်နေဂျာက လက်ရှိစီမံခန့်ခွဲနေပါသည်"</string>
     <string name="account_for_section_header" msgid="5975241715840642563">"<xliff:g id="USER_NAME">%1$s</xliff:g> အတွက် အကောင့်များ"</string>
