@@ -389,7 +389,7 @@
     <string name="security_passwords_title" msgid="6853942836045862315">"Datenschutz"</string>
     <string name="disabled_by_administrator_summary" msgid="6099821045360491127">"Vom Administrator deaktiviert"</string>
     <string name="security_status_title" msgid="1261960357751754428">"Sicherheitsstatus"</string>
-    <string name="security_dashboard_summary_face" msgid="2536136110153593745">"Displaysperre, Gesichtserkennung"</string>
+    <string name="security_dashboard_summary_face" msgid="2536136110153593745">"Displaysperre, Entsperrung per Gesichtserkennung"</string>
     <string name="security_dashboard_summary" msgid="4048877125766167227">"Displaysperre und Fingerabdruck"</string>
     <string name="security_dashboard_summary_no_fingerprint" msgid="8861903321053490658">"Displaysperre"</string>
     <string name="security_settings_face_preference_summary" msgid="4437701024542221434">"Gesicht hinzugefügt"</string>
@@ -426,7 +426,7 @@
     <string name="security_settings_face_settings_remove_face_data" msgid="2821359954483136239">"Gesichtsdaten entfernen"</string>
     <string name="security_settings_face_settings_footer" msgid="4627175759990550715">"Du kannst dein Gerät per Gesichtserkennung entsperren und auf deine Apps zugreifen. "<annotation id="url">"Weitere Informationen"</annotation></string>
     <string name="security_settings_face_settings_remove_dialog_title" msgid="5675319895815271094">"Gesichtsdaten löschen?"</string>
-    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"Mit Face Unlock aufgezeichnete Daten werden dauerhaft und sicher gelöscht. Nach dem Entfernen benötigst du deine PIN, dein Muster oder dein Passwort zum Entsperren deines Smartphones, zum Anmelden bei Apps und zum Bestätigen von Zahlungen."</string>
+    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"Daten, die aufgezeichnet wurden, während die Entsperrung per Gesichtserkennung erfolgt ist, werden dauerhaft und sicher gelöscht. Nach dem Entfernen benötigst du deine PIN, dein Muster oder dein Passwort zum Entsperren deines Smartphones, zum Anmelden bei Apps und zum Bestätigen von Zahlungen."</string>
     <string name="security_settings_fingerprint_preference_title" msgid="4177132225930582928">"Fingerabdruck"</string>
     <string name="fingerprint_manage_category_title" msgid="1463406696801542090">"Fingerabdrücke verwalten"</string>
     <string name="fingerprint_usage_category_title" msgid="7298369141954599706">"Abdruck nutzen für"</string>
@@ -819,8 +819,8 @@
     <string name="rx_link_speed" msgid="3735337600274627581">"<xliff:g id="RECEIVE_LINK_SPEED">%1$d</xliff:g> Mbit/s"</string>
     <string name="wifi_ask_enable" msgid="925862998663619616">"<xliff:g id="REQUESTER">%s</xliff:g> fordert die Berechtigung, das WLAN für dieses Gerät zu aktivieren"</string>
     <string name="wifi_ask_disable" msgid="2146839060110412974">"<xliff:g id="REQUESTER">%s</xliff:g> fordert die Berechtigung, das WLAN für dieses Gerät zu deaktivieren"</string>
-    <string name="art_verifier_for_debuggable_title" msgid="5223835619409464642">"Bytecode von Debug-fähigen Apps prüfen"</string>
-    <string name="art_verifier_for_debuggable_summary" msgid="2204242476996701111">"ART die Überprüfung des Bytecodes für Debug-fähige Apps gestatten"</string>
+    <string name="art_verifier_for_debuggable_title" msgid="5223835619409464642">"Bytecode von debug-fähigen Apps prüfen"</string>
+    <string name="art_verifier_for_debuggable_summary" msgid="2204242476996701111">"ART die Überprüfung des Bytecodes für debug-fähige Apps gestatten"</string>
     <string name="nfc_quick_toggle_title" msgid="4990697912813795002">"NFC"</string>
     <string name="nfc_quick_toggle_summary" product="tablet" msgid="983451155092850657">"Datenaustausch bei Kontakt mit anderen Geräten zulassen"</string>
     <string name="nfc_quick_toggle_summary" product="default" msgid="7141056939052895142">"Datenaustausch zulassen, wenn das Smartphone ein anderes Gerät berührt"</string>
@@ -895,7 +895,7 @@
     <string name="wifi_more" msgid="3538241640407382185">"Mehr"</string>
     <string name="wifi_setup_wps" msgid="6730131677695521321">"Automatisches Setup (WPS)"</string>
     <string name="wifi_settings_scanning_required_title" msgid="3593457187659922490">"WLAN-Suche aktivieren?"</string>
-    <string name="wifi_settings_scanning_required_summary" msgid="7469610959462708782">"Damit die WLAN-Funktion automatisch aktiviert werden kann, musst die Funktion \"WLAN-Suche\" aktiviert sein."</string>
+    <string name="wifi_settings_scanning_required_summary" msgid="7469610959462708782">"Damit die WLAN-Funktion automatisch aktiviert werden kann, muss die Funktion „WLAN-Suche“ aktiviert sein."</string>
     <string name="wifi_settings_scanning_required_info" msgid="5913535073390607386">"Wenn die Funktion \"WLAN-Suche\" aktiviert ist, dürfen Apps und Dienste immer nach WLANs suchen, auch wenn die WLAN-Funktion deaktiviert ist. Das hilft z. B. dabei, standortbasierte Funktionen und Dienste zu verbessern."</string>
     <string name="wifi_settings_scanning_required_turn_on" msgid="4327570180594277049">"Aktivieren"</string>
     <string name="wifi_settings_scanning_required_enabled" msgid="3336102100425307040">"WLAN-Suche aktiviert"</string>
@@ -1755,7 +1755,7 @@
     <string name="lockpattern_recording_intro_footer" msgid="5426745740754065099">"Menütaste drücken, um die Hilfe aufzurufen"</string>
     <string name="lockpattern_recording_inprogress" msgid="4060818382176523671">"Wenn du fertig bist, lass das Display los"</string>
     <string name="lockpattern_recording_incorrect_too_short" msgid="6374760294545431845">"Verbinde mindestens <xliff:g id="NUMBER">%d</xliff:g> Punkte. Bitte versuche es noch einmal."</string>
-    <string name="lockpattern_pattern_entered_header" msgid="2108106638322637851">"Muster wurde aufgezeichnet."</string>
+    <string name="lockpattern_pattern_entered_header" msgid="2108106638322637851">"Muster wurde aufgezeichnet"</string>
     <string name="lockpattern_need_to_confirm" msgid="4079482507985867389">"Zeichne das Muster zur Bestätigung erneut"</string>
     <string name="lockpattern_pattern_confirmed_header" msgid="5603156929428721407">"Dein neues Entsperrungsmuster:"</string>
     <string name="lockpattern_confirm_button_text" msgid="7059311304112902598">"Bestätigen"</string>
@@ -1973,7 +1973,7 @@
     <string name="show_ime" msgid="7322620473198763563">"Bildschirmtastatur anzeigen"</string>
     <string name="show_ime_summary" msgid="3246628154011464373">"Bildschirmtastatur auch dann anzeigen, wenn physische Tastatur aktiv ist"</string>
     <string name="keyboard_shortcuts_helper" msgid="6574386807271399788">"Hilfe zu Tastenkombinationen"</string>
-    <string name="keyboard_shortcuts_helper_summary" msgid="8024313306403779742">"Verfügbare Tastenkombinationen anzeigen"</string>
+    <string name="keyboard_shortcuts_helper_summary" msgid="8024313306403779742">"Verfügbare Tastenkürzel anzeigen"</string>
     <string name="language_and_input_for_work_category_title" msgid="2053255944038892588">"Tastaturen und Tools für das Arbeitsprofil"</string>
     <string name="virtual_keyboards_for_work_title" msgid="3968291646938204523">"Bildschirmtastatur für die Arbeit"</string>
     <string name="default_keyboard_layout" msgid="9171704064451242230">"Standard"</string>
@@ -2069,7 +2069,7 @@
     <string name="accessibility_toggle_high_text_contrast_preference_title" msgid="5652244684961877255">"Text mit hohem Kontrast"</string>
     <string name="accessibility_toggle_screen_magnification_auto_update_preference_title" msgid="2466317284195934003">"Vergrößerung automatisch aktualisieren"</string>
     <string name="accessibility_toggle_screen_magnification_auto_update_preference_summary" msgid="6625473745911276917">"Vergrößerung bei App-Übergängen aktualisieren"</string>
-    <string name="accessibility_power_button_ends_call_prerefence_title" msgid="6172987104538172869">"Ein/Aus beendet Anruf"</string>
+    <string name="accessibility_power_button_ends_call_prerefence_title" msgid="6172987104538172869">"Ein/Aus-Taste beendet Anruf"</string>
     <string name="accessibility_toggle_large_pointer_icon_title" msgid="9127905775116570565">"Großer Mauszeiger"</string>
     <string name="accessibility_disable_animations" msgid="8378441317115710009">"Animationen entfernen"</string>
     <string name="accessibility_toggle_master_mono_title" msgid="899550848196702565">"Mono-Audio"</string>
@@ -2450,8 +2450,8 @@
     <string name="battery_saver" msgid="3989710213758938398">"Energiesparmodus"</string>
     <string name="battery_saver_auto_title" msgid="4158659069641849952">"Automatisch aktivieren"</string>
     <string name="battery_saver_auto_no_schedule" msgid="739814529432092706">"Keine Aktivierung nach Zeitplan"</string>
-    <string name="battery_saver_auto_routine" msgid="886514412067906980">"Gemäß meiner Gewohnheiten"</string>
-    <string name="battery_saver_auto_percentage" msgid="5791982309331921556">"Anhand des Ladestands"</string>
+    <string name="battery_saver_auto_routine" msgid="886514412067906980">"Aktivierung gemäß meiner Gewohnheiten"</string>
+    <string name="battery_saver_auto_percentage" msgid="5791982309331921556">"Aktivierung gemäß festgelegtem Akkustand"</string>
     <string name="battery_saver_auto_routine_summary" msgid="9182044424547482889">"Der Energiesparmodus wird automatisch aktiviert, wenn der Akku wahrscheinlich nicht bis zum nächsten Aufladen hält (ermittelt anhand deines üblichen Aufladezeitpunkts)."</string>
     <string name="battery_saver_auto_percentage_summary" msgid="2036128588460338677">"Wird bei <xliff:g id="PERCENT">%1$s</xliff:g> aktiviert"</string>
     <string name="battery_saver_schedule_settings_title" msgid="574233428557678128">"Zeitplan festlegen"</string>
@@ -3099,7 +3099,7 @@
     <string name="keywords_payment_settings" msgid="4745023716567666052">"bezahlen, kontaktlos, Zahlungen"</string>
     <string name="keywords_backup" msgid="7433356270034921627">"Sicherung, sicherung"</string>
     <string name="keywords_assist_gesture_launch" msgid="2711433664837843513">"bewegung, geste, touch-geste"</string>
-    <string name="keywords_face_unlock" msgid="651615819291927262">"Face, Unlock, Gesichtserkennung, Anmeldung"</string>
+    <string name="keywords_face_unlock" msgid="651615819291927262">"Entsperrung per Gesichtserkennung, Authentifizierung, Anmeldung"</string>
     <string name="keywords_imei_info" msgid="4325847870422053408">"imei, meid, Min., prl version, imei sv"</string>
     <string name="keywords_sim_status" msgid="3852088576719874387">"netzwerk, status des mobilfunknetz, servicestatus, signalstärke, art des mobilfunknetzes, roaming, iccid"</string>
     <string name="keywords_model_and_hardware" msgid="2743197096210895251">"seriennummer, hardwareversion"</string>
@@ -3282,7 +3282,7 @@
     <string name="zen_onboarding_current_setting_summary" msgid="3569246708507270821">"(Aktuelle Einstellung)"</string>
     <string name="zen_onboarding_dnd_visual_disturbances_header" msgid="7584229011611927613">"Einstellungen für „Bitte nicht stören“ ändern?"</string>
     <string name="sound_work_settings" msgid="4140215240360927923">"Töne für Arbeitsprofil"</string>
-    <string name="work_use_personal_sounds_title" msgid="531727195073003599">"Töne vom persönlichen Profil verwenden"</string>
+    <string name="work_use_personal_sounds_title" msgid="531727195073003599">"Töne des privaten Profils verwenden"</string>
     <string name="work_use_personal_sounds_summary" msgid="2886871383995187441">"Töne in Arbeits- und privaten Profilen stimmen überein"</string>
     <string name="work_ringtone_title" msgid="5499360583947410224">"Klingelton für Arbeitsprofil"</string>
     <string name="work_notification_ringtone_title" msgid="8059159087214025757">"Standard-Benachrichtigungston für Arbeitsprofil"</string>
@@ -3560,7 +3560,7 @@
     <string name="screen_pinning_unlock_pattern" msgid="1060334707088339444">"Zum Loslösen nach Entsperrungsmuster fragen"</string>
     <string name="screen_pinning_unlock_pin" msgid="1441705536015645023">"Vor Beenden nach PIN fragen"</string>
     <string name="screen_pinning_unlock_password" msgid="1017776884000170841">"Vor dem Beenden nach Passwort fragen"</string>
-    <string name="screen_pinning_unlock_none" msgid="9183040569733226911">"Gerät beim Beenden sperren"</string>
+    <string name="screen_pinning_unlock_none" msgid="9183040569733226911">"Gerät beim Loslösen der App sperren"</string>
     <string name="opening_paragraph_delete_profile_unknown_company" msgid="2350380017136403670">"Dieses Arbeitsprofil wird verwaltet von:"</string>
     <string name="managing_admin" msgid="3212584016377581608">"Verwaltet von <xliff:g id="ADMIN_APP_LABEL">%s</xliff:g>"</string>
     <string name="experimental_preference" msgid="5903223408406906322">"(Experimentell)"</string>
@@ -3678,7 +3678,7 @@
     <string name="default_app" msgid="8861276008866619872">"(Standard)"</string>
     <string name="system_app" msgid="4111402206594443265">"(System)"</string>
     <string name="system_default_app" msgid="1454719098589351197">"(Systemstandardeinstellung)"</string>
-    <string name="apps_storage" msgid="5658466038269046038">"Apps-Speicher"</string>
+    <string name="apps_storage" msgid="5658466038269046038">"Speicher für Apps"</string>
     <string name="usage_access" msgid="2023443456361489516">"Zugriff auf Nutzungsdaten"</string>
     <string name="permit_usage_access" msgid="3321727608629752758">"Zugriff auf Nutzungsdaten gewähren"</string>
     <string name="app_usage_preference" msgid="5691545073101551727">"App-Nutzungseinstellungen"</string>
@@ -4121,9 +4121,9 @@
     <string name="swipe_up_to_switch_apps_summary" msgid="4644068184114154787">"Wenn du auf der Startbildschirmtaste nach oben wischst, kannst du zwischen Apps wechseln. Wenn du wieder nach oben wischst, siehst du alle Apps. Dies funktioniert auf allen Displays. Es gibt rechts auf deinem Display keine Übersichtsschaltfläche mehr."</string>
     <string name="swipe_up_to_switch_apps_suggestion_title" msgid="7641846365137536128">"Neue Startbildschirmtaste ausprobieren"</string>
     <string name="swipe_up_to_switch_apps_suggestion_summary" msgid="7338653224520387852">"Neue Touch-Geste zum Wechseln von Apps aktivieren"</string>
-    <string name="ambient_display_title" product="default" msgid="6785677099744344088">"Für Blick aufs Display doppeltippen"</string>
-    <string name="ambient_display_title" product="tablet" msgid="1106285490888683613">"Doppeltippen für schnellen Blick auf das Display des Tablets"</string>
-    <string name="ambient_display_title" product="device" msgid="5064644474876041478">"Doppeltippen für schnellen Blick auf das Display des Geräts"</string>
+    <string name="ambient_display_title" product="default" msgid="6785677099744344088">"Durch Doppeltippen auf das Display Display aktivieren"</string>
+    <string name="ambient_display_title" product="tablet" msgid="1106285490888683613">"Durch Doppeltippen auf das Display Display aktivieren"</string>
+    <string name="ambient_display_title" product="device" msgid="5064644474876041478">"Durch Doppeltippen auf das Display Display aktivieren"</string>
     <string name="ambient_display_summary" msgid="4882910328216411109">"Wenn du auf den Bildschirm doppeltippst, werden die Uhrzeit, Benachrichtigungen und andere Informationen angezeigt."</string>
     <string name="ambient_display_pickup_title" product="default" msgid="7141652156907066938">"Beim Hochheben Display aktivieren"</string>
     <string name="ambient_display_pickup_title" product="tablet" msgid="1555456400210301959">"Tablet hochnehmen, um das Display anzusehen"</string>
@@ -4132,11 +4132,11 @@
     <string name="ambient_display_pickup_summary" product="default" msgid="8798915340594367449">"Wenn du das Smartphone in die Hand nimmst, werden die Uhrzeit, Benachrichtigungen und andere Informationen angezeigt."</string>
     <string name="ambient_display_pickup_summary" product="tablet" msgid="1077745287100012928">"Wenn du das Tablet in die Hand nimmst, werden die Uhrzeit, Benachrichtigungen und andere Informationen angezeigt."</string>
     <string name="ambient_display_pickup_summary" product="device" msgid="404199660076598026">"Wenn du das Gerät in die Hand nimmst, werden die Uhrzeit, Benachrichtigungen und andere Informationen angezeigt."</string>
-    <string name="ambient_display_tap_screen_title" product="default" msgid="2784322628239960695">"Tippen, um Informationen auf dem Smartphone anzusehen"</string>
-    <string name="ambient_display_tap_screen_title" product="tablet" msgid="6434521782016864148">"Tippen, um Informationen auf dem Tablet anzusehen"</string>
-    <string name="ambient_display_tap_screen_title" product="device" msgid="4396793721852647356">"Tippen, um Informationen auf dem Gerät anzusehen"</string>
+    <string name="ambient_display_tap_screen_title" product="default" msgid="2784322628239960695">"Durch Tippen auf das Display Display aktivieren"</string>
+    <string name="ambient_display_tap_screen_title" product="tablet" msgid="6434521782016864148">"Durch Tippen auf das Display Display aktivieren"</string>
+    <string name="ambient_display_tap_screen_title" product="device" msgid="4396793721852647356">"Durch Tippen auf das Display Display aktivieren"</string>
     <string name="ambient_display_tap_screen_summary" msgid="7869039870571925213">"Wenn du auf den Bildschirm tippst, werden die Uhrzeit, Benachrichtigungen und andere Informationen angezeigt."</string>
-    <string name="fingerprint_swipe_for_notifications_title" msgid="3676002930672489760">"Benachrichtigungen durch Wischen über Fingerabdrucksensor öffnen"</string>
+    <string name="fingerprint_swipe_for_notifications_title" msgid="3676002930672489760">"Benachrichtigungen durch Wischen über Fingerabdrucksensor einblenden"</string>
     <string name="fingerprint_gesture_screen_title" msgid="8638932855807473479">"Fingerabdrucksensor verwenden"</string>
     <string name="fingerprint_swipe_for_notifications_summary" product="default" msgid="4347999905190477310">"Zum Lesen von Benachrichtigungen über den Fingerabdrucksensor auf der Rückseite des Smartphones nach unten wischen"</string>
     <string name="fingerprint_swipe_for_notifications_summary" product="tablet" msgid="3480057984564476283">"Auf der Rückseite des Tablets über den Fingerabdrucksensor nach unten wischen, um Benachrichtigungen zu lesen."</string>
