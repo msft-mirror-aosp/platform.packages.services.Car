@@ -432,7 +432,7 @@
     <string name="security_settings_face_settings_remove_face_data" msgid="2821359954483136239">"Usuń dane dotyczące twarzy"</string>
     <string name="security_settings_face_settings_footer" msgid="4627175759990550715">"Twoja twarz wystarczy, by odblokować urządzenie i otworzyć aplikacje."<annotation id="url">"Dowiedz się więcej"</annotation></string>
     <string name="security_settings_face_settings_remove_dialog_title" msgid="5675319895815271094">"Usunąć dane twarzy?"</string>
-    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"Dane zarejestrowane przez Rozpoznawanie twarzy zostaną trwale i bezpiecznie usunięte. Po usunięciu danych do odblokowania telefonu, logowania się w aplikacjach i potwierdzania płatności będziesz potrzebować kodu PIN, wzoru lub hasła."</string>
+    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"Dane zarejestrowane przez rozpoznawanie twarzy zostaną trwale i bezpiecznie usunięte. Po usunięciu danych do odblokowania telefonu, logowania się w aplikacjach i potwierdzania płatności będziesz potrzebować kodu PIN, wzoru lub hasła."</string>
     <string name="security_settings_fingerprint_preference_title" msgid="4177132225930582928">"Odcisk palca"</string>
     <string name="fingerprint_manage_category_title" msgid="1463406696801542090">"Zarządzaj odciskami"</string>
     <string name="fingerprint_usage_category_title" msgid="7298369141954599706">"Używaj odcisku palca do"</string>
@@ -939,7 +939,7 @@
     <string name="wifi_ssid_hint" msgid="5010024648106585165">"Wpisz identyfikator SSID"</string>
     <string name="wifi_security" msgid="9136702039496152831">"Zabezpieczenia"</string>
     <string name="wifi_hidden_network" msgid="6647772204699776833">"Sieć ukryta"</string>
-    <string name="wifi_hidden_network_warning" msgid="8182333050353796473">"Jeśli router nie transmituje identyfikatora sieci, ale chcesz się z nią łączyć w przyszłości, możesz ją ustawić jako ukrytą.\n\nMoże to stanowić zagrożenie bezpieczeństwa, bo Twój telefon będzie regularnie transmitował sygnał, by znaleźć sieć.\n\nUstawienie sieci jako ukrytej nie zmienia ustawień routera."</string>
+    <string name="wifi_hidden_network_warning" msgid="8182333050353796473">"Jeśli router nie transmituje identyfikatora sieci, ale chcesz się z nią łączyć w przyszłości, możesz ją ustawić jako ukrytą.\n\nMoże to stanowić zagrożenie dla bezpieczeństwa, bo Twój telefon będzie regularnie transmitował sygnał, żeby znaleźć sieć.\n\nUstawienie sieci jako ukrytej nie zmienia ustawień routera."</string>
     <string name="wifi_signal" msgid="696548364467704808">"Siła sygnału"</string>
     <string name="wifi_status" msgid="3439931558930689940">"Stan"</string>
     <string name="tx_wifi_speed" msgid="2571810085003261073">"Szybkość łącza nadawania"</string>
@@ -1289,7 +1289,7 @@
     <string name="screensaver_settings_summary_never" msgid="3995259444981620707">"Nigdy"</string>
     <string name="screensaver_settings_summary_off" msgid="6119947316484763131">"Wył."</string>
     <string name="screensaver_settings_disabled_prompt" msgid="1897518064782596947">"Włącz wygaszacz ekranu, by kontrolować to, co dzieje się, gdy telefon jest w stacji dokującej i/lub w trybie uśpienia."</string>
-    <string name="screensaver_settings_when_to_dream" msgid="3763052013516826348">"Kiedy zacząć"</string>
+    <string name="screensaver_settings_when_to_dream" msgid="3763052013516826348">"Kiedy włączać"</string>
     <string name="screensaver_settings_current" msgid="4017556173596361672">"Bieżący wygaszacz ekranu"</string>
     <string name="screensaver_settings_dream_start" msgid="3772227299054662550">"Zacznij teraz"</string>
     <string name="screensaver_settings_button" msgid="4662384378821837589">"Ustawienia"</string>
@@ -2648,7 +2648,7 @@
     <string name="sms_access_restriction_enabled" msgid="3006320256764718303">"Ogranicz dostęp do SMS-ów i rejestru połączeń"</string>
     <string name="sms_access_restriction_enabled_summary" msgid="9011946580977780063">"Tylko domyślne aplikacje do obsługi telefonu i wiadomości mają dostęp do SMS-ów i rejestru połączeń"</string>
     <string name="no_trust_agents" msgid="5757792915019113084">"Brak agentów zaufania"</string>
-    <string name="add_device_admin_msg" msgid="3573765823476931173">"Aktywować aplikację do administrowania urządzeniem?"</string>
+    <string name="add_device_admin_msg" msgid="3573765823476931173">"Aktywować tę aplikację?"</string>
     <string name="add_device_admin" msgid="1621152410207260584">"Aktywuj tę aplikację do administrowania urządzeniem"</string>
     <string name="device_admin_add_title" msgid="6097881332139146897">"Administrator urządzenia"</string>
     <string name="device_admin_warning" msgid="4421817419326480449">"Aktywowanie tej aplikacji do zarządzania pozwoli aplikacji <xliff:g id="APP_NAME">%1$s</xliff:g> wykonywać te operacje:"</string>
@@ -3180,7 +3180,7 @@
     <string name="keywords_payment_settings" msgid="4745023716567666052">"płacenie, klikanie, płatności"</string>
     <string name="keywords_backup" msgid="7433356270034921627">"kopia zapasowa, tworzenie kopii zapasowej"</string>
     <string name="keywords_assist_gesture_launch" msgid="2711433664837843513">"gest"</string>
-    <string name="keywords_face_unlock" msgid="651615819291927262">"twarz, odblokowanie, uwierzytelnienie, logowanie"</string>
+    <string name="keywords_face_unlock" msgid="651615819291927262">"twarz, rozpoznawanie, uwierzytelnienie, logowanie"</string>
     <string name="keywords_imei_info" msgid="4325847870422053408">"imei, meid, min, wersja prl, imei sv"</string>
     <string name="keywords_sim_status" msgid="3852088576719874387">"sieć, stan sieci komórkowej, stan usługi, moc sygnału, typ sieci komórkowej, roaming, iccid"</string>
     <string name="keywords_model_and_hardware" msgid="2743197096210895251">"numer seryjny, wersja sprzętu"</string>
@@ -4431,7 +4431,7 @@
     <string name="disabled_low_ram_device" msgid="4958060232123741721">"Ta funkcja jest niedostępna na tym urządzeniu."</string>
     <string name="disabled_feature" msgid="3747549387387702365">"Ta funkcja jest niedostępna"</string>
     <string name="disabled_feature_reason_slow_down_phone" msgid="1819157849156814583">"Spowoduje spowolnienie telefonu"</string>
-    <string name="enable_gnss_raw_meas_full_tracking" msgid="3397182995626655581">"Wymuś pełną procedurę pomiarów GNSS"</string>
+    <string name="enable_gnss_raw_meas_full_tracking" msgid="3397182995626655581">"Wymuszaj pełną procedurę pomiarów GNSS"</string>
     <string name="enable_gnss_raw_meas_full_tracking_summary" msgid="2469305990718976105">"Śledź wszystkie konstelacje GNSS i częstotliwości bez uwzględniania współczynnika impulsu"</string>
     <string name="enable_user_switch_message" msgid="8613014373053051092">"Debugowanie podczas przełączania użytkownika"</string>
     <string name="enable_user_switch_message_summary" msgid="3354160264601132060">"Pokaż szczegółowe informacje podczas przełączania użytkownika"</string>
