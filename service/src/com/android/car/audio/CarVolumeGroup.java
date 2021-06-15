@@ -15,6 +15,9 @@
  */
 package com.android.car.audio;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -27,6 +30,7 @@ import android.util.SparseArray;
 
 import com.android.car.CarLog;
 import com.android.car.audio.CarAudioContext.AudioContext;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
@@ -185,6 +189,7 @@ import java.util.Map;
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public String toString() {
         return "CarVolumeGroup id: " + mId
                 + " currentGainIndex: " + mCurrentGainIndex
@@ -192,6 +197,7 @@ import java.util.Map;
                 + " addresses: " + String.join(", ", getAddresses());
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     void dump(IndentingPrintWriter writer) {
         synchronized (mLock) {
             writer.printf("CarVolumeGroup(%d)\n", mId);

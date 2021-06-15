@@ -138,7 +138,8 @@ public final class VehiclePropertyIds {
     /**
      * Speed of the vehicle in meters per second.
      *
-     * <p>PERF_VEHICLE_SPEED property is {@link VehiclePropertyAccess#READ} access, {@link
+     * <p>PERF_VEHICLE_SPEED property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
      * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}, and returns a Float type value.
      *
      * <p>When the vehicle is moving forward, PERF_VEHICLE_SPEED is positive and negative when the
@@ -207,9 +208,9 @@ public final class VehiclePropertyIds {
     /**
      * Reports wheel ticks.
      *
-     * <p>WHEEL_TICK property is {@link VehiclePropertyAccess#Read} access,
-     * {@link CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} and returns a Long[] type
-     * value.
+     * <p>WHEEL_TICK property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} and returns a Long[] type value.
      *
      * <p>The first element in the array is a reset count.  A reset indicates
      * previous tick counts are not comparable with this and future ones.  Some
@@ -322,10 +323,46 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_TIRES)
     public static final int CRITICALLY_LOW_TIRE_PRESSURE = 392168202;
     /**
-     * Currently selected gear
+     * Currently selected gear by user.
      *
-     * This is the gear selected by the user.
-     * Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
+     * <p>GEAR_SELECTION property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Integer type value.
+     *
+     * <p> See {@link VehicleGear} for gear value enum.
+     *
+     * <p>configArray represents the list of supported gears for the vehicle. For example,
+     * configArray for an EV vehicle is set as follows:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_PARK}
+     *  <li>configArray[2] = {@link VehicleGear#GEAR_DRIVE}
+     * </ul>
+     *
+     * <p>Example automatic transmission configArray:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_NEUTRAL}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[2] = {@link VehicleGear#GEAR_PARK}
+     *  <li>configArray[3] = {@link VehicleGear#GEAR_DRIVE}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_1}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_2}
+     *  <li>...
+     * </ul>
+     *
+     * <p>Example manual transmission configArray:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_NEUTRAL}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_1}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_2}
+     *  <li>...
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
      */
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int GEAR_SELECTION = 289408000;
@@ -340,7 +377,12 @@ public final class VehiclePropertyIds {
     public static final int CURRENT_GEAR = 289408001;
     /**
      * Parking brake state.
-     * Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
+     *
+     * <p>PARKING_BRAKE_ON property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Boolean type value.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
      */
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int PARKING_BRAKE_ON = 287310850;
@@ -357,8 +399,16 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_ENERGY)
     public static final int FUEL_LEVEL_LOW = 287310853;
     /**
-     * Night mode
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
+     * Night mode.
+     *
+     * <p>NIGHT_MODE property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Boolean type value.
+     *
+     * <p>True indicates that the night mode sensor has detected that the car cabin environment has
+     * low light.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_ENVIRONMENT)
     public static final int NIGHT_MODE = 287310855;
