@@ -1861,7 +1861,7 @@
     <string name="internal_storage" msgid="7392373600013294853">"Penyimpanan internal"</string>
     <string name="recompute_size" msgid="4290692197892743928">"Menghitung ulang ukuran..."</string>
     <string name="clear_data_dlg_title" msgid="7388024498687029597">"Hapus data aplikasi?"</string>
-    <string name="clear_data_dlg_text" msgid="6849657743695013414">"Semua data aplikasi ini akan dihapus secara permanen, termasuk semua file, setelan, akun, basis data, dll."</string>
+    <string name="clear_data_dlg_text" msgid="6849657743695013414">"Semua data aplikasi ini akan dihapus secara permanen, termasuk semua file, setelan, akun, database, dll."</string>
     <string name="dlg_ok" msgid="4666570206507476557">"Oke"</string>
     <string name="dlg_cancel" msgid="2434951039156262467">"Batal"</string>
     <string name="app_not_found_dlg_title" msgid="394147475018718483"></string>
@@ -2906,7 +2906,7 @@
     <string name="user_enable_calling_sms" msgid="3450252891736718793">"Aktifkan panggilan telepon &amp; SMS"</string>
     <string name="user_remove_user" msgid="3687544420125911166">"Hapus pengguna"</string>
     <string name="user_enable_calling_confirm_title" msgid="1141612415529158542">"Aktifkan panggilan telepon?"</string>
-    <string name="user_enable_calling_confirm_message" msgid="2490126715153125970">"Histori panggilan akan dibagikan dengan pengguna ini."</string>
+    <string name="user_enable_calling_confirm_message" msgid="2490126715153125970">"Histori panggilan akan dibagikan kepada pengguna ini."</string>
     <string name="user_enable_calling_and_sms_confirm_title" msgid="4153856398523366976">"Aktifkan panggilan telepon &amp; SMS?"</string>
     <string name="user_enable_calling_and_sms_confirm_message" msgid="3278802798876095734">"Histori panggilan dan SMS akan dibagikan dengan pengguna ini."</string>
     <string name="emergency_info_title" msgid="1522609271881425375">"Informasi darurat"</string>
@@ -2925,7 +2925,7 @@
     <string name="nfc_payment_favor_open" msgid="3739055715000436749">"Kecuali jika aplikasi pembayaran lain dibuka"</string>
     <string name="nfc_payment_pay_with" msgid="8412558374792061266">"Di terminal Tempel &amp; bayar, bayar dengan:"</string>
     <string name="nfc_how_it_works_title" msgid="6531433737926327904">"Membayar di terminal"</string>
-    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"Siapkan aplikasi pembayaran. Lalu, cukup dekatkan bagian belakang ponsel ke terminal mana saja yang memiliki simbol nirkontak."</string>
+    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"Siapkan aplikasi pembayaran. Lalu, cukup dekatkan bagian belakang ponsel ke terminal mana saja yang memiliki simbol nirsentuh."</string>
     <string name="nfc_how_it_works_got_it" msgid="2432535672153247411">"Mengerti"</string>
     <string name="nfc_more_title" msgid="2825856411836382264">"Lainnya..."</string>
     <string name="nfc_payment_set_default_label" msgid="3997927342761454042">"Jadikan preferensi Anda?"</string>
@@ -3756,7 +3756,7 @@
     <string name="usb_summary_tether_power" msgid="5684170912136320002">"Tethering USB dan daya penyuplai"</string>
     <string name="usb_summary_photo_transfers_power" msgid="4424106272137720464">"PTP dan daya penyuplai"</string>
     <string name="usb_summary_MIDI_power" msgid="7685597621357005180">"MIDI dan daya penyuplai"</string>
-    <string name="background_check_pref" msgid="664081406854758392">"Pemeriksaan background"</string>
+    <string name="background_check_pref" msgid="664081406854758392">"Pemeriksaan latar belakang"</string>
     <string name="background_check_title" msgid="4136736684290307970">"Akses penuh latar belakang"</string>
     <string name="assist_access_context_title" msgid="2274614501747710439">"Gunakan teks dari layar"</string>
     <string name="assist_access_context_summary" msgid="5867997494395842785">"Izinkan aplikasi bantuan mengakses konten layar sebagai teks"</string>

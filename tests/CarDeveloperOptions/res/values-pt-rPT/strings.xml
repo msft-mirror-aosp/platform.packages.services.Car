@@ -343,7 +343,7 @@
     <string name="zone_time_type_dst" msgid="7812605402646684853">"Mudança de hora"</string>
     <string name="zone_time_type_standard" msgid="4093967611947328688">"Hora padrão"</string>
     <string name="zone_menu_by_region" msgid="8211384017117296924">"Selecionar por região"</string>
-    <string name="zone_menu_by_offset" msgid="6538342360925785227">"Selec. por diferença para UTC"</string>
+    <string name="zone_menu_by_offset" msgid="6538342360925785227">"Selecionar por diferença para UTC"</string>
     <string name="date_picker_title" msgid="2563955125757999610">"Data"</string>
     <string name="time_picker_title" msgid="1596400307061268660">"Hora"</string>
     <string name="lock_after_timeout" msgid="7755520959071097304">"Bloquear automaticamente"</string>
@@ -553,7 +553,7 @@
     <string name="setup_lock_settings_picker_message" product="device" msgid="2098404520816295371">"Impeça terceiros de utilizar este dispositivo sem a sua autorização ao ativar as funcionalidades de proteção do dispositivo. Escolha o bloqueio de ecrã que pretende utilizar."</string>
     <string name="setup_lock_settings_picker_message" product="default" msgid="2003984443953672040">"Impeça terceiros de utilizar este telemóvel sem a sua autorização ao ativar as funcionalidades de proteção do dispositivo. Escolha o bloqueio de ecrã que pretende utilizar."</string>
     <string name="lock_settings_picker_fingerprint_message" msgid="1344567476145156885">"Escolha o método de bloqueio de ecrã de segurança"</string>
-    <string name="lock_settings_picker_face_message" msgid="6413145626861812959">"Escolha o método de bloqueio de ecrã de segurança."</string>
+    <string name="lock_settings_picker_face_message" msgid="6413145626861812959">"Escolha o método de bloqueio de ecrã de segurança"</string>
     <string name="setup_lock_settings_options_button_label" msgid="4197315143877977385">"Opções de bloqueio de ecrã"</string>
     <string name="setup_lock_settings_options_dialog_title" msgid="5241946349173768827">"Opções de bloqueio de ecrã"</string>
     <string name="unlock_set_unlock_launch_picker_title" msgid="2731152716948003853">"Bloqueio de ecrã"</string>
@@ -908,7 +908,7 @@
     <string name="wifi_hidden_network_warning" msgid="8182333050353796473">"Se o router não estiver a transmitir um ID de rede, mas pretender ligar-se à mesma no futuro, pode definir a rede como oculta.\n\nEsta opção pode criar um risco de segurança, pois o seu telemóvel irá transmitir regularmente o respetivo sinal para encontrar a rede.\n\nDefinir a rede como oculta não altera as definições do router."</string>
     <string name="wifi_signal" msgid="696548364467704808">"Intensidade do sinal"</string>
     <string name="wifi_status" msgid="3439931558930689940">"Estado"</string>
-    <string name="tx_wifi_speed" msgid="2571810085003261073">"Velocid. da ligação transmissão"</string>
+    <string name="tx_wifi_speed" msgid="2571810085003261073">"Velocidade da ligação transmissão"</string>
     <string name="rx_wifi_speed" msgid="7392873246110937187">"Velocidade da ligação de receção"</string>
     <string name="wifi_frequency" msgid="6132852924995724246">"Frequência"</string>
     <string name="wifi_ip_address" msgid="5572539114989914831">"Endereço IP"</string>
@@ -935,10 +935,10 @@
     <string name="wifi_privacy_settings" msgid="4462092795794247809">"Privacidade"</string>
     <string name="wifi_privacy_settings_ephemeral_summary" msgid="2411375348287064283">"MAC aleatório"</string>
     <string name="wifi_dpp_add_device_to_network" msgid="8871041525483253430">"Adicione um dispositivo"</string>
-    <string name="wifi_dpp_center_qr_code" msgid="3826108361797476758">"Centre o código QR abaixo para adicionar o dispositivo a \"<xliff:g id="SSID">%1$s</xliff:g>\"."</string>
+    <string name="wifi_dpp_center_qr_code" msgid="3826108361797476758">"Centre o código QR abaixo para adicionar o dispositivo a \"<xliff:g id="SSID">%1$s</xliff:g>\""</string>
     <string name="wifi_dpp_scan_qr_code" msgid="6021600592661235546">"Ler código QR"</string>
     <string name="wifi_dpp_scan_qr_code_join_network" msgid="3085162928804379545">"Centre o código QR abaixo para estabelecer ligação a “<xliff:g id="SSID">%1$s</xliff:g>”"</string>
-    <string name="wifi_dpp_scan_qr_code_join_unknown_network" msgid="5682308317067290738">"Estabeleça ligação ao Wi-Fi ao ler um código QR."</string>
+    <string name="wifi_dpp_scan_qr_code_join_unknown_network" msgid="5682308317067290738">"Leia um código QR para ligar ao Wi-Fi"</string>
     <string name="wifi_dpp_share_wifi" msgid="1724161216219646284">"Partilhar Wi‑Fi"</string>
     <string name="wifi_dpp_scan_qr_code_with_another_device" msgid="4357387474444884759">"Leia este código QR para se ligar a \"<xliff:g id="SSID">%1$s</xliff:g>\" e partilhar a palavra-passe"</string>
     <string name="wifi_dpp_scan_open_network_qr_code_with_another_device" msgid="572011882416511818">"Leia este código QR para se ligar a \"<xliff:g id="SSID">%1$s</xliff:g>\""</string>
@@ -1057,7 +1057,7 @@
     <string name="wifi_p2p_cancel_connect_message" msgid="3752679335020392154">"Pretende cancelar o convite para se ligar a <xliff:g id="PEER_NAME">%1$s</xliff:g>?"</string>
     <string name="wifi_p2p_delete_group_message" msgid="3206660449067701089">"Esquecer este grupo?"</string>
     <string name="wifi_hotspot_checkbox_text" msgid="12062341344410520">"Zona Wi-Fi"</string>
-    <string name="wifi_hotspot_off_subtext" msgid="6177054857136221058">"Não está a partilhar Internet nem conteúdo com outros dispositivos."</string>
+    <string name="wifi_hotspot_off_subtext" msgid="6177054857136221058">"Não está a partilhar Internet nem conteúdo com outros dispositivos"</string>
     <string name="wifi_hotspot_tethering_on_subtext" product="tablet" msgid="71421730039785897">"A partilhar a ligação à Internet deste tablet através de zona Wi-Fi…"</string>
     <string name="wifi_hotspot_tethering_on_subtext" product="default" msgid="8914285514605049879">"A partilhar a ligação à Internet deste telemóvel através de zona Wi-Fi…"</string>
     <string name="wifi_hotspot_on_local_only_subtext" msgid="7415381343846704553">"A aplicação está a partilhar conteúdo. Para partilhar a ligação à Internet, desative e volte a ativar a zona Wi-Fi."</string>
@@ -1113,7 +1113,7 @@
     <string name="wifi_calling_off_explanation_2" msgid="8648609693875720408"></string>
     <string name="emergency_address_title" msgid="5779915349686787024">"Endereço de emergência"</string>
     <string name="emergency_address_summary" msgid="478668478569851714">"Utilizado como a sua localização quando efetuar chamadas de emergência através de Wi‑Fi."</string>
-    <string name="private_dns_help_message" msgid="7633526525131196650"><annotation id="url">"Saiba mais"</annotation>" acerca das funcionalidades de DNS privado."</string>
+    <string name="private_dns_help_message" msgid="7633526525131196650"><annotation id="url">"Saiba mais"</annotation>" acerca das funcionalidades de DNS privado"</string>
     <string name="wifi_calling_pref_managed_by_carrier" msgid="5458050015417972072">"Definição gerida pelo operador."</string>
     <string name="wifi_calling_settings_activation_instructions" msgid="2863642668648110908">"Ativar Chamadas Wi-Fi"</string>
     <string name="wifi_calling_turn_on" msgid="1212277809455062043">"Ativar Chamadas Wi-Fi"</string>
@@ -1662,16 +1662,16 @@
     <string name="location_low_battery_use" msgid="5030448574501435888">"Utilização de bateria baixa"</string>
     <string name="location_scanning_screen_title" msgid="7663329319689413454">"Procura de Wi‑Fi e Bluetooth"</string>
     <string name="location_scanning_wifi_always_scanning_title" msgid="6750542206763112172">"Procurar Wi‑Fi"</string>
-    <string name="location_scanning_wifi_always_scanning_description" msgid="4956048135941851712">"Permitir que as aplicações e os serviços procurem redes Wi‑Fi em qualquer altura, mesmo quando o Wi-Fi estiver desativado. Isto pode ser utilizado, por exemplo, para melhorar as funcionalidades e os serviços baseados na localização."</string>
+    <string name="location_scanning_wifi_always_scanning_description" msgid="4956048135941851712">"Permitir que as apps e os serviços procurem redes Wi‑Fi em qualquer altura, mesmo quando o Wi-Fi estiver desativado. Isto pode ser utilizado, por exemplo, para melhorar as funcionalidades e os serviços baseados na localização."</string>
     <string name="location_scanning_bluetooth_always_scanning_title" msgid="196241746742607453">"Procurar por Bluetooth"</string>
-    <string name="location_scanning_bluetooth_always_scanning_description" msgid="3796673798637848690">"Permitir que as aplicações e os serviços procurem dispositivos próximos em qualquer altura, mesmo quando o Bluetooth estiver desativado. Isto pode ser utilizado, por exemplo, para melhorar as funcionalidades e os serviços baseados na localização."</string>
+    <string name="location_scanning_bluetooth_always_scanning_description" msgid="3796673798637848690">"Permitir que as apps e os serviços procurem dispositivos próximos em qualquer altura, mesmo quando o Bluetooth estiver desativado. Isto pode ser utilizado, por exemplo, para melhorar as funcionalidades e os serviços baseados na localização."</string>
     <string name="managed_profile_location_services" msgid="224925483299159541">"Serviços de localização para o trabalho"</string>
     <string name="location_network_based" msgid="1535812159327454835">"Wi-Fi e localização de rede de telemóvel"</string>
     <string name="location_neighborhood_level" msgid="8459352741296587916">"Permitir que app usem o serv. localiz. Google p/ calcular mais rapida/ a sua localização. Dados localização recolhidos e enviados à Google."</string>
     <string name="location_neighborhood_level_wifi" msgid="6120133551482003840">"Localização determinada por Wi-Fi"</string>
     <string name="location_gps" msgid="688049341158297763">"Satélites GPS"</string>
-    <string name="location_street_level" product="tablet" msgid="4459804798444296650">"Permitir que as aplicações utilizem o GPS do tablet para localizar a sua posição"</string>
-    <string name="location_street_level" product="default" msgid="7407688345675450051">"Permitir que as aplicações utilizem o GPS do telemóvel p/ determinar a sua posição"</string>
+    <string name="location_street_level" product="tablet" msgid="4459804798444296650">"Permitir que as apps utilizem o GPS do tablet para localizar a sua posição"</string>
+    <string name="location_street_level" product="default" msgid="7407688345675450051">"Permitir que as apps utilizem o GPS do telemóvel p/ determinar a sua posição"</string>
     <string name="assisted_gps" msgid="5411780261117055175">"Utilizar GPS assistido"</string>
     <string name="assisted_gps_enabled" msgid="2561022181775725369">"Utilizar o servidor para auxiliar o GPS (desmarque esta opção para reduzir a utilização da rede)"</string>
     <string name="assisted_gps_disabled" msgid="6448758788217415937">"Utilizar o servidor para auxiliar o GPS (desmarque esta opção para melhorar o desempenho do GPS)"</string>
@@ -2328,8 +2328,8 @@
     <string name="smart_battery_footer" product="device" msgid="3971715848890205632">"Quando o Battery Manager deteta a existência de aplicações a consumir a bateria rapidamente, tem a opção de restringir estas aplicações. As aplicações restringidas poderão não funcionar corretamente e as notificações poderão sofrer atrasos."</string>
     <string name="restricted_app_title" msgid="4957644700640127606">"Apps restritas"</string>
     <plurals name="restricted_app_summary" formatted="false" msgid="7609538735465186040">
-      <item quantity="other">Limiar a utilização da bateria para %1$d aplicações</item>
-      <item quantity="one">Limitar a utilização da bateria para %1$d aplicação</item>
+      <item quantity="other">Limiar a utilização da bateria para %1$d apps</item>
+      <item quantity="one">Limitar a utilização da bateria para %1$d app</item>
     </plurals>
     <string name="restricted_app_time_summary" msgid="5205881852523135226">"Restrita <xliff:g id="TIME">%1$s</xliff:g>."</string>
     <string name="restricted_app_detail_footer" msgid="482460517275754465">"Estas aplicações têm consumido bateria em segundo plano. As aplicações restringidas poderão não funcionar corretamente e as notificações poderão sofrer atrasos."</string>
@@ -2338,8 +2338,8 @@
     <string name="battery_manager_on" msgid="5626982529932239656">"Ativado / A detetar quando as aplicações consomem rapidamente a bateria"</string>
     <string name="battery_manager_off" msgid="9114027524232450371">"Desativado"</string>
     <plurals name="battery_manager_app_restricted" formatted="false" msgid="6721813588142691216">
-      <item quantity="other">%1$d aplicações restritas</item>
-      <item quantity="one">%1$d aplicação restrita</item>
+      <item quantity="other">%1$d apps restritas</item>
+      <item quantity="one">%1$d app restrita</item>
     </plurals>
     <string name="battery_header_title_alternate" msgid="1161081105263761743">"<xliff:g id="NUMBER">^1</xliff:g>"<small><font size="20">"<xliff:g id="UNIT">%</xliff:g>"</font></small>""</string>
     <string name="dialog_stop_title" msgid="4354544579084434590">"Parar a aplicação?"</string>
@@ -2566,7 +2566,7 @@
     <string name="fullbackup_data_summary" msgid="406274198094268556">"Faça cópias de segurança automáticas dos dados do dispositivo (como palavras-passe de Wi-Fi e o histórico de chamadas) e dos dados das aplicações (como as definições e os ficheiros armazenados pelas aplicações) remotamente.\n\nQuando ativa a cópia de segurança automática, os dados do dispositivo e das aplicações são guardados remotamente de forma periódica. Os dados das aplicações podem ser quaisquer dados que uma aplicação tenha guardado (com base nas definições do programador), incluindo dados potencialmente confidenciais como contactos, mensagens e fotos."</string>
     <string name="device_admin_settings_title" msgid="2074319456047334589">"Definições de administração do dispositivo"</string>
     <string name="active_device_admin_msg" msgid="6929247869516924549">"App administração do dispositivo"</string>
-    <string name="remove_device_admin" msgid="4413438593788336400">"Desativar esta aplicação de administração do dispositivo"</string>
+    <string name="remove_device_admin" msgid="4413438593788336400">"Desativar esta app de administração do dispositivo"</string>
     <string name="uninstall_device_admin" msgid="9017499299961719830">"Desinstalar aplicação"</string>
     <string name="remove_and_uninstall_device_admin" msgid="5607703579731496253">"Desativar e desinstalar"</string>
     <string name="select_device_admin_msg" msgid="4173769638399075387">"Apps de gestor do dispositivo"</string>
@@ -2580,7 +2580,7 @@
     <string name="add_device_admin" msgid="1621152410207260584">"Ativar a aplicação de administração deste dispositivo"</string>
     <string name="device_admin_add_title" msgid="6097881332139146897">"Administrador do dispositivo"</string>
     <string name="device_admin_warning" msgid="4421817419326480449">"A ativação desta aplicação de administração permite que a aplicação <xliff:g id="APP_NAME">%1$s</xliff:g> execute as seguintes operações:"</string>
-    <string name="device_admin_status" msgid="5424944611789040723">"Esta aplicação de administração está ativa e permite que a aplicação <xliff:g id="APP_NAME">%1$s</xliff:g> execute as seguintes operações:"</string>
+    <string name="device_admin_status" msgid="5424944611789040723">"Esta app de administração está ativa e permite que a app <xliff:g id="APP_NAME">%1$s</xliff:g> execute as seguintes operações:"</string>
     <string name="profile_owner_add_title" msgid="735805919754362791">"Pretende ativar o Gestor de perfis?"</string>
     <string name="adding_profile_owner_warning" msgid="1284541194547382194">"Ao continuar, o utilizador será gerido pelo seu gestor, que, para além dos seus dados pessoais, também poderá armazenar dados associados.\n\nO gestor pode monitorizar e gerir as definições, o acesso, as aplicações e os dados associados a este utilizador, incluindo a atividade da rede e as informações de localização do seu dispositivo."</string>
     <string name="admin_disabled_other_options" msgid="8097063307730025707">"As outras opções estão desativadas pelo gestor"</string>
@@ -2670,8 +2670,8 @@
     <string name="data_usage_menu_sim_cards" msgid="8508154611676507088">"Cartões SIM"</string>
     <string name="data_usage_cellular_data_summary" msgid="9162777397135709280">"Interrompido no limite"</string>
     <string name="account_settings_menu_auto_sync" msgid="2673669556006027506">"Sincroniz. automática de dados"</string>
-    <string name="account_settings_menu_auto_sync_personal" msgid="3235831897309033754">"Sincr. auto. de dados pessoais"</string>
-    <string name="account_settings_menu_auto_sync_work" msgid="5721442464286552815">"Sincr. auto. dados de trabalho"</string>
+    <string name="account_settings_menu_auto_sync_personal" msgid="3235831897309033754">"Sincronizar dados de trabalho automaticamente"</string>
+    <string name="account_settings_menu_auto_sync_work" msgid="5721442464286552815">"Sincronizar dados de trabalho automaticamente"</string>
     <string name="data_usage_change_cycle" msgid="447761920472170031">"Alterar ciclo..."</string>
     <string name="data_usage_pick_cycle_day" msgid="6319750879145917066">"Dia do mês para repor o ciclo de utilização de dados:"</string>
     <string name="data_usage_empty" msgid="7981405723435034032">"Nenhuma app util. dados durante este período."</string>
@@ -2977,7 +2977,7 @@
     <string name="restriction_nfc_enable_summary" product="tablet" msgid="3292205836938064931">"Permitir a troca de dados quando o tablet toca noutro dispositivo"</string>
     <string name="restriction_nfc_enable_summary" product="default" msgid="226439584043333608">"Permitir a troca de dados quando o telemóvel toca noutro dispositivo"</string>
     <string name="restriction_location_enable_title" msgid="358506740636434856">"Localização"</string>
-    <string name="restriction_location_enable_summary" msgid="4159500201124004463">"Permitir que as aplicações utilizem as informações de localização"</string>
+    <string name="restriction_location_enable_summary" msgid="4159500201124004463">"Permitir que as apps utilizem as informações de localização"</string>
     <string name="wizard_back" msgid="223654213898117594">"Anterior"</string>
     <string name="wizard_next" msgid="5239664512608113542">"Seguinte"</string>
     <string name="wizard_finish" msgid="3742102879981212094">"Terminar"</string>
@@ -3469,7 +3469,7 @@
     <string name="zen_mode_schedule_rule_days_none" msgid="6011716195119389956">"Nenhum"</string>
     <string name="zen_mode_schedule_rule_days_all" msgid="8814173364016139675">"Todos os dias"</string>
     <string name="zen_mode_schedule_alarm_title" msgid="2078194049274875023">"O alarme pode substituir a hora de fim"</string>
-    <string name="zen_mode_schedule_alarm_summary" msgid="5556997989911412070">"O horário desliga-se quando um alarme toca."</string>
+    <string name="zen_mode_schedule_alarm_summary" msgid="5556997989911412070">"O horário desliga-se quando um alarme toca"</string>
     <string name="zen_mode_custom_behavior_title" msgid="8908861697886331001">"Não incomodar"</string>
     <string name="zen_mode_custom_behavior_summary_default" msgid="3509865340195397447">"Utilizar predefinições"</string>
     <string name="zen_mode_custom_behavior_summary" msgid="7206909852887332604">"Criar definições personalizadas para este horário"</string>
@@ -3508,7 +3508,7 @@
     <string name="zen_mode_reminders" msgid="7560664194610054038">"Permitir lembretes"</string>
     <string name="zen_mode_reminders_list" msgid="7347061314032326677">"lembretes"</string>
     <string name="zen_mode_events" msgid="5784076928339534984">"Permitir eventos"</string>
-    <string name="zen_mode_bypassing_apps" msgid="3080739479028713449">"Permitir que as aplicações substituam"</string>
+    <string name="zen_mode_bypassing_apps" msgid="3080739479028713449">"Permitir que as apps substituam"</string>
     <string name="zen_mode_bypassing_apps_title" msgid="2115024664615538847">"Exceções de apps"</string>
     <plurals name="zen_mode_bypassing_apps_subtext" formatted="false" msgid="8723144434730871572">
       <item quantity="other">As notificações de <xliff:g id="NUMBER">%1$d</xliff:g> aplicações podem substituir o modo Não incomodar</item>
@@ -3878,7 +3878,7 @@
     <string name="disabled_by_policy_title_camera" msgid="3741138901926111197">"A câmara não é permitida"</string>
     <string name="disabled_by_policy_title_screen_capture" msgid="1856835333536274665">"A captura de ecrã não é permitida"</string>
     <string name="disabled_by_policy_title_suspend_packages" msgid="4254714213391802322">"Impossível abrir esta aplicação"</string>
-    <string name="default_admin_support_msg" msgid="5789424433689798637">"Se tiver dúvidas, contacte o seu gestor de TI."</string>
+    <string name="default_admin_support_msg" msgid="5789424433689798637">"Se tiver dúvidas, contacte o seu administrador de TI."</string>
     <string name="admin_support_more_info" msgid="8737842638087863477">"Mais detalhes"</string>
     <string name="admin_profile_owner_message" msgid="3199544166281052845">"O gestor pode monitorizar e gerir as aplicações e os dados associados ao seu perfil de trabalho, incluindo as definições, as autorizações, o acesso empresarial, a atividade da rede e as informações de localização do dispositivo."</string>
     <string name="admin_profile_owner_user_message" msgid="2991249382056855531">"O gestor pode monitorizar e gerir as aplicações e os dados associados a este utilizador, incluindo as definições, as autorizações, o acesso empresarial, a atividade da rede e as informações de localização do dispositivo."</string>
@@ -4160,7 +4160,7 @@
     <string name="auto_sync_account_title" msgid="2394463123733529506">"Sincronizar dados automaticamente"</string>
     <string name="auto_sync_personal_account_title" msgid="6844465157916100655">"Sincronizar dados pessoais automaticamente"</string>
     <string name="auto_sync_work_account_title" msgid="2403222633447522376">"Sincronizar dados de trabalho automaticamente"</string>
-    <string name="auto_sync_account_summary" msgid="6316230976974033772">"Permitir que as aplicações atualizem os dados automaticamente"</string>
+    <string name="auto_sync_account_summary" msgid="6316230976974033772">"Permitir que as apps atualizem os dados automaticamente"</string>
     <string name="account_sync_title" msgid="1570164819114297154">"Sincronização da conta"</string>
     <string name="account_sync_summary_some_on" msgid="1934556869158274053">"Sincronização ativada para <xliff:g id="ID_1">%1$d</xliff:g> de <xliff:g id="ID_2">%2$d</xliff:g> itens"</string>
     <string name="account_sync_summary_all_on" msgid="3634161204232431700">"Sincronização ativada para todos os itens"</string>
@@ -4289,7 +4289,7 @@
     <string name="angle_enabled_app_not_set" msgid="7428910515748621910">"Nenhuma aplicação compatível com o ANGLE definida."</string>
     <string name="angle_enabled_app_set" msgid="7313088703610569320">"Aplicação compatível com o ANGLE: <xliff:g id="APP_NAME">%1$s</xliff:g>"</string>
     <string name="game_driver_dashboard_title" msgid="219443350404091201">"Preferências da placa gráfica de jogos"</string>
-    <string name="game_driver_dashboard_summary" msgid="1500674075618790528">"Modifique as definições da placa gráfica de jogos."</string>
+    <string name="game_driver_dashboard_summary" msgid="1500674075618790528">"Modifique as definições da placa gráfica de jogos"</string>
     <string name="game_driver_footer_text" msgid="1540158284161797913">"Quando a placa gráfica de jogos está ativada, pode optar por utilizar o controlador da placa gráfica atualizado para as aplicações instaladas no dispositivo."</string>
     <string name="game_driver_all_apps_preference_title" msgid="2453795714218707495">"Ative para todas as aplicações"</string>
     <string name="game_driver_app_preference_title" msgid="7732401084883356004">"Selecione a placa gráfica"</string>
