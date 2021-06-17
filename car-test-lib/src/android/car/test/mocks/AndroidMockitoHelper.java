@@ -17,7 +17,6 @@ package android.car.test.mocks;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -27,32 +26,29 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.car.test.util.UserTestingHelper;
 import android.car.test.util.UserTestingHelper.UserInfoBuilder;
+import android.car.test.util.Visitor;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.content.pm.UserInfo.UserInfoFlag;
+import android.os.Binder;
 import android.os.IBinder;
 import android.os.IInterface;
 import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.UserManager.RemoveResult;
+import android.util.Log;
 
-import com.android.internal.infra.AndroidFuture;
-
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 /**
  * Provides common Mockito calls for core Android classes.
  */
 public final class AndroidMockitoHelper {
 
-    private static final long ASYNC_TIMEOUT_MS = 500;
+    private static final String TAG = AndroidMockitoHelper.class.getSimpleName();
 
     /**
      * Mocks a call to {@link ActivityManager#getCurrentUser()}.
@@ -112,47 +108,37 @@ public final class AndroidMockitoHelper {
     }
 
     /**
-     * Mocks {@code UserManager#getUsers()}, {@code UserManager#getUsers(excludeDying)}, and
-     * {@code UserManager#getUsers(excludePartial, excludeDying, excludeDying)} to return the given
-     * users.
+     * Mocks {@code UserManager#getAliveUsers()} to return the given users.
      */
-    public static void mockUmGetUsers(@NonNull UserManager um, @NonNull UserInfo... users) {
+    public static void mockUmGetAliveUsers(@NonNull UserManager um, @NonNull UserInfo... users) {
         Objects.requireNonNull(um);
-        List<UserInfo> testUsers = Arrays.stream(users).collect(Collectors.toList());
-        when(um.getUsers()).thenReturn(testUsers);
-        when(um.getUsers(anyBoolean())).thenReturn(testUsers);
-        when(um.getUsers(anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(testUsers);
+        when(um.getAliveUsers()).thenReturn(UserTestingHelper.toList(users));
     }
 
     /**
-     * Mocks {@code UserManager#getUsers()}, {@code UserManager#getUsers(excludeDying)}, and
-     * {@code UserManager#getUsers(excludePartial, excludeDying, excludeDying)} to return simple
-     * users with the given ids.
+     * Mocks {@code UserManager#getAliveUsers()} to return the simple users with the given ids.
      */
-    public static void mockUmGetUsers(@NonNull UserManager um, @NonNull @UserIdInt int... userIds) {
+    public static void mockUmGetAliveUsers(@NonNull UserManager um,
+            @NonNull @UserIdInt int... userIds) {
         List<UserInfo> users = UserTestingHelper.newUsers(userIds);
-        when(um.getUsers()).thenReturn(users);
-        when(um.getUsers(anyBoolean())).thenReturn(users);
-        when(um.getUsers(anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(users);
+        when(um.getAliveUsers()).thenReturn(users);
+    }
+
+    /**
+     * Mocks {@code UserManager#getUsers(excludePartial, excludeDying, excludeDying)} to return the
+     * given users.
+     */
+    public static void mockUmGetUsers(@NonNull UserManager um, boolean excludePartial,
+            boolean excludeDying, boolean excludePreCreated, @NonNull List<UserInfo> users) {
+        Objects.requireNonNull(um);
+        when(um.getUsers(excludePartial, excludeDying, excludePreCreated)).thenReturn(users);
     }
 
     /**
      * Mocks a call to {@code UserManager#getUsers()}, which includes dying users.
      */
-    public static void mockUmGetAllUsers(@NonNull UserManager um,
-            @NonNull List<UserInfo> userInfos) {
-        when(um.getUsers()).thenReturn(userInfos);
-    }
-
-    /**
-     * Mocks {@code UserManager#getUsers()}, {@code UserManager#getUsers(excludeDying)}, and
-     * {@code UserManager#getUsers(excludePartial, excludeDying, excludeDying)} to return given
-     * userInfos.
-     */
-    public static void mockUmGetUsers(@NonNull UserManager um, @NonNull List<UserInfo> userInfos) {
-        when(um.getUsers()).thenReturn(userInfos);
-        when(um.getUsers(anyBoolean())).thenReturn(userInfos);
-        when(um.getUsers(anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(userInfos);
+    public static void mockUmGetAllUsers(@NonNull UserManager um, @NonNull UserInfo... userInfos) {
+        when(um.getUsers()).thenReturn(UserTestingHelper.toList(userInfos));
     }
 
     /**
@@ -190,6 +176,23 @@ public final class AndroidMockitoHelper {
     }
 
     /**
+     * Mocks a successful call to {@code UserManager#removeUserOrSetEphemeral(int)}, and notifies
+     * {@code listener} when it's called.
+     */
+    public static void mockUmRemoveUserOrSetEphemeral(@NonNull UserManager um,
+            @NonNull UserInfo user, boolean evenWhenDisallowed, @RemoveResult int result,
+            @Nullable Visitor<UserInfo> listener) {
+        int userId = user.id;
+        when(um.removeUserOrSetEphemeral(userId, evenWhenDisallowed)).thenAnswer((inv) -> {
+            if (listener != null) {
+                Log.v(TAG, "mockUmRemoveUserOrSetEphemeral(" + user + "): notifying " + listener);
+                listener.visit(user);
+            }
+            return result;
+        });
+    }
+
+    /**
      * Mocks a call to {@link ServiceManager#getService(name)}.
      *
      * <p><b>Note: </b>it must be made inside a
@@ -221,6 +224,19 @@ public final class AndroidMockitoHelper {
     }
 
     /**
+     * Mocks a call to {@link Binder.getCallingUserHandle()}.
+     *
+     * <p><b>Note: </b>it must be made inside a
+     * {@link com.android.dx.mockito.inline.extended.StaticMockitoSession} built with
+     * {@code spyStatic(Binder.class)}.
+     *
+     * @param userId identifier of the {@link UserHandle} that will be returned.
+     */
+    public static void mockBinderGetCallingUserHandle(@UserIdInt int userId) {
+        doReturn(UserHandle.of(userId)).when(() -> Binder.getCallingUserHandle());
+    }
+
+    /**
      * Mocks a call to {@link Context#getSystemService(Class)}.
      */
     public static <T> void mockContextGetService(@NonNull Context context,
@@ -228,29 +244,6 @@ public final class AndroidMockitoHelper {
         when(context.getSystemService(serviceClass)).thenReturn(service);
         if (serviceClass.equals(PackageManager.class)) {
             when(context.getPackageManager()).thenReturn(PackageManager.class.cast(service));
-        }
-    }
-
-    /**
-     * Gets the result of a future, or throw a {@link IllegalStateException} if it times out after
-     * {@value #ASYNC_TIMEOUT_MS} ms.
-     */
-    @NonNull
-    public static <T> T getResult(@NonNull AndroidFuture<T> future)
-            throws InterruptedException, ExecutionException {
-        return getResult(future, ASYNC_TIMEOUT_MS);
-    }
-
-    /**
-     * Gets the result of a future, or throw a {@link IllegalStateException} if it times out.
-     */
-    @NonNull
-    public static <T> T getResult(@NonNull AndroidFuture<T> future, long timeoutMs)
-            throws InterruptedException, ExecutionException {
-        try {
-            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            throw new IllegalStateException("not called in " + ASYNC_TIMEOUT_MS + "ms", e);
         }
     }
 

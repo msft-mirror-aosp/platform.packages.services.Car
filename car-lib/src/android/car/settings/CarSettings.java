@@ -145,6 +145,20 @@ public class CarSettings {
                 "android.car.KEY_AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL";
 
         /**
+         * Key to indicate if mute state should be persisted across boot cycles.
+         * <p>The value is a boolean (1 or 0) where:
+         * <ul>
+         * <li>1 indicates volume group mute states should be persisted across boot cycles.
+         * <li>0 indicates volume group mute states should not be persisted across boot cycles.
+         * </ul>
+         *
+         * @hide
+         */
+        @SystemApi
+        public static final String KEY_AUDIO_PERSIST_VOLUME_GROUP_MUTE_STATES =
+                "android.car.KEY_AUDIO_PERSIST_VOLUME_GROUP_MUTE_STATES";
+
+        /**
          * Key for a list of devices to automatically connect on Bluetooth A2DP Sink profile
          * Written to and read by {@link com.android.car.BluetoothDeviceConnectionPolicy}
          * @hide
@@ -198,6 +212,7 @@ public class CarSettings {
          * The value is boolean (1 or 0).
          * @hide
          */
+        @SystemApi
         public static final String KEY_ENABLE_INITIAL_NOTICE_SCREEN_TO_USER =
                 "android.car.ENABLE_INITIAL_NOTICE_SCREEN_TO_USER";
 
@@ -207,6 +222,7 @@ public class CarSettings {
          * The value is boolean (1 or 0).
          * @hide
          */
+        @SystemApi
         public static final String KEY_SETUP_WIZARD_IN_PROGRESS =
                 "android.car.SETUP_WIZARD_IN_PROGRESS";
     }
