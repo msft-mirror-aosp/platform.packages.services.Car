@@ -17,6 +17,8 @@
 package android.car;
 
 import android.annotation.RequiresPermission;
+import android.car.hardware.property.VehicleElectronicTollCollectionCardStatus;
+import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
 
 /**
  * Copy from android.hardware.automotive.vehicle-V2.0-java_gen_java/gen/android/hardware/automotive
@@ -65,7 +67,7 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_FUEL_TYPE = 289472773;
     /**
-     * Battery capacity of the vehicle, if EV or hybrid.  This is the nominal
+     * Battery capacity of the vehicle in watt-hours (Wh), if EV or hybrid. This is the nominal
      * battery capacity when the vehicle is new.
      * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
@@ -128,19 +130,30 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EXTERIOR_DIMENSIONS = 289472779;
     /**
-     * Current odometer value of the vehicle
-     * Requires permission: {@link Car#PERMISSION_MILEAGE}.
+     * Current odometer value of the vehicle in kilometers.
+     * The property is protected by the signature permission: android.car.permission.CAR_MILEAGE.
      */
     @RequiresPermission(Car.PERMISSION_MILEAGE)
     public static final int PERF_ODOMETER = 291504644;
     /**
-     * Speed of the vehicle
-     * Requires permission: {@link Car#PERMISSION_SPEED}.
+     * Speed of the vehicle in meters per second.
+     *
+     * <p>PERF_VEHICLE_SPEED property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}, and returns a Float type value.
+     *
+     * <p>When the vehicle is moving forward, PERF_VEHICLE_SPEED is positive and negative when the
+     * vehicle is moving backward. Also, this value is independent of gear value (CURRENT_GEAR or
+     * GEAR_SELECTION). For example, if GEAR_SELECTION is GEAR_NEUTRAL, PERF_VEHICLE_SPEED is
+     * positive when the vehicle is moving forward, negative when moving backward, and zero when
+     * not moving.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_SPEED}.
      */
     @RequiresPermission(Car.PERMISSION_SPEED)
     public static final int PERF_VEHICLE_SPEED = 291504647;
     /**
-     * Speed of the vehicle for displays
+     * Speed of the vehicle in meters per second for displays.
      *
      * Some cars display a slightly slower speed than the actual speed. This is
      * usually displayed on the speedometer.
@@ -149,48 +162,88 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_SPEED)
     public static final int PERF_VEHICLE_SPEED_DISPLAY = 291504648;
     /**
-     * Front bicycle model steering angle for vehicle
+     * Front bicycle model steering angle for vehicle in degrees.
      *
-     * Angle is in degrees. Left is negative.
+     * Left is negative.
      * Requires permission: {@link Car#PERMISSION_READ_STEERING_STATE}.
      */
     @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
     public static final int PERF_STEERING_ANGLE = 291504649;
     /**
-     * Rear bicycle model steering angle for vehicle
+     * Rear bicycle model steering angle for vehicle in degrees.
      *
-     * Angle is in degrees. Left is negative.
+     * Left is negative.
      * Requires permission: {@link Car#PERMISSION_READ_STEERING_STATE}.
      */
     @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
     public static final int PERF_REAR_STEERING_ANGLE = 291504656;
     /**
-     * Temperature of engine coolant
-     * Requires permission: {@link Car#PERMISSION_CAR_ENGINE_DETAILED}.
+     * Temperature of engine coolant in celsius.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_ENGINE_DETAILED.
      */
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_COOLANT_TEMP = 291504897;
     /**
      * Engine oil level
-     * Requires permission: {@link Car#PERMISSION_CAR_ENGINE_DETAILED}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_ENGINE_DETAILED.
      */
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_OIL_LEVEL = 289407747;
     /**
-     * Temperature of engine oil
-     * Requires permission: {@link Car#PERMISSION_CAR_ENGINE_DETAILED}.
+     * Temperature of engine oil in celsius.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_ENGINE_DETAILED.
      */
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_OIL_TEMP = 291504900;
     /**
      * Engine rpm
-     * Requires permission: {@link Car#PERMISSION_CAR_ENGINE_DETAILED}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_ENGINE_DETAILED.
      */
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_RPM = 291504901;
     /**
-     * Reports wheel ticks
-     * Requires permission: {@link Car#PERMISSION_SPEED}.
+     * Reports wheel ticks.
+     *
+     * <p>WHEEL_TICK property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} and returns a Long[] type value.
+     *
+     * <p>The first element in the array is a reset count.  A reset indicates
+     * previous tick counts are not comparable with this and future ones.  Some
+     * sort of discontinuity in tick counting has occurred.
+     *
+     * <p>The next four elements represent ticks for individual wheels in the
+     * following order: front left, front right, rear right, rear left.  All
+     * tick counts are cumulative.  Tick counts increment when the vehicle
+     * moves forward, and decrement when vehicles moves in reverse.  The ticks
+     * should be reset to 0 when the vehicle is started by the user.
+     *
+     * <ul>
+     *  <li>Long[0] = reset count
+     *  <li>Long[1] = front left ticks
+     *  <li>Long[2] = front right ticks
+     *  <li>Long[3] = rear right ticks
+     *  <li>Long[4] = rear left ticks
+     * </ul>
+     *
+     * <p>configArray is used to indicate the micrometers-per-wheel-tick value and
+     * which wheels are supported. configArray is set as follows:
+     *
+     * <ul>
+     *  <li>configArray[0], bits [0:3] = supported wheels.  Uses enum Wheel.
+     *  <li>configArray[1] = micrometers per front left wheel tick
+     *  <li>configArray[2] = micrometers per front right wheel tick
+     *  <li>configArray[3] = micrometers per rear right wheel tick
+     *  <li>configArray[4] = micrometers per rear left wheel tick
+     * </ul>
+     *
+     * <p>NOTE:  If a wheel is not supported, its value is always 0.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_SPEED}.
      */
     @RequiresPermission(Car.PERMISSION_SPEED)
     public static final int WHEEL_TICK = 290521862;
@@ -203,13 +256,14 @@ public final class VehiclePropertyIds {
     /**
      * Fuel door open
      * Requires permission: {@link Car#PERMISSION_ENERGY_PORTS} to read the property.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_ENERGY_PORTS} to control the property.
+     * Requires the signature permission: android.car.permission.CONTROL_CAR_ENERGY_PORTS to write
+     * the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_ENERGY_PORTS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ENERGY_PORTS))
     public static final int FUEL_DOOR_OPEN = 287310600;
     /**
-     * EV battery level in WH, if EV or hybrid
+     * EV battery level in watt-hours (Wh), if EV or hybrid.
      * Requires permission: {@link Car#PERMISSION_ENERGY}.
      */
     @RequiresPermission(Car.PERMISSION_ENERGY)
@@ -217,7 +271,8 @@ public final class VehiclePropertyIds {
     /**
      * EV charge port open
      * Requires permission: {@link Car#PERMISSION_ENERGY_PORTS} to read the property.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_ENERGY_PORTS} to control the property.
+     * Requires the signature permission: android.car.permission.CONTROL_CAR_ENERGY_PORTS to write
+     * the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_ENERGY_PORTS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ENERGY_PORTS))
@@ -241,25 +296,73 @@ public final class VehiclePropertyIds {
      * all energy sources in a vehicle.  For example, a hybrid car's range will
      * be the sum of the ranges based on fuel and battery.
      * Requires permission: {@link Car#PERMISSION_ENERGY} to read the property.
-     * Requires permission: {@link Car#PERMISSION_ADJUST_RANGE_REMAINING} to write the property.
+     * Requires the signature permission: android.car.permission.ADJUST_RANGE_REMAINING to write
+     * the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_ENERGY))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_ADJUST_RANGE_REMAINING))
     public static final int RANGE_REMAINING = 291504904;
     /**
-     * Tire pressure
+     * Tire pressure in kilopascals.
      *
      * min/max value indicates tire pressure sensor range.  Each tire will have a separate min/max
      * value denoted by its areaConfig.areaId.
-     * Requires permission: {@link Car#PERMISSION_TIRES}.
+     * The property is protected by the signature permission: android.car.permission.CAR_TIRES.
      */
     @RequiresPermission(Car.PERMISSION_TIRES)
     public static final int TIRE_PRESSURE = 392168201;
     /**
-     * Currently selected gear
+     * Critically low tire pressure
      *
-     * This is the gear selected by the user.
-     * Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
+     * <p>This property indicates the critically low pressure threshold for each tire. It
+     * indicates when it is time for tires to be replaced or fixed. The value
+     * must be less than or equal to minFloatValue in {@link VehiclePropertyIds#TIRE_PRESSURE}.
+     * <p>Minimum and maximum property values
+     * (that is, {@code minFloatValue}, {@code maxFloatValue}) are not applicable to this property.
+     */
+    @RequiresPermission(Car.PERMISSION_TIRES)
+    public static final int CRITICALLY_LOW_TIRE_PRESSURE = 392168202;
+    /**
+     * Currently selected gear by user.
+     *
+     * <p>GEAR_SELECTION property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Integer type value.
+     *
+     * <p> See {@link VehicleGear} for gear value enum.
+     *
+     * <p>configArray represents the list of supported gears for the vehicle. For example,
+     * configArray for an EV vehicle is set as follows:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_PARK}
+     *  <li>configArray[2] = {@link VehicleGear#GEAR_DRIVE}
+     * </ul>
+     *
+     * <p>Example automatic transmission configArray:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_NEUTRAL}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[2] = {@link VehicleGear#GEAR_PARK}
+     *  <li>configArray[3] = {@link VehicleGear#GEAR_DRIVE}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_1}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_2}
+     *  <li>...
+     * </ul>
+     *
+     * <p>Example manual transmission configArray:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_NEUTRAL}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_1}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_2}
+     *  <li>...
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
      */
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int GEAR_SELECTION = 289408000;
@@ -274,7 +377,12 @@ public final class VehiclePropertyIds {
     public static final int CURRENT_GEAR = 289408001;
     /**
      * Parking brake state.
-     * Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
+     *
+     * <p>PARKING_BRAKE_ON property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Boolean type value.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
      */
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int PARKING_BRAKE_ON = 287310850;
@@ -291,14 +399,23 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_ENERGY)
     public static final int FUEL_LEVEL_LOW = 287310853;
     /**
-     * Night mode
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
+     * Night mode.
+     *
+     * <p>NIGHT_MODE property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Boolean type value.
+     *
+     * <p>True indicates that the night mode sensor has detected that the car cabin environment has
+     * low light.
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_ENVIRONMENT)
     public static final int NIGHT_MODE = 287310855;
     /**
      * State of the vehicles turn signals
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS .
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
     public static final int TURN_SIGNAL_STATE = 289408008;
@@ -310,109 +427,194 @@ public final class VehiclePropertyIds {
     public static final int IGNITION_STATE = 289408009;
     /**
      * ABS is active
-     * Requires permission: {@link Car#PERMISSION_CAR_DYNAMICS_STATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_DYNAMICS_STATE.
      */
     @RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE)
     public static final int ABS_ACTIVE = 287310858;
     /**
      * Traction Control is active
-     * Requires permission: {@link Car#PERMISSION_CAR_DYNAMICS_STATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_DYNAMICS_STATE.
      */
     @RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE)
     public static final int TRACTION_CONTROL_ACTIVE = 287310859;
     /**
      * Fan speed setting
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_FAN_SPEED = 356517120;
     /**
      * Fan direction setting
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_FAN_DIRECTION = 356517121;
     /**
-     * HVAC current temperature.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * HVAC current temperature in celsius.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_TEMPERATURE_CURRENT = 358614274;
     /**
      * HVAC, target temperature set.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     *
+     * <p>The {@code configArray} is used to indicate the valid values for HVAC in Fahrenheit and
+     * Celsius. Android might use it in the HVAC app UI.
+     * <p>The {@code configArray} is set as follows:
+     * <ul>
+     *      <li>{@code configArray[0]} is [the lower bound of the supported temperature in Celsius]
+     *      * 10.
+     *      <li>{@code configArray[1]} is [the upper bound of the supported temperature in Celsius]
+     *      * 10.
+     *      <li>{@code configArray[2]} is [the increment in Celsius] * 10.
+     *      <li>{@code configArray[3]} is
+     *      [the lower bound of the supported temperature in Fahrenheit] * 10.
+     *      <li>{@code configArray[4]} is
+     *      [the upper bound of the supported temperature in Fahrenheit] * 10.
+     *      <li>{@code configArray[5]} is [the increment in Fahrenheit] * 10.
+     * </ul>
+     * <p>For example, if the vehicle supports temperature values as:
+     * <pre>
+     * [16.0, 16.5, 17.0 ,..., 28.0] in Celsius
+     * [60.5, 61.5, 62.5 ,..., 85.5] in Fahrenheit
+     * </pre>
+     * <p>The {@code configArray} should be:
+     * <pre>
+     * configArray = {160, 280, 5, 605, 855, 10}.
+     * </pre>
+     * <p>If the vehicle supports {@link VehiclePropertyIds#HVAC_TEMPERATURE_VALUE_SUGGESTION},
+     * the application can use that property to get the suggested value before setting
+     * {@link VehiclePropertyIds#HVAC_TEMPERATURE_SET}. Otherwise, the application may choose the
+     * value in {@code configArray} of {@link VehiclePropertyIds#HVAC_TEMPERATURE_SET} by itself.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_TEMPERATURE_SET = 358614275;
     /**
+     * Suggested values for setting HVAC temperature.
+     *
+     * <p>Implement the property to help applications understand the closest supported temperature
+     * value in Celsius or Fahrenheit.
+     * <ul>
+     *      <li>{@code floatValues[0]} is the requested value that an application wants to set a
+     *      temperature to.
+     *      <li>{@code floatValues[1]} is the unit for {@code floatValues[0]}. It should be one of
+     *      ({@code VehicleUnit:CELSIUS}, {@code VehicleUnit:FAHRENHEIT}).
+     *      <li>{@code floatValues[2]} is the value OEMs suggested in CELSIUS. This value is not
+     *      included in the request.
+     *      <li>{@code floatValues[3]} is the value OEMs suggested in FAHRENHEIT. This value is not
+     *      included in the request.
+     * </ul>
+     * <p>An application calls
+     * {@link android.car.hardware.property.CarPropertyManager#setProperty(Class, int, int, Object)}
+     * with the requested value and unit for the value. OEMs need to return the suggested values
+     * in {@code floatValues[2]} and {@code floatValues[3]} by
+     * {@link android.car.hardware.property.CarPropertyManager.CarPropertyEventCallback}.
+     *
+     * <p>For example, when a user uses the voice assistant to set HVAC temperature to 66.2 in
+     * Fahrenheit.
+     * <p>First, an application will set this property with the value
+     * [66.2, {@code (float)VehicleUnit:FAHRENHEIT}, 0, 0]. If OEMs suggest to set 19.0 in Celsius
+     * or 66.5 in Fahrenheit for user's request, then car must generate a callback with property
+     * value [66.2, {@code (float)VehicleUnit:FAHRENHEIT}, 19.0, 66.5]. After the voice assistant
+     * gets the callback, it will inform the user and set HVAC temperature to the suggested value.
+     *
+     * <p>Another example, an application receives 21 Celsius as the current temperature value by
+     * querying {@link VehiclePropertyIds#HVAC_TEMPERATURE_SET}. But the application wants to know
+     * what value is displayed on the car's UI in Fahrenheit.
+     * <p>For this, the application sets the property to
+     * [21, {@code (float)VehicleUnit:CELSIUS}, 0, 0]. If the suggested value by the OEM for 21
+     * Celsius is 70 Fahrenheit, then car must generate a callback with property value
+     * [21, {@code (float)VehicleUnit:CELSIUS}, 21.0, 70.0]. In this case, the application can know
+     * that the value is 70.0 Fahrenheit in the car’s UI.
+     */
+    @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
+    public static final int HVAC_TEMPERATURE_VALUE_SUGGESTION = 291570965;
+    /**
      * On/off defrost for designated window
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_DEFROSTER = 320865540;
     /**
      * On/off AC for designated areaId
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_AC_ON = 354419973;
     /**
      * On/off max AC
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_MAX_AC_ON = 354419974;
     /**
      * On/off max defrost
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_MAX_DEFROST_ON = 354419975;
     /**
      * Recirculation on/off
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_RECIRC_ON = 354419976;
     /**
      * Enable temperature coupling between areas.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_DUAL_ON = 354419977;
     /**
      * On/off automatic mode
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_AUTO_ON = 354419978;
     /**
      * Seat heating/cooling
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_SEAT_TEMPERATURE = 356517131;
     /**
      * Side Mirror Heat
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_SIDE_MIRROR_HEAT = 339739916;
     /**
      * Steering Wheel Heating/Cooling
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_STEERING_WHEEL_HEAT = 289408269;
     /**
      * Temperature units for display
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_TEMPERATURE_DISPLAY_UNITS = 289408270;
     /**
      * Actual fan speed
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_ACTUAL_FAN_SPEED_RPM = 356517135;
@@ -423,31 +625,36 @@ public final class VehiclePropertyIds {
      * properties that control individual HVAC features/subsystems to AVAILABLE
      * state (unless any/all of them are UNAVAILABLE on their own individual
      * merits).
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_POWER_ON = 354419984;
     /**
      * Fan Positions Available
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_FAN_DIRECTION_AVAILABLE = 356582673;
     /**
      * Automatic recirculation on/off
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_AUTO_RECIRC_ON = 354419986;
     /**
      * Seat ventilation
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_SEAT_VENTILATION = 356517139;
     /**
      * ELECTRIC DEFROSTER
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_CLIMATE}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_CLIMATE.
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
@@ -455,8 +662,8 @@ public final class VehiclePropertyIds {
     /**
      * Distance units for display
      * Requires permission {@link Car#PERMISSION_READ_DISPLAY_UNITS} to read the property.
-     * Requires permission {@link Car#PERMISSION_CONTROL_DISPLAY_UNITS} and
-     * {@link Car#PERMISSION_VENDOR_EXTENSION}to write the property.
+     * Requires two signature permissions: android.car.permission.CONTROL_CAR_DISPLAY_UNITS and
+     * android.car.permission.CAR_VENDOR_EXTENSION to write the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DISPLAY_UNITS))
     @RequiresPermission.Write(@RequiresPermission(allOf = {Car.PERMISSION_CONTROL_DISPLAY_UNITS,
@@ -465,8 +672,8 @@ public final class VehiclePropertyIds {
     /**
      * Fuel volume units for display
      * Requires permission {@link Car#PERMISSION_READ_DISPLAY_UNITS} to read the property.
-     * Requires permission {@link Car#PERMISSION_CONTROL_DISPLAY_UNITS}
-     * and {@link Car#PERMISSION_VENDOR_EXTENSION}to write the property.
+     * Requires two signature permissions: android.car.permission.CONTROL_CAR_DISPLAY_UNITS and
+     * android.car.permission.CAR_VENDOR_EXTENSION to write the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DISPLAY_UNITS))
     @RequiresPermission.Write(@RequiresPermission(allOf = {Car.PERMISSION_CONTROL_DISPLAY_UNITS,
@@ -475,8 +682,8 @@ public final class VehiclePropertyIds {
     /**
      * Tire pressure units for display
      * Requires permission {@link Car#PERMISSION_READ_DISPLAY_UNITS} to read the property.
-     * Requires permission {@link Car#PERMISSION_CONTROL_DISPLAY_UNITS} and
-     * {@link Car#PERMISSION_VENDOR_EXTENSION}to write the property.
+     * Requires two signature permissions: android.car.permission.CONTROL_CAR_DISPLAY_UNITS and
+     * android.car.permission.CAR_VENDOR_EXTENSION to write the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DISPLAY_UNITS))
     @RequiresPermission.Write(@RequiresPermission(allOf = {Car.PERMISSION_CONTROL_DISPLAY_UNITS,
@@ -485,8 +692,8 @@ public final class VehiclePropertyIds {
     /**
      * EV battery units for display
      * Requires permission {@link Car#PERMISSION_READ_DISPLAY_UNITS} to read the property.
-     * Requires permission {@link Car#PERMISSION_CONTROL_DISPLAY_UNITS} and
-     * {@link Car#PERMISSION_VENDOR_EXTENSION}to write the property.
+     * Requires two signature permissions: android.car.permission.CONTROL_CAR_DISPLAY_UNITS and
+     * android.car.permission.CAR_VENDOR_EXTENSION to write the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DISPLAY_UNITS))
     @RequiresPermission.Write(@RequiresPermission(allOf = {Car.PERMISSION_CONTROL_DISPLAY_UNITS,
@@ -495,8 +702,8 @@ public final class VehiclePropertyIds {
     /**
      * Speed Units for display
      * Requires permission {@link Car#PERMISSION_READ_DISPLAY_UNITS} to read the property.
-     * Requires permission {@link Car#PERMISSION_CONTROL_DISPLAY_UNITS} and
-     * {@link Car#PERMISSION_VENDOR_EXTENSION}to write the property.
+     * Requires two signature permissions: android.car.permission.CONTROL_CAR_DISPLAY_UNITS and
+     * android.car.permission.CAR_VENDOR_EXTENSION to write the property.
      * @hide
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DISPLAY_UNITS))
@@ -506,15 +713,15 @@ public final class VehiclePropertyIds {
     /**
      * Fuel consumption units for display
      * Requires permission {@link Car#PERMISSION_READ_DISPLAY_UNITS} to read the property.
-     * Requires permission {@link Car#PERMISSION_CONTROL_DISPLAY_UNITS} and
-     * {@link Car#PERMISSION_VENDOR_EXTENSION}to write the property.
+     * Requires two signature permissions: android.car.permission.CONTROL_CAR_DISPLAY_UNITS and
+     * android.car.permission.CAR_VENDOR_EXTENSION to write the property.
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DISPLAY_UNITS))
     @RequiresPermission.Write(@RequiresPermission(allOf = {Car.PERMISSION_CONTROL_DISPLAY_UNITS,
             Car.PERMISSION_VENDOR_EXTENSION}))
     public static final int FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME = 287311364;
     /**
-     * Outside temperature
+     * Outside temperature in celsius.
      * Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_ENVIRONMENT)
@@ -524,7 +731,7 @@ public final class VehiclePropertyIds {
      *
      * It is assumed that AP's power state is controller by separate power
      * controller.
-     * Requires permission: {@link Car#PERMISSION_CAR_POWER}.
+     * The property is protected by the signature permission: android.car.permission.CAR_POWER.
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
     public static final int AP_POWER_STATE_REQ = 289475072;
@@ -533,7 +740,7 @@ public final class VehiclePropertyIds {
      *
      * It is assumed that AP's power state is controller by separate power
      * controller.
-     * Requires permission: {@link Car#PERMISSION_CAR_POWER}.
+     * The property is protected by the signature permission: android.car.permission.CAR_POWER.
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
     public static final int AP_POWER_STATE_REPORT = 289475073;
@@ -543,7 +750,7 @@ public final class VehiclePropertyIds {
      * off. For example, even if user presses power on button after automatic
      * power on with door unlock, bootup reason must stay with
      * VehicleApPowerBootupReason#USER_UNLOCK.
-     * Requires permission: {@link Car#PERMISSION_CAR_POWER}.
+     * The property is protected by the signature permission: android.car.permission.CAR_POWER.
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
     public static final int AP_POWER_BOOTUP_REASON = 289409538;
@@ -551,7 +758,7 @@ public final class VehiclePropertyIds {
      * Property to represent brightness of the display. Some cars have single
      * control for the brightness of all displays and this property is to share
      * change in that control.
-     * Requires permission: {@link Car#PERMISSION_CAR_POWER}.
+     * The property is protected by the signature permission: android.car.permission.CAR_POWER.
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
     public static final int DISPLAY_BRIGHTNESS = 289409539;
@@ -564,55 +771,64 @@ public final class VehiclePropertyIds {
      *
      * This is an integer in case a door may be set to a particular position.
      * Max value indicates fully open, min value (0) indicates fully closed.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_DOORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_DOORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_DOORS)
     public static final int DOOR_POS = 373295872;
     /**
      * Door move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_DOORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_DOORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_DOORS)
     public static final int DOOR_MOVE = 373295873;
     /**
      * Door lock
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_DOORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_DOORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_DOORS)
     public static final int DOOR_LOCK = 371198722;
     /**
      * Mirror Z Position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_MIRRORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_MIRRORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_Z_POS = 339741504;
     /**
      * Mirror Z Move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_MIRRORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_MIRRORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_Z_MOVE = 339741505;
     /**
      * Mirror Y Position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_MIRRORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_MIRRORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_Y_POS = 339741506;
     /**
      * Mirror Y Move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_MIRRORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_MIRRORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_Y_MOVE = 339741507;
     /**
      * Mirror Lock
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_MIRRORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_MIRRORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_LOCK = 287312708;
     /**
      * Mirror Fold
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_MIRRORS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_MIRRORS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_FOLD = 287312709;
@@ -622,7 +838,8 @@ public final class VehiclePropertyIds {
      * This parameter selects the memory preset to use to select the seat
      * position. The minValue is always 0, and the maxValue determines the
      * number of seat positions available.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_MEMORY_SELECT = 356518784;
@@ -632,7 +849,8 @@ public final class VehiclePropertyIds {
      * This setting allows the user to save the current seat position settings
      * into the selected preset slot.  The maxValue for each seat position
      * must match the maxValue for SEAT_MEMORY_SELECT.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_MEMORY_SET = 356518785;
@@ -640,37 +858,43 @@ public final class VehiclePropertyIds {
      * Seatbelt buckled
      *
      * True indicates belt is buckled.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_BELT_BUCKLED = 354421634;
     /**
      * Seatbelt height position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_BELT_HEIGHT_POS = 356518787;
     /**
      * Seatbelt height move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_BELT_HEIGHT_MOVE = 356518788;
     /**
      * Seat fore/aft position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_FORE_AFT_POS = 356518789;
     /**
      * Seat fore/aft move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_FORE_AFT_MOVE = 356518790;
     /**
      * Seat backrest angle 1 position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_BACKREST_ANGLE_1_POS = 356518791;
@@ -678,146 +902,169 @@ public final class VehiclePropertyIds {
      * Seat backrest angle 1 move
      *
      * Moves the backrest forward or recline.
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_BACKREST_ANGLE_1_MOVE = 356518792;
     /**
      * Seat backrest angle 2 position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_BACKREST_ANGLE_2_POS = 356518793;
     /**
      * Seat backrest angle 2 move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_BACKREST_ANGLE_2_MOVE = 356518794;
     /**
      * Seat height position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEIGHT_POS = 356518795;
     /**
      * Seat height move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEIGHT_MOVE = 356518796;
     /**
      * Seat depth position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_DEPTH_POS = 356518797;
     /**
      * Seat depth move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_DEPTH_MOVE = 356518798;
     /**
      * Seat tilt position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_TILT_POS = 356518799;
     /**
      * Seat tilt move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_TILT_MOVE = 356518800;
     /**
      * Lumber fore/aft position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_FORE_AFT_POS = 356518801;
     /**
      * Lumbar fore/aft move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_FORE_AFT_MOVE = 356518802;
     /**
      * Lumbar side support position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_SIDE_SUPPORT_POS = 356518803;
     /**
      * Lumbar side support move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_SIDE_SUPPORT_MOVE = 356518804;
     /**
      * Headrest height position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEADREST_HEIGHT_POS = 289409941;
     /**
      * Headrest height move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEADREST_HEIGHT_MOVE = 356518806;
     /**
      * Headrest angle position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEADREST_ANGLE_POS = 356518807;
     /**
      * Headrest angle move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEADREST_ANGLE_MOVE = 356518808;
     /**
      * Headrest fore/aft position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEADREST_FORE_AFT_POS = 356518809;
     /**
      * Headrest fore/aft move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_HEADREST_FORE_AFT_MOVE = 356518810;
     /**
      * Seat Occupancy
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_SEATS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_SEATS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_OCCUPANCY = 356518832;
     /**
      * Window Position
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_WINDOWS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_WINDOWS
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WINDOWS)
     public static final int WINDOW_POS = 322964416;
     /**
      * Window Move
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_WINDOWS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_WINDOWS
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WINDOWS)
     public static final int WINDOW_MOVE = 322964417;
     /**
      * Window Lock
-     * Requires permission: {@link Car#PERMISSION_CONTROL_CAR_WINDOWS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CONTROL_CAR_WINDOWS
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WINDOWS)
     public static final int WINDOW_LOCK = 320867268;
     /**
      * Vehicle Maps Service (VMS) message
-     * Requires one of permissions in {@link Car#PERMISSION_VMS_PUBLISHER},
-     * {@link Car#PERMISSION_VMS_SUBSCRIBER}.
+     * The property is protected by the signature permissions:
+     * android.car.permission.VMS_PUBLISHER and android.car.permission.VMS_SUBSCRIBER.
      */
     @RequiresPermission(anyOf = {Car.PERMISSION_VMS_PUBLISHER, Car.PERMISSION_VMS_SUBSCRIBER})
     public static final int VEHICLE_MAP_SERVICE = 299895808;
@@ -825,7 +1072,8 @@ public final class VehiclePropertyIds {
      * OBD2 Live Sensor Data
      *
      * Reports a snapshot of the current (live) values of the OBD2 sensors available.
-     * Requires permission: {@link Car#PERMISSION_CAR_DIAGNOSTIC_READ_ALL}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_DIAGNOSTICS.
      */
     @RequiresPermission(Car.PERMISSION_CAR_DIAGNOSTIC_READ_ALL)
     public static final int OBD2_LIVE_FRAME = 299896064;
@@ -834,13 +1082,15 @@ public final class VehiclePropertyIds {
      *
      * Reports a snapshot of the value of the OBD2 sensors available at the time that a fault
      * occurred and was detected.
-     * Requires permission: {@link Car#PERMISSION_CAR_DIAGNOSTIC_READ_ALL}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_DIAGNOSTICS.
      */
     @RequiresPermission(Car.PERMISSION_CAR_DIAGNOSTIC_READ_ALL)
     public static final int OBD2_FREEZE_FRAME = 299896065;
     /**
      * OBD2 Freeze Frame Information
-     * Requires permission: {@link Car#PERMISSION_CAR_DIAGNOSTIC_READ_ALL}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_DIAGNOSTICS.
      */
     @RequiresPermission(Car.PERMISSION_CAR_DIAGNOSTIC_READ_ALL)
     public static final int OBD2_FREEZE_FRAME_INFO = 299896066;
@@ -849,55 +1099,64 @@ public final class VehiclePropertyIds {
      *
      * This property allows deletion of any of the freeze frames stored in
      * vehicle memory, as described by OBD2_FREEZE_FRAME_INFO.
-     * Requires permission: {@link Car#PERMISSION_CAR_DIAGNOSTIC_CLEAR}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CLEAR_CAR_DIAGNOSTICS.
      */
     @RequiresPermission(Car.PERMISSION_CAR_DIAGNOSTIC_CLEAR)
     public static final int OBD2_FREEZE_FRAME_CLEAR = 299896067;
     /**
      * Headlights State
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
     public static final int HEADLIGHTS_STATE = 289410560;
     /**
      * High beam lights state
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
     public static final int HIGH_BEAM_LIGHTS_STATE = 289410561;
     /**
      * Fog light state
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
     public static final int FOG_LIGHTS_STATE = 289410562;
     /**
      * Hazard light status
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
     public static final int HAZARD_LIGHTS_STATE = 289410563;
     /**
      * Headlight switch
-     * Requires permission: {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS)
     public static final int HEADLIGHTS_SWITCH = 289410576;
     /**
      * High beam light switch
-     * Requires permission: {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS)
     public static final int HIGH_BEAM_LIGHTS_SWITCH = 289410577;
     /**
      * Fog light switch
-     * Requires permission: {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS)
     public static final int FOG_LIGHTS_SWITCH = 289410578;
     /**
      * Hazard light switch
-     * Requires permission: {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS}.
+     * The property is protected by the signature permission:
+     * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS)
     public static final int HAZARD_LIGHTS_SWITCH = 289410579;
@@ -977,6 +1236,157 @@ public final class VehiclePropertyIds {
     public static final int USER_IDENTIFICATION_ASSOCIATION = 299896587;
 
     /**
+     * Property for VHAL to apply power policy.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int POWER_POLICY_REQ = 286265121;
+
+    /**
+     * Property for VHAL to set the default power policies per power status transition.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int POWER_POLICY_GROUP_REQ = 286265122;
+
+    /**
+     * Property to report a new current power policy to VHAL.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int CURRENT_POWER_POLICY = 286265123;
+
+    /**
+     * Property to report that car watchdog is alive.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int WATCHDOG_ALIVE = 290459441;
+
+    /**
+     * Property to report a process terminated by car watchdog.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int WATCHDOG_TERMINATED_PROCESS = 299896626;
+
+    /**
+     * Property to signal a heartbeat from VHAL.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int VHAL_HEARTBEAT = 290459443;
+
+    /**
+     * Property to start the ClusterUI in cluster display.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int CLUSTER_SWITCH_UI = 289410868;
+
+    /**
+     * Property to change the state of the cluster display.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int CLUSTER_DISPLAY_STATE = 289476405;
+
+    /**
+     * Property to reports the current display and ClusterUI statue.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int CLUSTER_REPORT_STATE = 299896630;
+
+    /**
+     * Property to request to change the cluster display state to show some ClusterUI.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int CLUSTER_REQUEST_DISPLAY = 289410871;
+
+    /**
+     * Property to inform the current navigation state.
+     *
+     * <p>Doesn't require permission because it's not exposed through
+     * {@link android.car.hardware.property.CarPropertyManager}.
+     *
+     * @hide
+     */
+    public static final int CLUSTER_NAVIGATION_STATE = 292556600;
+
+    /**
+     * Current date and time, encoded as Unix time.
+     *
+     * <p>This value denotes the number of milliseconds that have elapsed since 1/1/1970 UTC.
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_EPOCH_TIME)
+    public static final int EPOCH_TIME = 290457094;
+
+    /**
+     * External encryption binding seed.
+     *
+     * <p>This value is mixed with the local storage encryption seed. This property holds 16 bytes,
+     * and is expected to be persisted on an ECU separate from the IVI. The property is initially
+     * set by AAOS, who generates it using a CSRNG. AAOS will then read the property on subsequent
+     * boots.
+     */
+    @RequiresPermission(Car.PERMISSION_STORAGE_ENCRYPTION_BINDING_SEED)
+    public static final int STORAGE_ENCRYPTION_BINDING_SEED = 292554247;
+
+    /**
+     * Electronic Toll Collection card type.
+     *
+     * <p>This property indicates the type of ETC(Electronic Toll Collection) card in the vehicle.
+     * If the head unit is aware of an ETC card attached to the vehicle, this property should return
+     * the type of card attached; otherwise, this property should be UNAVAILABLE.
+     * The property value should be one of {@link VehicleElectronicTollCollectionCardType}.
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_INFO)
+    public static final int ELECTRONIC_TOLL_COLLECTION_CARD_TYPE = 289410873;
+
+    /**
+     * Electronic Toll Collection card status.
+     *
+     * <p>This property indicates the status of ETC(Electronic Toll Collection) card in the vehicle.
+     * If the head unit is aware of an ETC card attached to the vehicle, ETC_CARD_STATUS gives
+     * that status of the card; otherwise, this property should be UNAVAILABLE.
+     * The property value should be one of {@link VehicleElectronicTollCollectionCardStatus}.
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_INFO)
+    public static final int ELECTRONIC_TOLL_COLLECTION_CARD_STATUS = 289410874;
+
+    /**
      * Gets a user-friendly representation of a property.
      */
     public static String toString(int property) {
@@ -1045,6 +1455,8 @@ public final class VehiclePropertyIds {
                 return "RANGE_REMAINING";
             case TIRE_PRESSURE:
                 return "TIRE_PRESSURE";
+            case CRITICALLY_LOW_TIRE_PRESSURE:
+                return "CRITICALLY_LOW_TIRE_PRESSURE";
             case GEAR_SELECTION:
                 return "GEAR_SELECTION";
             case CURRENT_GEAR:
@@ -1073,6 +1485,8 @@ public final class VehiclePropertyIds {
                 return "HVAC_TEMPERATURE_CURRENT";
             case HVAC_TEMPERATURE_SET:
                 return "HVAC_TEMPERATURE_SET";
+            case HVAC_TEMPERATURE_VALUE_SUGGESTION:
+                return "HVAC_TEMPERATURE_VALUE_SUGGESTION";
             case HVAC_DEFROSTER:
                 return "HVAC_DEFROSTER";
             case HVAC_AC_ON:
@@ -1255,8 +1669,44 @@ public final class VehiclePropertyIds {
                 return "REMOVE_USER";
             case USER_IDENTIFICATION_ASSOCIATION:
                 return "USER_IDENTIFICATION_ASSOCIATION";
+            case POWER_POLICY_REQ:
+                return "POWER_POLICY_REQ";
+            case POWER_POLICY_GROUP_REQ:
+                return "POWER_POLICY_GROUP_REQ";
+            case CURRENT_POWER_POLICY:
+                return "CURRENT_POWER_POLICY";
+            case WATCHDOG_ALIVE:
+                return "WATCHDOG_ALIVE";
+            case WATCHDOG_TERMINATED_PROCESS:
+                return "WATCHDOG_TERMINATED_PROCESS";
+            case VHAL_HEARTBEAT:
+                return "VHAL_HEARTBEAT";
+            case CLUSTER_SWITCH_UI:
+                return "CLUSTER_SWITCH_UI";
+            case CLUSTER_DISPLAY_STATE:
+                return "CLUSTER_DISPLAY_STATE";
+            case CLUSTER_REPORT_STATE:
+                return "CLUSTER_REPORT_STATE";
+            case CLUSTER_REQUEST_DISPLAY:
+                return "CLUSTER_REQUEST_DISPLAY";
+            case CLUSTER_NAVIGATION_STATE:
+                return "CLUSTER_NAVIGATION_STATE";
+            case EPOCH_TIME:
+                return "EPOCH_TIME";
+            case STORAGE_ENCRYPTION_BINDING_SEED:
+                return "STORAGE_ENCRYPTION_BINDING_SEED";
+            case ELECTRONIC_TOLL_COLLECTION_CARD_STATUS:
+                return "ELECTRONIC_TOLL_COLLECTION_CARD_STATUS";
+            case ELECTRONIC_TOLL_COLLECTION_CARD_TYPE:
+                return "ELECTRONIC_TOLL_COLLECTION_CARD_TYPE";
             default:
                 return "0x" + Integer.toHexString(property);
         }
     }
+
+    /**
+     * @deprecated to prevent others from instantiating this class
+     */
+    @Deprecated
+    public VehiclePropertyIds() {}
 }
