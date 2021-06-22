@@ -159,15 +159,15 @@ public class ICarImpl extends ICar.Stub {
     private final ICarSystemServerClientImpl mICarSystemServerClientImpl;
 
     public ICarImpl(Context serviceContext, IVehicle vehicle, SystemInterface systemInterface,
-            CanBusErrorNotifier errorNotifier, String vehicleInterfaceName) {
-        this(serviceContext, vehicle, systemInterface, errorNotifier, vehicleInterfaceName,
+            String vehicleInterfaceName) {
+        this(serviceContext, vehicle, systemInterface, vehicleInterfaceName,
                 /* carUserService= */ null, /* carWatchdogService= */ null,
                 /* powerPolicyDaemon= */ null);
     }
 
     @VisibleForTesting
     ICarImpl(Context serviceContext, IVehicle vehicle, SystemInterface systemInterface,
-            CanBusErrorNotifier errorNotifier, String vehicleInterfaceName,
+            String vehicleInterfaceName,
             @Nullable CarUserService carUserService,
             @Nullable CarWatchdogService carWatchdogService,
             @Nullable ICarPowerPolicySystemNotification powerPolicyDaemon) {
@@ -844,7 +844,7 @@ public class ICarImpl extends ICar.Stub {
         return new CarShellCommand(mContext, mHal, mCarAudioService, mCarPackageManagerService,
                 mCarProjectionService, mCarPowerManagementService, mFixedActivityService,
                 mFeatureController, mCarInputService, mCarNightService, mSystemInterface,
-                mGarageModeService, mCarUserService, mCarOccupantZoneService);
+                mGarageModeService, mCarUserService, mCarOccupantZoneService, mCarEvsService);
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
