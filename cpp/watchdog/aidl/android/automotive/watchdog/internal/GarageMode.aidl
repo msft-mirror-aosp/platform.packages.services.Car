@@ -14,23 +14,20 @@
  * limitations under the License.
  */
 
-package com.android.car.telemetry.publisher;
-
-import com.android.car.telemetry.Channel;
+package android.automotive.watchdog.internal;
 
 /**
- * Publisher for Android logs (adb logcat).
- *
- * TODO(b/187525360): Move the logic from LogcatReader here.
+ * Used by ICarWatchdog to describe the garage mode status.
  */
-public class LogcatPublisher implements Publisher {
-    /** See {@link Publisher#addChannel()} for details. */
-    public void addChannel(Channel channel) {
-        // TODO(b/187525360): implement
-    }
+@Backing(type="int")
+enum GarageMode {
+  /**
+   * The system is in normal mode.
+   */
+  GARAGE_MODE_OFF,
 
-    /** See {@link Publisher#removeChannel()} for details. */
-    public void removeChannel(Channel channel) {
-        // TODO(b/187525360): implement
-    }
+  /**
+   * The system is in garage mode.
+   */
+  GARAGE_MODE_ON,
 }
