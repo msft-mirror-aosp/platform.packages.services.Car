@@ -122,28 +122,20 @@ public:
         return {};
     }
 
-    // TODO(b/185498771): Forward WatchdogBinderMediator's notifySystemStateChange call to
-    //  WatchdogPerfService. On POWER_CYCLE_SHUTDOWN_PREPARE, switch to garage mode collection
-    //  and pass collection flag as a param in this API to indicate garage mode collection.
-    android::base::Result<void> onPeriodicCollection(time_t time,
+    android::base::Result<void> onPeriodicCollection(time_t time, SystemState systemState,
                                                      const android::wp<UidIoStats>& uidIoStats,
                                                      const android::wp<ProcStat>& procStat,
                                                      const android::wp<ProcPidStat>& procPidStat);
 
     android::base::Result<void> onCustomCollection(
-            time_t time, const std::unordered_set<std::string>& filterPackages,
+            time_t time, SystemState systemState,
+            const std::unordered_set<std::string>& filterPackages,
             const android::wp<UidIoStats>& uidIoStats, const android::wp<ProcStat>& procStat,
             const android::wp<ProcPidStat>& procPidStat);
 
     android::base::Result<void> onPeriodicMonitor(
             time_t time, const android::wp<IProcDiskStatsInterface>& procDiskStats,
             const std::function<void()>& alertHandler);
-
-    // TODO(b/185498771): Forward WatchdogBinderMediator's notifySystemStateChange call to
-    //  WatchdogProcessService. On POWER_CYCLE_SHUTDOWN_PREPARE_COMPLETE, call this method via
-    //  the IDataProcessorInterface. onShutdownPrepareComplete, IoOveruseMonitor will flush
-    //  in-memory stats to disk.
-    android::base::Result<void> onShutdownPrepareComplete();
 
     android::base::Result<void> onDump(int fd);
 
@@ -228,6 +220,12 @@ private:
     using ListenersByUidMap = std::unordered_map<uid_t, android::sp<IResourceOveruseListener>>;
     using Processor = std::function<void(ListenersByUidMap&, ListenersByUidMap::const_iterator)>;
     bool findListenerAndProcessLocked(const sp<IBinder>& binder, const Processor& processor);
+
+    /*
+     * Writes in-memory configs to disk asynchronously if configs are not written after latest
+     * update.
+     */
+    void writeConfigsToDiskAsyncLocked();
 
     // Local IPackageInfoResolver instance. Useful to mock in tests.
     sp<IPackageInfoResolver> mPackageInfoResolver;

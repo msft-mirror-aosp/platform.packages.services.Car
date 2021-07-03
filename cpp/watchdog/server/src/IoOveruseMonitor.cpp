@@ -29,14 +29,19 @@
 #include <binder/Status.h>
 #include <cutils/multiuser.h>
 #include <log/log.h>
+#include <processgroup/sched_policy.h>
+
+#include <pthread.h>
 
 #include <limits>
+#include <thread>  // NOLINT(build/c++11)
 
 namespace android {
 namespace automotive {
 namespace watchdog {
 
 using ::android::IPCThreadState;
+using ::android::sp;
 using ::android::automotive::watchdog::internal::ComponentType;
 using ::android::automotive::watchdog::internal::IoOveruseConfiguration;
 using ::android::automotive::watchdog::internal::PackageIdentifier;
@@ -165,7 +170,7 @@ void IoOveruseMonitor::terminate() {
 }
 
 Result<void> IoOveruseMonitor::onPeriodicCollection(
-        time_t time, const android::wp<UidIoStats>& uidIoStats,
+        time_t time, SystemState systemState, const android::wp<UidIoStats>& uidIoStats,
         [[maybe_unused]] const android::wp<ProcStat>& procStat,
         [[maybe_unused]] const android::wp<ProcPidStat>& procPidStat) {
     if (uidIoStats == nullptr) {
@@ -209,17 +214,13 @@ Result<void> IoOveruseMonitor::onPeriodicCollection(
     }
     const auto packageInfosByUid = mPackageInfoResolver->getPackageInfosForUids(seenUids);
     std::unordered_map<uid_t, IoOveruseStats> overusingNativeStats;
+    bool isGarageModeActive = systemState == SystemState::GARAGE_MODE;
     for (const auto& [uid, uidIoStats] : perUidIoUsage) {
         const auto& packageInfo = packageInfosByUid.find(uid);
         if (packageInfo == packageInfosByUid.end()) {
             continue;
         }
-        /*
-         * TODO(b/185498771): Derive the garage mode status from the collection flag, which will
-         *  be added to the |onPeriodicCollection| API.
-         */
-        UserPackageIoUsage curUsage(packageInfo->second, uidIoStats.ios,
-                                    /*isGarageModeActive=*/false);
+        UserPackageIoUsage curUsage(packageInfo->second, uidIoStats.ios, isGarageModeActive);
         UserPackageIoUsage* dailyIoUsage;
         if (auto cachedUsage = mUserPackageDailyIoUsageById.find(curUsage.id());
             cachedUsage != mUserPackageDailyIoUsageById.end()) {
@@ -313,16 +314,16 @@ Result<void> IoOveruseMonitor::onPeriodicCollection(
             ALOGD("Pushed latest I/O overuse stats to watchdog service");
         }
     }
-
     return {};
 }
 
 Result<void> IoOveruseMonitor::onCustomCollection(
-        time_t time, [[maybe_unused]] const std::unordered_set<std::string>& filterPackages,
+        time_t time, SystemState systemState,
+        [[maybe_unused]] const std::unordered_set<std::string>& filterPackages,
         const android::wp<UidIoStats>& uidIoStats, const android::wp<ProcStat>& procStat,
         const android::wp<ProcPidStat>& procPidStat) {
     // Nothing special for custom collection.
-    return onPeriodicCollection(time, uidIoStats, procStat, procPidStat);
+    return onPeriodicCollection(time, systemState, uidIoStats, procStat, procPidStat);
 }
 
 Result<void> IoOveruseMonitor::onPeriodicMonitor(
@@ -379,11 +380,6 @@ Result<void> IoOveruseMonitor::onPeriodicMonitor(
     return {};
 }
 
-Result<void> IoOveruseMonitor::onShutdownPrepareComplete() {
-    // TODO(b/185287136): Flush in-memory stats to disk.
-    return {};
-}
-
 Result<void> IoOveruseMonitor::onDump([[maybe_unused]] int fd) {
     // TODO(b/183436216): Dump the list of killed/disabled packages. Dump the list of packages that
     //  exceed xx% of their threshold.
@@ -420,7 +416,25 @@ Result<void> IoOveruseMonitor::updateResourceOveruseConfigurations(
     if (!isInitializedLocked()) {
         return Error(Status::EX_ILLEGAL_STATE) << name() << " is not initialized";
     }
-    return mIoOveruseConfigs->update(configs);
+    if (const auto result = mIoOveruseConfigs->update(configs); !result.ok()) {
+        return result;
+    }
+    std::thread writeToDiskThread([&]() {
+        if (set_sched_policy(0, SP_BACKGROUND) != 0) {
+            ALOGW("Failed to set background scheduling priority for writing resource overuse "
+                  "configs to disk");
+        }
+        if (int result = pthread_setname_np(pthread_self(), "ResOveruseCfgWr"); result != 0) {
+            ALOGE("Failed to set thread name to 'ResOveruseCfgWr'");
+        }
+        std::unique_lock writeLock(mRwMutex);
+        if (const auto result = mIoOveruseConfigs->writeToDisk(); !result.ok()) {
+            ALOGE("Failed to write resource overuse configs to disk: %s",
+                  result.error().message().c_str());
+        }
+    });
+    writeToDiskThread.detach();
+    return {};
 }
 
 Result<void> IoOveruseMonitor::getResourceOveruseConfigurations(
