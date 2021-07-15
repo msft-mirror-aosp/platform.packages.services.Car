@@ -14,13 +14,9 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <!-- IME should not hide nav bar -->
-    <bool name="config_automotiveHideNavBarForKeyboard">false</bool>
 
-    <!-- Class name of the device specific implementation of DisplayAreaPolicy.Provider
-    or empty if the default should be used. -->
-    <string translatable="false" name="config_deviceSpecificDisplayAreaPolicyProvider">
-        com.android.server.wm.CarDisplayAreaPolicyProvider
-    </string>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Now playing and mini playback controls will be shown in sysui instead of media center. -->
+    <bool name="show_mini_playback_controls">false</bool>
+    <bool name="switch_to_playback_view_when_playable_item_is_clicked">false</bool>
 </resources>
