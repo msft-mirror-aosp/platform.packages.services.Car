@@ -21,6 +21,7 @@
 #include "WatchdogBinderMediator.h"
 
 #include <android/automotive/watchdog/internal/BootPhase.h>
+#include <android/automotive/watchdog/internal/GarageMode.h>
 #include <android/automotive/watchdog/internal/PowerCycle.h>
 #include <android/automotive/watchdog/internal/UserState.h>
 #include <binder/IPCThreadState.h>
@@ -33,8 +34,10 @@ namespace watchdog {
 namespace aawi = ::android::automotive::watchdog::internal;
 
 using aawi::ComponentType;
+using aawi::GarageMode;
 using aawi::ICarWatchdogServiceForSystem;
 using aawi::PackageResourceOveruseAction;
+using aawi::PowerCycle;
 using aawi::ResourceOveruseConfiguration;
 using ::android::sp;
 using ::android::String16;
@@ -163,13 +166,19 @@ Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, in
     }
     switch (type) {
         case aawi::StateType::POWER_CYCLE: {
-            aawi::PowerCycle powerCycle =
-                    static_cast<aawi::PowerCycle>(static_cast<uint32_t>(arg1));
-            if (powerCycle >= aawi::PowerCycle::NUM_POWER_CYLES) {
+            PowerCycle powerCycle = static_cast<PowerCycle>(static_cast<uint32_t>(arg1));
+            if (powerCycle >= PowerCycle::NUM_POWER_CYLES) {
                 return fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT,
                                          StringPrintf("Invalid power cycle %d", powerCycle));
             }
-            return mWatchdogProcessService->notifyPowerCycleChange(powerCycle);
+            return handlePowerCycleChange(powerCycle);
+        }
+        case aawi::StateType::GARAGE_MODE: {
+            GarageMode garageMode = static_cast<GarageMode>(static_cast<uint32_t>(arg1));
+            mWatchdogPerfService->setSystemState(garageMode == GarageMode::GARAGE_MODE_OFF
+                                                         ? SystemState::NORMAL_MODE
+                                                         : SystemState::GARAGE_MODE);
+            return Status::ok();
         }
         case aawi::StateType::USER_STATE: {
             userid_t userId = static_cast<userid_t>(arg1);
@@ -192,6 +201,29 @@ Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, in
     }
     return fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT,
                              StringPrintf("Invalid state change type %d", type));
+}
+
+Status WatchdogInternalHandler::handlePowerCycleChange(PowerCycle powerCycle) {
+    switch (powerCycle) {
+        case PowerCycle::POWER_CYCLE_SHUTDOWN_PREPARE:
+            ALOGI("Received SHUTDOWN_PREPARE power cycle");
+            mWatchdogProcessService->setEnabled(/*isEnabled=*/false);
+            // TODO(b/189508862): Upload resource overuse stats on shutdown prepare.
+            break;
+        case PowerCycle::POWER_CYCLE_SHUTDOWN_ENTER:
+            ALOGI("Received SHUTDOWN_ENTER power cycle");
+            mWatchdogProcessService->setEnabled(/*isEnabled=*/false);
+            break;
+        case PowerCycle::POWER_CYCLE_RESUME:
+            ALOGI("Received RESUME power cycle");
+            mWatchdogProcessService->setEnabled(/*isEnabled=*/true);
+            break;
+        default:
+            ALOGW("Unsupported power cycle: %d", powerCycle);
+            return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT,
+                                             "Unsupported power cycle");
+    }
+    return Status::ok();
 }
 
 Status WatchdogInternalHandler::updateResourceOveruseConfigurations(

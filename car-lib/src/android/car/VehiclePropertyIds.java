@@ -17,6 +17,7 @@
 package android.car;
 
 import android.annotation.RequiresPermission;
+import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.VehicleElectronicTollCollectionCardStatus;
 import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
 
@@ -28,7 +29,8 @@ import android.car.hardware.property.VehicleElectronicTollCollectionCardType;
  */
 public final class VehiclePropertyIds {
     /**
-     * Undefined property.  */
+     * Undefined property.
+     */
     public static final int INVALID = 0;
     /**
      * VIN of vehicle
@@ -37,95 +39,183 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_IDENTIFICATION)
     public static final int INFO_VIN = 286261504;
     /**
-     * Manufacturer of vehicle
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * Manufacturer of vehicle.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code String} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_MAKE = 286261505;
     /**
-     * Model of vehicle
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * Model of vehicle.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code String} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_MODEL = 286261506;
     /**
      * Model year of vehicle.
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_MODEL_YEAR = 289407235;
     /**
-     * Fuel capacity of the vehicle in milliliters
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * Fuel capacity of the vehicle in milliliters.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_FUEL_CAPACITY = 291504388;
     /**
-     * List of fuels the vehicle may use
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * List the {@link FuelType}s the vehicle may use.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_FUEL_TYPE = 289472773;
     /**
      * Battery capacity of the vehicle in watt-hours (Wh), if EV or hybrid. This is the nominal
      * battery capacity when the vehicle is new.
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EV_BATTERY_CAPACITY = 291504390;
     /**
-     * List of connectors this vehicle may use
+     * List of {@link EvConnectorType}s this vehicle may use.
      *
-     * <p>Applications can query the property value by
-     * {@link android.car.hardware.property.CarPropertyManager#getIntArrayProperty(int, int)}. The
-     * return value is an integer array containing enums in {@link EvConnectorType}
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
      *
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EV_CONNECTOR_TYPE = 289472775;
     /**
-     * Fuel door location
+     * {@link PortLocationType} for the fuel door location.
      *
-     * <p> Applications can query the property value by
-     * {@link android.car.hardware.property.CarPropertyManager#getIntProperty(int, int)}. The return
-     * value is one of enums in {@link PortLocationType}.
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer} property type
+     * </ul>
      *
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_FUEL_DOOR_LOCATION = 289407240;
     /**
-     * EV port location
+     * {@link PortLocationType} for the EV port location
      *
-     * <p> Applications can query the property value by
-     * {@link android.car.hardware.property.CarPropertyManager#getIntProperty(int, int)}. The return
-     * value is one of enums in {@link PortLocationType}.
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer} property type
+     * </ul>
      *
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EV_PORT_LOCATION = 289407241;
     /**
-     * Multiple EV port locations
+     * List {@link PortLocationType}s for Multiple EV port locations.
      *
-     * <p> Applications can query the property value by
-     * {@link android.car.hardware.property.CarPropertyManager#getIntArrayProperty(int, int)}. The
-     * return value is an integer array containing enums in {@link PortLocationType}.
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
      *
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_MULTI_EV_PORT_LOCATIONS = 289472780;
     /**
-     * Driver's seat location
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * Driver's {@link VehicleAreaSeat} seat location.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_DRIVER_SEAT = 356516106;
     /**
-     * Vehicle's exterior dimensions.
-     * Requires permission: {@link Car#PERMISSION_CAR_INFO}.
+     * Vehicle's exterior dimensions in millimeters.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Exterior dimensions defined in the {@link CarPropertyValue#getValue()} {@code Integer[]}:
+     * <ul>
+     *  <li>Integer[0] = height
+     *  <li>Integer[1] = length
+     *  <li>Integer[2] = width
+     *  <li>Integer[3] = width including mirrors
+     *  <li>Integer[4] = wheel base
+     *  <li>Integer[5] = track width front
+     *  <li>Integer[6] = track width rear
+     *  <li>Integer[7] = curb to curb turning radius
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_CAR_INFO}.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EXTERIOR_DIMENSIONS = 289472779;
@@ -139,8 +229,9 @@ public final class VehiclePropertyIds {
      * Speed of the vehicle in meters per second.
      *
      * <p>PERF_VEHICLE_SPEED property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}, and returns a Float type value.
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}, and returns
+     * a Float type value.
      *
      * <p>When the vehicle is moving forward, PERF_VEHICLE_SPEED is positive and negative when the
      * vehicle is moving backward. Also, this value is independent of gear value (CURRENT_GEAR or
@@ -209,8 +300,9 @@ public final class VehiclePropertyIds {
      * Reports wheel ticks.
      *
      * <p>WHEEL_TICK property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} and returns a Long[] type value.
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} and returns a
+     * Long[] type value.
      *
      * <p>The first element in the array is a reset count.  A reset indicates
      * previous tick counts are not comparable with this and future ones.  Some
@@ -326,8 +418,9 @@ public final class VehiclePropertyIds {
      * Currently selected gear by user.
      *
      * <p>GEAR_SELECTION property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Integer type value.
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a
+     * Integer type value.
      *
      * <p> See {@link VehicleGear} for gear value enum.
      *
@@ -347,8 +440,8 @@ public final class VehiclePropertyIds {
      *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
      *  <li>configArray[2] = {@link VehicleGear#GEAR_PARK}
      *  <li>configArray[3] = {@link VehicleGear#GEAR_DRIVE}
-     *  <li>configArray[4] = {@link VehicleGear#GEAR_1}
-     *  <li>configArray[5] = {@link VehicleGear#GEAR_2}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_FIRST}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_SECOND}
      *  <li>...
      * </ul>
      *
@@ -357,8 +450,8 @@ public final class VehiclePropertyIds {
      * <ul>
      *  <li>configArray[0] = {@link VehicleGear#GEAR_NEUTRAL}
      *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
-     *  <li>configArray[4] = {@link VehicleGear#GEAR_1}
-     *  <li>configArray[5] = {@link VehicleGear#GEAR_2}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_FIRST}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_SECOND}
      *  <li>...
      * </ul>
      *
@@ -367,11 +460,53 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int GEAR_SELECTION = 289408000;
     /**
-     * Current gear. In non-manual case, selected gear may not
-     * match the current gear. For example, if the selected gear is GEAR_DRIVE,
-     * the current gear will be one of GEAR_1, GEAR_2 etc, which reflects
-     * the actual gear the transmission is currently running in.
-     * Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
+     * Vehicle transmission's current {@link VehicleGear}.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>{@code CURRENT_GEAR}'s value may not match that of {@link
+     * VehiclePropertyIds#GEAR_SELECTION}. For example, if the {@link
+     * VehiclePropertyIds#GEAR_SELECTION} is {@link VehicleGear#GEAR_DRIVE} in a vehicle with an
+     * automatic transmission, the {@code CURRENT_GEAR} will be one of {@link
+     * VehicleGear#GEAR_FIRST}, {@link VehicleGear#GEAR_SECOND}, etc, which reflects the actual gear
+     * the transmission is currently running in.
+     *
+     * <p>configArray represents the list of supported {@link VehicleGear}s for {@code
+     * CURRENT_GEAR}. For example, the configArray for an EV vehicle is set as follows:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_PARK}
+     *  <li>configArray[2] = {@link VehicleGear#GEAR_DRIVE}
+     * </ul>
+     *
+     * <p>Example automatic transmission configArray:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_NEUTRAL}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[2] = {@link VehicleGear#GEAR_PARK}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_FIRST}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_SECOND}
+     *  <li>...
+     * </ul>
+     *
+     * <p>Example manual transmission configArray:
+     *
+     * <ul>
+     *  <li>configArray[0] = {@link VehicleGear#GEAR_NEUTRAL}
+     *  <li>configArray[1] = {@link VehicleGear#GEAR_REVERSE}
+     *  <li>configArray[4] = {@link VehicleGear#GEAR_FIRST}
+     *  <li>configArray[5] = {@link VehicleGear#GEAR_SECOND}
+     *  <li>...
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
      */
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int CURRENT_GEAR = 289408001;
@@ -379,8 +514,9 @@ public final class VehiclePropertyIds {
      * Parking brake state.
      *
      * <p>PARKING_BRAKE_ON property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Boolean type value.
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a
+     * Boolean type value.
      *
      * <p>Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
      */
@@ -388,7 +524,15 @@ public final class VehiclePropertyIds {
     public static final int PARKING_BRAKE_ON = 287310850;
     /**
      * Auto-apply parking brake.
-     * Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Boolean} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_POWERTRAIN}.
      */
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int PARKING_BRAKE_AUTO_APPLY = 287310851;
@@ -402,8 +546,9 @@ public final class VehiclePropertyIds {
      * Night mode.
      *
      * <p>NIGHT_MODE property is {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
-     * CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a Boolean type value.
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}, {@link
+     * android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}, and returns a
+     * Boolean type value.
      *
      * <p>True indicates that the night mode sensor has detected that the car cabin environment has
      * low light.
@@ -489,8 +634,8 @@ public final class VehiclePropertyIds {
      * </pre>
      * <p>If the vehicle supports {@link VehiclePropertyIds#HVAC_TEMPERATURE_VALUE_SUGGESTION},
      * the application can use that property to get the suggested value before setting
-     * {@link VehiclePropertyIds#HVAC_TEMPERATURE_SET}. Otherwise, the application may choose the
-     * value in {@code configArray} of {@link VehiclePropertyIds#HVAC_TEMPERATURE_SET} by itself.
+     * {@code HVAC_TEMPERATURE_SET}. Otherwise, the application may choose the
+     * value in {@code configArray} of {@code HVAC_TEMPERATURE_SET} by itself.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_TEMPERATURE_SET = 358614275;
@@ -655,6 +800,7 @@ public final class VehiclePropertyIds {
      * ELECTRIC DEFROSTER
      * The property is protected by the signature permission:
      * android.car.permission.CONTROL_CAR_CLIMATE.
+     *
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
@@ -704,6 +850,7 @@ public final class VehiclePropertyIds {
      * Requires permission {@link Car#PERMISSION_READ_DISPLAY_UNITS} to read the property.
      * Requires two signature permissions: android.car.permission.CONTROL_CAR_DISPLAY_UNITS and
      * android.car.permission.CAR_VENDOR_EXTENSION to write the property.
+     *
      * @hide
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DISPLAY_UNITS))
@@ -722,7 +869,15 @@ public final class VehiclePropertyIds {
     public static final int FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME = 287311364;
     /**
      * Outside temperature in celsius.
-     * Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
+     *
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Requires permission: {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT}.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_ENVIRONMENT)
     public static final int ENV_OUTSIDE_TEMPERATURE = 291505923;
@@ -1387,6 +1542,13 @@ public final class VehiclePropertyIds {
     public static final int ELECTRONIC_TOLL_COLLECTION_CARD_STATUS = 289410874;
 
     /**
+     * @deprecated to prevent others from instantiating this class
+     */
+    @Deprecated
+    public VehiclePropertyIds() {
+    }
+
+    /**
      * Gets a user-friendly representation of a property.
      */
     public static String toString(int property) {
@@ -1703,10 +1865,4 @@ public final class VehiclePropertyIds {
                 return "0x" + Integer.toHexString(property);
         }
     }
-
-    /**
-     * @deprecated to prevent others from instantiating this class
-     */
-    @Deprecated
-    public VehiclePropertyIds() {}
 }
