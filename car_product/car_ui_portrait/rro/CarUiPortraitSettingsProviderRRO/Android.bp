@@ -11,21 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
-
-java_library {
-    name: "cartelemetry-protos",
-    proto: {
-        type: "lite",
-    },
-    srcs: [
-        ":cartelemetry-cardata-proto-srcs",
-        "atoms.proto",
-        "stats_log.proto",
-        "statsd_config.proto",
-        "telemetry.proto",
+android_app {
+    name: "CarUiPortraitSettingsProviderRRO",
+    resource_dirs: ["res"],
+    platform_apis: true,
+    aaptflags: [
+        "--no-resource-deduping",
+        "--no-resource-removal"
     ],
 }
