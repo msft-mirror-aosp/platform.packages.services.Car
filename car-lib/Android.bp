@@ -99,6 +99,7 @@ java_library {
     installable: true,
 }
 
+// TODO(b/194941497): SHIPSTOP - remove CarServiceModule & android.car.module
 java_library {
     name: "android.car.module",
     srcs: [

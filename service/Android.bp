@@ -102,6 +102,7 @@ android_app {
     },
 }
 
+// TODO(b/194941497): SHIPSTOP - remove CarServiceModule & android.car.module
 android_app {
     name: "CarServiceModule",
 

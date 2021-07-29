@@ -13,6 +13,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
+<!-- TODO(b/194941497): SHIPSTOP - remove CarServiceModule & android.car.module -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
      xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"

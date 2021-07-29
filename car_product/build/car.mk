@@ -107,10 +107,10 @@ PRODUCT_PROPERTY_OVERRIDES += \
     keyguard.no_require_sim=true
 
 # Automotive specific packages
+# TODO(b/194941497): SHIPSTOP - remove CarServiceModule & android.car.module
 PRODUCT_PACKAGES += \
     CarFrameworkPackageStubs \
     CarService \
-    CarServiceModule \
     CarShell \
     CarDialerApp \
     CarRadioApp \
@@ -129,6 +129,7 @@ PRODUCT_PACKAGES += \
     android.car \
     android.car.builtin \
     android.car.module \
+    CarServiceModule \
     car-frameworks-service \
     com.android.car.procfsinspector \
     libcar-framework-service-jni \
