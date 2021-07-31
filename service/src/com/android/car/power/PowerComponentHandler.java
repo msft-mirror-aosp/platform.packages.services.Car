@@ -28,6 +28,7 @@ import static android.car.hardware.power.PowerComponentUtil.toPowerComponent;
 
 import android.annotation.Nullable;
 import android.bluetooth.BluetoothAdapter;
+import android.car.builtin.os.ServiceManagerHelper;
 import android.car.builtin.util.Slogf;
 import android.car.hardware.power.CarPowerPolicy;
 import android.car.hardware.power.CarPowerPolicyFilter;
@@ -36,7 +37,6 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.WifiManager;
 import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.util.AtomicFile;
 import android.util.IndentingPrintWriter;
 import android.util.SparseArray;
@@ -113,13 +113,8 @@ public final class PowerComponentHandler {
                 mComponentStates.put(component, false);
                 PowerComponentMediator mediator = factory.createPowerComponent(component);
                 String componentName = powerComponentToString(component);
-                if (mediator == null) {
-                    Slogf.w(TAG, "Power component(%s) is not valid or doesn't need a mediator",
-                            componentName);
-                    continue;
-                }
-                if (!mediator.isComponentAvailable()) {
-                    Slogf.w(TAG, "Power component(%s) is not available", componentName);
+                if (mediator == null || !mediator.isComponentAvailable()) {
+                    // We don't not associate a mediator with the component.
                     continue;
                 }
                 mPowerComponentMediators.put(component, mediator);
@@ -237,7 +232,6 @@ public final class PowerComponentHandler {
 
         PowerComponentMediator mediator = mPowerComponentMediators.get(component);
         if (mediator == null) {
-            Slogf.w(TAG, "%s doesn't have a mediator", powerComponentToString(component));
             return true;
         }
 
@@ -403,7 +397,7 @@ public final class PowerComponentHandler {
             super(VOICE_INTERACTION);
             if (mVoiceInteractionServiceHolder == null) {
                 mVoiceInteractionManagerService = IVoiceInteractionManagerService.Stub.asInterface(
-                        ServiceManager.getService(Context.VOICE_INTERACTION_MANAGER_SERVICE));
+                        ServiceManagerHelper.getService(Context.VOICE_INTERACTION_MANAGER_SERVICE));
             } else {
                 mVoiceInteractionManagerService = mVoiceInteractionServiceHolder;
             }

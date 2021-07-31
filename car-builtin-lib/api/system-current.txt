@@ -1,4 +1,24 @@
 // Signature format: 2.0
+package android.car.builtin.app {
+
+  public class KeyguardManagerHelper {
+    ctor public KeyguardManagerHelper();
+    method public boolean isKeyguardLocked();
+  }
+
+}
+
+package android.car.builtin.os {
+
+  public class ServiceManagerHelper {
+    method public static void addService(@NonNull String, @NonNull android.os.IBinder);
+    method @Nullable public static android.os.IBinder checkService(@NonNull String);
+    method @Nullable public static android.os.IBinder getService(@NonNull String);
+    method @Nullable public static android.os.IBinder waitForDeclaredService(@NonNull String);
+  }
+
+}
+
 package android.car.builtin.util {
 
   public class Slog {
