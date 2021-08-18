@@ -216,8 +216,8 @@ public final class WatchdogPerfHandler {
         Preconditions.checkArgument((resourceOveruseFlag & FLAG_RESOURCE_OVERUSE_IO) != 0,
                 "Must provide resource I/O overuse flag");
         int callingUid = Binder.getCallingUid();
-        int callingUserId = UserHandle.getUserId(callingUid);
-        UserHandle callingUserHandle = UserHandle.of(callingUserId);
+        UserHandle callingUserHandle = Binder.getCallingUserHandle();
+        int callingUserId = callingUserHandle.getIdentifier();
         String genericPackageName =
                 mPackageInfoHandler.getNamesForUids(new int[]{callingUid})
                         .get(callingUid, null);
@@ -389,7 +389,7 @@ public final class WatchdogPerfHandler {
     }
 
     private void setPackageKillableStateForAllUsers(String packageName, boolean isKillable) {
-        UserManager userManager = UserManager.get(mContext);
+        UserManager userManager = mContext.getSystemService(UserManager.class);
         List<UserInfo> userInfos = userManager.getAliveUsers();
         String genericPackageName = null;
         synchronized (mLock) {
@@ -437,7 +437,7 @@ public final class WatchdogPerfHandler {
             return getPackageKillableStatesForUserId(userHandle.getIdentifier(), pm);
         }
         List<PackageKillableState> packageKillableStates = new ArrayList<>();
-        UserManager userManager = UserManager.get(mContext);
+        UserManager userManager = mContext.getSystemService(UserManager.class);
         List<UserInfo> userInfos = userManager.getAliveUsers();
         for (int i = 0; i < userInfos.size(); ++i) {
             packageKillableStates.addAll(
@@ -580,7 +580,7 @@ public final class WatchdogPerfHandler {
                 if (genericPackageName == null) {
                     continue;
                 }
-                int userId = UserHandle.getUserId(stats.uid);
+                int userId = UserHandle.getUserHandleForUid(stats.uid).getIdentifier();
                 PackageResourceUsage usage = cacheAndFetchUsageLocked(userId, genericPackageName,
                         stats.ioOveruseStats);
                 if (stats.shouldNotify) {
@@ -670,7 +670,7 @@ public final class WatchdogPerfHandler {
                 int uid = recurringIoOverusesByUid.keyAt(i);
                 boolean hasRecurringOveruse = recurringIoOverusesByUid.valueAt(i);
                 String genericPackageName = genericPackageNamesByUid.get(uid);
-                int userId = UserHandle.getUserId(uid);
+                int userId = UserHandle.getUserHandleForUid(uid).getIdentifier();
                 String key = getUserPackageUniqueId(userId, genericPackageName);
                 PackageResourceUsage usage = mUsageByUserPackage.get(key);
 
