@@ -426,7 +426,7 @@
     <string name="security_settings_face_settings_remove_face_data" msgid="2821359954483136239">"Hiq të dhënat e fytyrës"</string>
     <string name="security_settings_face_settings_footer" msgid="4627175759990550715">"Fytyra jote mund të përdoret për të shkyçur pajisjen tënde dhe për të pasur qasje tek aplikacionet. "<annotation id="url">"Mëso më shumë"</annotation></string>
     <string name="security_settings_face_settings_remove_dialog_title" msgid="5675319895815271094">"Do t\'i fshish të dhënat e fytyrës?"</string>
-    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"Të dhënat e regjistruara nga shkyçja me fytyrën do të fshihen përgjithmonë dhe në mënyrë të sigurt. Pas heqjes, do të të duhet kodi PIN, motivi ose fjalëkalimi për ta shkyçur telefonin, për t\'u identifikuar në aplikacione dhe për të konfirmuar pagesat."</string>
+    <string name="security_settings_face_settings_remove_dialog_details" msgid="3754494807169276107">"Të dhënat e regjistruara nga shkyçja me fytyrë do të fshihen përgjithmonë dhe në mënyrë të sigurt. Pas heqjes, do të të duhet kodi PIN, motivi ose fjalëkalimi për ta shkyçur telefonin, për t\'u identifikuar në aplikacione dhe për të konfirmuar pagesat."</string>
     <string name="security_settings_fingerprint_preference_title" msgid="4177132225930582928">"Gjurma e gishtit"</string>
     <string name="fingerprint_manage_category_title" msgid="1463406696801542090">"Menaxho gjurm. gishtit"</string>
     <string name="fingerprint_usage_category_title" msgid="7298369141954599706">"Përdor gjurmën për"</string>
@@ -1458,7 +1458,7 @@
     <string name="storage_detail_system" msgid="6784247618772153283">"Sistemi"</string>
     <string name="storage_detail_explore" msgid="8206900269596580264">"Eksploro <xliff:g id="NAME">^1</xliff:g>"</string>
     <string name="storage_detail_dialog_other" msgid="5073511663616043370">"Përfshin po ashtu skedarët e ndarë që janë ruajtur nga aplikacionet, skedarët e shkarkuar nga interneti ose me Bluetooth, skedarët e Android e të tjera. \n\nPër të parë të gjitha përmbajtjet e dukshme në këtë <xliff:g id="NAME">^1</xliff:g>, trokit tek \"Eksploro\"."</string>
-    <string name="storage_detail_dialog_system" msgid="1472572861360014226">"Sistemi përfshin skedarët e përdorur për ekzekutimin e versionit <xliff:g id="VERSION">%s</xliff:g> të Android"</string>
+    <string name="storage_detail_dialog_system" msgid="1472572861360014226">"Sistemi përfshin skedarët që përdoren për ekzekutimin e versionit <xliff:g id="VERSION">%s</xliff:g> të Android"</string>
     <string name="storage_detail_dialog_user" msgid="1663117417635010371">"<xliff:g id="USER_0">^1</xliff:g> mund të ketë ruajtur fotografi, muzikë, aplikacione ose të dhëna të tjera, duke përdorur <xliff:g id="SIZE">^2</xliff:g> nga hapësira ruajtëse. \n\nPër të parë detajet, kalo te <xliff:g id="USER_1">^1</xliff:g>."</string>
     <string name="storage_wizard_init_title" msgid="3407283236421089014">"Konfiguro <xliff:g id="NAME">^1</xliff:g>"</string>
     <string name="storage_wizard_init_external_title" msgid="6853250619674645478">"Përdore si hapësirë portative ruajtjeje"</string>
@@ -1777,7 +1777,7 @@
     <string name="lock_settings_profile_title" msgid="3928992050074556160">"Siguria e profilit të punës"</string>
     <string name="lock_settings_profile_screen_lock_title" msgid="285267471459162203">"Kyçja e ekranit të profilit të punës"</string>
     <string name="lock_settings_profile_unification_title" msgid="2629698644191935287">"Përdor një kyçje të vetme"</string>
-    <string name="lock_settings_profile_unification_summary" msgid="4797188229308317207">"Përdorni një kyçje të vetme për profilin e punës dhe ekranin e pajisjes"</string>
+    <string name="lock_settings_profile_unification_summary" msgid="4797188229308317207">"Përdor një kyçje të vetme për profilin e punës dhe ekranin e pajisjes"</string>
     <string name="lock_settings_profile_unification_dialog_title" msgid="1690211342491067179">"Të përdoret një kyçje e vetme?"</string>
     <string name="lock_settings_profile_unification_dialog_body" msgid="8629158560032603101">"Pajisja jote do të përdorë ekranin e kyçjes së profilit të punës. Politikat e punës do të zbatohen për të dyja kyçjet."</string>
     <string name="lock_settings_profile_unification_dialog_uncompliant_body" msgid="1217609779267643474">"Kyçja e ekranit e punës nuk i plotëson kërkesat e sigurisë së organizatës tënde. Mund të përdorësh të njëjtën kyçje për ekranin e pajisjes tënde dhe për profilin e punës, por do të zbatohet çdo politikë për kyçjen e punës."</string>
@@ -2922,10 +2922,10 @@
     <string name="nfc_payment_app_and_desc" msgid="102312684211458190">"<xliff:g id="APP">%1$s</xliff:g> - <xliff:g id="DESCRIPTION">%2$s</xliff:g>"</string>
     <string name="nfc_payment_use_default" msgid="3098724195746409476">"Përdor opsionin e parazgjedhur"</string>
     <string name="nfc_payment_favor_default" msgid="7555356982142464260">"Gjithmonë"</string>
-    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"Përveçse kur është i hapur një aplikacion tjetër pagese"</string>
+    <string name="nfc_payment_favor_open" msgid="3739055715000436749">"Përveçse kur është i hapur një aplikacion tjetër për pagesa"</string>
     <string name="nfc_payment_pay_with" msgid="8412558374792061266">"Në terminalin \"Prek dhe paguaj\", paguaj me:"</string>
     <string name="nfc_how_it_works_title" msgid="6531433737926327904">"Pagesa në terminal"</string>
-    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"Konfiguro një aplikacion pagese. Më pas thjesht mbaje pjesën e pasme të telefonit te një terminal me simbolin e pagesave pa kontakt."</string>
+    <string name="nfc_how_it_works_content" msgid="9174575836302449343">"Konfiguro një aplikacion për pagesa. Më pas thjesht mbaje pjesën e pasme të telefonit te një terminal me simbolin e pagesave pa kontakt."</string>
     <string name="nfc_how_it_works_got_it" msgid="2432535672153247411">"E kuptova"</string>
     <string name="nfc_more_title" msgid="2825856411836382264">"Më shumë..."</string>
     <string name="nfc_payment_set_default_label" msgid="3997927342761454042">"Të caktohet si preferencë?"</string>
@@ -3472,7 +3472,7 @@
     <string name="zen_mode_schedule_alarm_summary" msgid="5556997989911412070">"Orari çaktivizohet kur bie një alarm"</string>
     <string name="zen_mode_custom_behavior_title" msgid="8908861697886331001">"Sjellja e modalitetit \"Mos shqetëso\""</string>
     <string name="zen_mode_custom_behavior_summary_default" msgid="3509865340195397447">"Përdor cilësimet e parazgjedhura"</string>
-    <string name="zen_mode_custom_behavior_summary" msgid="7206909852887332604">"Krijo cilësimet të personalizuara për këtë planifikim"</string>
+    <string name="zen_mode_custom_behavior_summary" msgid="7206909852887332604">"Krijo cilësime të personalizuara për këtë orar"</string>
     <string name="zen_mode_custom_behavior_category_title" msgid="7451686525113262087">"Për \"<xliff:g id="SCHEDULE_NAME">%1$s</xliff:g>\""</string>
     <string name="summary_divider_text" msgid="4780683204694442666">", "</string>
     <string name="summary_range_symbol_combination" msgid="6038631664844488406">"<xliff:g id="START">%1$s</xliff:g> - <xliff:g id="END">%2$s</xliff:g>"</string>
@@ -4112,7 +4112,7 @@
     <string name="gesture_preference_summary" product="tablet" msgid="8303793594714075580">"Gjestet e shpejta për të kontrolluar tabletin"</string>
     <string name="gesture_preference_summary" product="device" msgid="7792199669106960922">"Gjestet e shpejta për të kontrolluar pajisjen"</string>
     <string name="double_tap_power_for_camera_title" msgid="5480829329052517484">"Kalo te kamera"</string>
-    <string name="double_tap_power_for_camera_summary" msgid="6591026425496323965">"Për të hapur me shpejtësi kamerën, shtyp dy herë te butoni i energjisë. Funksionon nga çdo ekran."</string>
+    <string name="double_tap_power_for_camera_summary" msgid="6591026425496323965">"Për të hapur me shpejtësi kamerën, shtyp dy herë butonin e energjisë. Funksionon nga çdo ekran."</string>
     <string name="double_tap_power_for_camera_suggestion_title" msgid="509078029429865036">"Hap kamerën me shpejtësi"</string>
     <string name="double_twist_for_camera_mode_title" msgid="2606032140297556018">"Rrotullo kamerën"</string>
     <string name="double_twist_for_camera_mode_summary" msgid="8979914206876018137"></string>
@@ -4131,7 +4131,7 @@
     <string name="ambient_display_pickup_summary" product="default" msgid="8798915340594367449">"Për të kontrolluar orën, njoftimet dhe informacione të tjera, merre në duar telefonin tënd."</string>
     <string name="ambient_display_pickup_summary" product="tablet" msgid="1077745287100012928">"Për të kontrolluar orën, njoftimet dhe informacione të tjera, merre në duar tabletin tënd."</string>
     <string name="ambient_display_pickup_summary" product="device" msgid="404199660076598026">"Për të kontrolluar orën, njoftimet dhe informacione të tjera, merre në duar pajisjen tënde."</string>
-    <string name="ambient_display_tap_screen_title" product="default" msgid="2784322628239960695">"Trokit për të kontrolluar telefonin"</string>
+    <string name="ambient_display_tap_screen_title" product="default" msgid="2784322628239960695">"Trokit për ta kontrolluar telefonin"</string>
     <string name="ambient_display_tap_screen_title" product="tablet" msgid="6434521782016864148">"Trokit për të kontrolluar tabletin"</string>
     <string name="ambient_display_tap_screen_title" product="device" msgid="4396793721852647356">"Trokit për të kontrolluar pajisjen"</string>
     <string name="ambient_display_tap_screen_summary" msgid="7869039870571925213">"Për të kontrolluar orën, njoftimet dhe informacione të tjera, trokit tek ekrani."</string>
@@ -4471,7 +4471,7 @@
     <string name="hwui_force_dark_title" msgid="3744825212652331461">"Anulo detyrimin e errësimit"</string>
     <string name="hwui_force_dark_summary" msgid="2051891908674765817">"Anulon funksionin e detyrimit të errësimit që të jetë gjithmonë aktiv"</string>
     <string name="privacy_dashboard_title" msgid="8764930992456607513">"Privatësia"</string>
-    <string name="privacy_dashboard_summary" msgid="7916431309860824945">"Autorizimet, aktiviteti i llogarisë, të dhënat personale"</string>
+    <string name="privacy_dashboard_summary" msgid="7916431309860824945">"Lejet, aktiviteti i llogarisë, të dhënat personale"</string>
     <string name="contextual_card_dismiss_remove" msgid="1750420285615827309">"Hiq"</string>
     <string name="contextual_card_dismiss_keep" msgid="3204450672928193661">"Mbaj"</string>
     <string name="contextual_card_dismiss_confirm_message" msgid="2352465079667730312">"Të hiqet ky sugjerim?"</string>
