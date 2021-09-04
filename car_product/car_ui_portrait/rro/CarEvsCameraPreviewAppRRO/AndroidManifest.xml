@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (C) 2021 The Android Open Source Project
   ~
@@ -13,10 +14,12 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-
-<overlay>
-    <item target="bool/show_mini_playback_controls" value="@bool/show_mini_playback_controls" />
-    <item target="bool/switch_to_playback_view_when_playable_item_is_clicked" value="@bool/switch_to_playback_view_when_playable_item_is_clicked" />
-
-    <item target="style/MediaIconContainerStyle" value="@style/MediaIconContainerStyle" />
-</overlay>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.google.android.car.evs.caruiportrait.rro">
+    <application android:hasCode="false"/>
+    <overlay android:priority="20"
+             android:targetName="CarEvsCameraPreviewApp"
+             android:targetPackage="com.google.android.car.evs"
+             android:resourcesMap="@xml/overlays"
+             android:isStatic="true"/>
+</manifest>

@@ -13,10 +13,8 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-
-<overlay>
-    <item target="bool/show_mini_playback_controls" value="@bool/show_mini_playback_controls" />
-    <item target="bool/switch_to_playback_view_when_playable_item_is_clicked" value="@bool/switch_to_playback_view_when_playable_item_is_clicked" />
-
-    <item target="style/MediaIconContainerStyle" value="@style/MediaIconContainerStyle" />
-</overlay>
+<resources>
+    <!-- Shade of the background behind the camera window. 1.0 for fully opaque, 0.0 for fully
+         transparent. -->
+    <item name="config_cameraBackgroundScrim" format="float" type="dimen">0.7</item>
+</resources>

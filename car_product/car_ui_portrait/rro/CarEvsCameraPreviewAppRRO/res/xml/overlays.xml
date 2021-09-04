@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (C) 2021 The Android Open Source Project
   ~
@@ -13,10 +14,16 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-
 <overlay>
-    <item target="bool/show_mini_playback_controls" value="@bool/show_mini_playback_controls" />
-    <item target="bool/switch_to_playback_view_when_playable_item_is_clicked" value="@bool/switch_to_playback_view_when_playable_item_is_clicked" />
+    <item target="layout/evs_preview_activity" value="@layout/evs_preview_activity"/>
 
-    <item target="style/MediaIconContainerStyle" value="@style/MediaIconContainerStyle" />
+    <item target="string/app_name" value="@string/app_name"/>
+
+    <item target="dimen/camera_preview_width" value="@dimen/camera_preview_width"/>
+    <item target="dimen/camera_preview_height" value="@dimen/camera_preview_height"/>
+
+    <item target="id/evs_preview_container" value="@id/evs_preview_container"/>
+    <item target="id/close_button" value="@id/close_button"/>
+
+    <item target="dimen/config_cameraBackgroundScrim" value="@dimen/config_cameraBackgroundScrim"/>
 </overlay>
