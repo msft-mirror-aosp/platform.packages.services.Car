@@ -13,10 +13,13 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
+<resources>
+    <!-- dimensions for evs camera preview in the system window -->
+    <dimen name="camera_preview_width">1224dp</dimen>
+    <dimen name="camera_preview_height">720dp</dimen>
 
-<overlay>
-    <item target="bool/show_mini_playback_controls" value="@bool/show_mini_playback_controls" />
-    <item target="bool/switch_to_playback_view_when_playable_item_is_clicked" value="@bool/switch_to_playback_view_when_playable_item_is_clicked" />
-
-    <item target="style/MediaIconContainerStyle" value="@style/MediaIconContainerStyle" />
-</overlay>
+    <dimen name="close_icon_dimen">28dp</dimen>
+    <dimen name="close_button_dimen">80dp</dimen>
+    <dimen name="close_button_margin">24dp</dimen>
+    <dimen name="close_button_radius">20dp</dimen>
+</resources>
