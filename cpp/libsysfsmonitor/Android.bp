@@ -11,21 +11,50 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
-android_app {
-    name: "CarUiPortraitDialerRRO",
-    resource_dirs: ["res"],
-    platform_apis: true,
-    aaptflags: [
-        "--no-resource-deduping",
-        "--no-resource-removal"
+
+cc_defaults {
+    name: "libsysfsmonitor_defaults",
+    cflags: [
+        "-Wall",
+        "-Wno-missing-field-initializers",
+        "-Werror",
+        "-Wno-unused-variable",
+        "-Wunused-parameter",
+    ],
+    shared_libs: [
+        "libbase",
+        "liblog",
+        "libutils",
+    ],
+}
+
+cc_library {
+    name: "libsysfsmonitor",
+    srcs: [
+        "src/SysfsMonitor.cpp",
+    ],
+    defaults: [
+        "libsysfsmonitor_defaults",
+    ],
+    export_include_dirs: [
+        "src",
+    ],
+}
+
+cc_test {
+    name: "libsysfsmonitor_test",
+    srcs: [
+        "tests/SysfsMonitorTest.cpp",
+    ],
+    defaults: [
+        "libsysfsmonitor_defaults",
     ],
     static_libs: [
-        "androidx-constraintlayout_constraintlayout",
-        "androidx-constraintlayout_constraintlayout-solver",
-        "car-apps-common",
-        "car-ui-lib",
+        "libgtest",
+        "libsysfsmonitor",
     ],
 }
