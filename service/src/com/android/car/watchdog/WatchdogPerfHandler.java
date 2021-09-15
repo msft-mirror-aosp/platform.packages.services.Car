@@ -797,6 +797,8 @@ public final class WatchdogPerfHandler {
                         break;
                     case ComponentType.VENDOR:
                         mSafeToKillVendorPackages.addAll(internalConfigs.get(i).safeToKillPackages);
+                        mPackageInfoHandler.setVendorPackagePrefixes(
+                                internalConfigs.get(i).vendorPackagePrefixes);
                         break;
                     default:
                         // All third-party apps are killable.
@@ -804,7 +806,7 @@ public final class WatchdogPerfHandler {
                 }
             }
             if (DEBUG) {
-                Slogf.d(TAG, "Fetched and synced safe to kill packages.");
+                Slogf.d(TAG, "Fetched and synced resource overuse configs.");
             }
         }
     }
@@ -1705,12 +1707,14 @@ public final class WatchdogPerfHandler {
     }
     /** Defines I/O usage fields for a package. */
     public static final class PackageIoUsage {
+        private static final android.automotive.watchdog.PerStateBytes DEFAULT_PER_STATE_BYTES =
+                new android.automotive.watchdog.PerStateBytes();
         private android.automotive.watchdog.IoOveruseStats mIoOveruseStats;
         private android.automotive.watchdog.PerStateBytes mForgivenWriteBytes;
         private int mTotalTimesKilled;
 
         private PackageIoUsage() {
-            mForgivenWriteBytes = new android.automotive.watchdog.PerStateBytes();
+            mForgivenWriteBytes = DEFAULT_PER_STATE_BYTES;
             mTotalTimesKilled = 0;
         }
 
@@ -1777,7 +1781,7 @@ public final class WatchdogPerfHandler {
 
         void resetStats() {
             mIoOveruseStats = null;
-            mForgivenWriteBytes = null;
+            mForgivenWriteBytes = DEFAULT_PER_STATE_BYTES;
             mTotalTimesKilled = 0;
         }
     }
