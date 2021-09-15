@@ -67,6 +67,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.common.EventLogTags;
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.pm.CarPackageManagerService;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.stats.CarStatsService;
@@ -75,7 +76,6 @@ import com.android.car.telemetry.CarTelemetryService;
 import com.android.car.user.CarUserNoticeService;
 import com.android.car.user.CarUserService;
 import com.android.car.user.ExperimentalCarUserService;
-import com.android.car.util.IndentingPrintWriter;
 import com.android.car.util.LimitedTimingsTraceLog;
 import com.android.car.vms.VmsBrokerService;
 import com.android.car.watchdog.CarWatchdogService;
@@ -859,8 +859,7 @@ public class ICarImpl extends ICar.Stub {
             assertCallingFromSystemProcess();
             EventLog.writeEvent(EventLogTags.CAR_SERVICE_ON_USER_REMOVED, user.getIdentifier());
             if (DBG) Slog.d(TAG, "onUserRemoved(): " + user.toString());
-            mCarUserService.onUserRemoved(
-                    mContext.getSystemService(UserManager.class).getUserInfo(user.getIdentifier()));
+            mCarUserService.onUserRemoved(user);
         }
 
         @Override
