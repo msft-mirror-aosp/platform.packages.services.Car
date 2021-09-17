@@ -30,7 +30,6 @@ import android.annotation.Nullable;
 import android.car.hardware.CarPropertyConfig;
 import android.content.Context;
 import android.content.ServiceConnection;
-import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PersistableBundle;
@@ -52,6 +51,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -105,20 +105,19 @@ public class DataBrokerTest {
     @Mock
     private StatsManagerProxy mMockStatsManager;
     @Mock
-    private SharedPreferences mMockSharedPreferences;
-    @Mock
     private IBinder mMockScriptExecutorBinder;
     @Mock
     private ResultStore mMockResultStore;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         when(mMockCarPropertyService.getPropertyList())
                 .thenReturn(Collections.singletonList(PROP_CONFIG));
         // bind service should return true, otherwise broker is disabled
         when(mMockContext.bindServiceAsUser(any(), any(), anyInt(), any())).thenReturn(true);
         PublisherFactory factory = new PublisherFactory(
-                mMockCarPropertyService, mMockHandler, mMockStatsManager, mMockSharedPreferences);
+                mMockCarPropertyService, mMockHandler, mMockStatsManager,
+                Files.createTempDirectory("telemetry_test").toFile());
         mDataBroker = new DataBrokerImpl(mMockContext, factory, mMockResultStore);
         // add IdleHandler to get notified when all messages and posts are handled
         mDataBroker.getTelemetryHandler().getLooper().getQueue().addIdleHandler(() -> {
@@ -240,6 +239,26 @@ public class DataBrokerTest {
         assertThat(mFakeScriptExecutor.getApiInvocationCount()).isEqualTo(1);
         verify(mMockResultStore).putInterimResult(
                 eq(mHighPriorityTask.getMetricsConfig().getName()), eq(mData));
+    }
+
+    @Test
+    public void testScheduleNextTask_onScriptError_shouldStoreErrorObject() throws Exception {
+        mDataBroker.getTaskQueue().add(mHighPriorityTask);
+        TelemetryProto.TelemetryError.ErrorType errorType =
+                TelemetryProto.TelemetryError.ErrorType.LUA_RUNTIME_ERROR;
+        String errorMessage = "test onError";
+        TelemetryProto.TelemetryError expectedError = TelemetryProto.TelemetryError.newBuilder()
+                .setErrorType(errorType)
+                .setMessage(errorMessage)
+                .build();
+
+        mDataBroker.scheduleNextTask();
+        waitForHandlerThreadToFinish();
+        mFakeScriptExecutor.notifyScriptError(errorType.getNumber(), errorMessage);
+
+        waitForHandlerThreadToFinish();
+        assertThat(mFakeScriptExecutor.getApiInvocationCount()).isEqualTo(1);
+        verify(mMockResultStore).putError(eq(METRICS_CONFIG_FOO.getName()), eq(expectedError));
     }
 
     @Test
@@ -408,6 +427,15 @@ public class DataBrokerTest {
         public void notifyScriptFinish(PersistableBundle bundle) {
             try {
                 mListener.onScriptFinished(bundle);
+            } catch (RemoteException e) {
+                // nothing to do
+            }
+        }
+
+        /** Mocks script finished with error. */
+        public void notifyScriptError(int errorType, String errorMessage) {
+            try {
+                mListener.onError(errorType, errorMessage, null);
             } catch (RemoteException e) {
                 // nothing to do
             }

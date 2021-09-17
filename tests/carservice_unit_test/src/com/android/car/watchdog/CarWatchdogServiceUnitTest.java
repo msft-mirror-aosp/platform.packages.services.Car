@@ -82,7 +82,6 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
-import android.content.pm.UserInfo;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -2290,7 +2289,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
     private void setupUsers() {
         when(mMockContext.getSystemService(UserManager.class)).thenReturn(mMockUserManager);
-        mockUmGetAllUsers(mMockUserManager, new UserInfo[0]);
+        mockUmGetAllUsers(mMockUserManager, new UserHandle[0]);
     }
 
     private void captureCarPowerStateListener() {
@@ -2306,7 +2305,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         ArgumentCaptor<BroadcastReceiver> receiverArgumentCaptor =
                 ArgumentCaptor.forClass(BroadcastReceiver.class);
         verify(mMockContext)
-                .registerReceiverForAllUsers(receiverArgumentCaptor.capture(), any(), any(), any());
+                .registerReceiverForAllUsers(receiverArgumentCaptor.capture(),
+                        any(), any(), any(), anyInt());
         mBroadcastReceiver = receiverArgumentCaptor.getValue();
         assertWithMessage("Broadcast receiver must be non-null").that(mBroadcastReceiver)
                 .isNotNull();
