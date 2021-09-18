@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (C) 2021 The Android Open Source Project
   ~
@@ -16,9 +16,5 @@
   -->
 
 <resources>
-    <color name="default_audio_background_image_color">#DADCE0</color>
-    <color name="default_audio_background_color">#BDC1C6</color>
-
-    <color name="icon_tint">#000000</color>
-    <color name="media_button_tint">#000000</color>
+    <integer name="config_dialed_number_gravity">1</integer>
 </resources>
