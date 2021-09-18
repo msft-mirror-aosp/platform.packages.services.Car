@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (C) 2021 The Android Open Source Project
   ~
@@ -14,11 +14,10 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
+<overlay>
+    <item target="drawable/top_level_preference_background" value="@drawable/top_level_preference_background"/>
+    <item target="drawable/top_level_preference_highlight" value="@drawable/top_level_preference_highlight"/>
 
-<resources>
-    <color name="default_audio_background_image_color">#DADCE0</color>
-    <color name="default_audio_background_color">#BDC1C6</color>
+    <item target="layout/top_level_preference" value="@layout/top_level_preference"/>
 
-    <color name="icon_tint">#000000</color>
-    <color name="media_button_tint">#000000</color>
-</resources>
+</overlay>
