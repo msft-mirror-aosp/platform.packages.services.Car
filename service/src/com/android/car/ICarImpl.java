@@ -29,6 +29,7 @@ import android.car.CarFeatures;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.app.ActivityManagerHelper;
+import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.Slog;
 import android.car.builtin.util.TimingsTraceLog;
 import android.car.user.CarUserManager;
@@ -232,8 +233,7 @@ public class ICarImpl extends ICar.Stub {
             CarLocalServices.addService(CarUserService.class, carUserService);
         } else {
             UserManager userManager = serviceContext.getSystemService(UserManager.class);
-            int maxRunningUsers = res.getInteger(
-                    com.android.internal.R.integer.config_multiuserMaxRunningUsers);
+            int maxRunningUsers = UserManagerHelper.getMaxRunningUsers(serviceContext);
             mCarUserService = constructWithTrace(t, CarUserService.class,
                     () -> new CarUserService(serviceContext, mHal.getUserHal(), userManager,
                             ActivityManagerHelper.getInstance(), maxRunningUsers,
@@ -464,13 +464,13 @@ public class ICarImpl extends ICar.Stub {
     }
 
     @Override
-    public void setSystemServerConnections(IBinder helper, IBinder receiver) {
+    public void setSystemServerConnections(ICarServiceHelper carServiceHelper,
+            ICarResultReceiver resultReceiver) {
         Bundle bundle;
         try {
             EventLog.writeEvent(EventLogTags.CAR_SERVICE_SET_CAR_SERVICE_HELPER,
                     Binder.getCallingPid());
             assertCallingFromSystemProcess();
-            ICarServiceHelper carServiceHelper = ICarServiceHelper.Stub.asInterface(helper);
             synchronized (mLock) {
                 mICarServiceHelper = carServiceHelper;
             }
@@ -488,7 +488,6 @@ public class ICarImpl extends ICar.Stub {
         }
 
         try {
-            ICarResultReceiver resultReceiver = ICarResultReceiver.Stub.asInterface(receiver);
             resultReceiver.send(/* unused */ 0, bundle);
         } catch (RemoteException e) {
             Slog.w(TAG, "RemoteException from CarServiceHelperService", e);
