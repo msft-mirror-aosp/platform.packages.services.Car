@@ -17,6 +17,7 @@
 package com.android.car.bluetooth;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
@@ -103,7 +104,9 @@ public class CarBluetoothServiceTest {
         when(mMockContext.getPackageManager()).thenReturn(mMockPackageManager);
         when(mMockContext.getSystemService(BluetoothManager.class))
                 .thenReturn(mMockBluetoothManager);
+        when(mMockContext.createContextAsUser(any(), anyInt())).thenReturn(mMockContext);
         when(mMockBluetoothManager.getAdapter()).thenReturn(mMockBluetoothAdapter);
+        when(mMockContext.createContextAsUser(any(), anyInt())).thenReturn(mMockContext);
 
         // Make sure we grab and store CarBluetoothService's user switch callback so we can
         // invoke it at any time.

@@ -22,6 +22,10 @@ import static android.car.settings.CarSettings.Secure.KEY_BLUETOOTH_MAP_CLIENT_D
 import static android.car.settings.CarSettings.Secure.KEY_BLUETOOTH_PAN_DEVICES;
 import static android.car.settings.CarSettings.Secure.KEY_BLUETOOTH_PBAP_CLIENT_DEVICES;
 
+import static com.android.car.util.Utils.getContentResolverForUser;
+
+import android.annotation.Nullable;
+import android.app.ActivityManager;
 import android.bluetooth.BluetoothA2dpSink;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -141,6 +145,9 @@ public class BluetoothProfileDeviceManager {
     private int mAutoConnectPriority;
     @GuardedBy("mAutoConnectLock")
     private ArrayList<BluetoothDevice> mAutoConnectingDevices;
+
+    @Nullable
+    private Context mUserContext;
 
     private final BluetoothAdapter mBluetoothAdapter;
     private final BluetoothBroadcastReceiver mBluetoothBroadcastReceiver;
@@ -352,9 +359,9 @@ public class BluetoothProfileDeviceManager {
         profileFilter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         profileFilter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
         profileFilter.addAction(BluetoothDevice.ACTION_UUID);
-        // TODO(b/195996539): Replace with createContestAsUser().registerReceiver()
-        mContext.registerReceiverAsUser(mBluetoothBroadcastReceiver, UserHandle.CURRENT,
-                profileFilter, /* broadcastPermission= */ null, /* scheduler= */ null,
+        UserHandle currentUser = UserHandle.of(ActivityManager.getCurrentUser());
+        mUserContext = mContext.createContextAsUser(currentUser, /* flags= */ 0);
+        mUserContext.registerReceiver(mBluetoothBroadcastReceiver, profileFilter,
                 Context.RECEIVER_NOT_EXPORTED);
     }
 
@@ -364,10 +371,9 @@ public class BluetoothProfileDeviceManager {
      */
     public void stop() {
         logd("Stopping device management");
-        if (mBluetoothBroadcastReceiver != null) {
-            if (mContext != null) {
-                mContext.unregisterReceiver(mBluetoothBroadcastReceiver);
-            }
+        if (mBluetoothBroadcastReceiver != null && mUserContext != null) {
+            mUserContext.unregisterReceiver(mBluetoothBroadcastReceiver);
+            mUserContext = null;
         }
         cancelAutoConnecting();
         commit();
@@ -387,8 +393,8 @@ public class BluetoothProfileDeviceManager {
         logd("Loading device priority list snapshot using key '" + mSettingsKey + "'");
 
         // Read from Settings.Secure for our profile, as the current user.
-        String devicesStr = Settings.Secure.getStringForUser(mContext.getContentResolver(),
-                mSettingsKey, mUserId);
+        String devicesStr = Settings.Secure.getString(getContentResolverForUser(mContext, mUserId),
+                mSettingsKey);
         logd("Found Device String: '" + devicesStr + "'");
         if (devicesStr == null || "".equals(devicesStr)) {
             return false;
@@ -437,8 +443,8 @@ public class BluetoothProfileDeviceManager {
         }
 
         String devicesStr = sb.toString();
-        Settings.Secure.putStringForUser(mContext.getContentResolver(), mSettingsKey, devicesStr,
-                mUserId);
+        Settings.Secure.putString(getContentResolverForUser(mContext, mUserId), mSettingsKey,
+                devicesStr);
         logd("Committed key: " + mSettingsKey + ", value: '" + devicesStr + "'");
         return true;
     }
