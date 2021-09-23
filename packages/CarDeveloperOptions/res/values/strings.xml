@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (C) 2021 The Android Open Source Project
   ~
@@ -13,8 +14,7 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-
-<overlay>
-    <item target="string/config_rearViewCameraActivity"
-          value="@string/config_rearViewCameraActivity"/>
-</overlay>
+<resources>
+    <string name="car_pref_category_title">Car</string>
+    <string name="car_ui_plugin_enabled_pref_title">Enable Car UI library plugin</string>
+</resources>
