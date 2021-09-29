@@ -28,7 +28,6 @@ import android.app.IActivityManager;
 import android.app.IProcessObserver;
 import android.app.TaskInfo;
 import android.app.TaskStackListener;
-import android.car.builtin.util.Slog;
 import android.car.builtin.util.Slogf;
 import android.content.ComponentName;
 import android.os.Bundle;
@@ -48,6 +47,9 @@ import java.util.concurrent.Callable;
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public final class ActivityManagerHelper {
+
+    /** Invalid task ID. */
+    public static final int INVALID_TASK_ID = ActivityTaskManager.INVALID_TASK_ID;
 
     private static final String TAG = "CAR.AM";  // CarLog.TAG_AM
 
@@ -131,7 +133,7 @@ public final class ActivityManagerHelper {
                     if (info.childTaskUserIds[i] == userId) {
                         int taskId = info.childTaskIds[i];
                         if (!mAm.removeTask(taskId)) {
-                            Slog.w(TAG, "could not remove task " + taskId);
+                            Slogf.w(TAG, "could not remove task " + taskId);
                         }
                     }
                 }
@@ -161,7 +163,7 @@ public final class ActivityManagerHelper {
 
     private RuntimeException logAndReThrow(Exception e, String format, Object...args) {
         String msg = String.format(format, args);
-        Slog.e(TAG, msg, e);
+        Slogf.e(TAG, msg, e);
         return new IllegalStateException(msg, e);
     }
 

@@ -25,6 +25,7 @@ package android.car.builtin.app {
     method public boolean unlockUser(int);
     method public void unregisterProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
     method @Deprecated public void unregisterTaskStackChangeListener(android.car.builtin.app.ActivityManagerHelper.OnTaskStackChangeListener);
+    field public static final int INVALID_TASK_ID = -1; // 0xffffffff
   }
 
   @Deprecated public static interface ActivityManagerHelper.OnTaskStackChangeListener {
@@ -169,6 +170,10 @@ package android.car.builtin.os {
     method public static void set(@NonNull String, @Nullable String);
   }
 
+  public final class TraceHelper {
+    field public static final long TRACE_TAG_CAR_SERVICE = 524288L; // 0x80000L
+  }
+
   public final class UserManagerHelper {
     method public static android.graphics.Bitmap assignDefaultIconForUser(@NonNull android.content.Context, @NonNull android.os.UserHandle);
     method @Deprecated @Nullable public static android.os.UserHandle createGuest(@NonNull android.content.Context, @NonNull android.os.UserManager, @Nullable String);
@@ -244,21 +249,6 @@ package android.car.builtin.util {
 
   public final class AtomicFileHelper {
     method public static boolean exists(android.util.AtomicFile);
-  }
-
-  public final class Slog {
-    method public static int d(@NonNull String, @NonNull String);
-    method public static int d(@NonNull String, @NonNull String, @NonNull Throwable);
-    method public static int e(@NonNull String, @NonNull String);
-    method public static int e(@NonNull String, @NonNull String, @NonNull Throwable);
-    method public static int i(@NonNull String, @NonNull String);
-    method public static int i(@NonNull String, @NonNull String, @NonNull Throwable);
-    method public static int v(@NonNull String, @NonNull String);
-    method public static int v(@NonNull String, @NonNull String, @NonNull Throwable);
-    method public static int w(@NonNull String, @NonNull String);
-    method public static int w(@NonNull String, @NonNull String, @NonNull Throwable);
-    method public static int wtf(@NonNull String, @NonNull String);
-    method public static int wtf(@NonNull String, @NonNull String, @NonNull Throwable);
   }
 
   public final class Slogf {
