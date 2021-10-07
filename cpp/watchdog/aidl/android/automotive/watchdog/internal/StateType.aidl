@@ -35,4 +35,9 @@ enum StateType {
    * Boot phase change.
    */
   BOOT_PHASE,
+
+  /**
+   * Garage mode change.
+   */
+  GARAGE_MODE,
 }
