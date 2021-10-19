@@ -28,10 +28,15 @@ import android.automotive.watchdog.internal.PackageInfo;
 import android.automotive.watchdog.internal.PackageIoOveruseStats;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.StateType;
+import android.automotive.watchdog.internal.UserPackageIoUsageStats;
 import android.automotive.watchdog.internal.UserState;
 import android.car.Car;
 import android.car.hardware.power.CarPowerManager.CarPowerStateListener;
+import android.car.hardware.power.CarPowerPolicy;
+import android.car.hardware.power.CarPowerPolicyFilter;
+import android.car.hardware.power.ICarPowerPolicyListener;
 import android.car.hardware.power.ICarPowerStateListener;
+import android.car.hardware.power.PowerComponent;
 import android.car.watchdog.CarWatchdogManager;
 import android.car.watchdog.ICarWatchdogService;
 import android.car.watchdog.ICarWatchdogServiceCallback;
@@ -120,11 +125,60 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         }
     };
 
+    private final ICarPowerStateListener mCarPowerStateListener =
+            new ICarPowerStateListener.Stub() {
+        @Override
+        public void onStateChanged(int state) {
+            int powerCycle;
+            switch (state) {
+                // SHUTDOWN_PREPARE covers suspend and shutdown.
+                case CarPowerStateListener.SHUTDOWN_PREPARE:
+                    powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE;
+                    break;
+                case CarPowerStateListener.SHUTDOWN_ENTER:
+                case CarPowerStateListener.SUSPEND_ENTER:
+                    powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER;
+                    mWatchdogPerfHandler.writeToDatabase();
+                    break;
+                    // ON covers resume.
+                case CarPowerStateListener.ON:
+                    powerCycle = PowerCycle.POWER_CYCLE_RESUME;
+                    // There might be outdated & incorrect info. We should reset them before
+                    // starting to do health check.
+                    mWatchdogProcessHandler.prepareHealthCheck();
+                    break;
+                default:
+                    return;
+            }
+            notifyPowerCycleStateChange(powerCycle);
+        }
+    };
+
+    private final ICarPowerPolicyListener mCarDisplayPowerPolicyListener =
+            new ICarPowerPolicyListener.Stub() {
+                @Override
+                public void onPolicyChanged(CarPowerPolicy appliedPolicy,
+                        CarPowerPolicy accumulatedPolicy) {
+                    boolean isDisplayEnabled =
+                            appliedPolicy.isComponentEnabled(PowerComponent.DISPLAY);
+                    boolean didStateChange = false;
+                    synchronized (mLock) {
+                        didStateChange = mIsDisplayEnabled != isDisplayEnabled;
+                        mIsDisplayEnabled = isDisplayEnabled;
+                    }
+                    if (didStateChange) {
+                        mWatchdogPerfHandler.onDisplayStateChanged(isDisplayEnabled);
+                    }
+                }
+            };
+
     private final Object mLock = new Object();
     @GuardedBy("mLock")
     private boolean mReadyToRespond;
     @GuardedBy("mLock")
     private boolean mIsConnected;
+    @GuardedBy("mLock")
+    private boolean mIsDisplayEnabled;
 
     public CarWatchdogService(Context context) {
         this(context, new WatchdogStorage(context));
@@ -148,13 +202,14 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             }
             registerToDaemon();
         };
+        mIsDisplayEnabled = true;
     }
 
     @Override
     public void init() {
         mWatchdogProcessHandler.init();
         mWatchdogPerfHandler.init();
-        subscribePowerCycleChange();
+        subscribePowerManagementService();
         subscribeUserStateChange();
         subscribeBroadcastReceiver();
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
@@ -171,6 +226,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     @Override
     public void release() {
         mContext.unregisterReceiver(mBroadcastReceiver);
+        unsubscribePowerManagementService();
+        mWatchdogPerfHandler.release();
         mWatchdogStorage.release();
         unregisterFromDaemon();
         mCarWatchdogDaemonHelper.disconnect();
@@ -352,6 +409,16 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         mWatchdogPerfHandler.setTimeSource(timeSource);
     }
 
+    @VisibleForTesting
+    void setOveruseHandlingDelay(long millis) {
+        mWatchdogPerfHandler.setOveruseHandlingDelay(millis);
+    }
+
+    @VisibleForTesting
+    void setRecurringOveruseThreshold(int threshold) {
+        mWatchdogPerfHandler.setRecurringOveruseThreshold(threshold);
+    }
+
     private void handleGarageModeIntent(boolean isOn) {
         if (isOn) {
             mWatchdogStorage.shrinkDatabase();
@@ -366,6 +433,18 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             }
         } catch (RemoteException | RuntimeException e) {
             Slogf.w(TAG, e, "Notifying garage mode state change failed");
+        }
+    }
+
+    private void notifyPowerCycleStateChange(int powerCycle) {
+        try {
+            mCarWatchdogDaemonHelper.notifySystemStateChange(
+                    StateType.POWER_CYCLE, powerCycle, MISSING_ARG_VALUE);
+            if (DEBUG) {
+                Slogf.d(TAG, "Notified car watchdog daemon of power cycle(%d)", powerCycle);
+            }
+        } catch (RemoteException | RuntimeException e) {
+            Slogf.w(TAG, "Notifying power cycle state change failed: %s", e);
         }
     }
 
@@ -423,47 +502,28 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         }
     }
 
-    private void subscribePowerCycleChange() {
+    private void subscribePowerManagementService() {
         CarPowerManagementService powerService =
                 CarLocalServices.getService(CarPowerManagementService.class);
         if (powerService == null) {
             Slogf.w(TAG, "Cannot get CarPowerManagementService");
             return;
         }
-        powerService.registerListener(new ICarPowerStateListener.Stub() {
-            @Override
-            public void onStateChanged(int state) {
-                int powerCycle;
-                switch (state) {
-                    // SHUTDOWN_PREPARE covers suspend and shutdown.
-                    case CarPowerStateListener.SHUTDOWN_PREPARE:
-                        powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE;
-                        break;
-                    case CarPowerStateListener.SHUTDOWN_ENTER:
-                    case CarPowerStateListener.SUSPEND_ENTER:
-                        powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER;
-                        mWatchdogPerfHandler.writeToDatabase();
-                    // ON covers resume.
-                    case CarPowerStateListener.ON:
-                        powerCycle = PowerCycle.POWER_CYCLE_RESUME;
-                        // There might be outdated & incorrect info. We should reset them before
-                        // starting to do health check.
-                        mWatchdogProcessHandler.prepareHealthCheck();
-                        break;
-                    default:
-                        return;
-                }
-                try {
-                    mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
-                            powerCycle, /* arg2= */ MISSING_ARG_VALUE);
-                    if (DEBUG) {
-                        Slogf.d(TAG, "Notified car watchdog daemon of power cycle(%d)", powerCycle);
-                    }
-                } catch (RemoteException | RuntimeException e) {
-                    Slogf.w(TAG, "Notifying power cycle state change failed: %s", e);
-                }
-            }
-        });
+        powerService.registerListener(mCarPowerStateListener);
+        powerService.addPowerPolicyListener(
+                new CarPowerPolicyFilter.Builder().setComponents(PowerComponent.DISPLAY).build(),
+                mCarDisplayPowerPolicyListener);
+    }
+
+    private void unsubscribePowerManagementService() {
+        CarPowerManagementService powerService =
+                CarLocalServices.getService(CarPowerManagementService.class);
+        if (powerService == null) {
+            Slogf.w(TAG, "Cannot get CarPowerManagementService");
+            return;
+        }
+        powerService.unregisterListener(mCarPowerStateListener);
+        powerService.removePowerPolicyListener(mCarDisplayPowerPolicyListener);
     }
 
     private void subscribeUserStateChange() {
@@ -512,10 +572,6 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         mContext.registerReceiverForAllUsers(mBroadcastReceiver, filter, null, null);
     }
 
-    @VisibleForTesting
-    void setResourceOveruseKillingDelay(long millis) {
-        mWatchdogPerfHandler.setResourceOveruseKillingDelay(millis);
-    }
 
     private static final class ICarWatchdogServiceForSystemImpl
             extends ICarWatchdogServiceForSystem.Stub {
@@ -581,6 +637,16 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 return;
             }
             service.mWatchdogPerfHandler.resetResourceOveruseStats(new ArraySet<>(packageNames));
+        }
+
+        @Override
+        public List<UserPackageIoUsageStats> getTodayIoUsageStats() {
+            CarWatchdogService service = mService.get();
+            if (service == null) {
+                Slogf.w(TAG, "CarWatchdogService is not available");
+                return null;
+            }
+            return service.mWatchdogPerfHandler.getTodayIoUsageStats();
         }
     }
 }
