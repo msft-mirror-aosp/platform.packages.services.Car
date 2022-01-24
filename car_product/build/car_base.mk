@@ -69,7 +69,7 @@ PRODUCT_PROPERTY_OVERRIDES += config.disable_cameraservice=true
 endif
 
 # EVS service
-ifeq($(ENABLE_EVS_SERVICE), true)
+ifeq ($(ENABLE_EVS_SERVICE), true)
 include packages/services/Car/cpp/evs/manager/evsmanager.mk
 endif
 
