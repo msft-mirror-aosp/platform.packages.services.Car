@@ -64,8 +64,7 @@ public class FocusInteractionTest {
 
     @Before
     public void setUp() {
-        when(mMockCarAudioSettings.getContentResolverForUser(TEST_USER_ID))
-                .thenReturn(mMockContentResolver);
+        doReturn(mMockContentResolver).when(mMockCarAudioSettings).getContentResolver();
         mFocusInteraction = new FocusInteraction(mMockCarAudioSettings);
     }
 

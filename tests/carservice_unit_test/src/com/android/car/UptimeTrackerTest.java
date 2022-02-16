@@ -16,7 +16,6 @@
 package com.android.car;
 
 import android.test.suitebuilder.annotation.MediumTest;
-
 import com.android.car.systeminterface.TimeInterface;
 import com.android.car.test.utils.TemporaryFile;
 

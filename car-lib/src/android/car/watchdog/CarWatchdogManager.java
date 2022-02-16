@@ -16,6 +16,8 @@
 
 package android.car.watchdog;
 
+import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
+
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -55,8 +57,8 @@ public final class CarWatchdogManager extends CarManagerBase {
     private static final boolean DEBUG = false; // STOPSHIP if true
     private static final int INVALID_SESSION_ID = -1;
     private static final int NUMBER_OF_CONDITIONS_TO_BE_MET = 2;
-
-    private final Runnable mMainThreadCheck = () -> checkMainThread();
+    // Message ID representing main thread activeness checking.
+    private static final int WHAT_CHECK_MAIN_THREAD = 1;
 
     /**
      * Timeout for services which should be responsive. The length is 3,000 milliseconds.
@@ -408,8 +410,8 @@ public final class CarWatchdogManager extends CarManagerBase {
     /**
      * Returns resource overuse stats for a specific user package.
      *
-     * @param packageName Name of the package whose stats should be returned.
-     * @param userHandle Handle of the user whose stats should be returned.
+     * @param packageName Name of the package whose stats should to be returned.
+     * @param userId ID of the user whose stats should be returned.
      * @param resourceOveruseFlag Flag to indicate the types of resource overuse stats to return.
      * @param maxStatsPeriod Maximum period to aggregate the resource overuse stats.
      *
@@ -633,10 +635,7 @@ public final class CarWatchdogManager extends CarManagerBase {
      * exception. This API may be used by CarSettings application or UI notification.
      *
      * @param packageName Name of the package whose setting should to be updated.
-     *                    Note: All packages under shared UID share the killable state as well. Thus
-     *                    setting the killable state for one package will set the killable state for
-     *                    all other packages that share a UID.
-     * @param userHandle  User whose setting should be updated.
+     * @param userHandle  User whose setting should to be updated.
      * @param isKillable  Whether or not the package for the specified user is killable on resource
      *                    overuse.
      *
@@ -658,7 +657,7 @@ public final class CarWatchdogManager extends CarManagerBase {
      *
      * <p>This API may be used by CarSettings application or UI notification.
      *
-     * @param userHandle User whose killable states for all packages should be returned.
+     * @param userHandle User whose killable states for all packages should to be returned.
      *
      * @hide
      */
@@ -746,7 +745,7 @@ public final class CarWatchdogManager extends CarManagerBase {
     private void checkClientStatus(int sessionId, int timeout) {
         CarWatchdogClientCallback client;
         Executor executor;
-        mMainHandler.removeCallbacks(mMainThreadCheck);
+        mMainHandler.removeMessages(WHAT_CHECK_MAIN_THREAD);
         synchronized (mLock) {
             if (mRegisteredClient == null) {
                 Log.w(TAG, "Cannot check client status. The client has not been registered.");
@@ -760,7 +759,8 @@ public final class CarWatchdogManager extends CarManagerBase {
         // For a car watchdog client to be active, 1) its main thread is active and 2) the client
         // responds within timeout. When each condition is met, the remaining task counter is
         // decreased. If the remaining task counter is zero, the client is considered active.
-        mMainHandler.post(mMainThreadCheck);
+        mMainHandler.sendMessage(obtainMessage(CarWatchdogManager::checkMainThread, this)
+                .setWhat(WHAT_CHECK_MAIN_THREAD));
         // Call the client callback to check if the client is active.
         executor.execute(() -> {
             boolean checkDone = client.onCheckHealthStatus(sessionId, timeout);

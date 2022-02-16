@@ -28,20 +28,6 @@
 #include <ui/GraphicBufferMapper.h>
 #include <utils/SystemClock.h>
 
-namespace {
-
-// The size of a pixel of RGBA format data in bytes
-constexpr auto kBytesPerPixelRGBA = 4;
-
-// Default camera output image resolution
-const std::array<int32_t, 2> kDefaultResolution = {640, 480};
-
-// Arbitrary limit on number of graphics buffers allowed to be allocated
-// Safeguards against unreasonable resource consumption and provides a testable limit
-static const unsigned MAX_BUFFERS_IN_FLIGHT = 100;
-
-}; // anonymous namespace
-
 
 namespace android {
 namespace hardware {
@@ -49,6 +35,13 @@ namespace automotive {
 namespace evs {
 namespace V1_1 {
 namespace implementation {
+
+// Default camera output image resolution
+const std::array<int32_t, 2> kDefaultResolution = {640, 480};
+
+// Arbitrary limit on number of graphics buffers allowed to be allocated
+// Safeguards against unreasonable resource consumption and provides a testable limit
+static const unsigned MAX_BUFFERS_IN_FLIGHT = 100;
 
 EvsV4lCamera::EvsV4lCamera(const char *deviceName,
                            unique_ptr<ConfigManager::CameraInfo> &camInfo) :
@@ -746,7 +739,7 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
         android::base::unique_fd fd(open(filename.c_str(),
                                          O_WRONLY | O_CREAT,
                                          S_IRUSR | S_IWUSR | S_IRGRP));
-        LOG(INFO) << filename << ", " << fd;
+        LOG(ERROR) << filename << ", " << fd;
         if (fd == -1) {
             PLOG(ERROR) << "Failed to open a file, " << filename;
         } else {
@@ -782,11 +775,6 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
         bufDesc_1_1.timestamp =
             pV4lBuff->timestamp.tv_sec * 1e+6 + pV4lBuff->timestamp.tv_usec;
 
-        const auto sizeInRGBA = pDesc->width * pDesc->height * kBytesPerPixelRGBA;
-        if (mColorSpaceConversionBuffer.size() < sizeInRGBA) {
-            mColorSpaceConversionBuffer.resize(sizeInRGBA);
-        }
-
         // Lock our output buffer for writing
         // TODO(b/145459970): Sometimes, physical camera device maps a buffer
         // into the address that is about to be unmapped by another device; this
@@ -811,8 +799,7 @@ void EvsV4lCamera::forwardFrame(imageBuffer* pV4lBuff, void* pData) {
 
         // Transfer the video image into the output buffer, making any needed
         // format conversion along the way
-        mFillBufferFromVideo(bufDesc_1_1, (uint8_t *)targetPixels, pData,
-                             mColorSpaceConversionBuffer.data(), mStride);
+        mFillBufferFromVideo(bufDesc_1_1, (uint8_t *)targetPixels, pData, mVideo.getStride());
 
         // Unlock the output buffer
         mapper.unlock(bufDesc_1_1.buffer.nativeHandle);

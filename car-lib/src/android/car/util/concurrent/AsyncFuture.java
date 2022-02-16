@@ -17,7 +17,6 @@ package android.car.util.concurrent;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.TestApi;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -36,7 +35,6 @@ import java.util.function.BiConsumer;
  *
  * @hide
  */
-@TestApi
 public interface AsyncFuture<T> {
 
     /**

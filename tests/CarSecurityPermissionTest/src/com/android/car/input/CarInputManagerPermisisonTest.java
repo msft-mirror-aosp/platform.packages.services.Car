@@ -17,7 +17,6 @@ package com.android.car.input;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.expectThrows;
 
@@ -35,8 +34,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
-
-import java.util.concurrent.Executor;
 
 /**
  * This class contains security permission tests for the {@link CarInputManager}'s system APIs.
@@ -65,22 +62,14 @@ public class CarInputManagerPermisisonTest {
     }
 
     @Test
-    public void testRequestInputEventCapturePermission() {
+    public void testEnableFeaturePermission() {
         assertThrows(SecurityException.class, () -> mCarInputManager.requestInputEventCapture(
                 CarOccupantZoneManager.DISPLAY_TYPE_MAIN,
                 new int[]{CarInputManager.INPUT_TYPE_ROTARY_NAVIGATION}, 0, mMockedCallback));
     }
 
     @Test
-    public void testRequestInputEventCaptureWithExecutorPermission() {
-        assertThrows(SecurityException.class, () -> mCarInputManager.requestInputEventCapture(
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN,
-                new int[]{CarInputManager.INPUT_TYPE_ROTARY_NAVIGATION}, 0,
-                mock(Executor.class), mMockedCallback));
-    }
-
-    @Test
-    public void testInjectKeyEventPermission() {
+    public void testInjectKeyEvent() {
         long currentTime = SystemClock.uptimeMillis();
         KeyEvent anyKeyEvent = new KeyEvent(/* downTime= */ currentTime,
                 /* eventTime= */ currentTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HOME,
