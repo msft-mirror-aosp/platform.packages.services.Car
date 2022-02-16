@@ -15,18 +15,9 @@
  */
 package com.android.car.audio;
 
-import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
-import static android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC;
-import static android.media.AudioDeviceInfo.TYPE_BUS;
-import static android.media.AudioDeviceInfo.TYPE_FM_TUNER;
-
-import static com.google.common.truth.Truth.assertThat;
-
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.testng.Assert.expectThrows;
 
-import android.media.AudioDeviceAttributes;
+import android.car.media.CarAudioManager;
 import android.util.SparseArray;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -37,7 +28,6 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
@@ -47,49 +37,10 @@ public class CarAudioZonesValidatorTest {
 
     @Test
     public void validate_thereIsAtLeastOneZone() {
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(new SparseArray<CarAudioZone>()));
+        thrown.expect(RuntimeException.class);
+        thrown.expectMessage("At least one zone should be defined");
 
-        assertThat(exception).hasMessageThat().contains("At least one zone should be defined");
-
-    }
-
-    @Test
-    public void validate_failsOnEmptyInputDevices() {
-        CarAudioZone zone = new MockBuilder().withInputDevices(new ArrayList<>()).build();
-        SparseArray<CarAudioZone> zones = new SparseArray<>();
-        zones.put(zone.getId(), zone);
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> CarAudioZonesValidator.validate(zones));
-
-        assertThat(exception).hasMessageThat().contains("Primary Zone Input Devices");
-    }
-
-    @Test
-    public void validate_failsOnNullInputDevices() {
-        CarAudioZone zone = new MockBuilder().withInputDevices(null).build();
-        SparseArray<CarAudioZone> zones = new SparseArray<>();
-        zones.put(zone.getId(), zone);
-
-        NullPointerException exception = expectThrows(NullPointerException.class,
-                () -> CarAudioZonesValidator.validate(zones));
-
-        assertThat(exception).hasMessageThat().contains("Primary Zone Input Devices");
-    }
-
-    @Test
-    public void validate_failsOnMissingMicrophoneInputDevices() {
-        CarAudioZone zone = new MockBuilder().withInputDevices(
-                List.of(generateInputAudioDeviceAttributeInfo("tuner", TYPE_FM_TUNER)))
-                .build();
-        SparseArray<CarAudioZone> zones = new SparseArray<>();
-        zones.put(zone.getId(), zone);
-
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(zones));
-
-        assertThat(exception).hasMessageThat().contains("Primary Zone must have");
+        CarAudioZonesValidator.validate(new SparseArray<CarAudioZone>());
     }
 
     @Test
@@ -101,11 +52,10 @@ public class CarAudioZonesValidatorTest {
                 .build();
         zones.put(zoneOne.getId(), zoneOne);
 
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(zones));
+        thrown.expect(RuntimeException.class);
+        thrown.expectMessage("Invalid volume groups configuration for zone " + 1);
 
-        assertThat(exception).hasMessageThat()
-                .contains("Invalid volume groups configuration for zone " + 1);
+        CarAudioZonesValidator.validate(zones);
     }
 
     @Test
@@ -127,11 +77,12 @@ public class CarAudioZonesValidatorTest {
         zones.put(primaryZone.getId(), primaryZone);
         zones.put(secondaryZone.getId(), secondaryZone);
 
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(zones));
 
-        assertThat(exception).hasMessageThat().contains(
+        thrown.expect(RuntimeException.class);
+        thrown.expectMessage(
                 "Device with address three appears in multiple volume groups or audio zones");
+
+        CarAudioZonesValidator.validate(zones);
     }
 
     @Test
@@ -142,7 +93,7 @@ public class CarAudioZonesValidatorTest {
     }
 
     private SparseArray<CarAudioZone> generateAudioZonesWithPrimary() {
-        CarAudioZone zone = new MockBuilder().withInputDevices(getValidInputDevices()).build();
+        CarAudioZone zone = new MockBuilder().build();
         SparseArray<CarAudioZone> zones = new SparseArray<>();
         zones.put(zone.getId(), zone);
         return zones;
@@ -154,23 +105,21 @@ public class CarAudioZonesValidatorTest {
         return mockVolumeGroup;
     }
 
-    private List<AudioDeviceAttributes> getValidInputDevices() {
-        return List.of(generateInputAudioDeviceAttributeInfo("mic", TYPE_BUILTIN_MIC),
-                generateInputAudioDeviceAttributeInfo("tuner", TYPE_FM_TUNER),
-                generateInputAudioDeviceAttributeInfo("bus", TYPE_BUS));
+    private CarAudioZone getMockPrimaryZone() {
+        CarAudioZone zoneMock = Mockito.mock(CarAudioZone.class);
+        when(zoneMock.getId()).thenReturn(CarAudioManager.PRIMARY_AUDIO_ZONE);
+        return zoneMock;
     }
     private static class MockBuilder {
         private boolean mHasValidVolumeGroups = true;
-        private int mZoneId = PRIMARY_AUDIO_ZONE;
+        private int mZoneId = 0;
         private CarVolumeGroup[] mVolumeGroups = new CarVolumeGroup[0];
-        private List<AudioDeviceAttributes> mInputDevices = new ArrayList<>();
 
         CarAudioZone build() {
             CarAudioZone zoneMock = Mockito.mock(CarAudioZone.class);
             when(zoneMock.getId()).thenReturn(mZoneId);
             when(zoneMock.validateVolumeGroups()).thenReturn(mHasValidVolumeGroups);
             when(zoneMock.getVolumeGroups()).thenReturn(mVolumeGroups);
-            when(zoneMock.getInputAudioDevices()).thenReturn(mInputDevices);
             return zoneMock;
         }
 
@@ -188,17 +137,5 @@ public class CarAudioZonesValidatorTest {
             mVolumeGroups = volumeGroups;
             return this;
         }
-
-        MockBuilder withInputDevices(List<AudioDeviceAttributes> inputDevices) {
-            mInputDevices = inputDevices;
-            return this;
-        }
-    }
-
-    private AudioDeviceAttributes generateInputAudioDeviceAttributeInfo(String address, int type) {
-        AudioDeviceAttributes inputMock = mock(AudioDeviceAttributes.class);
-        when(inputMock.getAddress()).thenReturn(address);
-        when(inputMock.getType()).thenReturn(type);
-        return inputMock;
     }
 }

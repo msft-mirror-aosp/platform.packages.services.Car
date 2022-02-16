@@ -32,8 +32,6 @@ import android.app.Service;
 import android.car.admin.CarDevicePolicyManager;
 import android.car.annotation.MandatoryFeature;
 import android.car.annotation.OptionalFeature;
-import android.car.app.CarActivityManager;
-import android.car.builtin.os.ServiceManagerHelper;;
 import android.car.cluster.CarInstrumentClusterManager;
 import android.car.cluster.ClusterActivityState;
 import android.car.cluster.ClusterHomeManager;
@@ -55,12 +53,10 @@ import android.car.media.CarMediaIntents;
 import android.car.media.CarMediaManager;
 import android.car.navigation.CarNavigationStatusManager;
 import android.car.occupantawareness.OccupantAwarenessManager;
-import android.car.os.CarPerformanceManager;
 import android.car.storagemonitoring.CarStorageMonitoringManager;
 import android.car.telemetry.CarTelemetryManager;
-import android.car.test.CarTestManager;
+import android.car.test.CarTestManagerBinderWrapper;
 import android.car.user.CarUserManager;
-import android.car.user.ExperimentalCarUserManager;
 import android.car.vms.VmsClientManager;
 import android.car.vms.VmsSubscriberManager;
 import android.car.watchdog.CarWatchdogManager;
@@ -70,16 +66,16 @@ import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.TransactionTooLargeException;
+import android.os.UserHandle;
 import android.util.Log;
 
-import com.android.car.internal.VisibleForHiddenApiCheck;
 import com.android.car.internal.common.CommonConstants;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -103,29 +99,10 @@ import java.util.Objects;
 public final class Car {
 
     /**
-     *  Represents the platform SDK_INT version with which this car API is developed.
-     *  <p>Note that new car APIs can be used in older platform releases and clients
-     *  should check both this and {@link android.os.Build.VERSION#SDK_INT} before using
-     *  an API added in a specific car API version.
-     */
-    // TODO(b/214103007): Update this before T release.
-    public static final int API_VERSION_MAJOR_INT = 32;
-
-    /**
-     * Represents a minor version change for the same {@link #API_VERSION_MAJOR_INT}.
-     * <p>It will reset to {@code 0} whenever {@link #API_VERSION_MAJOR_INT} is updated and will
-     * increase by {@code 1} if car API is changed with the same {@link #API_VERSION_MAJOR_INT}.
-     * Client should check this version to use APIs which were added in a minor only version
-     * update.
-     */
-    public static final int API_VERSION_MINOR_INT = 0;
-
-    /**
      * Binder service name of car service registered to service manager.
      *
      * @hide
      */
-    @VisibleForHiddenApiCheck
     public static final String CAR_SERVICE_BINDER_SERVICE_NAME = "car_service";
 
     /**
@@ -204,14 +181,6 @@ public final class Car {
     @SystemApi
     @TestApi
     public static final String CAR_USER_SERVICE = "car_user_service";
-
-    /**
-     * Service name for {@link ExperimentalCarUserManager}
-     *
-     * @hide
-     */
-    @OptionalFeature
-    public static final String EXPERIMENTAL_CAR_USER_SERVICE = "experimental_car_user_service";
 
     /**
      * Service name for {@link CarDevicePolicyManager}
@@ -293,6 +262,12 @@ public final class Car {
     public static final String VENDOR_EXTENSION_SERVICE = "vendor_extension";
 
     /**
+     * @hide
+     */
+    @MandatoryFeature
+    public static final String BLUETOOTH_SERVICE = "car_bluetooth";
+
+    /**
      * Service name for {@link VmsClientManager}
      *
      * @hide
@@ -360,15 +335,6 @@ public final class Car {
     public static final String CAR_WATCHDOG_SERVICE = "car_watchdog";
 
     /**
-     * Service name for {@link android.car.os.CarPerformanceManager}
-     *
-     * @hide
-     */
-    @MandatoryFeature
-    @SystemApi
-    public static final String CAR_PERFORMANCE_SERVICE = "car_performance";
-
-    /**
      * @hide
      */
     @MandatoryFeature
@@ -405,18 +371,7 @@ public final class Car {
      * @hide
      */
     @OptionalFeature
-    @SystemApi
-    @TestApi
     public static final String CAR_TELEMETRY_SERVICE = "car_telemetry_service";
-
-    /**
-     * Service name for {@link android.car.app.CarActivityManager}
-     *
-     * @hide
-     */
-    @MandatoryFeature
-    @SystemApi
-    public static final String CAR_ACTIVITY_SERVICE = "car_activity_service";
 
     /** Permission necessary to access car's mileage information.
      *  @hide
@@ -426,10 +381,6 @@ public final class Car {
 
     /** Permission necessary to access car's energy information. */
     public static final String PERMISSION_ENERGY = "android.car.permission.CAR_ENERGY";
-
-    /** Permission necessary to control car's EV charge settings. */
-    public static final String PERMISSION_CONTROL_CAR_ENERGY =
-            "android.car.permission.CONTROL_CAR_ENERGY";
 
     /**
      * Permission necessary to change value of car's range remaining.
@@ -532,30 +483,16 @@ public final class Car {
             "android.car.permission.CAR_INSTRUMENT_CLUSTER_CONTROL";
 
     /**
-     * Permission necessary to listen for the instrument cluster's navigation state changes.
-     *
-     * @hide
-     */
-    public static final String PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE =
-            "android.car.permission.CAR_MONITOR_CLUSTER_NAVIGATION_STATE";
-
-
-    /**
      * Application must have this permission in order to be launched in the instrument cluster
      * display.
      *
      * @hide
      */
-    @VisibleForHiddenApiCheck
     public static final String PERMISSION_CAR_DISPLAY_IN_CLUSTER =
             "android.car.permission.CAR_DISPLAY_IN_CLUSTER";
 
     /** Permission necessary to use {@link CarInfoManager}. */
     public static final String PERMISSION_CAR_INFO = "android.car.permission.CAR_INFO";
-
-    /** Permission necessary to access privileged car info. */
-    public static final String PERMISSION_PRIVILEGED_CAR_INFO =
-            "android.car.permission.PRIVILEGED_CAR_INFO";
 
     /**
      * Permission necessary to read information of vendor properties' permissions.
@@ -697,14 +634,6 @@ public final class Car {
             "android.car.permission.CONTROL_CAR_POWER_POLICY";
 
     /**
-     * Permission necessary to adjust the shutdown process.
-     * @hide
-     */
-    @SystemApi
-    public static final String PERMISSION_CONTROL_SHUTDOWN_PROCESS =
-            "android.car.permission.CONTROL_SHUTDOWN_PROCESS";
-
-    /**
      * Permission necessary to access Car PROJECTION system APIs.
      * @hide
      */
@@ -750,7 +679,6 @@ public final class Car {
      *
      * @hide
      */
-    @VisibleForHiddenApiCheck
     public static final String PERMISSION_BIND_VMS_CLIENT =
             "android.car.permission.BIND_VMS_CLIENT";
 
@@ -793,7 +721,6 @@ public final class Car {
      *
      * @hide
      */
-    @VisibleForHiddenApiCheck
     public static final String PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION =
             "android.car.permission.CAR_UX_RESTRICTIONS_CONFIGURATION";
 
@@ -902,7 +829,6 @@ public final class Car {
      *
      * @hide
      */
-    @SystemApi
     public static final String PERMISSION_USE_CAR_TELEMETRY_SERVICE =
             "android.car.permission.USE_CAR_TELEMETRY_SERVICE";
 
@@ -942,37 +868,6 @@ public final class Car {
     public static final String PERMISSION_COLLECT_CAR_WATCHDOG_METRICS =
             "android.car.permission.COLLECT_CAR_WATCHDOG_METRICS";
 
-    /**
-     * Permission necessary to fetch car CPU information.
-     *
-     * @hide
-     */
-    @SystemApi
-    public static final String PERMISSION_COLLECT_CAR_CPU_INFO =
-            "android.car.permission.COLLECT_CAR_CPU_INFO";
-
-    /**
-     * Permission necessary to control launching applications in Car.
-     *
-     * @hide
-     */
-    @SystemApi
-    public static final String PERMISSION_CONTROL_CAR_APP_LAUNCH =
-            "android.car.permission.CONTROL_CAR_APP_LAUNCH";
-
-    /**
-     * Intent for connecting to the template renderer. Services that handle this intent must also
-     * hold {@link #PERMISSION_TEMPLATE_RENDERER}. Applications would not bind to this service
-     * directly, but instead they would use
-     * <a href="https://developer.android.com/reference/com/google/android/libraries/car/app/packages">
-     * Android for Cars App Library</a>.
-     *
-     * @hide
-     */
-    @SdkConstant(SdkConstantType.SERVICE_ACTION)
-    public static final String CAR_TEMPLATE_HOST_RENDERER_SERVICE =
-            "android.car.template.host.RendererService";
-
     /** @hide */
     @IntDef({CONNECTION_TYPE_EMBEDDED})
     @Retention(RetentionPolicy.SOURCE)
@@ -1010,7 +905,6 @@ public final class Car {
             "android.media.session.BROWSE_SERVICE";
 
     /** @hide */
-    @VisibleForHiddenApiCheck
     public static final String CAR_SERVICE_INTERFACE_NAME = CommonConstants.CAR_SERVICE_INTERFACE;
 
     private static final String CAR_SERVICE_PACKAGE = "com.android.car";
@@ -1024,7 +918,6 @@ public final class Car {
      *
      * @hide
      */
-    @VisibleForHiddenApiCheck
     public static final String CAR_CATEGORY_NAVIGATION = "android.car.cluster.NAVIGATION";
 
     /**
@@ -1218,7 +1111,7 @@ public final class Car {
     @Nullable
     private final ServiceConnection mServiceConnectionListenerClient;
 
-    /** Can be added after ServiceManagerHelper.getService call */
+    /** Can be added after ServiceManager.getService call */
     @Nullable
     private final CarServiceLifecycleListener mStatusChangeCallback;
 
@@ -1233,75 +1126,13 @@ public final class Car {
     private final CarFeatures mFeatures = new CarFeatures();
 
     /**
-     * Checks if the current car API version is meeting the required version number.
-     *
-     * @param requiredApiVersionMajor Required major version number. Minor version is not checked.
-     * @return true if car API version in the system is same or newer than
-     *              {@code requiredApiVersionMajor}.
-     */
-    public static boolean isApiVersionAtLeast(int requiredApiVersionMajor) {
-        return API_VERSION_MAJOR_INT >= requiredApiVersionMajor;
-    }
-
-    /**
-     * Checks if the current car API version is meeting the required version number.
-     *
-     * @param requiredApiVersionMajor Required major version number.
-     * @param requiredApiVersionMinor Required minor version number.
-     * @return true if car Major API version in the system is newer than
-     *         {@code requiredApiVersionMajor} or car Major API version in the system is same as
-     *         {@code requiredApiVersionMajor} with minor version same or newer than
-     *         {@code requiredApiVersionMinor}.
-     */
-    public static boolean isApiVersionAtLeast(int requiredApiVersionMajor,
-            int requiredApiVersionMinor) {
-        return (API_VERSION_MAJOR_INT > requiredApiVersionMajor)
-                || (API_VERSION_MAJOR_INT == requiredApiVersionMajor
-                        && API_VERSION_MINOR_INT >= requiredApiVersionMinor);
-    }
-
-    /**
-     * Checks if the current car API version and platform version are meeting the required version
-     * numbers.
-     *
-     * @param requiredApiVersionMajor Required major version number. Minor version is not checked.
-     * @param minPlatformSdkInt Required platform version.
-     * @return true if car API version in the system is same or newer than
-     *              {@code requiredApiVersionMajor}.
-     */
-    public static boolean isApiAndPlatformVersionAtLeast(int requiredApiVersionMajor,
-            int minPlatformSdkInt) {
-        return API_VERSION_MAJOR_INT >= requiredApiVersionMajor
-                && Build.VERSION.SDK_INT >= minPlatformSdkInt;
-    }
-
-    /**
-     * Checks if the current car API version and platform version are meeting the required version
-     * numbers.
-     *
-     * @param requiredApiVersionMajor Required major version number.
-     * @param requiredApiVersionMinor Required minor version number.
-     * @param minPlatformSdkInt Required platform version.
-     * @return true if car API version in the system is same or newer than
-     *              {@code requiredApiVersionMajor}.
-     */
-    public static boolean isApiAndPlatformVersionAtLeast(int requiredApiVersionMajor,
-            int requiredApiVersionMinor,
-            int minPlatformSdkInt) {
-        return API_VERSION_MAJOR_INT >= requiredApiVersionMajor
-                && API_VERSION_MINOR_INT >= requiredApiVersionMinor
-                && Build.VERSION.SDK_INT >= minPlatformSdkInt;
-    }
-
-    /**
      * A factory method that creates Car instance for all Car API access.
      *
      * <p>Instance created with this should be disconnected from car service by calling
      * {@link #disconnect()} before the passed {code Context} is released.
      *
-     * @param context This should not be {@code null}. If you are passing {@link ContextWrapper},
-     *                make sure that its {@link ContextWrapper#getBaseContext() base context} is not
-     *                {@code null} as well.
+     * @param context App's Context. This should not be null. If you are passing
+     *                {@link ContextWrapper}, make sure that its base Context is non-null as well.
      *                Otherwise it will throw {@link java.lang.NullPointerException}.
      * @param serviceConnectionListener listener for monitoring service connection.
      * @param handler the handler on which the callback should execute, or null to execute on the
@@ -1365,9 +1196,8 @@ public final class Car {
      * <p>Instance created with this should be disconnected from car service by calling
      * {@link #disconnect()} before the passed {code Context} is released.
      *
-     * @param context This should not be {@code null}. If you are passing {@link ContextWrapper},
-     *                make sure that its {@link ContextWrapper#getBaseContext() base context} is not
-     *                {@code null} as well.
+     * @param context App's Context. This should not be null. If you are passing
+     *                {@link ContextWrapper}, make sure that its base Context is non-null as well.
      *                Otherwise it will throw {@link java.lang.NullPointerException}.
      * @param handler the handler on which the manager's callbacks will be executed, or null to
      * execute on the application's main thread.
@@ -1382,7 +1212,7 @@ public final class Car {
         boolean started = false;
         int retryCount = 0;
         while (true) {
-            service = ServiceManagerHelper.getService(CAR_SERVICE_BINDER_SERVICE_NAME);
+            service = ServiceManager.getService(CAR_SERVICE_BINDER_SERVICE_NAME);
             if (car == null) {
                 // service can be still null. The constructor is safe for null service.
                 car = new Car(context, ICar.Stub.asInterface(service),
@@ -1457,9 +1287,8 @@ public final class Car {
      * {@link CarServiceLifecycleListener#onLifecycleChanged(Car, boolean)} and avoid the
      * needs to check if returned {@link Car} is connected or not from returned {@link Car}.</p>
      *
-     * @param context This should not be {@code null}. If you are passing {@link ContextWrapper},
-     *                make sure that its {@link ContextWrapper#getBaseContext() base context} is not
-     *                {@code null} as well.
+     * @param context App's Context. This should not be null. If you are passing
+     *                {@link ContextWrapper}, make sure that its base Context is non-null as well.
      *                Otherwise it will throw {@link java.lang.NullPointerException}.
      * @param handler dispatches all Car*Manager events to this Handler. Exception is
      *                {@link CarServiceLifecycleListener} which will be always dispatched to main
@@ -1491,7 +1320,7 @@ public final class Car {
         }
         boolean isMainThread = Looper.myLooper() == Looper.getMainLooper();
         while (true) {
-            service = ServiceManagerHelper.getService(CAR_SERVICE_BINDER_SERVICE_NAME);
+            service = ServiceManager.getService(CAR_SERVICE_BINDER_SERVICE_NAME);
             if (car == null) {
                 // service can be still null. The constructor is safe for null service.
                 car = new Car(context, ICar.Stub.asInterface(service), null, statusChangeListener,
@@ -1888,7 +1717,6 @@ public final class Car {
     }
 
     /** @hide */
-    @VisibleForHiddenApiCheck
     public Context getContext() {
         return mContext;
     }
@@ -1907,8 +1735,7 @@ public final class Car {
     }
 
     /** @hide */
-    @VisibleForHiddenApiCheck
-    public void handleRemoteExceptionFromCarService(RemoteException e) {
+    void handleRemoteExceptionFromCarService(RemoteException e) {
         if (e instanceof TransactionTooLargeException) {
             Log.w(TAG_CAR, "Car service threw TransactionTooLargeException", e);
             throw new CarTransactionException(e, "Car service threw TransactionTooLargException");
@@ -1948,7 +1775,6 @@ public final class Car {
     }
 
     /** @hide */
-    @VisibleForHiddenApiCheck
     public static <T> T handleRemoteExceptionFromCarService(Service service, RemoteException e,
             T returnValue) {
         handleRemoteExceptionFromCarService(service, e);
@@ -1956,7 +1782,6 @@ public final class Car {
     }
 
     /** @hide */
-    @VisibleForHiddenApiCheck
     public static  void handleRemoteExceptionFromCarService(Service service, RemoteException e) {
         if (e instanceof TransactionTooLargeException) {
             Log.w(TAG_CAR, "Car service threw TransactionTooLargeException, client:"
@@ -2024,7 +1849,7 @@ public final class Car {
             case TEST_SERVICE:
                 /* CarTestManager exist in static library. So instead of constructing it here,
                  * only pass binder wrapper so that CarTestManager can be constructed outside. */
-                manager = new CarTestManager(this, binder);
+                manager = new CarTestManagerBinderWrapper(this, binder);
                 break;
             case VEHICLE_MAP_SERVICE:
                 manager = new VmsClientManager(this, binder);
@@ -2032,6 +1857,9 @@ public final class Car {
             case VMS_SUBSCRIBER_SERVICE:
                 manager = VmsSubscriberManager.wrap(this,
                         (VmsClientManager) getCarManager(VEHICLE_MAP_SERVICE));
+                break;
+            case BLUETOOTH_SERVICE:
+                manager = new CarBluetoothManager(this, binder);
                 break;
             case STORAGE_MONITORING_SERVICE:
                 manager = new CarStorageMonitoringManager(this, binder);
@@ -2054,14 +1882,8 @@ public final class Car {
             case CAR_USER_SERVICE:
                 manager = new CarUserManager(this, binder);
                 break;
-            case EXPERIMENTAL_CAR_USER_SERVICE:
-                manager = new ExperimentalCarUserManager(this, binder);
-                break;
             case CAR_WATCHDOG_SERVICE:
                 manager = new CarWatchdogManager(this, binder);
-                break;
-            case CAR_PERFORMANCE_SERVICE:
-                manager = new CarPerformanceManager(this, binder);
                 break;
             case CAR_INPUT_SERVICE:
                 manager = new CarInputManager(this, binder);
@@ -2077,9 +1899,6 @@ public final class Car {
                 break;
             case CAR_TELEMETRY_SERVICE:
                 manager = new CarTelemetryManager(this, binder);
-                break;
-            case CAR_ACTIVITY_SERVICE:
-                manager = new CarActivityManager(this, binder);
                 break;
             default:
                 // Experimental or non-existing
@@ -2121,8 +1940,8 @@ public final class Car {
         Intent intent = new Intent();
         intent.setPackage(CAR_SERVICE_PACKAGE);
         intent.setAction(Car.CAR_SERVICE_INTERFACE_NAME);
-        boolean bound = mContext.bindService(intent, mServiceConnectionListener,
-                Context.BIND_AUTO_CREATE);
+        boolean bound = mContext.bindServiceAsUser(intent, mServiceConnectionListener,
+                Context.BIND_AUTO_CREATE, UserHandle.CURRENT_OR_SELF);
         synchronized (mLock) {
             if (!bound) {
                 mConnectionRetryCount++;

@@ -25,6 +25,8 @@
 #include <android/hardware/automotive/evs/1.1/IEvsEnumerator.h>
 #include <android/hardware/automotive/evs/1.1/types.h>
 #include <hidl/HidlTransportSupport.h>
+#include <utils/Mutex.h>
+#include <utils/StrongPointer.h>
 
 #include <jni.h>
 

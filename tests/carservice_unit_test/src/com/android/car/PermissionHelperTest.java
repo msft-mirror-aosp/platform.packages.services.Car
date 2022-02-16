@@ -22,29 +22,31 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.testng.Assert.expectThrows;
 
+import android.app.ActivityManager;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
-import android.content.Context;
+import android.os.Binder;
 import android.util.Log;
 
 import org.junit.Test;
-import org.mockito.Mock;
 
 public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase {
 
     private static final String TAG = PermissionHelperTest.class.getSimpleName();
     private static final String MESSAGE = "D'OH!";
 
+    private static final int UID = Binder.getCallingUid();
+
     private static final String PERMISSION1 = "LicenseToKill";
     private static final String PERMISSION2 = "LicenseToLove";
 
-    @Mock
-    private Context mContext;
-
-    public PermissionHelperTest() {
-        super(NO_LOG_TAGS);
+    @Override
+    protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
+        session.spyStatic(ActivityManager.class);
     }
 
     @Test
@@ -53,8 +55,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
         mockPermission(PERMISSION2, PERMISSION_DENIED);
 
         assertWithMessage("has at least %s", PERMISSION2).that(
-                PermissionHelper.hasAtLeastOnePermissionGranted(mContext, PERMISSION1,
-                        PERMISSION2))
+                PermissionHelper.hasAtLeastOnePermissionGranted(UID, PERMISSION1, PERMISSION2))
                 .isFalse();
     }
 
@@ -64,8 +65,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
         mockPermission(PERMISSION2, PERMISSION_GRANTED);
 
         assertWithMessage("has at least %s", PERMISSION2).that(
-                PermissionHelper.hasAtLeastOnePermissionGranted(mContext, PERMISSION1,
-                        PERMISSION2))
+                PermissionHelper.hasAtLeastOnePermissionGranted(UID, PERMISSION1, PERMISSION2))
                 .isTrue();
     }
 
@@ -75,8 +75,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
         mockPermission(PERMISSION2, PERMISSION_GRANTED);
 
         assertWithMessage("has at least %s", PERMISSION2).that(
-                PermissionHelper.hasAtLeastOnePermissionGranted(mContext, PERMISSION1,
-                        PERMISSION2))
+                PermissionHelper.hasAtLeastOnePermissionGranted(UID, PERMISSION1, PERMISSION2))
                 .isTrue();
     }
 
@@ -86,7 +85,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
         mockPermission(PERMISSION2, PERMISSION_DENIED);
 
         SecurityException exception = expectThrows(SecurityException.class, () -> PermissionHelper
-                .checkHasAtLeastOnePermissionGranted(mContext, MESSAGE, PERMISSION1, PERMISSION2));
+                .checkHasAtLeastOnePermissionGranted(MESSAGE, PERMISSION1, PERMISSION2));
 
         assertExceptionMessageContains(exception, MESSAGE);
     }
@@ -96,8 +95,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
         mockPermission(PERMISSION1, PERMISSION_DENIED);
         mockPermission(PERMISSION2, PERMISSION_GRANTED);
 
-        PermissionHelper.checkHasAtLeastOnePermissionGranted(mContext, MESSAGE, PERMISSION1,
-                PERMISSION2);
+        PermissionHelper.checkHasAtLeastOnePermissionGranted(MESSAGE, PERMISSION1, PERMISSION2);
     }
 
     @Test
@@ -105,8 +103,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
         mockPermission(PERMISSION1, PERMISSION_DENIED);
         mockPermission(PERMISSION2, PERMISSION_GRANTED);
 
-        PermissionHelper.checkHasAtLeastOnePermissionGranted(mContext, MESSAGE, PERMISSION1,
-                PERMISSION2);
+        PermissionHelper.checkHasAtLeastOnePermissionGranted(MESSAGE, PERMISSION1, PERMISSION2);
     }
 
     @Test
@@ -114,7 +111,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
         mockPermission(android.Manifest.permission.DUMP, PERMISSION_DENIED);
 
         SecurityException exception = expectThrows(SecurityException.class,
-                () -> PermissionHelper.checkHasDumpPermissionGranted(mContext, MESSAGE));
+                () -> PermissionHelper.checkHasDumpPermissionGranted(MESSAGE));
 
         assertExceptionMessageContains(exception, MESSAGE);
         assertExceptionMessageContains(exception, android.Manifest.permission.DUMP);
@@ -124,7 +121,7 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
     public void testCheckHasDumpPermissionGranted_granted() {
         mockPermission(android.Manifest.permission.DUMP, PERMISSION_GRANTED);
 
-        PermissionHelper.checkHasDumpPermissionGranted(mContext, MESSAGE);
+        PermissionHelper.checkHasDumpPermissionGranted(MESSAGE);
     }
 
     private void assertExceptionMessageContains(Exception exception, String subString) {
@@ -133,9 +130,10 @@ public final class PermissionHelperTest extends AbstractExtendedMockitoTestCase 
     }
 
     private void mockPermission(String permission, int value) {
-        Log.d(TAG, "mockHasPermissions(): permission=" + permission
+        Log.d(TAG, "mockHasPermissions(): uid=" + UID + ", permission=" + permission
                 + ", granted=" + (value == PERMISSION_GRANTED));
 
-        doReturn(value).when(mContext).checkCallingOrSelfPermission(eq(permission));
+        doReturn(value).when(() -> ActivityManager.checkComponentPermission(eq(permission),
+                eq(UID), anyInt(), anyBoolean()));
     }
 }

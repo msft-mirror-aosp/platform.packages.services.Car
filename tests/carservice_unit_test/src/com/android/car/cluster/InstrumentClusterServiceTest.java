@@ -55,7 +55,7 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.stubbing.Answer;
 
-public final class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCase {
+public class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCase {
 
     private static final String DEFAULT_RENDERER_SERVICE =
             "com.android.car.carservice_unittest/.FakeService";
@@ -90,10 +90,6 @@ public final class InstrumentClusterServiceTest extends AbstractExtendedMockitoT
         public void onKeyEvent(KeyEvent keyEvent) {
         }
     };
-
-    public InstrumentClusterServiceTest() {
-        super(InstrumentClusterService.TAG, ClusterNavigationService.TAG);
-    }
 
     @Before
     public void setUp() {

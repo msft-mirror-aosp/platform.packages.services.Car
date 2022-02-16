@@ -94,7 +94,8 @@ public class BugReportInfoActivity extends Activity {
         mRecyclerView.addItemDecoration(new DividerItemDecoration(mRecyclerView.getContext(),
                 DividerItemDecoration.VERTICAL));
 
-        mConfig = Config.create();
+        mConfig = new Config();
+        mConfig.start();
 
         mBugInfoAdapter = new BugInfoAdapter(this::onBugReportItemClicked, mConfig);
         mRecyclerView.setAdapter(mBugInfoAdapter);
@@ -189,7 +190,11 @@ public class BugReportInfoActivity extends Activity {
     }
 
     private void onStartBugReportButtonClick(View view) {
-        startActivity(BugReportActivity.buildStartBugReportIntent(this));
+        Intent intent = new Intent(this, BugReportActivity.class);
+        // Clear top is needed, otherwise multiple BugReportActivity-ies get opened and
+        // MediaRecorder crashes.
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(intent);
     }
 
     /**
