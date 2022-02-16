@@ -30,22 +30,19 @@ namespace implementation {
 
 
 void fillNV21FromNV21(const BufferDesc& tgtBuff, uint8_t* tgt,
-                      void* imgData, void* buf, unsigned imgStride);
+                      void* imgData, unsigned imgStride);
 
 void fillNV21FromYUYV(const BufferDesc& tgtBuff, uint8_t* tgt,
-                      void* imgData, void* buf, unsigned imgStride);
+                      void* imgData, unsigned imgStride);
 
 void fillRGBAFromYUYV(const BufferDesc& tgtBuff, uint8_t* tgt,
-                      void* imgData, void* buf, unsigned imgStride);
-
-void fillRGBAFromUYVY(const BufferDesc& tgtBuff, uint8_t* tgt,
-                      void* imgData, void* buf, unsigned imgStride);
+                      void* imgData, unsigned imgStride);
 
 void fillYUYVFromYUYV(const BufferDesc& tgtBuff, uint8_t* tgt,
-                      void* imgData, void* buf, unsigned imgStride);
+                      void* imgData, unsigned imgStride);
 
 void fillYUYVFromUYVY(const BufferDesc& tgtBuff, uint8_t* tgt,
-                      void* imgData, void* buf, unsigned imgStride);
+                      void* imgData, unsigned imgStride);
 
 } // namespace implementation
 } // namespace V1_1

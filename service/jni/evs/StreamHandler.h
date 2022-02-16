@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef SERVICE_JNI_EVS_STREAMHANDLER_H_
-#define SERVICE_JNI_EVS_STREAMHANDLER_H_
+#ifndef ANDROID_CARSERVICE_STREAMHANDLER_H
+#define ANDROID_CARSERVICE_STREAMHANDLER_H
 
 #include "EvsServiceCallback.h"
 
-#include <android-base/thread_annotations.h>
 #include <android/hardware/automotive/evs/1.1/IEvsCamera.h>
 #include <android/hardware/automotive/evs/1.1/IEvsCameraStream.h>
 #include <android/hardware/automotive/evs/1.1/IEvsDisplay.h>
+#include <ui/GraphicBuffer.h>
 
 #include <list>
 
@@ -38,7 +38,7 @@ namespace evs {
  */
 class StreamHandler : public android::hardware::automotive::evs::V1_1::IEvsCameraStream {
 public:
-    StreamHandler(const android::sp<android::hardware::automotive::evs::V1_1::IEvsCamera>& pCamera,
+    StreamHandler(android::sp<android::hardware::automotive::evs::V1_1::IEvsCamera>& pCamera,
                   EvsServiceCallback* callback, int maxNumFramesInFlight);
     virtual ~StreamHandler();
     void shutdown();
@@ -82,4 +82,4 @@ private:
 }  // namespace automotive
 }  // namespace android
 
-#endif  // SERVICE_JNI_EVS_STREAMHANDLER_H_
+#endif  // ANDROID_CARSERVICE_STREAMHANDLER_H

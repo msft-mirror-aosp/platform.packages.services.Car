@@ -16,13 +16,9 @@
 
 package android.car.hardware;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * A CarSensorConfig object corresponds to a single sensor type coming from the car.
@@ -58,7 +54,6 @@ public class CarSensorConfig implements Parcelable {
 
     /** @hide */
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }

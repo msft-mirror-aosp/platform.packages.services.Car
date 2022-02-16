@@ -21,7 +21,7 @@
 #include <android-base/file.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
-#include <utils/Log.h>
+#include <binder/Enums.h>
 
 #include <tinyxml2.h>
 
@@ -33,9 +33,6 @@ namespace android {
 namespace frameworks {
 namespace automotive {
 namespace powerpolicy {
-
-using ::aidl::android::frameworks::automotive::powerpolicy::CarPowerPolicy;
-using ::aidl::android::frameworks::automotive::powerpolicy::PowerComponent;
 
 using android::base::Error;
 using android::base::Result;
@@ -125,13 +122,12 @@ const std::vector<PowerComponent> kSuspendToRamDisabledComponents = {PowerCompon
                                                                      PowerComponent::BLUETOOTH,
                                                                      PowerComponent::WIFI,
                                                                      PowerComponent::LOCATION,
-                                                                     PowerComponent::MICROPHONE,
                                                                      PowerComponent::CPU};
 const std::unordered_set<PowerComponent> kNoUserInteractionConfigurableComponents =
         {PowerComponent::BLUETOOTH, PowerComponent::NFC, PowerComponent::TRUSTED_DEVICE_DETECTION};
 
 void iterateAllPowerComponents(const std::function<bool(PowerComponent)>& processor) {
-    for (const auto component : ::ndk::enum_range<PowerComponent>()) {
+    for (const auto component : enum_range<PowerComponent>()) {
         if (!processor(component)) {
             break;
         }
@@ -437,7 +433,7 @@ std::string toString(const std::vector<PowerComponent>& components) {
         return "none";
     }
     std::string filterStr = toString(components[0]);
-    for (size_t i = 1; i < size; i++) {
+    for (int i = 1; i < size; i++) {
         StringAppendF(&filterStr, ", %s", toString(components[i]).c_str());
     }
     return filterStr;
@@ -611,7 +607,7 @@ void PolicyManager::initRegularPowerPolicy() {
                                                   kNoComponents));
 
     std::vector<PowerComponent> initialOnDisabledComponents;
-    for (const auto component : ::ndk::enum_range<PowerComponent>()) {
+    for (const auto component : enum_range<PowerComponent>()) {
         if (std::find(kInitialOnComponents.begin(), kInitialOnComponents.end(), component) ==
             kInitialOnComponents.end()) {
             initialOnDisabledComponents.push_back(component);

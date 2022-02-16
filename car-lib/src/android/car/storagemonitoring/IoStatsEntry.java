@@ -15,14 +15,10 @@
  */
 package android.car.storagemonitoring;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.SystemApi;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.JsonWriter;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -111,7 +107,6 @@ public final class IoStatsEntry implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }
