@@ -16,17 +16,15 @@
 
 package com.android.car.audio;
 
-import static android.car.builtin.media.AudioManagerHelper.getUsageVirtualSource;
-
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.IntDef;
 import android.media.AudioAttributes;
+import android.media.AudioAttributes.AttributeUsage;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.annotation.AttributeUsage;
 import com.android.internal.util.Preconditions;
 
 import java.lang.annotation.Retention;
@@ -209,7 +207,7 @@ public final class CarAudioContext {
 
         CONTEXT_TO_USAGES.put(INVALID,
                 new int[]{
-                        getUsageVirtualSource()
+                        AudioAttributes.USAGE_VIRTUAL_SOURCE
                 });
     }
 
@@ -264,10 +262,6 @@ public final class CarAudioContext {
 
     static boolean isCriticalAudioContext(@CarAudioContext.AudioContext int audioContext) {
         return CarAudioContext.EMERGENCY == audioContext || CarAudioContext.SAFETY == audioContext;
-    }
-
-    static boolean isRingerOrCallContext(@CarAudioContext.AudioContext int audioContext) {
-        return audioContext == CALL_RING || audioContext == CALL;
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)

@@ -16,9 +16,6 @@
 
 package android.automotive.watchdog.internal;
 
-/**
- * Callback that the CarWatchdog monitor must implement.
- */
 oneway interface ICarWatchdogMonitor {
   /**
    * Called when the client has not responded within the given timeout.

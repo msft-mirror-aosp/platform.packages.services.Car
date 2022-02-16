@@ -17,6 +17,8 @@ package android.car.util.concurrent;
 
 import android.annotation.NonNull;
 
+import com.android.internal.infra.AndroidFuture;
+
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;

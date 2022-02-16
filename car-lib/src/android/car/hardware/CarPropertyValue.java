@@ -16,17 +16,12 @@
 
 package android.car.hardware;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import static java.lang.Integer.toHexString;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
-import android.car.builtin.os.ParcelHelper;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -129,10 +124,10 @@ public final class CarPropertyValue<T> implements Parcelable {
         }
 
         if (String.class.equals(valueClass)) {
-            byte[] bytes = ParcelHelper.readBlob(in);
+            byte[] bytes = in.readBlob();
             mValue = (T) new String(bytes, DEFAULT_CHARSET);
         } else if (byte[].class.equals(valueClass)) {
-            mValue = (T) ParcelHelper.readBlob(in);
+            mValue = (T) in.readBlob();
         } else {
             mValue = (T) in.readValue(valueClass.getClassLoader());
         }
@@ -151,7 +146,6 @@ public final class CarPropertyValue<T> implements Parcelable {
     };
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }
@@ -168,9 +162,9 @@ public final class CarPropertyValue<T> implements Parcelable {
 
         // Special handling for String and byte[] to mitigate transaction buffer limitations.
         if (String.class.equals(valueClass)) {
-            ParcelHelper.writeBlob(dest, ((String) mValue).getBytes(DEFAULT_CHARSET));
+            dest.writeBlob(((String) mValue).getBytes(DEFAULT_CHARSET));
         } else if (byte[].class.equals(valueClass)) {
-            ParcelHelper.writeBlob(dest, (byte[]) mValue);
+            dest.writeBlob((byte[]) mValue);
         } else {
             dest.writeValue(mValue);
         }

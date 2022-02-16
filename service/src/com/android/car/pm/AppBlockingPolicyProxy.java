@@ -15,8 +15,6 @@
  */
 package com.android.car.pm;
 
-import android.car.builtin.content.pm.PackageManagerHelper;
-import android.car.builtin.util.Slogf;
 import android.car.content.pm.CarAppBlockingPolicy;
 import android.car.content.pm.ICarAppBlockingPolicy;
 import android.car.content.pm.ICarAppBlockingPolicySetter;
@@ -29,6 +27,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.util.Slog;
 
 import com.android.car.CarLog;
 import com.android.internal.annotations.GuardedBy;
@@ -61,7 +60,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
     private final Runnable mTimeoutRunnable = new Runnable() {
         @Override
         public void run() {
-            Slogf.w(TAG, "Timeout for policy setting for service:" + mServiceInfo);
+            Slog.w(TAG, "Timeout for policy setting for service:" + mServiceInfo);
             disconnect();
             mService.onPolicyConnectionFailure(AppBlockingPolicyProxy.this);
         }
@@ -82,9 +81,9 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
 
     public void connect() {
         Intent intent = new Intent();
-        intent.setComponent(PackageManagerHelper.getComponentName(mServiceInfo));
+        intent.setComponent(mServiceInfo.getComponentName());
         mContext.bindServiceAsUser(intent, this, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
-                UserHandle.CURRENT);
+                UserHandle.CURRENT_OR_SELF);
         synchronized (mLock) {
             mBound = true;
         }
@@ -103,7 +102,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
         try {
             mContext.unbindService(this);
         } catch (IllegalArgumentException e) {
-            Slogf.w(TAG, "unbind", e);
+            Slog.w(TAG, "unbind", e);
         }
     }
 
@@ -119,7 +118,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
             }
         }
         if (failed) {
-            Slogf.w(TAG, "Policy service connected with null binder:" + name);
+            Slog.w(TAG, "Policy service connected with null binder:" + name);
             mService.onPolicyConnectionFailure(this);
             return;
         }
@@ -141,17 +140,15 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
             }
         }
         if (failed) {
-            Slogf.w(TAG, "Policy service keep crashing, giving up:" + name);
+            Slog.w(TAG, "Policy service keep crashing, giving up:" + name);
             mService.onPolicyConnectionFailure(this);
         }
     }
 
     @Override
     public String toString() {
-        synchronized (mLock) {
-            return "AppBlockingPolicyProxy [mServiceInfo=" + mServiceInfo + ", mCrashCount="
-                    + mCrashCount + "]";
-        }
+        return "AppBlockingPolicyProxy [mServiceInfo=" + mServiceInfo + ", mCrashCount="
+                + mCrashCount + "]";
     }
 
     private class ICarAppBlockingPolicySetterImpl extends ICarAppBlockingPolicySetter.Stub {
@@ -160,8 +157,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
         public void setAppBlockingPolicy(CarAppBlockingPolicy policy) {
             mHandler.removeCallbacks(mTimeoutRunnable);
             if (policy == null) {
-                Slogf.w(TAG, "setAppBlockingPolicy null policy from policy service:"
-                        + mServiceInfo);
+                Slog.w(TAG, "setAppBlockingPolicy null policy from policy service:" + mServiceInfo);
             }
             mService.onPolicyConnectionAndSet(AppBlockingPolicyProxy.this, policy);
         }

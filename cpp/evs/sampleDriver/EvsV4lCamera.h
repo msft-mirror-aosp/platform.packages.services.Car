@@ -143,7 +143,7 @@ private:
 
     // Which format specific function we need to use to move camera imagery into our output buffers
     void(*mFillBufferFromVideo)(const BufferDesc& tgtBuff, uint8_t* tgt,
-                                void* imgData, void* buf, unsigned imgStride);
+                                void* imgData, unsigned imgStride);
 
 
     EvsResult doneWithFrame_impl(const uint32_t id, const buffer_handle_t handle);
@@ -166,9 +166,6 @@ private:
 
     // Frame counter
     uint64_t mFrameCounter = 0;
-
-    // A buffer to hold an intermediate color conversion data
-    std::vector<uint8_t> mColorSpaceConversionBuffer;
 };
 
 } // namespace implementation

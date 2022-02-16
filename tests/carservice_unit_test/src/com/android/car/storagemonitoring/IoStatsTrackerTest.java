@@ -307,11 +307,6 @@ public class IoStatsTrackerTest extends TestCase {
         }
 
         @Override
-        public boolean enterHibernation() {
-            return true;
-        }
-
-        @Override
         public void scheduleActionForBootCompleted(Runnable action, Duration delay) {
         }
 
