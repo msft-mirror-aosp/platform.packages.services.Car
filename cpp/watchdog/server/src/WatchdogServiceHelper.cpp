@@ -32,7 +32,6 @@ using aawi::BnCarWatchdogServiceForSystem;
 using aawi::ICarWatchdogServiceForSystem;
 using aawi::PackageInfo;
 using aawi::PackageIoOveruseStats;
-using aawi::UserPackageIoUsageStats;
 using ::android::IBinder;
 using ::android::sp;
 using ::android::wp;
@@ -213,17 +212,6 @@ Status WatchdogServiceHelper::resetResourceOveruseStats(
         service = mService;
     }
     return service->resetResourceOveruseStats(packageNames);
-}
-
-Status WatchdogServiceHelper::getTodayIoUsageStats(
-        std::vector<UserPackageIoUsageStats>* userPackageIoUsageStats) {
-    sp<ICarWatchdogServiceForSystem> service;
-    if (std::shared_lock readLock(mRWMutex); mService == nullptr) {
-        return fromExceptionCode(Status::EX_ILLEGAL_STATE, "Watchdog service is not initialized");
-    } else {
-        service = mService;
-    }
-    return service->getTodayIoUsageStats(userPackageIoUsageStats);
 }
 
 }  // namespace watchdog

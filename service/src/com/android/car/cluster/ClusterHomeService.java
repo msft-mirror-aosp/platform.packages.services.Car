@@ -27,13 +27,10 @@ import android.app.ActivityOptions;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
 import android.car.ICarOccupantZoneCallback;
-import android.car.builtin.os.UserManagerHelper;
-import android.car.builtin.util.Slogf;
 import android.car.cluster.ClusterHomeManager;
 import android.car.cluster.ClusterState;
+import android.car.cluster.IClusterHomeCallback;
 import android.car.cluster.IClusterHomeService;
-import android.car.cluster.IClusterNavigationStateListener;
-import android.car.cluster.IClusterStateListener;
 import android.car.cluster.navigation.NavigationState.NavigationStateProto;
 import android.car.navigation.CarNavigationInstrumentCluster;
 import android.content.ComponentName;
@@ -47,7 +44,9 @@ import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.text.TextUtils;
+import android.util.IndentingPrintWriter;
 import android.view.Display;
 
 import com.android.car.CarLog;
@@ -57,7 +56,7 @@ import com.android.car.R;
 import com.android.car.am.FixedActivityService;
 import com.android.car.hal.ClusterHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.server.utils.Slogf;
 
 /**
  * Service responsible for interactions between ClusterOS and ClusterHome.
@@ -85,12 +84,8 @@ public class ClusterHomeService extends IClusterHomeService.Stub
     private Insets mInsets = Insets.NONE;
     private int mUiType = ClusterHomeManager.UI_TYPE_CLUSTER_HOME;
     private Intent mLastIntent;
-    private int mLastIntentUserId = UserManagerHelper.USER_SYSTEM;
 
-    private final RemoteCallbackList<IClusterStateListener> mClientListeners =
-            new RemoteCallbackList<>();
-
-    private final RemoteCallbackList<IClusterNavigationStateListener> mClientNavigationListeners =
+    private final RemoteCallbackList<IClusterHomeCallback> mClientCallbacks =
             new RemoteCallbackList<>();
 
     public ClusterHomeService(Context context, ClusterHalService clusterHalService,
@@ -131,7 +126,6 @@ public class ClusterHomeService extends IClusterHomeService.Stub
     private void initClusterDisplay() {
         int clusterDisplayId = mOccupantZoneService.getDisplayIdForDriver(
                 CarOccupantZoneManager.DISPLAY_TYPE_INSTRUMENT_CLUSTER);
-        Slogf.d(TAG, "initClusterDisplay: displayId=%d", clusterDisplayId);
         if (clusterDisplayId == Display.INVALID_DISPLAY) {
             Slogf.i(TAG, "No cluster display is defined");
         }
@@ -158,7 +152,7 @@ public class ClusterHomeService extends IClusterHomeService.Stub
         ActivityOptions activityOptions = ActivityOptions.makeBasic()
                 .setLaunchDisplayId(clusterDisplayId);
         mFixedActivityService.startFixedActivityModeForDisplayAndUser(
-                mLastIntent, activityOptions, clusterDisplayId, mLastIntentUserId);
+                mLastIntent, activityOptions, clusterDisplayId, UserHandle.USER_SYSTEM);
     }
 
     private final ICarOccupantZoneCallback mOccupantZoneCallback =
@@ -177,8 +171,7 @@ public class ClusterHomeService extends IClusterHomeService.Stub
         mOccupantZoneService.unregisterCallback(mOccupantZoneCallback);
         mClusterHalService.setCallback(null);
         mClusterNavigationService.setClusterServiceCallback(null);
-        mClientListeners.kill();
-        mClientNavigationListeners.kill();
+        mClientCallbacks.kill();
     }
 
     @Override
@@ -221,16 +214,16 @@ public class ClusterHomeService extends IClusterHomeService.Stub
 
     private void sendDisplayState(int changes) {
         ClusterState state = createClusterState();
-        int n = mClientListeners.beginBroadcast();
+        int n = mClientCallbacks.beginBroadcast();
         for (int i = 0; i < n; i++) {
-            IClusterStateListener callback = mClientListeners.getBroadcastItem(i);
+            IClusterHomeCallback callback = mClientCallbacks.getBroadcastItem(i);
             try {
                 callback.onClusterStateChanged(state, changes);
             } catch (RemoteException ignores) {
                 // ignore
             }
         }
-        mClientListeners.finishBroadcast();
+        mClientCallbacks.finishBroadcast();
     }
 
     // ClusterNavigationServiceCallback starts
@@ -242,17 +235,16 @@ public class ClusterHomeService extends IClusterHomeService.Stub
     }
 
     private void sendNavigationState(byte[] protoBytes) {
-        final int n = mClientNavigationListeners.beginBroadcast();
+        final int n = mClientCallbacks.beginBroadcast();
         for (int i = 0; i < n; i++) {
-            IClusterNavigationStateListener callback =
-                    mClientNavigationListeners.getBroadcastItem(i);
+            IClusterHomeCallback callback = mClientCallbacks.getBroadcastItem(i);
             try {
                 callback.onNavigationStateChanged(protoBytes);
             } catch (RemoteException ignores) {
                 // ignore
             }
         }
-        mClientNavigationListeners.finishBroadcast();
+        mClientCallbacks.finishBroadcast();
 
         if (!mClusterHalService.isNavigationStateSupported()) {
             Slogf.d(TAG, "No Cluster NavigationState HAL property");
@@ -300,7 +292,6 @@ public class ClusterHomeService extends IClusterHomeService.Stub
     @Override
     public boolean startFixedActivityModeAsUser(Intent intent,
             Bundle activityOptionsBundle, int userId) {
-        Slogf.d(TAG, "startFixedActivityModeAsUser: intent=%s, userId=%d", intent, userId);
         enforcePermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL);
         if (!mServiceEnabled) throw new IllegalStateException("Service is not enabled");
         if (mClusterDisplayId == Display.INVALID_DISPLAY) {
@@ -308,12 +299,9 @@ public class ClusterHomeService extends IClusterHomeService.Stub
             return false;
         }
 
-        ActivityOptions activityOptions = activityOptionsBundle != null
-                ? ActivityOptions.fromBundle(activityOptionsBundle)
-                : ActivityOptions.makeBasic();
+        ActivityOptions activityOptions = ActivityOptions.fromBundle(activityOptionsBundle);
         activityOptions.setLaunchDisplayId(mClusterDisplayId);
         mLastIntent = intent;
-        mLastIntentUserId = userId;
         return mFixedActivityService.startFixedActivityModeForDisplayAndUser(
                 intent, activityOptions, mClusterDisplayId, userId);
     }
@@ -331,35 +319,19 @@ public class ClusterHomeService extends IClusterHomeService.Stub
     }
 
     @Override
-    public void registerClusterStateListener(IClusterStateListener listener) {
+    public void registerCallback(IClusterHomeCallback callback) {
         enforcePermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL);
         if (!mServiceEnabled) throw new IllegalStateException("Service is not enabled");
 
-        mClientListeners.register(listener);
+        mClientCallbacks.register(callback);
     }
 
     @Override
-    public void unregisterClusterStateListener(IClusterStateListener listener) {
+    public void unregisterCallback(IClusterHomeCallback callback) {
         enforcePermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL);
         if (!mServiceEnabled) throw new IllegalStateException("Service is not enabled");
 
-        mClientListeners.unregister(listener);
-    }
-
-    @Override
-    public void registerClusterNavigationStateListener(IClusterNavigationStateListener listener) {
-        enforcePermission(Car.PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE);
-        if (!mServiceEnabled) throw new IllegalStateException("Service is not enabled");
-
-        mClientNavigationListeners.register(listener);
-    }
-
-    @Override
-    public void unregisterClusterNavigationStateListener(IClusterNavigationStateListener listener) {
-        enforcePermission(Car.PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE);
-        if (!mServiceEnabled) throw new IllegalStateException("Service is not enabled");
-
-        mClientNavigationListeners.unregister(listener);
+        mClientCallbacks.unregister(callback);
     }
 
     @Override

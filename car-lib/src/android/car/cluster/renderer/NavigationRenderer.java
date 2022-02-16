@@ -15,15 +15,11 @@
  */
 package android.car.cluster.renderer;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UiThread;
 import android.car.navigation.CarNavigationInstrumentCluster;
 import android.os.Bundle;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * Contains methods specified for Navigation App renderer in instrument cluster.
@@ -32,7 +28,6 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
  */
 @SystemApi
 @UiThread
-@ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
 public abstract class NavigationRenderer {
     /**
      * Returns properties of instrument cluster for navigation.
