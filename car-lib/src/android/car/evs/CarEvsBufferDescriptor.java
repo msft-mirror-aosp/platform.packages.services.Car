@@ -16,8 +16,6 @@
 
 package android.car.evs;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.car.Car;
@@ -25,8 +23,6 @@ import android.car.annotation.RequiredFeature;
 import android.hardware.HardwareBuffer;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.util.Objects;
 
@@ -80,7 +76,6 @@ public final class CarEvsBufferDescriptor implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }

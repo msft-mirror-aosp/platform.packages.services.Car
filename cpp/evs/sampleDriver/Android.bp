@@ -25,8 +25,6 @@ cc_binary {
 
     vendor: true,
 
-    relative_install_path: "hw",
-
     srcs: [
         "service.cpp",
         "EvsEnumerator.cpp",
@@ -77,7 +75,7 @@ cc_binary {
 
     required: [
         "evs_configuration.dtd",
-        "evs_configuration.xml",
+        "evs_sample_configuration.xml",
     ],
 
     include_dirs: [
@@ -125,8 +123,8 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
-    name: "evs_configuration.xml",
+    name: "evs_sample_configuration.xml",
     soc_specific: true,
-    src: "resources/evs_configuration_default.xml",
+    src: "resources/evs_sample_configuration.xml",
     sub_dir: "automotive/evs",
 }
