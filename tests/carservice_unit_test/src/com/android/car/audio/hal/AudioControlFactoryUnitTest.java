@@ -27,6 +27,11 @@ import android.os.IBinder;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.car.audio.hal.AudioControlFactory;
+import com.android.car.audio.hal.AudioControlWrapper;
+import com.android.car.audio.hal.AudioControlWrapperV1;
+import com.android.car.audio.hal.AudioControlWrapperV2;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -43,10 +48,6 @@ public class AudioControlFactoryUnitTest extends AbstractExtendedMockitoTestCase
 
     @Mock
     android.hardware.automotive.audiocontrol.V1_0.IAudioControl mIAudioControlV1;
-
-    public AudioControlFactoryUnitTest() {
-        super(AudioControlFactory.TAG);
-    }
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {

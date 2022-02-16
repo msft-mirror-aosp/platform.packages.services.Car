@@ -45,6 +45,7 @@ namespace aawi = ::android::automotive::watchdog::internal;
 using aawi::GarageMode;
 using aawi::ICarWatchdogServiceForSystem;
 using aawi::ICarWatchdogServiceForSystemDefault;
+using aawi::PackageResourceOveruseAction;
 using aawi::PowerCycle;
 using aawi::ResourceOveruseConfiguration;
 using ::android::sp;
@@ -362,36 +363,16 @@ TEST_F(WatchdogInternalHandlerTest, TestNotifyGarageModeOff) {
     ASSERT_TRUE(status.isOk()) << status;
 }
 
-TEST_F(WatchdogInternalHandlerTest, TestNotifyUserStateChangeWithStartedUser) {
+TEST_F(WatchdogInternalHandlerTest, TestNotifyUserStateChange) {
     setSystemCallingUid();
     aawi::StateType type = aawi::StateType::USER_STATE;
-    EXPECT_CALL(*mMockWatchdogProcessService, notifyUserStateChange(234567, /*isStarted=*/true));
-    Status status = mWatchdogInternalHandler
-                            ->notifySystemStateChange(type, 234567,
-                                                      static_cast<int32_t>(
-                                                              aawi::UserState::USER_STATE_STARTED));
-    ASSERT_TRUE(status.isOk()) << status;
-}
-
-TEST_F(WatchdogInternalHandlerTest, TestNotifyUserStateChangeWithStoppedUser) {
-    setSystemCallingUid();
-    aawi::StateType type = aawi::StateType::USER_STATE;
-    EXPECT_CALL(*mMockWatchdogProcessService, notifyUserStateChange(234567, /*isStarted=*/false));
+    EXPECT_CALL(*mMockWatchdogProcessService,
+                notifyUserStateChange(234567, aawi::UserState::USER_STATE_STOPPED))
+            .WillOnce(Return(Status::ok()));
     Status status = mWatchdogInternalHandler
                             ->notifySystemStateChange(type, 234567,
                                                       static_cast<int32_t>(
                                                               aawi::UserState::USER_STATE_STOPPED));
-    ASSERT_TRUE(status.isOk()) << status;
-}
-
-TEST_F(WatchdogInternalHandlerTest, TestNotifyUserStateChangeWithRemovedUser) {
-    setSystemCallingUid();
-    aawi::StateType type = aawi::StateType::USER_STATE;
-    EXPECT_CALL(*mMockIoOveruseMonitor, removeStatsForUser(/*userId=*/234567));
-    Status status = mWatchdogInternalHandler
-                            ->notifySystemStateChange(type, 234567,
-                                                      static_cast<int32_t>(
-                                                              aawi::UserState::USER_STATE_REMOVED));
     ASSERT_TRUE(status.isOk()) << status;
 }
 
@@ -473,16 +454,19 @@ TEST_F(WatchdogInternalHandlerTest,
     ASSERT_FALSE(status.isOk()) << status;
 }
 
-TEST_F(WatchdogInternalHandlerTest, TestControlProcessHealthCheck) {
+TEST_F(WatchdogInternalHandlerTest, TestActionTakenOnResourceOveruse) {
     setSystemCallingUid();
-    EXPECT_CALL(*mMockWatchdogProcessService, setEnabled(/*isEnabled=*/true)).Times(1);
-    Status status = mWatchdogInternalHandler->controlProcessHealthCheck(true);
+    EXPECT_CALL(*mMockIoOveruseMonitor, actionTakenOnIoOveruse(_)).WillOnce(Return(Result<void>()));
+    Status status = mWatchdogInternalHandler->actionTakenOnResourceOveruse(
+            std::vector<PackageResourceOveruseAction>{});
     ASSERT_TRUE(status.isOk()) << status;
 }
 
-TEST_F(WatchdogInternalHandlerTest, TestErrorOnControlProcessHealthCheckWithNonSystemCallingUid) {
-    EXPECT_CALL(*mMockWatchdogProcessService, setEnabled(_)).Times(0);
-    Status status = mWatchdogInternalHandler->controlProcessHealthCheck(false);
+TEST_F(WatchdogInternalHandlerTest,
+       TestErrorOnActionTakenOnResourceOveruseWithNonSystemCallingUid) {
+    EXPECT_CALL(*mMockIoOveruseMonitor, actionTakenOnIoOveruse(_)).Times(0);
+    Status status = mWatchdogInternalHandler->actionTakenOnResourceOveruse(
+            std::vector<PackageResourceOveruseAction>{});
     ASSERT_FALSE(status.isOk()) << status;
 }
 
