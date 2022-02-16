@@ -17,7 +17,8 @@
 #include "EvsServiceContext.h"
 
 #include <android-base/logging.h>
-#include <android/hardware_buffer_jni.h>
+#include <android/hardware_buffer.h>
+#include <android_runtime/android_hardware_HardwareBuffer.h>
 #include <nativehelper/JNIHelp.h>
 #include <vndk/hardware_buffer.h>
 
@@ -237,6 +238,9 @@ void EvsServiceContext::onNewEvent(EvsEventDesc event) {
  */
 void EvsServiceContext::onNewFrame(BufferDesc bufferDesc) {
     mCallbackThread.enqueue([bufferDesc, this](JNIEnv* env) {
+        const auto createFromAHardwareBuffer =
+                android::android_hardware_HardwareBuffer_createFromAHardwareBuffer;
+
         // Clones a AHardwareBuffer
         AHardwareBuffer_Desc const* desc =
                 reinterpret_cast<AHardwareBuffer_Desc const*>(&bufferDesc.buffer.description);
@@ -256,7 +260,7 @@ void EvsServiceContext::onNewFrame(BufferDesc bufferDesc) {
             }
 
             // Calls back
-            jobject hwBuffer = AHardwareBuffer_toHardwareBuffer(env, rawBuffer);
+            jobject hwBuffer = createFromAHardwareBuffer(env, rawBuffer);
             if (!hwBuffer) {
                 LOG(WARNING) << "Failed to create HardwareBuffer from AHardwareBuffer.";
                 mStreamHandler->doneWithFrame(bufferDesc);

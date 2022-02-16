@@ -16,12 +16,10 @@
 
 package com.android.car.vms;
 
-import static com.android.car.CarServiceUtils.assertAnyVmsPermission;
-import static com.android.car.CarServiceUtils.assertVmsPublisherPermission;
-import static com.android.car.CarServiceUtils.assertVmsSubscriberPermission;
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.ICarImpl.assertAnyVmsPermission;
+import static com.android.car.ICarImpl.assertVmsPublisherPermission;
+import static com.android.car.ICarImpl.assertVmsSubscriberPermission;
 
-import android.car.builtin.util.Slogf;
 import android.car.vms.IVmsBrokerService;
 import android.car.vms.IVmsClientCallback;
 import android.car.vms.VmsAssociatedLayer;
@@ -40,16 +38,16 @@ import android.os.RemoteException;
 import android.os.SharedMemory;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.util.IndentingPrintWriter;
+import android.util.Slog;
 
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.FunctionalUtils.ThrowingConsumer;
-import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.stats.CarStatsService;
 import com.android.car.stats.VmsClientLogger;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -112,7 +110,6 @@ public class VmsBrokerService extends IVmsBrokerService.Stub implements CarServi
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         writer.println("*" + TAG + "*");
         synchronized (mLock) {
@@ -133,7 +130,7 @@ public class VmsBrokerService extends IVmsBrokerService.Stub implements CarServi
         assertAnyVmsPermission(mContext);
         int clientUid = mGetCallingUid.getAsInt();
         String clientPackage = mPackageManager.getNameForUid(clientUid);
-        if (DBG) Slogf.d(TAG, "registerClient uid: " + clientUid + " package: " + clientPackage);
+        if (DBG) Slog.d(TAG, "registerClient uid: " + clientUid + " package: " + clientPackage);
 
         mStatsService.getVmsClientLogger(clientUid)
                 .logConnectionState(VmsClientLogger.ConnectionState.CONNECTED);
@@ -245,7 +242,7 @@ public class VmsBrokerService extends IVmsBrokerService.Stub implements CarServi
                     .collect(Collectors.toList());
         }
 
-        if (DBG) Slogf.d(TAG, "Number of subscribers: %d", subscribers.size());
+        if (DBG) Slog.d(TAG, String.format("Number of subscribers: %d", subscribers.size()));
 
         if (subscribers.isEmpty()) {
             // A negative UID signals that the packet had zero subscribers
@@ -261,7 +258,8 @@ public class VmsBrokerService extends IVmsBrokerService.Stub implements CarServi
             } catch (RuntimeException e) {
                 mStatsService.getVmsClientLogger(subscriber.getUid())
                         .logPacketDropped(layer, packetLength);
-                Slogf.e(TAG, e, "Unable to publish to listener: %s", subscriber.getPackageName());
+                Slog.e(TAG, String.format("Unable to publish to listener: %s",
+                        subscriber.getPackageName()), e);
             }
         }
     }
@@ -317,12 +315,13 @@ public class VmsBrokerService extends IVmsBrokerService.Stub implements CarServi
     }
 
     private void notifyOfAvailabilityChange(VmsAvailableLayers availableLayers) {
-        Slogf.i(TAG, "Notifying clients of layer availability change: " + availableLayers);
+        Slog.i(TAG, "Notifying clients of layer availability change: " + availableLayers);
         for (VmsClientInfo client : getActiveClients()) {
             try {
                 client.getCallback().onLayerAvailabilityChanged(availableLayers);
             } catch (RemoteException e) {
-                Slogf.w(TAG, "onLayersAvailabilityChanged failed: " + client.getPackageName(), e);
+                Slog.w(TAG, "onLayersAvailabilityChanged failed: " + client.getPackageName(),
+                        e);
             }
         }
     }
@@ -371,12 +370,13 @@ public class VmsBrokerService extends IVmsBrokerService.Stub implements CarServi
     }
 
     private void notifyOfSubscriptionChange(VmsSubscriptionState subscriptionState) {
-        Slogf.i(TAG, "Notifying clients of subscription state change: " + subscriptionState);
+        Slog.i(TAG, "Notifying clients of subscription state change: " + subscriptionState);
         for (VmsClientInfo client : getActiveClients()) {
             try {
                 client.getCallback().onSubscriptionStateChanged(subscriptionState);
             } catch (RemoteException e) {
-                Slogf.w(TAG, "onSubscriptionStateChanged failed: " + client.getPackageName(), e);
+                Slog.w(TAG, "onSubscriptionStateChanged failed: " + client.getPackageName(),
+                        e);
             }
         }
     }

@@ -73,7 +73,7 @@ public final class UsbDeviceHandlerResolver {
     private final Context mContext;
     private final AoapServiceManager mAoapServiceManager;
     private HandlerThread mHandlerThread;
-    private UsbDeviceResolverHandler mUsbDeviceResolverHandler;
+    private UsbDeviceResolverHandler mHandler;
 
     public UsbDeviceHandlerResolver(UsbManager manager, Context context,
             UsbDeviceHandlerResolverCallback deviceListener) {
@@ -98,7 +98,7 @@ public final class UsbDeviceHandlerResolver {
      * Resolves handlers for USB device.
      */
     public void resolve(UsbDevice device) {
-        mUsbDeviceResolverHandler.requestResolveHandlers(device);
+        mHandler.requestResolveHandlers(device);
     }
 
     /**
@@ -144,7 +144,7 @@ public final class UsbDeviceHandlerResolver {
                         // re-enumerate device in order to try again.
                         createHandlerThread();
                     }
-                    mUsbDeviceResolverHandler.post(() -> {
+                    mHandlerThread.getThreadHandler().post(() -> {
                         if (mAoapServiceManager.canSwitchDeviceToAoap(device,
                                 ComponentName.unflattenFromString(filter.mAoapService))) {
                             try {
@@ -168,14 +168,14 @@ public final class UsbDeviceHandlerResolver {
         mUsbManager.grantPermission(device, activityInfo.applicationInfo.uid);
 
         mContext.startActivity(intent);
-        mUsbDeviceResolverHandler.requestCompleteDeviceDispatch();
+        mHandler.requestCompleteDeviceDispatch();
         return true;
     }
 
     private void createHandlerThread() {
         mHandlerThread = new HandlerThread(TAG);
         mHandlerThread.start();
-        mUsbDeviceResolverHandler = new UsbDeviceResolverHandler(mHandlerThread.getLooper());
+        mHandler = new UsbDeviceResolverHandler(mHandlerThread.getLooper());
     }
 
     private static Intent createDeviceAttachedIntent(UsbDevice device) {

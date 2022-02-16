@@ -16,10 +16,7 @@
 
 package com.android.car;
 
-import static com.android.car.AppFocusService.PERMISSION_CHECKER_PERMISSION_GRANTED;
-
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.mockito.Mockito.doReturn;
 
@@ -28,7 +25,6 @@ import android.car.CarAppFocusManager;
 import android.car.IAppFocusListener;
 import android.car.IAppFocusOwnershipCallback;
 import android.content.Context;
-import android.content.PermissionChecker;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -135,13 +131,6 @@ public class AppFocusServiceTest {
                 mService.mAllChangeClients.getInterfaces().iterator().next();
         binder.binderDied();
         assertThat(mService.mAllChangeClients.getInterfaces()).isEmpty();
-    }
-
-    @Test
-    public void testPermissionGrantedConstant() {
-        assertWithMessage("PERMISSION_GRANTED constant")
-                .that(PERMISSION_CHECKER_PERMISSION_GRANTED)
-                .isEqualTo(PermissionChecker.PERMISSION_GRANTED);
     }
 
     private class AppFocusChangedListener implements CarAppFocusManager.OnAppFocusChangedListener {
