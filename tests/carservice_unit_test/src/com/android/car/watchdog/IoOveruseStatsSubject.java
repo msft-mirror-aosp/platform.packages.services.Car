@@ -17,34 +17,28 @@
 package com.android.car.watchdog;
 
 import static com.google.common.truth.Truth.assertAbout;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.annotation.Nullable;
 import android.car.watchdog.IoOveruseStats;
 
 import com.google.common.truth.FailureMetadata;
-import com.google.common.truth.SimpleSubjectBuilder;
 import com.google.common.truth.Subject;
-import com.google.common.truth.Truth;
 
 public final class IoOveruseStatsSubject extends Subject {
-    /* Boiler-plate Subject.Factory for IoOveruseStatsSubject. */
+    // Boiler-plate Subject.Factory for IoOveruseStatsSubject
     private static final Subject.Factory<com.android.car.watchdog.IoOveruseStatsSubject,
             IoOveruseStats> IO_OVERUSE_STATS_SUBJECT_FACTORY =
             com.android.car.watchdog.IoOveruseStatsSubject::new;
 
     private final IoOveruseStats mActual;
 
-    /* User-defined entry point. */
+    // User-defined entry point
     public static IoOveruseStatsSubject assertThat(@Nullable IoOveruseStats stats) {
         return assertAbout(IO_OVERUSE_STATS_SUBJECT_FACTORY).that(stats);
     }
 
-    public static SimpleSubjectBuilder<IoOveruseStatsSubject, IoOveruseStats> assertWithMessage(
-            String format, Object... args) {
-        return Truth.assertWithMessage(format, args).about(IO_OVERUSE_STATS_SUBJECT_FACTORY);
-    }
-
-    /* Static method for getting the subject factory (for use with assertAbout()). */
+    // Static method for getting the subject factory (for use with assertAbout())
     public static Subject.Factory<IoOveruseStatsSubject, IoOveruseStats> ioOveruseStats() {
         return IO_OVERUSE_STATS_SUBJECT_FACTORY;
     }
@@ -55,7 +49,7 @@ public final class IoOveruseStatsSubject extends Subject {
         this.mActual = subject;
     }
 
-    /* User-defined test assertion SPI below this point. */
+    // User-defined test assertion SPI below this point
     public void isEqualTo(IoOveruseStats expected) {
         if (mActual == expected) {
             return;
@@ -71,8 +65,8 @@ public final class IoOveruseStatsSubject extends Subject {
                 .isEqualTo(expected.getTotalBytesWritten());
         check("isKillableOnOveruse()").that(mActual.isKillableOnOveruse())
                 .isEqualTo(expected.isKillableOnOveruse());
-        Truth.assertWithMessage("getRemainingWriteBytes()")
-                .about(PerStateBytesSubject.perStateBytes()).that(mActual.getRemainingWriteBytes())
+        assertWithMessage("getRemainingWriteBytes()").about(PerStateBytesSubject.perStateBytes())
+                .that(mActual.getRemainingWriteBytes())
                 .isEqualTo(expected.getRemainingWriteBytes());
     }
 

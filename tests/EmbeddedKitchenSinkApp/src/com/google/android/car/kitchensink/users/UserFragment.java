@@ -170,7 +170,7 @@ public final class UserFragment extends Fragment {
                 }
             }
             Log.v(TAG, "Create user: name=" + name + ", flags=" + UserInfo.flagsToString(flags));
-            future = mCarUserManager.createUser(name, flags);
+            future = mCarUserManager.createUser(name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
         }
         UserCreationResult result = getResult(future);
         updateState();
@@ -179,7 +179,7 @@ public final class UserFragment extends Fragment {
             message.append("Timed out creating user");
         } else {
             if (result.isSuccess()) {
-                message.append("User created: ").append(result.getUser().toString());
+                message.append("User created: ").append(result.getUser().toFullString());
             } else {
                 int status = result.getStatus();
                 message.append("Failed with code ").append(status).append('(')

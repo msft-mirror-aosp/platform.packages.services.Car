@@ -102,21 +102,6 @@ public class MapMceTestFragment extends Fragment {
             "com.google.android.car.kitchensink.bluetooth.MESSAGE_SENT_SUCCESSFULLY";
     private static final String ACTION_MESSAGE_DELIVERED_SUCCESSFULLY =
             "com.google.android.car.kitchensink.bluetooth.MESSAGE_DELIVERED_SUCCESSFULLY";
-    // {@link BluetoothMapClient.ACTION_MESSAGE_RECEIVED} is a hidden API.
-    private static final String MAP_CLIENT_ACTION_MESSAGE_RECEIVED =
-            "android.bluetooth.mapmce.profile.action.MESSAGE_RECEIVED";
-    // {@link BluetoothMapClient.EXTRA_SENDER_CONTACT_URI} is a hidden API.
-    private static final String MAP_CLIENT_EXTRA_SENDER_CONTACT_URI =
-            "android.bluetooth.mapmce.profile.extra.SENDER_CONTACT_URI";
-    // {@link BluetoothMapClient.EXTRA_SENDER_CONTACT_NAME} is a hidden API.
-    private static final String MAP_CLIENT_EXTRA_SENDER_CONTACT_NAME =
-            "android.bluetooth.mapmce.profile.extra.SENDER_CONTACT_NAME";
-    // {@link BluetoothMapClient.EXTRA_MESSAGE_TIMESTAMP} is a hidden API.
-    private static final String MAP_CLIENT_EXTRA_MESSAGE_TIMESTAMP =
-            "android.bluetooth.mapmce.profile.extra.MESSAGE_TIMESTAMP";
-    // {@link BluetoothMapClient.EXTRA_MESSAGE_READ_STATUS} is a hidden API.
-    private static final String MAP_CLIENT_EXTRA_MESSAGE_READ_STATUS =
-            "android.bluetooth.mapmce.profile.extra.MESSAGE_READ_STATUS";
     private static final int SEND_SMS_PERMISSIONS_REQUEST = 1;
     BluetoothMapClient mMapProfile;
     BluetoothAdapter mBluetoothAdapter;
@@ -136,6 +121,7 @@ public class MapMceTestFragment extends Fragment {
     private KitchenSinkActivity mActivity;
     private Intent mSendIntent;
     private Intent mDeliveryIntent;
+    EditText mUploadingSupportedFeatureText;
 
     @Override
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container,
@@ -155,6 +141,7 @@ public class MapMceTestFragment extends Fragment {
         }
 
         Button reply = (Button) v.findViewById(R.id.reply);
+        Button checkMessages = (Button) v.findViewById(R.id.check_messages);
         mBluetoothDevice = (TextView) v.findViewById(R.id.bluetoothDevice);
         Button sendNewMsgShort = (Button) v.findViewById(R.id.sms_new_message);
         Button sendNewMsgLong = (Button) v.findViewById(R.id.mms_new_message);
@@ -169,6 +156,17 @@ public class MapMceTestFragment extends Fragment {
         mMessage = (TextView) v.findViewById(R.id.messageContent);
         mDevicePicker = (Button) v.findViewById(R.id.bluetooth_pick_device);
         mDeviceDisconnect = (Button) v.findViewById(R.id.bluetooth_disconnect_device);
+        Button uploadingFeatureValue = (Button) v.findViewById(R.id.uploading_supported_feature);
+        mUploadingSupportedFeatureText =
+            (EditText) v.findViewById(R.id.uploading_supported_feature_value);
+
+        uploadingFeatureValue.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int value = getUploadingFeatureValue();
+                mUploadingSupportedFeatureText.setText(value + "");
+            }
+        });
 
         //TODO add manual entry option for phone number
         reply.setOnClickListener(new View.OnClickListener() {
@@ -201,6 +199,13 @@ public class MapMceTestFragment extends Fragment {
             }
         });
 
+        checkMessages.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                getMessages();
+            }
+        });
+
         // Pick a bluetooth device
         mDevicePicker.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -221,7 +226,7 @@ public class MapMceTestFragment extends Fragment {
     void launchDevicePicker() {
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothDevicePicker.ACTION_DEVICE_SELECTED);
-        getContext().registerReceiver(mPickerReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        getContext().registerReceiver(mPickerReceiver, filter);
 
         Intent intent = new Intent(BluetoothDevicePicker.ACTION_LAUNCH);
         intent.setFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
@@ -230,11 +235,7 @@ public class MapMceTestFragment extends Fragment {
 
     void disconnectDevice(String device) {
         try {
-            // {@link BluetoothMapClient#disconnect} is a hidden API.
-            // {@link BluetoothMapClient#setConnectionPolicy} is the new method for connecting
-            // and disconnecting a profile.
-            mMapProfile.setConnectionPolicy(mBluetoothAdapter.getRemoteDevice(device),
-                    BluetoothProfile.CONNECTION_POLICY_FORBIDDEN);
+            mMapProfile.disconnect(mBluetoothAdapter.getRemoteDevice(device));
         } catch (IllegalArgumentException e) {
             Log.e(TAG, "Failed to disconnect from " + device, e);
         }
@@ -259,6 +260,24 @@ public class MapMceTestFragment extends Fragment {
         }
     }
 
+    private void getMessages() {
+        synchronized (mLock) {
+            BluetoothDevice remoteDevice;
+            try {
+                remoteDevice = mBluetoothAdapter.getRemoteDevice(
+                        mBluetoothDevice.getText().toString());
+            } catch (java.lang.IllegalArgumentException e) {
+                Log.e(TAG, e.toString());
+                return;
+            }
+
+            if (mMapProfile != null) {
+                Log.d(TAG, "Getting Messages");
+                mMapProfile.getUnreadMessages(remoteDevice);
+            }
+        }
+    }
+
     private void registerMapServiceListenerAndNotificationReceiver() {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mBluetoothAdapter.getProfileProxy(getContext(), new MapServiceListener(),
@@ -268,10 +287,9 @@ public class MapMceTestFragment extends Fragment {
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_MESSAGE_SENT_SUCCESSFULLY);
         intentFilter.addAction(ACTION_MESSAGE_DELIVERED_SUCCESSFULLY);
-        intentFilter.addAction(MAP_CLIENT_ACTION_MESSAGE_RECEIVED);
+        intentFilter.addAction(BluetoothMapClient.ACTION_MESSAGE_RECEIVED);
         intentFilter.addAction(BluetoothMapClient.ACTION_CONNECTION_STATE_CHANGED);
-        getContext().registerReceiver(mTransmissionStatusReceiver, intentFilter,
-                Context.RECEIVER_NOT_EXPORTED);
+        getContext().registerReceiver(mTransmissionStatusReceiver, intentFilter);
     }
 
     private void sendNewMsgOnClick(int msgType) {
@@ -294,6 +312,25 @@ public class MapMceTestFragment extends Fragment {
         sendMessage(uris.toArray(new Uri[uris.size()]), Integer.toString(mSendNewMsgCounter)
                 + ":  " + messageToSend);
         mSendNewMsgCounter += 1;
+    }
+
+    private int getUploadingFeatureValue() {
+        synchronized (mLock) {
+            BluetoothDevice remoteDevice;
+            try {
+                remoteDevice = mBluetoothAdapter.getRemoteDevice(
+                        mBluetoothDevice.getText().toString());
+            } catch (java.lang.IllegalArgumentException e) {
+                Log.e(TAG, e.toString());
+                return -1;
+            }
+
+            if (mMapProfile != null) {
+                Log.d(TAG, "getUploadingFeatureValue");
+                return (mMapProfile.isUploadingSupported(remoteDevice)) ? 1 : 0;
+            }
+            return -1;
+        }
     }
 
     private void sendMessage(Uri[] recipients, String message) {
@@ -394,23 +431,23 @@ public class MapMceTestFragment extends Fragment {
                     mSent.setChecked(true);
                 } else if (action.equals(ACTION_MESSAGE_DELIVERED_SUCCESSFULLY)) {
                     mDelivered.setChecked(true);
-                } else if (action.equals(MAP_CLIENT_ACTION_MESSAGE_RECEIVED)) {
+                } else if (action.equals(BluetoothMapClient.ACTION_MESSAGE_RECEIVED)) {
                     String senderUri =
-                            intent.getStringExtra(MAP_CLIENT_EXTRA_SENDER_CONTACT_URI);
+                            intent.getStringExtra(BluetoothMapClient.EXTRA_SENDER_CONTACT_URI);
                     if (senderUri == null) {
                         senderUri = "<null>";
                     }
 
                     String senderName = intent.getStringExtra(
-                            MAP_CLIENT_EXTRA_SENDER_CONTACT_NAME);
+                            BluetoothMapClient.EXTRA_SENDER_CONTACT_NAME);
                     if (senderName == null) {
                         senderName = "<null>";
                     }
                     Date msgTimestamp = new Date(intent.getLongExtra(
-                            MAP_CLIENT_EXTRA_MESSAGE_TIMESTAMP,
+                            BluetoothMapClient.EXTRA_MESSAGE_TIMESTAMP,
                             System.currentTimeMillis()));
                     boolean msgReadStatus = intent.getBooleanExtra(
-                            MAP_CLIENT_EXTRA_MESSAGE_READ_STATUS, false);
+                            BluetoothMapClient.EXTRA_MESSAGE_READ_STATUS, false);
                     String msgText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
                     String msg = "[" + msgTimestamp + "] " + "("
                             + (msgReadStatus ? "READ" : "UNREAD") + ") " + msgText;
@@ -436,10 +473,7 @@ public class MapMceTestFragment extends Fragment {
                     Toast.makeText(getContext(), "No device selected", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                // {@link BluetoothMapClient#connect} is a hidden API.
-                // {@link BluetoothMapClient#setConnectionPolicy} is the new method for connecting
-                // and disconnecting a profile.
-                mMapProfile.setConnectionPolicy(device, BluetoothProfile.CONNECTION_POLICY_ALLOWED);
+                mMapProfile.connect(device);
 
                 // The receiver can now be disabled.
                 getContext().unregisterReceiver(mPickerReceiver);

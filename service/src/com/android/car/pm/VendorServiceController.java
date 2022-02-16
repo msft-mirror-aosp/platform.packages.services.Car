@@ -19,7 +19,6 @@ package com.android.car.pm;
 import static android.content.Context.BIND_AUTO_CREATE;
 
 import android.app.ActivityManager;
-import android.car.builtin.util.Slogf;
 import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.car.user.CarUserManager.UserLifecycleListener;
@@ -28,6 +27,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Resources;
+import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -36,18 +36,17 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Slog;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.R;
 import com.android.car.user.CarUserService;
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 
 /**
  * Class that responsible for controlling vendor services that was opted in to be bound/started
@@ -59,8 +58,7 @@ import java.util.concurrent.Executor;
  */
 class VendorServiceController implements UserLifecycleListener {
 
-    @VisibleForTesting
-    static final String TAG = CarLog.tagFor(VendorServiceController.class);
+    private static final String TAG = CarLog.tagFor(VendorServiceController.class);
 
     private static final boolean DBG = true;
 
@@ -101,7 +99,7 @@ class VendorServiceController implements UserLifecycleListener {
                 break;
             }
             default:
-                Slogf.e(TAG, "Unexpected message " + msg);
+                Slog.e(TAG, "Unexpected message " + msg);
         }
     }
 
@@ -131,7 +129,7 @@ class VendorServiceController implements UserLifecycleListener {
     @Override
     public void onEvent(UserLifecycleEvent event) {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slogf.d(TAG, "onEvent(" + event + ")");
+            Slog.d(TAG, "onEvent(" + event + ")");
         }
         // TODO(b/152069895): Use USER_LIFECYCLE_EVENT_TYPE_UNLOCKED and not care about the
         //     deprecated unlock=false scenario.
@@ -140,14 +138,14 @@ class VendorServiceController implements UserLifecycleListener {
                     MSG_USER_LOCK_CHANGED,
                     event.getUserId(),
                     /* unlocked= */ 1);
-            mHandler.sendMessage(msg);
+            mHandler.executeOrSendMessage(msg);
         } else if (CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING == event.getEventType()) {
             mHandler.removeMessages(MSG_SWITCH_USER);
             Message msg = mHandler.obtainMessage(
                     MSG_SWITCH_USER,
                     event.getUserId(),
                     /* unlocked= */ 0);
-            mHandler.sendMessage(msg);
+            mHandler.executeOrSendMessage(msg);
         }
     }
 
@@ -155,7 +153,7 @@ class VendorServiceController implements UserLifecycleListener {
         // Stop all services which which do not run under foreground or system user.
         final int fgUser = ActivityManager.getCurrentUser();
         if (fgUser != userId) {
-            Slogf.w(TAG, "Received userSwitch event for user " + userId
+            Slog.w(TAG, "Received userSwitch event for user " + userId
                     + " while current foreground user is " + fgUser + "."
                     + " Ignore the switch user event.");
             return;
@@ -163,15 +161,15 @@ class VendorServiceController implements UserLifecycleListener {
 
         for (VendorServiceConnection connection : mConnections.values()) {
             final int connectedUserId = connection.mUser.getIdentifier();
-            if (connectedUserId != UserHandle.SYSTEM.getIdentifier() && connectedUserId != userId) {
+            if (connectedUserId != UserHandle.USER_SYSTEM && connectedUserId != userId) {
                 connection.stopOrUnbindService();
             }
         }
 
-        if (userId != UserHandle.SYSTEM.getIdentifier()) {
+        if (userId != UserHandle.USER_SYSTEM) {
             startOrBindServicesForUser(UserHandle.of(userId));
         } else {
-            Slogf.e(TAG, "Unexpected to receive switch user event for system user");
+            Slog.e(TAG, "Unexpected to receive switch user event for system user");
         }
     }
 
@@ -179,12 +177,12 @@ class VendorServiceController implements UserLifecycleListener {
         final int currentUserId = ActivityManager.getCurrentUser();
 
         if (DBG) {
-            Slogf.i(TAG, "onUserLockedChanged, user: " + userId
+            Slog.i(TAG, "onUserLockedChanged, user: " + userId
                     + ", unlocked: " + unlocked + ", currentUser: " + currentUserId);
         }
-        if (unlocked && (userId == currentUserId || userId == UserHandle.SYSTEM.getIdentifier())) {
+        if (unlocked && (userId == currentUserId || userId == UserHandle.USER_SYSTEM)) {
             startOrBindServicesForUser(UserHandle.of(userId));
-        } else if (!unlocked && userId != UserHandle.SYSTEM.getIdentifier()) {
+        } else if (!unlocked && userId != UserHandle.USER_SYSTEM) {
             for (ConnectionKey key : mConnections.keySet()) {
                 if (key.mUserHandle.getIdentifier() == userId) {
                     stopOrUnbindService(key.mVendorServiceInfo, key.mUserHandle);
@@ -220,7 +218,7 @@ class VendorServiceController implements UserLifecycleListener {
         ConnectionKey key = ConnectionKey.of(service, user);
         VendorServiceConnection connection = getOrCreateConnection(key);
         if (!connection.startOrBindService()) {
-            Slogf.e(TAG, "Failed to start or bind service " + service);
+            Slog.e(TAG, "Failed to start or bind service " + service);
             mConnections.remove(key);
         }
     }
@@ -254,10 +252,10 @@ class VendorServiceController implements UserLifecycleListener {
             VendorServiceInfo service = VendorServiceInfo.parse(rawServiceInfo);
             mVendorServiceInfos.add(service);
             if (DBG) {
-                Slogf.i(TAG, "Registered vendor service: " + service);
+                Slog.i(TAG, "Registered vendor service: " + service);
             }
         }
-        Slogf.i(TAG, "Found " + mVendorServiceInfos.size()
+        Slog.i(TAG, "Found " + mVendorServiceInfos.size()
                 + " services to be started/bound");
 
         return !mVendorServiceInfos.isEmpty();
@@ -266,7 +264,7 @@ class VendorServiceController implements UserLifecycleListener {
     /**
      * Represents connection to the vendor service.
      */
-    private static class VendorServiceConnection implements ServiceConnection, Executor {
+    private static class VendorServiceConnection implements ServiceConnection {
         private static final int REBIND_DELAY_MS = 5000;
         private static final int MAX_RECENT_FAILURES = 5;
         private static final int FAILURE_COUNTER_RESET_TIMEOUT = 5 * 60 * 1000; // 5 min.
@@ -278,17 +276,17 @@ class VendorServiceController implements UserLifecycleListener {
         private boolean mStarted = false;
         private boolean mStopRequested = false;
         private final VendorServiceInfo mVendorServiceInfo;
+        private final Context mContext;
         private final UserHandle mUser;
-        private final Context mUserContext;
         private final Handler mHandler;
         private final Handler mFailureHandler;
 
         VendorServiceConnection(Context context, Handler handler,
                 VendorServiceInfo vendorServiceInfo, UserHandle user) {
+            mContext = context;
             mHandler = handler;
             mVendorServiceInfo = vendorServiceInfo;
             mUser = user;
-            mUserContext = context.createContextAsUser(mUser, /* flags= */ 0);
 
             mFailureHandler = new Handler(handler.getLooper()) {
                 @Override
@@ -304,21 +302,20 @@ class VendorServiceController implements UserLifecycleListener {
             }
 
             if (DBG) {
-                Slogf.d(TAG, "startOrBindService "
+                Slog.d(TAG, "startOrBindService "
                         + mVendorServiceInfo.toShortString() + ", as user: " + mUser + ", bind: "
-                        + mVendorServiceInfo.shouldBeBound());
+                        + mVendorServiceInfo.shouldBeBound() + ", stack:  " + Debug.getCallers(5));
             }
             mStopRequested = false;
 
             Intent intent = mVendorServiceInfo.getIntent();
             if (mVendorServiceInfo.shouldBeBound()) {
-                return mUserContext.bindService(intent, BIND_AUTO_CREATE, /* executor= */ this,
-                        /* conn= */ this);
+                return mContext.bindServiceAsUser(intent, this, BIND_AUTO_CREATE, mHandler, mUser);
             } else if (mVendorServiceInfo.shouldBeStartedInForeground()) {
-                mStarted = mUserContext.startForegroundService(intent) != null;
+                mStarted = mContext.startForegroundServiceAsUser(intent, mUser) != null;
                 return mStarted;
             } else {
-                mStarted = mUserContext.startService(intent) != null;
+                mStarted = mContext.startServiceAsUser(intent, mUser) != null;
                 return mStarted;
             }
         }
@@ -326,24 +323,19 @@ class VendorServiceController implements UserLifecycleListener {
         void stopOrUnbindService() {
             mStopRequested = true;
             if (mStarted) {
-                mUserContext.stopService(mVendorServiceInfo.getIntent());
+                mContext.stopServiceAsUser(mVendorServiceInfo.getIntent(), mUser);
                 mStarted = false;
             } else if (mBound) {
-                mUserContext.unbindService(this);
+                mContext.unbindService(this);
                 mBound = false;
             }
-        }
-
-        @Override // From Executor
-        public void execute(Runnable command) {
-            mHandler.post(command);
         }
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             mBound = true;
             if (DBG) {
-                Slogf.d(TAG, "onServiceConnected, name: " + name);
+                Slog.d(TAG, "onServiceConnected, name: " + name);
             }
             if (mStopRequested) {
                 stopOrUnbindService();
@@ -354,7 +346,7 @@ class VendorServiceController implements UserLifecycleListener {
         public void onServiceDisconnected(ComponentName name) {
             mBound = false;
             if (DBG) {
-                Slogf.d(TAG, "onServiceDisconnected, name: " + name);
+                Slog.d(TAG, "onServiceDisconnected, name: " + name);
             }
             tryToRebind();
         }
@@ -376,7 +368,7 @@ class VendorServiceController implements UserLifecycleListener {
                         mFailureHandler.obtainMessage(MSG_REBIND), REBIND_DELAY_MS);
                 scheduleResetFailureCounter();
             } else {
-                Slogf.w(TAG, "No need to rebind anymore as the user " + mUser
+                Slog.w(TAG, "No need to rebind anymore as the user " + mUser
                         + " is no longer in foreground.");
             }
         }
@@ -392,12 +384,12 @@ class VendorServiceController implements UserLifecycleListener {
             switch (msg.what) {
                 case MSG_REBIND: {
                     if (mRecentFailures < MAX_RECENT_FAILURES && !mBound) {
-                        Slogf.i(TAG, "Attempting to rebind to the service "
+                        Slog.i(TAG, "Attempting to rebind to the service "
                                 + mVendorServiceInfo.toShortString());
                         ++mRecentFailures;
                         startOrBindService();
                     } else {
-                        Slogf.w(TAG, "Exceeded maximum number of attempts to rebind"
+                        Slog.w(TAG, "Exceeded maximum number of attempts to rebind"
                                 + "to the service " + mVendorServiceInfo.toShortString());
                     }
                     break;
@@ -406,7 +398,7 @@ class VendorServiceController implements UserLifecycleListener {
                     mRecentFailures = 0;
                     break;
                 default:
-                    Slogf.e(TAG, "Unexpected message received in failure handler: " + msg.what);
+                    Slog.e(TAG, "Unexpected message received in failure handler: " + msg.what);
             }
         }
     }
