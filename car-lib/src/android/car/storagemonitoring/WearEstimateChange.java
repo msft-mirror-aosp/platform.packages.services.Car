@@ -15,16 +15,12 @@
  */
 package android.car.storagemonitoring;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -99,7 +95,6 @@ public final class WearEstimateChange implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }
