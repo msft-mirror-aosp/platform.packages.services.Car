@@ -26,10 +26,6 @@
 
 using ::android::hardware::camera::device::V3_2::StreamRotation;
 
-const char* ConfigManager::CONFIG_DEFAULT_PATH =
-        "/vendor/etc/automotive/evs/evs_configuration.xml";
-const char* ConfigManager::CONFIG_OVERRIDE_PATH =
-        "/vendor/etc/automotive/evs/evs_configuration_override.xml";
 
 ConfigManager::~ConfigManager() {
     /* Nothing to do */
@@ -498,14 +494,10 @@ bool ConfigManager::readConfigDataFromXML() noexcept {
     const int64_t parsingStart = android::elapsedRealtimeNano();
 
     /* load and parse a configuration file */
-    xmlDoc.LoadFile(CONFIG_OVERRIDE_PATH);
+    xmlDoc.LoadFile(mConfigFilePath);
     if (xmlDoc.ErrorID() != XML_SUCCESS) {
-        xmlDoc.LoadFile(CONFIG_DEFAULT_PATH);
-        if (xmlDoc.ErrorID() != XML_SUCCESS) {
-            LOG(ERROR) << "Failed to load and/or parse a configuration file, "
-                       << xmlDoc.ErrorStr();
-            return false;
-        }
+        LOG(ERROR) << "Failed to load and/or parse a configuration file, " << xmlDoc.ErrorStr();
+        return false;
     }
 
     /* retrieve the root element */
@@ -1040,8 +1032,8 @@ bool ConfigManager::writeConfigDataToBinary() {
 }
 
 
-std::unique_ptr<ConfigManager> ConfigManager::Create() {
-    unique_ptr<ConfigManager> cfgMgr(new ConfigManager());
+std::unique_ptr<ConfigManager> ConfigManager::Create(const char *path) {
+    unique_ptr<ConfigManager> cfgMgr(new ConfigManager(path));
 
     /*
      * Read a configuration from XML file

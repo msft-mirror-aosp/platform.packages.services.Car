@@ -58,8 +58,7 @@ constexpr const char* kHelpText =
         "When no options are specified, carwatchdog report is generated.\n";
 constexpr const char* kCarWatchdogServerInterface =
         "android.automotive.watchdog.ICarWatchdog/default";
-constexpr const char* kCarWatchdogInternalServerInterface =
-        "android.automotive.watchdog.internal.ICarWatchdog/default";
+constexpr const char* kCarWatchdogInternalServerInterface = "carwatchdogd_system";
 constexpr const char* kNullCarWatchdogClientError =
         "Must provide a non-null car watchdog client instance";
 
