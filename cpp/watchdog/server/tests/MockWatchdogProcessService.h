@@ -40,37 +40,42 @@ namespace watchdog {
 class MockWatchdogProcessService : public WatchdogProcessService {
 public:
     MockWatchdogProcessService() : WatchdogProcessService(nullptr) {}
-    MOCK_METHOD(android::base::Result<void>, dump, (int fd, const Vector<android::String16>&),
+    MOCK_METHOD(android::base::Result<void>, dump, (int fd, const Vector<android::String16>& args),
                 (override));
     MOCK_METHOD(android::base::Result<void>, registerWatchdogServiceHelper,
-                (const android::sp<IWatchdogServiceHelper>&), (override));
+                (const android::sp<IWatchdogServiceHelper>& helper), (override));
 
     MOCK_METHOD(android::binder::Status, registerClient,
-                (const sp<ICarWatchdogClient>&, TimeoutLength), (override));
-    MOCK_METHOD(android::binder::Status, unregisterClient, (const sp<ICarWatchdogClient>&),
+                (const sp<ICarWatchdogClient>& client, TimeoutLength timeout), (override));
+    MOCK_METHOD(android::binder::Status, unregisterClient, (const sp<ICarWatchdogClient>& client),
                 (override));
-    MOCK_METHOD(android::binder::Status, registerCarWatchdogService, (const android::sp<IBinder>&),
+    MOCK_METHOD(android::binder::Status, registerCarWatchdogService,
+                (const android::sp<IBinder>& binder), (override));
+    MOCK_METHOD(void, unregisterCarWatchdogService, (const android::sp<IBinder>& binder),
                 (override));
-    MOCK_METHOD(void, unregisterCarWatchdogService, (const android::sp<IBinder>&), (override));
     MOCK_METHOD(android::binder::Status, registerMonitor,
-                (const sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&),
+                (const sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>& monitor),
                 (override));
     MOCK_METHOD(android::binder::Status, unregisterMonitor,
-                (const sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&),
+                (const sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>& monitor),
                 (override));
-    MOCK_METHOD(android::binder::Status, tellClientAlive, (const sp<ICarWatchdogClient>&, int32_t),
-                (override));
+    MOCK_METHOD(android::binder::Status, tellClientAlive,
+                (const sp<ICarWatchdogClient>& client, int32_t sessionId), (override));
     MOCK_METHOD(android::binder::Status, tellCarWatchdogServiceAlive,
                 (const android::sp<
-                         android::automotive::watchdog::internal::ICarWatchdogServiceForSystem>&,
-                 const std::vector<int32_t>&, int32_t),
+                         android::automotive::watchdog::internal::ICarWatchdogServiceForSystem>&
+                         service,
+                 const std::vector<int32_t>& clientsNotResponding, int32_t sessionId),
                 (override));
     MOCK_METHOD(android::binder::Status, tellDumpFinished,
-                (const android::sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&,
-                 int32_t),
+                (const android::sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&
+                         monitor,
+                 int32_t pid),
                 (override));
     MOCK_METHOD(void, setEnabled, (bool), (override));
-    MOCK_METHOD(void, notifyUserStateChange, (userid_t, bool), (override));
+    MOCK_METHOD(android::binder::Status, notifyUserStateChange,
+                (userid_t userId, android::automotive::watchdog::internal::UserState state),
+                (override));
 };
 
 }  // namespace watchdog

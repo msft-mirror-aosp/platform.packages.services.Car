@@ -19,24 +19,23 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DU
 
 import android.car.Car;
 import android.car.CarAppFocusManager;
-import android.car.builtin.util.Slogf;
 import android.car.cluster.renderer.IInstrumentClusterNavigation;
 import android.car.navigation.CarNavigationInstrumentCluster;
 import android.content.Context;
 import android.os.Binder;
 import android.os.Bundle;
+import android.util.IndentingPrintWriter;
 import android.util.Log;
+import android.util.Slog;
 
 import com.android.car.AppFocusService;
 import com.android.car.AppFocusService.FocusOwnershipCallback;
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
-import com.android.car.CarServiceUtils;
+import com.android.car.ICarImpl;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.Objects;
 
@@ -47,10 +46,7 @@ import java.util.Objects;
  */
 public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
         implements CarServiceBase, FocusOwnershipCallback {
-
-    @VisibleForTesting
-    static final String TAG = CarLog.TAG_CLUSTER;
-
+    private static final String TAG = CarLog.TAG_CLUSTER;
     private static final ContextOwner NO_OWNER = new ContextOwner(0, 0);
 
     private final Context mContext;
@@ -63,9 +59,7 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
 
     interface ClusterNavigationServiceCallback {
         void onNavigationStateChanged(Bundle bundle);
-
         CarNavigationInstrumentCluster getInstrumentClusterInfo();
-
         void notifyNavContextOwnerChanged(ContextOwner owner);
     }
 
@@ -74,7 +68,7 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
 
     @Override
     public void onNavigationStateChanged(Bundle bundle) {
-        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CAR_NAVIGATION_MANAGER);
+        ICarImpl.assertPermission(mContext, Car.PERMISSION_CAR_NAVIGATION_MANAGER);
         assertNavigationFocus();
         ClusterNavigationServiceCallback callback;
         synchronized (mLock) {
@@ -86,7 +80,7 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
 
     @Override
     public CarNavigationInstrumentCluster getInstrumentClusterInfo() {
-        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CAR_NAVIGATION_MANAGER);
+        ICarImpl.assertPermission(mContext, Car.PERMISSION_CAR_NAVIGATION_MANAGER);
         ClusterNavigationServiceCallback callback;
         synchronized (mLock) {
             callback = mClusterServiceCallback;
@@ -110,7 +104,7 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
     @Override
     public void init() {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slogf.d(TAG, "initClusterNavigationService");
+            Slog.d(TAG, "initClusterNavigationService");
         }
         mAppFocusService.registerContextOwnerChangedCallback(this /* FocusOwnershipCallback */);
     }
@@ -118,7 +112,7 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
     @Override
     public void release() {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slogf.d(TAG, "releaseClusterNavigationService");
+            Slog.d(TAG, "releaseClusterNavigationService");
         }
         setClusterServiceCallback(null);
         mAppFocusService.unregisterContextOwnerChangedCallback(this);
@@ -172,7 +166,7 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
                     || (!acquire && !Objects.equals(mNavContextOwner, requester))) {
                 // Nothing to do here. Either the same owner is acquiring twice, or someone is
                 // abandoning a focus they didn't have.
-                Slogf.w(TAG, "Invalid nav context owner change (acquiring: " + acquire
+                Slog.w(TAG, "Invalid nav context owner change (acquiring: " + acquire
                         + "), current owner: [" + mNavContextOwner
                         + "], requester: [" + requester + "]");
                 return;

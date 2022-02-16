@@ -16,8 +16,6 @@
 
 package android.car.evs;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.car.Car;
@@ -26,8 +24,6 @@ import android.car.evs.CarEvsManager.CarEvsServiceState;
 import android.car.evs.CarEvsManager.CarEvsServiceType;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * Describes current status of CarEvsService with its current state and service type.
@@ -73,7 +69,6 @@ public final class CarEvsStatus implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }

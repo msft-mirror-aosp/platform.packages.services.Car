@@ -17,7 +17,7 @@ package com.android.car.storagemonitoring;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.car.builtin.util.Slogf;
+import android.util.Slog;
 
 import com.android.car.CarLog;
 import com.android.internal.annotations.VisibleForTesting;
@@ -57,14 +57,14 @@ public class UfsWearInformationProvider implements WearInformationProvider {
     @Override
     public WearInformation load() {
         if (!mFile.exists() || !mFile.isFile()) {
-            Slogf.i(CarLog.TAG_STORAGE, mFile + " does not exist or is not a file");
+            Slog.i(CarLog.TAG_STORAGE, mFile + " does not exist or is not a file");
             return null;
         }
         List<String> lifetimeData;
         try {
             lifetimeData = java.nio.file.Files.readAllLines(mFile.toPath());
         } catch (IOException e) {
-            Slogf.w(CarLog.TAG_STORAGE,  "error reading " + mFile, e);
+            Slog.w(CarLog.TAG_STORAGE, "error reading " + mFile, e);
             return null;
         }
         if (lifetimeData == null || lifetimeData.size() < 4) {
@@ -102,8 +102,8 @@ public class UfsWearInformationProvider implements WearInformationProvider {
                         break;
                 }
             } catch (NumberFormatException e) {
-                Slogf.w(CarLog.TAG_STORAGE,  "trying to decode key " + name + " value " + value
-                        + " didn't parse properly", e);
+                Slog.w(CarLog.TAG_STORAGE,
+                    "trying to decode key " + name + " value " + value + " didn't parse properly", e);
             }
         }
 

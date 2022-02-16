@@ -28,11 +28,9 @@ android_library {
         "src/**/*.java",
     ],
     libs: [
-        "SettingsLib",
-        "modules-utils-preconditions",
+        "SettingsLib"
     ],
     resource_dirs: [
         "src/main/res"
     ],
-    sdk_version: "module_current",
 }

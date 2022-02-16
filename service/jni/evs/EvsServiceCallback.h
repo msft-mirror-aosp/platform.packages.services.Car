@@ -17,6 +17,7 @@
 #define ANDROID_CARSERVICE_EVSSERVICECALLBACK_H
 
 #include <android/hardware/automotive/evs/1.1/types.h>
+#include <hidl/HidlTransportSupport.h>
 
 namespace android {
 namespace automotive {

@@ -16,8 +16,6 @@
 
 package android.car;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
 import android.annotation.IntDef;
 import android.annotation.MainThread;
 import android.annotation.NonNull;
@@ -33,8 +31,6 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -177,7 +173,6 @@ public abstract class AoapService extends Service {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
         writer.write("Bound: " + mBound);
     }

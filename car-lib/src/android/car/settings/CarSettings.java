@@ -159,16 +159,48 @@ public class CarSettings {
                 "android.car.KEY_AUDIO_PERSIST_VOLUME_GROUP_MUTE_STATES";
 
         /**
-         * Key for a list of devices to automatically connect on Bluetooth.
-         * Written to and read by {@link com.android.car.BluetoothDeviceManager}
+         * Key for a list of devices to automatically connect on Bluetooth A2DP Sink profile
+         * Written to and read by {@link com.android.car.BluetoothDeviceConnectionPolicy}
          * @hide
          */
-        public static final String KEY_BLUETOOTH_DEVICES =
-                "android.car.KEY_BLUETOOTH_DEVICES";
+        public static final String KEY_BLUETOOTH_A2DP_SINK_DEVICES =
+                "android.car.KEY_BLUETOOTH_A2DP_SINK_DEVICES";
+
+        /**
+         * Key for a list of devices to automatically connect on Bluetooth PAN profile
+         * Written to and read by {@link com.android.car.BluetoothDeviceConnectionPolicy}
+         * @hide
+         */
+        public static final String KEY_BLUETOOTH_PAN_DEVICES =
+                "android.car.KEY_BLUETOOTH_PAN_DEVICES";
+
+        /**
+         * Key for a list of devices to automatically connect on Bluetooth HFP Client profile
+         * Written to and read by {@link com.android.car.BluetoothDeviceConnectionPolicy}
+         * @hide
+         */
+        public static final String KEY_BLUETOOTH_HFP_CLIENT_DEVICES =
+                "android.car.KEY_BLUETOOTH_HFP_CLIENT_DEVICES";
+
+        /**
+         * Key for a list of devices to automatically connect on Bluetooth MAP Client profile
+         * Written to and read by {@link com.android.car.BluetoothDeviceConnectionPolicy}
+         * @hide
+         */
+        public static final String KEY_BLUETOOTH_MAP_CLIENT_DEVICES =
+                "android.car.KEY_BLUETOOTH_MAP_CLIENT_DEVICES";
+
+        /**
+         * Key for a list of devices to automatically connect on Bluetooth PBAP Client profile
+         * Written to and read by {@link com.android.car.BluetoothDeviceConnectionPolicy}
+         * @hide
+         */
+        public static final String KEY_BLUETOOTH_PBAP_CLIENT_DEVICES =
+                "android.car.KEY_BLUETOOTH_PBAP_CLIENT_DEVICES";
 
         /**
          * Key for storing temporarily-disconnected devices and profiles.
-         * Read and written by {@link com.android.car.BluetoothProfileInhibitManager}.
+         * Read and written by {@link com.android.car.BluetoothDeviceConnectionPolicy}.
          * @hide
          */
         public static final String KEY_BLUETOOTH_PROFILES_INHIBITED =
@@ -177,6 +209,7 @@ public class CarSettings {
         /**
          * Key to enable / disable rotary key event filtering. When enabled, a USB keyboard can be
          * used as a stand-in for a rotary controller.
+         * @hide
          */
         public static final String KEY_ROTARY_KEY_EVENT_FILTER =
                 "android.car.ROTARY_KEY_EVENT_FILTER";
@@ -200,23 +233,5 @@ public class CarSettings {
         @SystemApi
         public static final String KEY_SETUP_WIZARD_IN_PROGRESS =
                 "android.car.SETUP_WIZARD_IN_PROGRESS";
-
-        /**
-         * Key for a {@code ;} separated list of packages disabled on resource overuse.
-         *
-         * <p>The value is written by {@link com.android.car.watchdog.CarWatchdogService}.
-         *
-         * <p>The value is read by user interfaces (such as launcher) that show applications
-         * disabled on resource overuse. When a user selects any application from this list,
-         * the user interface should either enable the application immediately or provide user
-         * affordance to enable the application when the driving conditions are safe.
-         *
-         * <p>When an application (which is on this list) is enabled, CarService will immediately
-         * remove the application's package name form the list.
-         * @hide
-         */
-        @SystemApi
-        public static final String KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE =
-                "android.car.KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE";
     }
 }
