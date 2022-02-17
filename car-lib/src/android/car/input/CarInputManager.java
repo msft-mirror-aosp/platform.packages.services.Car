@@ -26,10 +26,10 @@ import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.CarOccupantZoneManager;
+import android.car.builtin.util.Slogf;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.util.Slog;
 import android.util.SparseArray;
 import android.view.KeyEvent;
 
@@ -55,6 +55,9 @@ public final class CarInputManager extends CarManagerBase {
     private static final String TAG = CarInputManager.class.getSimpleName();
 
     private static final boolean DEBUG = false;
+
+    private static final String PERMISSION_FRAMEWORK_MONITOR_INPUT =
+            "android.permission.MONITOR_INPUT";
 
     /**
      * Callback for capturing input events.
@@ -112,8 +115,6 @@ public final class CarInputManager extends CarManagerBase {
     /**
      * Client wants to capture the keys for the whole display. This is only allowed to system
      * process.
-     *
-     * @hide
      */
     public static final int CAPTURE_REQ_FLAGS_TAKE_ALL_EVENTS_FOR_DISPLAY = 0x2;
 
@@ -128,8 +129,6 @@ public final class CarInputManager extends CarManagerBase {
     /**
      * This is special type to cover all INPUT_TYPE_*. This is used for clients using
      * {@link #CAPTURE_REQ_FLAGS_TAKE_ALL_EVENTS_FOR_DISPLAY} flag.
-     *
-     * @hide
      */
     public static final int INPUT_TYPE_ALL_INPUTS = 1;
 
@@ -140,9 +139,6 @@ public final class CarInputManager extends CarManagerBase {
 
     /**
      * Volume knob.
-     * TODO (b/151666020): This will be only allowed to system apps later.
-     *
-     * @hide
      */
     public static final int INPUT_TYPE_ROTARY_VOLUME = 11;
 
@@ -153,22 +149,16 @@ public final class CarInputManager extends CarManagerBase {
      * {@link KeyEvent#KEYCODE_DPAD_RIGHT}, {@link KeyEvent#KEYCODE_DPAD_CENTER},
      * {@link KeyEvent#KEYCODE_DPAD_DOWN_LEFT}, {@link KeyEvent#KEYCODE_DPAD_DOWN_RIGHT},
      * {@link KeyEvent#KEYCODE_DPAD_UP_LEFT}, {@link KeyEvent#KEYCODE_DPAD_UP_RIGHT}
-     *
-     * @hide
      */
     public static final int INPUT_TYPE_DPAD_KEYS = 100;
 
     /**
-     * This is for all {@code KeyEvent#KEYCODE_NAVIGATE_*} keys.
-     *
-     * @hide
+     * This is for all {@code KeyEvent#KEYCODE_NAVIGATE_*} keys and {@link KeyEvent#KEYCODE_BACK}.
      */
     public static final int INPUT_TYPE_NAVIGATE_KEYS = 101;
 
     /**
      * This is for all {@code KeyEvent#KEYCODE_SYSTEM_NAVIGATE_*} keys.
-     *
-     * @hide
      */
     public static final int INPUT_TYPE_SYSTEM_NAVIGATE_KEYS = 102;
 
@@ -264,8 +254,9 @@ public final class CarInputManager extends CarManagerBase {
      * same {@link CarInputManager} instance, then only the last registered callback will receive
      * events, even if they were registered for different input event types.
      *
-     * @throws SecurityException is caller doesn't have android.car.permission.CAR_MONITOR_INPUT
-     *                           permission granted
+     * @throws SecurityException if caller doesn't have one of the following permissions granted:
+     *                           {@code android.car.permission.CAR_MONITOR_INPUT} nor
+     *                           {@code android.Manifest.permission.MONITOR_INPUT}
      * @throws IllegalArgumentException if targetDisplayType parameter correspond to a non supported
      *                                  display type
      * @throws IllegalArgumentException if inputTypes parameter contains invalid or non supported
@@ -276,7 +267,8 @@ public final class CarInputManager extends CarManagerBase {
      * @param callback the callback to receive the input events
      * @return the input capture response indicating if registration succeed, failed or delayed
      */
-    @RequiresPermission(Car.PERMISSION_CAR_MONITOR_INPUT)
+    @RequiresPermission(anyOf = {PERMISSION_FRAMEWORK_MONITOR_INPUT,
+            Car.PERMISSION_CAR_MONITOR_INPUT})
     @InputCaptureResponseEnum
     public int requestInputEventCapture(@DisplayTypeEnum int targetDisplayType,
             @NonNull @InputTypeEnum int[] inputTypes,
@@ -292,6 +284,9 @@ public final class CarInputManager extends CarManagerBase {
      * CarInputCaptureCallback)} except that callbacks are invoked using
      * the executor passed as parameter.
      *
+     * @throws SecurityException if caller doesn't have one of the following permissions granted:
+     *                           {@code android.car.permission.CAR_MONITOR_INPUT} nor
+     *                           {@code android.Manifest.permission.MONITOR_INPUT}
      * @param targetDisplayType the display type to register callback against
      * @param inputTypes the input type to register callback against
      * @param requestFlags the capture request flag
@@ -300,7 +295,8 @@ public final class CarInputManager extends CarManagerBase {
      * @return the input capture response indicating if registration succeed, failed or delayed
      * @see CarInputManager#requestInputEventCapture(int, int[], int, CarInputCaptureCallback)
      */
-    @RequiresPermission(android.Manifest.permission.MONITOR_INPUT)
+    @RequiresPermission(anyOf = {PERMISSION_FRAMEWORK_MONITOR_INPUT,
+            Car.PERMISSION_CAR_MONITOR_INPUT})
     @InputCaptureResponseEnum
     public int requestInputEventCapture(@DisplayTypeEnum int targetDisplayType,
             @NonNull @InputTypeEnum int[] inputTypes,
@@ -328,7 +324,8 @@ public final class CarInputManager extends CarManagerBase {
     public void releaseInputEventCapture(@DisplayTypeEnum int targetDisplayType) {
         CallbackHolder callbackHolder;
         synchronized (mLock) {
-            callbackHolder = mCarInputCaptureCallbacks.removeReturnOld(targetDisplayType);
+            callbackHolder = mCarInputCaptureCallbacks.get(targetDisplayType);
+            mCarInputCaptureCallbacks.delete(targetDisplayType);
         }
         if (callbackHolder == null) {
             return;
@@ -414,7 +411,8 @@ public final class CarInputManager extends CarManagerBase {
         }
         callbackHolder.mExecutor.execute(() -> {
             if (DEBUG) {
-                Slog.d(TAG, "Firing events " + events + " on callback " + callbackHolder.mCallback);
+                Slogf.d(TAG, "Firing events " + events + " on callback "
+                        + callbackHolder.mCallback);
             }
             callbackHolder.mCallback.onCustomInputEvents(targetDisplayType, events);
         });
