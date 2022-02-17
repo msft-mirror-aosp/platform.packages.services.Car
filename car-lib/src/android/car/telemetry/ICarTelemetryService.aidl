@@ -1,7 +1,8 @@
 package android.car.telemetry;
 
-import android.car.telemetry.ICarTelemetryServiceListener;
-import android.car.telemetry.ManifestKey;
+import android.car.telemetry.ICarTelemetryReportListener;
+import android.car.telemetry.ICarTelemetryReportReadyListener;
+import android.os.ResultReceiver;
 
 /**
  * Internal binder interface for {@code CarTelemetryService}, used by {@code CarTelemetryManager}.
@@ -11,43 +12,41 @@ import android.car.telemetry.ManifestKey;
 interface ICarTelemetryService {
 
     /**
-     * Registers a listener with CarTelemetryService for the service to send data to cloud app.
+     * Adds telemetry MetricsConfigs to CarTelemetryService. Status code is sent to
+     * CarTelemetryManager via ResultReceiver.
      */
-    void setListener(in ICarTelemetryServiceListener listener);
+    void addMetricsConfig(in String metricsConfigName, in byte[] metricsConfig,
+            in ResultReceiver callback);
 
     /**
-     * Clears the listener registered with CarTelemetryService.
+     * Removes a MetricsConfig based on the name. This will also remove outputs produced by the
+     * MetricsConfig.
      */
-    void clearListener();
+    void removeMetricsConfig(in String metricsConfigName);
 
     /**
-     * Sends telemetry manifests to CarTelemetryService.
+     * Removes all MetricsConfigs. This will also remove all MetricsConfig outputs.
      */
-    int addManifest(in ManifestKey key, in byte[] manifest);
+    void removeAllMetricsConfigs();
 
     /**
-     * Removes a manifest based on the key.
-     */
-    boolean removeManifest(in ManifestKey key);
-
-    /**
-     * Removes all manifests.
-     */
-    void removeAllManifests();
-
-    /**
-     * Sends script results associated with the given key using the
+     * Sends finished telemetry reports or errors associated with the given name using the
      * {@code ICarTelemetryServiceListener}.
      */
-    void sendFinishedReports(in ManifestKey key);
+    void getFinishedReport(in String metricsConfigName, in ICarTelemetryReportListener listener);
 
     /**
-     * Sends all script results associated using the {@code ICarTelemetryServiceListener}.
+     * Sends all finished telemetry reports or errors using the {@code ICarTelemetryReportListener}.
      */
-    void sendAllFinishedReports();
+    void getAllFinishedReports(in ICarTelemetryReportListener listener);
 
     /**
-     * Sends all errors using the {@code ICarTelemetryServiceListener}.
+     * Registers a listener for receiving notifications when a report or telemetry error is ready.
      */
-    void sendScriptExecutionErrors();
+    void setReportReadyListener(in ICarTelemetryReportReadyListener listener);
+
+    /**
+     * Clears listener to stop receiving notifications when a report or telemetry error is ready.
+     */
+    void clearReportReadyListener();
 }
