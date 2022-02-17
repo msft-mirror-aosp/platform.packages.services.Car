@@ -22,14 +22,16 @@ import android.annotation.RequiresPermission;
 import android.annotation.UserIdInt;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.ICarUserService;
+import android.car.IExperimentalCarUserService;
 import android.car.annotation.ExperimentalFeature;
-import android.content.pm.UserInfo;
+import android.car.builtin.os.UserManagerHelper;
+import android.car.util.concurrent.AndroidFuture;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Log;
 
-import com.android.internal.infra.AndroidFuture;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,23 +47,26 @@ import java.util.List;
 @ExperimentalFeature
 public final class ExperimentalCarUserManager extends CarManagerBase {
 
-    private static final String TAG = ExperimentalCarUserManager.class.getSimpleName();
+    /** @hide */
+    public static final String TAG = ExperimentalCarUserManager.class.getSimpleName();
 
     /**
      *  User id representing invalid user.
      */
-    private static final int INVALID_USER_ID = UserHandle.USER_NULL;
+    private static final int INVALID_USER_ID = UserManagerHelper.USER_NULL;
 
-    private final ICarUserService mService;
+    private final IExperimentalCarUserService mService;
 
     /**
-     * Factory method to create a new instance.
+     * @hide
      */
-    public static ExperimentalCarUserManager from(@NonNull CarUserManager carUserManager) {
-        return carUserManager.newExperimentalCarUserManager();
+    public ExperimentalCarUserManager(@NonNull Car car, @NonNull IBinder service) {
+        this(car, IExperimentalCarUserService.Stub.asInterface(service));
     }
 
-    ExperimentalCarUserManager(@NonNull Car car, @NonNull ICarUserService service) {
+    @VisibleForTesting
+    public ExperimentalCarUserManager(
+            @NonNull Car car, @NonNull IExperimentalCarUserService service) {
         super(car);
 
         mService = service;
@@ -103,8 +108,8 @@ public final class ExperimentalCarUserManager extends CarManagerBase {
     @Nullable
     public int createPassenger(@NonNull String name, @UserIdInt int driverId) {
         try {
-            UserInfo ui = mService.createPassenger(name, driverId);
-            return ui != null ? ui.id : INVALID_USER_ID;
+            UserHandle ui = mService.createPassenger(name, driverId);
+            return ui != null ? ui.getIdentifier() : INVALID_USER_ID;
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, null);
         }
@@ -153,7 +158,7 @@ public final class ExperimentalCarUserManager extends CarManagerBase {
     @NonNull
     public List<Integer> getAllDrivers() {
         try {
-            return getUserIdsFromUserInfos(mService.getAllDrivers());
+            return getUserIdsFromUserHandles(mService.getAllDrivers());
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, Collections.emptyList());
         }
@@ -171,7 +176,7 @@ public final class ExperimentalCarUserManager extends CarManagerBase {
     @NonNull
     public List<Integer> getPassengers(@UserIdInt int driverId) {
         try {
-            return getUserIdsFromUserInfos(mService.getPassengers(driverId));
+            return getUserIdsFromUserHandles(mService.getPassengers(driverId));
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, Collections.emptyList());
         }
@@ -219,10 +224,10 @@ public final class ExperimentalCarUserManager extends CarManagerBase {
         // nothing to do
     }
 
-    private List<Integer> getUserIdsFromUserInfos(List<UserInfo> infos) {
+    private List<Integer> getUserIdsFromUserHandles(List<UserHandle> infos) {
         List<Integer> ids = new ArrayList<>(infos.size());
-        for (UserInfo ui : infos) {
-            ids.add(ui.id);
+        for (UserHandle ui : infos) {
+            ids.add(ui.getIdentifier());
         }
         return ids;
     }
