@@ -16,13 +16,17 @@
 
 package android.car.projection;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.util.IntArray;
+
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.util.IntArray;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -122,6 +126,7 @@ public final class ProjectionStatus implements Parcelable {
 
     /** Parcelable implementation */
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }
