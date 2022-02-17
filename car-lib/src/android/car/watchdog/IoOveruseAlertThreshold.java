@@ -24,7 +24,7 @@ import android.annotation.SystemApi;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.internal.util.DataClass;
+import com.android.car.internal.util.DataClass;
 
 /**
  * System-wide disk I/O overuse alert threshold.
@@ -131,6 +131,7 @@ public final class IoOveruseAlertThreshold implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -167,7 +168,7 @@ public final class IoOveruseAlertThreshold implements Parcelable {
             time = 1615312119067L,
             codegenVersion = "1.0.22",
             sourceFile = "packages/services/Car/car-lib/src/android/car/watchdog/IoOveruseAlertThreshold.java",
-            inputSignatures = "private @android.annotation.SuppressLint long mDurationInSeconds\nprivate  long mWrittenBytesPerSecond\nclass IoOveruseAlertThreshold extends java.lang.Object implements [android.os.Parcelable]\n@com.android.internal.util.DataClass(genToString=true, genHiddenConstructor=true)")
+            inputSignatures = "private @android.annotation.SuppressLint long mDurationInSeconds\nprivate  long mWrittenBytesPerSecond\nclass IoOveruseAlertThreshold extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genHiddenConstructor=true)")
     @Deprecated
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     private void __metadata() {}
