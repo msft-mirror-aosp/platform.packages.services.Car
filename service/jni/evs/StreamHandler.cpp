@@ -20,16 +20,15 @@
 #include <android-base/logging.h>
 #include <cutils/native_handle.h>
 
-#include <cstring>
-
-using namespace ::android::hardware::automotive::evs::V1_1;
-
 using ::android::sp;
 using ::android::hardware::hidl_handle;
 using ::android::hardware::hidl_vec;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
 using ::android::hardware::automotive::evs::V1_0::EvsResult;
+using ::android::hardware::automotive::evs::V1_1::EvsEventDesc;
+using ::android::hardware::automotive::evs::V1_1::EvsEventType;
+using ::android::hardware::automotive::evs::V1_1::IEvsCamera;
 using ::android::hardware::automotive::evs::V1_1::IEvsDisplay;
 
 using EvsDisplayState = ::android::hardware::automotive::evs::V1_0::DisplayState;
@@ -40,7 +39,7 @@ namespace android {
 namespace automotive {
 namespace evs {
 
-StreamHandler::StreamHandler(sp<IEvsCamera>& camera, EvsServiceCallback* callback,
+StreamHandler::StreamHandler(const sp<IEvsCamera>& camera, EvsServiceCallback* callback,
                              int maxNumFramesInFlight) :
       mEvsCamera(camera), mCallback(callback), mMaxNumFramesInFlight(maxNumFramesInFlight) {
     if (camera == nullptr) {
@@ -81,7 +80,7 @@ bool StreamHandler::startStream() {
     std::lock_guard<std::mutex> lock(mLock);
     if (!mRunning) {
         auto result = mEvsCamera->startVideoStream(this);
-        if (!result.isOk() or result != EvsResult::OK) {
+        if (!result.isOk() || result != EvsResult::OK) {
             LOG(ERROR) << "StreamHandler failed to start a video stream.";
             return false;
         }
@@ -161,9 +160,17 @@ void StreamHandler::doneWithFrame(const BufferDesc_1_1& buffer) {
         auto it = mReceivedBuffers.begin();
         while (it != mReceivedBuffers.end()) {
             if (it->bufferId == buffer.bufferId) {
+                // We intentionally do not update the iterator to detect a
+                // request to return an unknown buffer.
                 mReceivedBuffers.erase(it);
                 break;
             }
+            ++it;
+        }
+
+        if (it == mReceivedBuffers.end()) {
+            LOG(DEBUG) << "Ignores a request to return unknown buffer";
+            return;
         }
     }
 

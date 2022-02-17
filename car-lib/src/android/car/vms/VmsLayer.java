@@ -16,11 +16,14 @@
 
 package android.car.vms;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+
 import android.annotation.SystemApi;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-import com.android.internal.util.DataClass;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.util.DataClass;
 
 /**
  * A Vehicle Map Service layer, which can be offered or subscribed to by clients.
@@ -185,6 +188,7 @@ public final class VmsLayer implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -223,7 +227,7 @@ public final class VmsLayer implements Parcelable {
             time = 1582065881190L,
             codegenVersion = "1.0.14",
             sourceFile = "packages/services/Car/car-lib/src/android/car/vms/VmsLayer.java",
-            inputSignatures = "private  int mType\nprivate  int mChannel\nprivate  int mVersion\npublic @java.lang.Deprecated int getSubtype()\nclass VmsLayer extends java.lang.Object implements [android.os.Parcelable]\n@com.android.internal.util.DataClass(genAidl=true, genEqualsHashCode=true, genToString=true)")
+            inputSignatures = "private  int mType\nprivate  int mChannel\nprivate  int mVersion\npublic @java.lang.Deprecated int getSubtype()\nclass VmsLayer extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genAidl=true, genEqualsHashCode=true, genToString=true)")
     @Deprecated
     private void __metadata() {}
 
