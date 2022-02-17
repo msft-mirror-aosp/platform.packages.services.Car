@@ -42,6 +42,9 @@ import java.util.concurrent.TimeUnit;
 @MediumTest
 public class CarAppFocusManagerTest extends CarApiTestBase {
     private static final String TAG = CarAppFocusManagerTest.class.getSimpleName();
+
+    private static final long NEGATIVE_CASE_WAIT_TIMEOUT_MS = 100L;
+
     private CarAppFocusManager mManager;
 
     private final LooperThread mEventThread = new LooperThread();
@@ -104,7 +107,8 @@ public class CarAppFocusManagerTest extends CarApiTestBase {
 
         // Unregistred from nav app, no events expected.
         assertThat(listener1.waitForFocusChangeAndAssert(
-                DEFAULT_WAIT_TIMEOUT_MS, APP_FOCUS_TYPE_NAVIGATION, true)).isFalse();
+                NEGATIVE_CASE_WAIT_TIMEOUT_MS, APP_FOCUS_TYPE_NAVIGATION,
+                true)).isFalse();
         assertThat(listener2.waitForFocusChangeAndAssert(
                 DEFAULT_WAIT_TIMEOUT_MS, APP_FOCUS_TYPE_NAVIGATION, true)).isTrue();
 
@@ -112,7 +116,8 @@ public class CarAppFocusManagerTest extends CarApiTestBase {
         assertThat(manager.requestAppFocus(APP_FOCUS_TYPE_NAVIGATION, new FocusOwnershipCallback()))
                 .isEqualTo(CarAppFocusManager.APP_FOCUS_REQUEST_SUCCEEDED);
         assertThat(listener2.waitForFocusChangeAndAssert(
-                DEFAULT_WAIT_TIMEOUT_MS, APP_FOCUS_TYPE_NAVIGATION, true)).isFalse();
+                NEGATIVE_CASE_WAIT_TIMEOUT_MS, APP_FOCUS_TYPE_NAVIGATION,
+                true)).isFalse();
 
         manager.removeFocusListener(listener2, 2);
         manager.removeFocusListener(listener2, 2);    // Double-unregister is OK
@@ -246,6 +251,24 @@ public class CarAppFocusManagerTest extends CarApiTestBase {
         APP_FOCUS_TYPE_NAVIGATION, false)).isTrue();
     }
 
+    @Test
+    public void testGetAppTypeOwner() throws Exception {
+        CarAppFocusManager manager = createManager(getContext(), mEventThread);
+
+        assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION)).isNull();
+
+        FocusOwnershipCallback owner = new FocusOwnershipCallback();
+        assertThat(manager.requestAppFocus(APP_FOCUS_TYPE_NAVIGATION, owner))
+                .isEqualTo(APP_FOCUS_REQUEST_SUCCEEDED);
+
+        assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION))
+                .containsExactly("android.car.apitest", "com.google.android.car.kitchensink");
+
+        manager.abandonAppFocus(owner, APP_FOCUS_TYPE_NAVIGATION);
+
+        assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION)).isNull();
+    }
+
     private CarAppFocusManager createManager() throws InterruptedException {
         return createManager(getContext(), mEventThread);
     }
@@ -306,17 +329,15 @@ public class CarAppFocusManagerTest extends CarApiTestBase {
 
         boolean waitForFocusChangeAndAssert(long timeoutMs, int expectedAppType,
                 boolean expectedAppActive) throws Exception {
-
             if (!mChangeWait.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
                 return false;
             }
-
             assertThat(mLastChangeAppType).isEqualTo(expectedAppType);
             assertThat(mLastChangeAppActive).isEqualTo(expectedAppActive);
             return true;
         }
 
-        void reset() throws InterruptedException {
+        void reset() {
             mLastChangeAppType = 0;
             mLastChangeAppActive = false;
             mChangeWait.drainPermits();
