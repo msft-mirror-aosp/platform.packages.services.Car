@@ -16,11 +16,15 @@
 
 package android.car.content.pm;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+
 import android.annotation.SystemApi;
+import android.car.builtin.os.ParcelHelper;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-import java.lang.reflect.Method;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+
 import java.util.Arrays;
 
 /**
@@ -34,25 +38,6 @@ public final class CarAppBlockingPolicy implements Parcelable {
     public final AppBlockingPackageInfo[] whitelists;
     public final AppBlockingPackageInfo[] blacklists;
 
-    private static final Method sReadBlobMethod;
-    private static final Method sWriteBlobMethod;
-
-    static {
-        Class parcelClass = Parcel.class;
-        Method readBlob = null;
-        Method writeBlob = null;
-        try {
-            readBlob = parcelClass.getMethod("readBlob", new Class[] {});
-            writeBlob = parcelClass.getMethod("writeBlob", new Class[] {byte[].class});
-        } catch (NoSuchMethodException e) {
-            // use it only when both methods are available.
-            readBlob = null;
-            writeBlob = null;
-        }
-        sReadBlobMethod = readBlob;
-        sWriteBlobMethod = writeBlob;
-    }
-
     public CarAppBlockingPolicy(AppBlockingPackageInfo[] whitelists,
             AppBlockingPackageInfo[] blacklists) {
         this.whitelists = whitelists;
@@ -60,7 +45,7 @@ public final class CarAppBlockingPolicy implements Parcelable {
     }
 
     public CarAppBlockingPolicy(Parcel in) {
-        byte[] payload =  in.readBlob();
+        byte[] payload = ParcelHelper.readBlob(in);
         Parcel payloadParcel = Parcel.obtain();
         payloadParcel.unmarshall(payload, 0, payload.length);
         // reset to initial position to read
@@ -71,6 +56,7 @@ public final class CarAppBlockingPolicy implements Parcelable {
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }
@@ -81,7 +67,7 @@ public final class CarAppBlockingPolicy implements Parcelable {
         payloadParcel.writeTypedArray(whitelists, 0);
         payloadParcel.writeTypedArray(blacklists, 0);
         byte[] payload = payloadParcel.marshall();
-        dest.writeBlob(payload);
+        ParcelHelper.writeBlob(dest, payload);
         payloadParcel.recycle();
     }
 

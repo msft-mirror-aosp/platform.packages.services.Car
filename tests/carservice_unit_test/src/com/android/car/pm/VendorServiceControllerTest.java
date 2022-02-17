@@ -22,10 +22,12 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
+import android.car.builtin.app.ActivityManagerHelper;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
@@ -62,6 +64,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 public final class VendorServiceControllerTest extends AbstractExtendedMockitoTestCase {
@@ -99,6 +102,9 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
     private CarUserService mCarUserService;
     private VendorServiceController mController;
 
+    public VendorServiceControllerTest() {
+        super(VendorServiceController.TAG);
+    }
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
@@ -108,8 +114,11 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
     @Before
     public void setUp() {
         mContext = new ServiceLauncherContext(ApplicationProvider.getApplicationContext());
+        ActivityManagerHelper activityManagerHelper = mock(ActivityManagerHelper.class);
+
         mCarUserService = new CarUserService(mContext, mUserHal, mUserManager,
-                ActivityManager.getService(), /* maxRunningUsers= */ 2, mUxRestrictionService);
+                activityManagerHelper,
+                /* maxRunningUsers= */ 2, mUxRestrictionService);
         CarLocalServices.addService(CarUserService.class, mCarUserService);
 
         mController = new VendorServiceController(mContext, Looper.getMainLooper());
@@ -216,7 +225,7 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
         // before proceeding with test execution.
         BlockingUserLifecycleListener blockingListener =
                 BlockingUserLifecycleListener.forAnyEvent().build();
-        mCarUserService.addUserLifecycleListener(blockingListener);
+        mCarUserService.addUserLifecycleListener(/* filter= */null, blockingListener);
 
         runOnMainThreadAndWaitForIdle(() -> mCarUserService.onUserLifecycleEvent(eventType,
                 /* fromUserId= */ UserHandle.USER_NULL, userId));
@@ -241,7 +250,13 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
         }
 
         @Override
-        public ComponentName startServiceAsUser(Intent service, UserHandle user) {
+        public Context createContextAsUser(UserHandle user, int flags) {
+            Log.v(TAG, "using same context for user " + user);
+            return this;
+        }
+
+        @Override
+        public ComponentName startService(Intent service) {
             synchronized (mLock) {
                 mStartedServicesIntents.add(service);
             }
@@ -250,8 +265,8 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
         }
 
         @Override
-        public boolean bindServiceAsUser(Intent service, ServiceConnection conn, int flags,
-                Handler handler, UserHandle user) {
+        public boolean bindService(Intent service, int flags, Executor executor,
+                ServiceConnection conn) {
             synchronized (mLock) {
                 mBoundIntents.add(service);
                 Log.v(TAG, "Added service (" + service + ") to bound intents");
@@ -259,12 +274,6 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
             conn.onServiceConnected(service.getComponent(), null);
             countdown(mBoundLatches, service, "bound");
             return true;
-        }
-
-        @Override
-        public boolean bindServiceAsUser(Intent service, ServiceConnection conn,
-                int flags, UserHandle user) {
-            return bindServiceAsUser(service, conn, flags, null, user);
         }
 
         @Override

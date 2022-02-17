@@ -16,12 +16,15 @@
 
 package android.car;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
+import android.car.builtin.os.UserManagerHelper;
 import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.IBinder;
@@ -34,6 +37,7 @@ import android.os.UserHandle;
 import android.util.Log;
 import android.view.Display;
 
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.lang.annotation.ElementType;
@@ -161,6 +165,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public int describeContents() {
             return 0;
         }
@@ -421,7 +426,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
         try {
             return mService.getUserForOccupant(occupantZone.zoneId);
         } catch (RemoteException e) {
-            return handleRemoteExceptionFromCarService(e, UserHandle.USER_NULL);
+            return handleRemoteExceptionFromCarService(e, UserManagerHelper.USER_NULL);
         }
     }
 
