@@ -22,12 +22,10 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
-import android.car.builtin.app.ActivityManagerHelper;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
@@ -114,10 +112,8 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
     @Before
     public void setUp() {
         mContext = new ServiceLauncherContext(ApplicationProvider.getApplicationContext());
-        ActivityManagerHelper activityManagerHelper = mock(ActivityManagerHelper.class);
 
         mCarUserService = new CarUserService(mContext, mUserHal, mUserManager,
-                activityManagerHelper,
                 /* maxRunningUsers= */ 2, mUxRestrictionService);
         CarLocalServices.addService(CarUserService.class, mCarUserService);
 
@@ -166,7 +162,7 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
 
         // Unlock system user
         mockUserUnlock(UserHandle.USER_SYSTEM);
-        sendUserLifecycleEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
+        sendUserLifecycleEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
                 UserHandle.USER_SYSTEM);
 
         mContext.assertStartedService(SERVICE_START_SYSTEM_UNLOCKED);
@@ -194,7 +190,7 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
 
         // Unlock foreground user
         mockUserUnlock(FG_USER_ID);
-        sendUserLifecycleEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, FG_USER_ID);
+        sendUserLifecycleEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, FG_USER_ID);
 
         mContext.assertBoundService(SERVICE_BIND_FG_USER_UNLOCKED);
         mContext.verifyNoMoreServiceLaunches();

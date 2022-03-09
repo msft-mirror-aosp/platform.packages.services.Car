@@ -36,6 +36,7 @@ java_defaults {
         ":android.car.cluster.navigation-src",
         ":android.car.watchdoglib-src",
         ":cartelemetry-cardata-proto-srcs",
+        ":cartelemetryservice-proto-srcs",
         ":com.android.car.procfsinspector-client-src",
         ":statslog-Car-java-gen",
         ":vehicle-hal-support-lib-src",
@@ -123,6 +124,7 @@ android_app {
     name: "CarServiceUpdatableNonModule",
 
     defaults: ["carservice-updatable-java-defaults"],
+    privileged: true,
 
     required: ["allowed_privapp_com.android.car"],
 }
@@ -132,6 +134,7 @@ android_app {
     name: "CarServiceUpdatable",
 
     defaults: ["carservice-updatable-java-defaults"],
+    privileged: true,
 
     apex_available: ["com.android.car.framework"],
 }
@@ -187,6 +190,8 @@ android_library {
     name: "car-service-test-static-lib",
 
     defaults: ["carservice-updatable-java-defaults"],
+
+    manifest: "EmptyAndroidManifest.xml"
 }
 
 filegroup {
@@ -196,12 +201,4 @@ filegroup {
         "src/com/android/car/telemetry/scriptexecutorinterface/IScriptExecutorListener.aidl",
     ],
     path: "src",
-}
-
-// Public protos for CarTelemetryManager clients.
-filegroup {
-    name: "cartelemetryservice-proto-srcs",
-    srcs: [
-        "proto/android/car/telemetry/telemetry.proto"
-    ],
 }

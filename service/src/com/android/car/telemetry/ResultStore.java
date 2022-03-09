@@ -19,6 +19,7 @@ package com.android.car.telemetry;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
+import android.car.telemetry.TelemetryProto;
 import android.os.PersistableBundle;
 import android.util.ArrayMap;
 import android.util.AtomicFile;
@@ -88,7 +89,7 @@ public class ResultStore {
 
     /**
      * Retrieves interim metrics for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     @Nullable
     public PersistableBundle getInterimResult(@NonNull String metricsConfigName) {
@@ -100,7 +101,7 @@ public class ResultStore {
 
     /**
      * Retrieves final metrics for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      *
      * @param metricsConfigName name of the MetricsConfig.
      * @param deleteResult      if true, the final result will be deleted from disk.
@@ -223,7 +224,7 @@ public class ResultStore {
 
     /**
      * Stores interim metrics results in memory for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     public void putInterimResult(
             @NonNull String metricsConfigName, @NonNull PersistableBundle result) {
@@ -232,7 +233,7 @@ public class ResultStore {
 
     /**
      * Stores final metrics in memory for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     public void putFinalResult(
             @NonNull String metricsConfigName, @NonNull PersistableBundle result) {
@@ -280,11 +281,13 @@ public class ResultStore {
         configNames.addAll(mFinalResultCache.keySet());
         configNames.addAll(mErrorCache.keySet());
         // prevent NPE
-        if (mFinalResultDirectory.list() != null) {
-            configNames.addAll(Arrays.asList(mFinalResultDirectory.list()));
+        String[] fileNames = mFinalResultDirectory.list();
+        if (fileNames != null) {
+            configNames.addAll(Arrays.asList(fileNames));
         }
-        if (mErrorResultDirectory.list() != null) {
-            configNames.addAll(Arrays.asList(mErrorResultDirectory.list()));
+        fileNames = mErrorResultDirectory.list();
+        if (fileNames != null) {
+            configNames.addAll(Arrays.asList(fileNames));
         }
         return configNames;
     }

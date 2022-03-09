@@ -26,6 +26,7 @@ import static com.android.car.PermissionHelper.checkHasAtLeastOnePermissionGrant
 import static com.android.car.PermissionHelper.checkHasDumpPermissionGranted;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -116,6 +117,8 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
 import java.io.PrintWriter;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -179,7 +182,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             "Cannot create user because calling user %s has the '%s' restriction";
 
     private final Context mContext;
-    private final ActivityManagerHelper mAmHelper;
     private final ActivityManager mAm;
     private final UserManager mUserManager;
     private final DevicePolicyManager mDpm;
@@ -248,6 +250,24 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private final CarUxRestrictionsManagerService mCarUxRestrictionService;
 
+    private static final int PRE_CREATION_STAGE_BEFORE_SUSPEND = 1;
+
+    private static final int PRE_CREATION_STAGE_ON_SYSTEM_START = 2;
+
+    private static final int DEFAULT_PRE_CREATION_DELAY_MS = 0;
+
+    @IntDef(flag = true, prefix = { "PRE_CREATION_STAGE_" }, value = {
+            PRE_CREATION_STAGE_BEFORE_SUSPEND,
+            PRE_CREATION_STAGE_ON_SYSTEM_START,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface PreCreationStage { }
+
+    @PreCreationStage
+    private final int mPreCreationStage;
+
+    private final int mPreCreationDelayMs;
+
     /**
      * Whether some operations - like user switch - are restricted by driving safety constraints.
      */
@@ -289,12 +309,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     public CarUserService(@NonNull Context context, @NonNull UserHalService hal,
             @NonNull UserManager userManager,
-            @NonNull ActivityManagerHelper amHelper,
             int maxRunningUsers,
             @NonNull CarUxRestrictionsManagerService uxRestrictionService) {
         this(context, hal, userManager, new UserHandleHelper(context, userManager),
                 context.getSystemService(DevicePolicyManager.class),
-                context.getSystemService(ActivityManager.class), amHelper, maxRunningUsers,
+                context.getSystemService(ActivityManager.class), maxRunningUsers,
                 /* initialUserSetter= */ null, /* userPreCreator= */ null, uxRestrictionService,
                 null);
     }
@@ -305,7 +324,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @NonNull UserHandleHelper userHandleHelper,
             @NonNull DevicePolicyManager dpm,
             @NonNull ActivityManager am,
-            @NonNull ActivityManagerHelper amHelper,
             int maxRunningUsers,
             @Nullable InitialUserSetter initialUserSetter,
             @Nullable UserPreCreator userPreCreator,
@@ -315,7 +333,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mContext = context;
         mHal = hal;
         mAm = am;
-        mAmHelper = amHelper;
         mMaxRunningUsers = maxRunningUsers;
         mUserManager = userManager;
         mDpm = dpm;
@@ -330,6 +347,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
                 R.bool.config_switchGuestUserBeforeGoingSleep);
         mCarUxRestrictionService = uxRestrictionService;
+        mPreCreationStage = resources.getInteger(R.integer.config_userPreCreationStage);
+        int preCreationDelayMs = resources
+                .getInteger(R.integer.config_userPreCreationDelay);
+        mPreCreationDelayMs = preCreationDelayMs < DEFAULT_PRE_CREATION_DELAY_MS
+                ? DEFAULT_PRE_CREATION_DELAY_MS
+                : preCreationDelayMs;
     }
 
     @Override
@@ -375,6 +398,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         writer.println("SwitchGuestUserBeforeSleep: " + mSwitchGuestUserBeforeSleep);
+        writer.printf("PreCreateUserStages: %s\n", preCreationStageToString(mPreCreationStage));
+        writer.printf("PreCreationDelayMs: %s\n", mPreCreationDelayMs);
 
         writer.println("MaxRunningUsers: " + mMaxRunningUsers);
         writer.printf("User HAL: supported=%b, timeout=%dms\n", isUserHalSupported(),
@@ -401,6 +426,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         writer.decreaseIndent();
 
         mInitialUserSetter.dump(writer);
+    }
+
+    private static String preCreationStageToString(@PreCreationStage int stage) {
+        return DebugUtils.flagsToString(CarUserService.class, "PRE_CREATION_STAGE_", stage);
     }
 
     private void dumpGlobalProperty(IndentingPrintWriter writer, String property) {
@@ -623,7 +652,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             initResumeReplaceGuest();
         }
 
-        preCreateUsersInternal();
+        if ((mPreCreationStage & PRE_CREATION_STAGE_BEFORE_SUSPEND) != 0) {
+            preCreateUsersInternal(/* waitTimeMs= */ DEFAULT_PRE_CREATION_DELAY_MS);
+        }
     }
 
     /**
@@ -646,6 +677,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      */
     public void initBootUser() {
         mHandler.post(() -> initBootUser(getInitialUserInfoRequestType()));
+
+        if ((mPreCreationStage & PRE_CREATION_STAGE_ON_SYSTEM_START) != 0) {
+            preCreateUsersInternal(mPreCreationDelayMs);
+        }
     }
 
     private void initBootUser(int requestType) {
@@ -1816,7 +1851,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return;
         }
 
-        if (!mAmHelper.startUserInBackground(userId)) {
+        if (!ActivityManagerHelper.startUserInBackground(userId)) {
             Slogf.w(TAG, "Failed to start user %d in background", userId);
             sendUserStartResult(userId, UserStartResult.STATUS_ANDROID_FAILURE, receiver);
             return;
@@ -1860,11 +1895,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             if (user == ActivityManager.getCurrentUser()) {
                 continue;
             }
-            if (mAmHelper.startUserInBackground(user)) {
+            if (ActivityManagerHelper.startUserInBackground(user)) {
                 if (mUserManager.isUserUnlockingOrUnlocked(UserHandle.of(user))) {
                     // already unlocked / unlocking. No need to unlock.
                     startedUsers.add(user);
-                } else if (mAmHelper.unlockUser(user)) {
+                } else if (ActivityManagerHelper.unlockUser(user)) {
                     startedUsers.add(user);
                 } else { // started but cannot unlock
                     Slogf.w(TAG, "Background user started but cannot be unlocked: %s", user);
@@ -1914,7 +1949,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private @UserStopResult.Status int stopBackgroundUserInternal(@UserIdInt int userId) {
-        int r = mAmHelper.stopUserWithDelayedLocking(userId, true);
+        int r = ActivityManagerHelper.stopUserWithDelayedLocking(userId, true);
         switch(r) {
             case USER_OP_SUCCESS:
                 return UserStopResult.STATUS_SUCCESSFUL;
@@ -2184,11 +2219,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     @Override
     public void updatePreCreatedUsers() {
         checkManageOrCreateUsersPermission("preCreateUsers");
-        preCreateUsersInternal();
+        preCreateUsersInternal(/* waitTimeMs= */ DEFAULT_PRE_CREATION_DELAY_MS);
     }
 
-    private void preCreateUsersInternal() {
-        mHandler.post(() -> mUserPreCreator.managePreCreatedUsers());
+    private void preCreateUsersInternal(int waitTimeMs) {
+        mHandler.postDelayed(() -> mUserPreCreator.managePreCreatedUsers(), waitTimeMs);
     }
 
     // TODO(b/167698977): members below were copied from UserManagerService; it would be better to
