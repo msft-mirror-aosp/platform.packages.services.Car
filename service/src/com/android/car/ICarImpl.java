@@ -30,7 +30,6 @@ import android.car.CarFeatures;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.CarBuiltin;
-import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.BinderHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.TraceHelper;
@@ -249,14 +248,12 @@ public class ICarImpl extends ICar.Stub {
             int maxRunningUsers = UserManagerHelper.getMaxRunningUsers(serviceContext);
             mCarUserService = constructWithTrace(t, CarUserService.class,
                     () -> new CarUserService(serviceContext, mHal.getUserHal(), userManager,
-                            ActivityManagerHelper.getInstance(), maxRunningUsers,
-                            mCarUXRestrictionsService));
+                            maxRunningUsers, mCarUXRestrictionsService));
         }
         if (mFeatureController.isFeatureEnabled(Car.EXPERIMENTAL_CAR_USER_SERVICE)) {
             mExperimentalCarUserService = constructWithTrace(t, ExperimentalCarUserService.class,
                     () -> new ExperimentalCarUserService(serviceContext, mCarUserService,
-                            serviceContext.getSystemService(UserManager.class),
-                            ActivityManagerHelper.getInstance()));
+                            serviceContext.getSystemService(UserManager.class)));
         } else {
             mExperimentalCarUserService = null;
         }
@@ -745,7 +742,7 @@ public class ICarImpl extends ICar.Stub {
         writer.println("Android SDK_INT:" + Build.VERSION.SDK_INT);
         writer.println("Car API major:" + Car.API_VERSION_MAJOR_INT);
         writer.println("Car API minor:" + Car.API_VERSION_MINOR_INT);
-        writer.println("CarBuiltin API minor:" + CarBuiltin.API_VERSION_MINOR_INT);
+        writer.println("CarBuiltin API minor:" + CarBuiltin.PLATFORM_VERSION_MINOR_INT);
         writer.println("CarServiceBuiltin minor:"
                 + BuiltinPackageDependency.getBuiltinServiceMinorVersion(
                 mCarServiceBuiltinPackageContext));

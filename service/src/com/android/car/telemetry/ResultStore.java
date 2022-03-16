@@ -19,6 +19,7 @@ package com.android.car.telemetry;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
+import android.car.telemetry.TelemetryProto;
 import android.os.PersistableBundle;
 import android.util.ArrayMap;
 import android.util.AtomicFile;
@@ -29,6 +30,9 @@ import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -85,7 +89,7 @@ public class ResultStore {
 
     /**
      * Retrieves interim metrics for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     @Nullable
     public PersistableBundle getInterimResult(@NonNull String metricsConfigName) {
@@ -97,7 +101,7 @@ public class ResultStore {
 
     /**
      * Retrieves final metrics for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      *
      * @param metricsConfigName name of the MetricsConfig.
      * @param deleteResult      if true, the final result will be deleted from disk.
@@ -220,7 +224,7 @@ public class ResultStore {
 
     /**
      * Stores interim metrics results in memory for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     public void putInterimResult(
             @NonNull String metricsConfigName, @NonNull PersistableBundle result) {
@@ -229,7 +233,7 @@ public class ResultStore {
 
     /**
      * Stores final metrics in memory for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     public void putFinalResult(
             @NonNull String metricsConfigName, @NonNull PersistableBundle result) {
@@ -267,6 +271,25 @@ public class ResultStore {
         IoUtils.deleteAllSilently(mInterimResultDirectory);
         IoUtils.deleteAllSilently(mFinalResultDirectory);
         IoUtils.deleteAllSilently(mErrorResultDirectory);
+    }
+
+    /**
+     * Returns the names of MetricsConfigs whose script reached a terminal state.
+     */
+    public Set<String> getFinishedMetricsConfigNames() {
+        HashSet<String> configNames = new HashSet<>();
+        configNames.addAll(mFinalResultCache.keySet());
+        configNames.addAll(mErrorCache.keySet());
+        // prevent NPE
+        String[] fileNames = mFinalResultDirectory.list();
+        if (fileNames != null) {
+            configNames.addAll(Arrays.asList(fileNames));
+        }
+        fileNames = mErrorResultDirectory.list();
+        if (fileNames != null) {
+            configNames.addAll(Arrays.asList(fileNames));
+        }
+        return configNames;
     }
 
     /** Persists data to disk and deletes stale data. */

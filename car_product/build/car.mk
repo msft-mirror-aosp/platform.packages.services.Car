@@ -123,7 +123,14 @@ PRODUCT_SYSTEM_PROPERTIES += \
 # TODO(b/198516172): Find a better location to add this read only property
 # It is added here to check the functionality, will be updated in next CL
 PRODUCT_SYSTEM_PROPERTIES += \
-    ro.android.car.service.overlay.packages=com.android.car.resources.vendor;com.google.android.car.resources.vendor;
+    ro.android.car.carservice.overlay.packages=com.android.car.resources.vendor;com.google.android.car.resources.vendor;
+
+# vendor layer can override this
+PRODUCT_SYSTEM_PROPERTIES += \
+    ro.android.car.carservice.package?=com.android.car.updatable
+
+# Update with PLATFORM_VERSION_MINOR_INT update
+PRODUCT_SYSTEM_PROPERTIES += ro.android.car.version.platform_minor=0
 
 # Automotive specific packages
 PRODUCT_PACKAGES += \
@@ -244,7 +251,7 @@ PRODUCT_LOCALES := \
 PRODUCT_BOOT_JARS += \
     android.car.builtin
 
-USE_CAR_FRAMEWORK_APEX := true
+USE_CAR_FRAMEWORK_APEX ?= true
 
 ifeq ($(USE_CAR_FRAMEWORK_APEX),true)
     PRODUCT_PACKAGES += com.android.car.framework
@@ -256,6 +263,7 @@ ifeq ($(USE_CAR_FRAMEWORK_APEX),true)
     PRODUCT_HIDDENAPI_STUBS_SYSTEM := android.car-module.stubs.system
     PRODUCT_HIDDENAPI_STUBS_TEST := android.car-module.stubs.test
 else # !USE_CAR_FRAMEWORK_APEX
+    $(warning NOT using CarFramework APEX)
     PRODUCT_BOOT_JARS += android.car
     PRODUCT_PACKAGES += android.car CarServiceUpdatableNonModule car-frameworks-service-module
     PRODUCT_SYSTEM_SERVER_JARS += car-frameworks-service-module
