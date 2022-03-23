@@ -53,34 +53,28 @@ public final class CustomInputEventListener {
     public @interface EventAction {
 
         /** Launches Map action. */
-        int LAUNCH_MAPS_ACTION = 1001;
+        int LAUNCH_MAPS_ACTION = CustomInputEvent.INPUT_CODE_F1;
 
         /** Accepts incoming call action. */
-        int ACCEPT_INCOMING_CALL_ACTION = 1002;
+        int ACCEPT_INCOMING_CALL_ACTION = CustomInputEvent.INPUT_CODE_F2;
 
         /** Rejects incoming call action. */
-        int REJECT_INCOMING_CALL_ACTION = 1003;
+        int REJECT_INCOMING_CALL_ACTION = CustomInputEvent.INPUT_CODE_F3;
 
         /** Increases media volume action. */
-        int INCREASE_MEDIA_VOLUME_ACTION = 1004;
+        int INCREASE_MEDIA_VOLUME_ACTION = CustomInputEvent.INPUT_CODE_F4;
 
         /** Increases media volume action. */
-        int DECREASE_MEDIA_VOLUME_ACTION = 1005;
+        int DECREASE_MEDIA_VOLUME_ACTION = CustomInputEvent.INPUT_CODE_F5;
 
         /** Increases alarm volume action. */
-        int INCREASE_ALARM_VOLUME_ACTION = 1006;
+        int INCREASE_ALARM_VOLUME_ACTION = CustomInputEvent.INPUT_CODE_F6;
 
         /** Increases alarm volume action. */
-        int DECREASE_ALARM_VOLUME_ACTION = 1007;
+        int DECREASE_ALARM_VOLUME_ACTION = CustomInputEvent.INPUT_CODE_F7;
 
         /** Simulates the HOME button (re-injects the HOME KeyEvent against Car Input API. */
-        int BACK_HOME_ACTION = 1008;
-
-        /** Injects KEYCODE_VOICE_ASSIST (action down) key event */
-        int INJECT_VOICE_ASSIST_ACTION_DOWN = 1009;
-
-        /** Injects KEYCODE_VOICE_ASSIST (action up) key event */
-        int INJECT_VOICE_ASSIST_ACTION_UP = 1010;
+        int BACK_HOME_ACTION = CustomInputEvent.INPUT_CODE_F8;
     }
 
     public CustomInputEventListener(
@@ -124,14 +118,6 @@ public final class CustomInputEventListener {
                 break;
             case EventAction.BACK_HOME_ACTION:
                 launchHome(targetDisplayType);
-                break;
-            case EventAction.INJECT_VOICE_ASSIST_ACTION_DOWN:
-                injectKeyEvent(targetDisplayType,
-                        newKeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_VOICE_ASSIST));
-                break;
-            case EventAction.INJECT_VOICE_ASSIST_ACTION_UP:
-                injectKeyEvent(targetDisplayType,
-                        newKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_VOICE_ASSIST));
                 break;
             default:
                 Log.e(TAG, "Ignoring event [" + action + "]");
@@ -253,21 +239,13 @@ public final class CustomInputEventListener {
     }
 
     private void injectKeyEvent(int targetDisplayType, int keyCode) {
-        KeyEvent keyDown = newKeyEvent(KeyEvent.ACTION_DOWN, keyCode);
-        injectKeyEvent(targetDisplayType, keyDown);
-
-        KeyEvent keyUp = newKeyEvent(KeyEvent.ACTION_UP, keyCode);
-        injectKeyEvent(targetDisplayType, keyUp);
-    }
-
-    private KeyEvent newKeyEvent(int action, int keyCode) {
         long currentTime = SystemClock.uptimeMillis();
-        return new KeyEvent(/* downTime= */ currentTime, /* eventTime= */ currentTime,
-                action, keyCode, /* repeat= */ 0);
-    }
+        KeyEvent keyDown = new KeyEvent(/* downTime= */ currentTime, /* eventTime= */ currentTime,
+                KeyEvent.ACTION_DOWN, keyCode, /* repeat= */ 0);
+        mService.injectKeyEvent(keyDown, targetDisplayType);
 
-    private void injectKeyEvent(int targetDisplayType, KeyEvent event) {
-        mService.injectKeyEvent(event, targetDisplayType);
+        KeyEvent keyUp = new KeyEvent(/* downTime= */ currentTime, /* eventTime= */ currentTime,
+                KeyEvent.ACTION_UP, keyCode, /* repeat= */ 0);
+        mService.injectKeyEvent(keyUp, targetDisplayType);
     }
-
 }

@@ -198,9 +198,6 @@ Result<void> WatchdogPerfService::start() {
             mCurrCollectionEvent = EventType::TERMINATED;
             return Error() << "No data processor is registered";
         }
-        mUidStatsCollector->init();
-        mProcStat->init();
-        mProcDiskStats->init();
     }
 
     mCollectionThread = std::thread([&]() {
@@ -373,7 +370,7 @@ Result<void> WatchdogPerfService::onCustomCollection(int fd, const Vector<String
                             << kEndCustomCollectionFlag << " flags";
 }
 
-Result<void> WatchdogPerfService::onDump(int fd) const {
+Result<void> WatchdogPerfService::onDump(int fd) {
     Mutex::Autolock lock(mMutex);
     if (mCurrCollectionEvent == EventType::TERMINATED) {
         ALOGW("%s not active. Dumping cached data", kServiceName);
@@ -410,7 +407,7 @@ Result<void> WatchdogPerfService::onDump(int fd) const {
     return {};
 }
 
-bool WatchdogPerfService::dumpHelpText(int fd) const {
+bool WatchdogPerfService::dumpHelpText(int fd) {
     return WriteStringToFd(StringPrintf(kHelpText, kServiceName, kStartCustomCollectionFlag,
                                         kIntervalFlag,
                                         std::chrono::duration_cast<std::chrono::seconds>(
@@ -424,17 +421,24 @@ bool WatchdogPerfService::dumpHelpText(int fd) const {
                            fd);
 }
 
-Result<void> WatchdogPerfService::dumpCollectorsStatusLocked(int fd) const {
-    if (!mUidStatsCollector->enabled() &&
-        !WriteStringToFd(StringPrintf("UidStatsCollector failed to access proc and I/O files"),
+Result<void> WatchdogPerfService::dumpCollectorsStatusLocked(int fd) {
+    if (!mUidIoStats->enabled() &&
+        !WriteStringToFd(StringPrintf("UidIoStats collector failed to access the file %s",
+                                      mUidIoStats->filePath().c_str()),
                          fd)) {
-        return Error() << "Failed to write UidStatsCollector status";
+        return Error() << "Failed to write UidIoStats collector status";
     }
     if (!mProcStat->enabled() &&
         !WriteStringToFd(StringPrintf("ProcStat collector failed to access the file %s",
                                       mProcStat->filePath().c_str()),
                          fd)) {
         return Error() << "Failed to write ProcStat collector status";
+    }
+    if (!mProcPidStat->enabled() &&
+        !WriteStringToFd(StringPrintf("ProcPidStat collector failed to access the directory %s",
+                                      mProcPidStat->dirPath().c_str()),
+                         fd)) {
+        return Error() << "Failed to write ProcPidStat collector status";
     }
     return {};
 }
@@ -616,15 +620,15 @@ Result<void> WatchdogPerfService::processCollectionEvent(
 }
 
 Result<void> WatchdogPerfService::collectLocked(WatchdogPerfService::EventMetadata* metadata) {
-    if (!mUidStatsCollector->enabled() && !mProcStat->enabled()) {
+    if (!mUidIoStats->enabled() && !mProcStat->enabled() && !mProcPidStat->enabled()) {
         return Error() << "No collectors enabled";
     }
 
     time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 
-    if (mUidStatsCollector->enabled()) {
-        if (const auto result = mUidStatsCollector->collect(); !result.ok()) {
-            return Error() << "Failed to collect per-uid proc and I/O stats: " << result.error();
+    if (mUidIoStats->enabled()) {
+        if (const auto result = mUidIoStats->collect(); !result.ok()) {
+            return Error() << "Failed to collect per-uid I/O usage: " << result.error();
         }
     }
 
@@ -634,19 +638,25 @@ Result<void> WatchdogPerfService::collectLocked(WatchdogPerfService::EventMetada
         }
     }
 
+    if (mProcPidStat->enabled()) {
+        if (const auto result = mProcPidStat->collect(); !result.ok()) {
+            return Error() << "Failed to collect process stats: " << result.error();
+        }
+    }
+
     for (const auto& processor : mDataProcessors) {
         Result<void> result;
         switch (mCurrCollectionEvent) {
             case EventType::BOOT_TIME_COLLECTION:
-                result = processor->onBoottimeCollection(now, mUidStatsCollector, mProcStat);
+                result = processor->onBoottimeCollection(now, mUidIoStats, mProcStat, mProcPidStat);
                 break;
             case EventType::PERIODIC_COLLECTION:
-                result = processor->onPeriodicCollection(now, mSystemState, mUidStatsCollector,
-                                                         mProcStat);
+                result = processor->onPeriodicCollection(now, mSystemState, mUidIoStats, mProcStat,
+                                                         mProcPidStat);
                 break;
             case EventType::CUSTOM_COLLECTION:
                 result = processor->onCustomCollection(now, mSystemState, metadata->filterPackages,
-                                                       mUidStatsCollector, mProcStat);
+                                                       mUidIoStats, mProcStat, mProcPidStat);
                 break;
             default:
                 result = Error() << "Invalid collection event " << toString(mCurrCollectionEvent);

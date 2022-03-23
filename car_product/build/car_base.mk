@@ -42,6 +42,7 @@ PRODUCT_PACKAGES += \
     Keyguard \
     LatinIME \
     Launcher2 \
+    ManagedProvisioning \
     PacProcessor \
     PrintSpooler \
     ProxyHandler \
@@ -60,7 +61,6 @@ PRODUCT_PACKAGES += \
     A2dpSinkService \
     PackageInstaller \
     carbugreportd \
-    vehicle_binding_util \
 
 # ENABLE_CAMERA_SERVICE must be set as true from the product's makefile if it wants to support
 # Android Camera service.
@@ -69,20 +69,21 @@ PRODUCT_PROPERTY_OVERRIDES += config.disable_cameraservice=true
 endif
 
 # EVS service
-PRODUCT_PACKAGES += evsmanagerd
+include packages/services/Car/cpp/evs/manager/evsmanager.mk
 
 ifeq ($(ENABLE_EVS_SAMPLE), true)
 # ENABLE_EVS_SAMPLE should set be true or their vendor specific equivalents should be included in
 # the device.mk with the corresponding selinux policies
-LOCAL_EVS_PROPERTIES ?= persist.automotive.evs.mode=0
-PRODUCT_PRODUCT_PROPERTIES += $(LOCAL_EVS_PROPERTIES)
+PRODUCT_PRODUCT_PROPERTIES += persist.automotive.evs.mode=0
 PRODUCT_PACKAGES += evs_app \
-                    android.hardware.automotive.evs-default \
+                    android.hardware.automotive.evs@1.1-sample \
                     android.frameworks.automotive.display@1.0-service
 include packages/services/Car/cpp/evs/apps/sepolicy/evsapp.mk
+include packages/services/Car/cpp/evs/sampleDriver/sepolicy/evsdriver.mk
 endif
 ifeq ($(ENABLE_CAREVSSERVICE_SAMPLE), true)
-PRODUCT_PACKAGES += CarEvsCameraPreviewApp
+PRODUCT_PACKAGES += CarEvsCameraPreviewApp \
+                    CarSystemUIEvsRRO
 endif
 ifeq ($(ENABLE_REAR_VIEW_CAMERA_SAMPLE), true)
 PRODUCT_PACKAGES += SampleRearViewCamera
@@ -101,19 +102,12 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/core_minimal.mk)
 
 # Default dex optimization configurations
 PRODUCT_PROPERTY_OVERRIDES += \
-    pm.dexopt.disable_bg_dexopt=false \
-    pm.dexopt.downgrade_after_inactive_days=10 \
-    dalvik.vm.dex2oat-cpu-set=0,1,2,3 \
-    dalvik.vm.dex2oat-threads=4
+     pm.dexopt.disable_bg_dexopt=true
 
 # Required init rc files for car
 PRODUCT_COPY_FILES += \
     packages/services/Car/car_product/init/init.bootstat.rc:system/etc/init/init.bootstat.car.rc \
     packages/services/Car/car_product/init/init.car.rc:system/etc/init/init.car.rc
-
-# Device policy management support
-PRODUCT_COPY_FILES += \
-    frameworks/native/data/etc/android.software.device_admin.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.device_admin.xml
 
 # Enable car watchdog
 include packages/services/Car/cpp/watchdog/product/carwatchdog.mk

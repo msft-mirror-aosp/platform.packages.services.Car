@@ -15,9 +15,7 @@
  */
 package android.car.cluster.renderer;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEPRECATED_CODE;
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static android.content.PermissionChecker.PERMISSION_GRANTED;
 
 import android.annotation.CallSuper;
 import android.annotation.MainThread;
@@ -25,18 +23,15 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.Service;
 import android.car.Car;
 import android.car.CarLibLog;
-import android.car.annotation.AddedInOrBefore;
 import android.car.cluster.ClusterActivityState;
 import android.car.navigation.CarNavigationInstrumentCluster;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.content.pm.ResolveInfo;
@@ -54,7 +49,6 @@ import android.util.Log;
 import android.util.LruCache;
 import android.view.KeyEvent;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.internal.annotations.GuardedBy;
 
 import java.io.FileDescriptor;
@@ -149,7 +143,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
         }
 
         @Override
-        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public String toString() {
             return "{uid: " + mUid + ", pid: " + mPid + ", packagenames: " + mPackageNames
                     + ", authorities: " + mAuthorities + "}";
@@ -159,7 +152,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
                 String packageName) {
             try {
                 ProviderInfo[] providers = packageManager.getPackageInfo(packageName,
-                        PackageManager.GET_PROVIDERS | PackageManager.MATCH_ANY_USER).providers;
+                        PackageManager.GET_PROVIDERS).providers;
                 if (providers == null) {
                     return Collections.emptyList();
                 }
@@ -176,7 +169,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
 
     @Override
     @CallSuper
-    @AddedInOrBefore(majorVersion = 33)
     public IBinder onBind(Intent intent) {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
             Log.d(TAG, "onBind, intent: " + intent);
@@ -207,7 +199,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      */
     @MainThread
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public abstract NavigationRenderer getNavigationRenderer();
 
     /**
@@ -222,7 +213,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * its {@link Car#CATEGORY_NAVIGATION} activity is launched.
      */
     @MainThread
-    @AddedInOrBefore(majorVersion = 33)
     public void onNavigationComponentLaunched() {
     }
 
@@ -232,7 +222,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * system default.
      */
     @MainThread
-    @AddedInOrBefore(majorVersion = 33)
     public void onNavigationComponentReleased() {
     }
 
@@ -268,7 +257,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      *         successfully launched, car service will guarantee that it is running across crash or
      *         other events.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean startFixedActivityModeForDisplayAndUser(@NonNull Intent intent,
             @NonNull ActivityOptions options, @UserIdInt int userId) {
         IInstrumentClusterHelper helper = getClusterHelper();
@@ -295,7 +283,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * Stop fixed mode for top Activity in the display. Crashing or launching other Activity
      * will not re-launch the top Activity any more.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void stopFixedActivityMode(int displayId) {
         IInstrumentClusterHelper helper = getClusterHelper();
         if (helper == null) {
@@ -383,21 +370,13 @@ public abstract class InstrumentClusterRenderingService extends Service {
         }
     }
 
-    /**
-     * Returns the cluster activity from the application given by its package name.
-     *
-     * @return the {@link ComponentName} of the cluster activity, or null if the given application
-     * doesn't have a cluster activity.
-     *
-     * @hide
-     */
     @Nullable
-    public ComponentName getComponentFromPackage(@NonNull String packageName) {
+    private ComponentName getComponentFromPackage(@NonNull String packageName) {
         PackageManager packageManager = getPackageManager();
 
         // Check package permission.
         if (packageManager.checkPermission(Car.PERMISSION_CAR_DISPLAY_IN_CLUSTER, packageName)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PERMISSION_GRANTED) {
             Log.i(TAG, String.format("Package '%s' doesn't have permission %s", packageName,
                     Car.PERMISSION_CAR_DISPLAY_IN_CLUSTER));
             return null;
@@ -406,18 +385,16 @@ public abstract class InstrumentClusterRenderingService extends Service {
         Intent intent = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Car.CAR_CATEGORY_NAVIGATION)
                 .setPackage(packageName);
-        List<ResolveInfo> resolveList = packageManager.queryIntentActivitiesAsUser(
-                intent, PackageManager.GET_RESOLVED_FILTER,
-                UserHandle.of(ActivityManager.getCurrentUser()));
+        List<ResolveInfo> resolveList = packageManager.queryIntentActivities(intent,
+                PackageManager.GET_RESOLVED_FILTER);
         if (resolveList == null || resolveList.isEmpty()
-                || resolveList.get(0).activityInfo == null) {
+                || resolveList.get(0).getComponentInfo() == null) {
             Log.i(TAG, "Failed to resolve an intent: " + intent);
             return null;
         }
 
         // In case of multiple matching activities in the same package, we pick the first one.
-        ActivityInfo info = resolveList.get(0).activityInfo;
-        return new ComponentName(info.packageName, info.name);
+        return resolveList.get(0).getComponentInfo().getComponentName();
     }
 
     /**
@@ -425,7 +402,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      *
      * @return false if the activity couldn't be started.
      */
-    @AddedInOrBefore(majorVersion = 33)
     protected boolean startNavigationActivity(@NonNull ComponentName component) {
         // Create an explicit intent.
         Intent intent = new Intent();
@@ -434,7 +410,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startFixedActivityModeForDisplayAndUser(intent, mActivityOptions,
-                    ActivityManager.getCurrentUser());
+                    UserHandle.CURRENT.getIdentifier());
             Log.i(TAG, String.format("Activity launched: %s (options: %s, displayId: %d)",
                     mActivityOptions, intent, mActivityOptions.getLaunchDisplayId()));
         } catch (ActivityNotFoundException e) {
@@ -454,7 +430,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * @deprecated Use {@link #setClusterActivityLaunchOptions(ActivityOptions)} instead.
      */
     @Deprecated
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
     public void setClusterActivityLaunchOptions(String category, ActivityOptions activityOptions) {
         setClusterActivityLaunchOptions(activityOptions);
     }
@@ -477,7 +452,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * @deprecated Use {@link #setClusterActivityState(ClusterActivityState)} instead.
      */
     @Deprecated
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
     public void setClusterActivityState(String category, Bundle state) {
         setClusterActivityState(ClusterActivityState.fromBundle(state));
     }
@@ -496,7 +470,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
 
     @CallSuper
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
         synchronized (mLock) {
             writer.println("**" + getClass().getSimpleName() + "**");
@@ -610,8 +583,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      */
     @Deprecated
     @Nullable
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public Bitmap getBitmap(Uri uri) {
         try {
             if (uri.getQueryParameter(BITMAP_QUERY_WIDTH).isEmpty() || uri.getQueryParameter(
@@ -636,7 +607,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
 
             // Add user to URI to make the request to the right instance of content provider
             // (see ContentProvider#getUserIdFromAuthority()).
-            int userId = UserHandle.getUserHandleForUid(contextOwner.mUid).getIdentifier();
+            int userId = UserHandle.getUserId(contextOwner.mUid);
             Uri filteredUid = uri.buildUpon().encodedAuthority(userId + "@" + host).build();
 
             // Fetch the bitmap
@@ -663,7 +634,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * See {@link #getBitmap(Uri, int, int, float)}
      */
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public Bitmap getBitmap(@NonNull Uri uri, int width, int height) {
         return getBitmap(uri, width, height, 1f);
     }
@@ -686,7 +656,6 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * @throws IllegalArgumentException if width, height <= 0, or 0 > offLanesAlpha > 1
      */
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public Bitmap getBitmap(@NonNull Uri uri, int width, int height, float offLanesAlpha) {
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("Width and height must be > 0");
@@ -718,7 +687,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
 
             // Add user to URI to make the request to the right instance of content provider
             // (see ContentProvider#getUserIdFromAuthority()).
-            int userId = UserHandle.getUserHandleForUid(contextOwner.mUid).getIdentifier();
+            int userId = UserHandle.getUserId(contextOwner.mUid);
             Uri filteredUid = uri.buildUpon().encodedAuthority(userId + "@" + host).build();
 
             Bitmap bitmap = mCache.get(uri.toString());

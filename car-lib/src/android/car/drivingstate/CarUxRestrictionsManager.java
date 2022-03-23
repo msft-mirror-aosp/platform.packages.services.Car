@@ -21,10 +21,10 @@ import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
-import android.car.builtin.content.ContextHelper;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.IRemoteCallback;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
@@ -55,14 +55,11 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      */
     public static final String UX_RESTRICTION_MODE_BASELINE = "baseline";
 
-    private final Object mLock = new Object();
-
     private int mDisplayId = Display.INVALID_DISPLAY;
     private final ICarUxRestrictionsManager mUxRService;
     private final EventCallbackHandler mEventCallbackHandler;
-    @GuardedBy("mLock")
+    @GuardedBy("this")
     private OnUxRestrictionsChangedListener mUxRListener;
-    @GuardedBy("mLock")
     private CarUxRestrictionsChangeListenerToService mListenerToService;
 
     /** @hide */
@@ -76,8 +73,8 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
     /** @hide */
     @Override
     public void onCarDisconnected() {
-        synchronized (mLock) {
-            mListenerToService = null;
+        mListenerToService = null;
+        synchronized (this) {
             mUxRListener = null;
         }
     }
@@ -112,8 +109,7 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      * @hide
      */
     public void registerListener(@NonNull OnUxRestrictionsChangedListener listener, int displayId) {
-        CarUxRestrictionsChangeListenerToService serviceListener;
-        synchronized (mLock) {
+        synchronized (this) {
             // Check if the listener has been already registered.
             if (mUxRListener != null) {
                 if (DBG) {
@@ -122,15 +118,14 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
                 return;
             }
             mUxRListener = listener;
-            if (mListenerToService == null) {
-                mListenerToService = new CarUxRestrictionsChangeListenerToService(this);
-            }
-            serviceListener = mListenerToService;
         }
 
         try {
+            if (mListenerToService == null) {
+                mListenerToService = new CarUxRestrictionsChangeListenerToService(this);
+            }
             // register to the Service to listen for changes.
-            mUxRService.registerUxRestrictionsChangeListener(serviceListener, displayId);
+            mUxRService.registerUxRestrictionsChangeListener(mListenerToService, displayId);
         } catch (RemoteException e) {
             handleRemoteExceptionFromCarService(e);
         }
@@ -139,10 +134,8 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
     /**
      * Unregisters the registered {@link OnUxRestrictionsChangedListener}
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterListener() {
-        CarUxRestrictionsChangeListenerToService serviceListener;
-        synchronized (mLock) {
+        synchronized (this) {
             if (mUxRListener == null) {
                 if (DBG) {
                     Log.d(TAG, "Listener was not previously registered");
@@ -150,12 +143,9 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
                 return;
             }
             mUxRListener = null;
-            serviceListener = mListenerToService;
         }
         try {
-            if (serviceListener != null) {
-                mUxRService.unregisterUxRestrictionsChangeListener(serviceListener);
-            }
+            mUxRService.unregisterUxRestrictionsChangeListener(mListenerToService);
         } catch (RemoteException e) {
             handleRemoteExceptionFromCarService(e);
         }
@@ -371,12 +361,10 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
         if (restrictionInfo == null) {
             return;
         }
-        OnUxRestrictionsChangedListener listener;
-        synchronized (mLock) {
-            listener = mUxRListener;
-        }
-        if (listener != null) {
-            listener.onUxRestrictionsChanged(restrictionInfo);
+        synchronized (this) {
+            if (mUxRListener != null) {
+                mUxRListener.onUxRestrictionsChanged(restrictionInfo);
+            }
         }
     }
 
@@ -385,7 +373,7 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
             return mDisplayId;
         }
 
-        mDisplayId = ContextHelper.getDisplayId(getContext());
+        mDisplayId = getContext().getDisplayId();
         Log.i(TAG, "Context returns display ID " + mDisplayId);
 
         if (mDisplayId == Display.INVALID_DISPLAY) {
@@ -394,5 +382,48 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
         }
 
         return mDisplayId;
+    }
+
+    // Placeholder Callback to identify the requester of reportVirtualDisplayToPhysicalDisplay() and
+    // to clean up the internal data when the requester is crashed.
+    private final IRemoteCallback mRequester = new IRemoteCallback.Stub() {
+        @Override
+        public void sendResult(Bundle data) {
+            // Unused
+        }
+    };
+
+    /**
+     * Reports the mapping the virtual display to the physical display.
+     *
+     * @param virtualDisplayId the display id of the embedded virtual display.
+     * @parom physicalDisplayId the display id where the ActivityView is placed in.
+     * @hide
+     */
+    public void reportVirtualDisplayToPhysicalDisplay(int virtualDisplayId, int physicalDisplayId) {
+        try {
+            mUxRService.reportVirtualDisplayToPhysicalDisplay(mRequester,
+                    virtualDisplayId, physicalDisplayId);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
+    }
+
+    /**
+     * Finds out the physical display id where ActivityView is actually located in.
+     * If the given ActivityView is placed inside of another ActivityView, then it will return
+     * the display id where the parent ActivityView is located in.
+     *
+     * @param displayId the display id of the embedded virtual display of ActivityView.
+     * @return the physical display id where ActivityView is actually located in.
+     * @hide
+     */
+    public int getMappedPhysicalDisplayOfVirtualDisplay(int displayId) {
+        try {
+            return mUxRService.getMappedPhysicalDisplayOfVirtualDisplay(displayId);
+        } catch (RemoteException e) {
+            // When CarService isn't ready, we'll return DEFAULT_DISPLAY defensively.
+            return handleRemoteExceptionFromCarService(e, Display.DEFAULT_DISPLAY);
+        }
     }
 }

@@ -20,6 +20,7 @@ import android.car.storagemonitoring.IoStatsEntry;
 import android.car.storagemonitoring.UidIoRecord;
 import android.util.SparseArray;
 
+import com.android.car.SparseArrayStream;
 import com.android.car.procfsinspector.ProcessInfo;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.internal.annotations.GuardedBy;
@@ -27,11 +28,6 @@ import com.android.internal.annotations.GuardedBy;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * @deprecated use {@link com.android.car.watchdog.CarWatchdogService} and its related classes
- * for I/O related tasks.
- */
-@Deprecated
 public class IoStatsTracker {
 
     // NOTE: this class is not thread safe
@@ -59,10 +55,7 @@ public class IoStatsTracker {
     public IoStatsTracker(List<IoStatsEntry> initialValue,
             long sampleWindowMs, SystemStateInterface systemStateInterface) {
         mTotal = new SparseArray<>(initialValue.size());
-        for (int i = 0; i < initialValue.size(); i++) {
-            IoStatsEntry uidIoStats = initialValue.get(i);
-            mTotal.append(uidIoStats.uid, uidIoStats);
-        }
+        initialValue.forEach(uidIoStats -> mTotal.append(uidIoStats.uid, uidIoStats));
         mCurrentSample = mTotal.clone();
         mSampleWindowMs = sampleWindowMs;
         mSystemStateInterface = systemStateInterface;
@@ -84,8 +77,7 @@ public class IoStatsTracker {
 
         synchronized (mLock) {
             // prepare the new values
-            for (int i = 0; i < newMetrics.size(); i++) {
-                UidIoRecord newRecord = newMetrics.valueAt(i);
+            SparseArrayStream.valueStream(newMetrics).forEach(newRecord -> {
                 final int uid = newRecord.uid;
                 final IoStatsEntry oldRecord = mTotal.get(uid);
 
@@ -122,7 +114,7 @@ public class IoStatsTracker {
                     // if oldRecord were null, newStats would be != null and we wouldn't be here
                     newTotal.append(uid, oldRecord);
                 }
-            }
+            });
 
             // now update the stored values
             mCurrentSample = newSample;

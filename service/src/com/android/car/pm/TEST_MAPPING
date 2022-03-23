@@ -15,19 +15,10 @@
       "name": "CarServiceUnitTest",
       "options" : [
         {
-          "include-filter": "com.android.car.pm.CarPackageManagerServiceUnitTest"
-        },
-        {
           "include-filter": "com.android.car.pm.VendorServiceControllerTest"
         },
         {
           "include-filter": "com.android.car.pm.VendorServiceInfoTest"
-        },
-        {
-          "include-filter": "com.android.car.pm.CarSafetyAccessibilityServiceTest"
-        },
-        {
-          "include-filter": "com.android.car.pm.WindowDumpParserTest"
         }
       ]
     },

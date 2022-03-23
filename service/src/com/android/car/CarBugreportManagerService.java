@@ -19,31 +19,28 @@ package com.android.car;
 import static android.car.CarBugreportManager.CarBugreportManagerCallback.CAR_BUGREPORT_DUMPSTATE_CONNECTION_FAILED;
 import static android.car.CarBugreportManager.CarBugreportManagerCallback.CAR_BUGREPORT_DUMPSTATE_FAILED;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.car.CarBugreportManager.CarBugreportManagerCallback;
 import android.car.ICarBugreportCallback;
 import android.car.ICarBugreportService;
-import android.car.builtin.os.BuildHelper;
-import android.car.builtin.os.SystemPropertiesHelper;
-import android.car.builtin.util.Slogf;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.os.SystemProperties;
+import android.util.IndentingPrintWriter;
+import android.util.Slog;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -106,7 +103,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
      */
     public CarBugreportManagerService(Context context) {
         // Per https://source.android.com/setup/develop/new-device, user builds are debuggable=0
-        this(context, !BuildHelper.isDebuggableBuild());
+        this(context, !Build.IS_DEBUGGABLE);
     }
 
     @VisibleForTesting
@@ -135,7 +132,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
         ensureTheCallerIsDesignatedBugReportApp();
         synchronized (mLock) {
             if (mIsServiceRunning.getAndSet(true)) {
-                Slogf.w(TAG, "Bugreport Service already running");
+                Slog.w(TAG, "Bugreport Service already running");
                 reportError(callback, CarBugreportManagerCallback.CAR_BUGREPORT_IN_PROGRESS);
                 return;
             }
@@ -152,25 +149,25 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
         ensureTheCallerIsDesignatedBugReportApp();
         synchronized (mLock) {
             if (!mIsServiceRunning.getAndSet(false)) {
-                Slogf.i(TAG, "Ignoring cancelBugreport. Service is not running.");
+                Slog.i(TAG, "Failed to cancel. Service is not running.");
                 return;
             }
-            Slogf.i(TAG, "Cancelling the running bugreport");
+            Slog.i(TAG, "Cancelling the running bugreport");
             mHandler.removeCallbacksAndMessages(/* token= */ null);
             // This tells init to cancel the services. Note that this is achieved through
             // setting a system property which is not thread-safe. So the lock here offers
             // thread-safety only among callers of the API.
             try {
-                SystemPropertiesHelper.set("ctl.stop", BUGREPORTD_SERVICE);
+                SystemProperties.set("ctl.stop", BUGREPORTD_SERVICE);
             } catch (RuntimeException e) {
-                Slogf.e(TAG, "Failed to stop " + BUGREPORTD_SERVICE, e);
+                Slog.e(TAG, "Failed to stop " + BUGREPORTD_SERVICE, e);
             }
             try {
                 // Stop DUMPSTATEZ_SERVICE service too, because stopping BUGREPORTD_SERVICE doesn't
                 // guarantee stopping DUMPSTATEZ_SERVICE.
-                SystemPropertiesHelper.set("ctl.stop", DUMPSTATEZ_SERVICE);
+                SystemProperties.set("ctl.stop", DUMPSTATEZ_SERVICE);
             } catch (RuntimeException e) {
-                Slogf.e(TAG, "Failed to stop " + DUMPSTATEZ_SERVICE, e);
+                Slog.e(TAG, "Failed to stop " + DUMPSTATEZ_SERVICE, e);
             }
             if (mIsDumpstateDryRun) {
                 setDumpstateDryRun(false);
@@ -181,9 +178,9 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
     /** See {@code dumpstate} docs to learn about dry_run. */
     private void setDumpstateDryRun(boolean dryRun) {
         try {
-            SystemPropertiesHelper.set("dumpstate.dry_run", dryRun ? "true" : null);
+            SystemProperties.set("dumpstate.dry_run", dryRun ? "true" : null);
         } catch (RuntimeException e) {
-            Slogf.e(TAG, "Failed to set dumpstate.dry_run", e);
+            Slog.e(TAG, "Failed to set dumpstate.dry_run", e);
         }
     }
 
@@ -222,7 +219,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
             ParcelFileDescriptor extraOutput,
             ICarBugreportCallback callback,
             boolean dumpstateDryRun) {
-        Slogf.i(TAG, "Starting " + BUGREPORTD_SERVICE);
+        Slog.i(TAG, "Starting " + BUGREPORTD_SERVICE);
         mIsDumpstateDryRun = dumpstateDryRun;
         if (mIsDumpstateDryRun) {
             setDumpstateDryRun(true);
@@ -231,10 +228,10 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
             // This tells init to start the service. Note that this is achieved through
             // setting a system property which is not thread-safe. So the lock here offers
             // thread-safety only among callers of the API.
-            SystemPropertiesHelper.set("ctl.start", BUGREPORTD_SERVICE);
+            SystemProperties.set("ctl.start", BUGREPORTD_SERVICE);
         } catch (RuntimeException e) {
             mIsServiceRunning.set(false);
-            Slogf.e(TAG, "Failed to start " + BUGREPORTD_SERVICE, e);
+            Slog.e(TAG, "Failed to start " + BUGREPORTD_SERVICE, e);
             reportError(callback, CAR_BUGREPORT_DUMPSTATE_FAILED);
             return;
         }
@@ -254,7 +251,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
         String progressOverTotal = line.substring(PROGRESS_PREFIX.length());
         String[] parts = progressOverTotal.split("/");
         if (parts.length != 2) {
-            Slogf.w(TAG, "Invalid progress line from bugreportz: " + line);
+            Slog.w(TAG, "Invalid progress line from bugreportz: " + line);
             return;
         }
         float progress;
@@ -263,23 +260,23 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
             progress = Float.parseFloat(parts[0]);
             total = Float.parseFloat(parts[1]);
         } catch (NumberFormatException e) {
-            Slogf.w(TAG, "Invalid progress value: " + line, e);
+            Slog.w(TAG, "Invalid progress value: " + line, e);
             return;
         }
         if (total == 0) {
-            Slogf.w(TAG, "Invalid progress total value: " + line);
+            Slog.w(TAG, "Invalid progress total value: " + line);
             return;
         }
         try {
             callback.onProgress(100f * progress / total);
         } catch (RemoteException e) {
-            Slogf.e(TAG, "Failed to call onProgress callback", e);
+            Slog.e(TAG, "Failed to call onProgress callback", e);
         }
     }
 
     private void handleFinished(ParcelFileDescriptor output, ParcelFileDescriptor extraOutput,
             ICarBugreportCallback callback) {
-        Slogf.i(TAG, "Finished reading bugreport");
+        Slog.i(TAG, "Finished reading bugreport");
         // copysockettopfd calls callback.onError on error
         if (!copySocketToPfd(output, BUGREPORT_OUTPUT_SOCKET, callback)) {
             return;
@@ -290,7 +287,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
         try {
             callback.onFinished();
         } catch (RemoteException e) {
-            Slogf.e(TAG, "Failed to call onFinished callback", e);
+            Slog.e(TAG, "Failed to call onFinished callback", e);
         }
     }
 
@@ -317,20 +314,20 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
                     handleProgress(line, callback);
                 } else if (line.startsWith(FAIL_PREFIX)) {
                     String errorMessage = line.substring(FAIL_PREFIX.length());
-                    Slogf.e(TAG, "Failed to dumpstate: " + errorMessage);
+                    Slog.e(TAG, "Failed to dumpstate: " + errorMessage);
                     reportError(callback, CAR_BUGREPORT_DUMPSTATE_FAILED);
                     return;
                 } else if (line.startsWith(OK_PREFIX)) {
                     handleFinished(output, extraOutput, callback);
                     return;
                 } else if (!line.startsWith(BEGIN_PREFIX)) {
-                    Slogf.w(TAG, "Received unknown progress line from dumpstate: " + line);
+                    Slog.w(TAG, "Received unknown progress line from dumpstate: " + line);
                 }
             }
-            Slogf.e(TAG, "dumpstate progress unexpectedly ended");
+            Slog.e(TAG, "dumpstate progress unexpectedly ended");
             reportError(callback, CAR_BUGREPORT_DUMPSTATE_FAILED);
         } catch (IOException | RuntimeException e) {
-            Slogf.i(TAG, "Failed to read from progress socket", e);
+            Slog.i(TAG, "Failed to read from progress socket", e);
             reportError(callback, CAR_BUGREPORT_DUMPSTATE_CONNECTION_FAILED);
         }
     }
@@ -350,7 +347,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
         ) {
             rawCopyStream(out, in);
         } catch (IOException | RuntimeException e) {
-            Slogf.e(TAG, "Failed to grab dump state from " + BUGREPORT_OUTPUT_SOCKET, e);
+            Slog.e(TAG, "Failed to grab dump state from " + BUGREPORT_OUTPUT_SOCKET, e);
             reportError(callback, CAR_BUGREPORT_DUMPSTATE_FAILED);
             return false;
         }
@@ -361,12 +358,11 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
         try {
             callback.onError(errorCode);
         } catch (RemoteException e) {
-            Slogf.e(TAG, "onError() failed", e);
+            Slog.e(TAG, "onError() failed", e);
         }
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         // TODO(sgurun) implement
     }
@@ -391,7 +387,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
             // mIsServiceRunning becomes false.
             for (int i = 0; i < SOCKET_CONNECTION_RETRY_DELAY_IN_MS / 50; i++) {
                 if (!mIsServiceRunning.get()) {
-                    Slogf.i(TAG, "Failed to connect to socket " + socketName
+                    Slog.i(TAG, "Failed to connect to socket " + socketName
                             + ". The service is prematurely cancelled.");
                     return null;
                 }
@@ -404,11 +400,11 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
                 return socket;
             } catch (IOException e) {
                 if (++retryCount >= SOCKET_CONNECTION_MAX_RETRY) {
-                    Slogf.i(TAG, "Failed to connect to dumpstate socket " + socketName
+                    Slog.i(TAG, "Failed to connect to dumpstate socket " + socketName
                             + " after " + retryCount + " retries", e);
                     return null;
                 }
-                Slogf.i(TAG, "Failed to connect to " + socketName + ". Will try again. "
+                Slog.i(TAG, "Failed to connect to " + socketName + ". Will try again. "
                         + e.getMessage());
             }
         }

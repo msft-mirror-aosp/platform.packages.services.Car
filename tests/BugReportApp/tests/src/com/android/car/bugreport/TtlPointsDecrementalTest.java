@@ -16,7 +16,6 @@
 package com.android.car.bugreport;
 
 import static com.android.car.bugreport.Status.STATUS_PENDING_USER_ACTION;
-import static com.android.car.bugreport.Status.STATUS_UPLOADED_BEFORE;
 import static com.android.car.bugreport.Status.STATUS_UPLOAD_FAILED;
 import static com.android.car.bugreport.Status.STATUS_UPLOAD_PENDING;
 import static com.android.car.bugreport.Status.STATUS_WRITE_PENDING;
@@ -78,8 +77,6 @@ public class TtlPointsDecrementalTest {
                 STATUS_UPLOAD_FAILED, /* ttl_points= */ 2);
         MetaBugReport bugUploadWritePending = createBugReport(TIMESTAMP_TODAY,
                 STATUS_WRITE_PENDING, /* ttl_points= */ 2);
-        MetaBugReport bugUploadedBefore = createBugReport(TIMESTAMP_TODAY,
-                STATUS_UPLOADED_BEFORE, /* ttl_points= */ 2);
 
         mSubject.run();
 
@@ -93,8 +90,6 @@ public class TtlPointsDecrementalTest {
         assertThat(find(bugUploadFailed)).isEqualTo(
                 bugUploadFailed.toBuilder().setTtlPoints(1).build());
         assertThat(find(bugUploadWritePending)).isEqualTo(bugUploadWritePending);
-        assertThat(find(bugUploadedBefore)).isEqualTo(
-                bugUploadedBefore.toBuilder().setTtlPoints(1).build());
         verify(mFinishedCallback).run();
     }
 
@@ -109,7 +104,7 @@ public class TtlPointsDecrementalTest {
         values.put(BugStorageProvider.COLUMN_TIMESTAMP, timestamp);
         values.put(BugStorageProvider.COLUMN_STATUS, status.getValue());
         values.put(BugStorageProvider.COLUMN_STATUS_MESSAGE, "");
-        values.put(BugStorageProvider.COLUMN_TYPE, MetaBugReport.TYPE_AUDIO_LATER);
+        values.put(BugStorageProvider.COLUMN_TYPE, MetaBugReport.TYPE_SILENT);
         if (ttlPoints != USE_DEFAULT_TTL_POINTS) {
             values.put(BugStorageProvider.COLUMN_TTL_POINTS, ttlPoints);
         }
