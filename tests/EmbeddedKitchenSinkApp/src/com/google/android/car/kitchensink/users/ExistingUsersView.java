@@ -63,8 +63,7 @@ public final class ExistingUsersView extends LinearLayout {
     }
 
     public void updateState() {
-        List<UserInfo> users = mUserManager.getUsers(/*excludePartial= */ false,
-                /* excludeDying= */ false, /* excludePreCreated= */ false);
+        List<UserInfo> users = mUserManager.getAliveUsers();
         mNumberUsers.setText(users.size() + " existing users");
         mExistingUsers.init(users);
         updateUser(mExistingUsers.getSelectedUser());

@@ -42,7 +42,7 @@ std::string toString(const ProcStatInfo& info) {
                         cpuStats.userTime, cpuStats.niceTime, cpuStats.sysTime, cpuStats.idleTime,
                         cpuStats.ioWaitTime, cpuStats.irqTime, cpuStats.softIrqTime,
                         cpuStats.stealTime, cpuStats.guestTime, cpuStats.guestNiceTime,
-                        info.runnableProcessCount, info.ioBlockedProcessCount);
+                        info.runnableProcessesCnt, info.ioBlockedProcessesCnt);
 }
 
 }  // namespace
@@ -56,9 +56,8 @@ TEST(ProcStatTest, TestValidStatFile) {
             "cpu3 1000 20 190 650 109 130 140 0 0 0\n"
             "intr 694351583 0 0 0 297062868 0 5922464 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
             "0 0\n"
-            /* Skipped most of the intr line as it is not important for testing the ProcStat parsing
-             * logic.
-             */
+            // Skipped most of the intr line as it is not important for testing the ProcStat parsing
+            // logic.
             "ctxt 579020168\n"
             "btime 1579718450\n"
             "processes 113804\n"
@@ -78,16 +77,14 @@ TEST(ProcStatTest, TestValidStatFile) {
             .guestTime = 0,
             .guestNiceTime = 0,
     };
-    expectedFirstDelta.runnableProcessCount = 17;
-    expectedFirstDelta.ioBlockedProcessCount = 5;
+    expectedFirstDelta.runnableProcessesCnt = 17;
+    expectedFirstDelta.ioBlockedProcessesCnt = 5;
 
     TemporaryFile tf;
     ASSERT_NE(tf.fd, -1);
     ASSERT_TRUE(WriteStringToFile(firstSnapshot, tf.path));
 
     ProcStat procStat(tf.path);
-    procStat.init();
-
     ASSERT_TRUE(procStat.enabled()) << "Temporary file is inaccessible";
     ASSERT_RESULT_OK(procStat.collect());
 
@@ -123,8 +120,8 @@ TEST(ProcStatTest, TestValidStatFile) {
             .guestTime = 0,
             .guestNiceTime = 0,
     };
-    expectedSecondDelta.runnableProcessCount = 10;
-    expectedSecondDelta.ioBlockedProcessCount = 2;
+    expectedSecondDelta.runnableProcessesCnt = 10;
+    expectedSecondDelta.ioBlockedProcessesCnt = 2;
 
     ASSERT_TRUE(WriteStringToFile(secondSnapshot, tf.path));
     ASSERT_RESULT_OK(procStat.collect());
@@ -156,8 +153,6 @@ TEST(ProcStatTest, TestErrorOnCorruptedStatFile) {
     ASSERT_TRUE(WriteStringToFile(contents, tf.path));
 
     ProcStat procStat(tf.path);
-    procStat.init();
-
     ASSERT_TRUE(procStat.enabled()) << "Temporary file is inaccessible";
     EXPECT_FALSE(procStat.collect().ok()) << "No error returned for corrupted file";
 }
@@ -181,8 +176,6 @@ TEST(ProcStatTest, TestErrorOnMissingCpuLine) {
     ASSERT_TRUE(WriteStringToFile(contents, tf.path));
 
     ProcStat procStat(tf.path);
-    procStat.init();
-
     ASSERT_TRUE(procStat.enabled()) << "Temporary file is inaccessible";
     EXPECT_FALSE(procStat.collect().ok()) << "No error returned due to missing cpu line";
 }
@@ -206,8 +199,6 @@ TEST(ProcStatTest, TestErrorOnMissingProcsRunningLine) {
     ASSERT_TRUE(WriteStringToFile(contents, tf.path));
 
     ProcStat procStat(tf.path);
-    procStat.init();
-
     ASSERT_TRUE(procStat.enabled()) << "Temporary file is inaccessible";
     EXPECT_FALSE(procStat.collect().ok()) << "No error returned due to missing procs_running line";
 }
@@ -231,8 +222,6 @@ TEST(ProcStatTest, TestErrorOnMissingProcsBlockedLine) {
     ASSERT_TRUE(WriteStringToFile(contents, tf.path));
 
     ProcStat procStat(tf.path);
-    procStat.init();
-
     ASSERT_TRUE(procStat.enabled()) << "Temporary file is inaccessible";
     EXPECT_FALSE(procStat.collect().ok()) << "No error returned due to missing procs_blocked line";
 }
@@ -258,25 +247,20 @@ TEST(ProcStatTest, TestErrorOnUnknownProcsLine) {
     ASSERT_TRUE(WriteStringToFile(contents, tf.path));
 
     ProcStat procStat(tf.path);
-    procStat.init();
-
     ASSERT_TRUE(procStat.enabled()) << "Temporary file is inaccessible";
     EXPECT_FALSE(procStat.collect().ok()) << "No error returned due to unknown procs line";
 }
 
 TEST(ProcStatTest, TestProcStatContentsFromDevice) {
     ProcStat procStat;
-    procStat.init();
-
     ASSERT_TRUE(procStat.enabled()) << kProcStatPath << " file is inaccessible";
     ASSERT_RESULT_OK(procStat.collect());
 
     const auto& info = procStat.deltaStats();
-    /* The below checks should pass because the /proc/stats file should have the CPU time spent
-     * since bootup and there should be at least one running process.
-     */
-    EXPECT_GT(info.totalCpuTime(), static_cast<uint64_t>(0));
-    EXPECT_GT(info.totalProcessCount(), static_cast<uint32_t>(0));
+    // The below checks should pass because the /proc/stats file should have the CPU time spent
+    // since bootup and there should be at least one running process.
+    EXPECT_GT(info.totalCpuTime(), 0);
+    EXPECT_GT(info.totalProcessesCnt(), 0);
 }
 
 }  // namespace watchdog

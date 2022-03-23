@@ -14,16 +14,19 @@
  * limitations under the License.
  */
 
+#include <fuzzer/FuzzedDataProvider.h>
+#include <iostream>
 #include "Common.h"
 #include "Enumerator.h"
 #include "MockHWCamera.h"
 #include "VirtualCamera.h"
 
-#include <fuzzer/FuzzedDataProvider.h>
+namespace android {
+namespace automotive {
+namespace evs {
+namespace V1_1 {
+namespace implementation {
 
-#include <iostream>
-
-namespace android::automotive::evs::V1_1::implementation {
 namespace {
 
 using CameraDesc_1_0 = ::android::hardware::automotive::evs::V1_0::CameraDesc;
@@ -245,7 +248,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 LOG(DEBUG) << "EVS_FUZZ_SET_EXTENDED_INFO_1_1";
                 uint32_t opaqueIdentifier = fdp.ConsumeIntegral<uint32_t>();
                 uint8_t opaqueValue = fdp.ConsumeIntegral<uint8_t>();
-                std::vector<uint8_t> v;
+                vector<uint8_t> v;
                 v.push_back(opaqueValue);
                 hidl_vec<uint8_t> vec(v);
                 virtualCamera->setExtendedInfo_1_1(opaqueIdentifier, vec);
@@ -281,4 +284,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 }
 
 }  // namespace
-}  // namespace android::automotive::evs::V1_1::implementation
+}  // namespace implementation
+}  // namespace V1_1
+}  // namespace evs
+}  // namespace automotive
+}  // namespace android

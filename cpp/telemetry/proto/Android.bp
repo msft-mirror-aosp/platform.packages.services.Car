@@ -24,9 +24,3 @@ filegroup {
         "evs.proto",
     ],
 }
-
-filegroup {
-    name: "cartelemetry-cardata-proto-srcs",
-    srcs: ["*.proto"],
-}
-
