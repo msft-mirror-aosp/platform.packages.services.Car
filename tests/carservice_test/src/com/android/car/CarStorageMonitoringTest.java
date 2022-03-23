@@ -317,7 +317,7 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
     }
 
     @Override
-    protected SystemInterface.Builder getSystemInterfaceBuilder() {
+    protected synchronized SystemInterface.Builder getSystemInterfaceBuilder() {
         SystemInterface.Builder builder = super.getSystemInterfaceBuilder();
         return builder.withSystemStateInterface(mMockSystemStateInterface)
             .withStorageMonitoringInterface(mMockStorageMonitoringInterface)
@@ -325,7 +325,7 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
     }
 
     @Override
-    protected void configureFakeSystemInterface() {
+    protected synchronized void configureFakeSystemInterface() {
         try {
             final TestData wearData = PER_TEST_DATA.getOrDefault(getName(), TestData.DEFAULT);
             final WearHistory wearHistory = wearData.wearHistory;
@@ -374,7 +374,7 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
     }
 
     @Override
-    protected void configureResourceOverrides(MockResources resources) {
+    protected synchronized void configureResourceOverrides(MockResources resources) {
         super.configureResourceOverrides(resources);
         resources.overrideResource(com.android.car.R.array.config_allowed_optional_car_features,
                 new String[] {Car.STORAGE_MONITORING_SERVICE});
@@ -857,8 +857,7 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
         }
 
         @Override
-        public WearInformationProvider[] getFlashWearInformationProviders(
-                String lifetimePath, String eolPath) {
+        public WearInformationProvider[] getFlashWearInformationProviders() {
             return new WearInformationProvider[] {this};
         }
 
@@ -909,11 +908,6 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
 
         @Override
         public boolean enterDeepSleep() {
-            return true;
-        }
-
-        @Override
-        public boolean enterHibernation() {
             return true;
         }
 

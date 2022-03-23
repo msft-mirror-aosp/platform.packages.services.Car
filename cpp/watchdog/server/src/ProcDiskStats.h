@@ -78,8 +78,6 @@ class IProcDiskStatsInterface : public android::RefBase {
 public:
     using PerPartitionDiskStats = ::std::unordered_set<DiskStats, DiskStats::HashByPartition,
                                                        DiskStats::EqualByPartition>;
-    // Initializes the collector.
-    virtual void init() = 0;
 
     // Collects the system-wide block devices statistics.
     virtual android::base::Result<void> collect() = 0;
@@ -97,19 +95,13 @@ public:
     virtual std::string filePath() const = 0;
 };
 
-class ProcDiskStats final : public IProcDiskStatsInterface {
+class ProcDiskStats : public IProcDiskStatsInterface {
 public:
-    explicit ProcDiskStats(const std::string& path = kProcDiskStatsPath) : kPath(path) {}
+    explicit ProcDiskStats(const std::string& path = kProcDiskStatsPath) :
+          kEnabled(!access(path.c_str(), R_OK)),
+          kPath(path) {}
 
     ~ProcDiskStats() {}
-
-    void init() {
-        Mutex::Autolock lock(mMutex);
-        // Note: Verify proc file access outside the constructor. Otherwise, the unittests of
-        // dependent classes would call the constructor before mocking and get killed due to
-        // sepolicy violation.
-        mEnabled = access(kPath.c_str(), R_OK) == 0;
-    }
 
     android::base::Result<void> collect();
 
@@ -123,22 +115,13 @@ public:
         return mDeltaSystemWideDiskStats;
     }
 
-    bool enabled() const {
-        Mutex::Autolock lock(mMutex);
-        return mEnabled;
-    }
+    bool enabled() const { return kEnabled; }
 
     std::string filePath() const { return kPath; }
 
 private:
-    // Path to disk stats file.
-    const std::string kPath;
-
     // Makes sure only one collection is running at any given time.
     mutable Mutex mMutex;
-
-    // True if |kPath| is accessible.
-    bool mEnabled GUARDED_BY(mMutex);
 
     // Delta of per-UID I/O usage since last before collection.
     DiskStats mDeltaSystemWideDiskStats GUARDED_BY(mMutex);
@@ -149,6 +132,12 @@ private:
      * storing the stats per-disk helps to deal with this issue.
      */
     PerPartitionDiskStats mLatestPerPartitionDiskStats GUARDED_BY(mMutex);
+
+    // True if |kPath| is accessible.
+    const bool kEnabled;
+
+    // Path to disk stats file.
+    const std::string kPath;
 };
 
 }  // namespace watchdog

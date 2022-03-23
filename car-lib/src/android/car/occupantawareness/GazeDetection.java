@@ -16,8 +16,6 @@
 
 package android.car.occupantawareness;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 import android.annotation.IntDef;
@@ -25,8 +23,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.lang.annotation.Retention;
 
@@ -147,7 +143,6 @@ public final class GazeDetection implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }

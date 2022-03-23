@@ -17,27 +17,20 @@
 package com.android.car.user;
 
 import static android.car.hardware.power.CarPowerManager.CarPowerStateListener;
-import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.util.Utils.getContentResolverForUser;
-import static com.android.car.util.Utils.isEventOfType;
 
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.AppOpsManager;
 import android.car.CarNotConnectedException;
-import android.car.builtin.app.KeyguardManagerHelper;
-import android.car.builtin.content.pm.PackageManagerHelper;
-import android.car.builtin.os.UserManagerHelper;
-import android.car.builtin.util.Slogf;
 import android.car.hardware.power.CarPowerManager;
 import android.car.settings.CarSettings;
+import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.IUserNotice;
 import android.car.user.IUserNoticeUI;
-import android.car.user.UserLifecycleEventFilter;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -48,19 +41,21 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
-import android.util.Log;
+import android.util.IndentingPrintWriter;
+import android.util.Slog;
+import android.view.IWindowManager;
+import android.view.WindowManagerGlobal;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
-import com.android.car.CarServiceUtils;
 import com.android.car.R;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -77,17 +72,12 @@ import com.android.internal.annotations.VisibleForTesting;
  */
 public final class CarUserNoticeService implements CarServiceBase {
 
-    @VisibleForTesting
-    static final String TAG = CarLog.tagFor(CarUserNoticeService.class);
-
-    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DBG = false;
+    private static final String TAG = CarLog.tagFor(CarUserNoticeService.class);
 
     // Keyguard unlocking can be only polled as we cannot dismiss keyboard.
     // Polling will stop when keyguard is unlocked.
     private static final long KEYGUARD_POLLING_INTERVAL_MS = 100;
-
-    // Value of the settings when it's enabled
-    private static final int INITIAL_NOTICE_SCREEN_TO_USER_ENABLED = 1;
 
     private final Context mContext;
 
@@ -95,7 +85,7 @@ public final class CarUserNoticeService implements CarServiceBase {
     @Nullable
     private final Intent mServiceIntent;
 
-    private final Handler mCommonThreadHandler;
+    private final Handler mMainHandler;
 
     private final Object mLock = new Object();
 
@@ -111,7 +101,7 @@ public final class CarUserNoticeService implements CarServiceBase {
 
     @GuardedBy("mLock")
     @UserIdInt
-    private int mUserId = UserManagerHelper.USER_NULL;
+    private int mUserId = UserHandle.USER_NULL;
 
     @GuardedBy("mLock")
     private CarPowerManager mCarPowerManager;
@@ -121,36 +111,35 @@ public final class CarUserNoticeService implements CarServiceBase {
 
     @GuardedBy("mLock")
     @UserIdInt
-    private int mIgnoreUserId = UserManagerHelper.USER_NULL;
+    private int mIgnoreUserId = UserHandle.USER_NULL;
 
     private final UserLifecycleListener mUserLifecycleListener = event -> {
-        if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
-            return;
-        }
+        if (DBG) Slog.d(TAG, "onEvent(" + event + ")");
 
-        int userId = event.getUserId();
-        if (DBG) {
-            Slogf.d(TAG, "User switch event received. Target User: %d", userId);
-        }
+        if (CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING == event.getEventType()) {
 
-        CarUserNoticeService.this.mCommonThreadHandler.post(() -> {
-            stopUi(/* clearUiShown= */ true);
-            synchronized (mLock) {
-                // This should be the only place to change user
-                mUserId = userId;
-            }
-            startNoticeUiIfNecessary();
-        });
+            int userId = event.getUserId();
+            if (DBG) Slog.d(TAG, "User switch event received. Target User:" + userId);
+
+            CarUserNoticeService.this.mMainHandler.post(() -> {
+                stopUi(/* clearUiShown= */ true);
+                synchronized (mLock) {
+                    // This should be the only place to change user
+                    mUserId = userId;
+                }
+                startNoticeUiIfNecessary();
+            });
+        }
     };
 
     private final CarPowerStateListener mPowerStateListener = new CarPowerStateListener() {
         @Override
         public void onStateChanged(int state) {
-            if (state == CarPowerManager.STATE_SHUTDOWN_PREPARE) {
-                mCommonThreadHandler.post(() -> stopUi(/* clearUiShown= */ true));
-            } else if (state == CarPowerManager.STATE_ON) {
+            if (state == CarPowerManager.CarPowerStateListener.SHUTDOWN_PREPARE) {
+                mMainHandler.post(() -> stopUi(/* clearUiShown= */ true));
+            } else if (state == CarPowerManager.CarPowerStateListener.ON) {
                 // Only ON can be relied on as car can restart while in garage mode.
-                mCommonThreadHandler.post(() -> startNoticeUiIfNecessary());
+                mMainHandler.post(() -> startNoticeUiIfNecessary());
             }
         }
     };
@@ -161,17 +150,17 @@ public final class CarUserNoticeService implements CarServiceBase {
             // Runs in main thread, so do not use Handler.
             if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
                 if (isDisplayOn()) {
-                    Slogf.i(TAG, "SCREEN_OFF while display is already on");
+                    Slog.i(TAG, "SCREEN_OFF while display is already on");
                     return;
                 }
-                Slogf.i(TAG, "Display off, stopping UI");
+                Slog.i(TAG, "Display off, stopping UI");
                 stopUi(/* clearUiShown= */ true);
             } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
                 if (!isDisplayOn()) {
-                    Slogf.i(TAG, "SCREEN_ON while display is already off");
+                    Slog.i(TAG, "SCREEN_ON while display is already off");
                     return;
                 }
-                Slogf.i(TAG, "Display on, starting UI");
+                Slog.i(TAG, "Display on, starting UI");
                 startNoticeUiIfNecessary();
             }
         }
@@ -180,7 +169,7 @@ public final class CarUserNoticeService implements CarServiceBase {
     private final IUserNotice.Stub mIUserNotice = new IUserNotice.Stub() {
         @Override
         public void onDialogDismissed() {
-            mCommonThreadHandler.post(() -> stopUi(/* clearUiShown= */ false));
+            mMainHandler.post(() -> stopUi(/* clearUiShown= */ false));
         }
     };
 
@@ -197,7 +186,7 @@ public final class CarUserNoticeService implements CarServiceBase {
             try {
                 binder.setCallbackBinder(mIUserNotice);
             } catch (RemoteException e) {
-                Slogf.w(TAG, "UserNoticeUI Service died", e);
+                Slog.w(TAG, "UserNoticeUI Service died", e);
                 // Wait for reconnect
                 binder = null;
             }
@@ -225,12 +214,12 @@ public final class CarUserNoticeService implements CarServiceBase {
     };
 
     public CarUserNoticeService(Context context) {
-        this(context, new Handler(CarServiceUtils.getCommonHandlerThread().getLooper()));
+        this(context, new Handler(Looper.getMainLooper()));
     }
 
     @VisibleForTesting
     CarUserNoticeService(Context context, Handler handler) {
-        mCommonThreadHandler = handler;
+        mMainHandler = handler;
         Resources res = context.getResources();
         String componentName = res.getString(R.string.config_userNoticeUiService);
         if (componentName.isEmpty()) {
@@ -251,19 +240,26 @@ public final class CarUserNoticeService implements CarServiceBase {
     }
 
     private boolean checkKeyguardLockedWithPolling() {
-        mCommonThreadHandler.removeCallbacks(mKeyguardPollingRunnable);
-        boolean locked = KeyguardManagerHelper.isKeyguardLocked();
+        mMainHandler.removeCallbacks(mKeyguardPollingRunnable);
+        IWindowManager wm = WindowManagerGlobal.getWindowManagerService();
+        boolean locked = true;
+        if (wm != null) {
+            try {
+                locked = wm.isKeyguardLocked();
+            } catch (RemoteException e) {
+                Slog.w(TAG, "system server crashed", e);
+            }
+        }
         if (locked) {
-            mCommonThreadHandler.postDelayed(mKeyguardPollingRunnable,
-                    KEYGUARD_POLLING_INTERVAL_MS);
+            mMainHandler.postDelayed(mKeyguardPollingRunnable, KEYGUARD_POLLING_INTERVAL_MS);
         }
         return locked;
     }
 
     private boolean isNoticeScreenEnabledInSetting(@UserIdInt int userId) {
-        return Settings.Secure.getInt(getContentResolverForUser(mContext, userId),
+        return Settings.Secure.getIntForUser(mContext.getContentResolver(),
                 CarSettings.Secure.KEY_ENABLE_INITIAL_NOTICE_SCREEN_TO_USER,
-                INITIAL_NOTICE_SCREEN_TO_USER_ENABLED) == INITIAL_NOTICE_SCREEN_TO_USER_ENABLED;
+                1 /*enable by default*/, userId) == 1;
     }
 
     private boolean isDisplayOn() {
@@ -277,22 +273,21 @@ public final class CarUserNoticeService implements CarServiceBase {
     private boolean grantSystemAlertWindowPermission(@UserIdInt int userId) {
         AppOpsManager appOpsManager = mContext.getSystemService(AppOpsManager.class);
         if (appOpsManager == null) {
-            Slogf.w(TAG, "AppOpsManager not ready yet");
+            Slog.w(TAG, "AppOpsManager not ready yet");
             return false;
         }
         String packageName = mServiceIntent.getComponent().getPackageName();
         int packageUid;
         try {
-            packageUid = PackageManagerHelper.getPackageUidAsUser(mContext.getPackageManager(),
-                    packageName, userId);
+            packageUid = mContext.getPackageManager().getPackageUidAsUser(packageName, userId);
         } catch (PackageManager.NameNotFoundException e) {
-            Slogf.wtf(TAG, "Target package for config_userNoticeUiService not found:"
+            Slog.wtf(TAG, "Target package for config_userNoticeUiService not found:"
                     + packageName + " userId:" + userId);
             return false;
         }
-        appOpsManager.setMode(AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW, packageUid, packageName,
+        appOpsManager.setMode(AppOpsManager.OP_SYSTEM_ALERT_WINDOW, packageUid, packageName,
                 AppOpsManager.MODE_ALLOWED);
-        Slogf.i(TAG, "Granted SYSTEM_ALERT_WINDOW permission to package:" + packageName
+        Slog.i(TAG, "Granted SYSTEM_ALERT_WINDOW permission to package:" + packageName
                 + " package uid:" + packageUid);
         return true;
     }
@@ -302,7 +297,7 @@ public final class CarUserNoticeService implements CarServiceBase {
         synchronized (mLock) {
             if (mUiShown || mServiceBound) {
                 if (DBG) {
-                    Slogf.d(TAG, "Notice UI not necessary: mUiShown " + mUiShown + " mServiceBound "
+                    Slog.d(TAG, "Notice UI not necessary: mUiShown " + mUiShown + " mServiceBound "
                             + mServiceBound);
                 }
                 return;
@@ -310,32 +305,32 @@ public final class CarUserNoticeService implements CarServiceBase {
             userId = mUserId;
             if (mIgnoreUserId == userId) {
                 if (DBG) {
-                    Slogf.d(TAG, "Notice UI not necessary: mIgnoreUserId " + mIgnoreUserId
+                    Slog.d(TAG, "Notice UI not necessary: mIgnoreUserId " + mIgnoreUserId
                             + " userId " + userId);
                 }
                 return;
             } else {
-                mIgnoreUserId = UserManagerHelper.USER_NULL;
+                mIgnoreUserId = UserHandle.USER_NULL;
             }
         }
-        if (userId == UserManagerHelper.USER_NULL) {
-            if (DBG) Slogf.d(TAG, "Notice UI not necessary: userId " + userId);
+        if (userId == UserHandle.USER_NULL) {
+            if (DBG) Slog.d(TAG, "Notice UI not necessary: userId " + userId);
             return;
         }
         // headless user 0 is ignored.
-        if (userId == UserHandle.SYSTEM.getIdentifier()) {
-            if (DBG) Slogf.d(TAG, "Notice UI not necessary: userId " + userId);
+        if (userId == UserHandle.USER_SYSTEM) {
+            if (DBG) Slog.d(TAG, "Notice UI not necessary: userId " + userId);
             return;
         }
         if (!isNoticeScreenEnabledInSetting(userId)) {
             if (DBG) {
-                Slogf.d(TAG, "Notice UI not necessary as notice screen not enabled in settings.");
+                Slog.d(TAG, "Notice UI not necessary as notice screen not enabled in settings.");
             }
             return;
         }
         if (userId != ActivityManager.getCurrentUser()) {
             if (DBG) {
-                Slogf.d(TAG, "Notice UI not necessary as user has switched. will be handled by user"
+                Slog.d(TAG, "Notice UI not necessary as user has switched. will be handled by user"
                                 + " switch callback.");
             }
             return;
@@ -343,17 +338,17 @@ public final class CarUserNoticeService implements CarServiceBase {
         // Dialog can be not shown if display is off.
         // DISPLAY_ON broadcast will handle this later.
         if (!isDisplayOn()) {
-            if (DBG) Slogf.d(TAG, "Notice UI not necessary as display is off.");
+            if (DBG) Slog.d(TAG, "Notice UI not necessary as display is off.");
             return;
         }
         // Do not show it until keyguard is dismissed.
         if (checkKeyguardLockedWithPolling()) {
-            if (DBG) Slogf.d(TAG, "Notice UI not necessary as keyguard is not dismissed.");
+            if (DBG) Slog.d(TAG, "Notice UI not necessary as keyguard is not dismissed.");
             return;
         }
         if (!grantSystemAlertWindowPermission(userId)) {
             if (DBG) {
-                Slogf.d(TAG, "Notice UI not necessary as System Alert Window Permission not"
+                Slog.d(TAG, "Notice UI not necessary as System Alert Window Permission not"
                         + " granted.");
             }
             return;
@@ -361,18 +356,18 @@ public final class CarUserNoticeService implements CarServiceBase {
         boolean bound = mContext.bindServiceAsUser(mServiceIntent, mUiServiceConnection,
                 Context.BIND_AUTO_CREATE, UserHandle.of(userId));
         if (bound) {
-            Slogf.i(TAG, "Bound UserNoticeUI Service: " + mServiceIntent);
+            Slog.i(TAG, "Bound UserNoticeUI Service: " + mServiceIntent);
             synchronized (mLock) {
                 mServiceBound = true;
                 mUiShown = true;
             }
         } else {
-            Slogf.w(TAG, "Cannot bind to UserNoticeUI Service Service" + mServiceIntent);
+            Slog.w(TAG, "Cannot bind to UserNoticeUI Service Service" + mServiceIntent);
         }
     }
 
     private void stopUi(boolean clearUiShown) {
-        mCommonThreadHandler.removeCallbacks(mKeyguardPollingRunnable);
+        mMainHandler.removeCallbacks(mKeyguardPollingRunnable);
         boolean serviceBound;
         synchronized (mLock) {
             mUiService = null;
@@ -383,7 +378,7 @@ public final class CarUserNoticeService implements CarServiceBase {
             }
         }
         if (serviceBound) {
-            Slogf.i(TAG, "Unbound UserNoticeUI Service");
+            Slog.i(TAG, "Unbound UserNoticeUI Service");
             mContext.unbindService(mUiServiceConnection);
         }
     }
@@ -401,20 +396,17 @@ public final class CarUserNoticeService implements CarServiceBase {
             carPowerManager = mCarPowerManager;
         }
         try {
-            carPowerManager.setListener(mContext.getMainExecutor(), mPowerStateListener);
+            carPowerManager.setListener(mPowerStateListener);
         } catch (CarNotConnectedException e) {
             // should not happen
             throw new RuntimeException("CarNotConnectedException from CarPowerManager", e);
         }
         CarUserService userService = CarLocalServices.getService(CarUserService.class);
-        UserLifecycleEventFilter userSwitchingEventFilter = new UserLifecycleEventFilter.Builder()
-                .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING).build();
-        userService.addUserLifecycleListener(userSwitchingEventFilter, mUserLifecycleListener);
+        userService.addUserLifecycleListener(mUserLifecycleListener);
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
-        mContext.registerReceiver(mDisplayBroadcastReceiver, intentFilter,
-                Context.RECEIVER_NOT_EXPORTED);
+        mContext.registerReceiver(mDisplayBroadcastReceiver, intentFilter);
     }
 
     @Override
@@ -429,7 +421,7 @@ public final class CarUserNoticeService implements CarServiceBase {
         CarPowerManager carPowerManager;
         synchronized (mLock) {
             carPowerManager = mCarPowerManager;
-            mUserId = UserManagerHelper.USER_NULL;
+            mUserId = UserHandle.USER_NULL;
         }
         carPowerManager.clearListener();
         stopUi(/* clearUiShown= */ true);
@@ -443,7 +435,7 @@ public final class CarUserNoticeService implements CarServiceBase {
                 writer.println("*CarUserNoticeService* disabled");
                 return;
             }
-            if (mUserId == UserManagerHelper.USER_NULL) {
+            if (mUserId == UserHandle.USER_NULL) {
                 writer.println("*CarUserNoticeService* User not started yet.");
                 return;
             }

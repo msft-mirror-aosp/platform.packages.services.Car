@@ -19,7 +19,6 @@ package android.automotive.watchdog.internal;
 import android.automotive.watchdog.internal.PackageInfo;
 import android.automotive.watchdog.internal.PackageIoOveruseStats;
 import android.automotive.watchdog.internal.TimeoutLength;
-import android.automotive.watchdog.internal.UserPackageIoUsageStats;
 
 /**
  * ICarWatchdogServiceForSystem interface used by the watchdog server to communicate with the
@@ -70,10 +69,4 @@ interface ICarWatchdogServiceForSystem {
    * @param packageNames       Package names for which to reset the stats.
    */
   oneway void resetResourceOveruseStats(in @utf8InCpp List<String> packageNames);
-
-  /**
-   * Fetches current UTC calendar day's I/O usage stats for all packages collected during the
-   * previous boot.
-   */
-  List<UserPackageIoUsageStats> getTodayIoUsageStats();
 }

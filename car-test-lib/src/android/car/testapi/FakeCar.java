@@ -16,10 +16,9 @@
 
 package android.car.testapi;
 
-import android.annotation.Nullable;
 import android.car.Car;
 import android.car.ICar;
-import android.car.ICarResultReceiver;
+import android.car.ICarBluetooth;
 import android.car.cluster.IInstrumentClusterManagerService;
 import android.car.content.pm.ICarPackageManager;
 import android.car.diagnostic.ICarDiagnostic;
@@ -30,8 +29,6 @@ import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
-
-import com.android.car.internal.ICarServiceHelper;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -130,11 +127,20 @@ public class FakeCar {
         return mService.mCarUxRestrictionService;
     }
 
+    /**
+     * Returns a test controller that can modify and query the underlying service for the {@link
+     * android.car.telemetry.CarTelemetryManager}.
+     */
+    public CarTelemetryController getCarTelemetryController() {
+        return mService.mCarTelemetry;
+    }
+
     private static class FakeCarService extends ICar.Stub {
         @Mock ICarPackageManager.Stub mCarPackageManager;
         @Mock ICarDiagnostic.Stub mCarDiagnostic;
         @Mock ICarPower.Stub mCarPower;
         @Mock IInstrumentClusterManagerService.Stub mClusterService;
+        @Mock ICarBluetooth.Stub mCarBluetooth;
         @Mock ICarStorageMonitoring.Stub mCarStorageMonitoring;
         @Mock ICarDrivingState.Stub mCarDrivingState;
 
@@ -144,6 +150,7 @@ public class FakeCar {
         private final FakeCarProjectionService mCarProjection;
         private final FakeInstrumentClusterNavigation mInstrumentClusterNavigation;
         private final FakeCarUxRestrictionsService mCarUxRestrictionService;
+        private final FakeCarTelemetryService mCarTelemetry;
 
         FakeCarService(Context context) {
             MockitoAnnotations.initMocks(this);
@@ -153,17 +160,16 @@ public class FakeCar {
             mCarProjection = new FakeCarProjectionService(context);
             mInstrumentClusterNavigation = new FakeInstrumentClusterNavigation();
             mCarUxRestrictionService = new FakeCarUxRestrictionsService();
+            mCarTelemetry = new FakeCarTelemetryService();
         }
 
         @Override
-        public void setSystemServerConnections(ICarServiceHelper helper,
-                ICarResultReceiver receiver)
+        public void setSystemServerConnections(IBinder helper, IBinder receiver)
                 throws RemoteException {
             // Nothing to do yet.
         }
 
         @Override
-        @Nullable
         public IBinder getCarService(String serviceName) throws RemoteException {
             switch (serviceName) {
                 case Car.AUDIO_SERVICE:
@@ -189,12 +195,16 @@ public class FakeCar {
                     return mClusterService;
                 case Car.PROJECTION_SERVICE:
                     return mCarProjection;
+                case Car.BLUETOOTH_SERVICE:
+                    return mCarBluetooth;
                 case Car.STORAGE_MONITORING_SERVICE:
                     return mCarStorageMonitoring;
                 case Car.CAR_DRIVING_STATE_SERVICE:
                     return mCarDrivingState;
                 case Car.CAR_UX_RESTRICTION_SERVICE:
                     return mCarUxRestrictionService;
+                case Car.CAR_TELEMETRY_SERVICE:
+                    return mCarTelemetry;
                 default:
                     Log.w(TAG, "getCarService for unknown service:" + serviceName);
                     return null;

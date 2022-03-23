@@ -16,14 +16,10 @@
 
 package android.car.occupantawareness;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.NonNull;
 import android.car.occupantawareness.OccupantAwarenessDetection.ConfidenceLevel;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * Detection state data for monitoring driver attention.
@@ -63,7 +59,6 @@ public final class DriverMonitoringDetection implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }
