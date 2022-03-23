@@ -16,17 +16,11 @@
 
 package android.car.user;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.IntDef;
 import android.annotation.Nullable;
-import android.annotation.TestApi;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
-import android.os.UserManager;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.DataClass;
+import com.android.internal.util.DataClass;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -40,60 +34,51 @@ import java.lang.annotation.RetentionPolicy;
         genToString = true,
         genHiddenConstructor = true,
         genHiddenConstDefs = true)
-@TestApi
 public final class UserSwitchResult implements Parcelable, OperationResult {
 
     /**
      * When user switch is successful for both HAL and Android.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_SUCCESSFUL = CommonResults.STATUS_SUCCESSFUL;
 
     /**
      * When user switch is only successful for Hal but not for Android. Hal user switch rollover
      * message have been sent.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ANDROID_FAILURE = CommonResults.STATUS_ANDROID_FAILURE;
 
     /**
      * When user switch fails for HAL. User switch for Android is not called.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_HAL_FAILURE = CommonResults.STATUS_HAL_FAILURE;
 
     /**
      * When user switch fails for HAL for some internal error. User switch for Android is not
      * called.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_HAL_INTERNAL_FAILURE = CommonResults.STATUS_HAL_INTERNAL_FAILURE;
 
     /**
      * When given parameters or environment states are invalid for switching user. HAL or Android
      * user switch is not requested.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_INVALID_REQUEST = CommonResults.STATUS_INVALID_REQUEST;
 
     /**
      * When user switch fails because of driving safety UX restrictions.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_UX_RESTRICTION_FAILURE =
             CommonResults.STATUS_UX_RESTRICTION_FAILURE;
 
     /**
      * When target user is same as current user.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_OK_USER_ALREADY_IN_FOREGROUND =
             CommonResults.LAST_COMMON_STATUS + 1;
 
     /**
      * When another user switch request for the same target user is in process.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO =
             CommonResults.LAST_COMMON_STATUS + 2;
 
@@ -101,23 +86,14 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
      * When another user switch request for a new different target user is received. Previous
      * request is abandoned.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST =
             CommonResults.LAST_COMMON_STATUS + 3;
 
     /**
      * When switching users is currently not allowed for the user this process is running under.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_NOT_SWITCHABLE =
             CommonResults.LAST_COMMON_STATUS + 4;
-
-    /**
-     * When logout was called but the current user was not switched by a device admin.
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final int STATUS_NOT_LOGGED_IN =
-            CommonResults.LAST_COMMON_STATUS + 5;
 
     /**
      * Gets the user switch result status.
@@ -130,25 +106,10 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
      *         {@link UserSwitchResult#STATUS_UX_RESTRICTION_FAILURE},
      *         {@link UserSwitchResult#STATUS_OK_USER_ALREADY_IN_FOREGROUND},
      *         {@link UserSwitchResult#STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO},
-     *         {@link UserSwitchResult#STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST},
-     *         {@link UserSwitchResult#STATUS_NOT_SWITCHABLE}, or
-     *         {@link UserSwitchResult#STATUS_NOT_LOGGED_IN}.
+     *         {@link UserSwitchResult#STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST}, or
+     *         {@link UserSwitchResult#STATUS_NOT_SWITCHABLE}.
      */
     private final @Status int mStatus;
-
-    // TODO(b/214443810): codegen generates call to writeInteger() / readInteger(), we need to
-    // manually change to writeInt() / readInt()
-    /**
-     * Gets the failure status returned by {@link UserManager} when the {@link #getStatus() status}
-     * is {@link #STATUS_ANDROID_FAILURE}.
-     *
-     * @return {@code USER_OPERATION_ERROR_} constants defined by {@link UserManager}, or
-     * {@code null} when the {@link #getStatus() status} is not {@link #STATUS_ANDROID_FAILURE}.
-     *
-     * @hide
-     */
-    @Nullable
-    private final Integer mAndroidFailureStatus;
 
     /**
      * Gets the error message, if any.
@@ -161,21 +122,10 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
         return mStatus == STATUS_SUCCESSFUL || mStatus == STATUS_OK_USER_ALREADY_IN_FOREGROUND;
     }
 
-    /** @hide */
-    public UserSwitchResult(@Status int status, @Nullable String errorMessage) {
-        this(status, /* androidFailureStatus= */ null, errorMessage);
-    }
-
-    // NOTE: codegen generates this method, but without @ExcludeFromCodeCoverageGeneratedReport
-    @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    public int describeContents() {
-        return 0;
-    }
 
 
 
-    // Code below generated by codegen v1.0.23.
+    // Code below generated by codegen v1.0.18.
     //
     // DO NOT MODIFY!
     // CHECKSTYLE:OFF Generated code
@@ -199,8 +149,7 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
         STATUS_OK_USER_ALREADY_IN_FOREGROUND,
         STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO,
         STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST,
-        STATUS_NOT_SWITCHABLE,
-        STATUS_NOT_LOGGED_IN
+        STATUS_NOT_SWITCHABLE
     })
     @Retention(RetentionPolicy.SOURCE)
     @DataClass.Generated.Member
@@ -230,8 +179,6 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
                     return "STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST";
             case STATUS_NOT_SWITCHABLE:
                     return "STATUS_NOT_SWITCHABLE";
-            case STATUS_NOT_LOGGED_IN:
-                    return "STATUS_NOT_LOGGED_IN";
             default: return Integer.toHexString(value);
         }
     }
@@ -250,15 +197,8 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
      *           {@link UserSwitchResult#STATUS_UX_RESTRICTION_FAILURE},
      *           {@link UserSwitchResult#STATUS_OK_USER_ALREADY_IN_FOREGROUND},
      *           {@link UserSwitchResult#STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO},
-     *           {@link UserSwitchResult#STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST},
-     *           {@link UserSwitchResult#STATUS_NOT_SWITCHABLE}, or
-     *           {@link UserSwitchResult#STATUS_NOT_LOGGED_IN}.
-     * @param androidFailureStatus
-     *   Gets the failure status returned by {@link UserManager} when the {@link #getStatus() status}
-     *   is {@link #STATUS_ANDROID_FAILURE}.
-     *
-     *   @return {@code USER_OPERATION_ERROR_} constants defined by {@link UserManager}, or
-     *   {@code null} when the {@link #getStatus() status} is not {@link #STATUS_ANDROID_FAILURE}.
+     *           {@link UserSwitchResult#STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST}, or
+     *           {@link UserSwitchResult#STATUS_NOT_SWITCHABLE}.
      * @param errorMessage
      *   Gets the error message, if any.
      * @hide
@@ -266,7 +206,6 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
     @DataClass.Generated.Member
     public UserSwitchResult(
             @Status int status,
-            @Nullable Integer androidFailureStatus,
             @Nullable String errorMessage) {
         this.mStatus = status;
 
@@ -279,8 +218,7 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
                 && !(mStatus == STATUS_OK_USER_ALREADY_IN_FOREGROUND)
                 && !(mStatus == STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO)
                 && !(mStatus == STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST)
-                && !(mStatus == STATUS_NOT_SWITCHABLE)
-                && !(mStatus == STATUS_NOT_LOGGED_IN)) {
+                && !(mStatus == STATUS_NOT_SWITCHABLE)) {
             throw new java.lang.IllegalArgumentException(
                     "status was " + mStatus + " but must be one of: "
                             + "STATUS_SUCCESSFUL(" + STATUS_SUCCESSFUL + "), "
@@ -292,11 +230,9 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
                             + "STATUS_OK_USER_ALREADY_IN_FOREGROUND(" + STATUS_OK_USER_ALREADY_IN_FOREGROUND + "), "
                             + "STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO(" + STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO + "), "
                             + "STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST(" + STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST + "), "
-                            + "STATUS_NOT_SWITCHABLE(" + STATUS_NOT_SWITCHABLE + "), "
-                            + "STATUS_NOT_LOGGED_IN(" + STATUS_NOT_LOGGED_IN + ")");
+                            + "STATUS_NOT_SWITCHABLE(" + STATUS_NOT_SWITCHABLE + ")");
         }
 
-        this.mAndroidFailureStatus = androidFailureStatus;
         this.mErrorMessage = errorMessage;
 
         // onConstructed(); // You can define this method to get a callback
@@ -313,34 +249,18 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
      *         {@link UserSwitchResult#STATUS_UX_RESTRICTION_FAILURE},
      *         {@link UserSwitchResult#STATUS_OK_USER_ALREADY_IN_FOREGROUND},
      *         {@link UserSwitchResult#STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO},
-     *         {@link UserSwitchResult#STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST},
-     *         {@link UserSwitchResult#STATUS_NOT_SWITCHABLE}, or
-     *         {@link UserSwitchResult#STATUS_NOT_LOGGED_IN}.
+     *         {@link UserSwitchResult#STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST}, or
+     *         {@link UserSwitchResult#STATUS_NOT_SWITCHABLE}.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @Status int getStatus() {
         return mStatus;
-    }
-
-    /**
-     * Gets the failure status returned by {@link UserManager} when the {@link #getStatus() status}
-     * is {@link #STATUS_ANDROID_FAILURE}.
-     *
-     * @return {@code USER_OPERATION_ERROR_} constants defined by {@link UserManager}, or
-     * {@code null} when the {@link #getStatus() status} is not {@link #STATUS_ANDROID_FAILURE}.
-     * @hide
-     */
-    @DataClass.Generated.Member
-    public @Nullable Integer getAndroidFailureStatus() {
-        return mAndroidFailureStatus;
     }
 
     /**
      * Gets the error message, if any.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @Nullable String getErrorMessage() {
         return mErrorMessage;
     }
@@ -353,26 +273,26 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
 
         return "UserSwitchResult { " +
                 "status = " + statusToString(mStatus) + ", " +
-                "androidFailureStatus = " + mAndroidFailureStatus + ", " +
                 "errorMessage = " + mErrorMessage +
         " }";
     }
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@android.annotation.NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
 
         byte flg = 0;
-        if (mAndroidFailureStatus != null) flg |= 0x2;
-        if (mErrorMessage != null) flg |= 0x4;
+        if (mErrorMessage != null) flg |= 0x2;
         dest.writeByte(flg);
         dest.writeInt(mStatus);
-        if (mAndroidFailureStatus != null) dest.writeInt(mAndroidFailureStatus);
         if (mErrorMessage != null) dest.writeString(mErrorMessage);
     }
+
+    @Override
+    @DataClass.Generated.Member
+    public int describeContents() { return 0; }
 
     /** @hide */
     @SuppressWarnings({"unchecked", "RedundantCast"})
@@ -383,8 +303,7 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
 
         byte flg = in.readByte();
         int status = in.readInt();
-        Integer androidFailureStatus = (flg & 0x2) == 0 ? null : (Integer) in.readInt();
-        String errorMessage = (flg & 0x4) == 0 ? null : in.readString();
+        String errorMessage = (flg & 0x2) == 0 ? null : in.readString();
 
         this.mStatus = status;
 
@@ -397,8 +316,7 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
                 && !(mStatus == STATUS_OK_USER_ALREADY_IN_FOREGROUND)
                 && !(mStatus == STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO)
                 && !(mStatus == STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST)
-                && !(mStatus == STATUS_NOT_SWITCHABLE)
-                && !(mStatus == STATUS_NOT_LOGGED_IN)) {
+                && !(mStatus == STATUS_NOT_SWITCHABLE)) {
             throw new java.lang.IllegalArgumentException(
                     "status was " + mStatus + " but must be one of: "
                             + "STATUS_SUCCESSFUL(" + STATUS_SUCCESSFUL + "), "
@@ -410,11 +328,9 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
                             + "STATUS_OK_USER_ALREADY_IN_FOREGROUND(" + STATUS_OK_USER_ALREADY_IN_FOREGROUND + "), "
                             + "STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO(" + STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO + "), "
                             + "STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST(" + STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST + "), "
-                            + "STATUS_NOT_SWITCHABLE(" + STATUS_NOT_SWITCHABLE + "), "
-                            + "STATUS_NOT_LOGGED_IN(" + STATUS_NOT_LOGGED_IN + ")");
+                            + "STATUS_NOT_SWITCHABLE(" + STATUS_NOT_SWITCHABLE + ")");
         }
 
-        this.mAndroidFailureStatus = androidFailureStatus;
         this.mErrorMessage = errorMessage;
 
         // onConstructed(); // You can define this method to get a callback
@@ -435,10 +351,10 @@ public final class UserSwitchResult implements Parcelable, OperationResult {
     };
 
     @DataClass.Generated(
-            time = 1643074560926L,
-            codegenVersion = "1.0.23",
+            time = 1603921276651L,
+            codegenVersion = "1.0.18",
             sourceFile = "packages/services/Car/car-lib/src/android/car/user/UserSwitchResult.java",
-            inputSignatures = "public static final  int STATUS_SUCCESSFUL\npublic static final  int STATUS_ANDROID_FAILURE\npublic static final  int STATUS_HAL_FAILURE\npublic static final  int STATUS_HAL_INTERNAL_FAILURE\npublic static final  int STATUS_INVALID_REQUEST\npublic static final  int STATUS_UX_RESTRICTION_FAILURE\npublic static final  int STATUS_OK_USER_ALREADY_IN_FOREGROUND\npublic static final  int STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO\npublic static final  int STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST\npublic static final  int STATUS_NOT_SWITCHABLE\npublic static final  int STATUS_NOT_LOGGED_IN\nprivate final @android.car.user.UserSwitchResult.Status int mStatus\nprivate final @android.annotation.Nullable java.lang.Integer mAndroidFailureStatus\nprivate final @android.annotation.Nullable java.lang.String mErrorMessage\npublic @java.lang.Override boolean isSuccess()\npublic @java.lang.Override @com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport int describeContents()\nclass UserSwitchResult extends java.lang.Object implements [android.os.Parcelable, android.car.user.OperationResult]\n@com.android.car.internal.util.DataClass(genToString=true, genHiddenConstructor=true, genHiddenConstDefs=true)")
+            inputSignatures = "public static final  int STATUS_SUCCESSFUL\npublic static final  int STATUS_ANDROID_FAILURE\npublic static final  int STATUS_HAL_FAILURE\npublic static final  int STATUS_HAL_INTERNAL_FAILURE\npublic static final  int STATUS_INVALID_REQUEST\npublic static final  int STATUS_OK_USER_ALREADY_IN_FOREGROUND\npublic static final  int STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO\npublic static final  int STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST\npublic static final  int STATUS_NOT_SWITCHABLE\nprivate final @android.car.user.UserSwitchResult.Status int mStatus\nprivate final @android.annotation.Nullable java.lang.String mErrorMessage\npublic @java.lang.Override boolean isSuccess()\nclass UserSwitchResult extends java.lang.Object implements [android.os.Parcelable, android.car.user.OperationResult]\n@com.android.internal.util.DataClass(genToString=true, genHiddenConstructor=true, genHiddenConstDefs=true)")
     @Deprecated
     private void __metadata() {}
 

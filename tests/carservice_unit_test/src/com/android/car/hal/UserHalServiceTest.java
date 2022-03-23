@@ -21,17 +21,15 @@ import static android.car.VehiclePropertyIds.INITIAL_USER_INFO;
 import static android.car.VehiclePropertyIds.REMOVE_USER;
 import static android.car.VehiclePropertyIds.SWITCH_USER;
 import static android.car.VehiclePropertyIds.USER_IDENTIFICATION_ASSOCIATION;
-import static android.hardware.automotive.vehicle.InitialUserInfoRequestType.COLD_BOOT;
-import static android.hardware.automotive.vehicle.UserIdentificationAssociationSetValue.ASSOCIATE_CURRENT_USER;
-import static android.hardware.automotive.vehicle.UserIdentificationAssociationType.CUSTOM_1;
-import static android.hardware.automotive.vehicle.UserIdentificationAssociationType.KEY_FOB;
-import static android.hardware.automotive.vehicle.UserIdentificationAssociationValue.ASSOCIATED_CURRENT_USER;
-
-import static com.android.car.hal.HalPropValueMatcher.isProperty;
-import static com.android.car.hal.HalPropValueMatcher.isPropertyWithValues;
-import static com.android.car.hal.VehicleHalTestingHelper.newConfig;
-import static com.android.car.hal.VehicleHalTestingHelper.newSubscribableConfig;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
+import static android.car.test.mocks.CarArgumentMatchers.isProperty;
+import static android.car.test.mocks.CarArgumentMatchers.isPropertyWithValues;
+import static android.car.test.util.VehicleHalTestingHelper.newConfig;
+import static android.car.test.util.VehicleHalTestingHelper.newSubscribableConfig;
+import static android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType.COLD_BOOT;
+import static android.hardware.automotive.vehicle.V2_0.UserIdentificationAssociationSetValue.ASSOCIATE_CURRENT_USER;
+import static android.hardware.automotive.vehicle.V2_0.UserIdentificationAssociationType.CUSTOM_1;
+import static android.hardware.automotive.vehicle.V2_0.UserIdentificationAssociationType.KEY_FOB;
+import static android.hardware.automotive.vehicle.V2_0.UserIdentificationAssociationValue.ASSOCIATED_CURRENT_USER;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -39,6 +37,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -47,26 +46,29 @@ import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertThrows;
 
 import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.car.hardware.property.VehicleHalStatusCode;
-import android.car.test.mocks.AbstractExtendedMockitoTestCase;
-import android.hardware.automotive.vehicle.CreateUserRequest;
-import android.hardware.automotive.vehicle.CreateUserResponse;
-import android.hardware.automotive.vehicle.CreateUserStatus;
-import android.hardware.automotive.vehicle.InitialUserInfoResponse;
-import android.hardware.automotive.vehicle.InitialUserInfoResponseAction;
-import android.hardware.automotive.vehicle.RemoveUserRequest;
-import android.hardware.automotive.vehicle.SwitchUserMessageType;
-import android.hardware.automotive.vehicle.SwitchUserRequest;
-import android.hardware.automotive.vehicle.SwitchUserResponse;
-import android.hardware.automotive.vehicle.SwitchUserStatus;
-import android.hardware.automotive.vehicle.UserIdentificationAssociation;
-import android.hardware.automotive.vehicle.UserIdentificationGetRequest;
-import android.hardware.automotive.vehicle.UserIdentificationResponse;
-import android.hardware.automotive.vehicle.UserIdentificationSetAssociation;
-import android.hardware.automotive.vehicle.UserIdentificationSetRequest;
-import android.hardware.automotive.vehicle.UserInfo;
-import android.hardware.automotive.vehicle.UsersInfo;
+import android.car.userlib.HalCallback;
+import android.car.userlib.UserHalHelper;
+import android.hardware.automotive.vehicle.V2_0.CreateUserRequest;
+import android.hardware.automotive.vehicle.V2_0.CreateUserResponse;
+import android.hardware.automotive.vehicle.V2_0.CreateUserStatus;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponse;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
+import android.hardware.automotive.vehicle.V2_0.RemoveUserRequest;
+import android.hardware.automotive.vehicle.V2_0.SwitchUserMessageType;
+import android.hardware.automotive.vehicle.V2_0.SwitchUserRequest;
+import android.hardware.automotive.vehicle.V2_0.SwitchUserResponse;
+import android.hardware.automotive.vehicle.V2_0.SwitchUserStatus;
+import android.hardware.automotive.vehicle.V2_0.UserFlags;
+import android.hardware.automotive.vehicle.V2_0.UserIdentificationAssociation;
+import android.hardware.automotive.vehicle.V2_0.UserIdentificationGetRequest;
+import android.hardware.automotive.vehicle.V2_0.UserIdentificationResponse;
+import android.hardware.automotive.vehicle.V2_0.UserIdentificationSetAssociation;
+import android.hardware.automotive.vehicle.V2_0.UserIdentificationSetRequest;
+import android.hardware.automotive.vehicle.V2_0.UserInfo;
+import android.hardware.automotive.vehicle.V2_0.UsersInfo;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropConfig;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ServiceSpecificException;
@@ -76,7 +78,6 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.android.car.CarLocalServices;
-import com.android.car.internal.os.CarSystemProperties;
 import com.android.car.user.CarUserService;
 
 import org.junit.After;
@@ -91,13 +92,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(MockitoJUnitRunner.class)
-public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
+public final class UserHalServiceTest {
 
     private static final String TAG = UserHalServiceTest.class.getSimpleName();
 
@@ -153,46 +153,33 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
     private final UserInfo mUser0 = new UserInfo();
-    private final UserInfo mUser100 = new UserInfo();
+    private final UserInfo mUser10 = new UserInfo();
 
-    private final UsersInfo mUsersInfo = UserHalHelper.emptyUsersInfo();
+    private final UsersInfo mUsersInfo = new UsersInfo();
 
     // Must be a spy so we can mock getNextRequestId()
     private UserHalService mUserHalService;
 
-    private final HalPropValueBuilder mPropValueBuilder = new HalPropValueBuilder(/*isAidl=*/true);
-
-    public UserHalServiceTest() {
-        super(UserHalService.TAG);
-    }
-
-    @Override
-    protected void onSessionBuilder(CustomMockitoSessionBuilder builder) {
-        builder.spyStatic(CarSystemProperties.class);
-    }
-
     @Before
     public void setFixtures() {
-        mockUserHalEnabled(true);
-        when(mVehicleHal.getHalPropValueBuilder()).thenReturn(mPropValueBuilder);
         mUserHalService = spy(new UserHalService(mVehicleHal, mHandler));
         // Needs at least one property, otherwise isSupported() and isUserAssociationSupported()
         // will return false
-        mUserHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER),
-                newSubscribableConfig(REMOVE_USER),
+        mUserHalService.takeProperties(Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
+                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
                 newSubscribableConfig(SWITCH_USER),
                 newSubscribableConfig(USER_IDENTIFICATION_ASSOCIATION)));
 
         mUser0.userId = 0;
         mUser0.flags = 100;
-        mUser100.userId = 100;
-        mUser100.flags = 110;
+        mUser10.userId = 10;
+        mUser10.flags = 110;
 
         mUsersInfo.currentUser = mUser0;
         mUsersInfo.numberUsers = 2;
-        mUsersInfo.existingUsers = new UserInfo[]{mUser0, mUser100};
+        mUsersInfo.existingUsers = new ArrayList<>(2);
+        mUsersInfo.existingUsers.add(mUser0);
+        mUsersInfo.existingUsers.add(mUser10);
 
         CarLocalServices.addService(CarUserService.class, mCarUserService);
     }
@@ -216,38 +203,8 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     public void testTakeSupportedProperties_supportedFewProperties() {
         // Cannot use mUserHalService because it's already set with supported properties
         UserHalService myHalService = new UserHalService(mVehicleHal);
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER),
-                newSubscribableConfig(REMOVE_USER)));
-
-        assertThat(myHalService.isSupported()).isFalse();
-        assertThat(myHalService.isUserAssociationSupported()).isFalse();
-    }
-
-    @Test
-    public void testTakeSupportedProperties_supportedAllCorePropertiesButEnabledPropertyNotSet() {
-        mockUserHalEnabled(null);
-        // Cannot use mUserHalService because it's already set with supported properties
-        UserHalService myHalService = new UserHalService(mVehicleHal);
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
-                newSubscribableConfig(SWITCH_USER)));
-
-        assertThat(myHalService.isSupported()).isFalse();
-        assertThat(myHalService.isUserAssociationSupported()).isFalse();
-    }
-
-    @Test
-    public void testTakeSupportedProperties_supportedAllCorePropertiesButDisabled() {
-        mockUserHalEnabled(false);
-        // Cannot use mUserHalService because it's already set with supported properties
-        UserHalService myHalService = new UserHalService(mVehicleHal);
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
-                newSubscribableConfig(SWITCH_USER)));
+        myHalService.takeProperties(Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
+                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER)));
 
         assertThat(myHalService.isSupported()).isFalse();
         assertThat(myHalService.isUserAssociationSupported()).isFalse();
@@ -257,10 +214,8 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     public void testTakeSupportedProperties_supportedAllCoreProperties() {
         // Cannot use mUserHalService because it's already set with supported properties
         UserHalService myHalService = new UserHalService(mVehicleHal);
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER),
-                newSubscribableConfig(REMOVE_USER),
+        myHalService.takeProperties(Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
+                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
                 newSubscribableConfig(SWITCH_USER)));
 
         assertThat(myHalService.isSupported()).isTrue();
@@ -268,43 +223,11 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testTakeSupportedProperties_supportedAllPropertiesButDisabled() {
-        mockUserHalEnabled(false);
-        // Cannot use mUserHalService because it's already set with supported properties
-        UserHalService myHalService = new UserHalService(mVehicleHal);
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
-                newSubscribableConfig(SWITCH_USER),
-                newSubscribableConfig(USER_IDENTIFICATION_ASSOCIATION)));
-
-        assertThat(myHalService.isSupported()).isFalse();
-        assertThat(myHalService.isUserAssociationSupported()).isTrue();
-    }
-
-    @Test
-    public void testTakeSupportedProperties_supportedAllPropertiesButEnablePropertyNotSet() {
-        mockUserHalEnabled(null);
-        // Cannot use mUserHalService because it's already set with supported properties
-        UserHalService myHalService = new UserHalService(mVehicleHal);
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
-                newSubscribableConfig(SWITCH_USER),
-                newSubscribableConfig(USER_IDENTIFICATION_ASSOCIATION)));
-
-        assertThat(myHalService.isSupported()).isFalse();
-        assertThat(myHalService.isUserAssociationSupported()).isTrue();
-    }
-
-    @Test
     public void testTakeSupportedProperties_supportedAllProperties() {
         // Cannot use mUserHalService because it's already set with supported properties
         UserHalService myHalService = new UserHalService(mVehicleHal);
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER),
-                newSubscribableConfig(REMOVE_USER),
+        myHalService.takeProperties(Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
+                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
                 newSubscribableConfig(SWITCH_USER),
                 newSubscribableConfig(USER_IDENTIFICATION_ASSOCIATION)));
 
@@ -316,12 +239,10 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     public void testTakeSupportedPropertiesAndInit() {
         // Cannot use mUserHalService because it's already set with supported properties
         UserHalService myHalService = new UserHalService(mVehicleHal);
-        HalPropConfig unsupportedConfig = newConfig(CURRENT_GEAR);
+        VehiclePropConfig unsupportedConfig = newConfig(CURRENT_GEAR);
 
-        myHalService.takeProperties(
-                Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
-                newSubscribableConfig(CREATE_USER),
-                newSubscribableConfig(REMOVE_USER),
+        myHalService.takeProperties(Arrays.asList(newSubscribableConfig(INITIAL_USER_INFO),
+                newSubscribableConfig(CREATE_USER), newSubscribableConfig(REMOVE_USER),
                 newSubscribableConfig(SWITCH_USER), unsupportedConfig,
                 newSubscribableConfig(USER_IDENTIFICATION_ASSOCIATION)));
 
@@ -426,7 +347,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserInfo_halReplyWithWrongRequestId() throws Exception {
-        HalPropValue propResponse = createPropRequest(INITIAL_USER_INFO,
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(INITIAL_USER_INFO,
                     REQUEST_ID_PLACE_HOLDER, INITIAL_USER_INFO_RESPONSE_ACTION);
 
         replySetPropertyWithOnChangeEvent(INITIAL_USER_INFO, propResponse,
@@ -444,10 +365,10 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserInfo_halReturnedInvalidAction() throws Exception {
-        HalPropValue propResponse = createPropRequest(INITIAL_USER_INFO,
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(INITIAL_USER_INFO,
                     REQUEST_ID_PLACE_HOLDER, INITIAL_USER_INFO_RESPONSE_ACTION);
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 INITIAL_USER_INFO, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<InitialUserInfoResponse> callback = new GenericHalCallback<>(
@@ -467,10 +388,10 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserInfo_successDefault() throws Exception {
-        HalPropValue propResponse = createPropRequest(INITIAL_USER_INFO,
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(INITIAL_USER_INFO,
                     REQUEST_ID_PLACE_HOLDER, InitialUserInfoResponseAction.DEFAULT);
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 INITIAL_USER_INFO, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<InitialUserInfoResponse> callback = new GenericHalCallback<>(
@@ -490,17 +411,17 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(actualResponse.userNameToCreate).isEmpty();
         assertThat(actualResponse.userToSwitchOrCreate).isNotNull();
         assertThat(actualResponse.userToSwitchOrCreate.userId).isEqualTo(UserHandle.USER_NULL);
-        assertThat(actualResponse.userToSwitchOrCreate.flags).isEqualTo(0);
+        assertThat(actualResponse.userToSwitchOrCreate.flags).isEqualTo(UserFlags.NONE);
     }
 
     @Test
     public void testGetUserInfo_successSwitchUser() throws Exception {
         int userIdToSwitch = 42;
-        HalPropValue propResponse = createPropRequest(INITIAL_USER_INFO,
-                    REQUEST_ID_PLACE_HOLDER, InitialUserInfoResponseAction.SWITCH,
-                    new int[]{userIdToSwitch});
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(INITIAL_USER_INFO,
+                    REQUEST_ID_PLACE_HOLDER, InitialUserInfoResponseAction.SWITCH);
+        propResponse.value.int32Values.add(userIdToSwitch);
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 INITIAL_USER_INFO, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<InitialUserInfoResponse> callback = new GenericHalCallback<>(
@@ -520,19 +441,20 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         UserInfo userToSwitch = actualResponse.userToSwitchOrCreate;
         assertThat(userToSwitch).isNotNull();
         assertThat(userToSwitch.userId).isEqualTo(userIdToSwitch);
-        assertThat(userToSwitch.flags).isEqualTo(0);
+        assertThat(userToSwitch.flags).isEqualTo(UserFlags.NONE);
     }
 
     @Test
     public void testGetUserInfo_successCreateUser() throws Exception {
         int newUserFlags = 108;
         String newUserName = "Groot";
-        int unusedUserId = 666;
-        HalPropValue propResponse = createPropRequest(INITIAL_USER_INFO,
-                    REQUEST_ID_PLACE_HOLDER, InitialUserInfoResponseAction.CREATE,
-                    new int[]{unusedUserId, newUserFlags}, "||" + newUserName);
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(INITIAL_USER_INFO,
+                    REQUEST_ID_PLACE_HOLDER, InitialUserInfoResponseAction.CREATE);
+        propResponse.value.int32Values.add(666); // userId (not used)
+        propResponse.value.int32Values.add(newUserFlags);
+        propResponse.value.stringValue = "||" + newUserName;
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 INITIAL_USER_INFO, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<InitialUserInfoResponse> callback = new GenericHalCallback<>(
@@ -569,29 +491,29 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         UserHalService myHalService = new UserHalService(mVehicleHal);
 
         assertThrows(IllegalStateException.class,
-                () -> myHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo),
+                () -> myHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo),
                         HAL_TIMEOUT_MS, noOpCallback()));
     }
 
     @Test
     public void testSwitchUser_invalidTimeout() {
         assertThrows(IllegalArgumentException.class, () -> mUserHalService
-                .switchUser(createUserSwitchRequest(mUser100, mUsersInfo), 0, noOpCallback()));
+                .switchUser(createUserSwitchRequest(mUser10, mUsersInfo), 0, noOpCallback()));
         assertThrows(IllegalArgumentException.class, () -> mUserHalService
-                .switchUser(createUserSwitchRequest(mUser100, mUsersInfo), -1, noOpCallback()));
+                .switchUser(createUserSwitchRequest(mUser10, mUsersInfo), -1, noOpCallback()));
     }
 
     @Test
     public void testSwitchUser_noUsersInfo() {
         assertThrows(IllegalArgumentException.class, () -> mUserHalService
-                .switchUser(createUserSwitchRequest(mUser100, null), HAL_TIMEOUT_MS,
+                .switchUser(createUserSwitchRequest(mUser10, null), HAL_TIMEOUT_MS,
                         noOpCallback()));
     }
 
     @Test
     public void testSwitchUser_noCallback() {
         assertThrows(NullPointerException.class, () -> mUserHalService
-                .switchUser(createUserSwitchRequest(mUser100, mUsersInfo), HAL_TIMEOUT_MS, null));
+                .switchUser(createUserSwitchRequest(mUser10, mUsersInfo), HAL_TIMEOUT_MS, null));
     }
 
     @Test
@@ -613,7 +535,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
         GenericHalCallback<SwitchUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo),
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo),
                 HAL_TIMEOUT_FOR_NEGATIVE_TESTS_MS,
                 callback);
 
@@ -630,7 +552,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     public void testSwitchUser_halDidNotReply() throws Exception {
         GenericHalCallback<SwitchUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo),
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo),
                 HAL_TIMEOUT_FOR_NEGATIVE_TESTS_MS,
                 callback);
 
@@ -641,7 +563,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSwitchUser_halReplyWithWrongRequestId() throws Exception {
-        HalPropValue propResponse = createPropRequest(SWITCH_USER,
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(SWITCH_USER,
                     REQUEST_ID_PLACE_HOLDER, InitialUserInfoResponseAction.SWITCH);
 
         replySetPropertyWithOnChangeEvent(SWITCH_USER, propResponse,
@@ -649,7 +571,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
         GenericHalCallback<SwitchUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo),
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo),
                 HAL_TIMEOUT_FOR_NEGATIVE_TESTS_MS,
                 callback);
 
@@ -660,23 +582,23 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSwitchUser_halReturnedInvalidMessageType() throws Exception {
-        HalPropValue propResponse = createPropRequest(SWITCH_USER,
-                REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.LEGACY_ANDROID_SWITCH,
-                new int[]{SwitchUserStatus.SUCCESS});
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(SWITCH_USER,
+                REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.LEGACY_ANDROID_SWITCH);
+        propResponse.value.int32Values.add(SwitchUserStatus.SUCCESS);
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 SWITCH_USER, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<SwitchUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo), HAL_TIMEOUT_MS,
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo), HAL_TIMEOUT_MS,
                 callback);
 
         callback.assertCalled();
 
         // Make sure the arguments were properly converted
         assertHalSetSwitchUserRequest(reqCaptor.get(), SwitchUserMessageType.ANDROID_SWITCH,
-                mUser100);
+                mUser10);
 
         // Assert response
         assertCallbackStatus(callback, HalCallback.STATUS_WRONG_HAL_RESPONSE);
@@ -685,23 +607,23 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSwitchUser_success() throws Exception {
-        HalPropValue propResponse = createPropRequest(SWITCH_USER,
-                    REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.VEHICLE_RESPONSE,
-                    new int[]{SwitchUserStatus.SUCCESS});
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(SWITCH_USER,
+                    REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.VEHICLE_RESPONSE);
+        propResponse.value.int32Values.add(SwitchUserStatus.SUCCESS);
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 SWITCH_USER, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<SwitchUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo), HAL_TIMEOUT_MS,
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo), HAL_TIMEOUT_MS,
                 callback);
 
         callback.assertCalled();
 
         // Make sure the arguments were properly converted
         assertHalSetSwitchUserRequest(reqCaptor.get(), SwitchUserMessageType.ANDROID_SWITCH,
-                mUser100);
+                mUser10);
 
         // Assert response
         assertCallbackStatus(callback, HalCallback.STATUS_OK);
@@ -713,23 +635,24 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSwitchUser_failure() throws Exception {
-        HalPropValue propResponse = createPropRequest(SWITCH_USER,
-                    REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.VEHICLE_RESPONSE,
-                    new int[]{SwitchUserStatus.FAILURE}, "D'OH!");
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(SWITCH_USER,
+                    REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.VEHICLE_RESPONSE);
+        propResponse.value.int32Values.add(SwitchUserStatus.FAILURE);
+        propResponse.value.stringValue = "D'OH!";
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 SWITCH_USER, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<SwitchUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo), HAL_TIMEOUT_MS,
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo), HAL_TIMEOUT_MS,
                 callback);
 
         callback.assertCalled();
 
         // Make sure the arguments were properly converted
         assertHalSetSwitchUserRequest(reqCaptor.get(), SwitchUserMessageType.ANDROID_SWITCH,
-                mUser100);
+                mUser10);
 
         // Assert response
         assertCallbackStatus(callback, HalCallback.STATUS_OK);
@@ -745,10 +668,10 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
                 CALLBACK_TIMEOUT);
         GenericHalCallback<SwitchUserResponse> callback2 = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo),
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo),
                 HAL_TIMEOUT_FOR_NEGATIVE_TESTS_MS,
                 callback1);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo), HAL_TIMEOUT_MS,
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo), HAL_TIMEOUT_MS,
                 callback2);
 
         callback1.assertCalled();
@@ -762,23 +685,23 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSwitchUser_halReturnedInvalidStatus() throws Exception {
-        HalPropValue propResponse = createPropRequest(SWITCH_USER,
-                    REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.VEHICLE_RESPONSE,
-                    new int[]{/*status =*/ 110});
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(SWITCH_USER,
+                    REQUEST_ID_PLACE_HOLDER, SwitchUserMessageType.VEHICLE_RESPONSE);
+        propResponse.value.int32Values.add(/*status =*/ 110); // an invalid status
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 SWITCH_USER, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<SwitchUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
-        mUserHalService.switchUser(createUserSwitchRequest(mUser100, mUsersInfo), HAL_TIMEOUT_MS,
+        mUserHalService.switchUser(createUserSwitchRequest(mUser10, mUsersInfo), HAL_TIMEOUT_MS,
                 callback);
 
         callback.assertCalled();
 
         // Make sure the arguments were properly converted
         assertHalSetSwitchUserRequest(reqCaptor.get(), SwitchUserMessageType.ANDROID_SWITCH,
-                mUser100);
+                mUser10);
 
         // Assert response
         assertCallbackStatus(callback, HalCallback.STATUS_WRONG_HAL_RESPONSE);
@@ -789,8 +712,10 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     public void testUserSwitch_OEMRequest_success() throws Exception {
         int requestId = -4;
         int targetUserId = 11;
-        HalPropValue propResponse = createPropRequest(SWITCH_USER, requestId,
-                SwitchUserMessageType.VEHICLE_REQUEST, new int[]{targetUserId});
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(SWITCH_USER,
+                requestId, SwitchUserMessageType.VEHICLE_REQUEST);
+
+        propResponse.value.int32Values.add(targetUserId);
 
         mUserHalService.onHalEvents(Arrays.asList(propResponse));
         waitForHandler();
@@ -802,8 +727,9 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     public void testUserSwitch_OEMRequest_failure_positiveRequestId() throws Exception {
         int requestId = 4;
         int targetUserId = 11;
-        HalPropValue propResponse = createPropRequest(SWITCH_USER, requestId,
-                SwitchUserMessageType.VEHICLE_REQUEST, new int[]{targetUserId});
+        VehiclePropValue propResponse = UserHalHelper.createPropRequest(SWITCH_USER,
+                requestId, SwitchUserMessageType.VEHICLE_REQUEST);
+        propResponse.value.int32Values.add(targetUserId);
 
         mUserHalService.onHalEvents(Arrays.asList(propResponse));
         waitForHandler();
@@ -817,7 +743,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         UserHalService myHalService = new UserHalService(mVehicleHal);
 
         assertThrows(IllegalStateException.class,
-                () -> myHalService.postSwitchResponse(UserHalHelper.emptySwitchUserRequest()));
+                () -> myHalService.postSwitchResponse(new SwitchUserRequest()));
     }
 
     @Test
@@ -827,7 +753,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testPostSwitchResponse_noUsersInfo() {
-        SwitchUserRequest request = createUserSwitchRequest(mUser100, null);
+        SwitchUserRequest request = createUserSwitchRequest(mUser10, null);
         request.requestId = 42;
         assertThrows(IllegalArgumentException.class,
                 () -> mUserHalService.postSwitchResponse(request));
@@ -835,14 +761,14 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testPostSwitchResponse_HalCalledWithCorrectProp() {
-        SwitchUserRequest request = createUserSwitchRequest(mUser100, mUsersInfo);
+        SwitchUserRequest request = createUserSwitchRequest(mUser10, mUsersInfo);
         request.requestId = 42;
         mUserHalService.postSwitchResponse(request);
-        ArgumentCaptor<HalPropValue> propCaptor =
-                ArgumentCaptor.forClass(HalPropValue.class);
+        ArgumentCaptor<VehiclePropValue> propCaptor =
+                ArgumentCaptor.forClass(VehiclePropValue.class);
         verify(mVehicleHal).set(propCaptor.capture());
-        HalPropValue prop = propCaptor.getValue();
-        assertHalSetSwitchUserRequest(prop, SwitchUserMessageType.ANDROID_POST_SWITCH, mUser100);
+        VehiclePropValue prop = propCaptor.getValue();
+        assertHalSetSwitchUserRequest(prop, SwitchUserMessageType.ANDROID_POST_SWITCH, mUser10);
     }
 
     @Test
@@ -852,7 +778,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testLegacyUserSwitch_noMessageType() {
-        SwitchUserRequest request = UserHalHelper.emptySwitchUserRequest();
+        SwitchUserRequest request = new SwitchUserRequest();
 
         assertThrows(IllegalArgumentException.class,
                 () -> mUserHalService.legacyUserSwitch(request));
@@ -860,7 +786,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testLegacyUserSwitch_noTargetUserInfo() {
-        SwitchUserRequest request = UserHalHelper.emptySwitchUserRequest();
+        SwitchUserRequest request = new SwitchUserRequest();
         request.messageType = SwitchUserMessageType.ANDROID_SWITCH;
 
         assertThrows(IllegalArgumentException.class,
@@ -873,7 +799,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         UserHalService myHalService = new UserHalService(mVehicleHal);
 
         assertThrows(IllegalStateException.class,
-                () -> myHalService.removeUser(UserHalHelper.emptyRemoveUserRequest()));
+                () -> myHalService.removeUser(new RemoveUserRequest()));
     }
 
     @Test
@@ -886,7 +812,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testRemoveUser_noRequestId() {
-        RemoveUserRequest request = UserHalHelper.emptyRemoveUserRequest();
+        RemoveUserRequest request = new RemoveUserRequest();
 
         assertThrows(IllegalArgumentException.class,
                 () -> mUserHalService.removeUser(request));
@@ -894,7 +820,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testRemoveUser_noRemovedUserInfo() {
-        RemoveUserRequest request = UserHalHelper.emptyRemoveUserRequest();
+        RemoveUserRequest request = new RemoveUserRequest();
         request.requestId = 1;
 
         assertThrows(IllegalArgumentException.class,
@@ -903,9 +829,9 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testRemoveUser_noUsersInfo() {
-        RemoveUserRequest request = UserHalHelper.emptyRemoveUserRequest();
+        RemoveUserRequest request = new RemoveUserRequest();
         request.requestId = 1;
-        request.removedUserInfo = mUser100;
+        request.removedUserInfo = mUser10;
 
         assertThrows(IllegalArgumentException.class,
                 () -> mUserHalService.removeUser(request));
@@ -913,16 +839,16 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testRemoveUser_HalCalledWithCorrectProp() {
-        RemoveUserRequest request = UserHalHelper.emptyRemoveUserRequest();
-        request.removedUserInfo = mUser100;
+        RemoveUserRequest request = new RemoveUserRequest();
+        request.removedUserInfo = mUser10;
         request.usersInfo = mUsersInfo;
-        ArgumentCaptor<HalPropValue> propCaptor =
-                ArgumentCaptor.forClass(HalPropValue.class);
+        ArgumentCaptor<VehiclePropValue> propCaptor =
+                ArgumentCaptor.forClass(VehiclePropValue.class);
 
         mUserHalService.removeUser(request);
 
         verify(mVehicleHal).set(propCaptor.capture());
-        assertHalSetRemoveUserRequest(propCaptor.getValue(), mUser100);
+        assertHalSetRemoveUserRequest(propCaptor.getValue(), mUser10);
     }
 
     @Test
@@ -931,14 +857,14 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         UserHalService myHalService = new UserHalService(mVehicleHal);
 
         assertThrows(IllegalStateException.class,
-                () -> myHalService.legacyUserSwitch(UserHalHelper.emptySwitchUserRequest()));
+                () -> myHalService.legacyUserSwitch(new SwitchUserRequest()));
     }
 
     @Test
     public void testLegacyUserSwitch_noUsersInfo() {
-        SwitchUserRequest request = UserHalHelper.emptySwitchUserRequest();
+        SwitchUserRequest request = new SwitchUserRequest();
         request.messageType = SwitchUserMessageType.ANDROID_SWITCH;
-        request.targetUser = mUser100;
+        request.targetUser = mUser10;
 
         assertThrows(IllegalArgumentException.class,
                 () -> mUserHalService.legacyUserSwitch(request));
@@ -946,18 +872,18 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testLegacyUserSwitch_HalCalledWithCorrectProp() {
-        SwitchUserRequest request = UserHalHelper.emptySwitchUserRequest();
+        SwitchUserRequest request = new SwitchUserRequest();
         request.messageType = SwitchUserMessageType.LEGACY_ANDROID_SWITCH;
-        request.targetUser = mUser100;
+        request.targetUser = mUser10;
         request.usersInfo = mUsersInfo;
 
         mUserHalService.legacyUserSwitch(request);
-        ArgumentCaptor<HalPropValue> propCaptor =
-                ArgumentCaptor.forClass(HalPropValue.class);
+        ArgumentCaptor<VehiclePropValue> propCaptor =
+                ArgumentCaptor.forClass(VehiclePropValue.class);
         verify(mVehicleHal).set(propCaptor.capture());
-        HalPropValue prop = propCaptor.getValue();
+        VehiclePropValue prop = propCaptor.getValue();
         assertHalSetSwitchUserRequest(prop, SwitchUserMessageType.LEGACY_ANDROID_SWITCH,
-                mUser100);
+                mUser10);
     }
 
     @Test
@@ -966,8 +892,8 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         UserHalService myHalService = new UserHalService(mVehicleHal);
 
         assertThrows(IllegalStateException.class,
-                () -> myHalService.createUser(UserHalHelper.emptyCreateUserRequest(),
-                        HAL_TIMEOUT_MS, noOpCallback()));
+                () -> myHalService.createUser(new CreateUserRequest(), HAL_TIMEOUT_MS,
+                        noOpCallback()));
     }
 
     @Test
@@ -979,16 +905,16 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testCreateUser_invalidTimeout() {
         assertThrows(IllegalArgumentException.class, () -> mUserHalService
-                .createUser(UserHalHelper.emptyCreateUserRequest(), 0, noOpCallback()));
+                .createUser(new CreateUserRequest(), 0, noOpCallback()));
         assertThrows(IllegalArgumentException.class, () -> mUserHalService
-                .createUser(UserHalHelper.emptyCreateUserRequest(), -1, noOpCallback()));
+                .createUser(new CreateUserRequest(), -1, noOpCallback()));
     }
 
     @Test
     public void testCreateUser_noCallback() {
-        CreateUserRequest request = UserHalHelper.emptyCreateUserRequest();
+        CreateUserRequest request = new CreateUserRequest();
         request.newUserInfo.userId = 10;
-        request.usersInfo.existingUsers = new UserInfo[]{request.newUserInfo};
+        request.usersInfo.existingUsers.add(request.newUserInfo);
 
         assertThrows(NullPointerException.class, () -> mUserHalService
                 .createUser(request, HAL_TIMEOUT_MS, null));
@@ -999,8 +925,8 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
      */
     @NonNull
     private CreateUserRequest newValidCreateUserRequest() {
-        CreateUserRequest request = UserHalHelper.emptyCreateUserRequest();
-        request.newUserInfo = mUser100;
+        CreateUserRequest request = new CreateUserRequest();
+        request.newUserInfo = mUser10;
         request.usersInfo = mUsersInfo;
         return request;
     }
@@ -1037,7 +963,8 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testCreateUser_halReplyWithWrongRequestId() throws Exception {
-        HalPropValue propResponse = createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER);
+        VehiclePropValue propResponse =
+                UserHalHelper.createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER);
 
         replySetPropertyWithOnChangeEvent(CREATE_USER, propResponse,
                 /* rightRequestId= */ false);
@@ -1054,14 +981,15 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testCreateUser_success() throws Exception {
-        HalPropValue propResponse = createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER,
-                new int[]{CreateUserStatus.SUCCESS});
+        VehiclePropValue propResponse =
+                UserHalHelper.createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER);
+        propResponse.value.int32Values.add(CreateUserStatus.SUCCESS);
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 CREATE_USER, propResponse, /* rightRequestId= */ true);
 
-        CreateUserRequest request = UserHalHelper.emptyCreateUserRequest();
-        request.newUserInfo = mUser100;
+        CreateUserRequest request = new CreateUserRequest();
+        request.newUserInfo = mUser10;
         request.usersInfo = mUsersInfo;
         GenericHalCallback<CreateUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
@@ -1081,14 +1009,16 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testCreateUser_failure() throws Exception {
-        HalPropValue propResponse = createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER,
-                /* requestType= */ null,  new int[]{CreateUserStatus.FAILURE}, "D'OH!");
+        VehiclePropValue propResponse =
+                UserHalHelper.createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER);
+        propResponse.value.int32Values.add(CreateUserStatus.FAILURE);
+        propResponse.value.stringValue = "D'OH!";
 
-        AtomicReference<HalPropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
                 CREATE_USER, propResponse, /* rightRequestId= */ true);
 
-        CreateUserRequest request = UserHalHelper.emptyCreateUserRequest();
-        request.newUserInfo = mUser100;
+        CreateUserRequest request = new CreateUserRequest();
+        request.newUserInfo = mUser10;
         request.usersInfo = mUsersInfo;
         GenericHalCallback<CreateUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
@@ -1127,10 +1057,12 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testCreateUser_halReturnedInvalidStatus() throws Exception {
-        HalPropValue propResponse = createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER,
-                new int[]{/*status =*/ -1});
+        VehiclePropValue propResponse =
+                UserHalHelper.createPropRequest(CREATE_USER, REQUEST_ID_PLACE_HOLDER);
+        propResponse.value.int32Values.add(/*status =*/ -1); // an invalid status
 
-        replySetPropertyWithOnChangeEvent(CREATE_USER, propResponse, /* rightRequestId= */ true);
+        AtomicReference<VehiclePropValue> reqCaptor = replySetPropertyWithOnChangeEvent(
+                CREATE_USER, propResponse, /* rightRequestId= */ true);
 
         GenericHalCallback<CreateUserResponse> callback = new GenericHalCallback<>(
                 CALLBACK_TIMEOUT);
@@ -1161,7 +1093,8 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     public void testGetUserAssociation_requestWithDuplicatedTypes() {
         UserIdentificationGetRequest request = new UserIdentificationGetRequest();
         request.numberAssociationTypes = 2;
-        request.associationTypes = new int[]{KEY_FOB, KEY_FOB};
+        request.associationTypes.add(KEY_FOB);
+        request.associationTypes.add(KEY_FOB);
 
         assertThrows(IllegalArgumentException.class,
                 () -> mUserHalService.getUserAssociation(request));
@@ -1169,15 +1102,11 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserAssociation_invalidResponse() {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0,
-                new int[]{
-                    DEFAULT_REQUEST_ID,
-                    // 1 associations
-                    1,
-                    // type only, it's missing value
-                    KEY_FOB});
-
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID);
+        propResponse.value.int32Values.add(1); // 1 associations
+        propResponse.value.int32Values.add(KEY_FOB); // type only, it's missing value
         UserIdentificationGetRequest request = replyToValidGetUserIdentificationRequest(
                 propResponse);
 
@@ -1194,29 +1123,15 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testGetUserAssociation_ServiceExceptionFromHal() {
-        UserIdentificationGetRequest request =
-                replyToValidGetUserIdentificationRequestWithException(
-                        new ServiceSpecificException(VehicleHalStatusCode.STATUS_TRY_AGAIN));
-
-        assertThat(mUserHalService.getUserAssociation(request)).isNull();
-
-        verifyValidGetUserIdentificationRequestMade();
-    }
-
-    @Test
     public void testGetUserAssociation_wrongNumberOfAssociationsOnResponse() {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0,
-                new int[]{
-                    DEFAULT_REQUEST_ID,
-                    // 2 associations
-                    2,
-                    KEY_FOB,
-                    ASSOCIATED_CURRENT_USER,
-                    CUSTOM_1,
-                    ASSOCIATED_CURRENT_USER
-                });
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID);
+        propResponse.value.int32Values.add(2); // 2 associations
+        propResponse.value.int32Values.add(KEY_FOB);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
+        propResponse.value.int32Values.add(CUSTOM_1);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
         UserIdentificationGetRequest request = replyToValidGetUserIdentificationRequest(
                 propResponse);
 
@@ -1227,15 +1142,12 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserAssociation_typesOnResponseMismatchTypesOnRequest() {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0,
-                new int[]{
-                    DEFAULT_REQUEST_ID,
-                    // 1 association
-                    1,
-                    CUSTOM_1,
-                    ASSOCIATED_CURRENT_USER
-                });
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID);
+        propResponse.value.int32Values.add(1); // 1 association
+        propResponse.value.int32Values.add(CUSTOM_1);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
         UserIdentificationGetRequest request = replyToValidGetUserIdentificationRequest(
                 propResponse);
 
@@ -1246,15 +1158,12 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserAssociation_requestIdMismatch() {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0,
-                new int[]{
-                    DEFAULT_REQUEST_ID + 1,
-                    // 1 association
-                    1,
-                    KEY_FOB,
-                    ASSOCIATED_CURRENT_USER
-                });
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID + 1);
+        propResponse.value.int32Values.add(1); // 1 association
+        propResponse.value.int32Values.add(KEY_FOB);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
         UserIdentificationGetRequest request = replyToValidGetUserIdentificationRequest(
                 propResponse);
 
@@ -1265,15 +1174,12 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testGetUserAssociation_ok() {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0,
-                new int[]{
-                    DEFAULT_REQUEST_ID,
-                    // 1 association
-                    1,
-                    KEY_FOB,
-                    ASSOCIATED_CURRENT_USER
-                });
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID);
+        propResponse.value.int32Values.add(1); // 1 association
+        propResponse.value.int32Values.add(KEY_FOB);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
         UserIdentificationGetRequest request = replyToValidGetUserIdentificationRequest(
                 propResponse);
 
@@ -1281,8 +1187,8 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertThat(response.requestId).isEqualTo(DEFAULT_REQUEST_ID);
         assertThat(response.numberAssociation).isEqualTo(1);
-        assertThat(response.associations.length).isEqualTo(1);
-        UserIdentificationAssociation actualAssociation = response.associations[0];
+        assertThat(response.associations).hasSize(1);
+        UserIdentificationAssociation actualAssociation = response.associations.get(0);
         assertThat(actualAssociation.type).isEqualTo(KEY_FOB);
         assertThat(actualAssociation.value).isEqualTo(ASSOCIATED_CURRENT_USER);
     }
@@ -1294,12 +1200,12 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertThrows(IllegalStateException.class,
                 () -> myHalService.setUserAssociation(HAL_TIMEOUT_MS,
-                        UserHalHelper.emptyUserIdentificationSetRequest(), noOpCallback()));
+                        new UserIdentificationSetRequest(), noOpCallback()));
     }
 
     @Test
     public void testSetUserAssociation_invalidTimeout() {
-        UserIdentificationSetRequest request = UserHalHelper.emptyUserIdentificationSetRequest();
+        UserIdentificationSetRequest request = new UserIdentificationSetRequest();
         assertThrows(IllegalArgumentException.class, () ->
                 mUserHalService.setUserAssociation(0, request, noOpCallback()));
         assertThrows(IllegalArgumentException.class, () ->
@@ -1314,19 +1220,20 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSetUserAssociation_nullCallback() {
-        UserIdentificationSetRequest request = UserHalHelper.emptyUserIdentificationSetRequest();
+        UserIdentificationSetRequest request = new UserIdentificationSetRequest();
         assertThrows(NullPointerException.class, () ->
                 mUserHalService.setUserAssociation(HAL_TIMEOUT_MS, request, null));
     }
 
     @Test
     public void testSetUserAssociation_requestWithDuplicatedTypes() {
-        UserIdentificationSetRequest request = UserHalHelper.emptyUserIdentificationSetRequest();
+        UserIdentificationSetRequest request = new UserIdentificationSetRequest();
         request.numberAssociations = 2;
         UserIdentificationSetAssociation association1 = new UserIdentificationSetAssociation();
         association1.type = KEY_FOB;
         association1.value = ASSOCIATE_CURRENT_USER;
-        request.associations = new UserIdentificationSetAssociation[]{association1, association1};
+        request.associations.add(association1);
+        request.associations.add(association1);
 
         assertThrows(IllegalArgumentException.class, () ->
                 mUserHalService.setUserAssociation(HAL_TIMEOUT_MS, request, noOpCallback()));
@@ -1385,10 +1292,10 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSetUserAssociation_responseWithWrongRequestId() throws Exception {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0, DEFAULT_REQUEST_ID + 1);
-
-        AtomicReference<HalPropValue> propRequest = replySetPropertyWithOnChangeEvent(
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID + 1);
+        AtomicReference<VehiclePropValue> propRequest = replySetPropertyWithOnChangeEvent(
                 USER_IDENTIFICATION_ASSOCIATION, propResponse, /* rightRequestId= */ true);
         UserIdentificationSetRequest request = replyToValidSetUserIdentificationRequest();
         GenericHalCallback<UserIdentificationResponse> callback = new GenericHalCallback<>(
@@ -1406,11 +1313,14 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSetUserAssociation_notEnoughValuesOnResponse() throws Exception {
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
         // need at least 4: requestId, number associations, type1, value1
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0, new int[]{1, 2, 3});
+        propResponse.value.int32Values.add(1);
+        propResponse.value.int32Values.add(2);
+        propResponse.value.int32Values.add(3);
 
-        AtomicReference<HalPropValue> propRequest = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> propRequest = replySetPropertyWithOnChangeEvent(
                 USER_IDENTIFICATION_ASSOCIATION, propResponse, /* rightRequestId= */ true);
         UserIdentificationSetRequest request = replyToValidSetUserIdentificationRequest();
         GenericHalCallback<UserIdentificationResponse> callback = new GenericHalCallback<>(
@@ -1428,18 +1338,16 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSetUserAssociation_wrongNumberOfAssociationsOnResponse() throws Exception {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0, new int[]{
-                    DEFAULT_REQUEST_ID,
-                    // 2 associations; request is just 1
-                    2,
-                    KEY_FOB,
-                    ASSOCIATED_CURRENT_USER,
-                    CUSTOM_1,
-                    ASSOCIATED_CURRENT_USER
-                });
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID);
+        propResponse.value.int32Values.add(2); // 2 associations; request is just 1
+        propResponse.value.int32Values.add(KEY_FOB);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
+        propResponse.value.int32Values.add(CUSTOM_1);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
 
-        AtomicReference<HalPropValue> propRequest = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> propRequest = replySetPropertyWithOnChangeEvent(
                 USER_IDENTIFICATION_ASSOCIATION, propResponse, /* rightRequestId= */ true);
         UserIdentificationSetRequest request = replyToValidSetUserIdentificationRequest();
         GenericHalCallback<UserIdentificationResponse> callback = new GenericHalCallback<>(
@@ -1457,17 +1365,14 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSetUserAssociation_typeMismatchOnResponse() throws Exception {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0, new int[]{
-                    DEFAULT_REQUEST_ID,
-                    // 1 association
-                    1,
-                    // request is KEY_FOB
-                    CUSTOM_1,
-                    ASSOCIATED_CURRENT_USER
-                });
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID);
+        propResponse.value.int32Values.add(1); // 1 association
+        propResponse.value.int32Values.add(CUSTOM_1); // request is KEY_FOB
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
 
-        AtomicReference<HalPropValue> propRequest = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> propRequest = replySetPropertyWithOnChangeEvent(
                 USER_IDENTIFICATION_ASSOCIATION, propResponse, /* rightRequestId= */ true);
         UserIdentificationSetRequest request = replyToValidSetUserIdentificationRequest();
         GenericHalCallback<UserIdentificationResponse> callback = new GenericHalCallback<>(
@@ -1485,16 +1390,14 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testSetUserAssociation_ok() throws Exception {
-        HalPropValue propResponse = mPropValueBuilder.build(USER_IDENTIFICATION_ASSOCIATION,
-                /* areaId= */ 0, new int[]{
-                    DEFAULT_REQUEST_ID,
-                    // 1 association
-                    1,
-                    KEY_FOB,
-                    ASSOCIATED_CURRENT_USER
-                });
+        VehiclePropValue propResponse = new VehiclePropValue();
+        propResponse.prop = USER_IDENTIFICATION_ASSOCIATION;
+        propResponse.value.int32Values.add(DEFAULT_REQUEST_ID);
+        propResponse.value.int32Values.add(1); // 1 association
+        propResponse.value.int32Values.add(KEY_FOB);
+        propResponse.value.int32Values.add(ASSOCIATED_CURRENT_USER);
 
-        AtomicReference<HalPropValue> propRequest = replySetPropertyWithOnChangeEvent(
+        AtomicReference<VehiclePropValue> propRequest = replySetPropertyWithOnChangeEvent(
                 USER_IDENTIFICATION_ASSOCIATION, propResponse, /* rightRequestId= */ true);
         UserIdentificationSetRequest request = replyToValidSetUserIdentificationRequest();
         GenericHalCallback<UserIdentificationResponse> callback = new GenericHalCallback<>(
@@ -1512,24 +1415,24 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertThat(actualResponse.requestId).isEqualTo(DEFAULT_REQUEST_ID);
         assertThat(actualResponse.numberAssociation).isEqualTo(1);
-        assertThat(actualResponse.associations.length).isEqualTo(1);
-        UserIdentificationAssociation actualAssociation = actualResponse.associations[0];
+        assertThat(actualResponse.associations).hasSize(1);
+        UserIdentificationAssociation actualAssociation = actualResponse.associations.get(0);
         assertThat(actualAssociation.type).isEqualTo(KEY_FOB);
         assertThat(actualAssociation.value).isEqualTo(ASSOCIATED_CURRENT_USER);
     }
 
     /**
-     * Asserts the given {@link UsersInfo} is properly represented in the {@link HalPropValue}.
+     * Asserts the given {@link UsersInfo} is properly represented in the {@link VehiclePropValue}.
      *
      * @param value property containing the info
      * @param info info to be checked
      * @param initialIndex first index of the info values in the property's {@code int32Values}
      */
-    private void assertUsersInfo(HalPropValue value, UsersInfo info, int initialIndex) {
+    private void assertUsersInfo(VehiclePropValue value, UsersInfo info, int initialIndex) {
         // TODO: consider using UserHalHelper to convert the property into a specific request,
         // and compare the request's UsersInfo.
         // But such method is not needed in production code yet.
-        List<Integer> values = getIntValues(value);
+        ArrayList<Integer> values = value.value.int32Values;
         assertWithMessage("wrong values size").that(values)
                 .hasSize(initialIndex + 3 + info.numberUsers * 2);
 
@@ -1547,7 +1450,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         for (int j = 0; j < info.numberUsers; j++) {
             int actualUserId = values.get(i++);
             int actualUserFlags = values.get(i++);
-            UserInfo expectedUser = info.existingUsers[j];
+            UserInfo expectedUser = info.existingUsers.get(j);
             assertWithMessage("wrong id for existing user#%s at index %s", j, i)
                 .that(actualUserId).isEqualTo(expectedUser.userId);
             assertWithMessage("wrong flags for existing user#%s at index %s", j, i)
@@ -1565,31 +1468,18 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
      *
      * @return reference to the value passed to {@code set()}.
      */
-    private AtomicReference<HalPropValue> replySetPropertyWithOnChangeEvent(int prop,
-            HalPropValue response, boolean rightRequestId) throws Exception {
-        AtomicReference<HalPropValue> ref = new AtomicReference<>();
+    private AtomicReference<VehiclePropValue> replySetPropertyWithOnChangeEvent(int prop,
+            VehiclePropValue response, boolean rightRequestId) throws Exception {
+        AtomicReference<VehiclePropValue> ref = new AtomicReference<>();
         doAnswer((inv) -> {
-            HalPropValue request = inv.getArgument(0);
+            VehiclePropValue request = inv.getArgument(0);
             ref.set(request);
-            int requestId = request.getInt32Value(0);
+            int requestId = request.value.int32Values.get(0);
             int responseId = rightRequestId ? requestId : requestId + 1000;
-
-            int[] intValues = new int[response.getInt32ValuesSize()];
-            for (int i = 0; i < response.getInt32ValuesSize(); i++) {
-                if (i == 0) {
-                    intValues[i] = responseId;
-                    continue;
-                }
-                intValues[i] = response.getInt32Value(i);
-            }
-            HalPropValue responseCopy = mPropValueBuilder.build(response.getPropId(),
-                    response.getAreaId(), response.getTimestamp(), response.getStatus(), intValues,
-                    /*floatValues=*/new float[0], /*int64Values=*/new long[0],
-                    response.getStringValue(), /*byteValues=*/new byte[0]);
-
-            Log.d(TAG, "replySetPropertyWithOnChangeEvent(): resp=" + responseCopy + " for req="
+            response.value.int32Values.set(0, responseId);
+            Log.d(TAG, "replySetPropertyWithOnChangeEvent(): resp=" + response + " for req="
                     + request);
-            mUserHalService.onHalEvents(Arrays.asList(responseCopy));
+            mUserHalService.onHalEvents(Arrays.asList(response));
             return null;
         }).when(mVehicleHal).set(isProperty(prop));
         return ref;
@@ -1600,14 +1490,13 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
      */
     private void replySetPropertyWithTimeoutException(int prop) throws Exception {
         doThrow(new ServiceSpecificException(VehicleHalStatusCode.STATUS_TRY_AGAIN,
-                "PropId: 0x" + Integer.toHexString(prop))).when(mVehicleHal)
-                .set(isProperty(prop));
+                "PropId: 0x" + Integer.toHexString(prop))).when(mVehicleHal).set(isProperty(prop));
     }
 
     @NonNull
     private SwitchUserRequest createUserSwitchRequest(@NonNull UserInfo targetUser,
             @NonNull UsersInfo usersInfo) {
-        SwitchUserRequest request = UserHalHelper.emptySwitchUserRequest();
+        SwitchUserRequest request = new SwitchUserRequest();
         request.targetUser = targetUser;
         request.usersInfo = usersInfo;
         return request;
@@ -1617,38 +1506,19 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
      * Creates and set expectations for a valid request.
      */
     private UserIdentificationGetRequest replyToValidGetUserIdentificationRequest(
-            @NonNull HalPropValue response) {
+            @NonNull VehiclePropValue response) {
         mockNextRequestId(DEFAULT_REQUEST_ID);
 
         UserIdentificationGetRequest request = new UserIdentificationGetRequest();
-        request.userInfo = new UserInfo();
         request.userInfo.userId = DEFAULT_USER_ID;
         request.userInfo.flags = DEFAULT_USER_FLAGS;
         request.numberAssociationTypes = 1;
-        request.associationTypes = new int[]{KEY_FOB};
+        request.associationTypes.add(KEY_FOB);
 
         when(mVehicleHal.get(isPropertyWithValues(USER_IDENTIFICATION_ASSOCIATION,
                 DEFAULT_REQUEST_ID, DEFAULT_USER_ID, DEFAULT_USER_FLAGS,
                 /* numberAssociations= */ 1, KEY_FOB)))
             .thenReturn(response);
-
-        return request;
-    }
-
-    private UserIdentificationGetRequest replyToValidGetUserIdentificationRequestWithException(
-            Exception e) {
-        mockNextRequestId(DEFAULT_REQUEST_ID);
-
-        UserIdentificationGetRequest request = new UserIdentificationGetRequest();
-        request.userInfo = new UserInfo();
-        request.userInfo.userId = DEFAULT_USER_ID;
-        request.userInfo.flags = DEFAULT_USER_FLAGS;
-        request.numberAssociationTypes = 1;
-        request.associationTypes = new int[]{KEY_FOB};
-
-        when(mVehicleHal.get(isPropertyWithValues(USER_IDENTIFICATION_ASSOCIATION,
-                DEFAULT_REQUEST_ID, DEFAULT_USER_ID, DEFAULT_USER_FLAGS,
-                /* numberAssociations= */ 1, KEY_FOB))).thenThrow(e);
 
         return request;
     }
@@ -1665,14 +1535,14 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
      * Creates a valid request that can be used in test cases where its content is not asserted.
      */
     private UserIdentificationSetRequest validUserIdentificationSetRequest() {
-        UserIdentificationSetRequest request = UserHalHelper.emptyUserIdentificationSetRequest();
+        UserIdentificationSetRequest request = new UserIdentificationSetRequest();
         request.userInfo.userId = DEFAULT_USER_ID;
         request.userInfo.flags = DEFAULT_USER_FLAGS;
         request.numberAssociations = 1;
         UserIdentificationSetAssociation association1 = new UserIdentificationSetAssociation();
         association1.type = KEY_FOB;
         association1.value = ASSOCIATE_CURRENT_USER;
-        request.associations = new UserIdentificationSetAssociation[]{association1};
+        request.associations.add(association1);
         return request;
     }
 
@@ -1687,47 +1557,42 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         doReturn(requestId).when(mUserHalService).getNextRequestId();
     }
 
-    private void mockUserHalEnabled(@Nullable Boolean enabled) {
-        Optional<Boolean> value = enabled != null ? Optional.of(enabled) : Optional.empty();
-        doReturn(value).when(() -> CarSystemProperties.getUserHalEnabled());
-    }
-
-    private void assertInitialUserInfoSetRequest(HalPropValue req, int requestType) {
-        assertThat(req.getInt32Value(1)).isEqualTo(requestType);
+    private void assertInitialUserInfoSetRequest(VehiclePropValue req, int requestType) {
+        assertThat(req.value.int32Values.get(1)).isEqualTo(requestType);
         assertUsersInfo(req, mUsersInfo, 2);
     }
 
-    private void assertHalSetSwitchUserRequest(HalPropValue req, int messageType,
+    private void assertHalSetSwitchUserRequest(VehiclePropValue req, int messageType,
             UserInfo targetUserInfo) {
-        assertThat(req.getPropId()).isEqualTo(SWITCH_USER);
-        assertWithMessage("wrong request Id on %s", req).that(req.getInt32Value(0))
+        assertThat(req.prop).isEqualTo(SWITCH_USER);
+        assertWithMessage("wrong request Id on %s", req).that(req.value.int32Values.get(0))
             .isAtLeast(1);
-        assertThat(req.getInt32Value(1)).isEqualTo(messageType);
-        assertWithMessage("targetuser.id mismatch on %s", req).that(req.getInt32Value(2))
+        assertThat(req.value.int32Values.get(1)).isEqualTo(messageType);
+        assertWithMessage("targetuser.id mismatch on %s", req).that(req.value.int32Values.get(2))
                 .isEqualTo(targetUserInfo.userId);
-        assertWithMessage("targetuser.flags mismatch on %s", req).that(req.getInt32Value(3))
+        assertWithMessage("targetuser.flags mismatch on %s", req).that(req.value.int32Values.get(3))
                 .isEqualTo(targetUserInfo.flags);
         assertUsersInfo(req, mUsersInfo, 4);
     }
 
-    private void assertHalSetRemoveUserRequest(HalPropValue req, UserInfo userInfo) {
-        assertThat(req.getPropId()).isEqualTo(REMOVE_USER);
-        assertWithMessage("wrong request Id on %s", req).that(req.getInt32Value(0))
+    private void assertHalSetRemoveUserRequest(VehiclePropValue req, UserInfo userInfo) {
+        assertThat(req.prop).isEqualTo(REMOVE_USER);
+        assertWithMessage("wrong request Id on %s", req).that(req.value.int32Values.get(0))
                 .isAtLeast(1);
-        assertWithMessage("user.id mismatch on %s", req).that(req.getInt32Value(1))
+        assertWithMessage("user.id mismatch on %s", req).that(req.value.int32Values.get(1))
                 .isEqualTo(userInfo.userId);
-        assertWithMessage("user.flags mismatch on %s", req).that(req.getInt32Value(2))
+        assertWithMessage("user.flags mismatch on %s", req).that(req.value.int32Values.get(2))
                 .isEqualTo(userInfo.flags);
         assertUsersInfo(req, mUsersInfo, 3);
     }
 
-    private void assertHalSetCreateUserRequest(HalPropValue prop, CreateUserRequest request) {
-        assertThat(prop.getPropId()).isEqualTo(CREATE_USER);
-        assertWithMessage("wrong request Id on %s", prop).that(prop.getInt32Value(0))
+    private void assertHalSetCreateUserRequest(VehiclePropValue prop, CreateUserRequest request) {
+        assertThat(prop.prop).isEqualTo(CREATE_USER);
+        assertWithMessage("wrong request Id on %s", prop).that(prop.value.int32Values.get(0))
                 .isEqualTo(request.requestId);
-        assertWithMessage("newUser.userId mismatch on %s", prop).that(prop.getInt32Value(1))
+        assertWithMessage("newUser.userId mismatch on %s", prop).that(prop.value.int32Values.get(1))
                 .isEqualTo(request.newUserInfo.userId);
-        assertWithMessage("newUser.flags mismatch on %s", prop).that(prop.getInt32Value(2))
+        assertWithMessage("newUser.flags mismatch on %s", prop).that(prop.value.int32Values.get(2))
                 .isEqualTo(request.newUserInfo.flags);
         assertUsersInfo(prop, request.usersInfo, 3);
     }
@@ -1743,7 +1608,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     /**
      * Verifies {@code hal.get()} was called with the values used on
-     * {@link #replyToValidGetUserIdentificationRequest(HalPropValue)}.
+     * {@link #replyToValidGetUserIdentificationRequest(VehiclePropValue)}.
      */
     private void verifyValidGetUserIdentificationRequestMade() {
         verify(mVehicleHal).get(isPropertyWithValues(USER_IDENTIFICATION_ASSOCIATION,
@@ -1753,68 +1618,20 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
 
     /**
      * Verifies {@code hal.set()} was called with the values used on
-     * {@link #replyToValidSetUserIdentificationRequest(HalPropValue)}.
+     * {@link #replyToValidSetUserIdentificationRequest(VehiclePropValue)}.
      */
-    private void verifyValidSetUserIdentificationRequestMade(@NonNull HalPropValue request) {
-        assertThat(request.getPropId()).isEqualTo(USER_IDENTIFICATION_ASSOCIATION);
-
-        assertThat(getIntValues(request)).containsExactly(DEFAULT_REQUEST_ID, DEFAULT_USER_ID,
+    private void verifyValidSetUserIdentificationRequestMade(@NonNull VehiclePropValue request) {
+        assertThat(request.prop).isEqualTo(USER_IDENTIFICATION_ASSOCIATION);
+        assertThat(request.value.int32Values).containsExactly(DEFAULT_REQUEST_ID, DEFAULT_USER_ID,
                 DEFAULT_USER_FLAGS,
                 /* numberAssociations= */ 1, KEY_FOB, ASSOCIATE_CURRENT_USER);
-    }
-
-    private HalPropValue createPropRequest(int propId, int requestId) {
-        return createPropRequest(propId, requestId, null, new int[0], new String());
-    }
-
-    private HalPropValue createPropRequest(int propId, int requestId, int[] intValues) {
-        return createPropRequest(propId, requestId, null, intValues, new String());
-    }
-
-    private HalPropValue createPropRequest(int propId, int requestId, int requestType) {
-        return createPropRequest(propId, requestId, requestType, new int[0], new String());
-    }
-
-    private HalPropValue createPropRequest(int propId, int requestId, int requestType,
-            int[] intValues) {
-        return createPropRequest(propId, requestId, requestType, intValues, new String());
-    }
-
-    private HalPropValue createPropRequest(int propId, int requestId, Integer requestType,
-            int[] intValues, String stringValue) {
-        int intLength = intValues.length + 1;
-        if (requestType != null) {
-            intLength += 1;
-        }
-        int[] values = new int[intLength];
-        values[0] = requestId;
-        int start = 1;
-
-        if (requestType != null) {
-            values[1] = requestType;
-            start = 2;
-        }
-        for (int i = 0; i < intValues.length; i++) {
-            values[i + start] = intValues[i];
-        }
-        return mPropValueBuilder.build(propId, /* areaId= */ 0,
-                SystemClock.elapsedRealtime(), /* status= */ 0, values,
-                new float[0], new long[0], stringValue, new byte[0]);
     }
 
     private static <T> HalCallback<T> noOpCallback() {
         return (i, r) -> { };
     }
 
-    private static List<Integer> getIntValues(HalPropValue value) {
-        ArrayList<Integer> values = new ArrayList<Integer>();
-        for (int i = 0; i < value.getInt32ValuesSize(); i++) {
-            values.add(value.getInt32Value(i));
-        }
-        return values;
-    }
-
-    private static final class GenericHalCallback<R> implements HalCallback<R> {
+    private final class GenericHalCallback<R> implements HalCallback<R> {
 
         private final CountDownLatch mLatch = new CountDownLatch(1);
         private final int mTimeout;

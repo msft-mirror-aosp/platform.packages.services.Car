@@ -23,7 +23,6 @@ import android.car.hardware.CarSensorManager;
 import android.car.hardware.hvac.CarHvacManager;
 import android.car.hardware.power.CarPowerManager;
 import android.car.hardware.property.CarPropertyManager;
-import android.car.telemetry.CarTelemetryManager;
 import android.car.watchdog.CarWatchdogManager;
 import android.content.Context;
 import android.content.Intent;
@@ -49,9 +48,8 @@ import com.google.android.car.kitchensink.alertdialog.AlertDialogTestFragment;
 import com.google.android.car.kitchensink.assistant.CarAssistantFragment;
 import com.google.android.car.kitchensink.audio.AudioTestFragment;
 import com.google.android.car.kitchensink.audio.CarAudioInputTestFragment;
-import com.google.android.car.kitchensink.backup.BackupAndRestoreFragment;
+import com.google.android.car.kitchensink.bluetooth.BluetoothDeviceFragment;
 import com.google.android.car.kitchensink.bluetooth.BluetoothHeadsetFragment;
-import com.google.android.car.kitchensink.bluetooth.BluetoothUuidFragment;
 import com.google.android.car.kitchensink.bluetooth.MapMceTestFragment;
 import com.google.android.car.kitchensink.carboard.KeyboardTestFragment;
 import com.google.android.car.kitchensink.cluster.InstrumentClusterFragment;
@@ -68,25 +66,22 @@ import com.google.android.car.kitchensink.packageinfo.PackageInfoFragment;
 import com.google.android.car.kitchensink.power.PowerTestFragment;
 import com.google.android.car.kitchensink.projection.ProjectionFragment;
 import com.google.android.car.kitchensink.property.PropertyTestFragment;
-import com.google.android.car.kitchensink.qc.QCViewerFragment;
 import com.google.android.car.kitchensink.rotary.RotaryFragment;
 import com.google.android.car.kitchensink.sensor.SensorsTestFragment;
 import com.google.android.car.kitchensink.storagelifetime.StorageLifetimeFragment;
 import com.google.android.car.kitchensink.storagevolumes.StorageVolumesFragment;
 import com.google.android.car.kitchensink.systembars.SystemBarsFragment;
 import com.google.android.car.kitchensink.systemfeatures.SystemFeaturesFragment;
-import com.google.android.car.kitchensink.telemetry.CarTelemetryTestFragment;
 import com.google.android.car.kitchensink.touch.TouchTestFragment;
 import com.google.android.car.kitchensink.users.ProfileUserFragment;
 import com.google.android.car.kitchensink.users.UserFragment;
 import com.google.android.car.kitchensink.users.UserRestrictionsFragment;
 import com.google.android.car.kitchensink.vehiclectrl.VehicleCtrlFragment;
+import com.google.android.car.kitchensink.vhal.VehicleHalFragment;
 import com.google.android.car.kitchensink.volume.VolumeTestFragment;
 import com.google.android.car.kitchensink.watchdog.CarWatchdogTestFragment;
 import com.google.android.car.kitchensink.weblinks.WebLinksTestFragment;
 
-import java.io.FileDescriptor;
-import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -182,10 +177,9 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("assistant", CarAssistantFragment.class),
             new FragmentMenuEntry("audio", AudioTestFragment.class),
             new FragmentMenuEntry("Audio Input", CarAudioInputTestFragment.class),
-            new FragmentMenuEntry("B&R", BackupAndRestoreFragment.class),
+            new FragmentMenuEntry("BT device", BluetoothDeviceFragment.class),
             new FragmentMenuEntry("BT headset", BluetoothHeadsetFragment.class),
             new FragmentMenuEntry("BT messaging", MapMceTestFragment.class),
-            new FragmentMenuEntry("BT Uuids", BluetoothUuidFragment.class),
             new FragmentMenuEntry("carapi", CarApiTestFragment.class),
             new FragmentMenuEntry("carboard", KeyboardTestFragment.class),
             new FragmentMenuEntry("connectivity", ConnectivityFragment.class),
@@ -196,6 +190,8 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("experimental feature", ExperimentalFeatureTestFragment.class),
             new FragmentMenuEntry("hvac", HvacTestFragment.class),
             new FragmentMenuEntry("inst cluster", InstrumentClusterFragment.class),
+            // TODO (b/141774865) Enable after b/141635607 is fixed
+            // new FragmentMenuEntry("input test", InputTestFragment.class),
             new FragmentMenuEntry("notification", NotificationFragment.class),
             new FragmentMenuEntry("orientation test", OrientationTestFragment.class),
             new FragmentMenuEntry("package info", PackageInfoFragment.class),
@@ -203,18 +199,17 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("profile_user", ProfileUserFragment.class),
             new FragmentMenuEntry("projection", ProjectionFragment.class),
             new FragmentMenuEntry("property test", PropertyTestFragment.class),
-            new FragmentMenuEntry("qc viewer", QCViewerFragment.class),
             new FragmentMenuEntry("rotary", RotaryFragment.class),
             new FragmentMenuEntry("sensors", SensorsTestFragment.class),
             new FragmentMenuEntry("storage lifetime", StorageLifetimeFragment.class),
             new FragmentMenuEntry("storage volumes", StorageVolumesFragment.class),
             new FragmentMenuEntry("system bars", SystemBarsFragment.class),
             new FragmentMenuEntry("system features", SystemFeaturesFragment.class),
-            new FragmentMenuEntry("telemetry", CarTelemetryTestFragment.class),
             new FragmentMenuEntry("touch test", TouchTestFragment.class),
             new FragmentMenuEntry("users", UserFragment.class),
             new FragmentMenuEntry("user restrictions", UserRestrictionsFragment.class),
             new FragmentMenuEntry("vehicle ctrl", VehicleCtrlFragment.class),
+            new FragmentMenuEntry("vehicle hal", VehicleHalFragment.class),
             new FragmentMenuEntry("volume test", VolumeTestFragment.class),
             new FragmentMenuEntry("watchdog", CarWatchdogTestFragment.class),
             new FragmentMenuEntry("web links", WebLinksTestFragment.class),
@@ -228,7 +223,6 @@ public class KitchenSinkActivity extends FragmentActivity {
     private CarSensorManager mSensorManager;
     private CarAppFocusManager mCarAppFocusManager;
     private CarProjectionManager mCarProjectionManager;
-    private CarTelemetryManager mCarTelemetryManager;
     private CarWatchdogManager mCarWatchdogManager;
     private Object mPropertyManagerReady = new Object();
 
@@ -254,10 +248,6 @@ public class KitchenSinkActivity extends FragmentActivity {
 
     public CarProjectionManager getProjectionManager() {
         return mCarProjectionManager;
-    }
-
-    public CarTelemetryManager getCarTelemetryManager() {
-        return mCarTelemetryManager;
     }
 
     public CarWatchdogManager getCarWatchdogManager() {
@@ -401,17 +391,6 @@ public class KitchenSinkActivity extends FragmentActivity {
         super.onDestroy();
     }
 
-    @Override
-    public void dump(String prefix, FileDescriptor fd, PrintWriter writer, String[] args) {
-        if (args != null && args.length > 0 && args[0].equals("cmd")) {
-            String[] cmdArgs = new String[args.length - 1];
-            System.arraycopy(args, 1, cmdArgs, 0, args.length - 1);
-            new KitchenSinkShellCommand(this, writer, cmdArgs).run();
-            return;
-        }
-        super.dump(prefix, fd, writer, args);
-    }
-
     private void showFragment(Fragment fragment) {
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.kitchen_content, fragment)
@@ -432,8 +411,6 @@ public class KitchenSinkActivity extends FragmentActivity {
                     (CarAppFocusManager) car.getCarManager(Car.APP_FOCUS_SERVICE);
             mCarProjectionManager =
                     (CarProjectionManager) car.getCarManager(Car.PROJECTION_SERVICE);
-            mCarTelemetryManager =
-                    (CarTelemetryManager) car.getCarManager(Car.CAR_TELEMETRY_SERVICE);
             mCarWatchdogManager =
                     (CarWatchdogManager) car.getCarManager(Car.CAR_WATCHDOG_SERVICE);
             mPropertyManagerReady.notifyAll();
