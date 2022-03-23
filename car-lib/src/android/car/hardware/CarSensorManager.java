@@ -23,7 +23,6 @@ import android.annotation.RequiresPermission;
 import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.VehiclePropertyType;
-import android.car.annotation.AddedInOrBefore;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.CarPropertyManager.CarPropertyEventCallback;
 import android.car.hardware.property.ICarProperty;
@@ -38,6 +37,7 @@ import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+
 
 /**
  *  @deprecated Use {@link CarPropertyManager} instead.
@@ -58,24 +58,20 @@ public final class CarSensorManager extends CarManagerBase {
      * CarSensorEvent#GEAR_NEUTRAL}, SENSOR_TYPE_CAR_SPEED is positive when the vehicle is moving
      * forward, negative when moving backward, and zero when not moving.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_CAR_SPEED                   = 0x11600207;
     /**
      * Represents engine RPM of the car. Sensor data in {@link CarSensorEvent} is a float.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_RPM                         = 0x11600305;
     /**
      * Total travel distance of the car in Kilometer. Sensor data is a float.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_ODOMETER                    = 0x11600204;
     /**
      * Indicates fuel level of the car.
      * In {@link CarSensorEvent}, represents fuel level in milliliters.
      * This requires {@link Car#PERMISSION_ENERGY} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_FUEL_LEVEL                  = 0x11600307;
     /**
      * Represents the current status of parking brake. Sensor data in {@link CarSensorEvent} is an
@@ -84,7 +80,6 @@ public final class CarSensorManager extends CarManagerBase {
      * will be ignored and all changes will be notified.
      * This requires {@link Car#PERMISSION_POWERTRAIN} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_PARKING_BRAKE               = 0x11200402;
     /**
      * This represents the current position of transmission gear. Sensor data in
@@ -92,7 +87,6 @@ public final class CarSensorManager extends CarManagerBase {
      * {@link CarSensorEvent#GEAR_NEUTRAL} and other GEAR_*.
      * This requires {@link Car#PERMISSION_POWERTRAIN} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_GEAR                        = 0x11400400;
     /** @hide */
     public static final int SENSOR_TYPE_RESERVED8                   = 8;
@@ -100,13 +94,11 @@ public final class CarSensorManager extends CarManagerBase {
      * Day/night sensor. Sensor data is intValues[0].
      * This requires {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_NIGHT                       = 0x11200407;
     /**
      * Outside Environment like temperature.
      * This requires {@link Car#PERMISSION_EXTERIOR_ENVIRONMENT} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_ENV_OUTSIDE_TEMPERATURE     = 0x11600703;
     /** @hide */
     public static final int SENSOR_TYPE_RESERVED10                  = 10;
@@ -137,7 +129,6 @@ public final class CarSensorManager extends CarManagerBase {
      * IGNITION_STATE_* in {@link CarSensorEvent}.
      * This requires {@link Car#PERMISSION_POWERTRAIN} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_IGNITION_STATE              = 0x11400409;
     /**
      * Represents wheel distance in millimeters.  Some cars may not have individual sensors on each
@@ -146,17 +137,14 @@ public final class CarSensorManager extends CarManagerBase {
      * distance shall be reset to zero each time a vehicle is started by the user.
      * This requires {@link Car#PERMISSION_SPEED} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_WHEEL_TICK_DISTANCE         = 0x11510306;
     /**
      * Set to true when ABS is active.  This sensor is event driven.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_ABS_ACTIVE                  = 0x1120040a;
     /**
      * Set to true when traction control is active.  This sensor is event driven.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_TRACTION_CONTROL_ACTIVE     = 0x1120040b;
     /** @hide */
     public static final int SENSOR_TYPE_RESERVED26                  = 26;
@@ -164,7 +152,6 @@ public final class CarSensorManager extends CarManagerBase {
      * Set to true if the fuel door is open.
      * This requires {@link Car#PERMISSION_ENERGY_PORTS} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_FUEL_DOOR_OPEN              = 0x11200308;
 
     /**
@@ -175,30 +162,25 @@ public final class CarSensorManager extends CarManagerBase {
      * of the vehicle.
      * This requires {@link Car#PERMISSION_ENERGY} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_EV_BATTERY_LEVEL            = 0x11600309;
     /**
      * Set to true if EV charging port is open.
      * This requires {@link Car#PERMISSION_ENERGY_PORTS} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_EV_CHARGE_PORT_OPEN         = 0x1120030a;
     /**
      * Set to true if EV charging port is connected.
      * This requires {@link Car#PERMISSION_ENERGY_PORTS} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_EV_CHARGE_PORT_CONNECTED    = 0x1120030b;
     /**
      *  Indicates the instantaneous battery charging rate in mW.
      *  This requires {@link Car#PERMISSION_ENERGY} permission.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_EV_BATTERY_CHARGE_RATE      = 0x1160030c;
     /**
      * Oil level sensor.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_TYPE_ENGINE_OIL_LEVEL            = 0x11400303;
 
 
@@ -248,17 +230,12 @@ public final class CarSensorManager extends CarManagerBase {
     }));
 
     /** Read on_change type sensors */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_RATE_ONCHANGE = 0;
     /** Read sensor in default normal rate set for each sensors. This is default rate. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_RATE_NORMAL  = 1;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_RATE_UI = 5;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_RATE_FAST = 10;
     /** Read sensor at the maximum rate. Actual rate will be different depending on the sensor. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int SENSOR_RATE_FASTEST = 100;
 
     /** @hide */
@@ -288,7 +265,6 @@ public final class CarSensorManager extends CarManagerBase {
          * Called when there is a new sensor data from car.
          * @param event Incoming sensor event for the given sensor type.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onSensorChanged(CarSensorEvent event);
     }
 
@@ -346,7 +322,6 @@ public final class CarSensorManager extends CarManagerBase {
      * property id.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public int[] getSupportedSensors() {
         List<CarPropertyConfig> carPropertyConfigList = getPropertyList();
         int[] supportedSensors = new int[carPropertyConfigList.size()];
@@ -361,7 +336,6 @@ public final class CarSensorManager extends CarManagerBase {
      * @return List of CarPropertyConfig objects available via Car Sensor Manager.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public List<CarPropertyConfig> getPropertyList() {
         return mCarPropertyMgr.getPropertyList(mSensorConfigIds);
     }
@@ -421,7 +395,6 @@ public final class CarSensorManager extends CarManagerBase {
             Car.PERMISSION_MILEAGE, Car.PERMISSION_ENERGY, Car.PERMISSION_POWERTRAIN,
             Car.PERMISSION_EXTERIOR_ENVIRONMENT, Car.PERMISSION_CAR_DYNAMICS_STATE,
             Car.PERMISSION_ENERGY_PORTS}, conditional = true)
-    @AddedInOrBefore(majorVersion = 33)
     public boolean registerListener(@NonNull OnSensorChangedListener listener,
             @SensorType int sensorType, @SensorRate int rate) {
         if (rate != SENSOR_RATE_FASTEST && rate != SENSOR_RATE_NORMAL
@@ -447,7 +420,6 @@ public final class CarSensorManager extends CarManagerBase {
      * If there are multiple registrations for this listener, all listening will be stopped.
      * @param listener Listener for car sensor data change.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterListener(@NonNull OnSensorChangedListener listener) {
         synchronized (mListenerMap) {
             mCarPropertyEventListener = mListenerMap.get(listener);
@@ -462,7 +434,6 @@ public final class CarSensorManager extends CarManagerBase {
      * @param listener Listener for car sensor data change.
      * @param sensorType Property Id
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterListener(@NonNull OnSensorChangedListener listener,
             @SensorType int sensorType) {
         synchronized (mListenerMap) {
@@ -479,7 +450,6 @@ public final class CarSensorManager extends CarManagerBase {
      * @return null if there was no sensor update since connected to the car.
      */
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public CarSensorEvent getLatestSensorEvent(@SensorType int type) {
         CarPropertyValue propertyValue = mCarPropertyMgr.getProperty(type, 0);
         return createCarSensorEvent(propertyValue);

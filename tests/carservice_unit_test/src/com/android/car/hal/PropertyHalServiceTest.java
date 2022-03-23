@@ -16,9 +16,7 @@
 
 package com.android.car.hal;
 
-import static org.mockito.Mockito.when;
-
-import android.hardware.automotive.vehicle.VehicleProperty;
+import android.hardware.automotive.vehicle.V2_0.VehicleProperty;
 
 import androidx.test.runner.AndroidJUnit4;
 
@@ -40,9 +38,6 @@ public class PropertyHalServiceTest {
     @Mock
     private VehicleHal mVehicleHal;
 
-    private static final HalPropValueBuilder PROP_VALUE_BUILDER = new HalPropValueBuilder(
-            /*isAidl=*/true);
-
     private PropertyHalService mPropertyHalService;
     private static final int[] UNITS_PROPERTY_ID = {
             VehicleProperty.DISTANCE_DISPLAY_UNITS,
@@ -54,7 +49,6 @@ public class PropertyHalServiceTest {
 
     @Before
     public void setUp() {
-        when(mVehicleHal.getHalPropValueBuilder()).thenReturn(PROP_VALUE_BUILDER);
         mPropertyHalService = new PropertyHalService(mVehicleHal);
         mPropertyHalService.init();
     }

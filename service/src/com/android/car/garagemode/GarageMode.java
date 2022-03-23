@@ -16,18 +16,12 @@
 
 package com.android.car.garagemode;
 
-import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
-
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.util.Utils.isEventOfType;
-
-import android.car.builtin.job.JobSchedulerHelper;
-import android.car.builtin.util.EventLogHelper;
-import android.car.builtin.util.Slogf;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.app.job.JobSnapshot;
+import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.car.user.CarUserManager.UserLifecycleListener;
-import android.car.user.UserLifecycleEventFilter;
-import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.UserHandle;
@@ -36,21 +30,23 @@ import android.util.ArraySet;
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarStatsLogHelper;
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.utils.Slogf;
 
-import java.time.Clock;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Class that interacts with JobScheduler through JobSchedulerHelper, controls system idleness and
- * monitor jobs which are in GarageMode interest.
+ * Class that interacts with JobScheduler, controls system idleness and monitor jobs which are
+ * in GarageMode interest
  */
+
 class GarageMode {
 
     private static final String TAG = CarLog.tagFor(GarageMode.class) + "_"
@@ -76,16 +72,13 @@ class GarageMode {
     private static final long JOB_SNAPSHOT_UPDATE_FREQUENCY_MS = 1_000; // 1 second
     private static final long USER_STOP_CHECK_INTERVAL_MS = 100; // 100 milliseconds
     private static final int ADDITIONAL_CHECKS_TO_DO = 1;
-    // Values for eventlog (car_pwr_mgr_garage_mode)
-    private static final int GARAGE_MODE_EVENT_LOG_START = 0;
-    private static final int GARAGE_MODE_EVENT_LOG_FINISH = 1;
-    private static final int GARAGE_MODE_EVENT_LOG_CANCELLED = 2;
 
-    private final Context mContext;
     private final Controller mController;
+    private final JobScheduler mJobScheduler;
     private final Object mLock = new Object();
     private final Handler mHandler;
 
+    private CarPowerManagementService mCarPowerManagementService;
     @GuardedBy("mLock")
     private boolean mGarageModeActive;
     @GuardedBy("mLock")
@@ -95,21 +88,15 @@ class GarageMode {
     @GuardedBy("mLock")
     private List<String> mPendingJobs = new ArrayList<>();
 
-    private final GarageModeRecorder mGarageModeRecorder;
-
     private final Runnable mRunnable = new Runnable() {
         @Override
         public void run() {
-            boolean garageModeActive;
-            synchronized (mLock) {
-                garageModeActive = mGarageModeActive;
-            }
-            if (!garageModeActive) {
+            if (!mGarageModeActive) {
                 Slogf.d(TAG, "Garage Mode is inactive. Stopping the idle-job checker.");
                 finish();
                 return;
             }
-            int numberRunning = JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext);
+            int numberRunning = numberOfIdleJobsRunning();
             if (numberRunning > 0) {
                 Slogf.d(TAG, "%d jobs are still running. Need to wait more ...", numberRunning);
                 synchronized (mLock) {
@@ -118,7 +105,7 @@ class GarageMode {
             } else {
                 // No idle-mode jobs are running.
                 // Are there any scheduled idle jobs that could run now?
-                int numberReadyToRun = JobSchedulerHelper.getNumberOfPendingJobs(mContext);
+                int numberReadyToRun = numberOfPendingJobs();
                 if (numberReadyToRun == 0) {
                     Slogf.d(TAG, "No jobs are running. No jobs are pending. Exiting Garage Mode.");
                     finish();
@@ -160,24 +147,20 @@ class GarageMode {
     };
 
     private final Runnable mStopUserCheckRunnable = new Runnable() {
-
         @Override
         public void run() {
-            int userToStop = UserHandle.SYSTEM.getIdentifier(); // BG user never becomes system user
+            int userToStop = UserHandle.USER_SYSTEM; // BG user never becomes system user.
             synchronized (mLock) {
                 if (mStartedBackgroundUsers.isEmpty() || !mBackgroundUserStopInProcess) return;
                 userToStop = mStartedBackgroundUsers.valueAt(0);
             }
-            // All jobs done or stopped.
-            if (JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext) == 0) {
+            if (numberOfIdleJobsRunning() == 0) { // all jobs done or stopped.
                 // Keep user until job scheduling is stopped. Otherwise, it can crash jobs.
-                if (userToStop != UserHandle.SYSTEM.getIdentifier()) {
+                if (userToStop != UserHandle.USER_SYSTEM) {
                     CarLocalServices.getService(CarUserService.class)
                             .stopBackgroundUserInGagageMode(userToStop);
-                    synchronized (mLock) {
-                        Slogf.i(TAG, "Stopping background user:%d remaining users:%d", userToStop,
-                                mStartedBackgroundUsers.size() - 1);
-                    }
+                    Slogf.i(TAG, "Stopping background user:%d remaining users:%d", userToStop,
+                            mStartedBackgroundUsers.size() - 1);
                 }
                 synchronized (mLock) {
                     mStartedBackgroundUsers.remove(userToStop);
@@ -195,7 +178,7 @@ class GarageMode {
     };
 
     @GuardedBy("mLock")
-    private Runnable mCompletor;
+    private CompletableFuture<Void> mFuture;
     @GuardedBy("mLock")
     private ArraySet<Integer> mStartedBackgroundUsers = new ArraySet<>();
 
@@ -209,19 +192,16 @@ class GarageMode {
     @GuardedBy("mLock")
     private boolean mBackgroundUserStopInProcess;
 
-    GarageMode(Context context, Controller controller) {
-        mContext = context;
-        mController = controller;
+    GarageMode(Controller controller) {
         mGarageModeActive = false;
+        mController = controller;
+        mJobScheduler = controller.getJobSchedulerService();
         mHandler = controller.getHandler();
-        mGarageModeRecorder = new GarageModeRecorder(Clock.systemUTC());
     }
 
     void init() {
-        UserLifecycleEventFilter userStoppedEventFilter = new UserLifecycleEventFilter.Builder()
-                .addEventType(USER_LIFECYCLE_EVENT_TYPE_STOPPED).build();
         CarLocalServices.getService(CarUserService.class)
-                .addUserLifecycleListener(userStoppedEventFilter, mUserLifecycleListener);
+                .addUserLifecycleListener(mUserLifecycleListener);
     }
 
     void release() {
@@ -236,9 +216,7 @@ class GarageMode {
     private final UserLifecycleListener mUserLifecycleListener = new UserLifecycleListener() {
         @Override
         public void onEvent(UserLifecycleEvent event) {
-            if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) {
-                return;
-            }
+            if (event.getEventType() != CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED) return;
 
             synchronized (mLock) {
                 if (mBackgroundUserStopInProcess) {
@@ -264,34 +242,40 @@ class GarageMode {
         }
     }
 
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
-    void dump(IndentingPrintWriter writer) {
-        synchronized (mLock) {
-            mGarageModeRecorder.dump(writer);
-            if (!mGarageModeActive) { //TODO(b/217739337) print value of mGarageModeActive
-                return;
-            }
-            writer.printf("GarageMode idle checker is %srunning\n",
-                    (mIdleCheckerIsRunning ? "" : "not "));
+    void dump(PrintWriter writer) {
+        if (!mGarageModeActive) {
+            return;
         }
-
-        int numJobs = JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext);
+        writer.printf("GarageMode idle checker is %srunning\n",
+                (mIdleCheckerIsRunning ? "" : "not "));
+        List<String> jobList = new ArrayList<>();
+        int numJobs = getListOfIdleJobsRunning(jobList);
         if (numJobs > 0) {
             writer.printf("GarageMode is waiting for %d jobs:\n", numJobs);
+            // Dump the names of the jobs that we are waiting for
+            for (int idx = 0; idx < jobList.size(); idx++) {
+                writer.printf("   %d: %s\n", idx + 1, jobList.get(idx));
+            }
         } else {
-            numJobs = JobSchedulerHelper.getNumberOfPendingJobs(mContext);
-            writer.printf("GarageMode is waiting for %d pending idle jobs:\n", numJobs);
+            // Dump the names of the pending jobs that we are waiting for
+            numJobs = getListOfPendingJobs(jobList);
+            writer.printf("GarageMode is waiting for %d pending idle jobs:\n", jobList.size());
+            for (int idx = 0; idx < jobList.size(); idx++) {
+                writer.printf("   %d: %s\n", idx + 1, jobList.get(idx));
+            }
         }
     }
 
-    void enterGarageMode(Runnable completor) {
-        Slogf.i(TAG, "Entering GarageMode");
-        CarPowerManagementService carPowerService = CarLocalServices.getService(
-                CarPowerManagementService.class);
-        if (carPowerService != null
-                && carPowerService.garageModeShouldExitImmediately()) {
-            if (completor != null) {
-                completor.run();
+    void enterGarageMode(CompletableFuture<Void> future) {
+        Slogf.d(TAG, "Entering GarageMode");
+        if (mCarPowerManagementService == null) {
+            mCarPowerManagementService = CarLocalServices.getService(
+                    CarPowerManagementService.class);
+        }
+        if (mCarPowerManagementService != null
+                && mCarPowerManagementService.garageModeShouldExitImmediately()) {
+            if (future != null && !future.isDone()) {
+                future.complete(null);
             }
             synchronized (mLock) {
                 mGarageModeActive = false;
@@ -300,12 +284,10 @@ class GarageMode {
         }
         synchronized (mLock) {
             mGarageModeActive = true;
-            mCompletor = completor;
         }
+        updateFuture(future);
         broadcastSignalToJobScheduler(true);
-        mGarageModeRecorder.startSession();
         CarStatsLogHelper.logGarageModeStart();
-        EventLogHelper.writeGarageModeEvent(GARAGE_MODE_EVENT_LOG_START);
         startMonitoringThread();
         mHandler.post(mStartBackgroundUsers);
     }
@@ -313,16 +295,13 @@ class GarageMode {
     void cancel() {
         broadcastSignalToJobScheduler(false);
         synchronized (mLock) {
-            if (mCompletor != null) {
-                mCompletor.run();
-                mCompletor = null;
+            if (mFuture == null) {
+                cleanupGarageMode();
+            } else if (!mFuture.isDone()) {
+                mFuture.cancel(true);
             }
-            if (mGarageModeActive) {
-                cleanupGarageModeLocked();
-                Slogf.i(TAG, "GarageMode is cancelled");
-                EventLogHelper.writeGarageModeEvent(GARAGE_MODE_EVENT_LOG_CANCELLED);
-                mGarageModeRecorder.cancelSession();
-            }
+            mFuture = null;
+            startBackgroundUserStoppingLocked();
         }
     }
 
@@ -335,39 +314,59 @@ class GarageMode {
             mIdleCheckerIsRunning = false;
         }
         broadcastSignalToJobScheduler(false);
-        EventLogHelper.writeGarageModeEvent(GARAGE_MODE_EVENT_LOG_FINISH);
         CarStatsLogHelper.logGarageModeStop();
-        mGarageModeRecorder.finishSession();
+        mController.scheduleNextWakeup();
         synchronized (mLock) {
-            if (mCompletor != null) {
-                mCompletor.run();
-                mCompletor = null;
+            if (mFuture == null) {
+                cleanupGarageMode();
+            } else if (!mFuture.isDone()) {
+                mFuture.complete(null);
             }
-            cleanupGarageModeLocked();
-            Slogf.i(TAG, "GarageMode is completed normally");
+            mFuture = null;
+            startBackgroundUserStoppingLocked();
         }
     }
 
-    @GuardedBy("mLock")
-    private void cleanupGarageModeLocked() {
-        Slogf.i(TAG, "Cleaning up GarageMode");
-        mGarageModeActive = false;
-        stopMonitoringThread();
-        if (mIdleCheckerIsRunning) {
-            // The idle checker has not completed.
-            // Schedule it now so it completes promptly.
-            mHandler.post(mRunnable);
+    private void cleanupGarageMode() {
+        Slogf.d(TAG, "Cleaning up GarageMode");
+        synchronized (mLock) {
+            mGarageModeActive = false;
+            stopMonitoringThread();
+            if (mIdleCheckerIsRunning) {
+                // The idle checker has not completed.
+                // Schedule it now so it completes promptly.
+                mHandler.post(mRunnable);
+            }
+            startBackgroundUserStoppingLocked();
         }
-        startBackgroundUserStoppingLocked();
     }
 
-    @GuardedBy("mLock")
     private void startBackgroundUserStoppingLocked() {
-        if (!mStartedBackgroundUsers.isEmpty() && !mBackgroundUserStopInProcess) {
-            Slogf.i(TAG, "Stopping of background user queued. Total background users to stop: "
-                    + "%d", mStartedBackgroundUsers.size());
-            mHandler.post(mStopUserCheckRunnable);
-            mBackgroundUserStopInProcess = true;
+        synchronized (mLock) {
+            if (!mStartedBackgroundUsers.isEmpty() && !mBackgroundUserStopInProcess) {
+                Slogf.i(TAG, "Stopping of background user queued. Total background users to stop: "
+                        + "%d", mStartedBackgroundUsers.size());
+                mHandler.post(mStopUserCheckRunnable);
+                mBackgroundUserStopInProcess = true;
+            }
+        }
+    }
+
+    private void updateFuture(CompletableFuture<Void> future) {
+        synchronized (mLock) {
+            mFuture = future;
+            if (mFuture != null) {
+                mFuture.whenComplete((result, exception) -> {
+                    if (exception == null) {
+                        Slogf.d(TAG, "GarageMode completed normally");
+                    } else if (exception instanceof CancellationException) {
+                        Slogf.d(TAG, "GarageMode was canceled");
+                    } else {
+                        Slogf.e(TAG, "GarageMode ended due to exception", exception);
+                    }
+                    cleanupGarageMode();
+                });
+            }
         }
     }
 
@@ -388,5 +387,56 @@ class GarageMode {
 
     private void stopMonitoringThread() {
         mHandler.removeCallbacks(mRunnable);
+    }
+
+    private int numberOfIdleJobsRunning() {
+        return getListOfIdleJobsRunning(null);
+    }
+
+    private int getListOfIdleJobsRunning(List<String> jobList) {
+        if (jobList != null) {
+            jobList.clear();
+        }
+        List<JobInfo> startedJobs = mJobScheduler.getStartedJobs();
+        if (startedJobs == null) {
+            return 0;
+        }
+        int count = 0;
+        for (int idx = 0; idx < startedJobs.size(); idx++) {
+            JobInfo jobInfo = startedJobs.get(idx);
+            if (jobInfo.isRequireDeviceIdle()) {
+                count++;
+                if (jobList != null) {
+                    jobList.add(jobInfo.toString());
+                }
+            }
+        }
+        return count;
+    }
+
+    private int numberOfPendingJobs() {
+        return getListOfPendingJobs(null);
+    }
+
+    private int getListOfPendingJobs(List<String> jobList) {
+        if (jobList != null) {
+            jobList.clear();
+        }
+        List<JobSnapshot> allScheduledJobs = mJobScheduler.getAllJobSnapshots();
+        if (allScheduledJobs == null) {
+            return 0;
+        }
+        int numberPending = 0;
+        for (int idx = 0; idx < allScheduledJobs.size(); idx++) {
+            JobSnapshot scheduledJob = allScheduledJobs.get(idx);
+            JobInfo jobInfo = scheduledJob.getJobInfo();
+            if (scheduledJob.isRunnable() && jobInfo.isRequireDeviceIdle()) {
+                numberPending++;
+                if (jobList != null) {
+                    jobList.add(jobInfo.toString());
+                }
+            }
+        }
+        return numberPending;
     }
 }

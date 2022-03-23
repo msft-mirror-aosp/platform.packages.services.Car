@@ -21,10 +21,7 @@ package {
 android_test {
     name: "AndroidCarApiTest",
 
-    srcs: [
-            "src/**/*.java",
-            "src/**/*.aidl",
-    ],
+    srcs: ["src/**/*.java"],
 
     platform_apis: true,
 
@@ -41,7 +38,6 @@ android_test {
         "androidx.test.rules",
         "android.hidl.base-V1.0-java",
         "android.hardware.automotive.vehicle-V2.0-java",
-        "android.car.apitest-aidl-binder-java",
         "android.car.cluster.navigation",
         "android.car.cluster.navigation",
         "android.car.testapi",
