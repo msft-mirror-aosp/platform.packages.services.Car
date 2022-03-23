@@ -18,16 +18,15 @@ package com.android.car.user;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.car.builtin.os.UserManagerHelper;
-import android.car.builtin.util.EventLogHelper;
-import android.car.builtin.util.Slogf;
-import android.content.Context;
-import android.os.UserHandle;
+import android.content.pm.UserInfo;
 import android.os.UserManager;
+import android.sysprop.CarProperties;
+import android.util.EventLog;
+import android.util.Slog;
 import android.util.SparseBooleanArray;
 
 import com.android.car.CarLog;
-import com.android.car.internal.os.CarSystemProperties;
+import com.android.car.internal.common.EventLogTags;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
@@ -37,27 +36,17 @@ import java.util.List;
  * Manages the pre-created users.
  *
  * <p>
- * It creates (and remove) new pre-created users based on the values of {@code CarProperties} and
+ * It creates (and remove) new pre-created users based on the values of {@link CarProperties} and
  * the number of existing pre-created users.
  */
 public final class UserPreCreator {
 
-    @VisibleForTesting
-    static final String TAG = CarLog.tagFor(UserPreCreator.class);
+    private static final String TAG = CarLog.tagFor(UserPreCreator.class);
 
     private final UserManager mUserManager;
-    private final Context mContext;
-    private final UserHandleHelper mUserHandleHelper;
 
-    UserPreCreator(Context context, UserManager userManager) {
-        this(context, userManager, new UserHandleHelper(context, userManager));
-    }
-
-    @VisibleForTesting
-    UserPreCreator(Context context, UserManager userManager, UserHandleHelper userHandleHelper) {
+    UserPreCreator(UserManager userManager) {
         mUserManager = userManager;
-        mContext = context;
-        mUserHandleHelper = userHandleHelper;
     }
 
     /**
@@ -65,26 +54,26 @@ public final class UserPreCreator {
      */
     public void managePreCreatedUsers() {
         // First gets how many pre-createad users are defined by the OEM
-        int numberRequestedGuests = CarSystemProperties.getNumberPreCreatedGuests().orElse(0);
-        int numberRequestedUsers = CarSystemProperties.getNumberPreCreatedUsers().orElse(0);
-        EventLogHelper.writeCarUserServicePreCreationRequested(numberRequestedUsers,
+        int numberRequestedGuests = CarProperties.number_pre_created_guests().orElse(0);
+        int numberRequestedUsers = CarProperties.number_pre_created_users().orElse(0);
+        EventLog.writeEvent(EventLogTags.CAR_USER_SVC_PRE_CREATION_REQUESTED, numberRequestedUsers,
                 numberRequestedGuests);
-        Slogf.d(TAG, "managePreCreatedUsers(): OEM asked for " + numberRequestedGuests
+        Slog.d(TAG, "managePreCreatedUsers(): OEM asked for " + numberRequestedGuests
                 + " guests and " + numberRequestedUsers + " users");
 
         if (numberRequestedGuests < 0 || numberRequestedUsers < 0) {
-            Slogf.w(TAG, "preCreateUsers(): invalid values provided by OEM; "
+            Slog.w(TAG, "preCreateUsers(): invalid values provided by OEM; "
                     + "number_pre_created_guests=" + numberRequestedGuests
                     + ", number_pre_created_users=" + numberRequestedUsers);
             return;
         }
 
         // Then checks how many exist already
-        List<UserHandle> allUsers = mUserHandleHelper.getUserHandles(/* excludePartial= */ true,
+        List<UserInfo> allUsers = mUserManager.getUsers(/* excludePartial= */ true,
                 /* excludeDying= */ true, /* excludePreCreated= */ false);
 
         int allUsersSize = allUsers.size();
-        Slogf.d(TAG, "preCreateUsers: total users size is " + allUsersSize);
+        Slog.d(TAG, "preCreateUsers: total users size is " + allUsersSize);
 
         int numberExistingGuests = 0;
         int numberExistingUsers = 0;
@@ -100,30 +89,29 @@ public final class UserPreCreator {
         List<Integer> extraPreCreatedUsers = new ArrayList<>();
 
         for (int i = 0; i < allUsersSize; i++) {
-            UserHandle user = allUsers.get(i);
-            int userId = user.getIdentifier();
-            if (!mUserHandleHelper.isPreCreatedUser(user)) continue;
-            if (!mUserHandleHelper.isInitializedUser(user)) {
-                Slogf.w(TAG, "Found invalid pre-created user that needs to be removed: "
-                        + user);
-                invalidPreCreatedUsers.append(userId, /* notUsed=*/ true);
+            UserInfo user = allUsers.get(i);
+            if (!user.preCreated) continue;
+            if (!user.isInitialized()) {
+                Slog.w(TAG, "Found invalid pre-created user that needs to be removed: "
+                        + user.toFullString());
+                invalidPreCreatedUsers.append(user.id, /* notUsed=*/ true);
                 continue;
             }
-            boolean isGuest = mUserHandleHelper.isGuestUser(user);
-            existingPrecreatedUsers.put(userId, isGuest);
+            boolean isGuest = user.isGuest();
+            existingPrecreatedUsers.put(user.id, isGuest);
             if (isGuest) {
                 numberExistingGuests++;
                 if (numberExistingGuests > numberRequestedGuests) {
-                    extraPreCreatedUsers.add(userId);
+                    extraPreCreatedUsers.add(user.id);
                 }
             } else {
                 numberExistingUsers++;
                 if (numberExistingUsers > numberRequestedUsers) {
-                    extraPreCreatedUsers.add(userId);
+                    extraPreCreatedUsers.add(user.id);
                 }
             }
         }
-        Slogf.i(TAG, "managePreCreatedUsers(): system already has " + numberExistingGuests
+        Slog.i(TAG, "managePreCreatedUsers(): system already has " + numberExistingGuests
                 + " pre-created guests," + numberExistingUsers + " pre-created users, and these"
                 + " invalid users: " + invalidPreCreatedUsers
                 + " and these extra pre-created users: " + extraPreCreatedUsers);
@@ -134,13 +122,13 @@ public final class UserPreCreator {
         int numberUsersToRemove = numberExistingUsers - numberRequestedUsers;
         int numberInvalidUsersToRemove = invalidPreCreatedUsers.size();
 
-        EventLogHelper.writeCarUserServicePreCreationStatus(
+        EventLog.writeEvent(EventLogTags.CAR_USER_SVC_PRE_CREATION_STATUS,
                 numberExistingUsers, numberUsersToAdd, numberUsersToRemove,
                 numberExistingGuests, numberGuestsToAdd, numberGuestsToRemove,
                 numberInvalidUsersToRemove);
 
         if (numberGuestsToAdd == 0 && numberUsersToAdd == 0 && numberInvalidUsersToRemove == 0) {
-            Slogf.i(TAG, "managePreCreatedUsers(): everything in sync");
+            Slog.i(TAG, "managePreCreatedUsers(): everything in sync");
             return;
         }
 
@@ -152,7 +140,7 @@ public final class UserPreCreator {
         }
 
         int totalNumberToRemove = extraPreCreatedUsers.size();
-        Slogf.d(TAG, "Must delete " + totalNumberToRemove + " pre-created users");
+        Slog.d(TAG, "Must delete " + totalNumberToRemove + " pre-created users");
         if (totalNumberToRemove > 0) {
             int[] usersToRemove = new int[totalNumberToRemove];
             for (int i = 0; i < totalNumberToRemove; i++) {
@@ -164,19 +152,19 @@ public final class UserPreCreator {
         if (numberInvalidUsersToRemove > 0) {
             for (int i = 0; i < numberInvalidUsersToRemove; i++) {
                 int userId = invalidPreCreatedUsers.keyAt(i);
-                Slogf.w(TAG, "removing invalid pre-created user " + userId);
-                mUserManager.removeUser(UserHandle.of(userId));
+                Slog.w(TAG, "removing invalid pre-created user " + userId);
+                mUserManager.removeUser(userId);
             }
         }
     }
 
     private void preCreateUsers(int size, boolean isGuest) {
         String msg = isGuest ? "preCreateGuests-" + size : "preCreateUsers-" + size;
-        Slogf.d(TAG, "preCreateUsers: " + msg);
+        Slog.d(TAG, "preCreateUsers: " + msg);
         for (int i = 1; i <= size; i++) {
-            UserHandle preCreated = preCreateUsers(isGuest);
+            UserInfo preCreated = preCreateUsers(isGuest);
             if (preCreated == null) {
-                Slogf.w(TAG, "Could not pre-create" + (isGuest ? " guest" : "")
+                Slog.w(TAG, "Could not pre-create" + (isGuest ? " guest" : "")
                         + " user #" + i);
                 continue;
             }
@@ -185,28 +173,27 @@ public final class UserPreCreator {
 
     @VisibleForTesting
     @Nullable
-    UserHandle preCreateUsers(boolean isGuest) {
+    UserInfo preCreateUsers(boolean isGuest) {
         String traceMsg = "pre-create" + (isGuest ? "-guest" : "-user");
-        String userType = isGuest ? UserManager.USER_TYPE_FULL_GUEST
-                : UserManager.USER_TYPE_FULL_SECONDARY;
-        UserHandle user = null;
+        // NOTE: we want to get rid of UserManagerHelper, so let's call UserManager directly
+        String userType =
+                isGuest ? UserManager.USER_TYPE_FULL_GUEST : UserManager.USER_TYPE_FULL_SECONDARY;
+        UserInfo user = null;
         try {
-            user = UserManagerHelper.preCreateUser(mUserManager, userType);
+            user = mUserManager.preCreateUser(userType);
+            if (user == null) {
+                logPrecreationFailure(traceMsg, /* cause= */ null);
+            }
         } catch (Exception e) {
             logPrecreationFailure(traceMsg, e);
-            return null;
-        }
-
-        if (user == null) {
-            logPrecreationFailure(traceMsg, /* cause= */ null);
         }
         return user;
     }
 
     private void removePreCreatedUsers(int[] usersToRemove) {
         for (int userId : usersToRemove) {
-            Slogf.i(TAG, "removing pre-created user with id " + userId);
-            mUserManager.removeUser(UserHandle.of(userId));
+            Slog.i(TAG, "removing pre-created user with id " + userId);
+            mUserManager.removeUser(userId);
         }
     }
 
@@ -215,14 +202,15 @@ public final class UserPreCreator {
      */
     @VisibleForTesting
     void logPrecreationFailure(@NonNull String operation, @Nullable Exception cause) {
+        int maxNumberUsers = UserManager.getMaxSupportedUsers();
         int currentNumberUsers = mUserManager.getUserCount();
         String message = new StringBuilder(operation.length() + 100)
                 .append(operation).append(" failed. Number users: ").append(currentNumberUsers)
-                .toString();
+                .append(" Max: ").append(maxNumberUsers).toString();
         if (cause == null) {
-            Slogf.w(TAG, message);
+            Slog.w(TAG, message);
         } else {
-            Slogf.w(TAG, message, cause);
+            Slog.w(TAG, message, cause);
         }
     }
 }

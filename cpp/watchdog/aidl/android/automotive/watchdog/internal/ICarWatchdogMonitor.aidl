@@ -16,18 +16,13 @@
 
 package android.automotive.watchdog.internal;
 
-import android.automotive.watchdog.internal.ProcessIdentifier;
-
-/**
- * Callback that the CarWatchdog monitor must implement.
- */
 oneway interface ICarWatchdogMonitor {
   /**
    * Called when the client has not responded within the given timeout.
    * Watchdog server calls this method, requesting the monitor to dump process information of the
    * clients.
    *
-   * @param pids                List of process identifiers of the clients.
+   * @param pids                Array of process id of the clients.
    */
-  void onClientsNotResponding(in List<ProcessIdentifier> processIdentifiers);
+  void onClientsNotResponding(in int[] pids);
 }

@@ -15,17 +15,12 @@
  */
 package android.car.storagemonitoring;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.IntRange;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.JsonReader;
 import android.util.JsonWriter;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -46,7 +41,6 @@ import java.util.Objects;
  */
 @SystemApi
 public final class WearEstimate implements Parcelable {
-    @AddedInOrBefore(majorVersion = 33)
     public static final int UNKNOWN = -1;
 
     /** @hide */
@@ -66,14 +60,12 @@ public final class WearEstimate implements Parcelable {
      * Wear estimate data for "type A" storage.
      */
     @IntRange(from = -1, to = 100)
-    @AddedInOrBefore(majorVersion = 33)
     public final int typeA;
 
     /**
      * Wear estimate data for "type B" storage.
      */
     @IntRange(from = -1, to = 100)
-    @AddedInOrBefore(majorVersion = 33)
     public final int typeB;
 
     private static int validateWearValue(int value) {
@@ -121,14 +113,11 @@ public final class WearEstimate implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(typeA);
         dest.writeInt(typeB);

@@ -22,7 +22,6 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.RequiredFeature;
 import android.car.vms.VmsClientManager.VmsClientCallback;
 
@@ -60,7 +59,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
          * @param layer   subscribed layer that packet was received for
          * @param payload data packet that was received
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onVmsMessageReceived(@NonNull VmsLayer layer, byte[] payload);
 
         /**
@@ -68,7 +66,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
          *
          * @param availableLayers set of available data layers
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onLayersAvailabilityChanged(@NonNull VmsAvailableLayers availableLayers);
     }
 
@@ -107,7 +104,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @param clientCallback subscriber callback that will handle events
      * @throws IllegalStateException if the client callback was already set
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void setVmsSubscriberClientCallback(
             @NonNull @CallbackExecutor Executor executor,
             @NonNull VmsSubscriberClientCallback clientCallback) {
@@ -141,7 +137,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
     /**
      * Clears the subscriber client's callback.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void clearVmsSubscriberClientCallback() {
         synchronized (mLock) {
             mClientManager.unregisterVmsClientCallback(mClientCallback);
@@ -157,7 +152,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @return serialized publisher information, in a vendor-specific format
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public byte[] getPublisherInfo(int publisherId) {
         byte[] publisherInfo = getVmsClient().getProviderDescription(publisherId);
         return publisherInfo != null ? publisherInfo : DEFAULT_PUBLISHER_INFO;
@@ -169,7 +163,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @return available layers
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public VmsAvailableLayers getAvailableLayers() {
         return getVmsClient().getAvailableLayers();
     }
@@ -181,7 +174,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @throws IllegalStateException if the client callback was not set via
      *                               {@link #setVmsSubscriberClientCallback}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void subscribe(@NonNull VmsLayer layer) {
         mSubscriptionHelper.subscribe(layer);
     }
@@ -194,7 +186,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @throws IllegalStateException if the client callback was not set via
      *                               {@link #setVmsSubscriberClientCallback}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void subscribe(@NonNull VmsLayer layer, int publisherId) {
         mSubscriptionHelper.subscribe(layer, publisherId);
     }
@@ -202,7 +193,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
     /**
      * Start monitoring all messages for all layers, regardless of subscriptions.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void startMonitoring() {
         getVmsClient().setMonitoringEnabled(true);
     }
@@ -214,7 +204,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @throws IllegalStateException if the client callback was not set via
      *                               {@link #setVmsSubscriberClientCallback}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unsubscribe(@NonNull VmsLayer layer) {
         mSubscriptionHelper.unsubscribe(layer);
     }
@@ -227,7 +216,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @throws IllegalStateException if the client callback was not set via
      *                               {@link #setVmsSubscriberClientCallback}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unsubscribe(@NonNull VmsLayer layer, int publisherId) {
         mSubscriptionHelper.unsubscribe(layer, publisherId);
     }
@@ -235,7 +223,6 @@ public final class VmsSubscriberManager extends CarManagerBase {
     /**
      * Stop monitoring. Only receive messages for layers which have been subscribed to."
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void stopMonitoring() {
         getVmsClient().setMonitoringEnabled(false);
     }

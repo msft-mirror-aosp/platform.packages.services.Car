@@ -16,12 +16,8 @@
 
 package com.android.car;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
-import android.annotation.Nullable;
 import android.car.IExperimentalCar;
 import android.car.IExperimentalCarHelper;
-import android.car.builtin.util.Slogf;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -31,9 +27,9 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.ArrayMap;
+import android.util.IndentingPrintWriter;
+import android.util.Slog;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -58,7 +54,7 @@ public final class CarExperimentalFeatureServiceController implements CarService
                 mExperimentalCar = experimentalCar;
             }
             if (experimentalCar == null) {
-                Slogf.e(TAG, "Experimental car returned null binder");
+                Slog.e(TAG, "Experimental car returned null binder");
                 return;
             }
             CarFeatureController featureController = CarLocalServices.getService(
@@ -68,7 +64,7 @@ public final class CarExperimentalFeatureServiceController implements CarService
             try {
                 experimentalCar.init(mHelper, enabledExperimentalFeatures);
             } catch (RemoteException e) {
-                Slogf.e(TAG, "Experimental car service crashed", e);
+                Slog.e(TAG, "Experimental car service crashed", e);
             }
         }
 
@@ -83,19 +79,19 @@ public final class CarExperimentalFeatureServiceController implements CarService
         public void onInitComplete(List<String> allAvailableFeatures, List<String> startedFeatures,
                 List<String> classNames, List<IBinder> binders) {
             if (allAvailableFeatures == null) {
-                Slogf.e(TAG, "Experimental car passed null allAvailableFeatures");
+                Slog.e(TAG, "Experimental car passed null allAvailableFeatures");
                 return;
             }
             if (startedFeatures == null || classNames == null || binders == null) {
-                Slogf.i(TAG, "Nothing enabled in Experimental car");
+                Slog.i(TAG, "Nothing enabled in Experimental car");
                 return;
             }
             int sizeOfStartedFeatures = startedFeatures.size();
             if (sizeOfStartedFeatures != classNames.size()
                     || sizeOfStartedFeatures != binders.size()) {
-                Slogf.e(TAG, "Experimental car passed wrong lists of enabled features, "
-                        + "startedFeatures:" + startedFeatures + " classNames:" + classNames
-                        + " binders:" + binders);
+                Slog.e(TAG,
+                        "Experimental car passed wrong lists of enabled features, startedFeatures:"
+                        + startedFeatures + " classNames:" + classNames + " binders:" + binders);
             }
             // Do conversion to make indexed accesses
             ArrayList<String> classNamesInArray = new ArrayList<>(classNames);
@@ -110,8 +106,8 @@ public final class CarExperimentalFeatureServiceController implements CarService
             CarFeatureController featureController = CarLocalServices.getService(
                     CarFeatureController.class);
             featureController.setAvailableExperimentalFeatureList(allAvailableFeatures);
-            Slogf.i(TAG, "Available experimental features:" + allAvailableFeatures);
-            Slogf.i(TAG, "Started experimental features:" + startedFeatures);
+            Slog.i(TAG, "Available experimental features:" + allAvailableFeatures);
+            Slog.i(TAG, "Started experimental features:" + startedFeatures);
         }
     };
 
@@ -148,7 +144,7 @@ public final class CarExperimentalFeatureServiceController implements CarService
                 "com.android.experimentalcar.ExperimentalCarService"));
         boolean bound = bindService(intent);
         if (!bound) {
-            Slogf.e(TAG, "Cannot bind to experimental car service, intent:" + intent);
+            Slog.e(TAG, "Cannot bind to experimental car service, intent:" + intent);
         }
         synchronized (mLock) {
             mBound = bound;
@@ -163,7 +159,7 @@ public final class CarExperimentalFeatureServiceController implements CarService
     public boolean bindService(Intent intent) {
         int myUid = Process.myUid();
         if (myUid != Process.SYSTEM_UID) {
-            Slogf.w(TAG, "Binding experimental service skipped as this may be test env, uid:"
+            Slog.w(TAG, "Binding experimental service skipped as this may be test env, uid:"
                     + myUid);
             return false;
         }
@@ -172,7 +168,7 @@ public final class CarExperimentalFeatureServiceController implements CarService
                     Context.BIND_AUTO_CREATE, UserHandle.SYSTEM);
         } catch (Exception e) {
             // Do not crash car service for case like package not found and etc.
-            Slogf.e(TAG, "Cannot bind to experimental car service", e);
+            Slog.e(TAG, "Cannot bind to experimental car service", e);
             return false;
         }
     }
@@ -189,7 +185,6 @@ public final class CarExperimentalFeatureServiceController implements CarService
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         writer.println("*CarExperimentalFeatureServiceController*");
 
@@ -208,7 +203,6 @@ public final class CarExperimentalFeatureServiceController implements CarService
     /**
      * Returns class name for experimental feature.
      */
-    @Nullable
     public String getCarManagerClassForFeature(String featureName) {
         FeatureInfo info;
         synchronized (mLock) {
@@ -223,7 +217,6 @@ public final class CarExperimentalFeatureServiceController implements CarService
     /**
      * Returns service binder for experimental feature.
      */
-    @Nullable
     public IBinder getCarService(String serviceName) {
         FeatureInfo info;
         synchronized (mLock) {

@@ -16,14 +16,11 @@
 
 package android.car.vms;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.Nullable;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.DataClass;
+import com.android.internal.util.DataClass;
 
 import java.util.Arrays;
 
@@ -107,7 +104,6 @@ public class VmsProviderInfo implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -143,7 +139,7 @@ public class VmsProviderInfo implements Parcelable {
             time = 1581406319319L,
             codegenVersion = "1.0.14",
             sourceFile = "packages/services/Car/car-lib/src/android/car/vms/VmsProviderInfo.java",
-            inputSignatures = "private final @android.annotation.Nullable byte[] mDescription\nclass VmsProviderInfo extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genEqualsHashCode=true, genAidl=true)")
+            inputSignatures = "private final @android.annotation.Nullable byte[] mDescription\nclass VmsProviderInfo extends java.lang.Object implements [android.os.Parcelable]\n@com.android.internal.util.DataClass(genEqualsHashCode=true, genAidl=true)")
     @Deprecated
     private void __metadata() {}
 
