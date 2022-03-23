@@ -38,7 +38,6 @@ import android.os.ServiceManager;
 import android.util.Pair;
 
 import com.android.car.CarServiceUtils;
-import com.android.car.internal.ICarServiceHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -71,8 +70,7 @@ public class CarTest {
     // It is tricky to mock this. So create placeholder version instead.
     private ICar.Stub mService = new ICar.Stub() {
         @Override
-        public void setSystemServerConnections(ICarServiceHelper helper,
-                ICarResultReceiver receiver)
+        public void setSystemServerConnections(IBinder helper, IBinder receiver)
                 throws RemoteException {
         }
 
@@ -156,7 +154,8 @@ public class CarTest {
     }
 
     private void expectBindService() {
-        when(mContext.bindService(anyObject(), anyObject(), anyInt())).thenReturn(true);
+        when(mContext.bindServiceAsUser(anyObject(), anyObject(), anyInt(),
+                anyObject())).thenReturn(true);
     }
 
     private void returnServiceAfterNSereviceManagerCalls(int returnNonNullAfterThisCall) {
@@ -171,7 +170,8 @@ public class CarTest {
     }
 
     private void assertServiceBoundOnce() {
-        verify(mContext, times(1)).bindService(anyObject(), anyObject(), anyInt());
+        verify(mContext, times(1)).bindServiceAsUser(anyObject(), anyObject(), anyInt(),
+                anyObject());
     }
 
     private void assertOneListenerCallAndClear(Car expectedCar, boolean ready) {
@@ -265,7 +265,8 @@ public class CarTest {
             Car car = Car.createCar(mContext, null,
                     Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER, mLifecycleListener);
             assertThat(car).isNotNull();
-            verify(mContext, times(1)).bindService(anyObject(), anyObject(), anyInt());
+            verify(mContext, times(1)).bindServiceAsUser(anyObject(), anyObject(), anyInt(),
+                    anyObject());
             // mLifecycleListener should have been called as this is main thread.
             assertOneListenerCallAndClear(car, true);
         });

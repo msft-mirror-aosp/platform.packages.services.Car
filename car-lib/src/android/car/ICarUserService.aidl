@@ -16,28 +16,32 @@
 
 package android.car;
 
-import android.os.UserHandle;
+import android.content.pm.UserInfo;
 import android.car.user.UserCreationResult;
-import android.car.user.UserLifecycleEventFilter;
 import android.car.user.UserRemovalResult;
 import android.car.user.UserIdentificationAssociationResponse;
 import android.car.user.UserSwitchResult;
 
-import android.car.ICarResultReceiver;
-import android.car.util.concurrent.AndroidFuture;
+import com.android.internal.infra.AndroidFuture;
+import com.android.internal.os.IResultReceiver;
 
 /** @hide */
 interface ICarUserService {
-    void switchUser(int targetUserId, int timeoutMs, in AndroidFuture<UserSwitchResult> receiver);
-    void logoutUser(int timeoutMs, in AndroidFuture<UserSwitchResult> receiver);
-    void setUserSwitchUiCallback(in ICarResultReceiver callback);
+    AndroidFuture<UserCreationResult> createDriver(@nullable String name, boolean admin);
+    UserInfo createPassenger(@nullable String name, int driverId);
+    void switchDriver(int driverId, in AndroidFuture<UserSwitchResult> receiver);
+    void switchUser(int tagerUserId, int timeoutMs, in AndroidFuture<UserSwitchResult> receiver);
+    void setUserSwitchUiCallback(in IResultReceiver callback);
     void createUser(@nullable String name, String userType, int flags, int timeoutMs,
       in AndroidFuture<UserCreationResult> receiver);
     void updatePreCreatedUsers();
     void removeUser(int userId, in AndroidFuture<UserRemovalResult> receiver);
-    void setLifecycleListenerForApp(String pkgName, in UserLifecycleEventFilter filter,
-      in ICarResultReceiver listener);
-    void resetLifecycleListenerForApp(in ICarResultReceiver listener);
+    List<UserInfo> getAllDrivers();
+    List<UserInfo> getPassengers(int driverId);
+    boolean startPassenger(int passengerId, int zoneId);
+    boolean stopPassenger(int passengerId);
+    void setLifecycleListenerForUid(in IResultReceiver listener);
+    void resetLifecycleListenerForUid();
     UserIdentificationAssociationResponse getUserIdentificationAssociation(in int[] types);
     void setUserIdentificationAssociation(int timeoutMs, in int[] types, in int[] values,
       in AndroidFuture<UserIdentificationAssociationResponse> result);

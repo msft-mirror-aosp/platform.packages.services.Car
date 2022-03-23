@@ -17,8 +17,8 @@ package com.android.car.storagemonitoring;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.car.builtin.util.Slogf;
 import android.car.storagemonitoring.LifetimeWriteInfo;
+import android.util.Slog;
 
 import com.android.car.CarLog;
 import com.android.internal.annotations.VisibleForTesting;
@@ -62,25 +62,25 @@ public class SysfsLifetimeWriteInfoProvider implements LifetimeWriteInfoProvider
     private LifetimeWriteInfo tryParse(File dir) {
         File writefile = new File(dir, FILENAME);
         if (!writefile.exists() || !writefile.isFile()) {
-            Slogf.d(TAG, writefile + " not a valid source of lifetime writes");
+            Slog.d(TAG, writefile + " not a valid source of lifetime writes");
             return null;
         }
         List<String> datalines;
         try {
             datalines = Files.readAllLines(writefile.toPath());
         } catch (IOException e) {
-            Slogf.e(TAG, "unable to read write info from " + writefile, e);
+            Slog.e(TAG, "unable to read write info from " + writefile, e);
             return null;
         }
         if (datalines == null || datalines.size() != 1) {
-            Slogf.e(TAG, "unable to read valid write info from " + writefile);
+            Slog.e(TAG, "unable to read valid write info from " + writefile);
             return null;
         }
         String data = datalines.get(0);
         try {
             long writtenBytes = 1024L * Long.parseLong(data);
             if (writtenBytes < 0) {
-                Slogf.e(TAG, "file at location " + writefile + " contained a negative data amount "
+                Slog.e(TAG, "file at location " + writefile + " contained a negative data amount "
                         + data + ". Ignoring.");
                 return null;
             } else {
@@ -90,7 +90,7 @@ public class SysfsLifetimeWriteInfoProvider implements LifetimeWriteInfoProvider
                     writtenBytes);
             }
         } catch (NumberFormatException e) {
-            Slogf.e(TAG, "unable to read valid write info from " + writefile, e);
+            Slog.e(TAG, "unable to read valid write info from " + writefile, e);
             return null;
         }
     }
@@ -105,7 +105,7 @@ public class SysfsLifetimeWriteInfoProvider implements LifetimeWriteInfoProvider
             if (!fspath.exists() || !fspath.isDirectory()) continue;
             File[] files = fspath.listFiles(File::isDirectory);
             if (files == null) {
-                Slogf.e(TAG, "there are no directories at location " + fspath.getAbsolutePath());
+                Slog.e(TAG, "there are no directories at location " + fspath.getAbsolutePath());
                 continue;
             }
             Arrays.stream(files)

@@ -22,11 +22,6 @@ package android.automotive.watchdog.internal;
 @Backing(type="int")
 enum ApplicationCategoryType {
   /**
-   * Applications that don't fall under the below categories.
-   */
-  OTHERS,
-
-  /**
    * Maps application.
    */
   MAPS,
@@ -35,4 +30,9 @@ enum ApplicationCategoryType {
    * Audio or Video application.
    */
   MEDIA,
+
+  /**
+   * Applications that don't fall under the above categories.
+   */
+  OTHERS,
 }

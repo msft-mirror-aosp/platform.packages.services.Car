@@ -18,7 +18,6 @@ package com.android.car.user;
 
 import static android.car.test.mocks.AndroidMockitoHelper.mockContextGetService;
 
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -33,7 +32,6 @@ import static org.mockito.Mockito.when;
 import android.app.ActivityManager;
 import android.app.AppOpsManager;
 import android.car.AbstractExtendedMockitoCarServiceTestCase;
-import android.car.builtin.app.KeyguardManagerHelper;
 import android.car.hardware.power.CarPowerManager;
 import android.car.hardware.power.CarPowerManager.CarPowerStateListener;
 import android.car.settings.CarSettings;
@@ -55,6 +53,8 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.android.car.CarLocalServices;
 import com.android.car.R;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.systeminterface.SystemInterface;
+import com.android.internal.app.IVoiceInteractionManagerService;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -85,6 +85,10 @@ public class CarUserNoticeServiceTest extends AbstractExtendedMockitoCarServiceT
     private PackageManager mMockPackageManager;
     @Mock
     private CarPowerManager mCarPowerManager;
+    @Mock
+    private SystemInterface mMockSystemInterface;
+    @Mock
+    private IVoiceInteractionManagerService mMockVoiceManager;
 
     @Captor
     private ArgumentCaptor<BroadcastReceiver> mDisplayBroadcastReceiver;
@@ -99,18 +103,11 @@ public class CarUserNoticeServiceTest extends AbstractExtendedMockitoCarServiceT
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
-    private boolean mIsKeyguardLocked = false;
-
-    public CarUserNoticeServiceTest() {
-        super(CarUserNoticeService.TAG);
-    }
-
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
         session
             .spyStatic(CarLocalServices.class)
-            .spyStatic(ActivityManager.class)
-            .spyStatic(KeyguardManagerHelper.class);
+            .spyStatic(ActivityManager.class);
     }
 
     /**
@@ -125,7 +122,6 @@ public class CarUserNoticeServiceTest extends AbstractExtendedMockitoCarServiceT
 
         putSettingsInt(CarSettings.Secure.KEY_ENABLE_INITIAL_NOTICE_SCREEN_TO_USER, 1);
 
-        when(mMockContext.createContextAsUser(any(), anyInt())).thenReturn(mMockContext);
         when(mMockContext.getResources()).thenReturn(mMockedResources);
         when(mMockContext.getContentResolver())
                 .thenReturn(InstrumentationRegistry.getInstrumentation().getTargetContext()
@@ -138,14 +134,12 @@ public class CarUserNoticeServiceTest extends AbstractExtendedMockitoCarServiceT
         when(mMockPackageManager.getPackageUidAsUser(any(), anyInt())).thenReturn(1);
         mCarUserNoticeService = new CarUserNoticeService(mMockContext, mHandler);
         mCarUserNoticeService.init();
-        verify(mMockCarUserService).addUserLifecycleListener(any(),
+        verify(mMockCarUserService).addUserLifecycleListener(
                 mUserLifecycleListenerArgumentCaptor.capture());
         verify(mMockContext).registerReceiver(mDisplayBroadcastReceiver.capture(),
-                any(IntentFilter.class), anyInt());
-        verify(mCarPowerManager).setListener(any(), mPowerStateListener.capture());
+                any(IntentFilter.class));
+        verify(mCarPowerManager).setListener(mPowerStateListener.capture());
         when(mMockContext.bindServiceAsUser(any(), any(), anyInt(), any())).thenReturn(true);
-        doAnswer(invocation -> mIsKeyguardLocked)
-                .when(() -> KeyguardManagerHelper.isKeyguardLocked());
     }
 
     @Test
@@ -157,7 +151,7 @@ public class CarUserNoticeServiceTest extends AbstractExtendedMockitoCarServiceT
         CarUserNoticeService otherService = new CarUserNoticeService(mOtherMockContext);
         otherService.init();
 
-        verify(mOtherMockContext, never()).registerReceiver(any(), any(), anyInt());
+        verify(mOtherMockContext, never()).registerReceiver(any(), any());
     }
 
     @Test
@@ -211,21 +205,7 @@ public class CarUserNoticeServiceTest extends AbstractExtendedMockitoCarServiceT
     }
 
     @Test
-    public void uiNotShownWhenPowerOnWithKeyguardLocked() throws Exception {
-        setUser();
-        // UI shown when user switched
-        assertUiShownOnce();
-        sendPowerShutDown();
-        // UI hidden when power shutdown
-        assertUiHidden();
-        mIsKeyguardLocked = true;
-        sendPowerOn();
-        // UI shown only once, when user switched
-        assertUiShownOnce();
-    }
-
-    @Test
-    public void uiNotShownIfSettingsDisabled() throws Exception {
+    public void uiNotShownIfKeyDisabled() throws Exception {
         setUser();
         // UI shown when user switched
         assertUiShownOnce();
@@ -279,13 +259,13 @@ public class CarUserNoticeServiceTest extends AbstractExtendedMockitoCarServiceT
 
     private void sendPowerShutDown() {
         setDisplayOff();
-        sendPowerStateChange(CarPowerManager.STATE_SHUTDOWN_PREPARE);
+        sendPowerStateChange(CarPowerManager.CarPowerStateListener.SHUTDOWN_PREPARE);
         waitForHandlerThreadToFinish();
     }
 
     private void sendPowerOn() {
         setDisplayOn();
-        sendPowerStateChange(CarPowerManager.STATE_ON);
+        sendPowerStateChange(CarPowerManager.CarPowerStateListener.ON);
         waitForHandlerThreadToFinish();
     }
 

@@ -21,14 +21,11 @@ import static android.car.drivingstate.CarDrivingStateEvent.DRIVING_STATE_PARKED
 import static android.car.drivingstate.CarDrivingStateEvent.DRIVING_STATE_UNKNOWN;
 import static android.car.drivingstate.CarUxRestrictionsManager.UX_RESTRICTION_MODE_BASELINE;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
 import android.annotation.FloatRange;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.car.builtin.os.BuildHelper;
 import android.car.drivingstate.CarDrivingStateEvent.CarDrivingState;
+import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.SystemClock;
@@ -37,8 +34,6 @@ import android.util.JsonReader;
 import android.util.JsonToken;
 import android.util.JsonWriter;
 import android.util.Log;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.io.CharArrayWriter;
 import java.io.IOException;
@@ -157,7 +152,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         }
 
         if (restriction == null) {
-            if (BuildHelper.isEngBuild() || BuildHelper.isUserDebugBuild()) {
+            if (Build.IS_ENG || Build.IS_USERDEBUG) {
                 throw new IllegalStateException("No restrictions for driving state "
                         + getDrivingStateName(drivingState));
             }
@@ -554,7 +549,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     /**
      * Dump the driving state to UX restrictions mapping.
      */
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(@NonNull PrintWriter writer) {
         Objects.requireNonNull(writer, "writer must not be null");
         writer.println("Physical display port: " + mPhysicalPort);
@@ -630,7 +624,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
             };
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public int describeContents() {
         return 0;
     }
