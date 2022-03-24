@@ -32,11 +32,17 @@ namespace frameworks {
 namespace automotive {
 namespace powerpolicy {
 
+using ::aidl::android::frameworks::automotive::powerpolicy::BnCarPowerPolicyServer;
+using ::aidl::android::frameworks::automotive::powerpolicy::CarPowerPolicy;
+using ::aidl::android::frameworks::automotive::powerpolicy::CarPowerPolicyFilter;
+using ::aidl::android::frameworks::automotive::powerpolicy::ICarPowerPolicyChangeCallback;
+using ::aidl::android::frameworks::automotive::powerpolicy::PowerComponent;
+
 using ::android::sp;
 using ::android::base::ReadFileToString;
 using ::android::base::Trim;
 using ::android::base::WriteStringToFd;
-using ::android::binder::Status;
+using ::ndk::ScopedAStatus;
 using ::testing::_;
 
 namespace {
@@ -45,20 +51,6 @@ constexpr const char* kBootReasonNormal = "reboot,shell";
 
 constexpr int kMaxPollingAttempts = 5;
 constexpr std::chrono::microseconds kPollingDelayUs = 50ms;
-
-bool waitForSilentMode(SilentModeHandler* handler, bool expectedSilentMode) {
-    int count = 0;
-    while (true) {
-        if (handler->isSilentMode() == expectedSilentMode) {
-            return true;
-        }
-        if (count++; count == kMaxPollingAttempts) {
-            break;
-        }
-        usleep(kPollingDelayUs.count());
-    }
-    return false;
-}
 
 }  // namespace
 
@@ -105,41 +97,26 @@ private:
 
 class MockCarPowerPolicyServer : public ISilentModeChangeHandler, public BnCarPowerPolicyServer {
 public:
-    MOCK_METHOD(Status, getCurrentPowerPolicy, (CarPowerPolicy * aidlReturn), (override));
-    MOCK_METHOD(Status, getPowerComponentState, (PowerComponent componentId, bool* aidlReturn),
-                (override));
-    MOCK_METHOD(Status, registerPowerPolicyChangeCallback,
-                (const sp<ICarPowerPolicyChangeCallback>& callback,
+    MOCK_METHOD(ScopedAStatus, getCurrentPowerPolicy, (CarPowerPolicy * aidlReturn), (override));
+    MOCK_METHOD(ScopedAStatus, getPowerComponentState,
+                (PowerComponent componentId, bool* aidlReturn), (override));
+    MOCK_METHOD(ScopedAStatus, registerPowerPolicyChangeCallback,
+                (const std::shared_ptr<ICarPowerPolicyChangeCallback>& callback,
                  const CarPowerPolicyFilter& filter),
                 (override));
-    MOCK_METHOD(Status, unregisterPowerPolicyChangeCallback,
-                (const sp<ICarPowerPolicyChangeCallback>& callback), (override));
+    MOCK_METHOD(ScopedAStatus, unregisterPowerPolicyChangeCallback,
+                (const std::shared_ptr<ICarPowerPolicyChangeCallback>& callback), (override));
     MOCK_METHOD(void, notifySilentModeChange, (const bool silent), (override));
 };
 
 class SilentModeHandlerTest : public ::testing::Test {
 public:
-    SilentModeHandlerTest() { carPowerPolicyServer = new MockCarPowerPolicyServer(); }
+    SilentModeHandlerTest() {
+        carPowerPolicyServer = ::ndk::SharedRefBase::make<MockCarPowerPolicyServer>();
+    }
 
-    sp<MockCarPowerPolicyServer> carPowerPolicyServer;
+    std::shared_ptr<MockCarPowerPolicyServer> carPowerPolicyServer;
 };
-
-TEST_F(SilentModeHandlerTest, TestSilentModeHwStateMonitoring) {
-    SilentModeHandler handler(carPowerPolicyServer.get());
-    internal::SilentModeHandlerPeer handlerPeer(&handler);
-    handlerPeer.injectBootReason(kBootReasonNormal);
-    handlerPeer.init();
-
-    handlerPeer.updateSilentModeHwState(/*isSilent=*/true);
-
-    ASSERT_TRUE(waitForSilentMode(&handler, /*expectedSilentMode=*/true))
-            << "It should be silent mode when HW state is on";
-
-    handlerPeer.updateSilentModeHwState(/*isSilent=*/false);
-
-    ASSERT_TRUE(waitForSilentMode(&handler, /*expectedSilentMode=*/false))
-            << "It should be non-silent mode when HW state is off";
-}
 
 TEST_F(SilentModeHandlerTest, TestRebootForForcedSilentMode) {
     SilentModeHandler handler(carPowerPolicyServer.get());

@@ -25,12 +25,13 @@ import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
+import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.RequiredFeature;
+import android.car.builtin.util.Slogf;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
-import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -48,6 +49,7 @@ import java.util.concurrent.Executor;
 @RequiredFeature(Car.CAR_EVS_SERVICE)
 @SystemApi
 public final class CarEvsManager extends CarManagerBase {
+    @AddedInOrBefore(majorVersion = 33)
     public static final String EXTRA_SESSION_TOKEN = "android.car.evs.extra.SESSION_TOKEN";
 
     private static final String TAG = CarEvsManager.class.getSimpleName();
@@ -79,11 +81,13 @@ public final class CarEvsManager extends CarManagerBase {
     /**
      * Service type to represent the rearview camera service.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int SERVICE_TYPE_REARVIEW = 0;
 
     /**
      * Service type to represent the surround view service.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int SERVICE_TYPE_SURROUNDVIEW = 1;
 
     /** @hide */
@@ -97,22 +101,26 @@ public final class CarEvsManager extends CarManagerBase {
     /**
      * State that a corresponding service type is not available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int SERVICE_STATE_UNAVAILABLE = 0;
 
     /**
      * State that a corresponding service type is inactive; it's available but not used
      * by any clients.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int SERVICE_STATE_INACTIVE = 1;
 
     /**
      * State that CarEvsManager received a service request from the client.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int SERVICE_STATE_REQUESTED = 2;
 
     /**
      * State that a corresponding service type is actively being used.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int SERVICE_STATE_ACTIVE = 3;
 
     /** @hide */
@@ -128,41 +136,49 @@ public final class CarEvsManager extends CarManagerBase {
     /**
      * This is a default EVS stream event type.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_NONE = 0;
 
     /**
      * EVS stream event to notify a video stream has been started.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_STREAM_STARTED = 1;
 
     /**
      * EVS stream event to notify a video stream has been stopped.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_STREAM_STOPPED = 2;
 
     /**
      * EVS stream event to notify that a video stream is dropped.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_FRAME_DROPPED = 3;
 
     /**
      * EVS stream event occurs when a timer for a new frame's arrival is expired.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_TIMEOUT = 4;
 
     /**
      * EVS stream event occurs when a camera parameter is changed.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_PARAMETER_CHANGED = 5;
 
     /**
      * EVS stream event to notify the primary owner has been changed.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_PRIMARY_OWNER_CHANGED = 6;
 
     /**
      * Other EVS stream errors
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STREAM_EVENT_OTHER_ERRORS = 7;
 
     /** @hide */
@@ -182,16 +198,19 @@ public final class CarEvsManager extends CarManagerBase {
     /**
      * Status to tell that a request is successfully processed.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int ERROR_NONE = 0;
 
     /**
      * Status to tell a requested service is not available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int ERROR_UNAVAILABLE = -1;
 
     /**
      * Status to tell CarEvsService is busy to serve the privileged client.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int ERROR_BUSY = -2;
 
     /** @hide */
@@ -278,8 +297,8 @@ public final class CarEvsManager extends CarManagerBase {
      */
     private void handleServiceStatusChanged(CarEvsStatus status) {
         if (DBG) {
-            Slog.d(TAG, "Service state changed: service = " + status.getServiceType() +
-                    ", state = " + status.getState());
+            Slogf.d(TAG, "Service state changed: service = " + status.getServiceType()
+                    + ", state = " + status.getState());
         }
 
         final CarEvsStatusListener listener;
@@ -292,7 +311,7 @@ public final class CarEvsManager extends CarManagerBase {
         if (listener != null) {
             executor.execute(() -> listener.onStatusChanged(status));
         } else if (DBG) {
-            Slog.w(TAG, "No client seems active; a received event is ignored.");
+            Slogf.w(TAG, "No client seems active; a received event is ignored.");
         }
     }
 
@@ -306,10 +325,11 @@ public final class CarEvsManager extends CarManagerBase {
      *         exists.
      */
     @RequiresPermission(Car.PERMISSION_MONITOR_CAR_EVS_STATUS)
+    @AddedInOrBefore(majorVersion = 33)
     public void setStatusListener(@NonNull @CallbackExecutor Executor executor,
             @NonNull CarEvsStatusListener listener) {
         if (DBG) {
-            Slog.d(TAG, "Registering a service monitoring listener.");
+            Slogf.d(TAG, "Registering a service monitoring listener.");
         }
 
         Objects.requireNonNull(listener);
@@ -336,9 +356,10 @@ public final class CarEvsManager extends CarManagerBase {
      * {@link #CarEvsStatusListener} object.
      */
     @RequiresPermission(Car.PERMISSION_MONITOR_CAR_EVS_STATUS)
+    @AddedInOrBefore(majorVersion = 33)
     public void clearStatusListener() {
         if (DBG) {
-            Slog.d(TAG, "Unregistering a service monitoring callback.");
+            Slogf.d(TAG, "Unregistering a service monitoring callback.");
         }
 
         synchronized (mStatusLock) {
@@ -416,7 +437,7 @@ public final class CarEvsManager extends CarManagerBase {
      */
     private void handleStreamEvent(@CarEvsStreamEvent int event) {
         if (DBG) {
-            Slog.d(TAG, "Received: " + event);
+            Slogf.d(TAG, "Received: " + event);
         }
 
         final CarEvsStreamCallback callback;
@@ -429,7 +450,7 @@ public final class CarEvsManager extends CarManagerBase {
         if (callback != null) {
             executor.execute(() -> callback.onStreamEvent(event));
         } else if (DBG) {
-            Slog.w(TAG, "No client seems active; a current stream event is ignored.");
+            Slogf.w(TAG, "No client seems active; a current stream event is ignored.");
         }
     }
 
@@ -443,7 +464,7 @@ public final class CarEvsManager extends CarManagerBase {
     private void handleNewFrame(@NonNull CarEvsBufferDescriptor buffer) {
         Objects.requireNonNull(buffer);
         if (DBG) {
-            Slog.d(TAG, "Received a buffer: " + buffer);
+            Slogf.d(TAG, "Received a buffer: " + buffer);
         }
 
         final CarEvsStreamCallback callback;
@@ -457,8 +478,8 @@ public final class CarEvsManager extends CarManagerBase {
             executor.execute(() -> callback.onNewFrame(buffer));
         } else {
             if (DBG) {
-                Slog.w(TAG, "A buffer is being returned back to the service " +
-                        "because no active clients exist.");
+                Slogf.w(TAG, "A buffer is being returned back to the service because no active "
+                        + "clients exist.");
             }
             returnFrameBuffer(buffer);
         }
@@ -471,6 +492,7 @@ public final class CarEvsManager extends CarManagerBase {
      * the EVS service.
      */
     @RequiresPermission(Car.PERMISSION_USE_CAR_EVS_CAMERA)
+    @AddedInOrBefore(majorVersion = 33)
     public void returnFrameBuffer(@NonNull CarEvsBufferDescriptor buffer) {
         Objects.requireNonNull(buffer);
         try {
@@ -493,6 +515,7 @@ public final class CarEvsManager extends CarManagerBase {
      *         {@link #ERROR_NONE} will be returned for all other cases.
      */
     @RequiresPermission(Car.PERMISSION_REQUEST_CAR_EVS_ACTIVITY)
+    @AddedInOrBefore(majorVersion = 33)
     public @CarEvsError int startActivity(@CarEvsServiceType int type) {
         try {
             return mService.startActivity(type);
@@ -507,6 +530,7 @@ public final class CarEvsManager extends CarManagerBase {
      * Requests the system to stop a current activity launched via {@link #startActivity}.
      */
     @RequiresPermission(Car.PERMISSION_REQUEST_CAR_EVS_ACTIVITY)
+    @AddedInOrBefore(majorVersion = 33)
     public void stopActivity() {
         try {
             mService.stopActivity();
@@ -533,13 +557,14 @@ public final class CarEvsManager extends CarManagerBase {
      *         {@link #ERROR_NONE} for all other cases.
      */
     @RequiresPermission(Car.PERMISSION_USE_CAR_EVS_CAMERA)
+    @AddedInOrBefore(majorVersion = 33)
     public @CarEvsError int startVideoStream(
             @CarEvsServiceType int type,
             @Nullable IBinder token,
             @NonNull @CallbackExecutor Executor executor,
             @NonNull CarEvsStreamCallback callback) {
         if (DBG) {
-            Slog.d(TAG, "Received a request to start a video stream: " + type);
+            Slogf.d(TAG, "Received a request to start a video stream: " + type);
         }
 
         Objects.requireNonNull(executor);
@@ -565,10 +590,11 @@ public final class CarEvsManager extends CarManagerBase {
      * Requests to stop a current {@link #CarEvsServiceType}.
      */
     @RequiresPermission(Car.PERMISSION_USE_CAR_EVS_CAMERA)
+    @AddedInOrBefore(majorVersion = 33)
     public void stopVideoStream() {
         synchronized (mStreamLock) {
             if (mStreamCallback == null) {
-                Slog.e(TAG, "The service has not started yet.");
+                Slogf.e(TAG, "The service has not started yet.");
                 return;
             }
 
@@ -593,11 +619,12 @@ public final class CarEvsManager extends CarManagerBase {
      */
     @RequiresPermission(Car.PERMISSION_MONITOR_CAR_EVS_STATUS)
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public CarEvsStatus getCurrentStatus() {
         try {
             return mService.getCurrentStatus();
         } catch (RemoteException err) {
-            Slog.e(TAG, "Failed to read a status of the service.");
+            Slogf.e(TAG, "Failed to read a status of the service.");
             return new CarEvsStatus(SERVICE_TYPE_REARVIEW, SERVICE_STATE_UNAVAILABLE);
         }
     }
@@ -609,6 +636,7 @@ public final class CarEvsManager extends CarManagerBase {
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_EVS_ACTIVITY)
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public IBinder generateSessionToken() {
         IBinder token = null;
         try {
@@ -617,7 +645,7 @@ public final class CarEvsManager extends CarManagerBase {
                 token = new Binder();
             }
         } catch (RemoteException err) {
-            Slog.e(TAG, "Failed to generate a session token.");
+            Slogf.e(TAG, "Failed to generate a session token.");
             token = new Binder();
         } finally {
             return token;
@@ -632,11 +660,12 @@ public final class CarEvsManager extends CarManagerBase {
      * @return true if a given service type is available on the system.
      */
     @RequiresPermission(Car.PERMISSION_MONITOR_CAR_EVS_STATUS)
+    @AddedInOrBefore(majorVersion = 33)
     public boolean isSupported(@CarEvsServiceType int type) {
         try {
             return mService.isSupported(type);
         } catch (RemoteException err) {
-            Slog.e(TAG, "Failed to query a service availability");
+            Slogf.e(TAG, "Failed to query a service availability");
             return false;
         }
     }

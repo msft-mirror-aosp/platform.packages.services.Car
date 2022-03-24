@@ -16,27 +16,29 @@
 
 package com.android.car.audio.hal;
 
+import static android.car.builtin.media.AudioManagerHelper.usageToString;
+import static android.car.builtin.media.AudioManagerHelper.usageToXsdString;
+import static android.car.builtin.media.AudioManagerHelper.xsdStringToUsage;
+
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.car.builtin.os.ServiceManagerHelper;
+import android.car.builtin.util.Slogf;
 import android.hardware.automotive.audiocontrol.DuckingInfo;
 import android.hardware.automotive.audiocontrol.IAudioControl;
 import android.hardware.automotive.audiocontrol.IFocusListener;
 import android.hardware.automotive.audiocontrol.MutingInfo;
-import android.media.AudioAttributes;
-import android.media.AudioAttributes.AttributeUsage;
-import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.os.ServiceManager;
-import android.util.IndentingPrintWriter;
 import android.util.Log;
-import android.util.Slog;
 
 import com.android.car.CarLog;
 import com.android.car.audio.CarDuckingInfo;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.annotation.AttributeUsage;
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 
 import java.util.List;
@@ -46,7 +48,8 @@ import java.util.Objects;
  * Wrapper for AIDL interface for AudioControl HAL
  */
 public final class AudioControlWrapperAidl implements AudioControlWrapper {
-    private static final String TAG = CarLog.tagFor(AudioControlWrapperAidl.class);
+    static final String TAG = CarLog.tagFor(AudioControlWrapperAidl.class);
+
     private static final String AUDIO_CONTROL_SERVICE =
             "android.hardware.automotive.audiocontrol.IAudioControl/default";
     private IBinder mBinder;
@@ -56,8 +59,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
     private AudioControlDeathRecipient mDeathRecipient;
 
     static @Nullable IBinder getService() {
-        return Binder.allowBlocking(ServiceManager.waitForDeclaredService(
-                AUDIO_CONTROL_SERVICE));
+        return ServiceManagerHelper.waitForDeclaredService(AUDIO_CONTROL_SERVICE);
     }
 
     AudioControlWrapperAidl(IBinder binder) {
@@ -84,14 +86,14 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
 
     @Override
     public void registerFocusListener(HalFocusListener focusListener) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "Registering focus listener on AudioControl HAL");
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "Registering focus listener on AudioControl HAL");
         }
         IFocusListener listenerWrapper = new FocusListenerWrapper(focusListener);
         try {
             mAudioControl.registerFocusListener(listenerWrapper);
         } catch (RemoteException e) {
-            Slog.e(TAG, "Failed to register focus listener");
+            Slogf.e(TAG, "Failed to register focus listener");
             throw new IllegalStateException("IAudioControl#registerFocusListener failed", e);
         }
         mListenerRegistered = true;
@@ -99,12 +101,12 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
 
     @Override
     public void onAudioFocusChange(@AttributeUsage int usage, int zoneId, int focusChange) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "onAudioFocusChange: usage " + AudioAttributes.usageToString(usage)
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "onAudioFocusChange: usage " + usageToString(usage)
                     + ", zoneId " + zoneId + ", focusChange " + focusChange);
         }
         try {
-            String usageName = AudioAttributes.usageToXsdString(usage);
+            String usageName = usageToXsdString(usage);
             mAudioControl.onAudioFocusChange(usageName, zoneId, focusChange);
         } catch (RemoteException e) {
             throw new IllegalStateException("Failed to query IAudioControl#onAudioFocusChange", e);
@@ -132,7 +134,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         try {
             mAudioControl.setFadeTowardFront(value);
         } catch (RemoteException e) {
-            Slog.e(TAG, "setFadeTowardFront with " + value + " failed", e);
+            Slogf.e(TAG, "setFadeTowardFront with " + value + " failed", e);
         }
     }
 
@@ -141,7 +143,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         try {
             mAudioControl.setBalanceTowardRight(value);
         } catch (RemoteException e) {
-            Slog.e(TAG, "setBalanceTowardRight with " + value + " failed", e);
+            Slogf.e(TAG, "setBalanceTowardRight with " + value + " failed", e);
         }
     }
 
@@ -157,7 +159,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         try {
             mAudioControl.onDevicesToDuckChange(duckingInfos);
         } catch (RemoteException e) {
-            Slog.e(TAG, "onDevicesToDuckChange failed", e);
+            Slogf.e(TAG, "onDevicesToDuckChange failed", e);
         }
     }
 
@@ -170,7 +172,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         try {
             mAudioControl.onDevicesToMuteChange(mutingInfoToHal);
         } catch (RemoteException e) {
-            Slog.e(TAG, "onDevicesToMuteChange failed", e);
+            Slogf.e(TAG, "onDevicesToMuteChange failed", e);
         }
     }
 
@@ -191,7 +193,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
     }
 
     private void binderDied() {
-        Slog.w(TAG, "AudioControl HAL died. Fetching new handle");
+        Slogf.w(TAG, "AudioControl HAL died. Fetching new handle");
         mListenerRegistered = false;
         mBinder = AudioControlWrapperAidl.getService();
         mAudioControl = IAudioControl.Stub.asInterface(mBinder);
@@ -220,13 +222,13 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
 
         @Override
         public void requestAudioFocus(String usage, int zoneId, int focusGain) {
-            @AttributeUsage int usageValue = AudioAttributes.xsdStringToUsage(usage);
+            @AttributeUsage int usageValue = xsdStringToUsage(usage);
             mListener.requestAudioFocus(usageValue, zoneId, focusGain);
         }
 
         @Override
         public void abandonAudioFocus(String usage, int zoneId) {
-            @AttributeUsage int usageValue = AudioAttributes.xsdStringToUsage(usage);
+            @AttributeUsage int usageValue = xsdStringToUsage(usage);
             mListener.abandonAudioFocus(usageValue, zoneId);
         }
     }
