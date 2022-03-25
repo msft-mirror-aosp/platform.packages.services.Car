@@ -26,7 +26,7 @@
 #include <android/automotive/watchdog/internal/ComponentType.h>
 #include <android/automotive/watchdog/internal/ICarWatchdogMonitor.h>
 #include <android/automotive/watchdog/internal/ICarWatchdogServiceForSystem.h>
-#include <android/automotive/watchdog/internal/PackageResourceOveruseAction.h>
+#include <android/automotive/watchdog/internal/ProcessIdentifier.h>
 #include <android/automotive/watchdog/internal/ResourceOveruseConfiguration.h>
 #include <android/automotive/watchdog/internal/StateType.h>
 #include <binder/Status.h>
@@ -74,11 +74,14 @@ public:
     android::binder::Status tellCarWatchdogServiceAlive(
             const android::sp<
                     android::automotive::watchdog::internal::ICarWatchdogServiceForSystem>& service,
-            const std::vector<int32_t>& clientsNotResponding, int32_t sessionId) override;
+            const std::vector<android::automotive::watchdog::internal::ProcessIdentifier>&
+                    clientsNotResponding,
+            int32_t sessionId) override;
     android::binder::Status tellDumpFinished(
             const android::sp<android::automotive::watchdog::internal::ICarWatchdogMonitor>&
                     monitor,
-            int32_t pid) override;
+            const android::automotive::watchdog::internal::ProcessIdentifier& processIdentifier)
+            override;
     android::binder::Status notifySystemStateChange(
             android::automotive::watchdog::internal::StateType type, int32_t arg1,
             int32_t arg2) override;
@@ -89,10 +92,7 @@ public:
     android::binder::Status getResourceOveruseConfigurations(
             std::vector<android::automotive::watchdog::internal::ResourceOveruseConfiguration>*
                     configs) override;
-    android::binder::Status actionTakenOnResourceOveruse(
-            const std::vector<
-                    android::automotive::watchdog::internal::PackageResourceOveruseAction>&
-                    actions);
+    android::binder::Status controlProcessHealthCheck(bool enable) override;
 
 protected:
     void terminate() {
@@ -108,6 +108,9 @@ private:
 
     android::binder::Status handlePowerCycleChange(
             android::automotive::watchdog::internal::PowerCycle powerCycle);
+
+    android::binder::Status handleUserStateChange(
+            userid_t userId, android::automotive::watchdog::internal::UserState userState);
 
     android::sp<WatchdogBinderMediator> mBinderMediator;
     android::sp<IWatchdogServiceHelper> mWatchdogServiceHelper;
