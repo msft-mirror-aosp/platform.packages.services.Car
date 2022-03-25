@@ -15,11 +15,13 @@
  */
 
 #include "MockCarWatchdogServiceForSystem.h"
+#include "MockVhalClient.h"
 #include "MockWatchdogServiceHelper.h"
 #include "WatchdogProcessService.h"
 #include "WatchdogServiceHelper.h"
 
 #include <android/automotive/watchdog/internal/BnCarWatchdogServiceForSystem.h>
+#include <android/binder_interface_utils.h>
 #include <gmock/gmock.h>
 
 namespace android {
@@ -27,11 +29,16 @@ namespace automotive {
 namespace watchdog {
 
 namespace aawi = ::android::automotive::watchdog::internal;
+namespace afav = ::android::frameworks::automotive::vhal;
+namespace aahav = ::aidl::android::hardware::automotive::vehicle;
 
+using aawi::ProcessIdentifier;
 using ::android::IBinder;
 using ::android::sp;
 using ::android::binder::Status;
+using ::ndk::SharedRefBase;
 using ::testing::_;
+using ::testing::ByMove;
 using ::testing::Return;
 
 namespace {
@@ -58,18 +65,51 @@ private:
     sp<MockBinder> mBinder;
 };
 
+ProcessIdentifier constructProcessIdentifier(int32_t pid, int64_t startTimeMillis) {
+    ProcessIdentifier processIdentifier;
+    processIdentifier.pid = pid;
+    processIdentifier.startTimeMillis = startTimeMillis;
+    return processIdentifier;
+}
+
 }  // namespace
+
+namespace internal {
+
+class WatchdogProcessServicePeer final {
+public:
+    explicit WatchdogProcessServicePeer(const sp<WatchdogProcessService>& watchdogProcessService) :
+          mWatchdogProcessService(watchdogProcessService) {}
+
+    void setVhalClient(std::shared_ptr<afav::IVhalClient> client) {
+        mWatchdogProcessService->mVhalService = client;
+    }
+
+private:
+    sp<WatchdogProcessService> mWatchdogProcessService;
+};
+
+}  // namespace internal
 
 class WatchdogProcessServiceTest : public ::testing::Test {
 protected:
     void SetUp() override {
         sp<Looper> looper(Looper::prepare(/*opts=*/0));
-        mWatchdogProcessService = new WatchdogProcessService(looper);
+        mWatchdogProcessService = sp<WatchdogProcessService>::make(looper);
+        mMockVehicle = SharedRefBase::make<MockVehicle>();
+        mMockVhalClient = std::make_shared<MockVhalClient>(mMockVehicle);
+        internal::WatchdogProcessServicePeer peer(mWatchdogProcessService);
+        peer.setVhalClient(mMockVhalClient);
     }
 
-    void TearDown() override { mWatchdogProcessService.clear(); }
+    void TearDown() override {
+        mWatchdogProcessService.clear();
+        mMockVhalClient.reset();
+    }
 
     sp<WatchdogProcessService> mWatchdogProcessService;
+    std::shared_ptr<MockVhalClient> mMockVhalClient;
+    std::shared_ptr<MockVehicle> mMockVehicle;
 };
 
 sp<MockCarWatchdogClient> createMockCarWatchdogClient(status_t linkToDeathResult) {
@@ -105,6 +145,17 @@ sp<MockCarWatchdogMonitor> expectNormalCarWatchdogMonitor() {
 sp<MockCarWatchdogMonitor> expectCarWatchdogMonitorBinderDied() {
     return createMockCarWatchdogMonitor(DEAD_OBJECT);
 }
+
+TEST_F(WatchdogProcessServiceTest, TestTerminate) {
+    std::vector<int32_t> propIds = {static_cast<int32_t>(aahav::VehicleProperty::VHAL_HEARTBEAT)};
+    EXPECT_CALL(*mMockVhalClient, removeOnBinderDiedCallback(_)).Times(1);
+    EXPECT_CALL(*mMockVehicle, unsubscribe(_, propIds))
+            .WillOnce(Return(ByMove(std::move(ndk::ScopedAStatus::ok()))));
+    mWatchdogProcessService->terminate();
+    // TODO(b/217405065): Verify looper removes all MSG_VHAL_HEALTH_CHECK messages.
+}
+
+// TODO(b/217405065): Add test to verify the handleVhalDeath method.
 
 TEST_F(WatchdogProcessServiceTest, TestRegisterClient) {
     sp<MockCarWatchdogClient> client = expectNormalCarWatchdogClient();
@@ -194,18 +245,31 @@ TEST_F(WatchdogProcessServiceTest, TestTellCarWatchdogServiceAlive) {
 
     sp<MockCarWatchdogServiceForSystem> mockService = new MockCarWatchdogServiceForSystem();
 
-    std::vector<int32_t> pids = {111, 222};
-    ASSERT_FALSE(
-            mWatchdogProcessService->tellCarWatchdogServiceAlive(mockService, pids, 1234).isOk())
+    std::vector<ProcessIdentifier> processIdentifiers;
+    processIdentifiers.push_back(
+            constructProcessIdentifier(/* pid= */ 111, /* startTimeMillis= */ 0));
+    processIdentifiers.push_back(
+            constructProcessIdentifier(/* pid= */ 222, /* startTimeMillis= */ 0));
+    ASSERT_FALSE(mWatchdogProcessService
+                         ->tellCarWatchdogServiceAlive(mockService, processIdentifiers, 1234)
+                         .isOk())
             << "tellCarWatchdogServiceAlive not synced with checkIfAlive should return an error";
 }
 
 TEST_F(WatchdogProcessServiceTest, TestTellDumpFinished) {
     sp<aawi::ICarWatchdogMonitor> monitor = expectNormalCarWatchdogMonitor();
-    ASSERT_FALSE(mWatchdogProcessService->tellDumpFinished(monitor, 1234).isOk())
+    ASSERT_FALSE(mWatchdogProcessService
+                         ->tellDumpFinished(monitor,
+                                            constructProcessIdentifier(/* pid= */ 1234,
+                                                                       /* startTimeMillis= */ 0))
+                         .isOk())
             << "Unregistered monitor cannot call tellDumpFinished";
     mWatchdogProcessService->registerMonitor(monitor);
-    Status status = mWatchdogProcessService->tellDumpFinished(monitor, 1234);
+    Status status =
+            mWatchdogProcessService
+                    ->tellDumpFinished(monitor,
+                                       constructProcessIdentifier(/* pid= */ 1234,
+                                                                  /* startTimeMillis= */ 0));
     ASSERT_TRUE(status.isOk()) << status;
 }
 
