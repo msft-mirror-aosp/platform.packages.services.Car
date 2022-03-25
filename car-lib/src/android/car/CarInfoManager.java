@@ -17,21 +17,24 @@
 package android.car;
 
 import android.annotation.NonNull;
+import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.ValueTypeDef;
+import android.car.builtin.util.Slogf;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.ICarProperty;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Slog;
 
 import java.util.Arrays;
-
 
 /**
  * Utility to retrieve various static information from car. Each data are grouped as {@link Bundle}
  * and relevant data can be checked from {@link Bundle} using pre-specified keys.
+ *
+ * @deprecated Use {@link CarPropertyManager} instead.
  */
+@Deprecated
 public final class CarInfoManager extends CarManagerBase {
 
     private static final String TAG = CarInfoManager.class.getSimpleName();
@@ -119,6 +122,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Manufacturer of the car.  Empty if not available.
      */
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public String getManufacturer() {
         return  getPropertyWithDefaultValue(String.class, BASIC_INFO_KEY_MANUFACTURER, "");
     }
@@ -129,6 +133,7 @@ public final class CarInfoManager extends CarManagerBase {
      * name may be used for different cars depending on manufacturers.
      */
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public String getModel() {
         return getPropertyWithDefaultValue(String.class, BASIC_INFO_KEY_MODEL, "");
     }
@@ -139,6 +144,7 @@ public final class CarInfoManager extends CarManagerBase {
      */
     @Deprecated
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public String getModelYear() {
         int year =  getModelYearInInteger();
         return year == 0 ? "" : Integer.toString(year);
@@ -147,6 +153,7 @@ public final class CarInfoManager extends CarManagerBase {
     /**
      * @return Model year of the car in AD.  0 if not available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public int getModelYearInInteger() {
         return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_KEY_MODEL_YEAR, 0);
     }
@@ -156,6 +163,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @deprecated no support for car's identifier
      */
     @Deprecated
+    @AddedInOrBefore(majorVersion = 33)
     public String getVehicleId() {
         return "";
     }
@@ -164,6 +172,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Fuel capacity of the car in milliliters.  0 if car doesn't run on
      *         fuel.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public float getFuelCapacity() {
         return getPropertyWithDefaultValue(Float.class, BASIC_INFO_FUEL_CAPACITY, 0f);
     }
@@ -172,6 +181,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Array of FUEL_TYPEs available in the car.  Empty array if no fuel
      * types available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public @FuelType.Enum int[] getFuelTypes() {
         Integer[] fuels = getPropertyWithDefaultValue(Integer[].class, BASIC_INFO_FUEL_TYPES,
                 new Integer[]{});
@@ -182,6 +192,7 @@ public final class CarInfoManager extends CarManagerBase {
      *
      * @return Battery capacity of the car in Watt-Hour(Wh). Return 0 if car doesn't run on battery.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public float getEvBatteryCapacity() {
         return getPropertyWithDefaultValue(Float.class, BASIC_INFO_EV_BATTERY_CAPACITY, 0f);
     }
@@ -190,6 +201,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Array of EV_CONNECTOR_TYPEs available in the car.  Empty array if
      *         no connector types available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public @EvConnectorType.Enum int[] getEvConnectorTypes() {
         Integer[] valueInHal = getPropertyWithDefaultValue(Integer[].class,
                 BASIC_INFO_EV_CONNECTOR_TYPES, new Integer[]{});
@@ -244,6 +256,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Driver seat's location. Returns {@link VehicleAreaSeat#SEAT_UNKNOWN} if the sensor
      * is not available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public @VehicleAreaSeat.Enum int getDriverSeat() {
         return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_DRIVER_SEAT,
                 VehicleAreaSeat.SEAT_UNKNOWN);
@@ -253,6 +266,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return EV port location of the car. Returns {@link PortLocationType#UNKNOWN} if the sensor
      * is not available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public @PortLocationType.Enum int getEvPortLocation() {
         return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_EV_PORT_LOCATION,
                 PortLocationType.UNKNOWN);
@@ -262,6 +276,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Fuel door location of the car.Returns {@link PortLocationType#UNKNOWN} if the sensor
      * is not available.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public @PortLocationType.Enum int getFuelDoorLocation() {
         return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_FUEL_DOOR_LOCATION,
                 PortLocationType.UNKNOWN);
@@ -275,7 +290,7 @@ public final class CarInfoManager extends CarManagerBase {
                 return carProp.getValue();
             }
         } catch (Exception e) {
-            Slog.e(TAG, "Failed to get property value for 0x:" + Integer.toHexString(propId)
+            Slogf.e(TAG, "Failed to get property value for 0x:" + Integer.toHexString(propId)
                     + " ,returns default value" + defaultValue);
         }
         return defaultValue;

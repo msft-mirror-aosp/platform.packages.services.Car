@@ -17,14 +17,30 @@
 package com.android.car.pm;
 
 import static android.Manifest.permission.QUERY_ALL_PACKAGES;
+import static android.car.CarOccupantZoneManager.DISPLAY_TYPE_MAIN;
+import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_BLOCKED_ACTIVITY_NAME;
+import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_BLOCKED_TASK_ID;
+import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_DISPLAY_ID;
+import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_IS_ROOT_ACTIVITY_DO;
+import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_ROOT_ACTIVITY_NAME;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.util.Utils.isEventOfType;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
-import android.app.ActivityTaskManager.RootTaskInfo;
 import android.app.PendingIntent;
+import android.app.TaskInfo;
 import android.car.Car;
+import android.car.builtin.app.ActivityManagerHelper;
+import android.car.builtin.app.TaskInfoHelper;
+import android.car.builtin.content.pm.PackageManagerHelper;
+import android.car.builtin.os.BuildHelper;
+import android.car.builtin.os.ServiceManagerHelper;
+import android.car.builtin.util.Slogf;
 import android.car.content.pm.AppBlockingPackageInfo;
 import android.car.content.pm.CarAppBlockingPolicy;
 import android.car.content.pm.CarAppBlockingPolicyService;
@@ -32,6 +48,12 @@ import android.car.content.pm.CarPackageManager;
 import android.car.content.pm.ICarPackageManager;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
+import android.car.hardware.power.CarPowerPolicy;
+import android.car.hardware.power.CarPowerPolicyFilter;
+import android.car.hardware.power.ICarPowerPolicyListener;
+import android.car.hardware.power.PowerComponent;
+import android.car.user.CarUserManager.UserLifecycleListener;
+import android.car.user.UserLifecycleEventFilter;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -47,35 +69,47 @@ import android.content.pm.Signature;
 import android.content.res.Resources;
 import android.hardware.display.DisplayManager;
 import android.os.Binder;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
+import android.os.ParcelFileDescriptor;
 import android.os.Process;
+import android.os.RemoteException;
+import android.os.ServiceSpecificException;
+import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.text.TextUtils;
 import android.util.ArraySet;
-import android.util.IndentingPrintWriter;
-import android.util.LocalLog;
 import android.util.Log;
 import android.util.Pair;
-import android.util.Slog;
 import android.util.SparseArray;
+import android.util.SparseLongArray;
 import android.view.Display;
-import android.view.DisplayAddress;
 
+import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
+import com.android.car.CarOccupantZoneService;
 import com.android.car.CarServiceBase;
 import com.android.car.CarServiceUtils;
 import com.android.car.CarUxRestrictionsManagerService;
 import com.android.car.R;
-import com.android.car.SystemActivityMonitoringService;
-import com.android.car.SystemActivityMonitoringService.TopTaskInfoContainer;
+import com.android.car.am.CarActivityService;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.internal.util.IntArray;
+import com.android.car.internal.util.LocalLog;
+import com.android.car.internal.util.Sets;
+import com.android.car.power.CarPowerManagementService;
+import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
-import com.google.android.collect.Sets;
-
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,18 +124,27 @@ import java.util.Set;
 
 public class CarPackageManagerService extends ICarPackageManager.Stub implements CarServiceBase {
 
-    private static final String TAG = CarLog.tagFor(CarPackageManagerService.class);
+    static final boolean DBG = false;
+
+    @VisibleForTesting
+    static final String TAG = CarLog.tagFor(CarPackageManagerService.class);
 
     // Delimiters to parse packages and activities in the configuration XML resource.
     private static final String PACKAGE_DELIMITER = ",";
     private static final String PACKAGE_ACTIVITY_DELIMITER = "/";
     private static final int LOG_SIZE = 20;
+    private static final String[] WINDOW_DUMP_ARGUMENTS = new String[]{"windows"};
+
+    private static final String PROPERTY_RO_DRIVING_SAFETY_REGION =
+            "ro.android.car.drivingsafetyregion";
+    private static final int ABA_LAUNCH_TIMEOUT_MS = 1_000;
 
     private final Context mContext;
-    private final SystemActivityMonitoringService mSystemActivityMonitoringService;
+    private final CarActivityService mActivityService;
     private final PackageManager mPackageManager;
     private final ActivityManager mActivityManager;
     private final DisplayManager mDisplayManager;
+    private final IBinder mWindowManagerBinder;
 
     private final HandlerThread mHandlerThread = CarServiceUtils.getHandlerThread(
             getClass().getSimpleName());
@@ -122,6 +165,9 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
 
     private final List<String> mAllowedAppInstallSources;
 
+    @GuardedBy("mLock")
+    private final SparseArray<ComponentName> mTopActivityWithDialogPerDisplay = new SparseArray<>();
+
     /**
      * Hold policy set from policy service or client.
      * Key: packageName of policy service
@@ -139,9 +185,22 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     @GuardedBy("mLock")
     private final LinkedList<CarAppBlockingPolicy> mWaitingPolicies = new LinkedList<>();
 
+    @GuardedBy("mLock")
+    private String mCurrentDrivingSafetyRegion = CarPackageManager.DRIVING_SAFETY_REGION_ALL;
+    // Package name + '/' + className format
+    @GuardedBy("mLock")
+    private final ArraySet<String> mTempAllowedActivities = new ArraySet<>();
+
     private final CarUxRestrictionsManagerService mCarUxRestrictionsService;
-    private boolean mEnableActivityBlocking;
+    private final CarOccupantZoneService mCarOccupantZoneService;
+    private final boolean mEnableActivityBlocking;
+
     private final ComponentName mActivityBlockingActivity;
+    // Memorize the target of ABA to defend bypassing it with launching two Activities continuously.
+    private final SparseArray<ComponentName> mBlockingActivityTargets = new SparseArray<>();
+    private final SparseLongArray mBlockingActivityLaunchTimes = new SparseLongArray();
+    private final boolean mPreventTemplatedAppsFromShowingDialog;
+    private final String mTemplateActivityClassName;
 
     private final ActivityLaunchListener mActivityLaunchListener = new ActivityLaunchListener();
 
@@ -162,63 +221,61 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     private final PackageParsingEventReceiver mPackageParsingEventReceiver =
             new PackageParsingEventReceiver();
 
-    /**
-     * Name of blocked activity.
-     *
-     * @hide
-     */
-    public static final String BLOCKING_INTENT_EXTRA_BLOCKED_ACTIVITY_NAME = "blocked_activity";
-    /**
-     * int task id of the blocked task.
-     *
-     * @hide
-     */
-    public static final String BLOCKING_INTENT_EXTRA_BLOCKED_TASK_ID = "blocked_task_id";
-    /**
-     * Name of root activity of blocked task.
-     *
-     * @hide
-     */
-    public static final String BLOCKING_INTENT_EXTRA_ROOT_ACTIVITY_NAME = "root_activity_name";
-    /**
-     * Boolean indicating whether the root activity is distraction-optimized (DO).
-     * Blocking screen should show a button to restart the task if {@code true}.
-     *
-     * @hide
-     */
-    public static final String BLOCKING_INTENT_EXTRA_IS_ROOT_ACTIVITY_DO = "is_root_activity_do";
+    private final UserLifecycleListener mUserLifecycleListener = event -> {
+        if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
+            return;
+        }
 
-    /**
-     * int display id of the blocked task.
-     *
-     * @hide
-     */
-    public static final String BLOCKING_INTENT_EXTRA_DISPLAY_ID = "display_id";
+        synchronized (mLock) {
+            resetTempAllowedActivitiesLocked();
+        }
+    };
+
+    private final ICarPowerPolicyListener mDisplayPowerPolicyListener =
+            new ICarPowerPolicyListener.Stub() {
+                @Override
+                public void onPolicyChanged(CarPowerPolicy policy,
+                        CarPowerPolicy accumulatedPolicy) {
+                    if (!policy.isComponentEnabled(PowerComponent.DISPLAY)) {
+                        synchronized (mLock) {
+                            resetTempAllowedActivitiesLocked();
+                        }
+                    }
+                }
+            };
 
     public CarPackageManagerService(Context context,
             CarUxRestrictionsManagerService uxRestrictionsService,
-            SystemActivityMonitoringService systemActivityMonitoringService) {
+            CarActivityService activityService, CarOccupantZoneService carOccupantZoneService) {
         mContext = context;
         mCarUxRestrictionsService = uxRestrictionsService;
-        mSystemActivityMonitoringService = systemActivityMonitoringService;
+        mActivityService = activityService;
+        mCarOccupantZoneService = carOccupantZoneService;
         mPackageManager = mContext.getPackageManager();
         mActivityManager = mContext.getSystemService(ActivityManager.class);
         mDisplayManager = mContext.getSystemService(DisplayManager.class);
+        mWindowManagerBinder = ServiceManagerHelper.getService(Context.WINDOW_SERVICE);
         Resources res = context.getResources();
         mEnableActivityBlocking = res.getBoolean(R.bool.enableActivityBlockingForSafety);
         String blockingActivity = res.getString(R.string.activityBlockingActivity);
         mActivityBlockingActivity = ComponentName.unflattenFromString(blockingActivity);
+        if (mEnableActivityBlocking && mActivityBlockingActivity == null) {
+            Slogf.wtf(TAG, "mActivityBlockingActivity can't be null when enabled");
+        }
         mAllowedAppInstallSources = Arrays.asList(
                 res.getStringArray(R.array.allowedAppInstallSources));
         mVendorServiceController = new VendorServiceController(
                 mContext, mHandler.getLooper());
+        mPreventTemplatedAppsFromShowingDialog =
+                res.getBoolean(R.bool.config_preventTemplatedAppsFromShowingDialog);
+        mTemplateActivityClassName = res.getString(R.string.config_template_activity_class_name);
     }
 
 
     @Override
     public void setAppBlockingPolicy(String packageName, CarAppBlockingPolicy policy, int flags) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "policy setting from binder call, client:" + packageName);
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "policy setting from binder call, client:" + packageName);
         }
         doSetAppBlockingPolicy(packageName, policy, flags);
     }
@@ -233,16 +290,95 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             throw new SecurityException(
                     "requires permission " + android.Manifest.permission.REAL_GET_TASKS);
         }
-        mSystemActivityMonitoringService.restartTask(taskId);
+        mActivityService.restartTask(taskId);
     }
 
-    private void doSetAppBlockingPolicy(String packageName, CarAppBlockingPolicy policy,
-            int flags) {
+    @Override
+    public String getCurrentDrivingSafetyRegion() {
+        assertAppBlockingOrDrivingStatePermission();
+        synchronized (mLock) {
+            return mCurrentDrivingSafetyRegion;
+        }
+    }
+
+    private String getComponentNameString(String packageName, String className) {
+        return packageName + '/' + className;
+    }
+
+    @Override
+    public void controlOneTimeActivityBlockingBypassingAsUser(String packageName,
+            String activityClassName, boolean bypass, @UserIdInt int userId) {
+        assertAppBlockingPermission();
+        if (!callerCanQueryPackage(packageName)) {
+            throw new SecurityException("cannot query other package");
+        }
+        try {
+            // Read this to check the validity of pkg / activity name. Not checking this can allow
+            // bad apps to be allowed later.
+            CarAppMetadataReader.getSupportedDrivingSafetyRegionsForActivityAsUser(mContext,
+                    packageName, activityClassName, userId);
+        } catch (NameNotFoundException e) {
+            throw new ServiceSpecificException(CarPackageManager.ERROR_CODE_NO_PACKAGE,
+                    e.getMessage());
+        }
+        String componentName = getComponentNameString(packageName, activityClassName);
+        synchronized (mLock) {
+            if (bypass) {
+                mTempAllowedActivities.add(componentName);
+            } else {
+                mTempAllowedActivities.remove(componentName);
+            }
+        }
+        if (!bypass) { // block top activities if bypassing is disabled.
+            blockTopActivitiesIfNecessary();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void resetTempAllowedActivitiesLocked() {
+        mTempAllowedActivities.clear();
+    }
+
+    @Override
+    public List<String> getSupportedDrivingSafetyRegionsForActivityAsUser(String packageName,
+            String activityClassName, @UserIdInt int userId) {
+        assertAppBlockingOrDrivingStatePermission();
+        if (!callerCanQueryPackage(packageName)) {
+            throw new SecurityException("cannot query other package");
+        }
+        long token = Binder.clearCallingIdentity();
+        try {
+            return CarAppMetadataReader.getSupportedDrivingSafetyRegionsForActivityAsUser(mContext,
+                    packageName, activityClassName, userId);
+        } catch (NameNotFoundException e) {
+            throw new ServiceSpecificException(CarPackageManager.ERROR_CODE_NO_PACKAGE,
+                    e.getMessage());
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+    }
+
+    private void assertAppBlockingOrDrivingStatePermission() {
+        if (mContext.checkCallingOrSelfPermission(Car.PERMISSION_CONTROL_APP_BLOCKING)
+                != PackageManager.PERMISSION_GRANTED && mContext.checkCallingOrSelfPermission(
+                Car.PERMISSION_CAR_DRIVING_STATE) != PackageManager.PERMISSION_GRANTED) {
+            throw new SecurityException(
+                    "requires permission " + Car.PERMISSION_CONTROL_APP_BLOCKING + " or "
+                            + Car.PERMISSION_CAR_DRIVING_STATE);
+        }
+    }
+
+    private void assertAppBlockingPermission() {
         if (mContext.checkCallingOrSelfPermission(Car.PERMISSION_CONTROL_APP_BLOCKING)
                 != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException(
                     "requires permission " + Car.PERMISSION_CONTROL_APP_BLOCKING);
         }
+    }
+
+    private void doSetAppBlockingPolicy(String packageName, CarAppBlockingPolicy policy,
+            int flags) {
+        assertAppBlockingPermission();
         CarServiceUtils.assertPackageName(mContext, packageName);
         if (policy == null) {
             throw new IllegalArgumentException("policy cannot be null");
@@ -278,8 +414,22 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         if (!callerCanQueryPackage(packageName)) return false;
         assertPackageAndClassName(packageName, className);
         synchronized (mLock) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "isActivityDistractionOptimized" + dumpPoliciesLocked(false));
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, "isActivityDistractionOptimized" + dumpPoliciesLocked(false));
+            }
+
+            if (mTempAllowedActivities.contains(getComponentNameString(packageName,
+                    className))) {
+                return true;
+            }
+
+            for (int i = mTopActivityWithDialogPerDisplay.size() - 1; i >= 0; i--) {
+                ComponentName activityWithDialog = mTopActivityWithDialogPerDisplay.get(
+                        mTopActivityWithDialogPerDisplay.keyAt(i));
+                if (activityWithDialog.getClassName().equals(className)
+                        && activityWithDialog.getPackageName().equals(packageName)) {
+                    return false;
+                }
             }
 
             if (searchFromClientPolicyBlocklistsLocked(packageName)) {
@@ -324,23 +474,36 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             }
         }
 
-        Slog.w(TAG, QUERY_ALL_PACKAGES + " permission is needed to query other packages.");
+        Slogf.w(TAG, QUERY_ALL_PACKAGES + " permission is needed to query other packages.");
 
         return false;
     }
 
     private static boolean hasPermissionGranted(String permission, int uid) {
-        return ActivityManager.checkComponentPermission(permission, uid,
+        return ActivityManagerHelper.checkComponentPermission(permission, uid,
                 /* owningUid= */ Process.INVALID_UID,
                 /* exported= */ true) == PackageManager.PERMISSION_GRANTED;
     }
 
     @Override
     public boolean isPendingIntentDistractionOptimized(PendingIntent pendingIntent) {
-        ResolveInfo info = mPackageManager.resolveActivity(
-                pendingIntent.getIntent(), PackageManager.MATCH_DEFAULT_ONLY);
-        if (info == null) return false;
-        ActivityInfo activityInfo = info.activityInfo;
+        if (!pendingIntent.isActivity()) {
+            Slogf.d(TAG, "isPendingIntentDistractionOptimized: Activity not set on the "
+                    + "pending intent.");
+            return false;
+        }
+        List<ResolveInfo> infos = pendingIntent.queryIntentComponents(
+                PackageManager.MATCH_DEFAULT_ONLY);
+        if (infos.isEmpty()) {
+            Slogf.d(TAG, "isPendingIntentDistractionOptimized: No intent component found for "
+                    + "the pending intent.");
+            return false;
+        }
+        if (infos.size() > 1) {
+            Slogf.d(TAG, "isPendingIntentDistractionOptimized: More than one intent component"
+                    + " found for the pending intent. Considering the first one.");
+        }
+        ActivityInfo activityInfo = infos.get(0).activityInfo;
         return isActivityDistractionOptimized(activityInfo.packageName, activityInfo.name);
     }
 
@@ -352,8 +515,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             throw new IllegalArgumentException("Package name null");
         }
         synchronized (mLock) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "isServiceDistractionOptimized" + dumpPoliciesLocked(false));
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, "isServiceDistractionOptimized" + dumpPoliciesLocked(false));
             }
 
             if (searchFromClientPolicyBlocklistsLocked(packageName)) {
@@ -387,21 +550,23 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         if (activityName == null) return false;
         if (!callerCanQueryPackage(activityName.getPackageName())) return false;
 
-        RootTaskInfo info = mSystemActivityMonitoringService.getFocusedStackForTopActivity(
-                activityName);
+        TaskInfo info = mActivityService.getTaskInfoForTopActivity(activityName);
+        if (DBG) {
+            Slogf.d(TAG, "isActivityBackedBySafeActivity: info=%s",
+                    TaskInfoHelper.toString(info));
+        }
         if (info == null) { // not top in focused stack
             return true;
         }
-        if (!isUxRestrictedOnDisplay(info.displayId)) {
+        if (!isUxRestrictedOnDisplay(TaskInfoHelper.getDisplayId(info))) {
             return true;
         }
-        if (info.childTaskNames.length <= 1) { // nothing below this.
+        if (info.baseActivity == null
+                || info.baseActivity.equals(activityName)) {  // nothing below this.
             return false;
         }
-        ComponentName activityBehind = ComponentName.unflattenFromString(
-                info.childTaskNames[info.childTaskNames.length - 2]);
-        return isActivityDistractionOptimized(activityBehind.getPackageName(),
-                activityBehind.getClassName());
+        return isActivityDistractionOptimized(info.baseActivity.getPackageName(),
+                info.baseActivity.getClassName());
     }
 
     public Looper getLooper() {
@@ -454,8 +619,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     private boolean isActivityInMapAndMatching(AppBlockingPackageInfoWrapper wrapper,
             String packageName, String className) {
         if (wrapper == null || !wrapper.isMatching) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "Pkg not in allowlist:" + packageName);
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, "Pkg not in allowlist:" + packageName);
             }
             return false;
         }
@@ -464,20 +629,33 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
 
     @Override
     public void init() {
+        String safetyRegion = SystemProperties.get(PROPERTY_RO_DRIVING_SAFETY_REGION, "");
         synchronized (mLock) {
+            setDrivingSafetyRegionWithCheckLocked(safetyRegion);
             mHandler.requestInit();
         }
+        UserLifecycleEventFilter userSwitchingEventFilter = new UserLifecycleEventFilter.Builder()
+                .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING).build();
+        CarLocalServices.getService(CarUserService.class).addUserLifecycleListener(
+                userSwitchingEventFilter, mUserLifecycleListener);
+        CarLocalServices.getService(CarPowerManagementService.class).addPowerPolicyListener(
+                new CarPowerPolicyFilter.Builder().setComponents(PowerComponent.DISPLAY).build(),
+                mDisplayPowerPolicyListener);
     }
 
     @Override
     public void release() {
+        CarLocalServices.getService(CarPowerManagementService.class).removePowerPolicyListener(
+                mDisplayPowerPolicyListener);
+        CarLocalServices.getService(CarUserService.class).removeUserLifecycleListener(
+                mUserLifecycleListener);
         synchronized (mLock) {
             mHandler.requestRelease();
             // wait for release do be done. This guarantees that init is done.
             try {
                 mLock.wait();
             } catch (InterruptedException e) {
-                Slog.e(TAG, "Interrupted wait during release");
+                Slogf.e(TAG, "Interrupted wait during release");
                 Thread.currentThread().interrupt();
             }
             mActivityAllowlistMap.clear();
@@ -490,13 +668,36 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                 mProxies.clear();
             }
             mWaitingPolicies.clear();
+            resetTempAllowedActivitiesLocked();
             mLock.notifyAll();
         }
         mContext.unregisterReceiver(mPackageParsingEventReceiver);
-        mSystemActivityMonitoringService.registerActivityLaunchListener(null);
+        mActivityService.registerActivityLaunchListener(null);
         for (int i = 0; i < mUxRestrictionsListeners.size(); i++) {
             UxRestrictionsListener listener = mUxRestrictionsListeners.valueAt(i);
             mCarUxRestrictionsService.unregisterUxRestrictionsChangeListener(listener);
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void setDrivingSafetyRegionWithCheckLocked(String region) {
+        if (region.isEmpty()) {
+            mCurrentDrivingSafetyRegion = CarPackageManager.DRIVING_SAFETY_REGION_ALL;
+        } else {
+            mCurrentDrivingSafetyRegion = region;
+        }
+    }
+
+    /**
+     * Reset driving stat and all dynamically added allow list so that region information for
+     * all packages are reset. This also resets one time allow list.
+     */
+    public void resetDrivingSafetyRegion(@NonNull String region) {
+        synchronized (mLock) {
+            setDrivingSafetyRegionWithCheckLocked(region);
+            resetTempAllowedActivitiesLocked();
+            mActivityAllowlistMap.clear();
+            mActivityDenylistPackages.clear();
         }
     }
 
@@ -508,27 +709,22 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             pkgParseIntent.addAction(action);
         }
         pkgParseIntent.addDataScheme("package");
-        mContext.registerReceiverAsUser(mPackageParsingEventReceiver, UserHandle.ALL,
-                pkgParseIntent, null, null);
+        mContext.registerReceiverForAllUsers(mPackageParsingEventReceiver, pkgParseIntent,
+                /* broadcastPermission= */ null, /* scheduler= */ null,
+                Context.RECEIVER_NOT_EXPORTED);
 
-        List<Display> physicalDisplays = getPhysicalDisplays();
+        // CarOccupantZoneService makes it sure that the default display is a driver display.
+        IntArray displayIdsForDriver = mCarOccupantZoneService.getAllDisplayIdsForDriver(
+                DISPLAY_TYPE_MAIN);
 
-        // Assume default display (display 0) is always a physical display.
-        Display defaultDisplay = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY);
-        if (!physicalDisplays.contains(defaultDisplay)) {
-            if (Log.isLoggable(TAG, Log.INFO)) {
-                Slog.i(TAG, "Adding default display to physical displays.");
-            }
-            physicalDisplays.add(defaultDisplay);
-        }
-        for (Display physicalDisplay : physicalDisplays) {
-            int displayId = physicalDisplay.getDisplayId();
+        for (int i = 0; i < displayIdsForDriver.size(); ++i) {
+            int displayId = displayIdsForDriver.get(i);
             UxRestrictionsListener listener = new UxRestrictionsListener(mCarUxRestrictionsService);
             mUxRestrictionsListeners.put(displayId, listener);
             mCarUxRestrictionsService.registerUxRestrictionsChangeListener(listener, displayId);
         }
         mVendorServiceController.init();
-        mSystemActivityMonitoringService.registerActivityLaunchListener(mActivityLaunchListener);
+        mActivityService.registerActivityLaunchListener(mActivityLaunchListener);
     }
 
     private void doParseInstalledPackage(String packageName) {
@@ -551,8 +747,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     }
 
     private void doUpdatePolicy(String packageName, CarAppBlockingPolicy policy, int flags) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "setting policy from:" + packageName + ",policy:" + policy + ",flags:0x"
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "setting policy from:" + packageName + ",policy:" + policy + ",flags:0x"
                     + Integer.toHexString(flags));
         }
         AppBlockingPackageInfoWrapper[] blocklistWrapper = verifyList(policy.blacklists);
@@ -577,8 +773,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                 mWaitingPolicies.remove(policy);
                 mLock.notifyAll();
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "policy set:" + dumpPoliciesLocked(false));
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, "policy set:" + dumpPoliciesLocked(false));
             }
         }
         blockTopActivitiesIfNecessary();
@@ -613,8 +809,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         }
         // if it is system app and client specified the flag, do not check signature
         if ((info.flags & AppBlockingPackageInfo.FLAG_SYSTEM_APP) == 0 ||
-                (!packageInfo.applicationInfo.isSystemApp() &&
-                        !packageInfo.applicationInfo.isUpdatedSystemApp())) {
+                (!PackageManagerHelper.isSystemApp(packageInfo.applicationInfo)
+                        && !PackageManagerHelper.isUpdatedSystemApp(packageInfo.applicationInfo))) {
             Signature[] signatures = packageInfo.signatures;
             if (!isAnySignatureMatching(signatures, info.signatures)) {
                 return false;
@@ -663,14 +859,14 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             Map<String, Set<String>> configBlocklist) {
         PackageInfo info;
         try {
-            info = mPackageManager.getPackageInfoAsUser(packageName,
+            info = PackageManagerHelper.getPackageInfoAsUser(mPackageManager, packageName,
                     PackageManager.GET_SIGNATURES | PackageManager.GET_ACTIVITIES
                             | PackageManager.MATCH_DIRECT_BOOT_AWARE
                             | PackageManager.MATCH_DIRECT_BOOT_UNAWARE
                             | PackageManager.MATCH_DISABLED_COMPONENTS,
                     userId);
         } catch (NameNotFoundException e) {
-            Slog.w(TAG, packageName + " not installed! User Id: " + userId);
+            Slogf.w(TAG, packageName + " not installed! User Id: " + userId);
             return null;
         }
 
@@ -682,8 +878,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         int flags = 0;
         Set<String> activities = new ArraySet<>();
 
-        if (info.applicationInfo.isSystemApp()
-                || info.applicationInfo.isUpdatedSystemApp()) {
+        if (PackageManagerHelper.isSystemApp(info.applicationInfo)
+                || PackageManagerHelper.isUpdatedSystemApp(info.applicationInfo)) {
             flags = AppBlockingPackageInfo.FLAG_SYSTEM_APP;
         }
 
@@ -691,8 +887,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
               <systemActivityAllowlist> in config.xml */
         Set<String> configActivitiesForPackage = configAllowlist.get(info.packageName);
         if (configActivitiesForPackage != null) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, info.packageName + " allowlisted");
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, info.packageName + " allowlisted");
             }
 
             if (configActivitiesForPackage.isEmpty()) {
@@ -703,13 +899,13 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                 if (activitiesForPackage != null) {
                     activities.addAll(activitiesForPackage);
                 } else {
-                    if (Log.isLoggable(TAG, Log.DEBUG)) {
-                        Slog.d(TAG, info.packageName + ": Activities null");
+                    if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                        Slogf.d(TAG, info.packageName + ": Activities null");
                     }
                 }
             } else {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
-                    Slog.d(TAG, "Partially Allowlisted. WL Activities: "
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                    Slogf.d(TAG, "Partially Allowlisted. WL Activities: "
                             + configActivitiesForPackage);
                 }
                 activities.addAll(configActivitiesForPackage);
@@ -721,35 +917,33 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
           source. This prevents side-loaded apps to fake DO.  Bypass the check
           for debug builds for development convenience. */
         if (!isDebugBuild()
-                && !info.applicationInfo.isSystemApp()
-                && !info.applicationInfo.isUpdatedSystemApp()) {
+                && !PackageManagerHelper.isSystemApp(info.applicationInfo)
+                && !PackageManagerHelper.isUpdatedSystemApp(info.applicationInfo)) {
             try {
                 if (mAllowedAppInstallSources != null) {
                     String installerName = mPackageManager.getInstallerPackageName(
                             info.packageName);
                     if (installerName == null || (installerName != null
                             && !mAllowedAppInstallSources.contains(installerName))) {
-                        Slog.w(TAG,
-                                info.packageName + " not installed from permitted sources "
-                                        + (installerName == null ? "NULL" : installerName));
+                        Slogf.w(TAG, info.packageName + " not installed from permitted sources "
+                                + (installerName == null ? "NULL" : installerName));
                         return null;
                     }
                 }
             } catch (IllegalArgumentException e) {
-                Slog.w(TAG, info.packageName + " not installed!");
+                Slogf.w(TAG, info.packageName + " not installed!");
                 return null;
             }
         }
 
         try {
-            String[] doActivities =
-                    CarAppMetadataReader.findDistractionOptimizedActivitiesAsUser(
-                            mContext, info.packageName, userId);
+            String[] doActivities = findDistractionOptimizedActivitiesAsUser(info.packageName,
+                    userId);
             if (doActivities != null) {
                 // Some of the activities in this app are Distraction Optimized.
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                     for (String activity : doActivities) {
-                        Slog.d(TAG, "adding " + activity + " from " + info.packageName
+                        Slogf.d(TAG, "adding " + activity + " from " + info.packageName
                                 + " to allowlist");
                     }
                 }
@@ -757,7 +951,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                 activities.addAll(Arrays.asList(doActivities));
             }
         } catch (NameNotFoundException e) {
-            Slog.w(TAG, "Error reading metadata: " + info.packageName);
+            Slogf.w(TAG, "Error reading metadata: " + info.packageName);
             return null;
         }
 
@@ -794,7 +988,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
      */
     private void updateActivityAllowlistAndDenylistMap(String packageName) {
         int userId = mActivityManager.getCurrentUser();
-        Slog.d(TAG, "Updating allowlist and denylist mapping for package: " + packageName
+        Slogf.d(TAG, "Updating allowlist and denylist mapping for package: " + packageName
                 + " for UserId: " + userId);
         // Get the apps/activities that are allowlisted in the configuration XML resources.
         Map<String, Set<String>> configAllowlist = generateConfigAllowlist();
@@ -803,20 +997,24 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         AppBlockingPackageInfoWrapper wrapper =
                 getPackageInfoWrapperForUser(packageName, userId, configAllowlist, configBlocklist);
 
-        if (wrapper == null && userId != UserHandle.USER_SYSTEM) {
-            Slog.d(TAG, "Updating allowlist and denylist mapping for package: " + packageName
-                    + " for UserId: " + UserHandle.USER_SYSTEM);
+        if (wrapper == null && userId != UserHandle.SYSTEM.getIdentifier()) {
+            Slogf.d(TAG, "Updating allowlist and denylist mapping for package: " + packageName
+                    + " for UserId: " + UserHandle.SYSTEM.getIdentifier());
             // check package for system user, in case package is disabled for current user
-            wrapper = getPackageInfoWrapperForUser(packageName, UserHandle.USER_SYSTEM,
+            wrapper = getPackageInfoWrapperForUser(packageName, UserHandle.SYSTEM.getIdentifier(),
                     configAllowlist, configBlocklist);
         }
 
         synchronized (mLock) {
             if (wrapper != null) {
-                Slog.d(TAG, "Package: " + packageName + " added in allowlist.");
+                if (DBG) {
+                    Slogf.d(TAG, "Package: " + packageName + " added in allowlist.");
+                }
                 mActivityAllowlistMap.put(packageName, wrapper);
             } else {
-                Slog.d(TAG, "Package: " + packageName + " added in denylist.");
+                if (DBG) {
+                    Slogf.d(TAG, "Package: " + packageName + " added in denylist.");
+                }
                 mActivityDenylistPackages.add(packageName);
             }
         }
@@ -829,13 +1027,13 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             Map<String, Set<String>> configAllowlist = new HashMap<>();
             mConfiguredAllowlist = mContext.getString(R.string.activityAllowlist);
             if (mConfiguredAllowlist == null) {
-                Slog.w(TAG, "Allowlist is null.");
+                Slogf.w(TAG, "Allowlist is null.");
             }
             parseConfigList(mConfiguredAllowlist, configAllowlist);
 
             mConfiguredSystemAllowlist = mContext.getString(R.string.systemActivityAllowlist);
             if (mConfiguredSystemAllowlist == null) {
-                Slog.w(TAG, "System allowlist is null.");
+                Slogf.w(TAG, "System allowlist is null.");
             }
             parseConfigList(mConfiguredSystemAllowlist, configAllowlist);
 
@@ -859,8 +1057,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             Map<String, Set<String>> configBlocklist = new HashMap<>();
             mConfiguredBlocklist = mContext.getString(R.string.activityDenylist);
             if (mConfiguredBlocklist == null) {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
-                    Slog.d(TAG, "Null blocklist in config");
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                    Slogf.d(TAG, "Null blocklist in config");
                 }
             }
             parseConfigList(mConfiguredBlocklist, configBlocklist);
@@ -871,7 +1069,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     }
 
     private boolean isDebugBuild() {
-        return Build.IS_USERDEBUG || Build.IS_ENG;
+        return BuildHelper.isUserDebugBuild() || BuildHelper.isEngBuild();
     }
 
     /**
@@ -947,7 +1145,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                         serviceInfo.packageName) != PackageManager.PERMISSION_GRANTED) {
                     continue;
                 }
-                Slog.i(TAG, "found policy holding service:" + serviceInfo);
+                Slogf.i(TAG, "found policy holding service:" + serviceInfo);
                 AppBlockingPolicyProxy proxy = new AppBlockingPolicyProxy(this, mContext,
                         serviceInfo);
                 proxy.connect();
@@ -982,8 +1180,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         }
         try {
             if (policy != null) {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
-                    Slog.d(TAG, "policy setting from policy service:" + proxy.getPackageName());
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                    Slogf.d(TAG, "policy setting from policy service:" + proxy.getPackageName());
                 }
                 doSetAppBlockingPolicy(proxy.getPackageName(), policy, 0);
             }
@@ -993,10 +1191,14 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         synchronized (mLock) {
             writer.println("*CarPackageManagerService*");
             writer.println("mEnableActivityBlocking:" + mEnableActivityBlocking);
+            writer.println("mPreventTemplatedAppsFromShowingDialog:"
+                    + mPreventTemplatedAppsFromShowingDialog);
+            writer.println("mTemplateActivityClassName:" + mTemplateActivityClassName);
             List<String> restrictions = new ArrayList<>(mUxRestrictionsListeners.size());
             for (int i = 0; i < mUxRestrictionsListeners.size(); i++) {
                 int displayId = mUxRestrictionsListeners.keyAt(i);
@@ -1008,6 +1210,16 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             writer.println(" Blocked activity log:");
             mBlockedActivityLogs.dump(writer);
             writer.print(dumpPoliciesLocked(true));
+            writer.print("mCurrentDrivingSafetyRegion:");
+            writer.println(mCurrentDrivingSafetyRegion);
+            writer.print("mTempAllowedActivities:");
+            writer.println(mTempAllowedActivities);
+            writer.println("Car service overlay packages property name: "
+                    + PackageManagerHelper.PROPERTY_CAR_SERVICE_OVERLAY_PACKAGES);
+            writer.println("Car service overlay packages: "
+                    + SystemProperties.get(
+                            PackageManagerHelper.PROPERTY_CAR_SERVICE_OVERLAY_PACKAGES,
+                            /* default= */ null));
         }
     }
 
@@ -1057,19 +1269,6 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     }
 
     /**
-     * Returns display with physical address.
-     */
-    private List<Display> getPhysicalDisplays() {
-        List<Display> displays = new ArrayList<>();
-        for (Display display : mDisplayManager.getDisplays()) {
-            if (display.getAddress() instanceof DisplayAddress.Physical) {
-                displays.add(display);
-            }
-        }
-        return displays;
-    }
-
-    /**
      * Returns whether UX restrictions is required for display.
      *
      * Non-physical display will use restrictions for {@link Display#DEFAULT_DISPLAY}.
@@ -1080,7 +1279,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             listenerForTopTaskDisplay = mUxRestrictionsListeners.get(Display.DEFAULT_DISPLAY);
             if (listenerForTopTaskDisplay == null) {
                 // This should never happen.
-                Slog.e(TAG, "Missing listener for default display.");
+                Slogf.e(TAG, "Missing listener for default display.");
                 return true;
             }
         } else {
@@ -1091,81 +1290,170 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     }
 
     private void blockTopActivitiesIfNecessary() {
-        List<TopTaskInfoContainer> topTasks = mSystemActivityMonitoringService.getTopTasks();
-        for (TopTaskInfoContainer topTask : topTasks) {
+        List<TaskInfo> topTasks = mActivityService.getTopTasks();
+        for (TaskInfo topTask : topTasks) {
             if (topTask == null) {
-                Slog.e(TAG, "Top tasks contains null.");
+                Slogf.e(TAG, "Top tasks contains null.");
                 continue;
             }
             blockTopActivityIfNecessary(topTask);
         }
     }
 
-    private void blockTopActivityIfNecessary(TopTaskInfoContainer topTask) {
-        if (isUxRestrictedOnDisplay(topTask.displayId)) {
-            doBlockTopActivityIfNotAllowed(topTask);
+    private void blockTopActivityIfNecessary(TaskInfo topTask) {
+        int displayId = TaskInfoHelper.getDisplayId(topTask);
+        synchronized (mLock) {
+            if (!Objects.equals(mActivityBlockingActivity, topTask.topActivity)
+                    && mTopActivityWithDialogPerDisplay.contains(displayId)
+                    && !topTask.topActivity.equals(
+                            mTopActivityWithDialogPerDisplay.get(displayId))) {
+                // Clear top activity-with-dialog if the activity has changed on this display.
+                mTopActivityWithDialogPerDisplay.remove(displayId);
+            }
+        }
+        if (isUxRestrictedOnDisplay(displayId)) {
+            doBlockTopActivityIfNotAllowed(displayId, topTask);
         }
     }
 
-    private void doBlockTopActivityIfNotAllowed(TopTaskInfoContainer topTask) {
+    private void doBlockTopActivityIfNotAllowed(int displayId, TaskInfo topTask) {
         if (topTask.topActivity == null) {
             return;
         }
-
-        boolean allowed = isActivityDistractionOptimized(
-                topTask.topActivity.getPackageName(),
-                topTask.topActivity.getClassName());
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "new activity:" + topTask.toString() + " allowed:" + allowed);
+        if (topTask.topActivity.equals(mActivityBlockingActivity)) {
+            mBlockingActivityLaunchTimes.put(displayId, 0);
+            mBlockingActivityTargets.put(displayId, null);
+            return;
+        }
+        boolean allowed = isActivityAllowed(topTask);
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "new activity:" + topTask.toString() + " allowed:" + allowed);
         }
         if (allowed) {
             return;
         }
-        synchronized (mLock) {
-            if (!mEnableActivityBlocking) {
-                Slog.d(TAG, "Current activity " + topTask.topActivity
-                        + " not allowed, blocking disabled. Number of tasks in stack:"
-                        + topTask.taskInfo.childTaskIds.length);
+        if (!mEnableActivityBlocking) {
+            Slogf.d(TAG, "Current activity " + topTask.topActivity
+                    + " not allowed, blocking disabled.");
+            return;
+        }
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "Current activity " + topTask.topActivity
+                    + " not allowed, will block.");
+        }
+        // TaskMonitor based on TaskOrganizer reflects only the actually launched tasks,
+        // (TaskStackChangeListener reflects the internal state of ActivityTaskManagerService)
+        // So it takes sometime to recognize the ActivityBlockingActivity is shown.
+        // This guard is to prevent from launching ABA repeatedly until it is shown.
+        ComponentName blockingActivityTarget = mBlockingActivityTargets.get(displayId);
+        if (topTask.topActivity.equals(blockingActivityTarget)) {
+            long blockingActivityLaunchTime = mBlockingActivityLaunchTimes.get(displayId);
+            if (SystemClock.uptimeMillis() - blockingActivityLaunchTime < ABA_LAUNCH_TIMEOUT_MS) {
+                Slogf.d(TAG, "Waiting for BlockingActivity to be shown: displayId=%d", displayId);
                 return;
             }
         }
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "Current activity " + topTask.topActivity
-                    + " not allowed, will block, number of tasks in stack:"
-                    + topTask.taskInfo.childTaskIds.length);
-        }
 
-        // Figure out the root activity of blocked task.
-        String taskRootActivity = null;
-        for (int i = 0; i < topTask.taskInfo.childTaskIds.length; i++) {
-            // topTask.taskId is the task that should be blocked.
-            if (topTask.taskInfo.childTaskIds[i] == topTask.taskId) {
-                // stackInfo represents an ActivityStack. Its fields taskIds and taskNames
-                // are 1:1 mapped, where taskNames is the name of root activity in this task.
-                taskRootActivity = topTask.taskInfo.childTaskNames[i];
-                break;
-            }
-        }
+        // Figure out the root task of blocked task.
+        ComponentName rootTaskActivityName = topTask.baseActivity;
 
         boolean isRootDO = false;
-        if (taskRootActivity != null) {
-            ComponentName componentName = ComponentName.unflattenFromString(taskRootActivity);
+        if (rootTaskActivityName != null) {
             isRootDO = isActivityDistractionOptimized(
-                    componentName.getPackageName(), componentName.getClassName());
+                    rootTaskActivityName.getPackageName(), rootTaskActivityName.getClassName());
         }
 
         Intent newActivityIntent = createBlockingActivityIntent(
-                mActivityBlockingActivity, topTask.displayId,
-                topTask.topActivity.flattenToShortString(), topTask.taskId, taskRootActivity,
-                isRootDO);
+                mActivityBlockingActivity, TaskInfoHelper.getDisplayId(topTask),
+                topTask.topActivity.flattenToShortString(), topTask.taskId,
+                rootTaskActivityName.flattenToString(), isRootDO);
 
         // Intent contains all info to debug what is blocked - log into both logcat and dumpsys.
         String log = "Starting blocking activity with intent: " + newActivityIntent.toUri(0);
-        if (Log.isLoggable(TAG, Log.INFO)) {
-            Slog.i(TAG, log);
+        if (Slogf.isLoggable(TAG, Log.INFO)) {
+            Slogf.i(TAG, log);
         }
         mBlockedActivityLogs.log(log);
-        mSystemActivityMonitoringService.blockActivity(topTask, newActivityIntent);
+        mBlockingActivityLaunchTimes.put(displayId, SystemClock.uptimeMillis());
+        mBlockingActivityTargets.put(displayId, topTask.topActivity);
+        mActivityService.blockActivity(topTask, newActivityIntent);
+    }
+
+    private boolean isActivityAllowed(TaskInfo topTaskInfoContainer) {
+        ComponentName activityName = topTaskInfoContainer.topActivity;
+        boolean isDistractionOptimized = isActivityDistractionOptimized(
+                activityName.getPackageName(),
+                activityName.getClassName());
+        if (!isDistractionOptimized) {
+            return false;
+        }
+        return !(mPreventTemplatedAppsFromShowingDialog
+                && isTemplateActivity(activityName)
+                && isActivityShowingADialogOnDisplay(activityName,
+                        TaskInfoHelper.getDisplayId(topTaskInfoContainer)));
+    }
+
+    private boolean isTemplateActivity(ComponentName activityName) {
+        // TODO(b/191263486): Finalise on how to detect the templated activities.
+        return activityName.getClassName().equals(mTemplateActivityClassName);
+    }
+
+    private boolean isActivityShowingADialogOnDisplay(ComponentName activityName, int displayId) {
+        String output = dumpWindows();
+        List<WindowDumpParser.Window> appWindows =
+                WindowDumpParser.getParsedAppWindows(output, activityName.getPackageName());
+        // TODO(b/192354699): Handle case where an activity can have multiple instances on the same
+        //  display.
+        int totalAppWindows = appWindows.size();
+        String firstActivityRecord = null;
+        int numTopActivityAppWindowsOnDisplay = 0;
+        for (int i = 0; i < totalAppWindows; i++) {
+            WindowDumpParser.Window appWindow = appWindows.get(i);
+            if (appWindow.getDisplayId() != displayId) {
+                continue;
+            }
+            if (TextUtils.isEmpty(appWindow.getActivityRecord())) {
+                continue;
+            }
+            if (firstActivityRecord == null) {
+                firstActivityRecord = appWindow.getActivityRecord();
+            }
+            if (firstActivityRecord.equals(appWindow.getActivityRecord())) {
+                numTopActivityAppWindowsOnDisplay++;
+            }
+        }
+        Slogf.d(TAG, "Top activity =  " + activityName);
+        Slogf.d(TAG, "Number of app widows of top activity = " + numTopActivityAppWindowsOnDisplay);
+        boolean isShowingADialog = numTopActivityAppWindowsOnDisplay > 1;
+        synchronized (mLock) {
+            if (isShowingADialog) {
+                mTopActivityWithDialogPerDisplay.put(displayId, activityName);
+            } else {
+                mTopActivityWithDialogPerDisplay.remove(displayId);
+            }
+        }
+        return isShowingADialog;
+    }
+
+    private String dumpWindows() {
+        try {
+            ParcelFileDescriptor[] fileDescriptors = ParcelFileDescriptor.createSocketPair();
+            mWindowManagerBinder.dump(
+                    fileDescriptors[0].getFileDescriptor(), WINDOW_DUMP_ARGUMENTS);
+            fileDescriptors[0].close();
+            StringBuilder outputBuilder = new StringBuilder();
+            BufferedReader reader = new BufferedReader(
+                    new FileReader(fileDescriptors[1].getFileDescriptor()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                outputBuilder.append(line).append("\n");
+            }
+            reader.close();
+            fileDescriptors[1].close();
+            return outputBuilder.toString();
+        } catch (IOException | RemoteException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -1175,6 +1463,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
      * @param blockedActivity  the activity being blocked
      * @param blockedTaskId    the blocked task id, which contains the blocked activity
      * @param taskRootActivity root activity of the blocked task
+     * @param isRootDo         denotes if the root activity is distraction optimised
      * @return an intent to launch the blocking activity.
      */
     private static Intent createBlockingActivityIntent(ComponentName blockingActivity,
@@ -1205,7 +1494,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     @Override
     public void setEnableActivityBlocking(boolean enable) {
         if (!isDebugBuild()) {
-            Slog.e(TAG, "Cannot enable/disable activity blocking");
+            Slogf.e(TAG, "Cannot enable/disable activity blocking");
             return;
         }
 
@@ -1228,11 +1517,21 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     @Nullable
     public String[] getDistractionOptimizedActivities(String pkgName) {
         try {
-            return CarAppMetadataReader.findDistractionOptimizedActivitiesAsUser(mContext, pkgName,
+            return findDistractionOptimizedActivitiesAsUser(pkgName,
                     mActivityManager.getCurrentUser());
         } catch (NameNotFoundException e) {
             return null;
         }
+    }
+
+    private String[] findDistractionOptimizedActivitiesAsUser(String pkgName, int userId)
+            throws NameNotFoundException {
+        String regionString;
+        synchronized (mLock) {
+            regionString = mCurrentDrivingSafetyRegion;
+        }
+        return CarAppMetadataReader.findDistractionOptimizedActivitiesAsUser(mContext, pkgName,
+                userId, regionString);
     }
 
     /**
@@ -1280,7 +1579,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         public void handleMessage(Message msg) {
             CarPackageManagerService service = mService.get();
             if (service == null) {
-                Slog.i(TAG, "handleMessage null service");
+                Slogf.i(TAG, "handleMessage null service");
                 return;
             }
             switch (msg.what) {
@@ -1387,12 +1686,11 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         }
     }
 
-    private class ActivityLaunchListener
-            implements SystemActivityMonitoringService.ActivityLaunchListener {
+    private class ActivityLaunchListener implements CarActivityService.ActivityLaunchListener {
         @Override
-        public void onActivityLaunch(TopTaskInfoContainer topTask) {
+        public void onActivityLaunch(TaskInfo topTask) {
             if (topTask == null) {
-                Slog.e(TAG, "Received callback with null top task.");
+                Slogf.e(TAG, "Received callback with null top task.");
                 return;
             }
             blockTopActivityIfNecessary(topTask);
@@ -1415,8 +1713,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
 
         @Override
         public void onUxRestrictionsChanged(CarUxRestrictions restrictions) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "Received uxr restrictions: "
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, "Received uxr restrictions: "
                         + restrictions.isRequiresDistractionOptimization() + " : "
                         + restrictions.getActiveRestrictions());
             }
@@ -1435,8 +1733,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                     shouldCheck = true;
                 }
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "Should check top tasks?: " + shouldCheck);
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, "Should check top tasks?: " + shouldCheck);
             }
             if (shouldCheck) {
                 // Loop over all top tasks to ensure tasks on virtual display can also be blocked.
@@ -1463,6 +1761,15 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     }
 
     /**
+     * Called when a window change event is received by the {@link CarSafetyAccessibilityService}.
+     */
+    @VisibleForTesting
+    void onWindowChangeEvent() {
+        Slogf.d(TAG, "onWindowChange event received");
+        mHandler.post(() -> blockTopActivitiesIfNecessary());
+    }
+
+    /**
      * Listens to the package install/uninstall events to know when to initiate parsing
      * installed packages.
      */
@@ -1472,8 +1779,8 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             if (intent == null || intent.getAction() == null) {
                 return;
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "PackageParsingEventReceiver Received " + intent.getAction());
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+                Slogf.d(TAG, "PackageParsingEventReceiver Received " + intent.getAction());
             }
             String action = intent.getAction();
             if (isPackageManagerAction(action)) {
@@ -1511,25 +1818,25 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             if (intent == null) {
                 return;
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 String packageName = intent.getData().getSchemeSpecificPart();
-                Slog.d(TAG, "Pkg Changed:" + packageName);
+                Slogf.d(TAG, "Pkg Changed:" + packageName);
                 String action = intent.getAction();
                 if (action == null) {
                     return;
                 }
                 if (action.equals(Intent.ACTION_PACKAGE_CHANGED)) {
-                    Slog.d(TAG, "Changed components");
+                    Slogf.d(TAG, "Changed components");
                     String[] cc = intent
                             .getStringArrayExtra(Intent.EXTRA_CHANGED_COMPONENT_NAME_LIST);
                     if (cc != null) {
                         for (String c : cc) {
-                            Slog.d(TAG, c);
+                            Slogf.d(TAG, c);
                         }
                     }
                 } else if (action.equals(Intent.ACTION_PACKAGE_REMOVED)
                         || action.equals(Intent.ACTION_PACKAGE_ADDED)) {
-                    Slog.d(TAG, action + " Replacing?: "
+                    Slogf.d(TAG, action + " Replacing?: "
                             + intent.getBooleanExtra(Intent.EXTRA_REPLACING, false));
                 }
             }
