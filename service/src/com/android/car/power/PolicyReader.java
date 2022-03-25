@@ -22,26 +22,29 @@ import static android.car.hardware.power.PowerComponentUtil.LAST_POWER_COMPONENT
 import static android.car.hardware.power.PowerComponentUtil.powerComponentToString;
 import static android.car.hardware.power.PowerComponentUtil.toPowerComponent;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+
 import static org.xmlpull.v1.XmlPullParser.END_DOCUMENT;
 import static org.xmlpull.v1.XmlPullParser.END_TAG;
 import static org.xmlpull.v1.XmlPullParser.START_TAG;
 import static org.xmlpull.v1.XmlPullParser.TEXT;
 
 import android.annotation.Nullable;
+import android.car.builtin.util.Slogf;
 import android.car.hardware.power.CarPowerPolicy;
 import android.car.hardware.power.PowerComponent;
-import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateReport;
+import android.hardware.automotive.vehicle.VehicleApPowerStateReport;
 import android.util.ArrayMap;
 import android.util.ArraySet;
-import android.util.IndentingPrintWriter;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 import android.util.Xml;
 
 import com.android.car.CarLog;
 import com.android.car.CarServiceUtils;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.utils.Slogf;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -123,7 +126,7 @@ public final class PolicyReader {
             PowerComponent.TRUSTED_DEVICE_DETECTION));
     private static final int[] SUSPEND_TO_RAM_DISABLED_COMPONENTS = {
             PowerComponent.AUDIO, PowerComponent.BLUETOOTH, PowerComponent.WIFI,
-            PowerComponent.LOCATION
+            PowerComponent.LOCATION, PowerComponent.MICROPHONE, PowerComponent.CPU
     };
     private static final CarPowerPolicy POWER_POLICY_ALL_ON;
     private static final CarPowerPolicy POWER_POLICY_INITIAL_ON;
@@ -262,7 +265,7 @@ public final class PolicyReader {
             if (!mRegisteredPowerPolicies.containsKey(policyId)) {
                 int error = PolicyOperationStatus.ERROR_NOT_REGISTERED_POWER_POLICY_ID;
                 Slogf.w(TAG, PolicyOperationStatus.errorCodeToString(error, policyId + " for "
-                        + powerStateToString(state)));
+                        + vhalPowerStateToString(state)));
                 return error;
             }
         }
@@ -270,6 +273,7 @@ public final class PolicyReader {
         return PolicyOperationStatus.OK;
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     void dump(IndentingPrintWriter writer) {
         writer.printf("Registered power policies:%s\n",
                 mRegisteredPowerPolicies.size() == 0 ? " none" : "");
@@ -285,7 +289,7 @@ public final class PolicyReader {
             writer.increaseIndent();
             SparseArray<String> group = entry.getValue();
             for (int i = 0; i < group.size(); i++) {
-                writer.printf("- %s --> %s\n", powerStateToString(group.keyAt(i)),
+                writer.printf("- %s --> %s\n", vhalPowerStateToString(group.keyAt(i)),
                         group.valueAt(i));
             }
             writer.decreaseIndent();
@@ -721,7 +725,7 @@ public final class PolicyReader {
         }
     }
 
-    static String powerStateToString(int state) {
+    static String vhalPowerStateToString(int state) {
         switch (state) {
             case VehicleApPowerStateReport.WAIT_FOR_VHAL:
                 return POWER_STATE_WAIT_FOR_VHAL;
