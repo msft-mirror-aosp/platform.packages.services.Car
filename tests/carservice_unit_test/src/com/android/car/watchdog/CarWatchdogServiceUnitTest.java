@@ -2040,13 +2040,13 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testGetResourceOveruseConfigurationsWithReconnectedDaemon() throws Exception {
         /*
          * Emulate daemon crash and restart during the get request. The below get request should be
-         * waiting for daemon connection before the first call to ServiceManager.getService. But to
-         * make sure the test is deterministic emulate daemon restart only on the second call to
-         * ServiceManager.getService.
+         * waiting for daemon connection before the first call to ServiceManager.checkService. But
+         * to make sure the test is deterministic emulate daemon restart only on the second call to
+         * ServiceManager.checkService.
          */
         doReturn(null)
                 .doReturn(mMockBinder)
-                .when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+                .when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
 
         List<ResourceOveruseConfiguration> actualConfigs =
@@ -2063,12 +2063,12 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         /*
          * Emulate daemon crash and restart during the get and set requests. The below get request
          * should be waiting for daemon connection before the first call to
-         * ServiceManager.getService. But to make sure the test is deterministic emulate daemon
-         * restart only on the second call to ServiceManager.getService.
+         * ServiceManager.checkService. But to make sure the test is deterministic emulate daemon
+         * restart only on the second call to ServiceManager.checkService.
          */
         doReturn(null)
                 .doReturn(mMockBinder)
-                .when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+                .when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
 
         /* Capture and respond with the configuration received in the set request. */
@@ -3735,7 +3735,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     private void mockWatchdogDaemon() throws Exception {
         when(mMockBinder.queryLocalInterface(anyString())).thenReturn(mMockCarWatchdogDaemon);
         when(mMockCarWatchdogDaemon.asBinder()).thenReturn(mMockBinder);
-        doReturn(mMockBinder).when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+        doReturn(mMockBinder).when(
+                () -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         when(mMockCarWatchdogDaemon.getResourceOveruseConfigurations()).thenReturn(
                 sampleInternalResourceOveruseConfigurations());
         mIsDaemonCrashed = false;
@@ -3761,6 +3762,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         }).when(mSpiedWatchdogStorage).saveIoUsageStats(any());
         doReturn(mUserPackageSettingsEntries).when(mSpiedWatchdogStorage).getUserPackageSettings();
         doReturn(mIoUsageStatsEntries).when(mSpiedWatchdogStorage).getTodayIoUsageStats();
+        doReturn(List.of()).when(mSpiedWatchdogStorage)
+                .getNotForgivenHistoricalIoOveruses(RECURRING_OVERUSE_PERIOD_IN_DAYS);
         doAnswer(args -> sampleDailyIoUsageSummariesForAWeek(args.getArgument(1),
                 SYSTEM_DAILY_IO_USAGE_SUMMARY_MULTIPLIER))
                 .when(mSpiedWatchdogStorage)
@@ -4066,7 +4069,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     }
 
     private void crashWatchdogDaemon() {
-        doReturn(null).when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+        doReturn(null).when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
         mIsDaemonCrashed = true;
     }
