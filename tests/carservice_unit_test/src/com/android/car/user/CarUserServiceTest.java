@@ -16,8 +16,13 @@
 
 package com.android.car.user;
 
+import static android.car.test.mocks.AndroidMockitoHelper.mockAmStartUserInBackground;
 import static android.car.test.mocks.AndroidMockitoHelper.mockAmSwitchUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockDpmLogoutUser;
+import static android.car.test.mocks.AndroidMockitoHelper.mockStopUserWithDelayedLocking;
+import static android.car.test.mocks.AndroidMockitoHelper.mockStopUserWithDelayedLockingThrows;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmCreateGuest;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmCreateUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserSwitchability;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmHasUserRestrictionForUser;
 import static android.car.test.mocks.JavaMockitoHelper.getResult;
@@ -584,7 +589,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
                 mUserPreCreator,
                 mCarUxRestrictionService,
                 mMockedHandler);
-        mockStopUserWithDelayedLockingThrowsIllegalStateException(userId);
+        mockStopUserWithDelayedLockingThrows(userId, new IllegalStateException());
 
         carUserServiceLocal.stopUser(userId, userStopResult);
 
@@ -773,7 +778,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     public void testRemoveUser_androidFailure() throws Exception {
         mockExistingUsersAndCurrentUser(mAdminUser);
         int targetUserId = mRegularUserId;
-        mockRemoveUser(mRegularUser, UserManager.REMOVE_RESULT_ERROR);
+        mockRemoveUser(mRegularUser, UserManager.REMOVE_RESULT_ERROR_UNKNOWN);
 
         removeUser(targetUserId, NO_CALLER_RESTRICTIONS, mUserRemovalFuture);
 
@@ -1120,6 +1125,35 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         assertHalSwitch(mAdminUserId, mGuestUserId);
         assertHalSwitch(mAdminUserId, mRegularUserId);
         verifyNoLogoutUser();
+    }
+
+    @Test
+    public void testSwitchUser_multipleCallsDifferentUser_beforeFirstUserUnlock_legacySwitch()
+            throws Exception {
+        mockExistingUsersAndCurrentUser(mAdminUser);
+        int requestId = 42;
+        mSwitchUserResponse.status = SwitchUserStatus.SUCCESS;
+        mSwitchUserResponse.requestId = requestId;
+        mockHalSwitch(mAdminUserId, mGuestUser, mSwitchUserResponse);
+        mockAmSwitchUser(mMockedActivityManager, mGuestUser, true);
+
+        // First switch, using CarUserManager
+        switchUser(mGuestUserId, mAsyncCallTimeoutMs, mUserSwitchFuture);
+
+        assertUserSwitchResult(getUserSwitchResult(mGuestUserId),
+                UserSwitchResult.STATUS_SUCCESSFUL);
+        // update current user due to successful user switch
+        mockCurrentUser(mGuestUser);
+
+        assertHalSwitch(mAdminUserId, mGuestUserId);
+        // Unlock event was not sent, so it should not receive postSwitch
+        assertNoPostSwitch();
+
+        // Second switch, using legacy APIs
+        sendUserSwitchingEvent(mGuestUserId, mAdminUserId);
+
+        verify(mUserHal).legacyUserSwitch(
+                isSwitchUserRequest(/* requestId= */ 0, mGuestUserId, mAdminUserId));
     }
 
     @Test
