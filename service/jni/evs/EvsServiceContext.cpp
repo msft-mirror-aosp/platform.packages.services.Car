@@ -151,8 +151,7 @@ bool EvsServiceContext::initialize(JNIEnv* env, jobject thiz) {
         return false;
     }
 
-    // TODO(b/223905367): Replace below with non-blocking call
-    AIBinder* binder = ::AServiceManager_waitForService(kEvsManagerServiceName);
+    AIBinder* binder = ::AServiceManager_checkService(kEvsManagerServiceName);
     if (binder == nullptr) {
         LOG(ERROR) << "IEvsEnumerator is not ready yet.";
         return false;
@@ -355,6 +354,12 @@ void EvsServiceContext::onNewEvent(const EvsEventDesc& event) {
 bool EvsServiceContext::onNewFrame(const BufferDesc& bufferDesc) {
     // Create AHardwareBuffer from ::aidl::android::hardware::automotive::evs::BufferDesc
     native_handle_t* nativeHandle = makeFromAidl(bufferDesc.buffer.handle);
+    const auto handleGuard = ::android::base::make_scope_guard([nativeHandle] {
+        // We only need to free an allocated memory because a source buffer is
+        // owned by EVS HAL implementation.
+        free(nativeHandle);
+    });
+
     if (nativeHandle == nullptr ||
         !std::all_of(nativeHandle->data + 0, nativeHandle->data + nativeHandle->numFds,
                      [](int fd) { return fd >= 0; })) {
