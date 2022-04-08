@@ -18,10 +18,8 @@ package com.android.car.garagemode;
 
 import android.content.Context;
 
-import com.android.car.CarLog;
 import com.android.car.R;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.utils.Slogf;
 
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -34,9 +32,7 @@ import java.util.Map;
  * week. After that, wake up every 7 days for a month, and wake up every 30 days thereafter.
  */
 class WakeupPolicy {
-
-    private static final String TAG = CarLog.tagFor(GarageMode.class) + "_"
-            + WakeupPolicy.class.getSimpleName();
+    private static final Logger LOG = new Logger("WakeupPolicy");
     private static final Map<Character, Integer> TIME_UNITS_LOOKUP_SEC;
     static {
         TIME_UNITS_LOOKUP_SEC = new HashMap<>();
@@ -58,7 +54,7 @@ class WakeupPolicy {
      * @return Policy instance, created from values in resources
      */
     public static WakeupPolicy initFromResources(Context context) {
-        Slogf.d(TAG, "Initiating WakupPolicy from resources ...");
+        LOG.d("Initiating WakupPolicy from resources ...");
         return new WakeupPolicy(
                 context.getResources().getStringArray(R.array.config_garageModeCadence));
     }
@@ -69,7 +65,7 @@ class WakeupPolicy {
      */
     public int getNextWakeUpInterval() {
         if (mWakeupIntervals.size() == 0) {
-            Slogf.e(TAG, "No wake up policy configuration was loaded.");
+            LOG.e("No wake up policy configuration was loaded.");
             return 0;
         }
 
@@ -80,7 +76,7 @@ class WakeupPolicy {
             }
             index -= wakeupTime.getNumAttempts();
         }
-        Slogf.w(TAG, "No more garage mode wake ups scheduled; been sleeping too long.");
+        LOG.w("No more garage mode wake ups scheduled; been sleeping too long.");
         return 0;
     }
 
@@ -91,14 +87,14 @@ class WakeupPolicy {
     private LinkedList<WakeupInterval> parsePolicy(String[] policy) {
         LinkedList<WakeupInterval> intervals = new LinkedList<>();
         if (policy == null || policy.length == 0) {
-            Slogf.e(TAG, "Trying to parse empty policies!");
+            LOG.e("Trying to parse empty policies!");
             return intervals;
         }
 
         for (String rule : policy) {
             WakeupInterval interval = parseRule(rule);
             if (interval == null) {
-                Slogf.e(TAG, "Invalid Policy! This rule has bad format: %s", rule);
+                LOG.e("Invalid Policy! This rule has bad format: " + rule);
                 return new LinkedList<>();
             }
             intervals.add(interval);
@@ -110,7 +106,7 @@ class WakeupPolicy {
         String[] str = rule.split(",");
 
         if (str.length != 2) {
-            Slogf.e(TAG, "Policy has bad format: %s", rule);
+            LOG.e("Policy has bad format: " + rule);
             return null;
         }
 
@@ -118,7 +114,7 @@ class WakeupPolicy {
         String timesStr = str[1];
 
         if (intervalStr.isEmpty() || timesStr.isEmpty()) {
-            Slogf.e(TAG, "One of the values is empty. Please check format: %s", rule);
+            LOG.e("One of the values is empty. Please check format: " + rule);
             return null;
         }
 
@@ -132,22 +128,22 @@ class WakeupPolicy {
             interval = Integer.parseInt(intervalStr);
             times = Integer.parseInt(timesStr);
         } catch (NumberFormatException ex)  {
-            Slogf.d(TAG, "Invalid input Rule for interval %s", rule);
+            LOG.d("Invalid input Rule for interval " + rule);
             return null;
         }
 
         if (!TIME_UNITS_LOOKUP_SEC.containsKey(unit)) {
-            Slogf.e(TAG, "Time units map does not contain extension %c", unit);
+            LOG.e("Time units map does not contain extension " + unit);
             return null;
         }
 
         if (interval <= 0) {
-            Slogf.e(TAG, "Wake up policy time(%d) must be > 0!", interval);
+            LOG.e("Wake up policy time must be > 0!" + interval);
             return null;
         }
 
         if (times <= 0) {
-            Slogf.e(TAG, "Wake up attempts(%d) in policy must be > 0!", times);
+            LOG.e("Wake up attempts in policy must be > 0!" + times);
             return null;
         }
 

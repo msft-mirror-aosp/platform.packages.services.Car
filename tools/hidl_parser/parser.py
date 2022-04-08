@@ -29,14 +29,14 @@ from __future__ import print_function
 
 import ply
 
-tokens = ('package', 'import', 'enum', 'struct', 'typedef',
+tokens = ('package', 'import', 'enum', 'struct',
     'COLON', 'IDENTIFIER', 'COMMENT', 'NUMBER', 'HEX', 'OR', 'EQUALS',
     'LPAREN', 'RPAREN', 'LBRACE', 'RBRACE', 'DOT', 'SEMICOLON', 'VERSION',
     'COMMA', 'SHIFT', 'LESSTHAN', 'GREATERTHAN')
 
 t_COLON = r':'
 t_NUMBER = r'[0-9]+'
-t_HEX = r'0[x|X][0-9A-Fa-f]+'
+t_HEX = r'0x[0-9A-Fa-f]+'
 t_OR = r'\|'
 t_EQUALS = r'='
 t_LPAREN = r'\('
@@ -67,8 +67,6 @@ def t_IDENTIFIER(t):
         t.type = 'enum'
     elif t.value == 'struct':
         t.type = 'struct'
-    elif t.value == 'typedef':
-        t.type = 'typedef'
     return t
 
 def t_error(t):
@@ -113,13 +111,6 @@ class StructHeader(object):
     def __str__(self):
         return 'struct %s' % self.name
 
-class TypedefHeader(object):
-    def __init__(self, name):
-        self.name = name
-
-    def __str__(self):
-        return 'typedef %s' % self.name
-
 class EnumDecl(object):
     def __init__(self, header, cases):
         self.header = header
@@ -155,18 +146,6 @@ class StructDecl(object):
     def __str__(self):
         return '%s {\n%s\n}' % (self.header,
             '\n'.join(str(x) for x in self.items))
-
-    def __repr__(self):
-        return self.__str__()
-
-class TypedefDecl(object):
-    def __init__(self, header, name):
-        self.header = header
-        self.name = name
-
-    def __str__(self):
-        return '%s {\n%s\n}' % (self.header,
-            self.name)
 
     def __repr__(self):
         return self.__str__()
@@ -241,7 +220,7 @@ class EnumValueConstant(EnumValue):
         return self.value
 
     def resolve(self, enum, document):
-        if self.value.lower().startswith("0x"):
+        if self.value.startswith("0x"):
             return int(self.value, 16)
         else:
             return int(self.value, 10)
@@ -305,14 +284,6 @@ class EnumValueExternRef(EnumValue):
         enum = document['enums'][self.where]
         return EnumValueLocalRef(self.ref).resolve(enum, document)
 
-class Typedef(object):
-    def __init__(self, header, name):
-        self.header = header
-        self.name = name
-
-    def __str__(self):
-        return 'typedef %s %s' % (self.typename, self.name)
-
 # Error rule for syntax errors
 def p_error(p):
     print("Syntax error in input: %s" % p)
@@ -326,18 +297,13 @@ def p_document(t):
     'document : header type_decls'
     enums = {}
     structs = {}
-    typedefs = {}
     for enum in t[2]:
         if not isinstance(enum, EnumDecl): continue
         enums[enum.header.name] = enum
     for struct in t[2]:
         if not isinstance(struct, StructDecl): continue
         structs[struct.header.name] = struct
-    for typedef in t[2]:
-        if not isinstance(typedef, TypedefDecl): continue
-        typedefs[typedef.header.name] = typedef
-
-    t[0] = {'header' : t[1], 'enums' : enums, 'structs' : structs, 'typedefs' : typedef}
+    t[0] = {'header' : t[1], 'enums' : enums, 'structs' : structs}
 
 def p_type_decls_1(t):
     'type_decls : type_decl'
@@ -351,9 +317,6 @@ def p_type_decl_e(t):
     t[0] = t[1]
 def p_type_decl_s(t):
     'type_decl : struct_decl'
-    t[0] = t[1]
-def p_type_decl_t(t):
-    'type_decl : typedef_decl'
     t[0] = t[1]
 
 def p_enum_cases_1(t):
@@ -377,10 +340,6 @@ def p_enum_base_2(t):
     'enum_base : IDENTIFIER'
     t[0] = t[1]
 
-def p_typedef_name(t):
-    'typedef_name : IDENTIFIER'
-    t[0] = t[1]
-
 def p_struct_header(t):
     'struct_header : struct IDENTIFIER'
     t[0] = StructHeader(t[2])
@@ -392,10 +351,6 @@ def p_enum_header_2(t):
     'enum_header : enum IDENTIFIER COLON enum_base'
     t[0] = EnumHeader(t[2], t[4])
 
-def p_typedef_header(t):
-    'typedef_header : typedef IDENTIFIER'
-    t[0] = TypedefHeader(t[2])
-
 def p_struct_decl(t):
     'struct_decl : struct_header LBRACE struct_elements RBRACE SEMICOLON'
     t[0] = StructDecl(t[1], t[3])
@@ -406,10 +361,6 @@ def p_enum_decl_1(t):
 def p_enum_decl_2(t):
     'enum_decl : enum_header LBRACE enum_cases COMMA RBRACE SEMICOLON'
     t[0] = EnumDecl(t[1], t[3])
-
-def p_typedef_decl(t):
-    'typedef_decl : typedef_header typedef_name SEMICOLON'
-    t[0] = TypedefDecl(t[1], t[2])
 
 def p_enum_value_1(t):
     '''enum_value : NUMBER
@@ -491,8 +442,6 @@ def p_dotted_identifier_2(t):
 class SilentLogger(object):
     def warning(*args):
         pass
-    def error(*args):
-        print(args)
 
 import ply.yacc as yacc
 parser = yacc.yacc(debug=False, write_tables=False, errorlog=SilentLogger())

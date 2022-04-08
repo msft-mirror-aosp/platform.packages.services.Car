@@ -16,23 +16,17 @@
 
 package com.android.car.audio.hal;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
-import android.annotation.NonNull;
-import android.annotation.Nullable;
-import android.hardware.automotive.audiocontrol.MutingInfo;
 import android.hardware.automotive.audiocontrol.V1_0.IAudioControl;
+import android.hardware.automotive.audiocontrol.V2_0.IFocusListener;
 import android.os.RemoteException;
-import android.util.IndentingPrintWriter;
-import android.util.Slog;
+import android.util.Log;
 
-import com.android.car.CarLog;
+import androidx.annotation.Nullable;
+
 import com.android.car.audio.CarAudioContext;
-import com.android.car.audio.CarDuckingInfo;
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.internal.annotations.VisibleForTesting;
 
-import java.util.List;
+import java.io.PrintWriter;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -40,7 +34,7 @@ import java.util.Objects;
  * Wrapper for IAudioControl@1.0.
  */
 public final class AudioControlWrapperV1 implements AudioControlWrapper {
-    private static final String TAG = CarLog.tagFor(AudioControlWrapperV1.class);
+    private static final String TAG = AudioControlWrapperV1.class.getSimpleName();
 
     private IAudioControl mAudioControlV1;
     private AudioControlDeathRecipient mDeathRecipient;
@@ -48,7 +42,7 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
     /**
      * Gets IAudioControl@1.0 service if registered.
      */
-    static @Nullable IAudioControl getService() {
+    public static @Nullable IAudioControl getService() {
         try {
             return IAudioControl.getService(true);
         } catch (RemoteException e) {
@@ -64,7 +58,12 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
     }
 
     @Override
-    public void registerFocusListener(HalFocusListener focusListener) {
+    public boolean supportsHalAudioFocus() {
+        return false;
+    }
+
+    @Override
+    public void registerFocusListener(IFocusListener focusListener) {
         throw new UnsupportedOperationException(
                 "Focus listener is unsupported for IAudioControl@1.0");
     }
@@ -76,21 +75,14 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
     }
 
     @Override
-    public boolean supportsFeature(int feature) {
-        return false;
-    }
-
-    @Override
     public void onAudioFocusChange(int usage, int zoneId, int focusChange) {
         throw new UnsupportedOperationException(
                 "Focus listener is unsupported for IAudioControl@1.0");
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
-    public void dump(IndentingPrintWriter writer) {
-        writer.println("*AudioControlWrapperV1*");
-        writer.println("Supported Features - none");
+    public void dump(String indent, PrintWriter writer) {
+        writer.printf("%s*AudioControlWrapperV1*\n", indent);
     }
 
     @Override
@@ -98,7 +90,7 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
         try {
             mAudioControlV1.setFadeTowardFront(value);
         } catch (RemoteException e) {
-            Slog.e(TAG, "setFadeTowardFront failed", e);
+            Log.e(TAG, "setFadeTowardFront failed", e);
         }
     }
 
@@ -107,18 +99,8 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
         try {
             mAudioControlV1.setBalanceTowardRight(value);
         } catch (RemoteException e) {
-            Slog.e(TAG, "setBalanceTowardRight failed", e);
+            Log.e(TAG, "setBalanceTowardRight failed", e);
         }
-    }
-
-    @Override
-    public void onDevicesToDuckChange(List<CarDuckingInfo> carDuckingInfos) {
-        throw new UnsupportedOperationException("HAL ducking is unsupported for IAudioControl@1.0");
-    }
-
-    @Override
-    public void onDevicesToMuteChange(@NonNull List<MutingInfo> carZonesMutingInfo) {
-        throw new UnsupportedOperationException("HAL muting is unsupported for IAudioControl@1.0");
     }
 
     /**
@@ -138,7 +120,7 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
         try {
             return mAudioControlV1.getBusForContext(audioContext);
         } catch (RemoteException e) {
-            Slog.e(TAG, "Failed to query IAudioControl HAL to get bus for context", e);
+            Log.e(TAG, "Failed to query IAudioControl HAL to get bus for context", e);
             throw new IllegalStateException("Failed to query IAudioControl#getBusForContext", e);
         }
     }
@@ -164,7 +146,7 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
     }
 
     private void serviceDied(long cookie) {
-        Slog.w(TAG, "IAudioControl@1.0 died. Fetching new handle");
+        Log.w(TAG, "IAudioControl@1.0 died. Fetching new handle");
         mAudioControlV1 = AudioControlWrapperV1.getService();
         linkToDeath(mDeathRecipient);
         if (mDeathRecipient != null) {

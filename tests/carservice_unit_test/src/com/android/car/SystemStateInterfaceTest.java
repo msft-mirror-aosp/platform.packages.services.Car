@@ -18,16 +18,20 @@ package com.android.car;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.os.RemoteException;
 
-import com.android.car.internal.ICarServiceHelper;
 import com.android.car.systeminterface.SystemStateInterface;
+import com.android.internal.car.ICarServiceHelper;
 import com.android.settingslib.utils.ThreadUtils;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.List;
 
 /**
  * Unit tests for {@link SystemStateInterface}
@@ -82,16 +86,36 @@ public class SystemStateInterfaceTest {
         assertThat(sleepWithDelayedHelper(null)).isFalse();
     }
 
-    private static class TestServiceHelperSucceeds extends AbstractICarServiceHelperStub {
+    private static class TestServiceHelperSucceeds extends ICarServiceHelper.Stub {
         @Override
         public int forceSuspend(int timeoutMs) {
             return 0; // Success
         }
+        @Override
+        public void setDisplayWhitelistForUser(int userId, int[] displayIds) {
+        }
+        @Override
+        public void setPassengerDisplays(int[] displayIdsForPassenger) {
+        }
+        @Override
+        public void setSourcePreferredComponents(boolean enableSourcePreferred,
+                List<ComponentName> sourcePreferredComponents) throws RemoteException {
+        }
     }
-    private static class TestServiceHelperFails extends AbstractICarServiceHelperStub {
+    private static class TestServiceHelperFails extends ICarServiceHelper.Stub {
         @Override
         public int forceSuspend(int timeoutMs) {
             return 1; // Failure
+        }
+        @Override
+        public void setDisplayWhitelistForUser(int userId, int[] displayIds) {
+        }
+        @Override
+        public void setPassengerDisplays(int[] displayIdsForPassenger) {
+        }
+        @Override
+        public void setSourcePreferredComponents(boolean enableSourcePreferred,
+                List<ComponentName> sourcePreferredComponents) throws RemoteException {
         }
     }
     // Invoke enterDeepSleep() before setting the helper.

@@ -29,10 +29,10 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.util.Log;
 
 import com.android.car.CarLog;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.utils.Slogf;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -44,7 +44,8 @@ import java.util.Arrays;
  */
 final class HalClient {
 
-    private static final String TAG = CarLog.tagFor(HalClient.class);
+    private static final String TAG = CarLog.TAG_HAL;
+    private static final boolean DEBUG = false;
 
     /**
      * If call to vehicle HAL returns StatusCode.TRY_AGAIN, than {@link HalClient} will retry to
@@ -98,7 +99,7 @@ final class HalClient {
             try {
                 return mVehicle.set(propValue);
             } catch (RemoteException e) {
-                Slogf.e(TAG, getValueErrorMessage("set", propValue), e);
+                Log.e(TAG, getValueErrorMessage("set", propValue), e);
                 return StatusCode.TRY_AGAIN;
             }
         }, mWaitCapMs, mSleepMs);
@@ -108,7 +109,7 @@ final class HalClient {
         }
 
         if (StatusCode.OK != status) {
-            Slogf.e(TAG, getPropertyErrorMessage("set", propValue, status));
+            Log.e(TAG, getPropertyErrorMessage("set", propValue, status));
             throw new ServiceSpecificException(status,
                     "Failed to set property: 0x" + Integer.toHexString(propValue.prop)
                             + " in areaId: 0x" + Integer.toHexString(propValue.areaId));
@@ -144,7 +145,7 @@ final class HalClient {
             if (StatusCode.OK == status) {
                 status = StatusCode.NOT_AVAILABLE;
             }
-            Slogf.e(TAG, getPropertyErrorMessage("get", requestedPropValue, status));
+            Log.e(TAG, getPropertyErrorMessage("get", requestedPropValue, status));
             throw new ServiceSpecificException(status,
                     "Failed to get property: 0x" + Integer.toHexString(requestedPropValue.prop)
                             + " in areaId: 0x" + Integer.toHexString(requestedPropValue.areaId));
@@ -162,7 +163,7 @@ final class HalClient {
                         result.propValue = propValue;
                     });
         } catch (RemoteException e) {
-            Slogf.e(TAG, getValueErrorMessage("get", requestedPropValue), e);
+            Log.e(TAG, getValueErrorMessage("get", requestedPropValue), e);
             result.status = StatusCode.TRY_AGAIN;
         }
 
@@ -178,35 +179,38 @@ final class HalClient {
         int status = callback.action();
         long startTime = elapsedRealtime();
         while (StatusCode.TRY_AGAIN == status && (elapsedRealtime() - startTime) < timeoutMs) {
-            Slogf.d(TAG, "Status before sleeping %d ms: %s", sleepMs, StatusCode.toString(status));
+            if (DEBUG) {
+                Log.d(TAG, "Status before sleeping " + sleepMs + "ms: "
+                        + StatusCode.toString(status));
+            }
             try {
                 Thread.sleep(sleepMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                Slogf.e(TAG, "Thread was interrupted while waiting for vehicle HAL.", e);
+                Log.e(TAG, "Thread was interrupted while waiting for vehicle HAL.", e);
                 break;
             }
 
             status = callback.action();
-            Slogf.d(TAG, "Status after waking up: %s", StatusCode.toString(status));
+            if (DEBUG) Log.d(TAG, "Status after waking up: " + StatusCode.toString(status));
         }
-        Slogf.d(TAG, "Returning status: %s", StatusCode.toString(status));
+        if (DEBUG) Log.d(TAG, "Returning status: " + StatusCode.toString(status));
         return status;
     }
 
     private static final class ObjectWrapper<T> {
-        public T object;
+        T object;
     }
 
     private static final class ValueResult {
-        public int status;
-        public VehiclePropValue propValue;
+        int status;
+        VehiclePropValue propValue;
     }
 
     private static final class PropertySetError {
-        public final int errorCode;
-        public final int propId;
-        public final int areaId;
+        final int errorCode;
+        final int propId;
+        final int areaId;
 
         PropertySetError(int errorCode, int propId, int areaId) {
             this.errorCode = errorCode;
@@ -231,7 +235,7 @@ final class HalClient {
         public void handleMessage(Message msg) {
             IVehicleCallback callback = mCallback.get();
             if (callback == null) {
-                Slogf.i(TAG, "handleMessage null callback");
+                Log.i(TAG, "handleMessage null callback");
                 return;
             }
 
@@ -248,10 +252,10 @@ final class HalClient {
                         callback.onPropertySetError(obj.errorCode, obj.propId, obj.areaId);
                         break;
                     default:
-                        Slogf.e(TAG, "Unexpected message: %d", msg.what);
+                        Log.e(TAG, "Unexpected message: " + msg.what);
                 }
             } catch (RemoteException e) {
-                Slogf.e(TAG, e, "Message failed: %d", msg.what);
+                Log.e(TAG, "Message failed: " + msg.what);
             }
         }
     }

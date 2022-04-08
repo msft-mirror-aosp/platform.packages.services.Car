@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 
 import android.content.ContentResolver;
 import android.content.Context;
-import android.util.IndentingPrintWriter;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -39,6 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import java.io.PrintWriter;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
@@ -48,7 +48,7 @@ public class GarageModeServiceTest {
     @Mock private Context mMockContext;
     @Mock private Controller mMockController;
     @Mock private ContentResolver mMockContentResolver;
-    @Mock private IndentingPrintWriter mMockPrintWriter;
+    @Mock private PrintWriter mMockPrintWriter;
     @Captor private ArgumentCaptor<String> mCaptorString;
 
     private GarageModeService mService;
@@ -60,15 +60,6 @@ public class GarageModeServiceTest {
     }
 
     @Test
-    public void testInitAndRelease() {
-        mService.init();
-        mService.release();
-
-        verify(mMockController).init();
-        verify(mMockController).release();
-    }
-
-    @Test
     public void testDump_shouldSucceed() {
         when(mMockController.isGarageModeActive()).thenReturn(true);
 
@@ -77,33 +68,4 @@ public class GarageModeServiceTest {
         List<String> strings = mCaptorString.getAllValues();
         assertThat(strings.get(0)).isEqualTo("GarageModeInProgress true");
     }
-
-    @Test
-    public void testIsGarageModeActive_true() {
-        when(mMockController.isGarageModeActive()).thenReturn(true);
-
-        assertThat(mService.isGarageModeActive()).isTrue();
-    }
-
-    @Test
-    public void testIsGarageModeActive_false() {
-        when(mMockController.isGarageModeActive()).thenReturn(false);
-
-        assertThat(mService.isGarageModeActive()).isFalse();
-    }
-
-    @Test
-    public void testForceStartGarageMode() {
-        mService.forceStartGarageMode();
-
-        verify(mMockController).initiateGarageMode(null);
-    }
-
-    @Test
-    public void testStopAndResetGarageMode() {
-        mService.stopAndResetGarageMode();
-
-        verify(mMockController).resetGarageMode();
-    }
-
 }

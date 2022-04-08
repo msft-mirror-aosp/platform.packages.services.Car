@@ -29,6 +29,8 @@ import android.app.ActivityManager;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
+import android.car.user.CarUserManager.UserLifecycleEventType;
+import android.car.userlib.CarUserManagerHelper;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -45,9 +47,7 @@ import android.util.Log;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.android.car.CarLocalServices;
-import com.android.car.CarUxRestrictionsManagerService;
 import com.android.car.hal.UserHalService;
-import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
@@ -56,6 +56,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,10 +93,8 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
     @Mock
     private UserHalService mUserHal;
 
-    @Mock
-    private CarUxRestrictionsManagerService mUxRestrictionService;
-
     private ServiceLauncherContext mContext;
+    private CarUserManagerHelper mUserManagerHelper;
     private CarUserService mCarUserService;
     private VendorServiceController mController;
 
@@ -108,8 +107,9 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
     @Before
     public void setUp() {
         mContext = new ServiceLauncherContext(ApplicationProvider.getApplicationContext());
-        mCarUserService = new CarUserService(mContext, mUserHal, mUserManager,
-                ActivityManager.getService(), /* maxRunningUsers= */ 2, mUxRestrictionService);
+        mUserManagerHelper = Mockito.spy(new CarUserManagerHelper(mContext));
+        mCarUserService = new CarUserService(mContext, mUserHal, mUserManagerHelper, mUserManager,
+                ActivityManager.getService(), 2 /* max running users */);
         CarLocalServices.addService(CarUserService.class, mCarUserService);
 
         mController = new VendorServiceController(mContext, Looper.getMainLooper());
@@ -219,7 +219,7 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
         mCarUserService.addUserLifecycleListener(blockingListener);
 
         runOnMainThreadAndWaitForIdle(() -> mCarUserService.onUserLifecycleEvent(eventType,
-                /* fromUserId= */ UserHandle.USER_NULL, userId));
+                /* timestampMs= */ 0, /* fromUserId= */ UserHandle.USER_NULL, userId));
         blockingListener.waitForAnyEvent();
     }
 

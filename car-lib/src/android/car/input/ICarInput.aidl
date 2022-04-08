@@ -29,6 +29,4 @@ interface ICarInput {
         in int[] inputTypes, int requestFlags) = 1;
     /** See {@code CarInputManager.requestInputEventCapture(...)} */
     void releaseInputEventCapture(in ICarInputCallback callback, int targetDisplayType) = 2;
-    /** See {@code CarInputManager.injectKeyEvent(...)} */
-    void injectKeyEvent(in KeyEvent event, int targetDisplayType) = 3;
 }

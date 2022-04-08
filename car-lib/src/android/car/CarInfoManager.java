@@ -23,9 +23,6 @@ import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.ICarProperty;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Slog;
-
-import java.util.Arrays;
 
 
 /**
@@ -33,8 +30,6 @@ import java.util.Arrays;
  * and relevant data can be checked from {@link Bundle} using pre-specified keys.
  */
 public final class CarInfoManager extends CarManagerBase {
-
-    private static final String TAG = CarInfoManager.class.getSimpleName();
 
     private final CarPropertyManager mCarPropertyMgr;
     /**
@@ -120,7 +115,9 @@ public final class CarInfoManager extends CarManagerBase {
      */
     @NonNull
     public String getManufacturer() {
-        return  getPropertyWithDefaultValue(String.class, BASIC_INFO_KEY_MANUFACTURER, "");
+        CarPropertyValue<String> carProp = mCarPropertyMgr.getProperty(String.class,
+                BASIC_INFO_KEY_MANUFACTURER, 0);
+        return carProp != null ? carProp.getValue() : "";
     }
 
     /**
@@ -130,7 +127,9 @@ public final class CarInfoManager extends CarManagerBase {
      */
     @NonNull
     public String getModel() {
-        return getPropertyWithDefaultValue(String.class, BASIC_INFO_KEY_MODEL, "");
+        CarPropertyValue<String> carProp = mCarPropertyMgr.getProperty(
+                String.class, BASIC_INFO_KEY_MODEL, 0);
+        return carProp != null ? carProp.getValue() : "";
     }
 
     /**
@@ -140,7 +139,7 @@ public final class CarInfoManager extends CarManagerBase {
     @Deprecated
     @NonNull
     public String getModelYear() {
-        int year =  getModelYearInInteger();
+        int year =  mCarPropertyMgr.getIntProperty(BASIC_INFO_KEY_MODEL_YEAR, 0);
         return year == 0 ? "" : Integer.toString(year);
     }
 
@@ -148,7 +147,7 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Model year of the car in AD.  0 if not available.
      */
     public int getModelYearInInteger() {
-        return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_KEY_MODEL_YEAR, 0);
+        return mCarPropertyMgr.getIntProperty(BASIC_INFO_KEY_MODEL_YEAR, 0);
     }
 
     /**
@@ -165,7 +164,7 @@ public final class CarInfoManager extends CarManagerBase {
      *         fuel.
      */
     public float getFuelCapacity() {
-        return getPropertyWithDefaultValue(Float.class, BASIC_INFO_FUEL_CAPACITY, 0f);
+        return mCarPropertyMgr.getFloatProperty(BASIC_INFO_FUEL_CAPACITY, 0);
     }
 
     /**
@@ -173,9 +172,7 @@ public final class CarInfoManager extends CarManagerBase {
      * types available.
      */
     public @FuelType.Enum int[] getFuelTypes() {
-        Integer[] fuels = getPropertyWithDefaultValue(Integer[].class, BASIC_INFO_FUEL_TYPES,
-                new Integer[]{});
-        return Arrays.stream(fuels).mapToInt(Integer::intValue).toArray();
+        return mCarPropertyMgr.getIntArrayProperty(BASIC_INFO_FUEL_TYPES, 0);
     }
 
     /**
@@ -183,7 +180,9 @@ public final class CarInfoManager extends CarManagerBase {
      * @return Battery capacity of the car in Watt-Hour(Wh). Return 0 if car doesn't run on battery.
      */
     public float getEvBatteryCapacity() {
-        return getPropertyWithDefaultValue(Float.class, BASIC_INFO_EV_BATTERY_CAPACITY, 0f);
+        CarPropertyValue<Float> carProp = mCarPropertyMgr.getProperty(Float.class,
+                BASIC_INFO_EV_BATTERY_CAPACITY, 0);
+        return carProp != null ? carProp.getValue() : 0f;
     }
 
     /**
@@ -191,9 +190,8 @@ public final class CarInfoManager extends CarManagerBase {
      *         no connector types available.
      */
     public @EvConnectorType.Enum int[] getEvConnectorTypes() {
-        Integer[] valueInHal = getPropertyWithDefaultValue(Integer[].class,
-                BASIC_INFO_EV_CONNECTOR_TYPES, new Integer[]{});
-
+        int[] valueInHal =
+                mCarPropertyMgr.getIntArrayProperty(BASIC_INFO_EV_CONNECTOR_TYPES, 0);
         int[] connectorTypes = new int[valueInHal.length];
         for (int i = 0; i < valueInHal.length; i++) {
             switch (valueInHal[i]) {
@@ -241,44 +239,24 @@ public final class CarInfoManager extends CarManagerBase {
     }
 
     /**
-     * @return Driver seat's location. Returns {@link VehicleAreaSeat#SEAT_UNKNOWN} if the sensor
-     * is not available.
+     * @return Driver seat's location.
      */
     public @VehicleAreaSeat.Enum int getDriverSeat() {
-        return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_DRIVER_SEAT,
-                VehicleAreaSeat.SEAT_UNKNOWN);
+        return mCarPropertyMgr.getIntProperty(BASIC_INFO_DRIVER_SEAT, 0);
     }
 
     /**
-     * @return EV port location of the car. Returns {@link PortLocationType#UNKNOWN} if the sensor
-     * is not available.
+     * @return EV port location of the car.
      */
     public @PortLocationType.Enum int getEvPortLocation() {
-        return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_EV_PORT_LOCATION,
-                PortLocationType.UNKNOWN);
+        return mCarPropertyMgr.getIntProperty(BASIC_INFO_EV_PORT_LOCATION, 0);
     }
 
     /**
-     * @return Fuel door location of the car.Returns {@link PortLocationType#UNKNOWN} if the sensor
-     * is not available.
+     * @return Fuel door location of the car.
      */
     public @PortLocationType.Enum int getFuelDoorLocation() {
-        return getPropertyWithDefaultValue(Integer.class, BASIC_INFO_FUEL_DOOR_LOCATION,
-                PortLocationType.UNKNOWN);
-    }
-
-    private <T> T getPropertyWithDefaultValue(Class<T> clazz, int propId, T defaultValue) {
-        try {
-            CarPropertyValue<T> carProp = mCarPropertyMgr.getProperty(
-                    clazz, propId, 0);
-            if (carProp != null && carProp.getStatus() == CarPropertyValue.STATUS_AVAILABLE) {
-                return carProp.getValue();
-            }
-        } catch (Exception e) {
-            Slog.e(TAG, "Failed to get property value for 0x:" + Integer.toHexString(propId)
-                    + " ,returns default value" + defaultValue);
-        }
-        return defaultValue;
+        return mCarPropertyMgr.getIntProperty(BASIC_INFO_FUEL_DOOR_LOCATION, 0);
     }
 
     /** @hide */

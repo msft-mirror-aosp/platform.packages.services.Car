@@ -22,7 +22,6 @@ import static org.mockito.Mockito.when;
 import android.car.vms.VmsLayer;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.util.IndentingPrintWriter;
 
 import androidx.test.filters.SmallTest;
 
@@ -60,7 +59,7 @@ public class CarStatsServiceTest {
 
     private CarStatsService mCarStatsService;
     private StringWriter mDumpsysOutput;
-    private IndentingPrintWriter mDumpsysWriter;
+    private PrintWriter mDumpsysWriter;
 
     @Before
     public void setUp() {
@@ -70,12 +69,12 @@ public class CarStatsServiceTest {
 
         mCarStatsService = new CarStatsService(mContext);
         mDumpsysOutput = new StringWriter();
-        mDumpsysWriter = new IndentingPrintWriter(new PrintWriter(mDumpsysOutput));
+        mDumpsysWriter = new PrintWriter(mDumpsysOutput);
     }
 
     @Test
     public void testEmptyStats() {
-        mCarStatsService.dump(mDumpsysWriter, new String[0]);
+        mCarStatsService.dump(null, mDumpsysWriter, new String[0]);
         assertEquals(
                 "uid,packageName,attempts,connected,disconnected,terminated,errors\n"
                         + "\nuid,layerType,layerChannel,layerVersion,"
@@ -345,7 +344,7 @@ public class CarStatsServiceTest {
     }
 
     private void validateDumpsys(String vmsConnectionStats, String vmsClientStats) {
-        mCarStatsService.dump(mDumpsysWriter, new String[0]);
+        mCarStatsService.dump(null, mDumpsysWriter, new String[0]);
         assertEquals(
                 "uid,packageName,attempts,connected,disconnected,terminated,errors\n"
                         + vmsConnectionStats

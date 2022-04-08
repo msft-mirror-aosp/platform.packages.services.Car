@@ -15,22 +15,13 @@
  */
 package com.android.car;
 
-import android.annotation.Nullable;
 import android.app.Service;
 import android.car.ICarBluetoothUserService;
 import android.car.ILocationManagerProxy;
 import android.car.IPerUserCarService;
-import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.os.IBinder;
-import android.util.IndentingPrintWriter;
-
-import com.android.car.admin.PerUserCarDevicePolicyService;
-import com.android.server.utils.Slogf;
-
-import java.io.FileDescriptor;
-import java.io.PrintWriter;
+import android.util.Log;
 
 /**
  * {@link CarService} process runs as the System User. When logged in as a different user, some
@@ -42,85 +33,47 @@ import java.io.PrintWriter;
  */
 public class PerUserCarService extends Service {
     private static final boolean DBG = true;
-    private static final String TAG = CarLog.tagFor(PerUserCarService.class);
-
-    private CarBluetoothUserService mCarBluetoothUserService;
-    private LocationManagerProxy mLocationManagerProxy;
-    private @Nullable PerUserCarDevicePolicyService mPerUserCarDevicePolicyService;
+    private static final String TAG = "PerUserCarService";
+    private volatile CarBluetoothUserService mCarBluetoothUserService;
+    private volatile LocationManagerProxy mLocationManagerProxy;
     private PerUserCarServiceBinder mPerUserCarServiceBinder;
 
     @Override
     public IBinder onBind(Intent intent) {
-        if (DBG) Slogf.d(TAG, "onBind()");
-
+        if (DBG) {
+            Log.d(TAG, "onBind()");
+        }
         if (mPerUserCarServiceBinder == null) {
-            Slogf.e(TAG, "PerUserCarServiceBinder null");
+            Log.e(TAG, "UserSvcBinder null");
         }
         return mPerUserCarServiceBinder;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (DBG) Slogf.d(TAG, "onStart()");
-
+        if (DBG) {
+            Log.d(TAG, "onStart()");
+        }
         return START_STICKY;
     }
 
     @Override
     public void onCreate() {
-        Context context = getApplicationContext();
-        Slogf.i(TAG, "created for user %d", context.getUserId());
-
+        if (DBG) {
+            Log.d(TAG, "onCreate()");
+        }
         mPerUserCarServiceBinder = new PerUserCarServiceBinder();
         mCarBluetoothUserService = new CarBluetoothUserService(this);
-
-        if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN)) {
-            mPerUserCarDevicePolicyService = PerUserCarDevicePolicyService.getInstance(context);
-            mPerUserCarDevicePolicyService.onCreate();
-        } else if (DBG) {
-            Slogf.d(TAG, "Not setting PerUserCarDevicePolicyService because device doesn't have %s",
-                    PackageManager.FEATURE_DEVICE_ADMIN);
-        }
-
         mLocationManagerProxy = new LocationManagerProxy(this);
         super.onCreate();
     }
 
     @Override
     public void onDestroy() {
-        Slogf.i(TAG, "destroyed for user %d", getApplicationContext().getUserId());
-
-        if (mPerUserCarDevicePolicyService != null) {
-            mPerUserCarDevicePolicyService.onDestroy();
+        if (DBG) {
+            Log.d(TAG, "onDestroy()");
         }
         mPerUserCarServiceBinder = null;
-    }
-
-    @Override
-    protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
-        try (IndentingPrintWriter pw = new IndentingPrintWriter(writer)) {
-            pw.println("CarBluetoothUserService");
-            pw.increaseIndent();
-            mCarBluetoothUserService.dump(pw);
-            pw.decreaseIndent();
-            pw.println();
-
-            if (mPerUserCarDevicePolicyService != null) {
-                pw.println("PerUserCarDevicePolicyService");
-                pw.increaseIndent();
-                mPerUserCarDevicePolicyService.dump(pw);
-                pw.decreaseIndent();
-            } else {
-                pw.println("PerUserCarDevicePolicyService not needed");
-            }
-            pw.println();
-
-            pw.println("LocationManagerProxy");
-            pw.increaseIndent();
-            mLocationManagerProxy.dump(pw);
-            pw.decreaseIndent();
-            pw.println();
-        }
     }
 
     /**

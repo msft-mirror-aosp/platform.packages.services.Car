@@ -59,13 +59,12 @@ public final class VolumeTestFragment extends Fragment {
     private TabLayout mZonesTabLayout;
     private Object mLock = new Object();
 
-    public static final class CarAudioZoneVolumeInfo {
-        public int groupId;
-        public String id;
-        public String maxGain;
-        public String currentGain;
-        public boolean hasAudioFocus;
-        public boolean isMuted;
+    public static class CarAudioZoneVolumeInfo {
+        public int mGroupId;
+        public String mId;
+        public String mMax;
+        public String mCurrent;
+        public boolean mHasFocus;
     }
 
     private final class CarVolumeChangeListener extends CarVolumeCallback {
@@ -75,15 +74,12 @@ public final class VolumeTestFragment extends Fragment {
                 Log.d(TAG, "onGroupVolumeChanged volume changed for zone "
                         + zoneId);
             }
-            sendFragmentChangedMessage(zoneId, groupId, flags);
-        }
-
-        @Override
-        public void onGroupMuteChanged(int zoneId, int groupId, int flags) {
-            if (DEBUG) {
-                Log.d(TAG, "onGroupMuteChanged mute changed for zone " + zoneId);
+            synchronized (mLock) {
+                CarAudioZoneVolumeFragment fragment = mZoneVolumeFragments.get(zoneId);
+                if (fragment != null) {
+                    fragment.sendChangeMessage();
+                }
             }
-            sendFragmentChangedMessage(zoneId, groupId, flags);
         }
 
         @Override
@@ -91,18 +87,6 @@ public final class VolumeTestFragment extends Fragment {
             if (DEBUG) {
                 Log.d(TAG, "onMasterMuteChanged master mute "
                         + mAudioManager.isMasterMute());
-            }
-        }
-
-        private void sendFragmentChangedMessage(int zoneId, int groupId, int flags) {
-            CarAudioZoneVolumeFragment fragment;
-
-            synchronized (mLock) {
-                fragment = mZoneVolumeFragments.get(zoneId);
-            }
-
-            if (fragment != null) {
-                fragment.sendVolumeChangedMessage(groupId, flags);
             }
         }
     }

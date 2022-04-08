@@ -13,10 +13,6 @@
 // limitations under the License.
 
 // Unit tests for the experimental car service
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
 
     name: "ExperimentalCarServiceTests",
@@ -49,6 +45,4 @@ android_test {
     ],
 
     instrumentation_for: "ExperimentalCarService",
-
-    test_suites: ["device-tests"]
 }

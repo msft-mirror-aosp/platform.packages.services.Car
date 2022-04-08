@@ -64,13 +64,13 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.text.TextUtils;
-import android.util.IndentingPrintWriter;
-import android.util.Slog;
+import android.util.Log;
 
 import com.android.car.BinderInterfaceContainer.BinderInterface;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
 
+import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -86,7 +86,7 @@ import java.util.List;
 class CarProjectionService extends ICarProjection.Stub implements CarServiceBase,
         BinderInterfaceContainer.BinderEventHandler<ICarProjectionKeyEventHandler>,
         CarProjectionManager.ProjectionKeyEventHandler {
-    private static final String TAG = CarLog.tagFor(CarProjectionService.class);
+    private static final String TAG = CarLog.TAG_PROJECTION;
     private static final boolean DBG = true;
 
     private final CarInputService mCarInputService;
@@ -149,7 +149,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
             @Override
             public void onServiceDisconnected(ComponentName className) {
                 // Service has crashed.
-                Slog.w(CarLog.TAG_PROJECTION, "Service disconnected: " + className);
+                Log.w(CarLog.TAG_PROJECTION, "Service disconnected: " + className);
                 synchronized (mLock) {
                     mRegisteredService = null;
                 }
@@ -196,7 +196,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
                 return;
             }
             if (mRegisteredService != null) {
-                Slog.w(CarLog.TAG_PROJECTION, "Registering new service[" + serviceIntent
+                Log.w(CarLog.TAG_PROJECTION, "Registering new service[" + serviceIntent
                         + "] while old service[" + mRegisteredService + "] is still running");
             }
             unbindServiceIfBound();
@@ -209,7 +209,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
         ICarImpl.assertProjectionPermission(mContext);
         synchronized (mLock) {
             if (!serviceIntent.filterEquals(mRegisteredService)) {
-                Slog.w(CarLog.TAG_PROJECTION, "Request to unbind unregistered service["
+                Log.w(CarLog.TAG_PROJECTION, "Request to unbind unregistered service["
                         + serviceIntent + "]. Registered service[" + mRegisteredService + "]");
                 return;
             }
@@ -280,12 +280,12 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     @Override
     public void stopProjectionAccessPoint(IBinder token) {
         ICarImpl.assertProjectionPermission(mContext);
-        Slog.i(TAG, "Received stop access point request from " + token);
+        Log.i(TAG, "Received stop access point request from " + token);
 
         boolean shouldReleaseAp;
         synchronized (mLock) {
             if (!unregisterWirelessClientLocked(token)) {
-                Slog.w(TAG, "Client " + token + " was not registered");
+                Log.w(TAG, "Client " + token + " was not registered");
                 return;
             }
             shouldReleaseAp = mWirelessClients.isEmpty();
@@ -308,13 +308,13 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
             scanner = mWifiScanner;
         }
         if (scanner == null) {
-            Slog.w(TAG, "Unable to get WifiScanner");
+            Log.w(TAG, "Unable to get WifiScanner");
             return new int[0];
         }
 
         List<Integer> channels = scanner.getAvailableChannels(band);
         if (channels == null || channels.isEmpty()) {
-            Slog.w(TAG, "WifiScanner reported no available channels");
+            Log.w(TAG, "WifiScanner reported no available channels");
             return new int[0];
         }
 
@@ -339,7 +339,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     public boolean requestBluetoothProfileInhibit(
             BluetoothDevice device, int profile, IBinder token) {
         if (DBG) {
-            Slog.d(TAG, "requestBluetoothProfileInhibit device=" + device + " profile=" + profile
+            Log.d(TAG, "requestBluetoothProfileInhibit device=" + device + " profile=" + profile
                     + " from uid " + Binder.getCallingUid());
         }
         ICarImpl.assertProjectionPermission(mContext);
@@ -353,7 +353,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
             }
             return mCarBluetoothService.requestProfileInhibit(device, profile, token);
         } catch (RuntimeException e) {
-            Slog.e(TAG, "Error in requestBluetoothProfileInhibit", e);
+            Log.e(TAG, "Error in requestBluetoothProfileInhibit", e);
             throw e;
         }
     }
@@ -372,7 +372,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     public boolean releaseBluetoothProfileInhibit(
             BluetoothDevice device, int profile, IBinder token) {
         if (DBG) {
-            Slog.d(TAG, "releaseBluetoothProfileInhibit device=" + device + " profile=" + profile
+            Log.d(TAG, "releaseBluetoothProfileInhibit device=" + device + " profile=" + profile
                     + " from uid " + Binder.getCallingUid());
         }
         ICarImpl.assertProjectionPermission(mContext);
@@ -386,7 +386,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
             }
             return mCarBluetoothService.releaseProfileInhibit(device, profile, token);
         } catch (RuntimeException e) {
-            Slog.e(TAG, "Error in releaseBluetoothProfileInhibit", e);
+            Log.e(TAG, "Error in releaseBluetoothProfileInhibit", e);
             throw e;
         }
     }
@@ -395,7 +395,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     public void updateProjectionStatus(ProjectionStatus status, IBinder token)
             throws RemoteException {
         if (DBG) {
-            Slog.d(TAG, "updateProjectionStatus, status: " + status + ", token: " + token);
+            Log.d(TAG, "updateProjectionStatus, status: " + status + ", token: " + token);
         }
         ICarImpl.assertProjectionPermission(mContext);
         final String packageName = status.getPackageName();
@@ -468,7 +468,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
         synchronized (mLock) {
             ProjectionReceiverClient client = mProjectionReceiverClients.remove(token);
             if (client == null) {
-                Slog.w(TAG, "Projection receiver client for token " + token + " doesn't exist");
+                Log.w(TAG, "Projection receiver client for token " + token + " doesn't exist");
                 return;
             }
             token.unlinkToDeath(client.mDeathRecipient, 0);
@@ -495,7 +495,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
         }
 
         if (DBG) {
-            Slog.d(TAG, "Notify projection status change, state: " + currentState + ", pkg: "
+            Log.d(TAG, "Notify projection status change, state: " + currentState + ", pkg: "
                     + currentPackage + ", listeners: " + mProjectionStatusListeners.size()
                     + ", listenerToNotify: " + singleListenerToNotify);
         }
@@ -507,7 +507,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
                     listener.binderInterface.onProjectionStatusChanged(
                             currentState, currentPackage, statuses);
                 } catch (RemoteException ex) {
-                    Slog.e(TAG, "Error calling to projection status listener", ex);
+                    Log.e(TAG, "Error calling to projection status listener", ex);
                 }
             }
         } else {
@@ -577,7 +577,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
                     break;
                 }
                 default: {
-                    Slog.wtf(TAG, "Unexpected Access Point mode during starting: " + mWifiMode);
+                    Log.wtf(TAG, "Unexpected Access Point mode during starting: " + mWifiMode);
                     break;
                 }
             }
@@ -598,14 +598,14 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
                     break;
                 }
                 default: {
-                    Slog.wtf(TAG, "Unexpected Access Point mode during stopping : " + mWifiMode);
+                    Log.wtf(TAG, "Unexpected Access Point mode during stopping : " + mWifiMode);
                 }
             }
         }
     }
 
     private void startTetheredApLocked() {
-        Slog.d(TAG, "startTetheredApLocked");
+        Log.d(TAG, "startTetheredApLocked");
 
         if (mSoftApCallback == null) {
             mSoftApCallback = new ProjectionSoftApCallback();
@@ -618,36 +618,36 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
             if (mWifiManager.getWifiApState() == WIFI_AP_STATE_ENABLED) {
                 sendApStarted(mWifiManager.getSoftApConfiguration());
             } else {
-                Slog.e(TAG, "Failed to start soft AP");
+                Log.e(TAG, "Failed to start soft AP");
                 sendApFailed(ERROR_GENERIC);
             }
         }
     }
 
     private void stopTetheredApLocked() {
-        Slog.d(TAG, "stopTetheredAp");
+        Log.d(TAG, "stopTetheredAp");
 
         if (mSoftApCallback != null) {
             mWifiManager.unregisterSoftApCallback(mSoftApCallback);
             mSoftApCallback = null;
             if (!mWifiManager.stopSoftAp()) {
-                Slog.w(TAG, "Failed to request soft AP to stop.");
+                Log.w(TAG, "Failed to request soft AP to stop.");
             }
         }
     }
 
     private void startLocalOnlyApLocked() {
         if (mLocalOnlyHotspotReservation != null) {
-            Slog.i(TAG, "Local-only hotspot is already registered.");
+            Log.i(TAG, "Local-only hotspot is already registered.");
             sendApStarted(mLocalOnlyHotspotReservation.getSoftApConfiguration());
             return;
         }
 
-        Slog.i(TAG, "Requesting to start local-only hotspot.");
+        Log.i(TAG, "Requesting to start local-only hotspot.");
         mWifiManager.startLocalOnlyHotspot(new LocalOnlyHotspotCallback() {
             @Override
             public void onStarted(LocalOnlyHotspotReservation reservation) {
-                Slog.d(TAG, "Local-only hotspot started");
+                Log.d(TAG, "Local-only hotspot started");
                 synchronized (mLock) {
                     mLocalOnlyHotspotReservation = reservation;
                 }
@@ -656,7 +656,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
 
             @Override
             public void onStopped() {
-                Slog.i(TAG, "Local-only hotspot stopped.");
+                Log.i(TAG, "Local-only hotspot stopped.");
                 synchronized (mLock) {
                     if (mLocalOnlyHotspotReservation != null) {
                         // We must explicitly released old reservation object, otherwise it may
@@ -670,7 +670,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
 
             @Override
             public void onFailed(int localonlyHostspotFailureReason) {
-                Slog.w(TAG, "Local-only hotspot failed, reason: "
+                Log.w(TAG, "Local-only hotspot failed, reason: "
                         + localonlyHostspotFailureReason);
                 synchronized (mLock) {
                     mLocalOnlyHotspotReservation = null;
@@ -696,10 +696,10 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     }
 
     private void stopLocalOnlyApLocked() {
-        Slog.i(TAG, "stopLocalOnlyApLocked");
+        Log.i(TAG, "stopLocalOnlyApLocked");
 
         if (mLocalOnlyHotspotReservation == null) {
-            Slog.w(TAG, "Requested to stop local-only hotspot which was already stopped.");
+            Log.w(TAG, "Requested to stop local-only hotspot which was already stopped.");
             return;
         }
 
@@ -715,7 +715,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
         Message message = Message.obtain();
         message.what = CarProjectionManager.PROJECTION_AP_STARTED;
         message.obj = localSoftApConfig;
-        Slog.i(TAG, "Sending PROJECTION_AP_STARTED, ssid: "
+        Log.i(TAG, "Sending PROJECTION_AP_STARTED, ssid: "
                 + localSoftApConfig.getSsid()
                 + ", apBand: " + localSoftApConfig.getBand()
                 + ", apChannel: " + localSoftApConfig.getChannel()
@@ -757,7 +757,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     private void handleWifiApStateChange(int currState, int prevState, int errorCode,
             String ifaceName, int mode) {
         if (currState == WIFI_AP_STATE_ENABLING || currState == WIFI_AP_STATE_ENABLED) {
-            Slog.d(TAG,
+            Log.d(TAG,
                     "handleWifiApStateChange, curState: " + currState + ", prevState: " + prevState
                             + ", errorCode: " + errorCode + ", ifaceName: " + ifaceName + ", mode: "
                             + mode);
@@ -768,7 +768,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
                 mApBssid = String.format("%02x:%02x:%02x:%02x:%02x:%02x",
                         bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
             } catch (SocketException e) {
-                Slog.e(TAG, e.toString(), e);
+                Log.e(TAG, e.toString(), e);
             }
         }
     }
@@ -788,7 +788,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     }
 
     @Override
-    public void dump(IndentingPrintWriter writer) {
+    public void dump(PrintWriter writer) {
         writer.println("**CarProjectionService**");
         synchronized (mLock) {
             writer.println("Registered key event handlers:");
@@ -817,7 +817,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
 
     @Override
     public void onKeyEvent(@CarProjectionManager.KeyEventNum int keyEvent) {
-        Slog.d(TAG, "Dispatching key event: " + keyEvent);
+        Log.d(TAG, "Dispatching key event: " + keyEvent);
         synchronized (mLock) {
             for (BinderInterfaceContainer.BinderInterface<ICarProjectionKeyEventHandler>
                     eventHandlerInterface : mKeyEventHandlers.getInterfaces()) {
@@ -829,7 +829,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
                         // oneway
                         eventHandler.binderInterface.onKeyEvent(keyEvent);
                     } catch (RemoteException e) {
-                        Slog.e(TAG, "Cannot dispatch event to client", e);
+                        Log.e(TAG, "Cannot dispatch event to client", e);
                     }
                 }
             }
@@ -911,7 +911,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     private void registerWirelessClient(WirelessClient client) throws RemoteException {
         synchronized (mLock) {
             if (unregisterWirelessClientLocked(client.token)) {
-                Slog.i(TAG, "Client was already registered, override it.");
+                Log.i(TAG, "Client was already registered, override it.");
             }
             mWirelessClients.put(client.token, client);
         }
@@ -951,7 +951,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
 
         @Override
         public void onStateChanged(int state, int softApFailureReason) {
-            Slog.i(TAG, "ProjectionSoftApCallback, onStateChanged, state: " + state
+            Log.i(TAG, "ProjectionSoftApCallback, onStateChanged, state: " + state
                     + ", failed reason: " + softApFailureReason
                     + ", currentStateCall: " + mCurrentStateCall);
             if (mCurrentStateCall) {
@@ -972,7 +972,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
                     break;
                 }
                 case WifiManager.WIFI_AP_STATE_FAILED: {
-                    Slog.w(TAG, "WIFI_AP_STATE_FAILED, reason: " + softApFailureReason);
+                    Log.w(TAG, "WIFI_AP_STATE_FAILED, reason: " + softApFailureReason);
                     int reason;
                     switch (softApFailureReason) {
                         case WifiManager.SAP_START_FAILURE_NO_CHANNEL:
@@ -990,7 +990,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
         @Override
         public void onConnectedClientsChanged(List<WifiClient> clients) {
             if (DBG) {
-                Slog.d(TAG, "ProjectionSoftApCallback, onConnectedClientsChanged with "
+                Log.d(TAG, "ProjectionSoftApCallback, onConnectedClientsChanged with "
                         + clients.size() + " clients");
             }
         }
@@ -1012,10 +1012,10 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
 
         void send(Message message) {
             try {
-                Slog.d(TAG, "Sending message " + message.what + " to " + this);
+                Log.d(TAG, "Sending message " + message.what + " to " + this);
                 messenger.send(message);
             } catch (RemoteException e) {
-                Slog.e(TAG, "Failed to send message", e);
+                Log.e(TAG, "Failed to send message", e);
             }
         }
 
@@ -1039,7 +1039,7 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
 
         @Override
         public void binderDied() {
-            Slog.w(TAG, "Wireless client " + mClient + " died.");
+            Log.w(TAG, "Wireless client " + mClient + " died.");
             CarProjectionService service = mServiceRef.get();
             if (service == null) return;
 

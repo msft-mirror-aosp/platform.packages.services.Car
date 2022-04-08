@@ -64,6 +64,7 @@ import java.util.concurrent.CompletableFuture;
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class ControllerTest {
+    private static final Logger LOG = new Logger("ControllerTest");
 
     @Rule public final MockitoRule rule = MockitoJUnit.rule();
 
@@ -110,8 +111,7 @@ public class ControllerTest {
         CarLocalServices.addService(CarUserService.class, mCarUserServiceMock);
         CarLocalServices.removeServiceForTest(SystemInterface.class);
         CarLocalServices.addService(SystemInterface.class, mSystemInterfaceMock);
-        doReturn(new ArrayList<Integer>()).when(mCarUserServiceMock)
-                .startAllBackgroundUsersInGarageMode();
+        doReturn(new ArrayList<Integer>()).when(mCarUserServiceMock).startAllBackgroundUsers();
         doNothing().when(mSystemInterfaceMock)
                 .sendBroadcastAsUser(any(Intent.class), any(UserHandle.class));
     }

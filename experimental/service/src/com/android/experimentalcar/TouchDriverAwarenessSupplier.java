@@ -273,22 +273,16 @@ public class TouchDriverAwarenessSupplier extends IDriverAwarenessSupplier.Stub 
 
         @Override
         public void onInputEvent(InputEvent event) {
-            boolean handled = false;
-            try {
-                if (!(event instanceof MotionEvent)) {
-                    return;
-                }
+            if (!(event instanceof MotionEvent)) {
+                return;
+            }
 
-                MotionEvent motionEvent = (MotionEvent) event;
-                if (motionEvent.getActionMasked() == MotionEvent.ACTION_UP) {
-                    logd("ACTION_UP touch received");
-                    synchronized (mLock) {
-                        consumePermitLocked(SystemClock.elapsedRealtime());
-                    }
-                    handled = true;
+            MotionEvent motionEvent = (MotionEvent) event;
+            if (motionEvent.getActionMasked() == MotionEvent.ACTION_UP) {
+                logd("ACTION_UP touch received");
+                synchronized (mLock) {
+                    consumePermitLocked(SystemClock.elapsedRealtime());
                 }
-            } finally {
-                finishInputEvent(event, handled);
             }
         }
     }

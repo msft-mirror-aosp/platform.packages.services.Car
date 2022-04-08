@@ -20,24 +20,15 @@ import static android.car.test.mocks.AndroidMockitoHelper.mockQueryService;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 
-import static com.google.common.truth.Truth.assertThat;
-
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertThrows;
 
-import android.automotive.watchdog.internal.ComponentType;
-import android.automotive.watchdog.internal.ICarWatchdog;
-import android.automotive.watchdog.internal.ICarWatchdogMonitor;
-import android.automotive.watchdog.internal.ICarWatchdogServiceForSystem;
-import android.automotive.watchdog.internal.PackageInfo;
-import android.automotive.watchdog.internal.PackageIoOveruseStats;
-import android.automotive.watchdog.internal.PackageResourceOveruseAction;
-import android.automotive.watchdog.internal.PowerCycle;
-import android.automotive.watchdog.internal.ResourceOveruseConfiguration;
-import android.automotive.watchdog.internal.StateType;
+import android.automotive.watchdog.ICarWatchdog;
+import android.automotive.watchdog.ICarWatchdogClient;
+import android.automotive.watchdog.ICarWatchdogMonitor;
+import android.automotive.watchdog.PowerCycle;
+import android.automotive.watchdog.StateType;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -52,15 +43,14 @@ import org.mockito.Spy;
 import org.mockito.quality.Strictness;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * <p>This class contains unit tests for the {@link CarWatchdogDaemonHelper}.
  */
 public class CarWatchdogDaemonHelperTest {
 
-    private static final String CAR_WATCHDOG_DAEMON_INTERFACE = "carwatchdogd_system";
+    private static final String CAR_WATCHDOG_DAEMON_INTERFACE =
+            "android.automotive.watchdog.ICarWatchdog/default";
 
     @Mock CarWatchdogDaemonHelper.OnConnectionChangeListener mListener;
     @Mock private IBinder mBinder = new Binder();
@@ -89,9 +79,7 @@ public class CarWatchdogDaemonHelperTest {
     public void testConnection() {
         CarWatchdogDaemonHelper carWatchdogDaemonHelper = new CarWatchdogDaemonHelper();
         carWatchdogDaemonHelper.addOnConnectionChangeListener(mListener);
-
         carWatchdogDaemonHelper.connect();
-
         verify(mListener).onConnectionChange(true);
     }
 
@@ -101,154 +89,118 @@ public class CarWatchdogDaemonHelperTest {
         carWatchdogDaemonHelper.addOnConnectionChangeListener(mListener);
         carWatchdogDaemonHelper.removeOnConnectionChangeListener(mListener);
         carWatchdogDaemonHelper.connect();
-
         verify(mListener, never()).onConnectionChange(true);
     }
 
     @Test
+    public void testIndirectCall_RegisterUnregisterClient() throws Exception {
+        ICarWatchdogClient client = new ICarWatchdogClient.Default();
+        mCarWatchdogDaemonHelper.registerClient(client, 0);
+        verify(mFakeCarWatchdog).registerClient(client, 0);
+        mCarWatchdogDaemonHelper.unregisterClient(client);
+        verify(mFakeCarWatchdog).unregisterClient(client);
+    }
+
+    @Test
     public void testIndirectCall_RegisterUnregisterMediator() throws Exception {
-        ICarWatchdogServiceForSystem service = new ICarWatchdogServiceForSystem.Default();
-
-        mCarWatchdogDaemonHelper.registerCarWatchdogService(service);
-
-        verify(mFakeCarWatchdog).registerCarWatchdogService(service);
-
-        mCarWatchdogDaemonHelper.unregisterCarWatchdogService(service);
-
-        verify(mFakeCarWatchdog).unregisterCarWatchdogService(service);
+        ICarWatchdogClient mediator = new ICarWatchdogClient.Default();
+        mCarWatchdogDaemonHelper.registerMediator(mediator);
+        verify(mFakeCarWatchdog).registerMediator(mediator);
+        mCarWatchdogDaemonHelper.unregisterMediator(mediator);
+        verify(mFakeCarWatchdog).unregisterMediator(mediator);
     }
 
     @Test
     public void testIndirectCall_RegisterUnregisterMonitor() throws Exception {
         ICarWatchdogMonitor monitor = new ICarWatchdogMonitor.Default();
-
         mCarWatchdogDaemonHelper.registerMonitor(monitor);
-
         verify(mFakeCarWatchdog).registerMonitor(monitor);
-
         mCarWatchdogDaemonHelper.unregisterMonitor(monitor);
-
         verify(mFakeCarWatchdog).unregisterMonitor(monitor);
     }
 
     @Test
-    public void testIndirectCall_TellCarWatchdogServiceAlive() throws Exception {
-        ICarWatchdogServiceForSystem service = new ICarWatchdogServiceForSystem.Default();
+    public void testIndirectCall_TellClientAlive() throws Exception {
+        ICarWatchdogClient client = new ICarWatchdogClient.Default();
+        mCarWatchdogDaemonHelper.tellClientAlive(client, 123456);
+        verify(mFakeCarWatchdog).tellClientAlive(client, 123456);
+    }
+
+    @Test
+    public void testIndirectCall_TellMediatorAlive() throws Exception {
+        ICarWatchdogClient mediator = new ICarWatchdogClient.Default();
         int[] pids = new int[]{111};
-
-        mCarWatchdogDaemonHelper.tellCarWatchdogServiceAlive(service, pids, 123456);
-
-        verify(mFakeCarWatchdog).tellCarWatchdogServiceAlive(service, pids, 123456);
+        mCarWatchdogDaemonHelper.tellMediatorAlive(mediator, pids, 123456);
+        verify(mFakeCarWatchdog).tellMediatorAlive(mediator, pids, 123456);
     }
 
     @Test
     public void testIndirectCall_TellDumpFinished() throws Exception {
         ICarWatchdogMonitor monitor = new ICarWatchdogMonitor.Default();
-
         mCarWatchdogDaemonHelper.tellDumpFinished(monitor, 123456);
-
         verify(mFakeCarWatchdog).tellDumpFinished(monitor, 123456);
     }
 
     @Test
     public void testIndirectCall_NotifySystemStateChange() throws Exception {
         mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
-                PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE, -1);
-
+                PowerCycle.POWER_CYCLE_SUSPEND, -1);
         verify(mFakeCarWatchdog).notifySystemStateChange(StateType.POWER_CYCLE,
-                PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE, -1);
-    }
-
-    @Test
-    public void testIndirectCall_updateResourceOveruseConfigurations() throws Exception {
-        ResourceOveruseConfiguration config = new ResourceOveruseConfiguration();
-        config.componentType = ComponentType.SYSTEM;
-        List<ResourceOveruseConfiguration> configs = new ArrayList<>(Collections.singleton(config));
-
-        mCarWatchdogDaemonHelper.updateResourceOveruseConfigurations(configs);
-
-        verify(mFakeCarWatchdog).updateResourceOveruseConfigurations(eq(configs));
-    }
-
-    @Test
-    public void testIndirectCall_getResourceOveruseConfigurations() throws Exception {
-        ResourceOveruseConfiguration config = new ResourceOveruseConfiguration();
-        config.componentType = ComponentType.SYSTEM;
-        List<ResourceOveruseConfiguration> expected =
-                new ArrayList<>(Collections.singleton(config));
-        when(mFakeCarWatchdog.getResourceOveruseConfigurations()).thenReturn(expected);
-
-        List<ResourceOveruseConfiguration> actual =
-                mCarWatchdogDaemonHelper.getResourceOveruseConfigurations();
-
-        assertThat(actual).isEqualTo(expected);
-    }
-
-    @Test
-    public void testIndirectCall_actionTakenOnResourceOveruse() throws Exception {
-        List<PackageResourceOveruseAction> actions = new ArrayList<>();
-
-        mCarWatchdogDaemonHelper.actionTakenOnResourceOveruse(actions);
-
-        verify(mFakeCarWatchdog).actionTakenOnResourceOveruse(eq(actions));
+                PowerCycle.POWER_CYCLE_SUSPEND, -1);
     }
 
     /*
      * Test that the {@link CarWatchdogDaemonHelper} throws {@code IllegalArgumentException} when
-     * trying to register already-registered service again.
+     * trying to register already-registered client again.
      */
     @Test
     public void testMultipleRegistration() throws Exception {
-        ICarWatchdogServiceForSystem service = new ICarWatchdogServiceForSystemImpl();
-
-        mCarWatchdogDaemonHelper.registerCarWatchdogService(service);
-
+        ICarWatchdogClient client = new ICarWatchdogClientImpl();
+        mCarWatchdogDaemonHelper.registerMediator(client);
         assertThrows(IllegalArgumentException.class,
-                () -> mCarWatchdogDaemonHelper.registerCarWatchdogService(service));
+                () -> mCarWatchdogDaemonHelper.registerMediator(client));
     }
 
     /*
      * Test that the {@link CarWatchdogDaemonHelper} throws {@code IllegalArgumentException} when
-     * trying to unregister not-registered service.
+     * trying to unregister not-registered client.
      */
     @Test
     public void testInvalidUnregistration() throws Exception {
-        ICarWatchdogServiceForSystem service = new ICarWatchdogServiceForSystemImpl();
-
+        ICarWatchdogClient client = new ICarWatchdogClientImpl();
         assertThrows(IllegalArgumentException.class,
-                () -> mCarWatchdogDaemonHelper.unregisterCarWatchdogService(service));
+                () -> mCarWatchdogDaemonHelper.unregisterMediator(client));
     }
 
     // FakeCarWatchdog mimics ICarWatchdog daemon in local process.
     private final class FakeCarWatchdog extends ICarWatchdog.Default {
 
-        private final ArrayList<ICarWatchdogServiceForSystem> mServices = new ArrayList<>();
+        private final ArrayList<ICarWatchdogClient> mClients = new ArrayList<>();
 
         @Override
-        public void registerCarWatchdogService(
-                ICarWatchdogServiceForSystem service) throws RemoteException {
-            for (ICarWatchdogServiceForSystem curService : mServices) {
-                if (curService == service) {
-                    throw new IllegalArgumentException("Already registered service");
+        public void registerMediator(ICarWatchdogClient mediator) throws RemoteException {
+            for (ICarWatchdogClient client : mClients) {
+                if (client == mediator) {
+                    throw new IllegalArgumentException("Already registered mediator");
                 }
             }
-            mServices.add(service);
+            mClients.add(mediator);
         }
 
         @Override
-        public void unregisterCarWatchdogService(
-                ICarWatchdogServiceForSystem service) throws RemoteException {
-            for (ICarWatchdogServiceForSystem curService : mServices) {
-                if (curService == service) {
-                    mServices.remove(service);
+        public void unregisterMediator(ICarWatchdogClient mediator) throws RemoteException {
+            for (ICarWatchdogClient client : mClients) {
+                if (client == mediator) {
+                    mClients.remove(mediator);
                     return;
                 }
             }
-            throw new IllegalArgumentException("Not registered service");
+            throw new IllegalArgumentException("Not registered mediator");
         }
+
     }
 
-    private final class ICarWatchdogServiceForSystemImpl extends ICarWatchdogServiceForSystem.Stub {
+    private final class ICarWatchdogClientImpl extends ICarWatchdogClient.Stub {
         @Override
         public void checkIfAlive(int sessionId, int timeout) {}
 
@@ -256,15 +208,13 @@ public class CarWatchdogDaemonHelperTest {
         public void prepareProcessTermination() {}
 
         @Override
-        public List<PackageInfo> getPackageInfosForUids(
-                int[] uids, List<String> vendorPackagePrefixes) {
-            return new ArrayList<>();
+        public int getInterfaceVersion() {
+            return this.VERSION;
         }
 
         @Override
-        public void latestIoOveruseStats(List<PackageIoOveruseStats> ioOveruseStats) {}
-
-        @Override
-        public void resetResourceOveruseStats(List<String> packageNames) {}
+        public String getInterfaceHash() {
+            return this.HASH;
+        }
     }
 }

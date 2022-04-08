@@ -54,14 +54,6 @@ public final class UserTestingHelper {
     }
 
     /**
-     * Creates a list of {@link UserInfo UserInfos}.
-     */
-    @NonNull
-    public static List<UserInfo> toList(@NonNull UserInfo... users) {
-        return Arrays.stream(users).collect(Collectors.toList());
-    }
-
-    /**
      * Creates a {@link UserInfo} with the type explicitly set and with the given {@code userId}.
      */
     @NonNull

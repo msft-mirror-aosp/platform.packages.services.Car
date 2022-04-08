@@ -25,8 +25,6 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 import android.car.CarAppFocusManager;
 import android.car.cluster.renderer.IInstrumentCluster;
@@ -61,7 +59,6 @@ public class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCas
             "com.android.car.carservice_unittest/.FakeService";
 
     private InstrumentClusterService mService;
-    private ClusterNavigationService mNavigationService;
 
     @Mock
     private Context mContext;
@@ -117,8 +114,7 @@ public class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCas
         if (looper == null) {
             Looper.prepare();
         }
-        mNavigationService = new ClusterNavigationService(mContext, mAppFocusService);
-        mService = new InstrumentClusterService(mContext, mNavigationService, mCarInputService);
+        mService = new InstrumentClusterService(mContext, mAppFocusService, mCarInputService);
     }
 
     @After
@@ -132,8 +128,8 @@ public class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCas
             notifyRendererServiceConnection();
         }
         // Give nav focus to the test
-        mNavigationService.onFocusAcquired(CarAppFocusManager.APP_FOCUS_TYPE_NAVIGATION,
-                Process.myUid(), Process.myPid());
+        mService.onFocusAcquired(CarAppFocusManager.APP_FOCUS_TYPE_NAVIGATION, Process.myUid(),
+                Process.myPid());
     }
 
     private void notifyRendererServiceConnection() {
@@ -145,7 +141,6 @@ public class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCas
     public void testNonNullManager() throws Exception {
         initService(/* connect= */ true);
         checkValidClusterNavigation();
-        verify(mContext).bindServiceAsUser(any(), any(), anyInt(), any());
     }
 
     @Test
@@ -160,7 +155,6 @@ public class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCas
             notifyRendererServiceConnection();
         });
         checkValidClusterNavigation();
-        verify(mContext).bindServiceAsUser(any(), any(), anyInt(), any());
     }
 
     @Test
@@ -168,14 +162,19 @@ public class InstrumentClusterServiceTest extends AbstractExtendedMockitoTestCas
         doReturn("").when(mContext).getString(R.string.instrumentClusterRendererService);
         setNewService();
         initService(/* connect= */ false);
-        verify(mContext, times(0)).bindServiceAsUser(any(), any(), anyInt(), any());
+        IInstrumentClusterNavigation navigationService = mService.getNavigationService();
+        assertThat(navigationService).isNull();
     }
 
     private void checkValidClusterNavigation() throws Exception {
-        assertThat(mNavigationService.getInstrumentClusterInfo()).isEqualTo(
+        IInstrumentClusterNavigation navigationService = mService.getNavigationService();
+        assertThat(navigationService).isNotNull();
+        // should pass wrapper from car service
+        assertThat(navigationService).isNotEqualTo(mInstrumentClusterNavigation);
+        assertThat(navigationService.getInstrumentClusterInfo()).isEqualTo(
                 mInstrumentClusterNavigation.mClusterInfo);
         Bundle bundle = new Bundle();
-        mNavigationService.onNavigationStateChanged(bundle);
+        navigationService.onNavigationStateChanged(bundle);
         assertThat(bundle).isEqualTo(mInstrumentClusterNavigation.mLastBundle);
     }
 

@@ -87,22 +87,22 @@ public class SystemActivityMonitoringServiceTest {
 
     @Test
     public void testActivityBlocking() throws Exception {
-        ComponentName denyListedActivity = toComponentName(getTestContext(), ActivityC.class);
+        ComponentName blackListedActivity = toComponentName(getTestContext(), ActivityC.class);
         ComponentName blockingActivity = toComponentName(getTestContext(), BlockingActivity.class);
         Intent blockingIntent = new Intent();
         blockingIntent.setComponent(blockingActivity);
 
         // start a black listed activity
-        FilteredLaunchListener listenerDenyListed =
-                new FilteredLaunchListener(denyListedActivity);
-        mService.registerActivityLaunchListener(listenerDenyListed);
-        startActivity(denyListedActivity);
-        listenerDenyListed.assertTopTaskActivityLaunched();
+        FilteredLaunchListener listenerBlackListed =
+                new FilteredLaunchListener(blackListedActivity);
+        mService.registerActivityLaunchListener(listenerBlackListed);
+        startActivity(blackListedActivity);
+        listenerBlackListed.assertTopTaskActivityLaunched();
 
         // Instead of start activity, invoke blockActivity.
         FilteredLaunchListener listenerBlocking = new FilteredLaunchListener(blockingActivity);
         mService.registerActivityLaunchListener(listenerBlocking);
-        mService.blockActivity(listenerDenyListed.mTopTask, blockingIntent);
+        mService.blockActivity(listenerBlackListed.mTopTask, blockingIntent);
         listenerBlocking.assertTopTaskActivityLaunched();
     }
 

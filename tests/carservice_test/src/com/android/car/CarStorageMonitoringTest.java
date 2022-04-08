@@ -44,7 +44,6 @@ import android.util.SparseArray;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
-import com.android.car.procfsinspector.ProcessInfo;
 import com.android.car.storagemonitoring.LifetimeWriteInfoProvider;
 import com.android.car.storagemonitoring.UidIoStatsProvider;
 import com.android.car.storagemonitoring.WearEstimateRecord;
@@ -55,7 +54,6 @@ import com.android.car.systeminterface.StorageMonitoringInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.systeminterface.TimeInterface;
-import com.android.internal.annotations.GuardedBy;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -73,7 +71,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /** Test the public entry points for the CarStorageMonitoringManager */
 @RunWith(AndroidJUnit4.class)
@@ -486,7 +483,6 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
             oldRecord1000.background_write_bytes,
             oldRecord1000.background_fsync);
 
-        mMockSystemStateInterface.addProcess(1, 1000);
         mMockStorageMonitoringInterface.addIoStatsRecord(newRecord1000);
 
         UidIoRecord record2000 = new UidIoRecord(2000,
@@ -501,7 +497,6 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
             0,
             0);
 
-        mMockSystemStateInterface.addProcess(1, 2000);
         mMockStorageMonitoringInterface.addIoStatsRecord(record2000);
 
         mMockTimeInterface.tick();
@@ -623,7 +618,6 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
         mCarStorageMonitoringManager.registerListener(listener2);
 
         mMockStorageMonitoringInterface.addIoStatsRecord(record);
-        mMockSystemStateInterface.addProcess(1, 0);
         mMockTimeInterface.setUptime(500).tick();
 
         assertTrue(listener1.waitForEvent(eventDeliveryDeadline));
@@ -899,9 +893,6 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
 
     static final class MockSystemStateInterface implements SystemStateInterface {
         private final List<Pair<Runnable, Duration>> mActionsList = new ArrayList<>();
-        private final Object mLock = new Object();
-        @GuardedBy("mLock")
-        private final List<ProcessInfo> mProcesses = new ArrayList<>();
 
         @Override
         public void shutdown() {}
@@ -917,29 +908,9 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
             mActionsList.sort(Comparator.comparing(d -> d.second));
         }
 
-        @Override
-        public List<ProcessInfo> getRunningProcesses() {
-            synchronized (mLock) {
-                return mProcesses;
-            }
-        }
-
         void executeBootCompletedActions() {
             for (Pair<Runnable, Duration> action : mActionsList) {
                 action.first.run();
-            }
-        }
-
-        void addProcess(int pid, int uid) {
-            synchronized (mLock) {
-                mProcesses.add(new ProcessInfo(pid, uid));
-            }
-        }
-
-        void removeUserProcesses(int uid) {
-            synchronized (mLock) {
-                mProcesses.removeAll(mProcesses.stream().filter(pi -> pi.uid == uid)
-                        .collect(Collectors.toList()));
             }
         }
     }

@@ -33,8 +33,6 @@ import android.annotation.UserIdInt;
 import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.ICarUserService;
-import android.car.util.concurrent.AndroidAsyncFuture;
-import android.car.util.concurrent.AsyncFuture;
 import android.content.pm.UserInfo;
 import android.content.pm.UserInfo.UserInfoFlag;
 import android.os.Bundle;
@@ -48,12 +46,9 @@ import android.util.ArrayMap;
 import android.util.EventLog;
 import android.util.Log;
 
-import com.android.car.internal.common.CommonConstants;
-import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
-import com.android.car.internal.common.EventLogTags;
-import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.car.EventLogTags;
 import com.android.internal.infra.AndroidFuture;
 import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.ArrayUtils;
@@ -64,10 +59,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -81,7 +73,6 @@ public final class CarUserManager extends CarManagerBase {
 
     private static final String TAG = CarUserManager.class.getSimpleName();
     private static final int HAL_TIMEOUT_MS = CarProperties.user_hal_timeout().orElse(5_000);
-    private static final int REMOVE_USER_CALL_TIMEOUT_MS = 60_000;
 
     private static final boolean DBG = false;
 
@@ -93,8 +84,7 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    public static final int USER_LIFECYCLE_EVENT_TYPE_STARTING =
-            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_STARTING = 1;
 
     /**
      * {@link UserLifecycleEvent} called when switching to a different foreground user, for
@@ -109,8 +99,7 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    public static final int USER_LIFECYCLE_EVENT_TYPE_SWITCHING =
-            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_SWITCHING = 2;
 
     /**
      * {@link UserLifecycleEvent} called when an existing user is in the process of being unlocked.
@@ -125,8 +114,7 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKING =
-            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKING = 3;
 
     /**
      * {@link UserLifecycleEvent} called after an existing user is unlocked.
@@ -135,8 +123,7 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKED =
-            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKED = 4;
 
     /**
      * {@link UserLifecycleEvent} called when an existing user is stopping, for components to
@@ -153,8 +140,7 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPING =
-            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPING = 5;
 
     /**
      * {@link UserLifecycleEvent} called after an existing user is stopped.
@@ -165,146 +151,24 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPED =
-            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPED = 6;
+
+    /** @hide */
+    @IntDef(prefix = { "USER_LIFECYCLE_EVENT_TYPE_" }, value = {
+            USER_LIFECYCLE_EVENT_TYPE_STARTING,
+            USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
+            USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
+            USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+            USER_LIFECYCLE_EVENT_TYPE_STOPPING,
+            USER_LIFECYCLE_EVENT_TYPE_STOPPED,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface UserLifecycleEventType{}
 
     /** @hide */
     public static final String BUNDLE_PARAM_ACTION = "action";
     /** @hide */
     public static final String BUNDLE_PARAM_PREVIOUS_USER_ID = "previous_user";
-
-    /**
-     * {@link UserIdentificationAssociationType} for key fob.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_KEY_FOB = 1;
-
-    /**
-     * {@link UserIdentificationAssociationType} for custom type 1.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_1 = 101;
-
-    /**
-     * {@link UserIdentificationAssociationType} for custom type 2.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_2 = 102;
-
-    /**
-     * {@link UserIdentificationAssociationType} for custom type 3.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_3 = 103;
-
-    /**
-     * {@link UserIdentificationAssociationType} for custom type 4.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_4 = 104;
-
-    /**
-     *  User HAL's user identification association types
-     *
-     * @hide
-     */
-    @IntDef(prefix = { "USER_IDENTIFICATION_ASSOCIATION_TYPE_" }, value = {
-            USER_IDENTIFICATION_ASSOCIATION_TYPE_KEY_FOB,
-            USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_1,
-            USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_2,
-            USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_3,
-            USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_4,
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface UserIdentificationAssociationType{}
-
-    /**
-     * {@link UserIdentificationAssociationSetValue} to associate the identification type with the
-     * current foreground Android user.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_ASSOCIATE_CURRENT_USER = 1;
-
-    /**
-     * {@link UserIdentificationAssociationSetValue} to disassociate the identification type from
-     * the current foreground Android user.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_DISASSOCIATE_CURRENT_USER = 2;
-
-    /**
-     * {@link UserIdentificationAssociationSetValue} to disassociate the identification type from
-     * all Android users.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_DISASSOCIATE_ALL_USERS = 3;
-
-    /**
-     * User HAL's user identification association types
-     *
-     * @hide
-     */
-    @IntDef(prefix = { "USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_" }, value = {
-            USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_ASSOCIATE_CURRENT_USER,
-            USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_DISASSOCIATE_CURRENT_USER,
-            USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_DISASSOCIATE_ALL_USERS,
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface UserIdentificationAssociationSetValue{}
-
-    /**
-     * {@link UserIdentificationAssociationValue} when the status of an association could not be
-     * determined.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_UNKNOWN = 1;
-
-    /**
-     * {@link UserIdentificationAssociationValue} when the identification type is associated with
-     * the current foreground Android user.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_ASSOCIATE_CURRENT_USER = 2;
-
-    /**
-     * {@link UserIdentificationAssociationValue} when the identification type is associated with
-     * another Android user.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_ASSOCIATED_ANOTHER_USER = 3;
-
-    /**
-     * {@link UserIdentificationAssociationValue} when the identification type is not associated
-     * with any Android user.
-     *
-     * @hide
-     */
-    public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_NOT_ASSOCIATED_ANY_USER = 4;
-
-    /**
-     * User HAL's user identification association types
-     *
-     * @hide
-     */
-    @IntDef(prefix = { "USER_IDENTIFICATION_ASSOCIATION_VALUE_" }, value = {
-            USER_IDENTIFICATION_ASSOCIATION_VALUE_UNKNOWN,
-            USER_IDENTIFICATION_ASSOCIATION_VALUE_ASSOCIATE_CURRENT_USER,
-            USER_IDENTIFICATION_ASSOCIATION_VALUE_ASSOCIATED_ANOTHER_USER,
-            USER_IDENTIFICATION_ASSOCIATION_VALUE_NOT_ASSOCIATED_ANY_USER,
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface UserIdentificationAssociationValue{}
 
     private final Object mLock = new Object();
     private final ICarUserService mService;
@@ -341,10 +205,14 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-            android.Manifest.permission.CREATE_USERS})
-    public AsyncFuture<UserSwitchResult> switchUser(@UserIdInt int targetUserId) {
+    @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
+    public AndroidFuture<UserSwitchResult> switchUser(@UserIdInt int targetUserId) {
         int uid = myUid();
+
+        if (mUserManager.getUserSwitchability() != UserManager.SWITCHABILITY_STATUS_OK) {
+            return newSwitchResuiltForFailure(UserSwitchResult.STATUS_NOT_SWITCHABLE);
+        }
+
         try {
             AndroidFuture<UserSwitchResult> future = new AndroidFuture<UserSwitchResult>() {
                 @Override
@@ -360,21 +228,19 @@ public final class CarUserManager extends CarManagerBase {
             };
             EventLog.writeEvent(EventLogTags.CAR_USER_MGR_SWITCH_USER_REQ, uid, targetUserId);
             mService.switchUser(targetUserId, HAL_TIMEOUT_MS, future);
-            return new AndroidAsyncFuture<>(future);
-        } catch (SecurityException e) {
-            throw e;
-        } catch (RemoteException | RuntimeException e) {
-            AsyncFuture<UserSwitchResult> future =
+            return future;
+        } catch (RemoteException e) {
+            AndroidFuture<UserSwitchResult> future =
                     newSwitchResuiltForFailure(UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE);
-            return handleExceptionFromCarService(e, future);
+            return handleRemoteExceptionFromCarService(e, future);
         }
     }
 
-    private AndroidAsyncFuture<UserSwitchResult> newSwitchResuiltForFailure(
+    private AndroidFuture<UserSwitchResult> newSwitchResuiltForFailure(
             @UserSwitchResult.Status int status) {
         AndroidFuture<UserSwitchResult> future = new AndroidFuture<>();
         future.complete(new UserSwitchResult(status, null));
-        return new AndroidAsyncFuture<>(future);
+        return future;
     }
 
     /**
@@ -383,8 +249,8 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-                        android.Manifest.permission.CREATE_USERS})
-    public AsyncFuture<UserCreationResult> createUser(@Nullable String name,
+            android.Manifest.permission.CREATE_USERS})
+    public AndroidFuture<UserCreationResult> createUser(@Nullable String name,
             @NonNull String userType, @UserInfoFlag int flags) {
         int uid = myUid();
         try {
@@ -406,15 +272,14 @@ public final class CarUserManager extends CarManagerBase {
                 };
             };
             EventLog.writeEvent(EventLogTags.CAR_USER_MGR_CREATE_USER_REQ, uid,
-                    UserHelperLite.safeName(name), userType, flags);
+                    safeName(name), userType, flags);
             mService.createUser(name, userType, flags, HAL_TIMEOUT_MS, future);
-            return new AndroidAsyncFuture<>(future);
-        } catch (SecurityException e) {
-            throw e;
-        } catch (RemoteException | RuntimeException e) {
+            return future;
+        } catch (RemoteException e) {
             AndroidFuture<UserCreationResult> future = new AndroidFuture<>();
-            future.complete(new UserCreationResult(UserCreationResult.STATUS_HAL_INTERNAL_FAILURE));
-            return handleExceptionFromCarService(e, new AndroidAsyncFuture<>(future));
+            future.complete(new UserCreationResult(UserCreationResult.STATUS_HAL_INTERNAL_FAILURE,
+                    null, null));
+            return handleRemoteExceptionFromCarService(e, future);
         }
     }
 
@@ -425,7 +290,7 @@ public final class CarUserManager extends CarManagerBase {
      */
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    public AsyncFuture<UserCreationResult> createGuest(@Nullable String name) {
+    public AndroidFuture<UserCreationResult> createGuest(@Nullable String name) {
         return createUser(name, UserManager.USER_TYPE_FULL_GUEST, /* flags= */ 0);
     }
 
@@ -436,32 +301,9 @@ public final class CarUserManager extends CarManagerBase {
      */
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    public AsyncFuture<UserCreationResult> createUser(@Nullable String name,
+    public AndroidFuture<UserCreationResult> createUser(@Nullable String name,
             @UserInfoFlag int flags) {
         return createUser(name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
-    }
-
-    /**
-     * Updates pre-created users.
-     * <p>
-     * Updates pre-created users based on the car properties defined
-     * {@code CarProperties.number_pre_created_guests} and (@code
-     * CarProperties.number_pre_created_users}.
-     *
-     * @hide
-     */
-    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-            android.Manifest.permission.CREATE_USERS})
-    public void updatePreCreatedUsers() {
-        int uid = myUid();
-        EventLog.writeEvent(EventLogTags.CAR_USER_MGR_PRE_CREATE_USER_REQ, uid);
-        try {
-            mService.updatePreCreatedUsers();
-        } catch (SecurityException e) {
-            throw e;
-        } catch (RemoteException | RuntimeException e) {
-            handleExceptionFromCarService(e, null);
-        }
     }
 
     // TODO(b/159283854): move to UserManager
@@ -470,39 +312,23 @@ public final class CarUserManager extends CarManagerBase {
                 Settings.Secure.SKIP_FIRST_USE_HINTS, "1", user.id);
     }
 
-    /**
-     * Removes the given user.
-     *
-     * @param userId identification of the user to be removed.
-     *
-     * @return whether the user was successfully removed.
+     /**
+     * Removes a user.
      *
      * @hide
      */
-    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-            android.Manifest.permission.CREATE_USERS})
-    @NonNull
+    @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
     public UserRemovalResult removeUser(@UserIdInt int userId) {
         int uid = myUid();
         EventLog.writeEvent(EventLogTags.CAR_USER_MGR_REMOVE_USER_REQ, uid, userId);
-        int status = UserRemovalResult.STATUS_ANDROID_FAILURE;
+        int status = UserRemovalResult.STATUS_HAL_INTERNAL_FAILURE;
         try {
-            AndroidFuture<UserRemovalResult> future = new AndroidFuture<UserRemovalResult>();
-            mService.removeUser(userId, future);
-            UserRemovalResult result = future.get(REMOVE_USER_CALL_TIMEOUT_MS,
-                    TimeUnit.MILLISECONDS);
+            UserRemovalResult result = mService.removeUser(userId);
             status = result.getStatus();
             return result;
-        } catch (SecurityException e) {
-            throw e;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE);
-        } catch (ExecutionException | TimeoutException e) {
-            return new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE);
-        } catch (RemoteException | RuntimeException e) {
-            return handleExceptionFromCarService(e,
-                    new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE));
+        } catch (RemoteException e) {
+            return handleRemoteExceptionFromCarService(e,
+                    new UserRemovalResult(UserRemovalResult.STATUS_HAL_INTERNAL_FAILURE));
         } finally {
             EventLog.writeEvent(EventLogTags.CAR_USER_MGR_REMOVE_USER_RESP, uid, status);
         }
@@ -603,8 +429,8 @@ public final class CarUserManager extends CarManagerBase {
     public boolean isUserHalUserAssociationSupported() {
         try {
             return mService.isUserHalUserAssociationSupported();
-        } catch (RemoteException | RuntimeException e) {
-            return handleExceptionFromCarService(e, false);
+        } catch (RemoteException e) {
+            return handleRemoteExceptionFromCarService(e, false);
         }
     }
 
@@ -614,10 +440,9 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @NonNull
-    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-            android.Manifest.permission.CREATE_USERS})
+    @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
     public UserIdentificationAssociationResponse getUserIdentificationAssociation(
-            @UserIdentificationAssociationType int... types) {
+            @NonNull int... types) {
         Preconditions.checkArgument(!ArrayUtils.isEmpty(types), "must have at least one type");
         EventLog.writeEvent(EventLogTags.CAR_USER_MGR_GET_USER_AUTH_REQ, types.length);
         try {
@@ -629,11 +454,8 @@ public final class CarUserManager extends CarManagerBase {
                         values != null ? values.length : 0);
             }
             return response;
-        } catch (SecurityException e) {
-            throw e;
-        } catch (RemoteException | RuntimeException e) {
-            return handleExceptionFromCarService(e,
-                    UserIdentificationAssociationResponse.forFailure(e.getMessage()));
+        } catch (RemoteException e) {
+            return handleRemoteExceptionFromCarService(e, null);
         }
     }
 
@@ -643,11 +465,9 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @NonNull
-    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-            android.Manifest.permission.CREATE_USERS})
-    public AsyncFuture<UserIdentificationAssociationResponse> setUserIdentificationAssociation(
-            @UserIdentificationAssociationType int[] types,
-            @UserIdentificationAssociationSetValue int[] values) {
+    @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
+    public AndroidFuture<UserIdentificationAssociationResponse> setUserIdentificationAssociation(
+            @NonNull int[] types, @NonNull int[] values) {
         Preconditions.checkArgument(!ArrayUtils.isEmpty(types), "must have at least one type");
         Preconditions.checkArgument(!ArrayUtils.isEmpty(values), "must have at least one value");
         if (types.length != values.length) {
@@ -687,13 +507,11 @@ public final class CarUserManager extends CarManagerBase {
                 };
             };
             mService.setUserIdentificationAssociation(HAL_TIMEOUT_MS, types, values, future);
-            return new AndroidAsyncFuture<>(future);
-        } catch (SecurityException e) {
-            throw e;
-        } catch (RemoteException | RuntimeException e) {
+            return future;
+        } catch (RemoteException e) {
             AndroidFuture<UserIdentificationAssociationResponse> future = new AndroidFuture<>();
             future.complete(UserIdentificationAssociationResponse.forFailure());
-            return handleExceptionFromCarService(e, new AndroidAsyncFuture<>(future));
+            return handleRemoteExceptionFromCarService(e, future);
         }
     }
 
@@ -819,10 +637,8 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-            android.Manifest.permission.CREATE_USERS})
     public boolean isValidUser(@UserIdInt int userId) {
-        List<UserInfo> allUsers = mUserManager.getAliveUsers();
+        List<UserInfo> allUsers = mUserManager.getUsers(/* excludeDying= */ true);
         for (int i = 0; i < allUsers.size(); i++) {
             UserInfo user = allUsers.get(i);
             if (user.id == userId && (userId != UserHandle.USER_SYSTEM
@@ -831,6 +647,19 @@ public final class CarUserManager extends CarManagerBase {
             }
         }
         return false;
+    }
+
+    // TODO(b/150413515): use from UserHelper instead (would require a new make target, otherwise it
+    // would include the whole car-user-lib)
+    private boolean isHeadlessSystemUser(int targetUserId) {
+        return targetUserId == UserHandle.USER_SYSTEM && UserManager.isHeadlessSystemUserMode();
+    }
+
+    // TODO(b/150413515): use from UserHelper instead (would require a new make target, otherwise it
+    // would include the whole car-user-lib)
+    @Nullable
+    private static String safeName(@Nullable String name) {
+        return name == null ? name : name.length() + "_chars";
     }
 
     /**

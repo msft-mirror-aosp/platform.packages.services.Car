@@ -24,7 +24,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 
 /**
- * Activity that shows RecyclerView example with placeholder data.
+ * Activity that shows RecyclerView example with dummy data.
  */
 public class RecyclerViewSamples extends AbstractSampleActivity {
 
@@ -39,11 +39,11 @@ public class RecyclerViewSamples extends AbstractSampleActivity {
         RecyclerView recyclerView = findViewById(R.id.list);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        RecyclerViewAdapter adapter = new RecyclerViewAdapter(generatePlaceholderData());
+        RecyclerViewAdapter adapter = new RecyclerViewAdapter(generateDummyData());
         recyclerView.setAdapter(adapter);
     }
 
-    private ArrayList<String> generatePlaceholderData() {
+    private ArrayList<String> generateDummyData() {
         for (int i = 0; i <= mDataToGenerate; i++) {
             mData.add("data" + i);
         }

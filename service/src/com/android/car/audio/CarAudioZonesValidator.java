@@ -16,30 +16,24 @@
 package com.android.car.audio;
 
 
-import android.util.SparseArray;
-
 import java.util.HashSet;
 import java.util.Set;
 
-final class CarAudioZonesValidator {
-    private CarAudioZonesValidator() {
-    }
-
-    static void validate(SparseArray<CarAudioZone> carAudioZones) {
+class CarAudioZonesValidator {
+    static void validate(CarAudioZone[] carAudioZones) {
         validateAtLeastOneZoneDefined(carAudioZones);
         validateVolumeGroupsForEachZone(carAudioZones);
         validateEachAddressAppearsAtMostOnce(carAudioZones);
     }
 
-    private static void validateAtLeastOneZoneDefined(SparseArray<CarAudioZone> carAudioZones) {
-        if (carAudioZones.size() == 0) {
+    private static void validateAtLeastOneZoneDefined(CarAudioZone[] carAudioZones) {
+        if (carAudioZones.length == 0) {
             throw new RuntimeException("At least one zone should be defined");
         }
     }
 
-    private static void validateVolumeGroupsForEachZone(SparseArray<CarAudioZone> carAudioZones) {
-        for (int i = 0; i < carAudioZones.size(); i++) {
-            CarAudioZone zone = carAudioZones.valueAt(i);
+    private static void validateVolumeGroupsForEachZone(CarAudioZone[] carAudioZones) {
+        for (CarAudioZone zone : carAudioZones) {
             if (!zone.validateVolumeGroups()) {
                 throw new RuntimeException(
                         "Invalid volume groups configuration for zone " + zone.getId());
@@ -47,11 +41,9 @@ final class CarAudioZonesValidator {
         }
     }
 
-    private static void validateEachAddressAppearsAtMostOnce(
-            SparseArray<CarAudioZone> carAudioZones) {
+    private static void validateEachAddressAppearsAtMostOnce(CarAudioZone[] carAudioZones) {
         Set<String> addresses = new HashSet<>();
-        for (int i = 0; i < carAudioZones.size(); i++) {
-            CarAudioZone zone = carAudioZones.valueAt(i);
+        for (CarAudioZone zone : carAudioZones) {
             for (CarVolumeGroup carVolumeGroup : zone.getVolumeGroups()) {
                 for (String address : carVolumeGroup.getAddresses()) {
                     if (!addresses.add(address)) {

@@ -27,14 +27,12 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
-import android.util.Slog;
+import android.util.Log;
 
 import com.android.car.CarLog;
 import com.android.internal.annotations.GuardedBy;
 
 public class AppBlockingPolicyProxy implements ServiceConnection {
-
-    private static final String TAG = CarLog.tagFor(AppBlockingPolicyProxy.class);
 
     private final CarPackageManagerService mService;
     private final Context mContext;
@@ -60,7 +58,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
     private final Runnable mTimeoutRunnable = new Runnable() {
         @Override
         public void run() {
-            Slog.w(TAG, "Timeout for policy setting for service:" + mServiceInfo);
+            Log.w(CarLog.TAG_PACKAGE, "Timeout for policy setting for service:" + mServiceInfo);
             disconnect();
             mService.onPolicyConnectionFailure(AppBlockingPolicyProxy.this);
         }
@@ -102,7 +100,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
         try {
             mContext.unbindService(this);
         } catch (IllegalArgumentException e) {
-            Slog.w(TAG, "unbind", e);
+            Log.w(CarLog.TAG_PACKAGE, "unbind", e);
         }
     }
 
@@ -118,7 +116,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
             }
         }
         if (failed) {
-            Slog.w(TAG, "Policy service connected with null binder:" + name);
+            Log.w(CarLog.TAG_PACKAGE, "Policy service connected with null binder:" + name);
             mService.onPolicyConnectionFailure(this);
             return;
         }
@@ -140,7 +138,7 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
             }
         }
         if (failed) {
-            Slog.w(TAG, "Policy service keep crashing, giving up:" + name);
+            Log.w(CarLog.TAG_PACKAGE, "Policy service keep crashing, giving up:" + name);
             mService.onPolicyConnectionFailure(this);
         }
     }
@@ -157,7 +155,8 @@ public class AppBlockingPolicyProxy implements ServiceConnection {
         public void setAppBlockingPolicy(CarAppBlockingPolicy policy) {
             mHandler.removeCallbacks(mTimeoutRunnable);
             if (policy == null) {
-                Slog.w(TAG, "setAppBlockingPolicy null policy from policy service:" + mServiceInfo);
+                Log.w(CarLog.TAG_PACKAGE, "setAppBlockingPolicy null policy from policy service:" +
+                        mServiceInfo);
             }
             mService.onPolicyConnectionAndSet(AppBlockingPolicyProxy.this, policy);
         }

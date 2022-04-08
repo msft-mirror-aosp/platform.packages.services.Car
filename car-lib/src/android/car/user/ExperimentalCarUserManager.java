@@ -83,7 +83,8 @@ public final class ExperimentalCarUserManager extends CarManagerBase {
             return mService.createDriver(name, admin);
         } catch (RemoteException e) {
             AndroidFuture<UserCreationResult> future = new AndroidFuture<>();
-            future.complete(new UserCreationResult(UserCreationResult.STATUS_HAL_INTERNAL_FAILURE));
+            future.complete(new UserCreationResult(UserCreationResult.STATUS_HAL_INTERNAL_FAILURE,
+                    null, null));
             handleRemoteExceptionFromCarService(e);
             return future;
         }

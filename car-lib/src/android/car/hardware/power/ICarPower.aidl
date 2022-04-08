@@ -16,35 +16,21 @@
 
 package android.car.hardware.power;
 
-import android.car.hardware.power.CarPowerPolicy;
-import android.car.hardware.power.CarPowerPolicyFilter;
-import android.car.hardware.power.ICarPowerPolicyListener;
 import android.car.hardware.power.ICarPowerStateListener;
 
 /** @hide */
 interface ICarPower {
-    void registerListener(in ICarPowerStateListener listener);
+    void registerListener(in ICarPowerStateListener listener) = 0;
 
-    void unregisterListener(in ICarPowerStateListener listener);
+    void unregisterListener(in ICarPowerStateListener listener) = 1;
 
-    void requestShutdownOnNextSuspend();
+    void requestShutdownOnNextSuspend() = 2;
 
-    void finished(in ICarPowerStateListener listener);
+    void finished(in ICarPowerStateListener listener) = 3;
 
-    void scheduleNextWakeupTime(int seconds);
+    void scheduleNextWakeupTime(int seconds) = 4;
 
-    void registerListenerWithCompletion(in ICarPowerStateListener listener);
+    void registerListenerWithCompletion(in ICarPowerStateListener listener) = 5;
 
-    int getPowerState();
-
-    CarPowerPolicy getCurrentPowerPolicy();
-
-    void applyPowerPolicy(String policyId);
-
-    void setPowerPolicyGroup(String policyGroupId);
-
-    void addPowerPolicyListener(in CarPowerPolicyFilter filter,
-            in ICarPowerPolicyListener listener);
-
-    void removePowerPolicyListener(in ICarPowerPolicyListener listener);
+    int getPowerState() = 6;
 }

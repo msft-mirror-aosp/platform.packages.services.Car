@@ -16,7 +16,7 @@
 
 package com.android.car;
 
-import android.util.IndentingPrintWriter;
+import java.io.PrintWriter;
 
 /**
  * Base class for all Car specific services.
@@ -35,6 +35,5 @@ public interface CarServiceBase {
     /** Called when connection to Vehicle HAL was restored. */
     default void vehicleHalReconnected() {}
 
-    /** Dumps its state. */
-    void dump(IndentingPrintWriter writer);
+    void dump(PrintWriter writer);
 }

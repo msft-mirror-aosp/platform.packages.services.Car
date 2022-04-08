@@ -26,13 +26,12 @@ import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
-import android.util.IndentingPrintWriter;
 import android.util.Log;
-import android.util.Slog;
 import android.util.SparseArray;
 
 import com.android.internal.annotations.GuardedBy;
 
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -54,9 +53,8 @@ import java.util.List;
  * Provides an interface for other programs to request auto connections.
  */
 public class CarBluetoothService extends ICarBluetooth.Stub implements CarServiceBase {
-    private static final String TAG = CarLog.tagFor(CarBluetoothService.class);
+    private static final String TAG = "CarBluetoothService";
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
-    static final String THREAD_NAME = "CarBluetoothService";
     private final Context mContext;
 
     // The list of profiles we wish to manage
@@ -224,10 +222,10 @@ public class CarBluetoothService extends ICarBluetooth.Stub implements CarServic
                 mCarBluetoothUserService = mPerUserCarService.getBluetoothUserService();
                 mCarBluetoothUserService.setupBluetoothConnectionProxies();
             } catch (RemoteException e) {
-                Slog.e(TAG, "Remote Service Exception on ServiceConnection Callback: "
+                Log.e(TAG, "Remote Service Exception on ServiceConnection Callback: "
                         + e.getMessage());
             } catch (java.lang.NullPointerException e) {
-                Slog.e(TAG, "Initialization Failed: " + e.getMessage());
+                Log.e(TAG, "Initialization Failed: " + e.getMessage());
             }
         } else {
             logd("PerUserCarService not connected. Cannot get bluetooth user proxy objects");
@@ -243,7 +241,7 @@ public class CarBluetoothService extends ICarBluetooth.Stub implements CarServic
         try {
             mCarBluetoothUserService.closeBluetoothConnectionProxies();
         } catch (RemoteException e) {
-            Slog.e(TAG, "Remote Service Exception on ServiceConnection Callback: "
+            Log.e(TAG, "Remote Service Exception on ServiceConnection Callback: "
                     + e.getMessage());
         }
         mCarBluetoothUserService = null;
@@ -484,7 +482,7 @@ public class CarBluetoothService extends ICarBluetooth.Stub implements CarServic
             return;
         }
         if (mContext == null) {
-            Slog.e(TAG, "CarBluetoothPrioritySettings does not have a Context");
+            Log.e(TAG, "CarBluetoothPrioritySettings does not have a Context");
         }
         throw new SecurityException("requires permission "
                 + android.Manifest.permission.BLUETOOTH_ADMIN);
@@ -494,34 +492,29 @@ public class CarBluetoothService extends ICarBluetooth.Stub implements CarServic
      * Print out the verbose debug status of this object
      */
     @Override
-    public void dump(IndentingPrintWriter writer) {
-        writer.printf("* %s *\n", TAG);
-        mUserServiceHelper.dump(writer);
-
+    public void dump(PrintWriter writer) {
+        writer.println("*" + TAG + "*");
         synchronized (mPerUserLock) {
-            writer.printf("User ID: %d\n", mUserId);
-            writer.printf("User Proxies: %s\n", (mCarBluetoothUserService != null ? "Yes" : "No"));
+            writer.println("\tUser ID: " + mUserId);
+            writer.println("\tUser Proxies: " + (mCarBluetoothUserService != null ? "Yes" : "No"));
 
             // Profile Device Manager statuses
             for (int i = 0; i < mProfileDeviceManagers.size(); i++) {
                 int key = mProfileDeviceManagers.keyAt(i);
                 BluetoothProfileDeviceManager deviceManager =
                         (BluetoothProfileDeviceManager) mProfileDeviceManagers.get(key);
-                // TODO(b/178040439): use IndentingPrintWriter
                 deviceManager.dump(writer, "\t");
             }
 
             // Profile Inhibits
-            // TODO(b/TBD): use IndentingPrintWriter
             if (mInhibitManager != null) mInhibitManager.dump(writer, "\t");
-            else writer.println("BluetoothProfileInhibitManager: null");
+            else writer.println("\tBluetoothProfileInhibitManager: null");
 
             // Device Connection Policy
-            writer.printf("Using default policy? %s\n", (mUseDefaultPolicy ? "Yes" : "No"));
+            writer.println("\tUsing default policy? " + (mUseDefaultPolicy ? "Yes" : "No"));
             if (mBluetoothDeviceConnectionPolicy == null) {
-                writer.println("BluetoothDeviceConnectionPolicy: null");
+                writer.println("\tBluetoothDeviceConnectionPolicy: null");
             } else {
-                // TODO(b/178040439): use IndentingPrintWriter
                 mBluetoothDeviceConnectionPolicy.dump(writer, "\t");
             }
         }
@@ -532,7 +525,7 @@ public class CarBluetoothService extends ICarBluetooth.Stub implements CarServic
      */
     private static void logd(String msg) {
         if (DBG) {
-            Slog.d(TAG, msg);
+            Log.d(TAG, msg);
         }
     }
 }

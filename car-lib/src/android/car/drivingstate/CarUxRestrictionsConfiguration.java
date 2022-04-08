@@ -79,7 +79,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
 
     // null means the port is not configured. It should apply to default display.
     @Nullable
-    private final Integer mPhysicalPort;
+    private final Byte mPhysicalPort;
 
     private CarUxRestrictionsConfiguration(CarUxRestrictionsConfiguration.Builder builder) {
         mPhysicalPort = builder.mPhysicalPort;
@@ -168,7 +168,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
      * to default display {@link android.view.Display#DEFAULT_DISPLAY}.
      */
     @Nullable
-    public Integer getPhysicalPort() {
+    public Byte getPhysicalPort() {
         return mPhysicalPort;
     }
 
@@ -239,7 +239,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         if (mPhysicalPort == null) {
             writer.name(JSON_NAME_PHYSICAL_PORT).nullValue();
         } else {
-            writer.name(JSON_NAME_PHYSICAL_PORT).value((int) mPhysicalPort);
+            writer.name(JSON_NAME_PHYSICAL_PORT).value((int) mPhysicalPort.byteValue());
         }
         writer.name(JSON_NAME_MAX_CONTENT_DEPTH).value(mMaxContentDepth);
         writer.name(JSON_NAME_MAX_CUMULATIVE_CONTENT_ITEMS).value(
@@ -642,7 +642,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         }
 
         boolean nullPhysicalPort = in.readBoolean();
-        int physicalPort = in.readInt();
+        byte physicalPort = in.readByte();
         mPhysicalPort = nullPhysicalPort ? null : physicalPort;
 
         mMaxContentDepth = in.readInt();
@@ -662,7 +662,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         boolean nullPhysicalPort = mPhysicalPort == null;
         dest.writeBoolean(nullPhysicalPort);
         // When physical port is null, 0 should be skipped.
-        dest.writeInt(nullPhysicalPort ? (0) : mPhysicalPort);
+        dest.writeByte(nullPhysicalPort ? ((byte) 0) : mPhysicalPort.byteValue());
 
         dest.writeInt(mMaxContentDepth);
         dest.writeInt(mMaxCumulativeContentItems);
@@ -675,18 +675,18 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     public static final class Builder {
 
         /**
-         * Validates integer value for port is within the value range [0, 255].
+         * Validates integer value for port is within the value range of a byte.
          *
          * Throws exception if input value is outside the range.
          *
-         * @return {@code port} .
+         * @return {@code port} as a byte.
          */
-        public static int validatePort(int port) {
-            if (0 <= port && port <= 255) {
-                return port;
+        public static byte validatePort(int port) {
+            if (Byte.MIN_VALUE <= port && port <= Byte.MAX_VALUE) {
+                return (byte) port;
             }
             throw new IllegalArgumentException(
-                    "Port value should be within the range [0, 255]. Input is " + port);
+                    "Port value should be within the range of a byte. Input is " + port);
         }
 
         private static final int UX_RESTRICTIONS_UNKNOWN = -1;
@@ -694,7 +694,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         /**
          * {@code null} means port is not set.
          */
-        private Integer mPhysicalPort;
+        private Byte mPhysicalPort;
 
         private int mMaxContentDepth = UX_RESTRICTIONS_UNKNOWN;
         private int mMaxCumulativeContentItems = UX_RESTRICTIONS_UNKNOWN;
@@ -714,7 +714,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * @param port Port that is connected to a display.
          *             See {@link android.view.DisplayAddress.Physical#getPort()}.
          */
-        public Builder setPhysicalPort(int port) {
+        public Builder setPhysicalPort(byte port) {
             mPhysicalPort = port;
             return this;
         }

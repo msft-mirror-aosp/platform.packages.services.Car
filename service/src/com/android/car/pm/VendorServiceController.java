@@ -36,7 +36,6 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.Slog;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
@@ -57,9 +56,6 @@ import java.util.Objects;
  * handler.
  */
 class VendorServiceController implements UserLifecycleListener {
-
-    private static final String TAG = CarLog.tagFor(VendorServiceController.class);
-
     private static final boolean DBG = true;
 
     private static final int MSG_SWITCH_USER = 1;
@@ -99,7 +95,7 @@ class VendorServiceController implements UserLifecycleListener {
                 break;
             }
             default:
-                Slog.e(TAG, "Unexpected message " + msg);
+                Log.e(CarLog.TAG_PACKAGE, "Unexpected message " + msg);
         }
     }
 
@@ -128,8 +124,8 @@ class VendorServiceController implements UserLifecycleListener {
 
     @Override
     public void onEvent(UserLifecycleEvent event) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
-            Slog.d(TAG, "onEvent(" + event + ")");
+        if (Log.isLoggable(CarLog.TAG_PACKAGE, Log.DEBUG)) {
+            Log.d(CarLog.TAG_PACKAGE, "onEvent(" + event + ")");
         }
         // TODO(b/152069895): Use USER_LIFECYCLE_EVENT_TYPE_UNLOCKED and not care about the
         //     deprecated unlock=false scenario.
@@ -153,7 +149,7 @@ class VendorServiceController implements UserLifecycleListener {
         // Stop all services which which do not run under foreground or system user.
         final int fgUser = ActivityManager.getCurrentUser();
         if (fgUser != userId) {
-            Slog.w(TAG, "Received userSwitch event for user " + userId
+            Log.w(CarLog.TAG_PACKAGE, "Received userSwitch event for user " + userId
                     + " while current foreground user is " + fgUser + "."
                     + " Ignore the switch user event.");
             return;
@@ -169,7 +165,7 @@ class VendorServiceController implements UserLifecycleListener {
         if (userId != UserHandle.USER_SYSTEM) {
             startOrBindServicesForUser(UserHandle.of(userId));
         } else {
-            Slog.e(TAG, "Unexpected to receive switch user event for system user");
+            Log.e(CarLog.TAG_PACKAGE, "Unexpected to receive switch user event for system user");
         }
     }
 
@@ -177,7 +173,7 @@ class VendorServiceController implements UserLifecycleListener {
         final int currentUserId = ActivityManager.getCurrentUser();
 
         if (DBG) {
-            Slog.i(TAG, "onUserLockedChanged, user: " + userId
+            Log.i(CarLog.TAG_PACKAGE, "onUserLockedChanged, user: " + userId
                     + ", unlocked: " + unlocked + ", currentUser: " + currentUserId);
         }
         if (unlocked && (userId == currentUserId || userId == UserHandle.USER_SYSTEM)) {
@@ -218,7 +214,7 @@ class VendorServiceController implements UserLifecycleListener {
         ConnectionKey key = ConnectionKey.of(service, user);
         VendorServiceConnection connection = getOrCreateConnection(key);
         if (!connection.startOrBindService()) {
-            Slog.e(TAG, "Failed to start or bind service " + service);
+            Log.e(CarLog.TAG_PACKAGE, "Failed to start or bind service " + service);
             mConnections.remove(key);
         }
     }
@@ -252,10 +248,10 @@ class VendorServiceController implements UserLifecycleListener {
             VendorServiceInfo service = VendorServiceInfo.parse(rawServiceInfo);
             mVendorServiceInfos.add(service);
             if (DBG) {
-                Slog.i(TAG, "Registered vendor service: " + service);
+                Log.i(CarLog.TAG_PACKAGE, "Registered vendor service: " + service);
             }
         }
-        Slog.i(TAG, "Found " + mVendorServiceInfos.size()
+        Log.i(CarLog.TAG_PACKAGE, "Found " + mVendorServiceInfos.size()
                 + " services to be started/bound");
 
         return !mVendorServiceInfos.isEmpty();
@@ -302,9 +298,9 @@ class VendorServiceController implements UserLifecycleListener {
             }
 
             if (DBG) {
-                Slog.d(TAG, "startOrBindService "
-                        + mVendorServiceInfo.toShortString() + ", as user: " + mUser + ", bind: "
-                        + mVendorServiceInfo.shouldBeBound() + ", stack:  " + Debug.getCallers(5));
+                Log.d(CarLog.TAG_PACKAGE, "startOrBindService " + mVendorServiceInfo.toShortString()
+                        + ", as user: " + mUser + ", bind: " + mVendorServiceInfo.shouldBeBound()
+                        + ", stack:  " + Debug.getCallers(5));
             }
             mStopRequested = false;
 
@@ -335,7 +331,7 @@ class VendorServiceController implements UserLifecycleListener {
         public void onServiceConnected(ComponentName name, IBinder service) {
             mBound = true;
             if (DBG) {
-                Slog.d(TAG, "onServiceConnected, name: " + name);
+                Log.d(CarLog.TAG_PACKAGE, "onServiceConnected, name: " + name);
             }
             if (mStopRequested) {
                 stopOrUnbindService();
@@ -346,7 +342,7 @@ class VendorServiceController implements UserLifecycleListener {
         public void onServiceDisconnected(ComponentName name) {
             mBound = false;
             if (DBG) {
-                Slog.d(TAG, "onServiceDisconnected, name: " + name);
+                Log.d(CarLog.TAG_PACKAGE, "onServiceDisconnected, name: " + name);
             }
             tryToRebind();
         }
@@ -368,7 +364,7 @@ class VendorServiceController implements UserLifecycleListener {
                         mFailureHandler.obtainMessage(MSG_REBIND), REBIND_DELAY_MS);
                 scheduleResetFailureCounter();
             } else {
-                Slog.w(TAG, "No need to rebind anymore as the user " + mUser
+                Log.w(CarLog.TAG_PACKAGE, "No need to rebind anymore as the user " + mUser
                         + " is no longer in foreground.");
             }
         }
@@ -384,12 +380,12 @@ class VendorServiceController implements UserLifecycleListener {
             switch (msg.what) {
                 case MSG_REBIND: {
                     if (mRecentFailures < MAX_RECENT_FAILURES && !mBound) {
-                        Slog.i(TAG, "Attempting to rebind to the service "
+                        Log.i(CarLog.TAG_PACKAGE, "Attempting to rebind to the service "
                                 + mVendorServiceInfo.toShortString());
                         ++mRecentFailures;
                         startOrBindService();
                     } else {
-                        Slog.w(TAG, "Exceeded maximum number of attempts to rebind"
+                        Log.w(CarLog.TAG_PACKAGE, "Exceeded maximum number of attempts to rebind"
                                 + "to the service " + mVendorServiceInfo.toShortString());
                     }
                     break;
@@ -398,7 +394,8 @@ class VendorServiceController implements UserLifecycleListener {
                     mRecentFailures = 0;
                     break;
                 default:
-                    Slog.e(TAG, "Unexpected message received in failure handler: " + msg.what);
+                    Log.e(CarLog.TAG_PACKAGE,
+                            "Unexpected message received in failure handler: " + msg.what);
             }
         }
     }

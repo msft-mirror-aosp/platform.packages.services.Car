@@ -30,9 +30,7 @@ import androidx.test.filters.MediumTest;
 
 import com.android.car.vehiclehal.VehiclePropValueBuilder;
 
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
@@ -43,9 +41,6 @@ import java.util.List;
 public class CarInfoManagerTest extends MockedCarTestBase {
     private static final String MAKE_NAME = "ANDROID";
     private static final String MODEL_NAME = "TEST";
-    private static final String DEFAULT_STRING_VALUE = "";
-    private static final int DEFAULT_INTEGER_VALUE = 0;
-    private static final float DEFAULT_FLOAT_VALUE = 0f;
     private static final int MODEL_YEAR = 2020;
     private static final String MODEL_YEAR_STRING = "2020";
     private static final float FAKE_CAPACITY = 2.0f;
@@ -54,15 +49,9 @@ public class CarInfoManagerTest extends MockedCarTestBase {
     private static final List<Integer> EV_CONNECTOR_TYPES =
             Arrays.asList(android.car.EvConnectorType.GBT, android.car.EvConnectorType.GBT_DC);
     private CarInfoManager mCarInfoManager;
-    @Rule
-    public TestName mTestName = new TestName();
 
     @Override
     protected synchronized void configureMockedHal() {
-        // test if the sensor is unimplemented in cars.
-        if (mTestName.getMethodName().endsWith("unimplemented")) {
-            return;
-        }
         addStaticProperty(VehicleProperty.INFO_MAKE,
                 VehiclePropValueBuilder.newBuilder(VehicleProperty.INFO_MAKE)
                         .setStringValue(MAKE_NAME)
@@ -112,18 +101,8 @@ public class CarInfoManagerTest extends MockedCarTestBase {
     }
 
     @Test
-    public void testVehicleId_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getVehicleId()).isEqualTo(DEFAULT_STRING_VALUE);
-    }
-
-    @Test
     public void testManufacturer() throws Exception {
         assertThat(mCarInfoManager.getManufacturer()).isEqualTo(MAKE_NAME);
-    }
-
-    @Test
-    public void testManufacturer_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getManufacturer()).isEqualTo(DEFAULT_STRING_VALUE);
     }
 
     @Test
@@ -132,30 +111,14 @@ public class CarInfoManagerTest extends MockedCarTestBase {
     }
 
     @Test
-    public void testGetModel_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getModel()).isEqualTo(DEFAULT_STRING_VALUE);
-    }
-
-    @Test
     public void testGetFuelType() throws Exception {
-        assertThat(mCarInfoManager.getFuelTypes()).asList()
-                .containsAtLeastElementsIn(FUEL_TYPES).inOrder();
-    }
-
-    @Test
-    public void testGetFuelType_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getFuelTypes()).isEmpty();
+        assertThat(mCarInfoManager.getFuelTypes()).asList().containsAllIn(FUEL_TYPES).inOrder();
     }
 
     @Test
     public void testGetEvConnectorTypes() throws Exception {
-        assertThat(mCarInfoManager.getEvConnectorTypes()).asList()
-                .containsAtLeastElementsIn(EV_CONNECTOR_TYPES).inOrder();
-    }
-
-    @Test
-    public void testGetEvConnectorTypes_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getEvConnectorTypes()).isEmpty();
+        assertThat(mCarInfoManager.getEvConnectorTypes()).asList().containsAllIn(EV_CONNECTOR_TYPES)
+                .inOrder();
     }
 
     @Test
@@ -165,21 +128,9 @@ public class CarInfoManagerTest extends MockedCarTestBase {
     }
 
     @Test
-    public void testGetModelYear_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getModelYear()).isEqualTo(DEFAULT_STRING_VALUE);
-        assertThat(mCarInfoManager.getModelYearInInteger()).isEqualTo(DEFAULT_INTEGER_VALUE);
-    }
-
-    @Test
     public void testGetPortDoorLocation() throws Exception {
         assertThat(mCarInfoManager.getEvPortLocation()).isEqualTo(PortLocationType.FRONT);
         assertThat(mCarInfoManager.getFuelDoorLocation()).isEqualTo(PortLocationType.FRONT_LEFT);
-    }
-
-    @Test
-    public void testGetPortDoorLocation_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getEvPortLocation()).isEqualTo(PortLocationType.UNKNOWN);
-        assertThat(mCarInfoManager.getFuelDoorLocation()).isEqualTo(PortLocationType.UNKNOWN);
     }
 
     @Test
@@ -189,18 +140,7 @@ public class CarInfoManagerTest extends MockedCarTestBase {
     }
 
     @Test
-    public void testGetCapacity_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getEvBatteryCapacity()).isEqualTo(DEFAULT_FLOAT_VALUE);
-        assertThat(mCarInfoManager.getFuelCapacity()).isEqualTo(DEFAULT_FLOAT_VALUE);
-    }
-
-    @Test
     public void testGetDriverSeat() throws Exception {
         assertThat(mCarInfoManager.getDriverSeat()).isEqualTo(VehicleAreaSeat.SEAT_ROW_1_LEFT);
-    }
-
-    @Test
-    public void testGetDriverSeat_unimplemented() throws Exception {
-        assertThat(mCarInfoManager.getDriverSeat()).isEqualTo(VehicleAreaSeat.SEAT_UNKNOWN);
     }
 }

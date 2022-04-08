@@ -94,7 +94,7 @@ public class CarPropertyServiceTest extends MockedCarTestBase {
 
     @Override
     protected synchronized void spyOnBeforeCarImplInit() {
-        mService = CarLocalServices.getService(CarPropertyService.class);
+        mService = getCarPropertyService();
         assertThat(mService).isNotNull();
         spyOn(mService);
     }
@@ -108,9 +108,9 @@ public class CarPropertyServiceTest extends MockedCarTestBase {
 
         Set<Integer> actualPropIds = new HashSet<Integer>(propIdCaptor.getAllValues());
         assertWithMessage("Should assign default values for missing property IDs")
-                .that(expectedPropIds).containsAtLeastElementsIn(actualPropIds.toArray());
+                .that(expectedPropIds).containsAllIn(actualPropIds.toArray());
         assertWithMessage("Missing registerListener for property IDs")
-                .that(actualPropIds).containsAtLeastElementsIn(expectedPropIds.toArray());
+                .that(actualPropIds).containsAllIn(expectedPropIds.toArray());
     }
 
     private static final class PropertyHandler implements VehicleHalPropertyHandler {

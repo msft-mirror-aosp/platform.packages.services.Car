@@ -18,7 +18,6 @@ package com.android.car;
 
 import android.car.hardware.CarSensorManager;
 import android.os.IBinder;
-
 import java.util.LinkedList;
 
 /**

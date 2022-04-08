@@ -16,9 +16,6 @@
 
 package com.android.car.hal;
 
-import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
-
 import android.car.Car;
 import android.car.VehicleHvacFanDirection;
 import android.car.VehiclePropertyIds;
@@ -32,8 +29,9 @@ import android.util.Log;
 
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.car.internal.PropertyPermissionMapping;
 import com.android.car.vehiclehal.VehiclePropValueBuilder;
+
+import com.google.common.truth.Truth;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -52,7 +50,7 @@ public class PropertyHalServiceIdsTest {
     public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private PropertyHalServiceIds mPropertyHalServiceIds;
-    private PropertyPermissionMapping mPermissionMapping;
+
     private static final String TAG = PropertyHalServiceIdsTest.class.getSimpleName();
     private static final int VENDOR_PROPERTY_1 = 0x21e01111;
     private static final int VENDOR_PROPERTY_2 = 0x21e01112;
@@ -94,7 +92,6 @@ public class PropertyHalServiceIdsTest {
     @Before
     public void setUp() {
         mPropertyHalServiceIds = new PropertyHalServiceIds();
-        mPermissionMapping = new PropertyPermissionMapping();
         // set up read permission and write permission to VENDOR_PROPERTY_1
         CONFIG_ARRAY.add(VENDOR_PROPERTY_1);
         CONFIG_ARRAY.add(VehicleVendorPermission.PERMISSION_DEFAULT);
@@ -120,18 +117,14 @@ public class PropertyHalServiceIdsTest {
      */
     @Test
     public void checkPermissionForSystemProperty() {
-        assertThat(mPropertyHalServiceIds.getReadPermission(VehiclePropertyIds.ENGINE_OIL_LEVEL))
-                .isEqualTo(Car.PERMISSION_CAR_ENGINE_DETAILED);
-        assertThat(mPropertyHalServiceIds.getWritePermission(VehiclePropertyIds.ENGINE_OIL_LEVEL))
-                .isNull();
-        assertThat(mPropertyHalServiceIds.getReadPermission(VehiclePropertyIds.HVAC_FAN_SPEED))
-                .isEqualTo(Car.PERMISSION_CONTROL_CAR_CLIMATE);
-        assertThat(mPropertyHalServiceIds.getWritePermission(VehiclePropertyIds.HVAC_FAN_SPEED))
-                .isEqualTo(Car.PERMISSION_CONTROL_CAR_CLIMATE);
-        assertThat(mPermissionMapping.getReadPermission(VehiclePropertyIds.HVAC_FAN_SPEED))
-                .isEqualTo(Car.PERMISSION_CONTROL_CAR_CLIMATE);
-        assertThat(mPermissionMapping.getWritePermission(VehiclePropertyIds.HVAC_FAN_SPEED))
-                .isEqualTo(Car.PERMISSION_CONTROL_CAR_CLIMATE);
+        Assert.assertEquals(Car.PERMISSION_CAR_ENGINE_DETAILED,
+                mPropertyHalServiceIds.getReadPermission(VehiclePropertyIds.ENGINE_OIL_LEVEL));
+        Assert.assertNull(
+                mPropertyHalServiceIds.getWritePermission(VehiclePropertyIds.ENGINE_OIL_LEVEL));
+        Assert.assertEquals(Car.PERMISSION_CONTROL_CAR_CLIMATE,
+                mPropertyHalServiceIds.getReadPermission(VehiclePropertyIds.HVAC_FAN_SPEED));
+        Assert.assertEquals(Car.PERMISSION_CONTROL_CAR_CLIMATE,
+                mPropertyHalServiceIds.getWritePermission(VehiclePropertyIds.HVAC_FAN_SPEED));
     }
     /**
      * Test {@link PropertyHalServiceIds#customizeVendorPermission(List)}
@@ -140,31 +133,28 @@ public class PropertyHalServiceIdsTest {
     public void checkPermissionForVendorProperty() {
         // test insert a valid config
         mPropertyHalServiceIds.customizeVendorPermission(CONFIG_ARRAY);
-        assertThat(mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_1))
-                .isEqualTo(Car.PERMISSION_VENDOR_EXTENSION);
-        assertThat(mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_1)).isNull();
 
-        assertThat(mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_2))
-                .isEqualTo(android.car.hardware.property
-                        .VehicleVendorPermission.PERMISSION_GET_CAR_VENDOR_CATEGORY_ENGINE);
-        assertThat(mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_2))
-                .isEqualTo(android.car.hardware.property
-                        .VehicleVendorPermission.PERMISSION_SET_CAR_VENDOR_CATEGORY_ENGINE);
+        Assert.assertEquals(Car.PERMISSION_VENDOR_EXTENSION,
+                mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_1));
+        Assert.assertNull(mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_1));
 
-        assertThat(mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_3))
-                .isEqualTo(android.car.hardware.property
-                        .VehicleVendorPermission.PERMISSION_GET_CAR_VENDOR_CATEGORY_INFO);
-        assertThat(mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_3))
-                .isEqualTo(Car.PERMISSION_VENDOR_EXTENSION);
+        Assert.assertEquals(android.car.hardware.property
+                        .VehicleVendorPermission.PERMISSION_GET_CAR_VENDOR_CATEGORY_ENGINE,
+                mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_2));
+        Assert.assertEquals(android.car.hardware.property
+                        .VehicleVendorPermission.PERMISSION_SET_CAR_VENDOR_CATEGORY_ENGINE,
+                mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_2));
 
-        assertThat(mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_4))
-                .isEqualTo(Car.PERMISSION_VENDOR_EXTENSION);
-        assertThat(mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_4))
-                .isEqualTo(Car.PERMISSION_VENDOR_EXTENSION);
-        assertThat(mPermissionMapping.getReadPermission(VENDOR_PROPERTY_4))
-                .isEqualTo(Car.PERMISSION_VENDOR_EXTENSION);
-        assertThat(mPermissionMapping.getWritePermission(VENDOR_PROPERTY_4))
-                .isEqualTo(Car.PERMISSION_VENDOR_EXTENSION);
+        Assert.assertEquals(android.car.hardware.property
+                        .VehicleVendorPermission.PERMISSION_GET_CAR_VENDOR_CATEGORY_INFO,
+                mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_3));
+        Assert.assertEquals(Car.PERMISSION_VENDOR_EXTENSION,
+                mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_3));
+
+        Assert.assertEquals(Car.PERMISSION_VENDOR_EXTENSION,
+                mPropertyHalServiceIds.getReadPermission(VENDOR_PROPERTY_4));
+        Assert.assertEquals(Car.PERMISSION_VENDOR_EXTENSION,
+                mPropertyHalServiceIds.getWritePermission(VENDOR_PROPERTY_4));
 
         // test insert invalid config
         try {
@@ -181,12 +171,10 @@ public class PropertyHalServiceIdsTest {
     @Test
     public void checkVendorPropertyId() {
         for (int vendorProp : VENDOR_PROPERTY_IDS) {
-            assertWithMessage("Property does not exist.").that(
-                    mPropertyHalServiceIds.isSupportedProperty(vendorProp)).isTrue();
+            Assert.assertTrue(mPropertyHalServiceIds.isSupportedProperty(vendorProp));
         }
         for (int systemProp : SYSTEM_PROPERTY_IDS) {
-            assertWithMessage("Property does not exist.").that(
-                    mPropertyHalServiceIds.isSupportedProperty(systemProp)).isTrue();
+            Assert.assertTrue(mPropertyHalServiceIds.isSupportedProperty(systemProp));
         }
     }
 
@@ -195,11 +183,14 @@ public class PropertyHalServiceIdsTest {
      */
     @Test
     public void testPayload() {
-        assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_VALID_VALUE)).isTrue();
-        assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_EXTRA_VALUE)).isFalse();
-        assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_INVALID_VALUE)).isFalse();
-        assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_INVALID_TYPE_VALUE)).isFalse();
-        assertThat(mPropertyHalServiceIds.checkPayload(HVAC_FAN_DIRECTIONS_VALID)).isTrue();
-        assertThat(mPropertyHalServiceIds.checkPayload(HVAC_FAN_DIRECTIONS_INVALID)).isFalse();
+        Truth.assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_VALID_VALUE)).isTrue();
+        Truth.assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_EXTRA_VALUE)).isFalse();
+        Truth.assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_INVALID_VALUE)).isFalse();
+        Truth.assertThat(mPropertyHalServiceIds.checkPayload(GEAR_WITH_INVALID_TYPE_VALUE))
+                .isFalse();
+
+        Truth.assertThat(mPropertyHalServiceIds.checkPayload(HVAC_FAN_DIRECTIONS_VALID)).isTrue();
+        Truth.assertThat(mPropertyHalServiceIds.checkPayload(HVAC_FAN_DIRECTIONS_INVALID))
+                .isFalse();
     }
 }

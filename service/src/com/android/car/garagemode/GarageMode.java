@@ -19,24 +19,18 @@ package com.android.car.garagemode;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.app.job.JobSnapshot;
-import android.car.user.CarUserManager;
-import android.car.user.CarUserManager.UserLifecycleEvent;
-import android.car.user.CarUserManager.UserLifecycleListener;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.UserHandle;
 import android.util.ArraySet;
 
 import com.android.car.CarLocalServices;
-import com.android.car.CarLog;
+import com.android.car.CarPowerManagementService;
 import com.android.car.CarStatsLogHelper;
-import com.android.car.power.CarPowerManagementService;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.utils.Slogf;
 
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -48,9 +42,7 @@ import java.util.concurrent.CompletableFuture;
  */
 
 class GarageMode {
-
-    private static final String TAG = CarLog.tagFor(GarageMode.class) + "_"
-            + GarageMode.class.getSimpleName();
+    private static final Logger LOG = new Logger("GarageMode");
 
     /**
      * When changing this field value, please update
@@ -70,7 +62,7 @@ class GarageMode {
     static final long JOB_SNAPSHOT_INITIAL_UPDATE_MS = 10_000; // 10 seconds
 
     private static final long JOB_SNAPSHOT_UPDATE_FREQUENCY_MS = 1_000; // 1 second
-    private static final long USER_STOP_CHECK_INTERVAL_MS = 100; // 100 milliseconds
+    private static final long USER_STOP_CHECK_INTERVAL = 10_000; // 10 secs
     private static final int ADDITIONAL_CHECKS_TO_DO = 1;
 
     private final Controller mController;
@@ -92,13 +84,13 @@ class GarageMode {
         @Override
         public void run() {
             if (!mGarageModeActive) {
-                Slogf.d(TAG, "Garage Mode is inactive. Stopping the idle-job checker.");
+                LOG.d("Garage Mode is inactive. Stopping the idle-job checker.");
                 finish();
                 return;
             }
             int numberRunning = numberOfIdleJobsRunning();
             if (numberRunning > 0) {
-                Slogf.d(TAG, "%d jobs are still running. Need to wait more ...", numberRunning);
+                LOG.d("" + numberRunning + " jobs are still running. Need to wait more ...");
                 synchronized (mLock) {
                     mAdditionalChecksToDo = ADDITIONAL_CHECKS_TO_DO;
                 }
@@ -107,7 +99,7 @@ class GarageMode {
                 // Are there any scheduled idle jobs that could run now?
                 int numberReadyToRun = numberOfPendingJobs();
                 if (numberReadyToRun == 0) {
-                    Slogf.d(TAG, "No jobs are running. No jobs are pending. Exiting Garage Mode.");
+                    LOG.d("No jobs are running. No jobs are pending. Exiting Garage Mode.");
                     finish();
                     return;
                 }
@@ -119,30 +111,15 @@ class GarageMode {
                     }
                 }
                 if (numAdditionalChecks == 0) {
-                    Slogf.d(TAG, "No jobs are running. Waited too long for %d pending jobs. Exiting"
-                            + " Garage Mode.", numberReadyToRun);
+                    LOG.d("No jobs are running. Waited too long for "
+                            + numberReadyToRun + " pending jobs. Exiting Garage Mode.");
                     finish();
                     return;
                 }
-                Slogf.d(TAG, "No jobs are running. Waiting %d more cycles for %d pending jobs.",
-                        numAdditionalChecks, numberReadyToRun);
+                LOG.d("No jobs are running. Waiting " + numAdditionalChecks
+                        + " more cycles for " + numberReadyToRun + " pending jobs.");
             }
             mHandler.postDelayed(mRunnable, JOB_SNAPSHOT_UPDATE_FREQUENCY_MS);
-        }
-    };
-
-    private final Runnable mStartBackgroundUsers = new Runnable() {
-        @Override
-        public void run() {
-            ArrayList<Integer> startedUsers = CarLocalServices.getService(CarUserService.class)
-                    .startAllBackgroundUsersInGarageMode();
-            Slogf.i(TAG, "Started background user during garage mode: %s", startedUsers);
-            synchronized (mLock) {
-                // Stop stopping background users if there is any users left from last Garage mode,
-                // they would be stopped later.
-                mBackgroundUserStopInProcess = false;
-                mStartedBackgroundUsers.addAll(startedUsers);
-            }
         }
     };
 
@@ -150,30 +127,34 @@ class GarageMode {
         @Override
         public void run() {
             int userToStop = UserHandle.USER_SYSTEM; // BG user never becomes system user.
+            int remainingUsersToStop = 0;
             synchronized (mLock) {
-                if (mStartedBackgroundUsers.isEmpty() || !mBackgroundUserStopInProcess) return;
+                remainingUsersToStop = mStartedBackgroundUsers.size();
+                if (remainingUsersToStop < 1) {
+                    return;
+                }
                 userToStop = mStartedBackgroundUsers.valueAt(0);
             }
             if (numberOfIdleJobsRunning() == 0) { // all jobs done or stopped.
                 // Keep user until job scheduling is stopped. Otherwise, it can crash jobs.
                 if (userToStop != UserHandle.USER_SYSTEM) {
-                    CarLocalServices.getService(CarUserService.class)
-                            .stopBackgroundUserInGagageMode(userToStop);
-                    Slogf.i(TAG, "Stopping background user:%d remaining users:%d", userToStop,
-                            mStartedBackgroundUsers.size() - 1);
+                    CarLocalServices.getService(CarUserService.class).stopBackgroundUser(
+                            userToStop);
+                    LOG.i("Stopping background user:" + userToStop + " remaining users:"
+                            + (remainingUsersToStop - 1));
                 }
                 synchronized (mLock) {
                     mStartedBackgroundUsers.remove(userToStop);
-                    if (mStartedBackgroundUsers.isEmpty()) {
-                        Slogf.i(TAG, "All background users have stopped");
-                        mBackgroundUserStopInProcess = false;
+                    if (mStartedBackgroundUsers.size() == 0) {
+                        LOG.i("All background users have stopped");
                         return;
                     }
                 }
             } else {
-                // Poll again later
-                mHandler.postDelayed(mStopUserCheckRunnable, USER_STOP_CHECK_INTERVAL_MS);
+                LOG.i("Waiting for jobs to finish, remaining users:" + remainingUsersToStop);
             }
+            // Poll again
+            mHandler.postDelayed(mStopUserCheckRunnable, USER_STOP_CHECK_INTERVAL);
         }
     };
 
@@ -182,16 +163,6 @@ class GarageMode {
     @GuardedBy("mLock")
     private ArraySet<Integer> mStartedBackgroundUsers = new ArraySet<>();
 
-    /**
-     * True when stopping of the background users is in process.
-     *
-     * <p> When garage mode exits, all background users started during GarageMode would be stopped
-     * one by one. mBackgroundUserStopInProcess would be true when stopping of the background users
-     * is in process.
-     */
-    @GuardedBy("mLock")
-    private boolean mBackgroundUserStopInProcess;
-
     GarageMode(Controller controller) {
         mGarageModeActive = false;
         mController = controller;
@@ -199,75 +170,40 @@ class GarageMode {
         mHandler = controller.getHandler();
     }
 
-    void init() {
-        CarLocalServices.getService(CarUserService.class)
-                .addUserLifecycleListener(mUserLifecycleListener);
-    }
-
-    void release() {
-        CarLocalServices.getService(CarUserService.class)
-                .removeUserLifecycleListener(mUserLifecycleListener);
-    }
-
-    /**
-     * When background users are queued to stop, this user lifecycle listener will ensure to stop
-     * them one by one by queuing next user when previous user is stopped.
-     */
-    private final UserLifecycleListener mUserLifecycleListener = new UserLifecycleListener() {
-        @Override
-        public void onEvent(UserLifecycleEvent event) {
-            if (event.getEventType() != CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED) return;
-
-            synchronized (mLock) {
-                if (mBackgroundUserStopInProcess) {
-                    mHandler.removeCallbacks(mStopUserCheckRunnable);
-                    Slogf.i(TAG, "Background user stopped event received. User Id: %d. Queueing to "
-                            + "stop next background user.", event.getUserId());
-                    mHandler.post(mStopUserCheckRunnable);
-                }
-            }
-        }
-    };
-
     boolean isGarageModeActive() {
         synchronized (mLock) {
             return mGarageModeActive;
         }
     }
 
-    @VisibleForTesting
-    ArraySet<Integer> getStartedBackgroundUsers() {
-        synchronized (mLock) {
-            return mStartedBackgroundUsers;
-        }
-    }
-
-    void dump(PrintWriter writer) {
+    List<String> dump() {
+        List<String> outString = new ArrayList<>();
         if (!mGarageModeActive) {
-            return;
+            return outString;
         }
-        writer.printf("GarageMode idle checker is %srunning\n",
-                (mIdleCheckerIsRunning ? "" : "not "));
+        outString.add("GarageMode idle checker is " + (mIdleCheckerIsRunning ? "" : "not ")
+                + "running");
         List<String> jobList = new ArrayList<>();
         int numJobs = getListOfIdleJobsRunning(jobList);
         if (numJobs > 0) {
-            writer.printf("GarageMode is waiting for %d jobs:\n", numJobs);
+            outString.add("GarageMode is waiting for " + numJobs + " jobs:");
             // Dump the names of the jobs that we are waiting for
             for (int idx = 0; idx < jobList.size(); idx++) {
-                writer.printf("   %d: %s\n", idx + 1, jobList.get(idx));
+                outString.add("   " + (idx + 1) + ": " + jobList.get(idx));
             }
         } else {
             // Dump the names of the pending jobs that we are waiting for
             numJobs = getListOfPendingJobs(jobList);
-            writer.printf("GarageMode is waiting for %d pending idle jobs:\n", jobList.size());
+            outString.add("GarageMode is waiting for " + jobList.size() + " pending idle jobs:");
             for (int idx = 0; idx < jobList.size(); idx++) {
-                writer.printf("   %d: %s\n", idx + 1, jobList.get(idx));
+                outString.add("   " + (idx + 1) + ": " + jobList.get(idx));
             }
         }
+        return outString;
     }
 
     void enterGarageMode(CompletableFuture<Void> future) {
-        Slogf.d(TAG, "Entering GarageMode");
+        LOG.d("Entering GarageMode");
         if (mCarPowerManagementService == null) {
             mCarPowerManagementService = CarLocalServices.getService(
                     CarPowerManagementService.class);
@@ -289,7 +225,11 @@ class GarageMode {
         broadcastSignalToJobScheduler(true);
         CarStatsLogHelper.logGarageModeStart();
         startMonitoringThread();
-        mHandler.post(mStartBackgroundUsers);
+        ArrayList<Integer> startedUsers =
+                CarLocalServices.getService(CarUserService.class).startAllBackgroundUsers();
+        synchronized (mLock) {
+            mStartedBackgroundUsers.addAll(startedUsers);
+        }
     }
 
     void cancel() {
@@ -308,7 +248,7 @@ class GarageMode {
     void finish() {
         synchronized (mLock) {
             if (!mIdleCheckerIsRunning) {
-                Slogf.i(TAG, "Finishing Garage Mode. Idle checker is not running.");
+                LOG.i("Finishing Garage Mode. Idle checker is not running.");
                 return;
             }
             mIdleCheckerIsRunning = false;
@@ -328,7 +268,7 @@ class GarageMode {
     }
 
     private void cleanupGarageMode() {
-        Slogf.d(TAG, "Cleaning up GarageMode");
+        LOG.d("Cleaning up GarageMode");
         synchronized (mLock) {
             mGarageModeActive = false;
             stopMonitoringThread();
@@ -342,13 +282,8 @@ class GarageMode {
     }
 
     private void startBackgroundUserStoppingLocked() {
-        synchronized (mLock) {
-            if (!mStartedBackgroundUsers.isEmpty() && !mBackgroundUserStopInProcess) {
-                Slogf.i(TAG, "Stopping of background user queued. Total background users to stop: "
-                        + "%d", mStartedBackgroundUsers.size());
-                mHandler.post(mStopUserCheckRunnable);
-                mBackgroundUserStopInProcess = true;
-            }
+        if (mStartedBackgroundUsers.size() > 0) {
+            mHandler.postDelayed(mStopUserCheckRunnable, USER_STOP_CHECK_INTERVAL);
         }
     }
 
@@ -358,11 +293,11 @@ class GarageMode {
             if (mFuture != null) {
                 mFuture.whenComplete((result, exception) -> {
                     if (exception == null) {
-                        Slogf.d(TAG, "GarageMode completed normally");
+                        LOG.d("GarageMode completed normally");
                     } else if (exception instanceof CancellationException) {
-                        Slogf.d(TAG, "GarageMode was canceled");
+                        LOG.d("GarageMode was canceled");
                     } else {
-                        Slogf.e(TAG, "GarageMode ended due to exception", exception);
+                        LOG.e("GarageMode ended due to exception: ", exception);
                     }
                     cleanupGarageMode();
                 });

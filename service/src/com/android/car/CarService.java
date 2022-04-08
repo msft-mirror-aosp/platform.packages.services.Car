@@ -30,14 +30,12 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-import android.os.Trace;
 import android.util.EventLog;
-import android.util.Slog;
+import android.util.Log;
 
-import com.android.car.internal.common.EventLogTags;
 import com.android.car.systeminterface.SystemInterface;
-import com.android.car.util.LimitedTimingsTraceLog;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.car.EventLogTags;
 import com.android.internal.util.RingBufferIndices;
 
 import java.io.FileDescriptor;
@@ -45,8 +43,6 @@ import java.io.PrintWriter;
 import java.util.NoSuchElementException;
 
 public class CarService extends Service {
-    public static final String CAR_SERVICE_INIT_TIMING_TAG = "CAR.InitTiming";
-    public static final int CAR_SERVICE_INIT_TIMING_MIN_DURATION_MS = 5;
 
     private static final boolean RESTART_CAR_SERVICE_WHEN_VHAL_CRASH = true;
 
@@ -54,23 +50,35 @@ public class CarService extends Service {
 
     private static final boolean IS_USER_BUILD = "user".equals(Build.TYPE);
 
+    private CanBusErrorNotifier mCanBusErrorNotifier;
     private ICarImpl mICarImpl;
     private IVehicle mVehicle;
 
     private String mVehicleInterfaceName;
 
+    // If 10 crashes of Vehicle HAL occurred within 10 minutes then thrown an exception in
+    // Car Service.
+    private final CrashTracker mVhalCrashTracker = new CrashTracker(
+            10,  // Max crash count.
+            10 * 60 * 1000,  // 10 minutes - sliding time window.
+            () -> {
+                if (IS_USER_BUILD) {
+                    Log.e(CarLog.TAG_SERVICE, "Vehicle HAL keeps crashing, notifying user...");
+                    mCanBusErrorNotifier.reportFailure(CarService.this);
+                } else {
+                    throw new RuntimeException(
+                            "Vehicle HAL crashed too many times in a given time frame");
+                }
+            }
+    );
+
     private final VehicleDeathRecipient mVehicleDeathRecipient = new VehicleDeathRecipient();
 
     @Override
     public void onCreate() {
-        LimitedTimingsTraceLog initTiming = new LimitedTimingsTraceLog(CAR_SERVICE_INIT_TIMING_TAG,
-                Trace.TRACE_TAG_SYSTEM_SERVER, CAR_SERVICE_INIT_TIMING_MIN_DURATION_MS);
-        initTiming.traceBegin("CarService.onCreate");
-
-        initTiming.traceBegin("getVehicle");
+        Log.i(CarLog.TAG_SERVICE, "Service onCreate");
+        mCanBusErrorNotifier = new CanBusErrorNotifier(this /* context */);
         mVehicle = getVehicle();
-        initTiming.traceEnd();
-
         EventLog.writeEvent(EventLogTags.CAR_SERVICE_CREATE, mVehicle == null ? 0 : 1);
 
         if (mVehicle == null) {
@@ -82,12 +90,13 @@ public class CarService extends Service {
             throw new IllegalStateException("Unable to get Vehicle HAL interface descriptor", e);
         }
 
-        Slog.i(CarLog.TAG_SERVICE, "Connected to " + mVehicleInterfaceName);
+        Log.i(CarLog.TAG_SERVICE, "Connected to " + mVehicleInterfaceName);
         EventLog.writeEvent(EventLogTags.CAR_SERVICE_CONNECTED, mVehicleInterfaceName);
 
         mICarImpl = new ICarImpl(this,
                 mVehicle,
                 SystemInterface.Builder.defaultSystemInterface(this).build(),
+                mCanBusErrorNotifier,
                 mVehicleInterfaceName);
         mICarImpl.init();
 
@@ -95,10 +104,7 @@ public class CarService extends Service {
 
         ServiceManager.addService("car_service", mICarImpl);
         SystemProperties.set("boot.car_service_created", "1");
-
         super.onCreate();
-
-        initTiming.traceEnd(); // "CarService.onCreate"
     }
 
     // onDestroy is best-effort and might not get called on shutdown/reboot. As such it is not
@@ -107,8 +113,9 @@ public class CarService extends Service {
     @Override
     public void onDestroy() {
         EventLog.writeEvent(EventLogTags.CAR_SERVICE_CREATE, mVehicle == null ? 0 : 1);
-        Slog.i(CarLog.TAG_SERVICE, "Service onDestroy");
+        Log.i(CarLog.TAG_SERVICE, "Service onDestroy");
         mICarImpl.release();
+        mCanBusErrorNotifier.removeFailureReport(this);
 
         if (mVehicle != null) {
             try {
@@ -155,6 +162,10 @@ public class CarService extends Service {
             vehicle = getVehicle();
         }
 
+        if (vehicle != null) {
+            mCanBusErrorNotifier.removeFailureReport(this);
+        }
+
         return vehicle;
     }
 
@@ -165,9 +176,9 @@ public class CarService extends Service {
         try {
             return android.hardware.automotive.vehicle.V2_0.IVehicle.getService(instanceName);
         } catch (RemoteException e) {
-            Slog.e(CarLog.TAG_SERVICE, "Failed to get IVehicle/" + instanceName + " service", e);
+            Log.e(CarLog.TAG_SERVICE, "Failed to get IVehicle/" + instanceName + " service", e);
         } catch (NoSuchElementException e) {
-            Slog.e(CarLog.TAG_SERVICE, "IVehicle/" + instanceName + " service not registered yet");
+            Log.e(CarLog.TAG_SERVICE, "IVehicle/" + instanceName + " service not registered yet");
         }
         return null;
     }
@@ -177,8 +188,34 @@ public class CarService extends Service {
         @Override
         public void serviceDied(long cookie) {
             EventLog.writeEvent(EventLogTags.CAR_SERVICE_VHAL_DIED, cookie);
-            Slog.wtf(CarLog.TAG_SERVICE, "***Vehicle HAL died. Car service will restart***");
-            Process.killProcess(Process.myPid());
+            if (RESTART_CAR_SERVICE_WHEN_VHAL_CRASH) {
+                Log.wtf(CarLog.TAG_SERVICE, "***Vehicle HAL died. Car service will restart***");
+                Process.killProcess(Process.myPid());
+                return;
+            }
+
+            Log.wtf(CarLog.TAG_SERVICE, "***Vehicle HAL died.***");
+
+            try {
+                mVehicle.unlinkToDeath(this);
+            } catch (RemoteException e) {
+                Log.e(CarLog.TAG_SERVICE, "Failed to unlinkToDeath", e);  // Log and continue.
+            }
+            mVehicle = null;
+
+            mVhalCrashTracker.crashDetected();
+
+            Log.i(CarLog.TAG_SERVICE, "Trying to reconnect to Vehicle HAL: " +
+                    mVehicleInterfaceName);
+            mVehicle = getVehicleWithTimeout(WAIT_FOR_VEHICLE_HAL_TIMEOUT_MS);
+            if (mVehicle == null) {
+                throw new IllegalStateException("Failed to reconnect to Vehicle HAL");
+            }
+
+            linkToDeath(mVehicle, this);
+
+            Log.i(CarLog.TAG_SERVICE, "Notifying car service Vehicle HAL reconnected...");
+            mICarImpl.vehicleHalReconnected(mVehicle);
         }
     }
 
@@ -200,8 +237,8 @@ public class CarService extends Service {
         private final Runnable mCallback;
 
         /**
-         * If maxCrashCountLimit number of crashes occurred within slidingWindowMillis time frame
-         * then call provided callback function.
+         * If maxCrashCountLimit number of crashes occurred within slidingWindowMillis time
+         * frame then call provided callback function.
          */
         CrashTracker(int maxCrashCountLimit, int slidingWindowMillis, Runnable callback) {
             mMaxCrashCountLimit = maxCrashCountLimit;

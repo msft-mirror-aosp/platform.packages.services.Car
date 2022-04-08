@@ -23,7 +23,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.util.Log;
-import android.util.Slog;
 
 import com.android.car.CarLog;
 
@@ -43,9 +42,6 @@ import java.util.List;
  *
  */
 public class CarAppMetadataReader {
-
-    private static final String TAG = CarLog.tagFor(CarAppMetadataReader.class);
-
     /** Name of the meta-data attribute of the Activity that denotes distraction optimized */
     private static final String DO_METADATA_ATTRIBUTE = "distractionOptimized";
 
@@ -76,8 +72,8 @@ public class CarAppMetadataReader {
 
         ActivityInfo[] activities = pkgInfo.activities;
         if (activities == null) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slog.d(TAG, "Null Activities for " + packageName);
+            if (Log.isLoggable(CarLog.TAG_PACKAGE, Log.DEBUG)) {
+                Log.d(CarLog.TAG_PACKAGE, "Null Activities for " + packageName);
             }
             return null;
         }
@@ -85,8 +81,8 @@ public class CarAppMetadataReader {
         for (ActivityInfo activity : activities) {
             Bundle mData = activity.metaData;
             if (mData != null && mData.getBoolean(DO_METADATA_ATTRIBUTE, false)) {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
-                    Slog.d(TAG,
+                if (Log.isLoggable(CarLog.TAG_PACKAGE, Log.DEBUG)) {
+                    Log.d(CarLog.TAG_PACKAGE,
                             "DO Activity:" + activity.packageName + "/" + activity.name);
                 }
                 optimizedActivityList.add(activity.name);

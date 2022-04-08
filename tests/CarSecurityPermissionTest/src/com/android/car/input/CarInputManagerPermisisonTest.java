@@ -18,14 +18,11 @@ package com.android.car.input;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.testng.Assert.assertThrows;
-import static org.testng.Assert.expectThrows;
 
 import android.car.Car;
-import android.car.CarOccupantZoneManager;
 import android.car.input.CarInputManager;
-import android.os.SystemClock;
-import android.view.KeyEvent;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.After;
@@ -33,12 +30,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
 
 /**
  * This class contains security permission tests for the {@link CarInputManager}'s system APIs.
  */
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(AndroidJUnit4.class)
 public class CarInputManagerPermisisonTest {
     private Car mCar;
 
@@ -48,7 +44,7 @@ public class CarInputManagerPermisisonTest {
     private CarInputManager.CarInputCaptureCallback mMockedCallback;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         mCar = Car.createCar(
                 InstrumentationRegistry.getInstrumentation().getTargetContext());
         assertThat(mCar).isNotNull();
@@ -62,24 +58,11 @@ public class CarInputManagerPermisisonTest {
     }
 
     @Test
-    public void testEnableFeaturePermission() {
+    public void testEnableFeaturePermission() throws Exception {
         assertThrows(SecurityException.class, () -> mCarInputManager.requestInputEventCapture(
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN,
-                new int[]{CarInputManager.INPUT_TYPE_ROTARY_NAVIGATION}, 0, mMockedCallback));
-    }
-
-    @Test
-    public void testInjectKeyEvent() {
-        long currentTime = SystemClock.uptimeMillis();
-        KeyEvent anyKeyEvent = new KeyEvent(/* downTime= */ currentTime,
-                /* eventTime= */ currentTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HOME,
-                /* repeat= */ 0);
-
-        SecurityException thrown = expectThrows(SecurityException.class,
-                () -> mCarInputManager.injectKeyEvent(anyKeyEvent,
-                        CarOccupantZoneManager.DISPLAY_TYPE_MAIN));
-        assertThat(thrown.getMessage()).isEqualTo(
-                "Injecting KeyEvent requires INJECT_EVENTS permission");
+                mMockedCallback,
+                CarInputManager.TARGET_DISPLAY_TYPE_MAIN,
+                new int[]{CarInputManager.INPUT_TYPE_ROTARY_NAVIGATION}, 0));
     }
 }
 

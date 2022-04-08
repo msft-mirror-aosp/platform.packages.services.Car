@@ -16,8 +16,6 @@
 
 package com.google.android.car.kitchensink.audio;
 
-import static com.google.android.car.kitchensink.audio.CarAudioInputTestFragment.getAudioInputLogTag;
-
 import android.car.media.CarAudioManager;
 import android.car.media.CarAudioPatchHandle;
 import android.media.AudioAttributes;
@@ -44,8 +42,8 @@ import java.util.Objects;
 import javax.annotation.concurrent.GuardedBy;
 
 public final class CarAudioZoneInputFragment extends Fragment {
-
-    private static final String TAG = getAudioInputLogTag(CarAudioZoneInputFragment.class);
+    private static final String TAG = "CAR.AUDIO.INPUT."
+            + CarAudioZoneInputFragment.class.getSimpleName();
     private static final boolean DEBUG = true;
 
     static final int PLAYING_STATE = 0;

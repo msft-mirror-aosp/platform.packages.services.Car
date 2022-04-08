@@ -15,8 +15,6 @@
  */
 package android.car.input;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEPRECATED_CODE;
-
 import android.annotation.CallSuper;
 import android.annotation.MainThread;
 import android.annotation.SystemApi;
@@ -34,8 +32,6 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.view.KeyEvent;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
@@ -52,16 +48,9 @@ import java.lang.ref.WeakReference;
  * <p>Also, you will need to register this service in the following configuration file:
  * {@code packages/services/Car/service/res/values/config.xml}
  *
- * @deprecated No longer needed after the new Car Input API was introduced (see
- *         {@link CarInputManager} for more details).
- *
- * @remove to be removed in T
- *
  * @hide
  */
 @SystemApi
-@Deprecated
-@ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
 public abstract class CarInputHandlingService extends Service {
     private static final String TAG = CarLibLog.TAG_INPUT;
     private static final boolean DBG = false;

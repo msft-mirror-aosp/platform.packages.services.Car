@@ -30,7 +30,6 @@ import android.content.res.TypedArray;
 import android.content.res.XmlResourceParser;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.Slog;
 import android.util.Xml;
 
 import org.xmlpull.v1.XmlPullParserException;
@@ -43,7 +42,7 @@ import java.util.List;
  * @hide
  */
 public final class CarUxRestrictionsConfigurationXmlParser {
-    private static final String TAG = CarLog.tagFor(CarUxRestrictionsConfigurationXmlParser.class);
+    private static final String TAG = "UxRConfigParser";
     private static final int UX_RESTRICTIONS_UNKNOWN = -1;
     private static final float INVALID_SPEED = -1f;
     // XML tags to parse
@@ -84,17 +83,17 @@ public final class CarUxRestrictionsConfigurationXmlParser {
 
         XmlResourceParser parser = mContext.getResources().getXml(xmlResource);
         if (parser == null) {
-            Slog.e(TAG, "Invalid Xml resource");
+            Log.e(TAG, "Invalid Xml resource");
             return null;
         }
 
         if (!traverseUntilStartTag(parser)) {
-            Slog.e(TAG, "XML root element invalid: " + parser.getName());
+            Log.e(TAG, "XML root element invalid: " + parser.getName());
             return null;
         }
 
         if (!traverseUntilEndOfDocument(parser)) {
-            Slog.e(TAG, "Could not parse XML to end");
+            Log.e(TAG, "Could not parse XML to end");
             return null;
         }
 
@@ -132,7 +131,7 @@ public final class CarUxRestrictionsConfigurationXmlParser {
                         mConfigBuilders.add(new CarUxRestrictionsConfiguration.Builder());
 
                         if (!mapDrivingStateToRestrictions(parser, attrs)) {
-                            Slog.e(TAG, "Could not map driving state to restriction.");
+                            Log.e(TAG, "Could not map driving state to restriction.");
                             return false;
                         }
                         break;
@@ -141,13 +140,13 @@ public final class CarUxRestrictionsConfigurationXmlParser {
                             // Failure to parse is automatically handled by falling back to
                             // defaults. Just log the information here.
                             if (Log.isLoggable(TAG, Log.INFO)) {
-                                Slog.i(TAG, "Error reading restrictions parameters. "
+                                Log.i(TAG, "Error reading restrictions parameters. "
                                         + "Falling back to platform defaults.");
                             }
                         }
                         break;
                     default:
-                        Slog.w(TAG, "Unknown class:" + parser.getName());
+                        Log.w(TAG, "Unknown class:" + parser.getName());
                 }
             }
         }
@@ -161,12 +160,12 @@ public final class CarUxRestrictionsConfigurationXmlParser {
     private boolean mapDrivingStateToRestrictions(XmlResourceParser parser, AttributeSet attrs)
             throws IOException, XmlPullParserException {
         if (parser == null || attrs == null) {
-            Slog.e(TAG, "Invalid arguments");
+            Log.e(TAG, "Invalid arguments");
             return false;
         }
         // The parser should be at the <RestrictionMapping> tag at this point.
         if (!RESTRICTION_MAPPING.equals(parser.getName())) {
-            Slog.e(TAG, "Parser not at RestrictionMapping element: " + parser.getName());
+            Log.e(TAG, "Parser not at RestrictionMapping element: " + parser.getName());
             return false;
         }
         {
@@ -176,14 +175,14 @@ public final class CarUxRestrictionsConfigurationXmlParser {
             if (a.hasValue(R.styleable.UxRestrictions_RestrictionMapping_physicalPort)) {
                 int portValue = a.getInt(
                         R.styleable.UxRestrictions_RestrictionMapping_physicalPort, 0);
-                int port = CarUxRestrictionsConfiguration.Builder.validatePort(portValue);
+                byte port = CarUxRestrictionsConfiguration.Builder.validatePort(portValue);
                 getCurrentBuilder().setPhysicalPort(port);
             }
             a.recycle();
         }
 
         if (!traverseToTag(parser, DRIVING_STATE)) {
-            Slog.e(TAG, "No <" + DRIVING_STATE + "> tag in XML");
+            Log.e(TAG, "No <" + DRIVING_STATE + "> tag in XML");
             return false;
         }
         // Handle all the <DrivingState> tags.
@@ -202,14 +201,14 @@ public final class CarUxRestrictionsConfigurationXmlParser {
 
                 // 2. Traverse to the <Restrictions> tag
                 if (!traverseToTag(parser, RESTRICTIONS)) {
-                    Slog.e(TAG, "No <" + RESTRICTIONS + "> tag in XML");
+                    Log.e(TAG, "No <" + RESTRICTIONS + "> tag in XML");
                     return false;
                 }
 
                 // 3. Parse the restrictions for this driving state
                 Builder.SpeedRange speedRange = parseSpeedRange(minSpeed, maxSpeed);
                 if (!parseAllRestrictions(parser, attrs, drivingState, speedRange)) {
-                    Slog.e(TAG, "Could not parse restrictions for driving state:" + drivingState);
+                    Log.e(TAG, "Could not parse restrictions for driving state:" + drivingState);
                     return false;
                 }
             }
@@ -225,12 +224,12 @@ public final class CarUxRestrictionsConfigurationXmlParser {
             int drivingState, Builder.SpeedRange speedRange)
             throws IOException, XmlPullParserException {
         if (parser == null || attrs == null) {
-            Slog.e(TAG, "Invalid arguments");
+            Log.e(TAG, "Invalid arguments");
             return false;
         }
         // The parser should be at the <Restrictions> tag at this point.
         if (!RESTRICTIONS.equals(parser.getName())) {
-            Slog.e(TAG, "Parser not at Restrictions element: " + parser.getName());
+            Log.e(TAG, "Parser not at Restrictions element: " + parser.getName());
             return false;
         }
         while (RESTRICTIONS.equals(parser.getName())) {
@@ -238,13 +237,13 @@ public final class CarUxRestrictionsConfigurationXmlParser {
                 // Parse one restrictions tag.
                 DrivingStateRestrictions restrictions = parseRestrictions(parser, attrs);
                 if (restrictions == null) {
-                    Slog.e(TAG, "");
+                    Log.e(TAG, "");
                     return false;
                 }
                 restrictions.setSpeedRange(speedRange);
 
                 if (Log.isLoggable(TAG, Log.DEBUG)) {
-                    Slog.d(TAG, "Map " + drivingState + " : " + restrictions);
+                    Log.d(TAG, "Map " + drivingState + " : " + restrictions);
                 }
 
                 // Update the builder if the driving state and restrictions info are valid.
@@ -266,7 +265,7 @@ public final class CarUxRestrictionsConfigurationXmlParser {
     private DrivingStateRestrictions parseRestrictions(XmlResourceParser parser, AttributeSet attrs)
             throws IOException, XmlPullParserException {
         if (parser == null || attrs == null) {
-            Slog.e(TAG, "Invalid Arguments");
+            Log.e(TAG, "Invalid Arguments");
             return null;
         }
 
@@ -325,12 +324,12 @@ public final class CarUxRestrictionsConfigurationXmlParser {
     private boolean parseRestrictionParameters(XmlResourceParser parser, AttributeSet attrs)
             throws IOException, XmlPullParserException {
         if (parser == null || attrs == null) {
-            Slog.e(TAG, "Invalid arguments");
+            Log.e(TAG, "Invalid arguments");
             return false;
         }
         // The parser should be at the <RestrictionParameters> tag at this point.
         if (!RESTRICTION_PARAMETERS.equals(parser.getName())) {
-            Slog.e(TAG, "Parser not at RestrictionParameters element: " + parser.getName());
+            Log.e(TAG, "Parser not at RestrictionParameters element: " + parser.getName());
             return false;
         }
         while (parser.getEventType() != XmlResourceParser.END_DOCUMENT) {
@@ -363,7 +362,7 @@ public final class CarUxRestrictionsConfigurationXmlParser {
                         break;
                     default:
                         if (Log.isLoggable(TAG, Log.DEBUG)) {
-                            Slog.d(TAG, "Unsupported Restriction Parameters in XML: "
+                            Log.d(TAG, "Unsupported Restriction Parameters in XML: "
                                     + parser.getName());
                         }
                         break;

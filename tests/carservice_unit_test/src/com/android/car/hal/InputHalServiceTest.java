@@ -15,9 +15,6 @@
  */
 package com.android.car.hal;
 
-import static android.car.CarOccupantZoneManager.DisplayTypeEnum;
-import static android.hardware.automotive.vehicle.V2_0.CustomInputType.CUSTOM_EVENT_F1;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -30,17 +27,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.car.CarOccupantZoneManager;
-import android.car.input.CarInputManager;
-import android.car.input.CustomInputEvent;
-import android.car.input.RotaryEvent;
-import android.hardware.automotive.vehicle.V2_0.RotaryInputType;
-import android.hardware.automotive.vehicle.V2_0.VehicleDisplay;
 import android.hardware.automotive.vehicle.V2_0.VehicleHwKeyInputAction;
 import android.hardware.automotive.vehicle.V2_0.VehiclePropConfig;
 import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
 import android.hardware.automotive.vehicle.V2_0.VehicleProperty;
-import android.view.Display;
 import android.view.KeyEvent;
 
 import androidx.test.filters.RequiresDevice;
@@ -73,10 +63,9 @@ public class InputHalServiceTest {
             VehiclePropConfigBuilder.newBuilder(VehicleProperty.HW_KEY_INPUT).build();
     private static final VehiclePropConfig HW_ROTARY_INPUT_CONFIG =
             VehiclePropConfigBuilder.newBuilder(VehicleProperty.HW_ROTARY_INPUT).build();
-    private static final VehiclePropConfig HW_CUSTOM_INPUT_CONFIG =
-            VehiclePropConfigBuilder.newBuilder(VehicleProperty.HW_CUSTOM_INPUT).build();
+    private static final int DISPLAY = 42;
 
-    private enum Key {DOWN, UP}
+    private enum Key { DOWN, UP }
 
     private InputHalService mInputHalService;
 
@@ -99,9 +88,8 @@ public class InputHalServiceTest {
 
         mInputHalService.setInputListener(mInputListener);
 
-        int anyDisplay = VehicleDisplay.MAIN;
         mInputHalService.onHalEvents(
-                ImmutableList.of(makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_ENTER, anyDisplay)));
+                ImmutableList.of(makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_ENTER)));
         verify(mInputListener, never()).onKeyEvent(any(), anyInt());
     }
 
@@ -116,7 +104,6 @@ public class InputHalServiceTest {
 
         assertThat(mInputHalService.isKeyInputSupported()).isTrue();
         assertThat(mInputHalService.isRotaryInputSupported()).isFalse();
-        assertThat(mInputHalService.isCustomInputSupported()).isFalse();
     }
 
     @Test
@@ -130,62 +117,33 @@ public class InputHalServiceTest {
 
         assertThat(mInputHalService.isRotaryInputSupported()).isTrue();
         assertThat(mInputHalService.isKeyInputSupported()).isFalse();
-        assertThat(mInputHalService.isCustomInputSupported()).isFalse();
     }
 
     @Test
-    public void takesCustomInputProperty() {
-        Set<VehiclePropConfig> offeredProps = ImmutableSet.of(
-                VehiclePropConfigBuilder.newBuilder(VehicleProperty.ABS_ACTIVE).build(),
-                HW_CUSTOM_INPUT_CONFIG,
-                VehiclePropConfigBuilder.newBuilder(VehicleProperty.CURRENT_GEAR).build());
-
-        mInputHalService.takeProperties(offeredProps);
-
-        assertThat(mInputHalService.isRotaryInputSupported()).isFalse();
-        assertThat(mInputHalService.isKeyInputSupported()).isFalse();
-        assertThat(mInputHalService.isCustomInputSupported()).isTrue();
-    }
-
-    @Test
-    public void takesKeyAndRotaryAndCustomInputProperty() {
+    public void takesKeyAndRotaryInputProperty() {
         Set<VehiclePropConfig> offeredProps = ImmutableSet.of(
                 VehiclePropConfigBuilder.newBuilder(VehicleProperty.ABS_ACTIVE).build(),
                 HW_KEY_INPUT_CONFIG,
                 HW_ROTARY_INPUT_CONFIG,
-                HW_CUSTOM_INPUT_CONFIG,
                 VehiclePropConfigBuilder.newBuilder(VehicleProperty.CURRENT_GEAR).build());
 
         mInputHalService.takeProperties(offeredProps);
 
         assertThat(mInputHalService.isKeyInputSupported()).isTrue();
         assertThat(mInputHalService.isRotaryInputSupported()).isTrue();
-        assertThat(mInputHalService.isCustomInputSupported()).isTrue();
     }
 
     @Test
-    public void dispatchesInputEvent_single_toListener_mainDisplay() {
+    public void dispatchesInputEvent_single_toListener() {
         subscribeListener();
 
-        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER);
         assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
     }
 
     @Test
-    public void dispatchesInputEvent_single_toListener_clusterDisplay() {
-        subscribeListener();
-
-        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER,
-                VehicleDisplay.INSTRUMENT_CLUSTER,
-                CarOccupantZoneManager.DISPLAY_TYPE_INSTRUMENT_CLUSTER);
-        assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
-        assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
-    }
-
-    @Test
-    public void dispatchesInputEvent_multiple_toListener_mainDisplay() {
+    public void dispatchesInputEvent_multiple_toListener() {
         subscribeListener();
 
         // KeyEvents get recycled, so we can't just use ArgumentCaptor#getAllValues here.
@@ -195,12 +153,12 @@ public class InputHalServiceTest {
             KeyEvent event = inv.getArgument(0);
             events.add(event.copy());
             return null;
-        }).when(mInputListener).onKeyEvent(any(), eq(CarOccupantZoneManager.DISPLAY_TYPE_MAIN));
+        }).when(mInputListener).onKeyEvent(any(), eq(DISPLAY));
 
         mInputHalService.onHalEvents(
                 ImmutableList.of(
-                        makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN),
-                        makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_MENU, VehicleDisplay.MAIN)));
+                        makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_ENTER),
+                        makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_MENU)));
 
         assertThat(events.get(0).getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
         assertThat(events.get(1).getKeyCode()).isEqualTo(KeyEvent.KEYCODE_MENU);
@@ -209,38 +167,10 @@ public class InputHalServiceTest {
     }
 
     @Test
-    public void dispatchesInputEvent_multiple_toListener_clusterDisplay() {
+    public void handlesRepeatedKeys() {
         subscribeListener();
 
-        // KeyEvents get recycled, so we can't just use ArgumentCaptor#getAllValues here.
-        // We need to make a copy of the information we need at the time of the call.
-        List<KeyEvent> events = new ArrayList<>();
-        doAnswer(inv -> {
-            KeyEvent event = inv.getArgument(0);
-            events.add(event.copy());
-            return null;
-        }).when(mInputListener).onKeyEvent(any(),
-                eq(CarOccupantZoneManager.DISPLAY_TYPE_INSTRUMENT_CLUSTER));
-
-        mInputHalService.onHalEvents(
-                ImmutableList.of(
-                        makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_ENTER,
-                                VehicleDisplay.INSTRUMENT_CLUSTER),
-                        makeKeyPropValue(Key.DOWN, KeyEvent.KEYCODE_MENU,
-                                VehicleDisplay.INSTRUMENT_CLUSTER)));
-
-        assertThat(events.get(0).getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
-        assertThat(events.get(1).getKeyCode()).isEqualTo(KeyEvent.KEYCODE_MENU);
-
-        events.forEach(KeyEvent::recycle);
-    }
-
-    @Test
-    public void handlesRepeatedKeys_anyDisplay() {
-        subscribeListener();
-
-        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER);
         assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
         assertThat(event.getEventTime()).isEqualTo(0L);
@@ -248,8 +178,7 @@ public class InputHalServiceTest {
         assertThat(event.getRepeatCount()).isEqualTo(0);
 
         when(mUptimeSupplier.getAsLong()).thenReturn(5L);
-        event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER);
 
         assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
@@ -258,8 +187,7 @@ public class InputHalServiceTest {
         assertThat(event.getRepeatCount()).isEqualTo(1);
 
         when(mUptimeSupplier.getAsLong()).thenReturn(10L);
-        event = dispatchSingleEvent(Key.UP, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        event = dispatchSingleEvent(Key.UP, KeyEvent.KEYCODE_ENTER);
 
         assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_UP);
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
@@ -268,8 +196,7 @@ public class InputHalServiceTest {
         assertThat(event.getRepeatCount()).isEqualTo(0);
 
         when(mUptimeSupplier.getAsLong()).thenReturn(15L);
-        event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER);
 
         assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_ENTER);
@@ -283,10 +210,9 @@ public class InputHalServiceTest {
      */
     @RequiresDevice
     @Test
-    public void handlesRepeatedKeyWithIndents_anyDisplay() {
+    public void handlesRepeatedKeyWithIndents() {
         subscribeListener();
-        KeyEvent event = dispatchSingleEventWithIndents(KeyEvent.KEYCODE_VOLUME_UP, 5,
-                VehicleDisplay.MAIN, CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        KeyEvent event = dispatchSingleEventWithIndents(KeyEvent.KEYCODE_VOLUME_UP, 5);
         assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_VOLUME_UP);
         assertThat(event.getEventTime()).isEqualTo(0L);
@@ -294,8 +220,7 @@ public class InputHalServiceTest {
         assertThat(event.getRepeatCount()).isEqualTo(4);
 
         when(mUptimeSupplier.getAsLong()).thenReturn(5L);
-        event = dispatchSingleEventWithIndents(KeyEvent.KEYCODE_VOLUME_UP, 5,
-                VehicleDisplay.MAIN, CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        event = dispatchSingleEventWithIndents(KeyEvent.KEYCODE_VOLUME_UP, 5);
         assertThat(event.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_VOLUME_UP);
         assertThat(event.getEventTime()).isEqualTo(5L);
@@ -304,45 +229,26 @@ public class InputHalServiceTest {
     }
 
     @Test
-    public void handlesKeyUp_withoutKeyDown_mainDisplay() {
+    public void handlesKeyUp_withoutKeyDown() {
         subscribeListener();
 
         when(mUptimeSupplier.getAsLong()).thenReturn(42L);
-        KeyEvent event = dispatchSingleEvent(Key.UP, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        KeyEvent event = dispatchSingleEvent(Key.UP, KeyEvent.KEYCODE_ENTER);
 
         assertThat(event.getEventTime()).isEqualTo(42L);
         assertThat(event.getDownTime()).isEqualTo(42L);
         assertThat(event.getRepeatCount()).isEqualTo(0);
-        assertThat(event.getDisplayId()).isEqualTo(Display.DEFAULT_DISPLAY);
     }
 
     @Test
-    public void handlesKeyUp_withoutKeyDown_clusterDisplay() {
-        subscribeListener();
-
-        when(mUptimeSupplier.getAsLong()).thenReturn(42L);
-        KeyEvent event = dispatchSingleEvent(Key.UP, KeyEvent.KEYCODE_ENTER,
-                VehicleDisplay.INSTRUMENT_CLUSTER,
-                CarOccupantZoneManager.DISPLAY_TYPE_INSTRUMENT_CLUSTER);
-
-        assertThat(event.getEventTime()).isEqualTo(42L);
-        assertThat(event.getDownTime()).isEqualTo(42L);
-        assertThat(event.getRepeatCount()).isEqualTo(0);
-        // event.getDisplayId is not tested since it is assigned by CarInputService
-    }
-
-    @Test
-    public void separateKeyDownEvents_areIndependent_mainDisplay() {
+    public void separateKeyDownEvents_areIndependent() {
         subscribeListener();
 
         when(mUptimeSupplier.getAsLong()).thenReturn(27L);
-        dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER);
 
         when(mUptimeSupplier.getAsLong()).thenReturn(42L);
-        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_MENU, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_MENU);
 
         assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_MENU);
         assertThat(event.getDownTime()).isEqualTo(42L);
@@ -350,141 +256,73 @@ public class InputHalServiceTest {
     }
 
     @Test
-    public void separateKeyDownEvents_areIndependent_clusterDisplay() {
+    public void dispatchesRotaryEvent_singleVolumeUp_toListener() {
+        // TODO(b/151225008) Update this
+        /*
         subscribeListener();
 
-        when(mUptimeSupplier.getAsLong()).thenReturn(27L);
-        dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_ENTER, VehicleDisplay.INSTRUMENT_CLUSTER,
-                CarOccupantZoneManager.DISPLAY_TYPE_INSTRUMENT_CLUSTER);
-
-        when(mUptimeSupplier.getAsLong()).thenReturn(42L);
-        KeyEvent event = dispatchSingleEvent(Key.DOWN, KeyEvent.KEYCODE_MENU, VehicleDisplay.MAIN,
-                CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
-
-        assertThat(event.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_MENU);
-        assertThat(event.getDownTime()).isEqualTo(42L);
-        assertThat(event.getRepeatCount()).isEqualTo(0);
-        // event.getDisplayid is not tested since it is assigned by CarInputService
-    }
-
-    @Test
-    public void dispatchesRotaryEvent_singleVolumeUp_anyDisplay() {
-        subscribeListener();
-
-        // Arrange mInputListener to capture incoming RotaryEvent
-        List<RotaryEvent> events = new ArrayList<>();
-        doAnswer(invocation -> {
-            RotaryEvent event = invocation.getArgument(0);
-            events.add(event);
+        // KeyEvents get recycled, so we can't just use ArgumentCaptor#getAllValues here.
+        // We need to make a copy of the information we need at the time of the call.
+        List<KeyEvent> events = new ArrayList<>();
+        doAnswer(inv -> {
+            KeyEvent event = inv.getArgument(0);
+            events.add(event.copy());
             return null;
-        }).when(mInputListener).onRotaryEvent(any(), eq(CarOccupantZoneManager.DISPLAY_TYPE_MAIN));
+        }).when(mInputListener).onKeyEvent(any(), eq(DISPLAY));
 
-        // Arrange
-        long timestampNanos = 12_345_678_901L;
-
-        // Act
+        long timestampNanos = 12345678901L;
         mInputHalService.onHalEvents(ImmutableList.of(
                 makeRotaryPropValue(RotaryInputType.ROTARY_INPUT_TYPE_AUDIO_VOLUME, 1,
-                        timestampNanos, 0, VehicleDisplay.MAIN)));
+                        timestampNanos, 0)));
 
-        // Assert
+        long timestampMillis = timestampNanos / 1000000;
+        KeyEvent downEvent = events.get(0);
+        assertThat(downEvent.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_VOLUME_UP);
+        assertThat(downEvent.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
+        assertThat(downEvent.getEventTime()).isEqualTo(timestampMillis);
+        KeyEvent upEvent = events.get(1);
+        assertThat(upEvent.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_VOLUME_UP);
+        assertThat(upEvent.getAction()).isEqualTo(KeyEvent.ACTION_UP);
+        assertThat(upEvent.getEventTime()).isEqualTo(timestampMillis);
 
-        // Expected Rotary event to have only one value for uptimeMillisForClicks since the input
-        // property was created with one detent only. This value will correspond to the event
-        // startup time. See CarServiceUtils#getUptimeToElapsedTimeDeltaInMillis for more detailed
-        // information on how this value is calculated.
-        assertThat(events).containsExactly(new RotaryEvent(
-                /* inputType= */ CarInputManager.INPUT_TYPE_ROTARY_VOLUME,
-                /* clockwise= */ true,
-                /* uptimeMillisForClicks= */ new long[]{12345L}));
+        events.forEach(KeyEvent::recycle);*/
     }
 
     @Test
-    public void dispatchesRotaryEvent_multipleNavigatePrevious_anyDisplay() {
+    public void dispatchesRotaryEvent_multipleNavigatePrevious_toListener() {
+        // TODO(b/151225008) Update this
+        /*
         subscribeListener();
 
-        // Arrange mInputListener to capture incoming RotaryEvent
-        List<RotaryEvent> events = new ArrayList<>();
-        doAnswer(invocation -> {
-            RotaryEvent event = invocation.getArgument(0);
-            events.add(event);
+        // KeyEvents get recycled, so we can't just use ArgumentCaptor#getAllValues here.
+        // We need to make a copy of the information we need at the time of the call.
+        List<KeyEvent> events = new ArrayList<>();
+        doAnswer(inv -> {
+            KeyEvent event = inv.getArgument(0);
+            events.add(event.copy());
             return null;
-        }).when(mInputListener).onRotaryEvent(any(), eq(CarOccupantZoneManager.DISPLAY_TYPE_MAIN));
+        }).when(mInputListener).onKeyEvent(any(), eq(DISPLAY));
 
-        // Arrange
-        long timestampNanos = 12_345_000_000L;
-        int deltaNanos = 2_000_000;
+        long timestampNanos = 12345678901L;
+        int deltaNanos = 876543210;
         int numberOfDetents = 3;
-
-        // Act
         mInputHalService.onHalEvents(ImmutableList.of(
                 makeRotaryPropValue(RotaryInputType.ROTARY_INPUT_TYPE_SYSTEM_NAVIGATION,
-                        -numberOfDetents, timestampNanos, deltaNanos, VehicleDisplay.MAIN)));
+                        -numberOfDetents, timestampNanos, deltaNanos)));
 
-        // Assert
+        for (int i = 0; i < numberOfDetents; i++) {
+            long timestampMillis = (timestampNanos + i * (long) deltaNanos) / 1000000;
+            KeyEvent downEvent = events.get(i * 2);
+            assertThat(downEvent.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_NAVIGATE_PREVIOUS);
+            assertThat(downEvent.getAction()).isEqualTo(KeyEvent.ACTION_DOWN);
+            assertThat(downEvent.getEventTime()).isEqualTo(timestampMillis);
+            KeyEvent upEvent = events.get(i * 2 + 1);
+            assertThat(upEvent.getKeyCode()).isEqualTo(KeyEvent.KEYCODE_NAVIGATE_PREVIOUS);
+            assertThat(upEvent.getAction()).isEqualTo(KeyEvent.ACTION_UP);
+            assertThat(upEvent.getEventTime()).isEqualTo(timestampMillis);
+        }
 
-        // Expected Rotary event to have 3 values for uptimeMillisForClicks since the input
-        // property value was created with 3 detents. Each value in uptimeMillisForClicks
-        // represents the calculated deltas (in nanoseconds) between pairs of consecutive detents
-        // up times. See InputHalService#dispatchRotaryInput for more detailed information on how
-        // delta times are calculated.
-        assertThat(events).containsExactly(new RotaryEvent(
-                /* inputType= */CarInputManager.INPUT_TYPE_ROTARY_NAVIGATION,
-                /* clockwise= */ false,
-                /* uptimeMillisForClicks= */ new long[]{12345L, 12347L, 12349L}));
-    }
-
-    @Test
-    public void dispatchesCustomInputEvent_mainDisplay() {
-        // Arrange mInputListener to capture incoming CustomInputEvent
-        subscribeListener();
-
-        List<CustomInputEvent> events = new ArrayList<>();
-        doAnswer(invocation -> {
-            CustomInputEvent event = invocation.getArgument(0);
-            events.add(event);
-            return null;
-        }).when(mInputListener).onCustomInputEvent(any());
-
-        // Arrange
-        int repeatCounter = 1;
-        VehiclePropValue customInputPropValue = makeCustomInputPropValue(
-                CUSTOM_EVENT_F1, VehicleDisplay.MAIN, repeatCounter);
-
-        // Act
-        mInputHalService.onHalEvents(ImmutableList.of(customInputPropValue));
-
-        // Assert
-        assertThat(events).containsExactly(new CustomInputEvent(
-                CustomInputEvent.INPUT_CODE_F1, CarOccupantZoneManager.DISPLAY_TYPE_MAIN,
-                repeatCounter));
-    }
-
-    @Test
-    public void dispatchesCustomInputEvent_clusterDisplay() {
-        // Arrange mInputListener to capture incoming CustomInputEvent
-        subscribeListener();
-
-        List<CustomInputEvent> events = new ArrayList<>();
-        doAnswer(invocation -> {
-            CustomInputEvent event = invocation.getArgument(0);
-            events.add(event);
-            return null;
-        }).when(mInputListener).onCustomInputEvent(any());
-
-        // Arrange
-        int repeatCounter = 1;
-        VehiclePropValue customInputPropValue = makeCustomInputPropValue(
-                CUSTOM_EVENT_F1, VehicleDisplay.INSTRUMENT_CLUSTER, repeatCounter);
-
-        // Act
-        mInputHalService.onHalEvents(ImmutableList.of(customInputPropValue));
-
-        // Assert
-        assertThat(events).containsExactly(new CustomInputEvent(
-                CustomInputEvent.INPUT_CODE_F1,
-                CarOccupantZoneManager.DISPLAY_TYPE_INSTRUMENT_CLUSTER,
-                repeatCounter));
+        events.forEach(KeyEvent::recycle);*/
     }
 
     private void subscribeListener() {
@@ -495,31 +333,8 @@ public class InputHalServiceTest {
         verify(mVehicleHal).subscribeProperty(mInputHalService, VehicleProperty.HW_KEY_INPUT);
     }
 
-    private KeyEvent dispatchSingleEvent(Key action, int code, int actualDisplay,
-            @DisplayTypeEnum int expectedDisplay) {
-        ArgumentCaptor<KeyEvent> captor = ArgumentCaptor.forClass(KeyEvent.class);
-        reset(mInputListener);
-        mInputHalService.onHalEvents(
-                ImmutableList.of(makeKeyPropValue(action, code, actualDisplay)));
-        verify(mInputListener).onKeyEvent(captor.capture(), eq(expectedDisplay));
-        reset(mInputListener);
-        return captor.getValue();
-    }
 
-    private KeyEvent dispatchSingleEventWithIndents(int code, int indents, int actualDisplay,
-            @DisplayTypeEnum int expectedDisplay) {
-        ArgumentCaptor<KeyEvent> captor = ArgumentCaptor.forClass(KeyEvent.class);
-        reset(mInputListener);
-        mInputHalService.onHalEvents(
-                ImmutableList.of(makeKeyPropValueWithIndents(code, indents, actualDisplay)));
-        verify(mInputListener, times(indents)).onKeyEvent(captor.capture(),
-                eq(expectedDisplay));
-        reset(mInputListener);
-        return captor.getValue();
-    }
-
-    private VehiclePropValue makeKeyPropValue(Key action, int code,
-            @DisplayTypeEnum int targetDisplayType) {
+    private VehiclePropValue makeKeyPropValue(Key action, int code) {
         VehiclePropValue v = new VehiclePropValue();
         v.prop = VehicleProperty.HW_KEY_INPUT;
         v.value.int32Values.add(
@@ -527,43 +342,51 @@ public class InputHalServiceTest {
                         ? VehicleHwKeyInputAction.ACTION_DOWN
                         : VehicleHwKeyInputAction.ACTION_UP));
         v.value.int32Values.add(code);
-        v.value.int32Values.add(targetDisplayType);
+        v.value.int32Values.add(DISPLAY);
         return v;
     }
 
-    private VehiclePropValue makeKeyPropValueWithIndents(int code, int indents,
-            @DisplayTypeEnum int targetDisplayType) {
+    private KeyEvent dispatchSingleEvent(Key action, int code) {
+        ArgumentCaptor<KeyEvent> captor = ArgumentCaptor.forClass(KeyEvent.class);
+        reset(mInputListener);
+        mInputHalService.onHalEvents(ImmutableList.of(makeKeyPropValue(action, code)));
+        verify(mInputListener).onKeyEvent(captor.capture(), eq(DISPLAY));
+        reset(mInputListener);
+        return captor.getValue();
+    }
+
+    private VehiclePropValue makeKeyPropValueWithIndents(int code, int indents) {
         VehiclePropValue v = new VehiclePropValue();
         v.prop = VehicleProperty.HW_KEY_INPUT;
         // Only Key.down can have indents.
         v.value.int32Values.add(VehicleHwKeyInputAction.ACTION_DOWN);
         v.value.int32Values.add(code);
-        v.value.int32Values.add(targetDisplayType);
+        v.value.int32Values.add(DISPLAY);
         v.value.int32Values.add(indents);
         return v;
     }
 
+    private KeyEvent dispatchSingleEventWithIndents(int code, int indents) {
+        ArgumentCaptor<KeyEvent> captor = ArgumentCaptor.forClass(KeyEvent.class);
+        reset(mInputListener);
+        mInputHalService.onHalEvents(
+                ImmutableList.of(makeKeyPropValueWithIndents(code, indents)));
+        verify(mInputListener, times(indents)).onKeyEvent(captor.capture(), eq(DISPLAY));
+        reset(mInputListener);
+        return captor.getValue();
+    }
+
     private VehiclePropValue makeRotaryPropValue(int rotaryInputType, int detents, long timestamp,
-            int delayBetweenDetents, @DisplayTypeEnum int targetDisplayType) {
+            int delayBetweenDetents) {
         VehiclePropValue v = new VehiclePropValue();
         v.prop = VehicleProperty.HW_ROTARY_INPUT;
         v.value.int32Values.add(rotaryInputType);
         v.value.int32Values.add(detents);
-        v.value.int32Values.add(targetDisplayType);
+        v.value.int32Values.add(DISPLAY);
         for (int i = 0; i < Math.abs(detents) - 1; i++) {
             v.value.int32Values.add(delayBetweenDetents);
         }
         v.timestamp = timestamp;
-        return v;
-    }
-
-    private VehiclePropValue makeCustomInputPropValue(int inputCode,
-            @DisplayTypeEnum int targetDisplayType, int repeatCounter) {
-        VehiclePropValue v = new VehiclePropValue();
-        v.prop = VehicleProperty.HW_CUSTOM_INPUT;
-        v.value.int32Values.add(inputCode);
-        v.value.int32Values.add(targetDisplayType);
-        v.value.int32Values.add(repeatCounter);
         return v;
     }
 }

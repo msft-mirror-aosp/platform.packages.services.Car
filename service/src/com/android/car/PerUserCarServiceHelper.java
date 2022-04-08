@@ -25,12 +25,12 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 import android.os.UserHandle;
-import android.util.IndentingPrintWriter;
-import android.util.Slog;
+import android.util.Log;
 
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,18 +41,17 @@ import java.util.List;
  *
  */
 public class PerUserCarServiceHelper implements CarServiceBase {
-
-    private static final String TAG = CarLog.tagFor(PerUserCarServiceHelper.class);
+    private static final String TAG = "PerUserCarSvcHelper";
     private static boolean DBG = false;
-
     private final Context mContext;
     private final CarUserService mUserService;
     private IPerUserCarService mPerUserCarService;
     // listener to call on a ServiceConnection to PerUserCarService
     private List<ServiceCallback> mServiceCallbacks;
+    private static final String EXTRA_USER_HANDLE = "android.intent.extra.user_handle";
     private final Object mServiceBindLock = new Object();
     @GuardedBy("mServiceBindLock")
-    private boolean mBound;
+    private boolean mBound = false;
 
     public PerUserCarServiceHelper(Context context, CarUserService userService) {
         mContext = context;
@@ -78,13 +77,13 @@ public class PerUserCarServiceHelper implements CarServiceBase {
 
     private final UserLifecycleListener mUserLifecycleListener = event -> {
         if (DBG) {
-            Slog.d(TAG, "onEvent(" + event + ")");
+            Log.d(TAG, "onEvent(" + event + ")");
         }
         if (CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING == event.getEventType()) {
             List<ServiceCallback> callbacks;
             int userId = event.getUserId();
             if (DBG) {
-                Slog.d(TAG, "User Switch Happened. New User" + userId);
+                Log.d(TAG, "User Switch Happened. New User" + userId);
             }
 
             // Before unbinding, notify the callbacks about unbinding from the service
@@ -114,7 +113,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             List<ServiceCallback> callbacks;
             if (DBG) {
-                Slog.d(TAG, "Connected to User Service");
+                Log.d(TAG, "Connected to User Service");
             }
             mPerUserCarService = IPerUserCarService.Stub.asInterface(service);
             if (mPerUserCarService != null) {
@@ -133,7 +132,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
         public void onServiceDisconnected(ComponentName componentName) {
             List<ServiceCallback> callbacks;
             if (DBG) {
-                Slog.d(TAG, "Disconnected from User Service");
+                Log.d(TAG, "Disconnected from User Service");
             }
             synchronized (mServiceBindLock) {
                 // copy the callbacks
@@ -152,7 +151,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
      */
     private void bindToPerUserCarService() {
         if (DBG) {
-            Slog.d(TAG, "Binding to User service");
+            Log.d(TAG, "Binding to User service");
         }
         Intent startIntent = new Intent(mContext, PerUserCarService.class);
         synchronized (mServiceBindLock) {
@@ -161,7 +160,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
                     mContext.BIND_AUTO_CREATE, UserHandle.CURRENT);
             // If valid connection not obtained, unbind
             if (!bindSuccess) {
-                Slog.e(TAG, "bindToPerUserCarService() failed to get valid connection");
+                Log.e(TAG, "bindToPerUserCarService() failed to get valid connection");
                 unbindFromPerUserCarService();
             }
         }
@@ -175,7 +174,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
             // mBound flag makes sure we are unbinding only when the service is bound.
             if (mBound) {
                 if (DBG) {
-                    Slog.d(TAG, "Unbinding from User Service");
+                    Log.d(TAG, "Unbinding from User Service");
                 }
                 mContext.unbindService(mUserServiceConnection);
                 mBound = false;
@@ -191,7 +190,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
     public void registerServiceCallback(ServiceCallback listener) {
         if (listener != null) {
             if (DBG) {
-                Slog.d(TAG, "Registering PerUserCarService Listener");
+                Log.d(TAG, "Registering PerUserCarService Listener");
             }
             synchronized (mServiceBindLock) {
                 mServiceCallbacks.add(listener);
@@ -205,7 +204,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
      */
     public void unregisterServiceCallback(ServiceCallback listener) {
         if (DBG) {
-            Slog.d(TAG, "Unregistering PerUserCarService Listener");
+            Log.d(TAG, "Unregistering PerUserCarService Listener");
         }
         if (listener != null) {
             synchronized (mServiceBindLock) {
@@ -237,18 +236,7 @@ public class PerUserCarServiceHelper implements CarServiceBase {
     }
 
     @Override
-    public final void dump(IndentingPrintWriter pw) {
-        pw.println("PerUserCarServiceHelper");
-        pw.increaseIndent();
-        synchronized (mServiceBindLock) {
-            pw.printf("bound: %b\n", mBound);
-            if (mServiceCallbacks == null) {
-                pw.println("no callbacks");
-            } else {
-                int size = mServiceCallbacks.size();
-                pw.printf("%d callback%s\n", size, (size > 1 ? "s" : ""));
-            }
-        }
-        pw.decreaseIndent();
+    public synchronized void dump(PrintWriter writer) {
+
     }
 }
