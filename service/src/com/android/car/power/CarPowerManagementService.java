@@ -110,6 +110,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
 
     public static final long INVALID_TIMEOUT = -1L;
 
+    public static final int NO_WAKEUP_BY_TIMER = -1;
+
     static final String TAG = CarLog.tagFor(CarPowerManagementService.class);
 
     private static final String WIFI_STATE_FILENAME = "wifi_state";
@@ -169,7 +171,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private final ArrayList<ICarPowerStateListener> mInternalPowerListeners = new ArrayList<>();
 
     @GuardedBy("mLock")
-    private final PowerListenerSet mListenersWeAreWaitingFor = new PowerListenerSet();
+    private final ArraySet<IBinder> mListenersWeAreWaitingFor = new ArraySet<>();
     @GuardedBy("mLock")
     private final LinkedList<CpmsState> mPendingPowerStates = new LinkedList<>();
     private final HandlerThread mHandlerThread = CarServiceUtils.getHandlerThread(
@@ -196,6 +198,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private boolean mWakeFromSimulatedSleep;
     @GuardedBy("mSimulationWaitObject")
     private boolean mInSimulatedDeepSleepMode;
+    @GuardedBy("mSimulationWaitObject")
+    private int mResumeDelayFromSimulatedSuspendSec = NO_WAKEUP_BY_TIMER;
 
     @GuardedBy("mLock")
     private CpmsState mCurrentState;
@@ -675,10 +679,14 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     || newState.mShutdownType == PowerState.SHUTDOWN_TYPE_POWER_OFF) {
                 mActionOnFinish = ACTION_ON_FINISH_SHUTDOWN;
             } else if (newState.mShutdownType == PowerState.SHUTDOWN_TYPE_DEEP_SLEEP) {
-                mActionOnFinish = isDeepSleepAvailable() ? ACTION_ON_FINISH_DEEP_SLEEP
+                boolean isDeepSleepOnFinish =
+                        isDeepSleepAvailable() || newState.mState == CpmsState.SIMULATE_SLEEP;
+                mActionOnFinish = isDeepSleepOnFinish ? ACTION_ON_FINISH_DEEP_SLEEP
                         : ACTION_ON_FINISH_SHUTDOWN;
             } else if (newState.mShutdownType == PowerState.SHUTDOWN_TYPE_HIBERNATION) {
-                mActionOnFinish = isHibernationAvailable() ? ACTION_ON_FINISH_HIBERNATION
+                boolean isHibernationOnFinish = isHibernationAvailable()
+                        || newState.mState == CpmsState.SIMULATE_HIBERNATION;
+                mActionOnFinish = isHibernationOnFinish ? ACTION_ON_FINISH_HIBERNATION
                         : ACTION_ON_FINISH_SHUTDOWN;
             } else {
                 Slogf.wtf(TAG, "handleShutdownPrepare - incorrect state " + newState);
@@ -1030,7 +1038,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 ICarPowerStateListener listener = mInternalPowerListeners.get(i);
                 completingInternalListeners.register(listener);
                 if (allowCompletion) {
-                    mListenersWeAreWaitingFor.add(listener);
+                    mListenersWeAreWaitingFor.add(listener.asBinder());
                 }
             }
             int idx = mPowerManagerListenersWithCompletion.beginBroadcast();
@@ -1068,7 +1076,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void doHandleDeepSleep(boolean simulatedMode) {
-        int status = applyPreemptivePowerPolicy(PolicyReader.POWER_POLICY_ID_SUSPEND_TO_RAM);
+        int status = applyPreemptivePowerPolicy(PolicyReader.POWER_POLICY_ID_SUSPEND_PREP);
         if (status != PolicyOperationStatus.OK) {
             Slogf.w(TAG, PolicyOperationStatus.errorCodeToString(status));
         }
@@ -1238,7 +1246,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             found = mInternalPowerListeners.remove(listener);
         }
         if (found) {
-            removeListenerFromWaitingList(listener);
+            removeListenerFromWaitingList(listener.asBinder());
         }
     }
 
@@ -1391,7 +1399,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
     }
 
-    private void handleListenerCompletion(int state, Object listener,
+    private void handleListenerCompletion(int state, ICarPowerStateListener listener,
             ArraySet<Integer> notAllowedStates) {
         synchronized (mLock) {
             if (notAllowedStates.contains(mStateForCompletion)) {
@@ -1405,7 +1413,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 return;
             }
         }
-        removeListenerFromWaitingList(listener);
+        removeListenerFromWaitingList(listener.asBinder());
     }
 
 
@@ -1418,9 +1426,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
     }
 
-    private void removeListenerFromWaitingList(Object listener) {
+    private void removeListenerFromWaitingList(IBinder binderListener) {
         synchronized (mLock) {
-            mListenersWeAreWaitingFor.remove(listener);
+            mListenersWeAreWaitingFor.remove(binderListener);
         }
         // Signals a thread to check if all listeners complete.
         mListenerCompletionSem.release();
@@ -1823,35 +1831,6 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
     }
 
-    private static final class PowerListenerSet {
-
-        private final ArraySet<Object> mListeners = new ArraySet();
-
-        public void clear() {
-            mListeners.clear();
-        }
-
-        public boolean isEmpty() {
-            return mListeners.isEmpty();
-        }
-
-        public void add(Object listener) {
-            if (isSupportedListener(listener)) {
-                mListeners.add(listener);
-            }
-        }
-
-        public void remove(Object listener) {
-            if (isSupportedListener(listener)) {
-                mListeners.remove(listener);
-            }
-        }
-
-        private boolean isSupportedListener(Object listener) {
-            return listener instanceof IBinder || listener instanceof ICarPowerStateListener;
-        }
-    }
-
     // Send the command to enter Suspend to RAM.
     // If the command is not successful, try again with an exponential back-off.
     // If it fails repeatedly, send the command to shut down.
@@ -2055,7 +2034,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
 
     /**
      * Resume after a manually-invoked suspend.
-     * Invoked using "adb shell dumpsys activity service com.android.car resume".
+     * Invoked using "adb shell dumpsys cmd car_service resume".
      */
     public void forceSimulatedResume() {
         synchronized (mLock) {
@@ -2085,29 +2064,19 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      * This is similar to {@code 'onApPowerStateChange()'} except that it needs to create a
      * {@code CpmsState} that is not directly derived from a {@code VehicleApPowerStateReq}.
      */
-    public void simulateSuspendAndMaybeReboot(boolean shouldReboot,
-            @PowerState.ShutdownType int shutdownType, boolean skipGarageMode) {
+    public void simulateSuspendAndMaybeReboot(@PowerState.ShutdownType int shutdownType,
+            boolean shouldReboot, boolean skipGarageMode, int wakeupAfter) {
         boolean isDeepSleep = shutdownType == PowerState.SHUTDOWN_TYPE_DEEP_SLEEP;
-        if (isDeepSleep) {
-            if (isDeepSleepAvailable()) {
-                throw new IllegalStateException("Can't simulate deep sleep: a real deep sleep is "
-                        + "supported by the device");
-            }
-        } else {
-            if (isHibernationAvailable()) {
-                throw new IllegalStateException("Can't simulate hibernation: a real hibernation is "
-                        + "supported by the device");
-            }
-        }
         synchronized (mSimulationWaitObject) {
             mInSimulatedDeepSleepMode = true;
             mWakeFromSimulatedSleep = false;
+            mResumeDelayFromSimulatedSuspendSec = wakeupAfter;
         }
         synchronized (mLock) {
             mRebootAfterGarageMode = shouldReboot;
             mPendingPowerStates.addFirst(new CpmsState(isDeepSleep ? CpmsState.SIMULATE_SLEEP
                             : CpmsState.SIMULATE_HIBERNATION,
-                    CarPowerManager.STATE_SHUTDOWN_PREPARE, !skipGarageMode));
+                    CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE, !skipGarageMode));
         }
         mHandler.handlePowerStateChange();
     }
@@ -2292,14 +2261,14 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             if (!isHibernationAvailable()) {
                 throw new IllegalStateException("The device doesn't support hibernation");
             }
-            param = skipGarageMode ? VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY
-                    : VehicleApPowerStateShutdownParam.CAN_SLEEP;
+            param = skipGarageMode ? VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY
+                    : VehicleApPowerStateShutdownParam.CAN_HIBERNATE;
         } else {
             if (!isDeepSleepAvailable()) {
                 throw new IllegalStateException("The device doesn't support deep sleep");
             }
-            param = skipGarageMode ? VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY
-                    : VehicleApPowerStateShutdownParam.CAN_HIBERNATE;
+            param = skipGarageMode ? VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY
+                    : VehicleApPowerStateShutdownParam.CAN_SLEEP;
         }
         PowerState state = new PowerState(VehicleApPowerStateReq.SHUTDOWN_PREPARE, param);
         synchronized (mLock) {
@@ -2313,14 +2282,15 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     /**
      * Powers off the device.
      */
-    public void powerOffFromCommand(boolean skipGarageMode) {
+    public void powerOffFromCommand(boolean skipGarageMode, boolean reboot) {
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CAR_POWER);
-        Slogf.i(TAG, "Powering off %s Garage Mode", skipGarageMode ? "with" : "without");
+        Slogf.i(TAG, "%s %s Garage Mode", reboot ? "Rebooting" : "Powering off",
+                skipGarageMode ? "with" : "without");
         int param = skipGarageMode ? VehicleApPowerStateShutdownParam.SHUTDOWN_IMMEDIATELY
                 : VehicleApPowerStateShutdownParam.SHUTDOWN_ONLY;
         PowerState state = new PowerState(VehicleApPowerStateReq.SHUTDOWN_PREPARE, param);
         synchronized (mLock) {
-            mRebootAfterGarageMode = false;
+            mRebootAfterGarageMode = reboot;
             mPendingPowerStates.addFirst(new CpmsState(state));
             mLock.notify();
         }
@@ -2384,6 +2354,13 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void simulateSleepByWaiting() {
         Slogf.i(TAG, "Starting to simulate Deep Sleep by waiting");
         synchronized (mSimulationWaitObject) {
+            if (mResumeDelayFromSimulatedSuspendSec >= 0) {
+                Slogf.i(TAG, "Scheduling a wakeup after %d seconds",
+                        mResumeDelayFromSimulatedSuspendSec);
+                Handler handler = new Handler(Looper.getMainLooper());
+                handler.postDelayed(() -> forceSimulatedResume(),
+                        mResumeDelayFromSimulatedSuspendSec * 1000);
+            }
             while (!mWakeFromSimulatedSleep) {
                 try {
                     mSimulationWaitObject.wait();

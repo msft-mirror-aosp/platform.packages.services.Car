@@ -155,7 +155,6 @@ public final class CarUxRestrictions implements Parcelable {
                     | UX_RESTRICTIONS_NO_SETUP | UX_RESTRICTIONS_NO_TEXT_MESSAGE
                     | UX_RESTRICTIONS_NO_VOICE_TRANSCRIPTION;
 
-    /** @hide */
     @IntDef(flag = true,
             prefix = {"UX_RESTRICTIONS_"},
             value = {UX_RESTRICTIONS_BASELINE,
@@ -247,6 +246,7 @@ public final class CarUxRestrictions implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public long getTimeStamp() {
         return mTimeStamp;
     }
@@ -362,6 +362,7 @@ public final class CarUxRestrictions implements Parcelable {
         dest.writeInt(mMaxContentDepth);
     }
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<CarUxRestrictions> CREATOR =
             new Parcelable.Creator<CarUxRestrictions>() {
         @Override
@@ -403,6 +404,7 @@ public final class CarUxRestrictions implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return "DO: " + mRequiresDistractionOptimization + " UxR: " + mActiveRestrictions
                 + " time: " + mTimeStamp;

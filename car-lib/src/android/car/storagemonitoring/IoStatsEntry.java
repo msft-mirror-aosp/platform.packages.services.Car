@@ -38,10 +38,15 @@ import java.util.Objects;
  * behalf of one user of the system, as collected by the kernel.
  *
  * @hide
+ *
+ * @deprecated use {@link android.car.watchdog.CarWatchdogManager} and its related classes
+ * for I/O related tasks.
  */
+@Deprecated
 @SystemApi
 public final class IoStatsEntry implements Parcelable {
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<IoStatsEntry> CREATOR =
             new Parcelable.Creator<IoStatsEntry>() {
 
@@ -117,11 +122,13 @@ public final class IoStatsEntry implements Parcelable {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(uid);
         dest.writeLong(runtimeMillis);
@@ -132,6 +139,7 @@ public final class IoStatsEntry implements Parcelable {
     /**
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToJson(JsonWriter jsonWriter) throws IOException {
         jsonWriter.beginObject();
         jsonWriter.name("uid").value(uid);
@@ -160,6 +168,7 @@ public final class IoStatsEntry implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public IoStatsEntry delta(IoStatsEntry other) {
         if (uid != other.uid) {
             throw new IllegalArgumentException("cannot calculate delta between different user IDs");
@@ -170,6 +179,7 @@ public final class IoStatsEntry implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object other) {
         if (other instanceof IoStatsEntry) {
             IoStatsEntry uidIoStatEntry = (IoStatsEntry) other;
@@ -183,11 +193,13 @@ public final class IoStatsEntry implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         return Objects.hash(uid, runtimeMillis, foreground, background);
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return String.format("uid = %d, runtime = %d, foreground = %s, background = %s",
             uid, runtimeMillis, foreground, background);
@@ -199,6 +211,7 @@ public final class IoStatsEntry implements Parcelable {
      * It matches UID, and I/O activity values, but ignores runtime.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public boolean representsSameMetrics(UidIoRecord record) {
         return record.uid == uid
                 && record.foreground_rchar == foreground.bytesRead
@@ -218,6 +231,7 @@ public final class IoStatsEntry implements Parcelable {
      */
     public static final class Metrics implements Parcelable {
 
+        @AddedInOrBefore(majorVersion = 33)
         public static final Parcelable.Creator<IoStatsEntry.Metrics> CREATOR =
                 new Parcelable.Creator<IoStatsEntry.Metrics>() {
             public IoStatsEntry.Metrics createFromParcel(Parcel in) {
@@ -273,11 +287,13 @@ public final class IoStatsEntry implements Parcelable {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public int describeContents() {
             return 0;
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeLong(bytesRead);
             dest.writeLong(bytesWritten);
@@ -289,6 +305,7 @@ public final class IoStatsEntry implements Parcelable {
         /**
          * @hide
          */
+        @AddedInOrBefore(majorVersion = 33)
         public void writeToJson(JsonWriter jsonWriter) throws IOException {
             jsonWriter.beginObject();
             jsonWriter.name("bytesRead").value(bytesRead);
@@ -327,6 +344,7 @@ public final class IoStatsEntry implements Parcelable {
          *
          * @hide
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Metrics delta(Metrics other) {
             return new Metrics(bytesRead - other.bytesRead,
                 bytesWritten - other.bytesWritten,
@@ -336,6 +354,7 @@ public final class IoStatsEntry implements Parcelable {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public boolean equals(Object other) {
             if (other instanceof Metrics) {
                 Metrics metrics = (Metrics) other;
@@ -350,12 +369,14 @@ public final class IoStatsEntry implements Parcelable {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public int hashCode() {
             return Objects.hash(bytesRead, bytesWritten, bytesReadFromStorage,
                 bytesWrittenToStorage, fsyncCalls);
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             return String.format("bytesRead=%d, bytesWritten=%d, bytesReadFromStorage=%d, "
                     + "bytesWrittenToStorage=%d, fsyncCalls=%d", bytesRead, bytesWritten,

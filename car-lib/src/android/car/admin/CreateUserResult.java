@@ -113,6 +113,7 @@ public final class CreateUserResult {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static CreateUserResult forGenericError() {
         return new CreateUserResult(null);
     }
@@ -146,6 +147,7 @@ public final class CreateUserResult {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         StringBuilder string = new StringBuilder("CreateUserResult[")
                 .append(statusToString(mStatus));

@@ -20,6 +20,7 @@
 #include "EvsGlDisplay.h"
 #include "EvsV4lCamera.h"
 
+#include <aidl/android/hardware/automotive/evs/DeviceStatusType.h>
 #include <aidl/android/hardware/automotive/evs/EvsResult.h>
 #include <aidl/android/hardware/automotive/evs/Rotation.h>
 #include <aidl/android/hardware/graphics/common/BufferUsage.h>
@@ -37,13 +38,14 @@
 
 namespace {
 
+using ::aidl::android::frameworks::automotive::display::ICarDisplayProxy;
+using ::aidl::android::hardware::automotive::evs::DeviceStatusType;
 using ::aidl::android::hardware::automotive::evs::EvsResult;
 using ::aidl::android::hardware::automotive::evs::Rotation;
 using ::aidl::android::hardware::graphics::common::BufferUsage;
 using ::android::base::EqualsIgnoreCase;
 using ::android::base::StringPrintf;
 using ::android::base::WriteStringToFd;
-using ::android::frameworks::automotive::display::V1_0::IAutomotiveDisplayProxyService;
 using ::ndk::ScopedAStatus;
 using std::chrono_literals::operator""s;
 
@@ -52,6 +54,7 @@ constexpr std::chrono::seconds kEnumerationTimeout = 10s;
 constexpr std::string_view kDevicePath = "/dev/";
 constexpr std::string_view kPrefix = "video";
 constexpr size_t kEventBufferSize = 512;
+constexpr uint64_t kInvalidDisplayId = std::numeric_limits<uint64_t>::max();
 const std::set<uid_t> kAllowedUids = {AID_AUTOMOTIVE_EVS, AID_SYSTEM, AID_ROOT};
 
 }  // namespace
@@ -66,12 +69,17 @@ std::weak_ptr<EvsGlDisplay> EvsEnumerator::sActiveDisplay;
 std::mutex EvsEnumerator::sLock;
 std::condition_variable EvsEnumerator::sCameraSignal;
 std::unique_ptr<ConfigManager> EvsEnumerator::sConfigManager;
-::android::sp<IAutomotiveDisplayProxyService> EvsEnumerator::sDisplayProxy;
+std::shared_ptr<ICarDisplayProxy> EvsEnumerator::sDisplayProxy;
 std::unordered_map<uint8_t, uint64_t> EvsEnumerator::sDisplayPortList;
-uint64_t EvsEnumerator::sInternalDisplayId;
 
-void EvsEnumerator::EvsHotplugThread(std::atomic<bool>& running) {
+void EvsEnumerator::EvsHotplugThread(std::shared_ptr<EvsEnumerator> service,
+                                     std::atomic<bool>& running) {
     // Watch new video devices
+    if (!service) {
+        LOG(ERROR) << "EvsEnumerator is invalid";
+        return;
+    }
+
     auto notifyFd = inotify_init();
     if (notifyFd < 0) {
         LOG(ERROR) << "Failed to initialize inotify.  Exiting a thread loop";
@@ -103,38 +111,25 @@ void EvsEnumerator::EvsHotplugThread(std::atomic<bool>& running) {
                 continue;
             }
 
-            std::string deviceId = std::string(kDevicePath) + std::string(event->name);
+            std::string deviceName = std::string(kDevicePath) + std::string(event->name);
             if (event->mask & IN_CREATE) {
-                // NOTE: we are here adding new device without a validation
-                CameraRecord cam(deviceId.data());
-                if (sConfigManager) {
-                    std::unique_ptr<ConfigManager::CameraInfo>& camInfo =
-                            sConfigManager->getCameraInfo(deviceId);
-                    if (camInfo) {
-                        uint8_t* ptr = reinterpret_cast<uint8_t*>(camInfo->characteristics);
-                        const size_t len = get_camera_metadata_size(camInfo->characteristics);
-                        cam.desc.metadata.insert(cam.desc.metadata.end(), ptr, ptr + len);
-                    }
-                }
-                {
-                    LOG(INFO) << "adding a camera " << deviceId;
-                    std::lock_guard<std::mutex> lock(sLock);
-                    sCameraList.insert_or_assign(deviceId, std::move(cam));
-                    sCameraSignal.notify_all();
+                if (addCaptureDevice(deviceName)) {
+                    service->notifyDeviceStatusChange(deviceName,
+                                                      DeviceStatusType::CAMERA_AVAILABLE);
                 }
             }
 
             if (event->mask & IN_DELETE) {
-                LOG(INFO) << "removing a camera " << deviceId;
-                std::lock_guard<std::mutex> lock(sLock);
-                sCameraList.erase(deviceId);
-                sCameraSignal.notify_all();
+                if (removeCaptureDevice(deviceName)) {
+                    service->notifyDeviceStatusChange(deviceName,
+                                                      DeviceStatusType::CAMERA_NOT_AVAILABLE);
+                }
             }
         }
     }
 }
 
-EvsEnumerator::EvsEnumerator(const ::android::sp<IAutomotiveDisplayProxyService>& proxyService) {
+EvsEnumerator::EvsEnumerator(const std::shared_ptr<ICarDisplayProxy>& proxyService) {
     LOG(DEBUG) << "EvsEnumerator is created.";
 
     if (!sConfigManager) {
@@ -149,7 +144,7 @@ EvsEnumerator::EvsEnumerator(const ::android::sp<IAutomotiveDisplayProxyService>
 
     // Enumerate existing devices
     enumerateCameras();
-    enumerateDisplays();
+    mInternalDisplayId = enumerateDisplays();
 }
 
 bool EvsEnumerator::checkPermission() {
@@ -161,6 +156,43 @@ bool EvsEnumerator::checkPermission() {
     }
 
     return true;
+}
+
+bool EvsEnumerator::addCaptureDevice(const std::string& deviceName) {
+    if (!qualifyCaptureDevice(deviceName.data())) {
+        LOG(DEBUG) << deviceName << " is not qualified for this EVS HAL implementation";
+        return false;
+    }
+
+    CameraRecord cam(deviceName.data());
+    if (sConfigManager) {
+        std::unique_ptr<ConfigManager::CameraInfo>& camInfo =
+                sConfigManager->getCameraInfo(deviceName);
+        if (camInfo) {
+            uint8_t* ptr = reinterpret_cast<uint8_t*>(camInfo->characteristics);
+            const size_t len = get_camera_metadata_size(camInfo->characteristics);
+            cam.desc.metadata.insert(cam.desc.metadata.end(), ptr, ptr + len);
+        }
+    }
+
+    {
+        std::lock_guard lock(sLock);
+        // insert_or_assign() returns std::pair<std::unordered_map<>, bool>
+        auto result = sCameraList.insert_or_assign(deviceName, std::move(cam));
+        LOG(INFO) << deviceName << (std::get<1>(result) ? " is added" : " is modified");
+    }
+
+    return true;
+}
+
+bool EvsEnumerator::removeCaptureDevice(const std::string& deviceName) {
+    std::lock_guard lock(sLock);
+    if (sCameraList.erase(deviceName) != 0) {
+        LOG(INFO) << deviceName << " is removed";
+        return true;
+    }
+
+    return false;
 }
 
 void EvsEnumerator::enumerateCameras() {
@@ -180,21 +212,15 @@ void EvsEnumerator::enumerateCameras() {
         LOG_FATAL("Failed to open /dev folder\n");
     }
     struct dirent* entry;
-    {
-        std::lock_guard<std::mutex> lock(sLock);
+    while ((entry = readdir(dir)) != nullptr) {
+        // We're only looking for entries starting with 'video'
+        if (strncmp(entry->d_name, "video", 5) == 0) {
+            std::string deviceName("/dev/");
+            deviceName += entry->d_name;
+            ++videoCount;
 
-        while ((entry = readdir(dir)) != nullptr) {
-            // We're only looking for entries starting with 'video'
-            if (strncmp(entry->d_name, "video", 5) == 0) {
-                std::string deviceName("/dev/");
-                deviceName += entry->d_name;
-                ++videoCount;
-                if (sCameraList.find(deviceName) != sCameraList.end()) {
-                    LOG(INFO) << deviceName << " has been added already.";
-                } else if (qualifyCaptureDevice(deviceName.data())) {
-                    sCameraList.insert_or_assign(deviceName, deviceName.data());
-                    ++captureCount;
-                }
+            if (addCaptureDevice(deviceName)) {
+                ++captureCount;
             }
         }
     }
@@ -203,27 +229,34 @@ void EvsEnumerator::enumerateCameras() {
               << "of " << videoCount << " checked.";
 }
 
-void EvsEnumerator::enumerateDisplays() {
+uint64_t EvsEnumerator::enumerateDisplays() {
     LOG(INFO) << __FUNCTION__ << ": Starting display enumeration";
+    uint64_t internalDisplayId = kInvalidDisplayId;
     if (!sDisplayProxy) {
-        LOG(ERROR) << "AutomotiveDisplayProxyService is not available!";
-        return;
+        LOG(ERROR) << "ICarDisplayProxy is not available!";
+        return internalDisplayId;
     }
 
-    sDisplayProxy->getDisplayIdList([](const auto& displayIds) {
+    std::vector<int64_t> displayIds;
+    if (auto status = sDisplayProxy->getDisplayIdList(&displayIds); !status.isOk()) {
+        LOG(ERROR) << "Failed to retrieve a display id list"
+                   << ::android::statusToString(status.getStatus());
+        return internalDisplayId;
+    }
+
+    if (displayIds.size() > 0) {
         // The first entry of the list is the internal display.  See
         // SurfaceFlinger::getPhysicalDisplayIds() implementation.
-        if (displayIds.size() > 0) {
-            sInternalDisplayId = displayIds[0];
-            for (const auto& id : displayIds) {
-                const auto port = id & 0xFF;
-                LOG(INFO) << "Display " << std::hex << id << " is detected on the port, " << port;
-                sDisplayPortList.insert_or_assign(port, id);
-            }
+        internalDisplayId = displayIds[0];
+        for (const auto& id : displayIds) {
+            const auto port = id & 0xFF;
+            LOG(INFO) << "Display " << std::hex << id << " is detected on the port, " << port;
+            sDisplayPortList.insert_or_assign(port, id);
         }
-    });
+    }
 
     LOG(INFO) << "Found " << sDisplayPortList.size() << " displays";
+    return internalDisplayId;
 }
 
 // Methods from ::android::hardware::automotive::evs::IEvsEnumerator follow.
@@ -246,29 +279,14 @@ ScopedAStatus EvsEnumerator::getCameraList(std::vector<CameraDesc>* _aidl_return
         }
     }
 
-    if (!sConfigManager) {
-        const auto numCameras = sCameraList.size();
+    // Build up a packed array of CameraDesc for return
+    _aidl_return->resize(sCameraList.size());
+    unsigned i = 0;
+    for (const auto& [key, cam] : sCameraList) {
+        (*_aidl_return)[i++] = cam.desc;
+    }
 
-        // Build up a packed array of CameraDesc for return
-        _aidl_return->resize(numCameras);
-        unsigned i = 0;
-        for (auto&& [key, cam] : sCameraList) {
-            (*_aidl_return)[i++] = cam.desc;
-        }
-    } else {
-        // Build up a packed array of CameraDesc for return
-        for (auto&& [key, cam] : sCameraList) {
-            std::unique_ptr<ConfigManager::CameraInfo>& tempInfo =
-                    sConfigManager->getCameraInfo(key);
-            if (tempInfo) {
-                uint8_t* ptr = reinterpret_cast<uint8_t*>(tempInfo->characteristics);
-                const size_t len = get_camera_metadata_size(tempInfo->characteristics);
-                cam.desc.metadata.insert(cam.desc.metadata.end(), ptr, ptr + len);
-            }
-
-            _aidl_return->push_back(cam.desc);
-        }
-
+    if (sConfigManager) {
         // Adding camera groups that represent logical camera devices
         auto camGroups = sConfigManager->getCameraGroupIdList();
         for (auto&& id : camGroups) {
@@ -415,7 +433,7 @@ ScopedAStatus EvsEnumerator::openDisplay(int32_t id, std::shared_ptr<IEvsDisplay
     }
 
     // Create a new display interface and return it.
-    pActiveDisplay = ::ndk::SharedRefBase::make<EvsGlDisplay>(sDisplayProxy, sInternalDisplayId);
+    pActiveDisplay = ::ndk::SharedRefBase::make<EvsGlDisplay>(sDisplayProxy, mInternalDisplayId);
     sActiveDisplay = pActiveDisplay;
 
     LOG(DEBUG) << "Returning new EvsGlDisplay object " << pActiveDisplay.get();
@@ -465,9 +483,9 @@ ScopedAStatus EvsEnumerator::getDisplayIdList(std::vector<uint8_t>* list) {
     if (sDisplayPortList.size() > 0) {
         output.resize(sDisplayPortList.size());
         unsigned i = 0;
-        output[i++] = sInternalDisplayId & 0xFF;
+        output[i++] = mInternalDisplayId & 0xFF;
         for (const auto& [port, id] : sDisplayPortList) {
-            if (sInternalDisplayId != id) {
+            if (mInternalDisplayId != id) {
                 output[i++] = port;
             }
         }
@@ -481,9 +499,27 @@ ScopedAStatus EvsEnumerator::isHardware(bool* flag) {
     return ScopedAStatus::ok();
 }
 
+void EvsEnumerator::notifyDeviceStatusChange(const std::string_view& deviceName,
+                                             DeviceStatusType type) {
+    std::lock_guard lock(sLock);
+    if (!mCallback) {
+        return;
+    }
+
+    std::vector<DeviceStatus> status {{ .id = std::string(deviceName), .status = type }};
+    if (!mCallback->deviceStatusChanged(status).isOk()) {
+        LOG(WARNING) << "Failed to notify a device status change, name = " << deviceName
+                     << ", type = " << static_cast<int>(type);
+    }
+}
+
 ScopedAStatus EvsEnumerator::registerStatusCallback(
-        [[maybe_unused]] const std::shared_ptr<IEvsEnumeratorStatusCallback>& callback) {
-    // TODO(b/195672428): Implement this method
+        const std::shared_ptr<IEvsEnumeratorStatusCallback>& callback) {
+    std::lock_guard lock(sLock);
+    if (mCallback) {
+        LOG(INFO) << "Replacing an existing device status callback";
+    }
+    mCallback = callback;
     return ScopedAStatus::ok();
 }
 

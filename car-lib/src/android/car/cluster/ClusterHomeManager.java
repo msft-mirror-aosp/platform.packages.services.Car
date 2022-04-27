@@ -24,6 +24,7 @@ import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.car.Car;
 import android.car.CarManagerBase;
+import android.car.annotation.AddedInOrBefore;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -46,7 +47,9 @@ public class ClusterHomeManager extends CarManagerBase {
      * When the client reports ClusterHome state and if there is no UI in the sub area, it can
      * reports UI_TYPE_CLUSTER_NONE instead.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int UI_TYPE_CLUSTER_NONE = -1;
+    @AddedInOrBefore(majorVersion = 33)
     public static final int UI_TYPE_CLUSTER_HOME = 0;
 
     /** @hide */
@@ -60,10 +63,15 @@ public class ClusterHomeManager extends CarManagerBase {
     public @interface Config {}
 
     /** Bit fields indicates which fields of {@link ClusterState} are changed */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_ON_OFF = 0x01;
+    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_BOUNDS = 0x02;
+    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_INSETS = 0x04;
+    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_UI_TYPE = 0x08;
+    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_ID = 0x10;
 
     /**
@@ -76,6 +84,7 @@ public class ClusterHomeManager extends CarManagerBase {
          * @param state newly updated {@link ClusterState}
          * @param changes the flag indicates which fields are updated
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onClusterStateChanged(ClusterState state, @Config int changes);
     }
 
@@ -84,6 +93,7 @@ public class ClusterHomeManager extends CarManagerBase {
      */
     public interface ClusterNavigationStateListener {
         /** Called when the App who owns the navigation focus casts the new navigation state. */
+        @AddedInOrBefore(majorVersion = 33)
         void onNavigationState(byte[] navigationState);
     }
 
@@ -165,6 +175,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * Registers the callback for ClusterHome.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public void registerClusterStateListener(
             @NonNull Executor executor, @NonNull ClusterStateListener callback) {
         Objects.requireNonNull(executor, "executor cannot be null");
@@ -187,6 +198,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * Registers the callback for ClusterHome.
      */
     @RequiresPermission(Car.PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE)
+    @AddedInOrBefore(majorVersion = 33)
     public void registerClusterNavigationStateListener(
             @NonNull Executor executor, @NonNull ClusterNavigationStateListener callback) {
         Objects.requireNonNull(executor, "executor cannot be null");
@@ -210,6 +222,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * Unregisters the callback.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public void unregisterClusterStateListener(@NonNull ClusterStateListener callback) {
         Objects.requireNonNull(callback, "callback cannot be null");
         if (!mStateListeners
@@ -229,6 +242,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * Unregisters the callback.
      */
     @RequiresPermission(Car.PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE)
+    @AddedInOrBefore(majorVersion = 33)
     public void unregisterClusterNavigationStateListener(
             @NonNull ClusterNavigationStateListener callback) {
         Objects.requireNonNull(callback, "callback cannot be null");
@@ -293,6 +307,7 @@ public class ClusterHomeManager extends CarManagerBase {
      *    Index 0 is reserved for ClusterHome, The other indexes are followed by OEM's definition.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public void reportState(int uiTypeMain, int uiTypeSub, @NonNull byte[] uiAvailability) {
         try {
             mService.reportState(uiTypeMain, uiTypeSub, uiAvailability);
@@ -306,6 +321,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * @param uiType uiType that ClusterHome tries to show in main area
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public void requestDisplay(int uiType) {
         try {
             mService.requestDisplay(uiType);
@@ -319,6 +335,7 @@ public class ClusterHomeManager extends CarManagerBase {
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
     @Nullable
+    @AddedInOrBefore(majorVersion = 33)
     public ClusterState getClusterState() {
         ClusterState state = null;
         try {
@@ -342,6 +359,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * @return true if it launches the given Intent as FixedActivity successfully
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public boolean startFixedActivityModeAsUser(
             Intent intent, @Nullable Bundle options, int userId) {
         try {
@@ -359,6 +377,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * does not stop the activity but it will not be re-launched any more.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public void stopFixedActivityMode() {
         try {
             mService.stopFixedActivityMode();
@@ -368,6 +387,7 @@ public class ClusterHomeManager extends CarManagerBase {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     protected void onCarDisconnected() {
         mStateListeners.clear();
         mNavigationStateListeners.clear();

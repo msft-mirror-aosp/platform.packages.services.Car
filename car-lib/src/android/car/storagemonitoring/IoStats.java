@@ -40,9 +40,14 @@ import java.util.StringJoiner;
  * Delta of uid_io stats taken at a sample point.
  *
  * @hide
+ *
+ * @deprecated use {@link android.car.watchdog.CarWatchdogManager} and its related classes
+ * for I/O related tasks.
  */
+@Deprecated
 @SystemApi
 public final class IoStats implements Parcelable {
+    @AddedInOrBefore(majorVersion = 33)
     public static final Creator<IoStats> CREATOR = new Creator<IoStats>() {
         @Override
         public IoStats createFromParcel(Parcel in) {
@@ -90,6 +95,7 @@ public final class IoStats implements Parcelable {
     /**
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToJson(JsonWriter jsonWriter) throws IOException {
         jsonWriter.beginObject();
         jsonWriter.name("uptime").value(mUptimeTimestamp);
@@ -119,6 +125,7 @@ public final class IoStats implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         return Objects.hash(mStats, mUptimeTimestamp);
     }
@@ -210,6 +217,7 @@ public final class IoStats implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object other) {
         if (other instanceof IoStats) {
             IoStats delta = (IoStats) other;
@@ -220,6 +228,7 @@ public final class IoStats implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         StringJoiner stringJoiner = new StringJoiner(", ");
         for (IoStatsEntry stats : getStats()) {
