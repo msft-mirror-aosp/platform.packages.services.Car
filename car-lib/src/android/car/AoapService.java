@@ -89,6 +89,7 @@ public abstract class AoapService extends Service {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int MSG_NEW_DEVICE_ATTACHED = 1;
 
     /**
@@ -96,6 +97,7 @@ public abstract class AoapService extends Service {
      * with one of the {@code RESULT_*} constant.
      *
      * @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int MSG_NEW_DEVICE_ATTACHED_RESPONSE = 2;
 
     /**
@@ -105,6 +107,7 @@ public abstract class AoapService extends Service {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int MSG_CAN_SWITCH_TO_AOAP = 3;
 
     /**
@@ -112,12 +115,15 @@ public abstract class AoapService extends Service {
      * with one of the {@code RESULT_*} constant.
      *
      * @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int MSG_CAN_SWITCH_TO_AOAP_RESPONSE = 4;
 
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final String KEY_DEVICE = "usb-device";
 
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final String KEY_RESULT = "result";
 
 
@@ -162,6 +168,7 @@ public abstract class AoapService extends Service {
     private boolean mBound;
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void onCreate() {
         super.onCreate();
         mMessenger = new Messenger(new IncomingHandler(this));
@@ -178,6 +185,7 @@ public abstract class AoapService extends Service {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean onUnbind(Intent intent) {
         mBound = false;
         return super.onUnbind(intent);
@@ -185,6 +193,7 @@ public abstract class AoapService extends Service {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    @AddedInOrBefore(majorVersion = 33)
     protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
         writer.write("Bound: " + mBound);
     }

@@ -157,11 +157,13 @@ public final class RemoveUserResult {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return "RemoveUserResult[" + statusToString(mStatus) + "]";
     }
 
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static String statusToString(@Status int status) {
         return DebugUtils.valueToString(RemoveUserResult.class, "STATUS_", status);
     }

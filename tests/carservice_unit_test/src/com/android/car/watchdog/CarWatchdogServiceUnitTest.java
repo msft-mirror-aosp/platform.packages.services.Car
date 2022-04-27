@@ -54,6 +54,8 @@ import static com.android.car.watchdog.TimeSource.ZONE_OFFSET;
 import static com.android.car.watchdog.WatchdogPerfHandler.INTENT_EXTRA_NOTIFICATION_ID;
 import static com.android.car.watchdog.WatchdogPerfHandler.PACKAGES_DISABLED_ON_RESOURCE_OVERUSE_SEPARATOR;
 import static com.android.car.watchdog.WatchdogPerfHandler.USER_PACKAGE_SEPARATOR;
+import static com.android.car.watchdog.WatchdogProcessHandler.MISSING_INT_PROPERTY_VALUE;
+import static com.android.car.watchdog.WatchdogProcessHandler.PROPERTY_RO_CLIENT_HEALTHCHECK_INTERVAL;
 import static com.android.car.watchdog.WatchdogStorage.RETENTION_PERIOD;
 import static com.android.car.watchdog.WatchdogStorage.WatchdogDbHelper.DATABASE_NAME;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
@@ -139,6 +141,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -289,7 +292,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
             .spyStatic(CarStatsLog.class)
             .spyStatic(CarServiceUtils.class)
             .spyStatic(BuiltinPackageDependency.class)
-            .spyStatic(Utils.class);
+            .spyStatic(Utils.class)
+            .spyStatic(SystemProperties.class);
     }
 
     /**
@@ -326,6 +330,9 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         doReturn(mMockNotificationHelper)
                 .when(() -> BuiltinPackageDependency.createNotificationHelper(
                         mMockBuiltinPackageContext));
+        doReturn(MISSING_INT_PROPERTY_VALUE).when(
+                () -> SystemProperties.getInt(PROPERTY_RO_CLIENT_HEALTHCHECK_INTERVAL,
+                        MISSING_INT_PROPERTY_VALUE));
 
         when(mMockCarUxRestrictionsManagerService.getCurrentUxRestrictions())
                 .thenReturn(new CarUxRestrictions.Builder(/* reqOpt= */ false,
@@ -469,6 +476,32 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         verify(mMockCarWatchdogDaemon).notifySystemStateChange(StateType.USER_STATE, 100,
                 UserState.USER_STATE_REMOVED);
         verify(mSpiedWatchdogStorage).syncUsers(new int[] {101, 102});
+    }
+
+    @Test
+    public void testDeviceRebootBroadcast() throws Exception {
+        mBroadcastReceiver.onReceive(mMockContext,
+                new Intent().setAction(Intent.ACTION_REBOOT)
+                        .setFlags(Intent.FLAG_RECEIVER_FOREGROUND));
+        verify(mMockCarWatchdogDaemon).notifySystemStateChange(StateType.POWER_CYCLE,
+                PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER, /* arg2= */ 0);
+    }
+
+    @Test
+    public void testDeviceShutdownBroadcast() throws Exception {
+        mBroadcastReceiver.onReceive(mMockContext,
+                new Intent().setAction(Intent.ACTION_SHUTDOWN)
+                        .setFlags(Intent.FLAG_RECEIVER_FOREGROUND));
+        verify(mMockCarWatchdogDaemon).notifySystemStateChange(StateType.POWER_CYCLE,
+                PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER, /* arg2= */ 0);
+    }
+
+    @Test
+    public void testDeviceShutdownBroadcastWithoutFlagReceiverForeground() throws Exception {
+        mBroadcastReceiver.onReceive(mMockContext,
+                new Intent().setAction(Intent.ACTION_SHUTDOWN));
+        verify(mMockCarWatchdogDaemon, never()).notifySystemStateChange(StateType.POWER_CYCLE,
+                PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER, /* arg2= */ 0);
     }
 
     @Test
@@ -2040,13 +2073,13 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testGetResourceOveruseConfigurationsWithReconnectedDaemon() throws Exception {
         /*
          * Emulate daemon crash and restart during the get request. The below get request should be
-         * waiting for daemon connection before the first call to ServiceManager.getService. But to
-         * make sure the test is deterministic emulate daemon restart only on the second call to
-         * ServiceManager.getService.
+         * waiting for daemon connection before the first call to ServiceManager.checkService. But
+         * to make sure the test is deterministic emulate daemon restart only on the second call to
+         * ServiceManager.checkService.
          */
         doReturn(null)
                 .doReturn(mMockBinder)
-                .when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+                .when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
 
         List<ResourceOveruseConfiguration> actualConfigs =
@@ -2063,12 +2096,12 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         /*
          * Emulate daemon crash and restart during the get and set requests. The below get request
          * should be waiting for daemon connection before the first call to
-         * ServiceManager.getService. But to make sure the test is deterministic emulate daemon
-         * restart only on the second call to ServiceManager.getService.
+         * ServiceManager.checkService. But to make sure the test is deterministic emulate daemon
+         * restart only on the second call to ServiceManager.checkService.
          */
         doReturn(null)
                 .doReturn(mMockBinder)
-                .when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+                .when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
 
         /* Capture and respond with the configuration received in the set request. */
@@ -3735,7 +3768,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     private void mockWatchdogDaemon() throws Exception {
         when(mMockBinder.queryLocalInterface(anyString())).thenReturn(mMockCarWatchdogDaemon);
         when(mMockCarWatchdogDaemon.asBinder()).thenReturn(mMockBinder);
-        doReturn(mMockBinder).when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+        doReturn(mMockBinder).when(
+                () -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         when(mMockCarWatchdogDaemon.getResourceOveruseConfigurations()).thenReturn(
                 sampleInternalResourceOveruseConfigurations());
         mIsDaemonCrashed = false;
@@ -4068,7 +4102,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     }
 
     private void crashWatchdogDaemon() {
-        doReturn(null).when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+        doReturn(null).when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
         mIsDaemonCrashed = true;
     }

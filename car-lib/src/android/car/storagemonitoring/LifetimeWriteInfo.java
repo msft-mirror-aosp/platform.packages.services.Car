@@ -38,6 +38,7 @@ import java.util.Objects;
  */
 @SystemApi
 public final class LifetimeWriteInfo implements Parcelable {
+    @AddedInOrBefore(majorVersion = 33)
     public static final Creator<IoStats> CREATOR = new Creator<IoStats>() {
         @Override
         public IoStats createFromParcel(Parcel in) {
@@ -93,6 +94,7 @@ public final class LifetimeWriteInfo implements Parcelable {
     /**
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToJson(JsonWriter jsonWriter) throws IOException {
         jsonWriter.beginObject();
         jsonWriter.name("partition").value(partition);
@@ -110,6 +112,7 @@ public final class LifetimeWriteInfo implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object other) {
         if (other instanceof LifetimeWriteInfo) {
             LifetimeWriteInfo lifetime = (LifetimeWriteInfo) other;
@@ -122,6 +125,7 @@ public final class LifetimeWriteInfo implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return String.format("for partition %s of type %s, %d bytes were written",
                 partition, fstype, writtenBytes);
