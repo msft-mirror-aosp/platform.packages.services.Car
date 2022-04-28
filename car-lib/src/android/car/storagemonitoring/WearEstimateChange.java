@@ -40,6 +40,7 @@ import java.util.Objects;
  */
 @SystemApi
 public final class WearEstimateChange implements Parcelable {
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<WearEstimateChange> CREATOR =
             new Parcelable.Creator<WearEstimateChange>() {
         public WearEstimateChange createFromParcel(Parcel in) {
@@ -92,7 +93,7 @@ public final class WearEstimateChange implements Parcelable {
         this.oldEstimate = requireNonNull(oldEstimate);
         this.newEstimate = requireNonNull(newEstimate);
         this.uptimeAtChange = uptimeAtChange;
-        this.dateAtChange = requireNonNull(dateAtChange);
+        this.dateAtChange = Instant.ofEpochSecond(requireNonNull(dateAtChange).getEpochSecond());
         this.isAcceptableDegradation = isAcceptableDegradation;
     }
 
@@ -100,7 +101,9 @@ public final class WearEstimateChange implements Parcelable {
         oldEstimate = in.readParcelable(WearEstimate.class.getClassLoader());
         newEstimate = in.readParcelable(WearEstimate.class.getClassLoader());
         uptimeAtChange = in.readLong();
-        dateAtChange = Instant.ofEpochMilli(in.readLong());
+        long secs = in.readLong();
+        int nanos = in.readInt();
+        dateAtChange = Instant.ofEpochSecond(secs, nanos);
         isAcceptableDegradation = in.readInt() == 1;
     }
 
@@ -117,11 +120,13 @@ public final class WearEstimateChange implements Parcelable {
         dest.writeParcelable(oldEstimate, flags);
         dest.writeParcelable(newEstimate, flags);
         dest.writeLong(uptimeAtChange);
-        dest.writeLong(dateAtChange.toEpochMilli());
+        dest.writeLong(dateAtChange.getEpochSecond());
+        dest.writeInt(dateAtChange.getNano());
         dest.writeInt(isAcceptableDegradation ? 1 : 0);
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object other) {
         if (other instanceof WearEstimateChange) {
             WearEstimateChange wo = (WearEstimateChange) other;
@@ -135,6 +140,7 @@ public final class WearEstimateChange implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         return Objects.hash(oldEstimate,
                             newEstimate,
@@ -144,6 +150,7 @@ public final class WearEstimateChange implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return String.format(
                 "wear change{old level=%s, new level=%s, uptime=%d, date=%s, acceptable=%s}",

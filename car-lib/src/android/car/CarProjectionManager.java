@@ -103,6 +103,7 @@ public final class CarProjectionManager extends CarManagerBase {
          *
          * @param event The projection key event that occurred.
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onKeyEvent(@KeyEventNum int event);
     }
     /**
@@ -186,6 +187,7 @@ public final class CarProjectionManager extends CarManagerBase {
     public static final int KEY_EVENT_CALL_LONG_PRESS_KEY_UP = 7;
 
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int NUM_KEY_EVENTS = 8;
 
     /** @hide */
@@ -204,10 +206,13 @@ public final class CarProjectionManager extends CarManagerBase {
     public @interface KeyEventNum {}
 
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int PROJECTION_AP_STARTED = 0;
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int PROJECTION_AP_STOPPED = 1;
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int PROJECTION_AP_FAILED = 2;
 
     private final ICarProjection mService;
@@ -250,6 +255,7 @@ public final class CarProjectionManager extends CarManagerBase {
          * @param details - contains detailed information about all currently registered projection
          *                  receivers.
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onProjectionStatusChanged(@ProjectionState int state, @Nullable String packageName,
                 @NonNull List<ProjectionStatus> details);
     }
@@ -273,6 +279,7 @@ public final class CarProjectionManager extends CarManagerBase {
      */
     @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
     @Deprecated
+    @AddedInOrBefore(majorVersion = 33)
     public void regsiterProjectionListener(CarProjectionListener listener, int voiceSearchFilter) {
         registerProjectionListener(listener, voiceSearchFilter);
     }
@@ -308,6 +315,7 @@ public final class CarProjectionManager extends CarManagerBase {
      */
     @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
     @Deprecated
+    @AddedInOrBefore(majorVersion = 33)
     public void unregsiterProjectionListener() {
         unregisterProjectionListener();
     }
@@ -527,6 +535,7 @@ public final class CarProjectionManager extends CarManagerBase {
 
     /** @hide */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // nothing to do
     }

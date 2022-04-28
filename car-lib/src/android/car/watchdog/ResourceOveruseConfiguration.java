@@ -149,6 +149,7 @@ public final class ResourceOveruseConfiguration implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String componentTypeToString(@ComponentType int value) {
         switch (value) {
             case COMPONENT_TYPE_SYSTEM:
@@ -271,6 +272,7 @@ public final class ResourceOveruseConfiguration implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -351,6 +353,7 @@ public final class ResourceOveruseConfiguration implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<ResourceOveruseConfiguration> CREATOR
             = new Parcelable.Creator<ResourceOveruseConfiguration>() {
         @Override

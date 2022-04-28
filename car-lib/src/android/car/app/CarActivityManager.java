@@ -79,6 +79,7 @@ public final class CarActivityManager extends CarManagerBase {
      * Internal error code for throwing {@link ActivityNotFoundException} from service.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int ERROR_CODE_ACTIVITY_NOT_FOUND = -101;
 
     private final ICarActivityService mService;
@@ -138,6 +139,7 @@ public final class CarActivityManager extends CarManagerBase {
 
     /** @hide */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     protected void onCarDisconnected() {
         mTaskMonitorToken = null;
     }
@@ -158,6 +160,7 @@ public final class CarActivityManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
+    @AddedInOrBefore(majorVersion = 33)
     public boolean registerTaskMonitor() {
         IBinder token = new Binder();
         try {
@@ -175,6 +178,7 @@ public final class CarActivityManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
+    @AddedInOrBefore(majorVersion = 33)
     public void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo) {
         if (!hasValidToken()) return;
         try {
@@ -189,6 +193,7 @@ public final class CarActivityManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
+    @AddedInOrBefore(majorVersion = 33)
     public void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo) {
         if (!hasValidToken()) return;
         try {
@@ -203,6 +208,7 @@ public final class CarActivityManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
+    @AddedInOrBefore(majorVersion = 33)
     public void onTaskInfoChanged(ActivityManager.RunningTaskInfo taskInfo) {
         if (!hasValidToken()) return;
         try {
@@ -217,6 +223,7 @@ public final class CarActivityManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
+    @AddedInOrBefore(majorVersion = 33)
     public void unregisterTaskMonitor() {
         if (!hasValidToken()) return;
         try {
