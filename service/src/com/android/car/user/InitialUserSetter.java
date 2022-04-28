@@ -33,13 +33,14 @@ import android.car.builtin.util.TimingsTraceLog;
 import android.car.builtin.widget.LockPatternHelper;
 import android.car.settings.CarSettings;
 import android.content.Context;
-import android.hardware.automotive.vehicle.V2_0.UserFlags;
+import android.hardware.automotive.vehicle.UserInfo;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.util.Pair;
 
 import com.android.car.CarLog;
+import com.android.car.R;
 import com.android.car.hal.UserHalHelper;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.UserHelperLite;
@@ -133,7 +134,8 @@ final class InitialUserSetter {
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
             @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper) {
-        this(context, carUserService, listener, userHandleHelper, /* newGuestName= */ null);
+        this(context, carUserService, listener, userHandleHelper,
+                context.getString(R.string.default_guest_name));
     }
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
@@ -217,7 +219,7 @@ final class InitialUserSetter {
         }
 
         /**
-         * Sets the flags (as defined by {@link android.hardware.automotive.vehicle.V2_0.UserFlags})
+         * Sets the flags (as defined by {@link android.hardware.automotive.vehicle.UserInfo})
          * of the new user being created.
          *
          * @throws IllegalArgumentException if builder is not for {@link #TYPE_CREATE}.
@@ -394,7 +396,7 @@ final class InitialUserSetter {
             if (DBG) Slogf.d(TAG, "executeDefaultBehavior(): no initial user, creating it");
             createAndSwitchUser(new Builder(TYPE_CREATE)
                     .setNewUserName(mNewUserName)
-                    .setNewUserFlags(UserFlags.ADMIN)
+                    .setNewUserFlags(UserInfo.USER_FLAG_ADMIN)
                     .setSupportsOverrideUserIdProperty(info.supportsOverrideUserIdProperty)
                     .setUserLocales(info.userLocales)
                     .build(), fallback);
@@ -516,9 +518,9 @@ final class InitialUserSetter {
 
         Slogf.i(TAG, "Replacing guest (" + user + ")");
 
-        int halFlags = UserFlags.GUEST;
+        int halFlags = UserInfo.USER_FLAG_GUEST;
         if (mUserHandleHelper.isEphemeralUser(user)) {
-            halFlags |= UserFlags.EPHEMERAL;
+            halFlags |= UserInfo.USER_FLAG_EPHEMERAL;
         } else {
             // TODO(b/150413515): decide whether we should allow it or not. Right now we're
             // just logging, as UserManagerService will automatically set it to ephemeral if
@@ -630,19 +632,18 @@ final class InitialUserSetter {
     @VisibleForTesting
     void unlockSystemUser() {
         Slogf.i(TAG, "unlocking system user");
-        ActivityManagerHelper am = ActivityManagerHelper.getInstance();
-
         TimingsTraceLog t = new TimingsTraceLog(TAG, TraceHelper.TRACE_TAG_CAR_SERVICE);
         t.traceBegin("UnlockSystemUser");
         // This is for force changing state into RUNNING_LOCKED. Otherwise unlock does not
         // update the state and USER_SYSTEM unlock happens twice.
         t.traceBegin("am.startUser");
-        boolean started = am.startUserInBackground(UserHandle.SYSTEM.getIdentifier());
+        boolean started = ActivityManagerHelper.startUserInBackground(
+                UserHandle.SYSTEM.getIdentifier());
         t.traceEnd();
         if (!started) {
             Slogf.w(TAG, "could not restart system user in foreground; trying unlock instead");
             t.traceBegin("am.unlockUser");
-            boolean unlocked = am.unlockUser(UserHandle.SYSTEM.getIdentifier());
+            boolean unlocked = ActivityManagerHelper.unlockUser(UserHandle.SYSTEM.getIdentifier());
             t.traceEnd();
             if (!unlocked) {
                 Slogf.w(TAG, "could not unlock system user neither");
@@ -658,7 +659,7 @@ final class InitialUserSetter {
             // System User doesn't associate with real person, can not be switched to.
             return false;
         }
-        return ActivityManagerHelper.getInstance().startUserInForeground(userId);
+        return ActivityManagerHelper.startUserInForeground(userId);
     }
 
     private void notifyListener(@Nullable UserHandle initialUser) {

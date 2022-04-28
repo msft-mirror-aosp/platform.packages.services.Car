@@ -32,8 +32,8 @@ import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.ICarPropertyEventListener;
 import android.content.Context;
-import android.hardware.automotive.vehicle.V2_0.VehicleGear;
-import android.hardware.automotive.vehicle.V2_0.VehicleProperty;
+import android.hardware.automotive.vehicle.VehicleGear;
+import android.hardware.automotive.vehicle.VehicleProperty;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.RemoteCallbackList;
@@ -431,7 +431,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
         }
 
         // We don't know if the vehicle is parked, let's look at the speed.
-        if (mLastSpeedTimestamp == NOT_RECEIVED || mLastSpeed < 0) {
+        if (mLastSpeedTimestamp == NOT_RECEIVED) {
             return CarDrivingStateEvent.DRIVING_STATE_UNKNOWN;
         } else if (mLastSpeed == 0f) {
             return CarDrivingStateEvent.DRIVING_STATE_IDLING;

@@ -44,7 +44,6 @@ import java.util.Set;
 public class SystemActivityMonitoringService implements CarServiceBase {
     private static final int INVALID_STACK_ID = -1;
     private final Context mContext;
-    private final ActivityManagerHelper mAm;
     private final ProcessObserverCallback mProcessObserver = new ProcessObserver();
 
     private final HandlerThread mMonitorHandlerThread = CarServiceUtils.getHandlerThread(
@@ -59,19 +58,18 @@ public class SystemActivityMonitoringService implements CarServiceBase {
 
     public SystemActivityMonitoringService(Context context) {
         mContext = context;
-        mAm = ActivityManagerHelper.getInstance();
     }
 
     @Override
     public void init() {
         // Monitoring both listeners are necessary as there are cases where one listener cannot
         // monitor activity change.
-        mAm.registerProcessObserverCallback(mProcessObserver);
+        ActivityManagerHelper.registerProcessObserverCallback(mProcessObserver);
     }
 
     @Override
     public void release() {
-        mAm.unregisterProcessObserverCallback(mProcessObserver);
+        ActivityManagerHelper.unregisterProcessObserverCallback(mProcessObserver);
     }
 
     @Override
@@ -136,10 +134,10 @@ public class SystemActivityMonitoringService implements CarServiceBase {
         }
     }
 
-    private class ProcessObserver implements ProcessObserverCallback {
+    private class ProcessObserver extends ProcessObserverCallback {
         @Override
         public void onForegroundActivitiesChanged(int pid, int uid, boolean foregroundActivities) {
-            if (Log.isLoggable(CarLog.TAG_AM, Log.INFO)) {
+            if (Slogf.isLoggable(CarLog.TAG_AM, Log.INFO)) {
                 Slogf.i(CarLog.TAG_AM,
                         String.format("onForegroundActivitiesChanged uid %d pid %d fg %b",
                                 uid, pid, foregroundActivities));

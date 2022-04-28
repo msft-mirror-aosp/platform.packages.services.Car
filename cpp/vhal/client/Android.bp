@@ -32,6 +32,7 @@ cc_defaults {
         // exist as a shared library.
         "android.hardware.automotive.vehicle@2.0",
         "android.hardware.automotive.vehicle-V1-ndk",
+        "libmath",
     ],
     shared_libs: [
         "libbinder_ndk",
@@ -52,6 +53,7 @@ cc_library {
     defaults: [
         "vhalclient_defaults",
     ],
+    vendor_available: true,
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
 }

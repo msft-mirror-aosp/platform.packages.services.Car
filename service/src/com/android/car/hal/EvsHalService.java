@@ -44,7 +44,7 @@ import java.util.List;
 public class EvsHalService extends HalServiceBase {
 
     private static final String TAG = EvsHalService.class.getSimpleName();
-    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
     private static final int[] SUPPORTED_PROPERTIES = new int[] {
         EVS_SERVICE_REQUEST,
@@ -164,8 +164,8 @@ public class EvsHalService extends HalServiceBase {
             @CarEvsServiceType int type;
             switch (v.getPropId()) {
                 case EVS_SERVICE_REQUEST:
-                    // Sees
-                    // android.hardware.automotive.vehicle.V2_0.VehicleProperty.EVS_SERVICE_REQUEST
+                    // Check
+                    // android.hardware.automotive.vehicle.VehicleProperty.EVS_SERVICE_REQUEST
                     try {
                         int rawServiceType = v.getInt32Value(EvsServiceRequestIndex.TYPE);
                         type = rawServiceType == EvsServiceType.REARVIEW

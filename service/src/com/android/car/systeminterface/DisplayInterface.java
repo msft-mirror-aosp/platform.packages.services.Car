@@ -16,14 +16,18 @@
 
 package com.android.car.systeminterface;
 
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+
 import static com.android.car.util.BrightnessUtils.GAMMA_SPACE_MAX;
 import static com.android.car.util.BrightnessUtils.convertGammaToLinear;
 import static com.android.car.util.BrightnessUtils.convertLinearToGamma;
 import static com.android.car.util.Utils.getContentResolverForUser;
+import static com.android.car.util.Utils.isEventOfType;
 
 import android.car.builtin.power.PowerManagerHelper;
 import android.car.builtin.util.Slogf;
-import android.car.user.CarUserManager;
+import android.car.user.CarUserManager.UserLifecycleListener;
+import android.car.user.UserLifecycleEventFilter;
 import android.content.Context;
 import android.database.ContentObserver;
 import android.hardware.display.DisplayManager;
@@ -97,13 +101,12 @@ public interface DisplayInterface {
      */
     class DefaultImpl implements DisplayInterface {
         private static final String TAG = DisplayInterface.class.getSimpleName();
-        private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+        private static final boolean DEBUG = Slogf.isLoggable(TAG, Log.DEBUG);
         private final Context mContext;
         private final DisplayManager mDisplayManager;
         private final Object mLock = new Object();
         private final int mMaximumBacklight;
         private final int mMinimumBacklight;
-        private final PowerManagerHelper mPowerManagerHelper;
         private final WakeLockInterface mWakeLockInterface;
         @GuardedBy("mLock")
         private CarPowerManagementService mCarPowerManagementService;
@@ -144,20 +147,20 @@ public interface DisplayInterface {
         DefaultImpl(Context context, WakeLockInterface wakeLockInterface) {
             mContext = context;
             mDisplayManager = context.getSystemService(DisplayManager.class);
-            mPowerManagerHelper = new PowerManagerHelper(context);
-            mMaximumBacklight = mPowerManagerHelper.getMaximumScreenBrightnessSetting();
-            mMinimumBacklight = mPowerManagerHelper.getMinimumScreenBrightnessSetting();
+            mMaximumBacklight = PowerManagerHelper.getMaximumScreenBrightnessSetting(context);
+            mMinimumBacklight = PowerManagerHelper.getMinimumScreenBrightnessSetting(context);
             mWakeLockInterface = wakeLockInterface;
         }
 
-        private final CarUserManager.UserLifecycleListener mUserLifecycleListener = event -> {
+        private final UserLifecycleListener mUserLifecycleListener = event -> {
+            if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
+                return;
+            }
             if (DEBUG) {
                 Slogf.d(TAG, "DisplayInterface.DefaultImpl.onEvent(%s)", event);
             }
 
-            if (event.getEventType() == CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
-                onUsersUpdate();
-            }
+            onUsersUpdate();
         };
 
         @Override
@@ -236,7 +239,11 @@ public interface DisplayInterface {
                 carPowerManagementService = mCarPowerManagementService;
                 carUserService = mCarUserService;
             }
-            carUserService.addUserLifecycleListener(mUserLifecycleListener);
+            UserLifecycleEventFilter userSwitchingEventFilter =
+                    new UserLifecycleEventFilter.Builder()
+                            .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING).build();
+            carUserService.addUserLifecycleListener(userSwitchingEventFilter,
+                    mUserLifecycleListener);
             getContentResolverForUser(mContext, UserHandle.ALL.getIdentifier())
                     .registerContentObserver(System.getUriFor(System.SCREEN_BRIGHTNESS),
                             false,
@@ -266,11 +273,13 @@ public interface DisplayInterface {
             if (on) {
                 mWakeLockInterface.switchToFullWakeLock();
                 Slogf.i(CarLog.TAG_POWER, "on display");
-                mPowerManagerHelper.setDisplayState(/* on= */ true, SystemClock.uptimeMillis());
+                PowerManagerHelper.setDisplayState(mContext, /* on= */ true,
+                        SystemClock.uptimeMillis());
             } else {
                 mWakeLockInterface.switchToPartialWakeLock();
                 Slogf.i(CarLog.TAG_POWER, "off display");
-                mPowerManagerHelper.setDisplayState(/* on= */ false, SystemClock.uptimeMillis());
+                PowerManagerHelper.setDisplayState(mContext, /* on= */ false,
+                        SystemClock.uptimeMillis());
             }
         }
 

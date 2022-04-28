@@ -17,9 +17,11 @@
 package com.android.car.user;
 
 import static android.car.hardware.power.CarPowerManager.CarPowerStateListener;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.util.Utils.getContentResolverForUser;
+import static com.android.car.util.Utils.isEventOfType;
 
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -32,10 +34,10 @@ import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.Slogf;
 import android.car.hardware.power.CarPowerManager;
 import android.car.settings.CarSettings;
-import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.IUserNotice;
 import android.car.user.IUserNoticeUI;
+import android.car.user.UserLifecycleEventFilter;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -50,6 +52,7 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
+import android.util.Log;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
@@ -74,8 +77,10 @@ import com.android.internal.annotations.VisibleForTesting;
  */
 public final class CarUserNoticeService implements CarServiceBase {
 
-    private static final boolean DBG = false;
-    private static final String TAG = CarLog.tagFor(CarUserNoticeService.class);
+    @VisibleForTesting
+    static final String TAG = CarLog.tagFor(CarUserNoticeService.class);
+
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
     // Keyguard unlocking can be only polled as we cannot dismiss keyboard.
     // Polling will stop when keyguard is unlocked.
@@ -119,22 +124,23 @@ public final class CarUserNoticeService implements CarServiceBase {
     private int mIgnoreUserId = UserManagerHelper.USER_NULL;
 
     private final UserLifecycleListener mUserLifecycleListener = event -> {
-        if (DBG) Slogf.d(TAG, "onEvent(" + event + ")");
-
-        if (CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING == event.getEventType()) {
-
-            int userId = event.getUserId();
-            if (DBG) Slogf.d(TAG, "User switch event received. Target User:" + userId);
-
-            CarUserNoticeService.this.mCommonThreadHandler.post(() -> {
-                stopUi(/* clearUiShown= */ true);
-                synchronized (mLock) {
-                    // This should be the only place to change user
-                    mUserId = userId;
-                }
-                startNoticeUiIfNecessary();
-            });
+        if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
+            return;
         }
+
+        int userId = event.getUserId();
+        if (DBG) {
+            Slogf.d(TAG, "User switch event received. Target User: %d", userId);
+        }
+
+        CarUserNoticeService.this.mCommonThreadHandler.post(() -> {
+            stopUi(/* clearUiShown= */ true);
+            synchronized (mLock) {
+                // This should be the only place to change user
+                mUserId = userId;
+            }
+            startNoticeUiIfNecessary();
+        });
     };
 
     private final CarPowerStateListener mPowerStateListener = new CarPowerStateListener() {
@@ -401,7 +407,9 @@ public final class CarUserNoticeService implements CarServiceBase {
             throw new RuntimeException("CarNotConnectedException from CarPowerManager", e);
         }
         CarUserService userService = CarLocalServices.getService(CarUserService.class);
-        userService.addUserLifecycleListener(mUserLifecycleListener);
+        UserLifecycleEventFilter userSwitchingEventFilter = new UserLifecycleEventFilter.Builder()
+                .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING).build();
+        userService.addUserLifecycleListener(userSwitchingEventFilter, mUserLifecycleListener);
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);

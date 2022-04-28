@@ -29,7 +29,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import android.annotation.UserIdInt;
-import android.car.builtin.app.ActivityManagerHelper;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
 import android.content.ContentResolver;
@@ -286,9 +285,8 @@ public class CarInputRotaryServiceTest {
         UserInfo userInfo = mock(UserInfo.class);
         doReturn(userInfo).when(userManager).getUserInfo(anyInt());
         UserHalService userHal = mock(UserHalService.class);
-        ActivityManagerHelper activityManagerHelper = mock(ActivityManagerHelper.class);
         mCarUserService = new CarUserService(mMockContext, userHal,
-                userManager, activityManagerHelper, /* maxRunningUsers= */ 2,
+                userManager, /* maxRunningUsers= */ 2,
                 mUxRestrictionService);
 
         mCarInputService = new CarInputService(mMockContext, mInputHalService, mCarUserService,
@@ -304,7 +302,7 @@ public class CarInputRotaryServiceTest {
         // before proceeding with test execution.
         BlockingUserLifecycleListener blockingListener =
                 BlockingUserLifecycleListener.forAnyEvent().build();
-        mCarUserService.addUserLifecycleListener(blockingListener);
+        mCarUserService.addUserLifecycleListener(/* filter= */null, blockingListener);
 
         runOnMainThreadAndWaitForIdle(() -> mCarUserService.onUserLifecycleEvent(eventType,
                 /* fromUserId= */ UserHandle.USER_NULL, userId));

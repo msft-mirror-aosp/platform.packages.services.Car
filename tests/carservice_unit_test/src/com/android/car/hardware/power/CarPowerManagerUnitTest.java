@@ -54,8 +54,8 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemNotification;
-import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateReq;
-import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateShutdownParam;
+import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
+import android.hardware.automotive.vehicle.VehicleApPowerStateShutdownParam;
 import android.os.UserManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.AtomicFile;
@@ -91,7 +91,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 @SmallTest
-public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
+public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
     private static final String TAG = CarPowerManagerUnitTest.class.getSimpleName();
     private static final long WAIT_TIMEOUT_MS = 5_000;
     private static final long WAIT_TIMEOUT_LONG_MS = 10_000;
@@ -125,6 +125,7 @@ public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
     private ICarPowerPolicySystemNotification mPowerPolicyDaemon;
 
     public CarPowerManagerUnitTest() throws Exception {
+        super(CarPowerManager.TAG);
         mComponentStateFile = new TemporaryFile("COMPONENT_STATE_FILE");
     }
 

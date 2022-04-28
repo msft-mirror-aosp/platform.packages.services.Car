@@ -2,7 +2,7 @@
 package android.car.builtin {
 
   public final class CarBuiltin {
-    field public static final int API_VERSION_MINOR_INT = 0; // 0x0
+    field public static final int PLATFORM_VERSION_MINOR_INT;
   }
 
   public final class PermissionHelper {
@@ -15,22 +15,23 @@ package android.car.builtin.app {
 
   public final class ActivityManagerHelper {
     method public static int checkComponentPermission(@NonNull String, int, int, boolean);
-    method @NonNull public static android.car.builtin.app.ActivityManagerHelper getInstance();
-    method public void registerProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
-    method public boolean removeTask(int);
-    method public void setFocusedRootTask(int);
-    method public boolean startUserInBackground(int);
-    method public boolean startUserInForeground(int);
-    method public void stopAllTasksForUser(int);
-    method public int stopUserWithDelayedLocking(int, boolean);
-    method public boolean unlockUser(int);
-    method public void unregisterProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
+    method @NonNull public static android.app.ActivityOptions createActivityOptions(@NonNull android.os.Bundle);
+    method public static void registerProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
+    method public static boolean removeTask(int);
+    method public static void setFocusedRootTask(int);
+    method public static boolean startUserInBackground(int);
+    method public static boolean startUserInForeground(int);
+    method public static void stopAllTasksForUser(int);
+    method public static int stopUserWithDelayedLocking(int, boolean);
+    method public static boolean unlockUser(int);
+    method public static void unregisterProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
     field public static final int INVALID_TASK_ID = -1; // 0xffffffff
   }
 
-  public static interface ActivityManagerHelper.ProcessObserverCallback {
-    method public default void onForegroundActivitiesChanged(int, int, boolean);
-    method public default void onProcessDied(int, int);
+  public abstract static class ActivityManagerHelper.ProcessObserverCallback {
+    ctor public ActivityManagerHelper.ProcessObserverCallback();
+    method public void onForegroundActivitiesChanged(int, int, boolean);
+    method public void onProcessDied(int, int);
   }
 
   public final class KeyguardManagerHelper {
@@ -38,7 +39,6 @@ package android.car.builtin.app {
   }
 
   public class TaskInfoHelper {
-    ctor public TaskInfoHelper();
     method public static int getDisplayId(@NonNull android.app.TaskInfo);
     method public static int getUserId(@NonNull android.app.TaskInfo);
     method public static boolean isVisible(@NonNull android.app.TaskInfo);
@@ -52,11 +52,21 @@ package android.car.builtin.app {
 
 }
 
+package android.car.builtin.bluetooth {
+
+  @Deprecated public final class BluetoothHeadsetClientHelper {
+    method @Deprecated public static java.util.List<android.bluetooth.BluetoothDevice> getConnectedBvraDevices(@NonNull android.bluetooth.BluetoothHeadsetClient);
+    method @Deprecated public static boolean startVoiceRecognition(@NonNull android.bluetooth.BluetoothHeadsetClient, android.bluetooth.BluetoothDevice);
+    method @Deprecated public static boolean stopVoiceRecognition(@NonNull android.bluetooth.BluetoothHeadsetClient, android.bluetooth.BluetoothDevice);
+  }
+
+}
+
 package android.car.builtin.content {
 
   public final class ContextHelper {
     method public static int getDisplayId(@NonNull android.content.Context);
-    method @Deprecated @RequiresPermission(android.Manifest.permission.INTERACT_ACROSS_USERS) public static void startActivityAsUser(@NonNull android.content.Context, @NonNull android.content.Intent, @Nullable android.os.Bundle, @NonNull android.os.UserHandle);
+    method @RequiresPermission(android.Manifest.permission.INTERACT_ACROSS_USERS) public static void startActivityAsUser(@NonNull android.content.Context, @NonNull android.content.Intent, @Nullable android.os.Bundle, @NonNull android.os.UserHandle);
   }
 
 }
@@ -78,7 +88,8 @@ package android.car.builtin.content.pm {
     method public static boolean isUpdatedSystemApp(@NonNull android.content.pm.ApplicationInfo);
     method public static boolean isVendorApp(@NonNull android.content.pm.ApplicationInfo);
     method public static void setApplicationEnabledSettingForUser(@NonNull String, int, int, int, @NonNull String) throws android.os.RemoteException;
-    field public static final String PROPERTY_CAR_SERVICE_OVERLAY_PACKAGE_NAME = "ro.android.car.service.overlay.package";
+    field public static final String PROPERTY_CAR_SERVICE_OVERLAY_PACKAGES = "ro.android.car.carservice.overlay.packages";
+    field public static final String PROPERTY_CAR_SERVICE_PACKAGE_NAME = "ro.android.car.carservice.package";
   }
 
 }
@@ -94,9 +105,8 @@ package android.car.builtin.input {
 package android.car.builtin.job {
 
   public final class JobSchedulerHelper {
-    ctor public JobSchedulerHelper(android.content.Context);
-    method public int getNumberOfPendingJobs();
-    method public int getNumberOfRunningJobsAtIdle();
+    method public static int getNumberOfPendingJobs(android.content.Context);
+    method public static int getNumberOfRunningJobsAtIdle(android.content.Context);
   }
 
 }
@@ -139,50 +149,6 @@ package android.car.builtin.media {
     ctor public AudioManagerHelper.VolumeAndMuteReceiver();
     method public abstract void onMuteChanged();
     method public abstract void onVolumeChanged(int);
-  }
-
-}
-
-package android.car.builtin.net {
-
-  public final class NetworkStatsHelper {
-    method public static long getElapsedRealtime(@NonNull android.net.NetworkStats);
-    method @NonNull public static android.net.NetworkStats.Entry getValues(@NonNull android.net.NetworkStats, int, @Nullable android.net.NetworkStats.Entry);
-    method public static int size(@NonNull android.net.NetworkStats);
-  }
-
-  public static final class NetworkStatsHelper.EntryHelper {
-    method public static boolean equals(@NonNull android.net.NetworkStats.Entry, @Nullable android.net.NetworkStats.Entry);
-    method public static int getDefaultNetwork(@NonNull android.net.NetworkStats.Entry);
-    method @Nullable public static String getIface(@NonNull android.net.NetworkStats.Entry);
-    method public static int getMetered(@NonNull android.net.NetworkStats.Entry);
-    method public static long getOperations(@NonNull android.net.NetworkStats.Entry);
-    method public static int getRoaming(@NonNull android.net.NetworkStats.Entry);
-    method public static long getRxBytes(@NonNull android.net.NetworkStats.Entry);
-    method public static long getRxPackets(@NonNull android.net.NetworkStats.Entry);
-    method public static int getSet(@NonNull android.net.NetworkStats.Entry);
-    method public static int getTag(@NonNull android.net.NetworkStats.Entry);
-    method public static long getTxBytes(@NonNull android.net.NetworkStats.Entry);
-    method public static long getTxPackets(@NonNull android.net.NetworkStats.Entry);
-    method public static int getUid(@NonNull android.net.NetworkStats.Entry);
-    method public static boolean isEmpty(@NonNull android.net.NetworkStats.Entry);
-  }
-
-  @Deprecated public final class NetworkStatsServiceHelper {
-    ctor @Deprecated public NetworkStatsServiceHelper(@NonNull android.car.builtin.net.NetworkStatsServiceHelper.Dependencies);
-    method @Deprecated @NonNull public android.net.NetworkStats getSummaryForAllUid(int, int, long, long, @NonNull String) throws android.os.RemoteException;
-    field @Deprecated public static final int OEM_MANAGED_ALL = -1; // 0xffffffff
-    field @Deprecated public static final int OEM_MANAGED_NO = 0; // 0x0
-    field @Deprecated public static final int OEM_MANAGED_YES = -2; // 0xfffffffe
-    field @Deprecated public static final int TRANSPORT_BLUETOOTH = 2; // 0x2
-    field @Deprecated public static final int TRANSPORT_CELLULAR = 0; // 0x0
-    field @Deprecated public static final int TRANSPORT_ETHERNET = 3; // 0x3
-    field @Deprecated public static final int TRANSPORT_WIFI = 1; // 0x1
-  }
-
-  @Deprecated public static class NetworkStatsServiceHelper.Dependencies {
-    ctor @Deprecated public NetworkStatsServiceHelper.Dependencies(@NonNull android.app.usage.NetworkStatsManager);
-    method @Deprecated @NonNull public android.net.NetworkStats getSummaryForAllUid(int, int, long, long);
   }
 
 }
@@ -266,11 +232,10 @@ package android.car.builtin.os {
 package android.car.builtin.power {
 
   public final class PowerManagerHelper {
-    ctor public PowerManagerHelper(android.content.Context);
-    method public int getMaximumScreenBrightnessSetting();
-    method public int getMinimumScreenBrightnessSetting();
-    method public void setDisplayState(boolean, long);
-    method public void shutdown(boolean, String, boolean);
+    method public static int getMaximumScreenBrightnessSetting(android.content.Context);
+    method public static int getMinimumScreenBrightnessSetting(android.content.Context);
+    method public static void setDisplayState(android.content.Context, boolean, long);
+    method public static void shutdown(android.content.Context, boolean, String, boolean);
   }
 
 }
@@ -278,7 +243,7 @@ package android.car.builtin.power {
 package android.car.builtin.provider {
 
   public final class SettingsHelper {
-    field @Deprecated public static final String SYSTEM_LOCALES = "system_locales";
+    field public static final String SYSTEM_LOCALES = "system_locales";
   }
 
 }
@@ -286,7 +251,15 @@ package android.car.builtin.provider {
 package android.car.builtin.util {
 
   public final class AssistUtilsHelper {
+    method public static void hideCurrentSession(@NonNull android.content.Context);
+    method public static boolean isSessionRunning(@NonNull android.content.Context);
+    method public static void registerVoiceInteractionSessionListenerHelper(@NonNull android.content.Context, @NonNull android.car.builtin.util.AssistUtilsHelper.VoiceInteractionSessionListenerHelper);
     method public static boolean showPushToTalkSessionForActiveService(@NonNull android.content.Context, @NonNull android.car.builtin.util.AssistUtilsHelper.VoiceInteractionSessionShowCallbackHelper);
+  }
+
+  public static interface AssistUtilsHelper.VoiceInteractionSessionListenerHelper {
+    method public void onVoiceSessionHidden();
+    method public void onVoiceSessionShown();
   }
 
   public static interface AssistUtilsHelper.VoiceInteractionSessionShowCallbackHelper {
@@ -342,7 +315,7 @@ package android.car.builtin.util {
     method public static void writeCarUserHalSetUserAuthResp(@Nullable Object[]);
     method public static void writeCarUserHalSwitchUserReq(int, int, int, int);
     method public static void writeCarUserHalSwitchUserResp(int, int, int, @Nullable String);
-    method public static void writeCarUserManagerAddListener(int, @Nullable String);
+    method public static void writeCarUserManagerAddListener(int, @Nullable String, boolean);
     method public static void writeCarUserManagerCreateUserReq(int, @Nullable String, @Nullable String, int);
     method public static void writeCarUserManagerCreateUserResp(int, int, @Nullable String);
     method public static void writeCarUserManagerDisconnected(int);
@@ -445,8 +418,12 @@ package android.car.builtin.view {
 
   public final class DisplayHelper {
     method public static int getPhysicalPort(android.view.Display);
+    method public static int getType(android.view.Display);
     method public static String getUniqueId(android.view.Display);
     field public static final int INVALID_PORT = -1; // 0xffffffff
+    field public static final int TYPE_EXTERNAL = 2; // 0x2
+    field public static final int TYPE_INTERNAL = 1; // 0x1
+    field public static final int TYPE_VIRTUAL = 5; // 0x5
   }
 
   public final class KeyEventHelper {

@@ -136,11 +136,11 @@ std::vector<UidStats> sampleUidStats() {
 
 namespace internal {
 
-class UidStatsCollectorPeer : public RefBase {
+class UidStatsCollectorPeer final : public RefBase {
 public:
     explicit UidStatsCollectorPeer(sp<UidStatsCollector> collector) : mCollector(collector) {}
 
-    void setPackageInfoResolver(sp<IPackageInfoResolver> packageInfoResolver) {
+    void setPackageInfoResolver(sp<PackageInfoResolverInterface> packageInfoResolver) {
         mCollector->mPackageInfoResolver = packageInfoResolver;
     }
 
@@ -186,7 +186,17 @@ protected:
     sp<MockUidProcStatsCollector> mMockUidProcStatsCollector;
 };
 
+TEST_F(UidStatsCollectorTest, TestInit) {
+    EXPECT_CALL(*mMockUidIoStatsCollector, init()).Times(1);
+    EXPECT_CALL(*mMockUidProcStatsCollector, init()).Times(1);
+
+    mUidStatsCollector->init();
+}
+
 TEST_F(UidStatsCollectorTest, TestCollect) {
+    EXPECT_CALL(*mMockUidIoStatsCollector, enabled()).WillOnce(Return(true));
+    EXPECT_CALL(*mMockUidProcStatsCollector, enabled()).WillOnce(Return(true));
+
     EXPECT_CALL(*mMockUidIoStatsCollector, collect()).WillOnce(Return(Result<void>()));
     EXPECT_CALL(*mMockUidProcStatsCollector, collect()).WillOnce(Return(Result<void>()));
 

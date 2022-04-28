@@ -19,6 +19,7 @@ package com.android.car.telemetry;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
+import android.car.telemetry.TelemetryProto;
 import android.os.PersistableBundle;
 import android.util.ArrayMap;
 import android.util.AtomicFile;
@@ -29,7 +30,9 @@ import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -46,21 +49,30 @@ public class ResultStore {
     static final String ERROR_RESULT_DIR = "error";
     @VisibleForTesting
     static final String FINAL_RESULT_DIR = "final";
+    @VisibleForTesting
+    static final String PUBLISHER_STORAGE_DIR = "publisher";
 
     /** Map keys are MetricsConfig names, which are also the file names in disk. */
-    private final Map<String, InterimResult> mInterimResultCache = new ArrayMap<>();
+    private final ArrayMap<String, InterimResult> mInterimResultCache = new ArrayMap<>();
+    private final ArrayMap<String, PersistableBundle> mFinalResultCache = new ArrayMap<>();
+    private final ArrayMap<String, TelemetryProto.TelemetryError> mErrorCache = new ArrayMap<>();
+    /** Keyed by publisher's class name. **/
+    private final ArrayMap<String, PersistableBundle> mPublisherCache = new ArrayMap<>();
 
     private final File mInterimResultDirectory;
     private final File mErrorResultDirectory;
     private final File mFinalResultDirectory;
+    private final File mPublisherDataDirectory;
 
-    ResultStore(@NonNull File rootDirectory) {
+    public ResultStore(@NonNull File rootDirectory) {
         mInterimResultDirectory = new File(rootDirectory, INTERIM_RESULT_DIR);
         mErrorResultDirectory = new File(rootDirectory, ERROR_RESULT_DIR);
         mFinalResultDirectory = new File(rootDirectory, FINAL_RESULT_DIR);
+        mPublisherDataDirectory = new File(rootDirectory, PUBLISHER_STORAGE_DIR);
         mInterimResultDirectory.mkdirs();
         mErrorResultDirectory.mkdirs();
         mFinalResultDirectory.mkdirs();
+        mPublisherDataDirectory.mkdir();
         // load results into memory to reduce the frequency of disk access
         loadInterimResultsIntoMemory();
     }
@@ -84,7 +96,7 @@ public class ResultStore {
 
     /**
      * Retrieves interim metrics for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     @Nullable
     public PersistableBundle getInterimResult(@NonNull String metricsConfigName) {
@@ -96,7 +108,7 @@ public class ResultStore {
 
     /**
      * Retrieves final metrics for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      *
      * @param metricsConfigName name of the MetricsConfig.
      * @param deleteResult      if true, the final result will be deleted from disk.
@@ -105,13 +117,22 @@ public class ResultStore {
     @Nullable
     public PersistableBundle getFinalResult(
             @NonNull String metricsConfigName, boolean deleteResult) {
+        // check in memory storage
+        PersistableBundle result = mFinalResultCache.get(metricsConfigName);
+        if (result != null) {
+            if (deleteResult) {
+                mFinalResultCache.remove(metricsConfigName);
+            }
+            return result;
+        }
+        // check persistent storage
         File file = new File(mFinalResultDirectory, metricsConfigName);
         // if no final result exists for this metrics config, return immediately
         if (!file.exists()) {
             return null;
         }
         try {
-            PersistableBundle result = IoUtils.readBundle(file);
+            result = IoUtils.readBundle(file);
             if (deleteResult) {
                 file.delete();
             }
@@ -128,8 +149,8 @@ public class ResultStore {
      *
      * @return the final results mapped to config names.
      */
-    public Map<String, PersistableBundle> getFinalResults() {
-        Map<String, PersistableBundle> results = new ArrayMap<>();
+    public ArrayMap<String, PersistableBundle> getAllFinalResults() {
+        ArrayMap<String, PersistableBundle> results = new ArrayMap<>(mFinalResultCache);
         File[] files = mFinalResultDirectory.listFiles();
         if (files == null) {
             return results;
@@ -156,14 +177,22 @@ public class ResultStore {
     @Nullable
     public TelemetryProto.TelemetryError getErrorResult(
             @NonNull String metricsConfigName, boolean deleteResult) {
+        // check in memory storage
+        TelemetryProto.TelemetryError result = mErrorCache.get(metricsConfigName);
+        if (result != null) {
+            if (deleteResult) {
+                mErrorCache.remove(metricsConfigName);
+            }
+            return result;
+        }
+        // check persistent storage
         File file = new File(mErrorResultDirectory, metricsConfigName);
         // if no error exists for this metrics config, return immediately
         if (!file.exists()) {
             return null;
         }
         try {
-            TelemetryProto.TelemetryError result =
-                    TelemetryProto.TelemetryError.parseFrom(new AtomicFile(file).readFully());
+            result = TelemetryProto.TelemetryError.parseFrom(new AtomicFile(file).readFully());
             if (deleteResult) {
                 file.delete();
             }
@@ -181,8 +210,8 @@ public class ResultStore {
      * @return the map of errors to each config.
      */
     @NonNull
-    public Map<String, TelemetryProto.TelemetryError> getErrorResults() {
-        Map<String, TelemetryProto.TelemetryError> errors = new ArrayMap<>();
+    public ArrayMap<String, TelemetryProto.TelemetryError> getAllErrorResults() {
+        ArrayMap<String, TelemetryProto.TelemetryError> errors = new ArrayMap<>(mErrorCache);
         File[] files = mErrorResultDirectory.listFiles();
         if (files == null) {
             return errors;
@@ -201,8 +230,43 @@ public class ResultStore {
     }
 
     /**
+     * Returns all data associated with the given publisher.
+     *
+     * @param publisherName Class name of the given publisher.
+     * @param deleteData    If {@code true}, all data for the publisher will be deleted from cache
+     *                      and disk.
+     */
+    @Nullable
+    public PersistableBundle getPublisherData(@NonNull String publisherName, boolean deleteData) {
+        PersistableBundle data = mPublisherCache.get(publisherName);
+        if (data != null) {
+            if (deleteData) {
+                mPublisherCache.remove(publisherName);
+            }
+            return data;
+        }
+        // check persistent storage
+        File file = new File(mPublisherDataDirectory, publisherName);
+        // if no publisher data exists, return immediately
+        if (!file.exists()) {
+            return null;
+        }
+        try {
+            data = IoUtils.readBundle(file);
+            if (deleteData) {
+                file.delete();
+            }
+            return data;
+        } catch (IOException e) {
+            Slogf.w(CarLog.TAG_TELEMETRY, "Failed to read from disk.", e);
+            // TODO(b/197153560): record failure
+        }
+        return null;
+    }
+
+    /**
      * Stores interim metrics results in memory for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     public void putInterimResult(
             @NonNull String metricsConfigName, @NonNull PersistableBundle result) {
@@ -211,31 +275,33 @@ public class ResultStore {
 
     /**
      * Stores final metrics in memory for the given
-     * {@link com.android.car.telemetry.TelemetryProto.MetricsConfig}.
+     * {@link android.car.telemetry.TelemetryProto.MetricsConfig}.
      */
     public void putFinalResult(
             @NonNull String metricsConfigName, @NonNull PersistableBundle result) {
-        try {
-            IoUtils.writeBundle(mFinalResultDirectory, metricsConfigName, result);
-            IoUtils.deleteSilently(mInterimResultDirectory, metricsConfigName);
-            mInterimResultCache.remove(metricsConfigName);
-        } catch (IOException e) {
-            Slogf.w(CarLog.TAG_TELEMETRY, "Failed to write result to file", e);
-            // TODO(b/197153560): record failure
-        }
+        IoUtils.deleteSilently(mInterimResultDirectory, metricsConfigName);
+        mInterimResultCache.remove(metricsConfigName);
+        mFinalResultCache.put(metricsConfigName, result);
     }
 
     /** Stores the error object produced by the script. */
     public void putErrorResult(
             @NonNull String metricsConfigName, @NonNull TelemetryProto.TelemetryError error) {
-        try {
-            IoUtils.writeProto(mErrorResultDirectory, metricsConfigName, error);
-            IoUtils.deleteSilently(mInterimResultDirectory, metricsConfigName);
-            mInterimResultCache.remove(metricsConfigName);
-        } catch (IOException e) {
-            Slogf.w(CarLog.TAG_TELEMETRY, "Failed to write result to file", e);
-            // TODO(b/197153560): record failure
-        }
+        IoUtils.deleteSilently(mInterimResultDirectory, metricsConfigName);
+        mInterimResultCache.remove(metricsConfigName);
+        mErrorCache.put(metricsConfigName, error);
+    }
+
+    /**
+     * Stores PersistableBundle associated with the given publisher in disk-backed cache.
+     *
+     * @param publisherName Class name of the publisher.
+     * @param data          PersistableBundle object that encapsulated all data to be stored for
+     *                      this publisher.
+     */
+    public void putPublisherData(
+            @NonNull String publisherName, @NonNull PersistableBundle data) {
+        mPublisherCache.put(publisherName, data);
     }
 
     /**
@@ -244,24 +310,53 @@ public class ResultStore {
      */
     public void removeResult(@NonNull String metricsConfigName) {
         mInterimResultCache.remove(metricsConfigName);
+        mFinalResultCache.remove(metricsConfigName);
+        mErrorCache.remove(metricsConfigName);
         IoUtils.deleteSilently(mInterimResultDirectory, metricsConfigName);
         IoUtils.deleteSilently(mFinalResultDirectory, metricsConfigName);
         IoUtils.deleteSilently(mErrorResultDirectory, metricsConfigName);
     }
 
-    /** Deletes all interim and final results stored in disk. */
+    /** Deletes all interim and final results. */
     public void removeAllResults() {
         mInterimResultCache.clear();
+        mFinalResultCache.clear();
+        mErrorCache.clear();
+        mPublisherCache.clear();
         IoUtils.deleteAllSilently(mInterimResultDirectory);
         IoUtils.deleteAllSilently(mFinalResultDirectory);
         IoUtils.deleteAllSilently(mErrorResultDirectory);
+        IoUtils.deleteAllSilently(mPublisherDataDirectory);
+    }
+
+    /**
+     * Returns the names of MetricsConfigs whose script reached a terminal state.
+     */
+    public Set<String> getFinishedMetricsConfigNames() {
+        HashSet<String> configNames = new HashSet<>();
+        configNames.addAll(mFinalResultCache.keySet());
+        configNames.addAll(mErrorCache.keySet());
+        // prevent NPE
+        String[] fileNames = mFinalResultDirectory.list();
+        if (fileNames != null) {
+            configNames.addAll(Arrays.asList(fileNames));
+        }
+        fileNames = mErrorResultDirectory.list();
+        if (fileNames != null) {
+            configNames.addAll(Arrays.asList(fileNames));
+        }
+        return configNames;
     }
 
     /** Persists data to disk and deletes stale data. */
     public void flushToDisk() {
         writeInterimResultsToFile();
+        writeFinalResultsToFile();
+        writeErrorsToFile();
+        writePublisherCacheToFile();
         IoUtils.deleteOldFiles(STALE_THRESHOLD_MILLIS,
-                mInterimResultDirectory, mFinalResultDirectory);
+                mInterimResultDirectory, mFinalResultDirectory, mErrorResultDirectory,
+                mPublisherDataDirectory);
     }
 
     /** Writes dirty interim results to disk. */
@@ -276,6 +371,40 @@ public class ResultStore {
                         mInterimResultDirectory, metricsConfigName, interimResult.getBundle());
             } catch (IOException e) {
                 Slogf.w(CarLog.TAG_TELEMETRY, "Failed to write result to file", e);
+                // TODO(b/197153560): record failure
+            }
+        });
+    }
+
+
+    private void writeFinalResultsToFile() {
+        mFinalResultCache.forEach((metricsConfigName, bundle) -> {
+            try {
+                IoUtils.writeBundle(mFinalResultDirectory, metricsConfigName, bundle);
+            } catch (IOException e) {
+                Slogf.w(CarLog.TAG_TELEMETRY, "Failed to write result to file", e);
+                // TODO(b/197153560): record failure
+            }
+        });
+    }
+
+    private void writeErrorsToFile() {
+        mErrorCache.forEach((metricsConfigName, telemetryError) -> {
+            try {
+                IoUtils.writeProto(mErrorResultDirectory, metricsConfigName, telemetryError);
+            } catch (IOException e) {
+                Slogf.w(CarLog.TAG_TELEMETRY, "Failed to write result to file", e);
+                // TODO(b/197153560): record failure
+            }
+        });
+    }
+
+    private void writePublisherCacheToFile() {
+        mPublisherCache.forEach((publisherName, bundle) -> {
+            try {
+                IoUtils.writeBundle(mPublisherDataDirectory, publisherName, bundle);
+            } catch (IOException e) {
+                Slogf.w(CarLog.TAG_TELEMETRY, "Failed to write publisher storage to file", e);
                 // TODO(b/197153560): record failure
             }
         });

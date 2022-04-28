@@ -36,14 +36,17 @@ java_sdk_library {
     // First release, not enabled.
     unsafe_ignore_missing_latest_api: true,
 
+    // TODO(202212484): Allows car-builtin-lib access to @hide Bluetooth APIs
+    sdk_version: "core_platform",
+
     libs: [
-        // For NetworkStats related definitions.
-        "framework-connectivity-tiramisu.stubs.module_lib",
+        // TODO(202212484): The following two allow car-builtin-lib access to @hide Bluetooth APIs
+        "framework-bluetooth.impl",
+        "framework",
     ],
 
     stub_only_libs: [
-        // For generating stubs that contains NetworkStats definition.
-        "framework-connectivity-tiramisu.stubs.module_lib",
+        "framework-bluetooth",
     ],
 
     test: {
@@ -62,6 +65,7 @@ java_sdk_library {
     visibility: [
         "//packages/services/Car/car-lib",
         "//packages/services/Car/car-lib-module",
+        "//packages/services/Car/car-test-lib",
         "//packages/services/Car/procfs-inspector/client",
         "//packages/services/Car/service-builtin",
         "//packages/services/Car/service",

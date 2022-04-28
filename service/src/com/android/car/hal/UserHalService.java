@@ -52,6 +52,7 @@ import android.os.Handler;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 
@@ -106,7 +107,7 @@ public final class UserHalService extends HalServiceBase {
             SWITCH_USER,
     };
 
-    private static final boolean DBG = false;
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
     private final Object mLock = new Object();
 
@@ -148,6 +149,9 @@ public final class UserHalService extends HalServiceBase {
 
     @VisibleForTesting
     UserHalService(VehicleHal hal, Handler handler) {
+        if (DBG) {
+            Slogf.d(TAG, "DBG enabled");
+        }
         mHal = hal;
         mHandler = handler;
         mBaseRequestId = ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE);
@@ -295,7 +299,7 @@ public final class UserHalService extends HalServiceBase {
      * Calls HAL to asynchronously get info about the initial user.
      *
      * @param requestType type of request (as defined by
-     * {@link android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType}).
+     * {@link android.hardware.automotive.vehicle.InitialUserInfoRequestType}).
      * @param timeoutMs how long to wait (in ms) for the property change event.
      * @param usersInfo current state of Android users.
      * @param callback to handle the response.
@@ -1145,6 +1149,7 @@ public final class UserHalService extends HalServiceBase {
         String indent = "  ";
         writer.printf("*User HAL*\n");
 
+        writer.printf("DBG: %b\n", DBG);
         writer.printf("Relevant CarSystemProperties\n");
         dumpSystemProperty(writer, indent, "user_hal_enabled",
                 CarSystemProperties.getUserHalEnabled());

@@ -54,6 +54,7 @@ import com.android.car.internal.LargeParcelable;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -108,6 +109,14 @@ final class AidlVehicleStub extends VehicleStub {
         synchronized (mLock) {
             return mPendingGetValueRequests.size() + mPendingSetValueRequests.size();
         }
+    }
+
+    /**
+     * Checks whether we are connected to AIDL VHAL: {@code true} or HIDL VHAL: {@code false}.
+     */
+    @Override
+    public boolean isAidlVhal() {
+        return true;
     }
 
     /**
@@ -241,6 +250,9 @@ final class AidlVehicleStub extends VehicleStub {
                 throw new ServiceSpecificException(
                         result.status, "failed to get value: " + request.prop);
             }
+            if (result.prop == null) {
+                return null;
+            }
             return mPropValueBuilder.build(result.prop);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // Restore the interrupted status
@@ -308,6 +320,11 @@ final class AidlVehicleStub extends VehicleStub {
             throw new ServiceSpecificException(StatusCode.INTERNAL_ERROR,
                     "set value request timeout for property: " + request.value);
         }
+    }
+
+    @Override
+    public void dump(FileDescriptor fd, ArrayList<String> args) throws RemoteException {
+        mAidlVehicle.asBinder().dump(fd, args.toArray(new String[args.size()]));
     }
 
     @Nullable
@@ -380,6 +397,16 @@ final class AidlVehicleStub extends VehicleStub {
         public void unsubscribe(int prop) throws RemoteException, ServiceSpecificException {
             mAidlVehicle.unsubscribe(this, new int[]{prop});
         }
+
+        @Override
+        public String getInterfaceHash() {
+            return IVehicleCallback.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return IVehicleCallback.VERSION;
+        }
     }
 
     private void onGetValues(GetValueResults responses) {
@@ -451,6 +478,16 @@ final class AidlVehicleStub extends VehicleStub {
         public void onPropertySetError(VehiclePropErrors errors) throws RemoteException {
             throw new UnsupportedOperationException(
                     "GetSetValuesCallback only support onGetValues or onSetValues");
+        }
+
+        @Override
+        public String getInterfaceHash() {
+            return IVehicleCallback.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return IVehicleCallback.VERSION;
         }
     }
 }

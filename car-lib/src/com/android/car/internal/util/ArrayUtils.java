@@ -16,9 +16,15 @@
 
 package com.android.car.internal.util;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.util.ArraySet;
+
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+
+import dalvik.system.VMRuntime;
 
 import java.io.File;
 import java.lang.reflect.Array;
@@ -48,6 +54,11 @@ public class ArrayUtils {
     public static final File[] EMPTY_FILE = new File[0];
 
     private ArrayUtils() { /* cannot be instantiated */ }
+
+    /** See {@link VMRuntime#newUnpaddedArray} for details. */
+    public static long[] newUnpaddedLongArray(int minLen) {
+        return (long[]) VMRuntime.getRuntime().newUnpaddedArray(long.class, minLen);
+    }
 
     /**
      * Checks if the beginnings of two byte arrays are equal.
@@ -870,6 +881,7 @@ public class ArrayUtils {
     }
 
     /** TODO: add javadoc */
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public static String deepToString(Object value) {
         if (value != null && value.getClass().isArray()) {
             if (value.getClass() == boolean[].class) {

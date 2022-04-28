@@ -19,6 +19,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedInOrBefore;
 import android.os.Parcel;
 import android.os.Parcelable;
 
@@ -66,6 +67,7 @@ public final class RotaryEvent implements Parcelable {
     /**
      * Returns the number of clicks contained in this event.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public int getNumberOfClicks() {
         return mUptimeMillisForClicks.length;
     }
@@ -79,12 +81,14 @@ public final class RotaryEvent implements Parcelable {
      *
      * @return Event time
      */
+    @AddedInOrBefore(majorVersion = 33)
     public long getUptimeMillisForClick(int clickIndex) {
         return mUptimeMillisForClicks[clickIndex];
     }
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return new StringBuilder(128)
                 .append("RotaryEvent{")
@@ -149,6 +153,7 @@ public final class RotaryEvent implements Parcelable {
      * can be {@link CarInputManager#INPUT_TYPE_ROTARY_NAVIGATION}.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @CarInputManager.InputTypeEnum int getInputType() {
         return mInputType;
     }
@@ -157,6 +162,7 @@ public final class RotaryEvent implements Parcelable {
      * Indicates if the event is clockwise (={@code true}) or counterclockwise (={@code false}).
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public boolean isClockwise() {
         return mClockwise;
     }
@@ -169,6 +175,7 @@ public final class RotaryEvent implements Parcelable {
      * capture timestamps for each click, all the timestamps will be the same.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @NonNull long[] getUptimeMillisForClicks() {
         return mUptimeMillisForClicks;
     }
@@ -176,6 +183,7 @@ public final class RotaryEvent implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(@android.annotation.Nullable Object o) {
         // You can override field equality logic by defining either of the methods like:
         // boolean fieldNameEquals(RotaryEvent other) { ... }
@@ -195,6 +203,7 @@ public final class RotaryEvent implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         // You can override field hashCode logic by defining methods like:
         // int fieldNameHashCode() { ... }
@@ -208,6 +217,7 @@ public final class RotaryEvent implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -222,6 +232,7 @@ public final class RotaryEvent implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -248,6 +259,7 @@ public final class RotaryEvent implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<RotaryEvent> CREATOR
             = new Parcelable.Creator<RotaryEvent>() {
         @Override

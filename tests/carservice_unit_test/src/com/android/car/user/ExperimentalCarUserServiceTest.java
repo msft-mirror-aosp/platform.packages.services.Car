@@ -17,6 +17,7 @@
 package com.android.car.user;
 
 import static android.car.test.mocks.AndroidMockitoHelper.mockAmSwitchUser;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmCreateUser;
 import static android.car.test.mocks.JavaMockitoHelper.getResult;
 
 import static com.android.car.user.MockedUserHandleBuilder.expectAdminUserExists;
@@ -39,6 +40,7 @@ import android.annotation.NonNull;
 import android.annotation.UserIdInt;
 import android.car.CarOccupantZoneManager.OccupantTypeEnum;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
+import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.user.UserCreationResult;
 import android.car.user.UserSwitchResult;
@@ -78,7 +80,7 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
     public void setUp() {
         mExperimentalCarUserService =
                 new ExperimentalCarUserService(mMockContext, mCarUserService, mMockedUserManager,
-                        mMockedActivityManagerHelper, mMockedUserHandleHelper);
+                        mMockedUserHandleHelper);
 
         // TODO(b/172262561): refactor this call, which is not assigning the service to anything
         // (but without it some tests fail due to NPE).
@@ -89,14 +91,14 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
     public void testCreateAdminDriver_IfCurrentUserIsAdminUser() throws Exception {
         when(mMockedUserManager.isSystemUser()).thenReturn(true);
         mockUmCreateUser(mMockedUserManager, "testUser", UserManager.USER_TYPE_FULL_SECONDARY,
-                UserManagerHelper.FLAG_ADMIN, UserHandle.of(10));
+                UserManagerHelper.FLAG_ADMIN, UserHandle.of(100));
         mockHalCreateUser(HalCallback.STATUS_OK, CreateUserStatus.SUCCESS);
 
         AndroidFuture<UserCreationResult> future =
                 mExperimentalCarUserService.createDriver("testUser", true);
         waitForHandlerThreadToFinish();
 
-        assertThat(getCreateDriverResult(future).getUser().getIdentifier()).isEqualTo(10);
+        assertThat(getCreateDriverResult(future).getUser().getIdentifier()).isEqualTo(100);
     }
 
     @Test
@@ -112,7 +114,7 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
     @Test
     public void testCreateNonAdminDriver() throws Exception {
         mockUmCreateUser(mMockedUserManager, "testUser", UserManager.USER_TYPE_FULL_SECONDARY,
-                NO_USER_INFO_FLAGS, UserHandle.of(10));
+                NO_USER_INFO_FLAGS, UserHandle.of(100));
         mockHalCreateUser(HalCallback.STATUS_OK, CreateUserStatus.SUCCESS);
 
         AndroidFuture<UserCreationResult> future =
@@ -120,7 +122,7 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
         waitForHandlerThreadToFinish();
 
         UserHandle userHandle = getCreateDriverResult(future).getUser();
-        assertThat(userHandle.getIdentifier()).isEqualTo(10);
+        assertThat(userHandle.getIdentifier()).isEqualTo(100);
     }
 
     @Test
@@ -223,8 +225,8 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
         int passenger3Id = 93;
         int zone1Id = 1;
         int zone2Id = 2;
-        doReturn(true).when(mMockedActivityManagerHelper)
-                .startUserInBackground(anyInt());
+        doReturn(true)
+                .when(() -> ActivityManagerHelper.startUserInBackground(anyInt()));
         assertThat(mExperimentalCarUserService.startPassenger(passenger1Id, zone1Id)).isTrue();
         assertThat(mExperimentalCarUserService.startPassenger(passenger2Id, zone2Id)).isTrue();
         assertThat(mExperimentalCarUserService.startPassenger(passenger3Id, zone2Id)).isFalse();
@@ -232,17 +234,17 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
 
     @Test
     public void testStopPassenger() throws RemoteException {
-        int user1Id = 11;
-        int passenger1Id = 91;
-        int passenger2Id = 92;
+        int user1Id = 101;
+        int passenger1Id = 901;
+        int passenger2Id = 902;
         int zoneId = 1;
         UserHandle user1 = expectRegularUserExists(mMockedUserHandleHelper, user1Id);
         UserHandle passenger1 = expectRegularUserExists(mMockedUserHandleHelper, passenger1Id);
 
         associateParentChild(user1, passenger1);
         mockGetCurrentUser(user1Id);
-        doReturn(true).when(mMockedActivityManagerHelper)
-                .startUserInBackground(anyInt());
+        doReturn(true)
+                .when(() -> ActivityManagerHelper.startUserInBackground(anyInt()));
         assertThat(mExperimentalCarUserService.startPassenger(passenger1Id, zoneId)).isTrue();
         assertThat(mExperimentalCarUserService.stopPassenger(passenger1Id)).isTrue();
         // Test of stopping an already stopped passenger.
@@ -253,31 +255,31 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
 
     private List<UserHandle> prepareUserList() {
         List<UserHandle> users = new ArrayList<>(Arrays.asList(
-                expectAdminUserExists(mMockedUserHandleHelper, 10),
-                expectRegularUserExists(mMockedUserHandleHelper, 11),
-                expectManagedProfileExists(mMockedUserHandleHelper, 12),
-                expectRegularUserExists(mMockedUserHandleHelper, 13),
-                expectGuestUserExists(mMockedUserHandleHelper, 14, /* isEphemeral= */ false),
-                expectEphemeralUserExists(mMockedUserHandleHelper, 15),
-                expectDisabledUserExists(mMockedUserHandleHelper, 16),
-                expectManagedProfileExists(mMockedUserHandleHelper, 17),
-                expectManagedProfileExists(mMockedUserHandleHelper, 18),
-                expectRegularUserExists(mMockedUserHandleHelper, 19)));
+                expectAdminUserExists(mMockedUserHandleHelper, 100),
+                expectRegularUserExists(mMockedUserHandleHelper, 101),
+                expectManagedProfileExists(mMockedUserHandleHelper, 102),
+                expectRegularUserExists(mMockedUserHandleHelper, 103),
+                expectGuestUserExists(mMockedUserHandleHelper, 104, /* isEphemeral= */ false),
+                expectEphemeralUserExists(mMockedUserHandleHelper, 105),
+                expectDisabledUserExists(mMockedUserHandleHelper, 106),
+                expectManagedProfileExists(mMockedUserHandleHelper, 107),
+                expectManagedProfileExists(mMockedUserHandleHelper, 108),
+                expectRegularUserExists(mMockedUserHandleHelper, 109)));
 
-        // Parent: test10, child: test12
+        // Parent: test100, child: test102
         associateParentChild(users.get(0), users.get(2));
-        // Parent: test13, child: test17
+        // Parent: test103, child: test107
         associateParentChild(users.get(3), users.get(7));
-        // Parent: test13, child: test18
+        // Parent: test103, child: test108
         associateParentChild(users.get(3), users.get(8));
         return users;
     }
 
     @Test
     public void testGetAllPossibleDrivers() {
-        Set<Integer> expected = new HashSet<Integer>(Arrays.asList(10, 11, 13, 14));
+        Set<Integer> expected = new HashSet<Integer>(Arrays.asList(100, 101, 103, 104));
         mockExistingUsers(prepareUserList());
-        mockIsHeadlessSystemUser(19, true);
+        mockIsHeadlessSystemUser(109, true);
         for (UserHandle user : mExperimentalCarUserService.getAllDrivers()) {
             assertThat(expected).contains(user.getIdentifier());
             expected.remove(user.getIdentifier());
@@ -290,12 +292,12 @@ public final class ExperimentalCarUserServiceTest extends BaseCarUserServiceTest
         SparseArray<HashSet<Integer>> testCases = new SparseArray<HashSet<Integer>>() {
             {
                 put(0, new HashSet<Integer>());
-                put(10, new HashSet<Integer>(Arrays.asList(12)));
-                put(11, new HashSet<Integer>());
-                put(13, new HashSet<Integer>(Arrays.asList(17)));
+                put(100, new HashSet<Integer>(Arrays.asList(102)));
+                put(101, new HashSet<Integer>());
+                put(103, new HashSet<Integer>(Arrays.asList(107)));
             }
         };
-        mockIsHeadlessSystemUser(18, true);
+        mockIsHeadlessSystemUser(108, true);
         for (int i = 0; i < testCases.size(); i++) {
             mockExistingUsers(prepareUserList());
             List<UserHandle> passengers = mExperimentalCarUserService

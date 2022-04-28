@@ -26,9 +26,12 @@ import android.car.builtin.util.Slogf;
 import android.car.hardware.property.VehicleVendorPermission;
 import android.hardware.automotive.vehicle.ElectronicTollCollectionCardStatus;
 import android.hardware.automotive.vehicle.ElectronicTollCollectionCardType;
+import android.hardware.automotive.vehicle.EvChargeState;
 import android.hardware.automotive.vehicle.EvConnectorType;
+import android.hardware.automotive.vehicle.EvRegenerativeBrakingState;
 import android.hardware.automotive.vehicle.FuelType;
 import android.hardware.automotive.vehicle.PortLocationType;
+import android.hardware.automotive.vehicle.TrailerState;
 import android.hardware.automotive.vehicle.VehicleAreaSeat;
 import android.hardware.automotive.vehicle.VehicleGear;
 import android.hardware.automotive.vehicle.VehicleIgnitionState;
@@ -102,6 +105,12 @@ public class PropertyHalServiceIds {
             new HashSet<>(getIntegersFromDataEnums(ElectronicTollCollectionCardType.class));
     private static final Set<Integer> ETC_CARD_STATUS =
             new HashSet<>(getIntegersFromDataEnums(ElectronicTollCollectionCardStatus.class));
+    private static final Set<Integer> EV_CHARGE_STATE =
+            new HashSet<>(getIntegersFromDataEnums(EvChargeState.class));
+    private static final Set<Integer> EV_REGENERATIVE_BREAKING_STATE =
+            new HashSet<>(getIntegersFromDataEnums(EvRegenerativeBrakingState.class));
+    private static final Set<Integer> TRAILER_PRESENT =
+            new HashSet<>(getIntegersFromDataEnums(TrailerState.class));
 
     // default vendor permission
     private static final int PERMISSION_CAR_VENDOR_DEFAULT = 0x00000000;
@@ -191,10 +200,10 @@ public class PropertyHalServiceIds {
                 Car.PERMISSION_CONTROL_CAR_MIRRORS,
                 Car.PERMISSION_CONTROL_CAR_MIRRORS));
         mProps.put(VehicleProperty.SEAT_MEMORY_SELECT, new Pair<>(
-                Car.PERMISSION_CONTROL_CAR_SEATS,
+                null,
                 Car.PERMISSION_CONTROL_CAR_SEATS));
         mProps.put(VehicleProperty.SEAT_MEMORY_SET, new Pair<>(
-                Car.PERMISSION_CONTROL_CAR_SEATS,
+                null,
                 Car.PERMISSION_CONTROL_CAR_SEATS));
         mProps.put(VehicleProperty.SEAT_BELT_BUCKLED, new Pair<>(
                 Car.PERMISSION_CONTROL_CAR_SEATS,
@@ -427,6 +436,18 @@ public class PropertyHalServiceIds {
         mProps.put(VehicleProperty.EV_BATTERY_LEVEL, new Pair<>(
                 Car.PERMISSION_ENERGY,
                 null));
+        mProps.put(VehicleProperty.EV_CHARGE_CURRENT_DRAW_LIMIT, new Pair<>(
+                Car.PERMISSION_ENERGY, Car.PERMISSION_CONTROL_CAR_ENERGY));
+        mProps.put(VehicleProperty.EV_CHARGE_PERCENT_LIMIT, new Pair<>(
+                Car.PERMISSION_ENERGY, Car.PERMISSION_CONTROL_CAR_ENERGY));
+        mProps.put(VehicleProperty.EV_CHARGE_STATE, new Pair<>(
+                Car.PERMISSION_ENERGY, null));
+        mProps.put(VehicleProperty.EV_CHARGE_SWITCH, new Pair<>(
+                Car.PERMISSION_ENERGY, Car.PERMISSION_CONTROL_CAR_ENERGY));
+        mProps.put(VehicleProperty.EV_CHARGE_TIME_REMAINING, new Pair<>(
+                Car.PERMISSION_ENERGY, null));
+        mProps.put(VehicleProperty.EV_REGENERATIVE_BRAKING_STATE, new Pair<>(
+                Car.PERMISSION_ENERGY, null));
         mProps.put(VehicleProperty.EV_CHARGE_PORT_OPEN, new Pair<>(
                 Car.PERMISSION_ENERGY_PORTS,
                 Car.PERMISSION_CONTROL_ENERGY_PORTS));
@@ -533,7 +554,7 @@ public class PropertyHalServiceIds {
                 Car.PERMISSION_CONTROL_INTERIOR_LIGHTS,
                 Car.PERMISSION_CONTROL_INTERIOR_LIGHTS));
         mProps.put(VehicleProperty.ANDROID_EPOCH_TIME, new Pair<>(
-                Car.PERMISSION_CAR_EPOCH_TIME,
+                null,
                 Car.PERMISSION_CAR_EPOCH_TIME));
         mProps.put(VehicleProperty.STORAGE_ENCRYPTION_BINDING_SEED, new Pair<>(
                 Car.PERMISSION_STORAGE_ENCRYPTION_BINDING_SEED,
@@ -573,6 +594,10 @@ public class PropertyHalServiceIds {
         mProps.put(VehicleProperty.ELECTRONIC_TOLL_COLLECTION_CARD_STATUS, new Pair<>(
                 Car.PERMISSION_CAR_INFO,
                 null));
+        mProps.put(VehicleProperty.VEHICLE_CURB_WEIGHT, new Pair<>(
+                Car.PERMISSION_PRIVILEGED_CAR_INFO, null));
+        mProps.put(VehicleProperty.TRAILER_PRESENT, new Pair<>(
+                Car.PERMISSION_PRIVILEGED_CAR_INFO, null));
         // mPropToValidValue should contain all properties which has @data_enum in types.hal
         mPropToValidValue.put(VehicleProperty.INFO_FUEL_TYPE, FUEL_TYPE);
         mPropToValidValue.put(VehicleProperty.INFO_EV_CONNECTOR_TYPE, EV_CONNECTOR_TYPE);
@@ -598,6 +623,9 @@ public class PropertyHalServiceIds {
         mPropToValidValue.put(VehicleProperty.HAZARD_LIGHTS_STATE, VEHICLE_LIGHT_STATE);
         mPropToValidValue.put(VehicleProperty.CABIN_LIGHTS_STATE, VEHICLE_LIGHT_STATE);
         mPropToValidValue.put(VehicleProperty.READING_LIGHTS_STATE, VEHICLE_LIGHT_STATE);
+        mPropToValidValue.put(VehicleProperty.EV_CHARGE_STATE, EV_CHARGE_STATE);
+        mPropToValidValue.put(VehicleProperty.EV_REGENERATIVE_BRAKING_STATE,
+                EV_REGENERATIVE_BREAKING_STATE);
         mPropToValidValue.put(VehicleProperty.HEADLIGHTS_SWITCH, VEHICLE_LIGHT_SWITCH);
         mPropToValidValue.put(VehicleProperty.HIGH_BEAM_LIGHTS_SWITCH, VEHICLE_LIGHT_SWITCH);
         mPropToValidValue.put(VehicleProperty.FOG_LIGHTS_SWITCH, VEHICLE_LIGHT_SWITCH);
@@ -610,6 +638,8 @@ public class PropertyHalServiceIds {
                 ETC_CARD_STATUS);
         mPropToValidValue.put(VehicleProperty.ELECTRONIC_TOLL_COLLECTION_CARD_STATUS,
                 ETC_CARD_TYPE);
+        mPropToValidValue.put(VehicleProperty.TRAILER_PRESENT,
+                TRAILER_PRESENT);
         // mPropToValidBitFlag contains all properties which return values are combinations of bits
         mPropToValidBitFlag.put(VehicleProperty.HVAC_FAN_DIRECTION_AVAILABLE,
                 HVAC_FAN_DIRECTION_COMBINATIONS);
@@ -792,7 +822,7 @@ public class PropertyHalServiceIds {
                 return null;
             default:
                 throw new IllegalArgumentException("permission Id: " + permissionEnum
-                    + " for property:" + propId + " is invalid vendor permission Id");
+                        + " for property:" + propId + " is invalid vendor permission Id");
         }
     }
 
