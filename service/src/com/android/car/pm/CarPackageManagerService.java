@@ -88,6 +88,7 @@ import android.util.Pair;
 import android.util.SparseArray;
 import android.util.SparseLongArray;
 import android.view.Display;
+import android.view.accessibility.AccessibilityEvent;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
@@ -274,7 +275,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
 
     @Override
     public void setAppBlockingPolicy(String packageName, CarAppBlockingPolicy policy, int flags) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "policy setting from binder call, client:" + packageName);
         }
         doSetAppBlockingPolicy(packageName, policy, flags);
@@ -414,7 +415,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         if (!callerCanQueryPackage(packageName)) return false;
         assertPackageAndClassName(packageName, className);
         synchronized (mLock) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "isActivityDistractionOptimized" + dumpPoliciesLocked(false));
             }
 
@@ -515,7 +516,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             throw new IllegalArgumentException("Package name null");
         }
         synchronized (mLock) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "isServiceDistractionOptimized" + dumpPoliciesLocked(false));
             }
 
@@ -619,7 +620,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     private boolean isActivityInMapAndMatching(AppBlockingPackageInfoWrapper wrapper,
             String packageName, String className) {
         if (wrapper == null || !wrapper.isMatching) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "Pkg not in allowlist:" + packageName);
             }
             return false;
@@ -747,7 +748,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
     }
 
     private void doUpdatePolicy(String packageName, CarAppBlockingPolicy policy, int flags) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "setting policy from:" + packageName + ",policy:" + policy + ",flags:0x"
                     + Integer.toHexString(flags));
         }
@@ -773,7 +774,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                 mWaitingPolicies.remove(policy);
                 mLock.notifyAll();
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "policy set:" + dumpPoliciesLocked(false));
             }
         }
@@ -887,7 +888,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
               <systemActivityAllowlist> in config.xml */
         Set<String> configActivitiesForPackage = configAllowlist.get(info.packageName);
         if (configActivitiesForPackage != null) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, info.packageName + " allowlisted");
             }
 
@@ -899,12 +900,12 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                 if (activitiesForPackage != null) {
                     activities.addAll(activitiesForPackage);
                 } else {
-                    if (Log.isLoggable(TAG, Log.DEBUG)) {
+                    if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                         Slogf.d(TAG, info.packageName + ": Activities null");
                     }
                 }
             } else {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                     Slogf.d(TAG, "Partially Allowlisted. WL Activities: "
                             + configActivitiesForPackage);
                 }
@@ -941,7 +942,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                     userId);
             if (doActivities != null) {
                 // Some of the activities in this app are Distraction Optimized.
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                     for (String activity : doActivities) {
                         Slogf.d(TAG, "adding " + activity + " from " + info.packageName
                                 + " to allowlist");
@@ -1057,7 +1058,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             Map<String, Set<String>> configBlocklist = new HashMap<>();
             mConfiguredBlocklist = mContext.getString(R.string.activityDenylist);
             if (mConfiguredBlocklist == null) {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                     Slogf.d(TAG, "Null blocklist in config");
                 }
             }
@@ -1180,7 +1181,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
         }
         try {
             if (policy != null) {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                     Slogf.d(TAG, "policy setting from policy service:" + proxy.getPackageName());
                 }
                 doSetAppBlockingPolicy(proxy.getPackageName(), policy, 0);
@@ -1326,7 +1327,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             return;
         }
         boolean allowed = isActivityAllowed(topTask);
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "new activity:" + topTask.toString() + " allowed:" + allowed);
         }
         if (allowed) {
@@ -1337,7 +1338,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                     + " not allowed, blocking disabled.");
             return;
         }
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "Current activity " + topTask.topActivity
                     + " not allowed, will block.");
         }
@@ -1370,7 +1371,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
 
         // Intent contains all info to debug what is blocked - log into both logcat and dumpsys.
         String log = "Starting blocking activity with intent: " + newActivityIntent.toUri(0);
-        if (Log.isLoggable(TAG, Log.INFO)) {
+        if (Slogf.isLoggable(TAG, Log.INFO)) {
             Slogf.i(TAG, log);
         }
         mBlockedActivityLogs.log(log);
@@ -1442,13 +1443,13 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                     fileDescriptors[0].getFileDescriptor(), WINDOW_DUMP_ARGUMENTS);
             fileDescriptors[0].close();
             StringBuilder outputBuilder = new StringBuilder();
-            BufferedReader reader = new BufferedReader(
-                    new FileReader(fileDescriptors[1].getFileDescriptor()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                outputBuilder.append(line).append("\n");
+            try (BufferedReader reader = new BufferedReader(
+                    new FileReader(fileDescriptors[1].getFileDescriptor()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    outputBuilder.append(line).append("\n");
+                }
             }
-            reader.close();
             fileDescriptors[1].close();
             return outputBuilder.toString();
         } catch (IOException | RemoteException e) {
@@ -1713,7 +1714,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
 
         @Override
         public void onUxRestrictionsChanged(CarUxRestrictions restrictions) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "Received uxr restrictions: "
                         + restrictions.isRequiresDistractionOptimization() + " : "
                         + restrictions.getActiveRestrictions());
@@ -1733,7 +1734,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
                     shouldCheck = true;
                 }
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "Should check top tasks?: " + shouldCheck);
             }
             if (shouldCheck) {
@@ -1764,9 +1765,18 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
      * Called when a window change event is received by the {@link CarSafetyAccessibilityService}.
      */
     @VisibleForTesting
-    void onWindowChangeEvent() {
+    void onWindowChangeEvent(@NonNull AccessibilityEvent event) {
         Slogf.d(TAG, "onWindowChange event received");
-        mHandler.post(() -> blockTopActivitiesIfNecessary());
+        boolean receivedFromActivityBlockingActivity =
+                mActivityBlockingActivity.getPackageName().contentEquals(event.getPackageName())
+                        && mActivityBlockingActivity.getClassName().contentEquals(
+                        event.getClassName());
+        if (!receivedFromActivityBlockingActivity) {
+            mHandler.post(() -> blockTopActivitiesIfNecessary());
+        } else {
+            Slogf.d(TAG, "Discarded onWindowChangeEvent received from "
+                    + "ActivityBlockingActivity");
+        }
     }
 
     /**
@@ -1779,7 +1789,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             if (intent == null || intent.getAction() == null) {
                 return;
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "PackageParsingEventReceiver Received " + intent.getAction());
             }
             String action = intent.getAction();
@@ -1818,7 +1828,7 @@ public class CarPackageManagerService extends ICarPackageManager.Stub implements
             if (intent == null) {
                 return;
             }
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 String packageName = intent.getData().getSchemeSpecificPart();
                 Slogf.d(TAG, "Pkg Changed:" + packageName);
                 String action = intent.getAction();

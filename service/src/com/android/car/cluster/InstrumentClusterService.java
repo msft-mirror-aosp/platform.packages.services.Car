@@ -15,6 +15,7 @@
  */
 package com.android.car.cluster;
 
+import static android.car.builtin.app.ActivityManagerHelper.createActivityOptions;
 import static android.car.cluster.renderer.InstrumentClusterRenderingService.EXTRA_BUNDLE_KEY_FOR_INSTRUMENT_CLUSTER_HELPER;
 import static android.car.settings.CarSettings.Global.DISABLE_INSTRUMENTATION_SERVICE;
 
@@ -156,7 +157,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
     final ServiceConnection mRendererServiceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "onServiceConnected, name: " + name + ", binder: " + binder);
             }
             IInstrumentCluster service = IInstrumentCluster.Stub.asInterface(binder);
@@ -173,7 +174,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
+            if (Slogf.isLoggable(TAG, Log.DEBUG)) {
                 Slogf.d(TAG, "onServiceDisconnected, name: " + name);
             }
             mContext.unbindService(this);
@@ -194,7 +195,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
                         Bundle activityOptionsBundle, int userId) {
                     Binder.clearCallingIdentity();
                     ActivityOptions options = activityOptionsBundle != null
-                            ? ActivityOptions.fromBundle(activityOptionsBundle)
+                            ? createActivityOptions(activityOptionsBundle)
                             : ActivityOptions.makeBasic();
                     FixedActivityService service = CarLocalServices.getService(
                             FixedActivityService.class);
@@ -267,7 +268,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
 
     @Override
     public void init() {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "init");
         }
 
@@ -291,7 +292,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
 
     @Override
     public void release() {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "release");
         }
 
@@ -368,7 +369,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
 
     @Override
     public void onKeyEvent(KeyEvent event) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "InstrumentClusterService#onKeyEvent: " + event);
         }
 
