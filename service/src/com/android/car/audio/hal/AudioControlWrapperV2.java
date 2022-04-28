@@ -99,8 +99,20 @@ public final class AudioControlWrapperV2 implements AudioControlWrapper {
     }
 
     @Override
+    public void registerAudioGainCallback(HalAudioGainCallback gainCallback) {
+        throw new UnsupportedOperationException(
+                "Audio Gain Callback is unsupported for IAudioControl@2.0");
+    }
+
+    @Override
+    public void unregisterAudioGainCallback() {
+        throw new UnsupportedOperationException(
+                "Audio Gain Callback is unsupported for IAudioControl@2.0");
+    }
+
+    @Override
     public void onAudioFocusChange(@AttributeUsage int usage, int zoneId, int focusChange) {
-        if (Log.isLoggable(TAG, Log.DEBUG)) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "onAudioFocusChange: usage " + usageToString(usage)
                     + ", zoneId " + zoneId + ", focusChange " + focusChange);
         }

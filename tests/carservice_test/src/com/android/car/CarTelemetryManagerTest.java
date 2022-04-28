@@ -29,12 +29,13 @@ import static org.junit.Assume.assumeTrue;
 import android.annotation.NonNull;
 import android.car.Car;
 import android.car.telemetry.CarTelemetryManager;
+import android.car.telemetry.TelemetryProto;
 import android.util.ArrayMap;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
-import com.android.car.telemetry.TelemetryProto;
+import com.android.car.telemetry.CarTelemetryService;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -68,6 +69,13 @@ public class CarTelemetryManagerTest extends MockedCarTestBase {
 
         mCarTelemetryManager = (CarTelemetryManager) getCar().getCarManager(
                 Car.CAR_TELEMETRY_SERVICE);
+    }
+
+    @Override
+    protected CarTelemetryService createCarTelemetryService() {
+        // Forces the base class implementation to instantiate real instance of
+        // CarTelemetryService in ICarImpl.
+        return null;
     }
 
     @Test

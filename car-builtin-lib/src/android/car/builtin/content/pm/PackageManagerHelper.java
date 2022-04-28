@@ -40,6 +40,17 @@ import android.text.TextUtils;
 public final class PackageManagerHelper {
 
     /**
+     * Read-only property to define the package name of car service updatable
+     * package.
+     *
+     * <p>This property must be defined and will be set to {@code "com.android.car.updatable"} for
+     * car service created from AOSP build. It can be set to the different package name depending on
+     * who is signing the car framework apex module.
+     */
+    public static final String PROPERTY_CAR_SERVICE_PACKAGE_NAME =
+            "ro.android.car.carservice.package";
+
+    /**
      * Read only property which contains semicolon (;) separated list of RRO packages.
      *
      * <p>
@@ -49,7 +60,7 @@ public final class PackageManagerHelper {
      * overriding the current {@code CarServiceUpdatable} package name will be selected.
      */
     public static final String PROPERTY_CAR_SERVICE_OVERLAY_PACKAGES =
-            "ro.android.car.service.overlay.packages";
+            "ro.android.car.carservice.overlay.packages";
 
     private PackageManagerHelper() {
         throw new UnsupportedOperationException("provides only static methods");
