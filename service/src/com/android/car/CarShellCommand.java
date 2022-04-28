@@ -66,6 +66,7 @@ import android.car.watchdog.ResourceOveruseConfiguration;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.hardware.automotive.vehicle.CreateUserRequest;
 import android.hardware.automotive.vehicle.CreateUserStatus;
@@ -89,8 +90,10 @@ import android.hardware.automotive.vehicle.VehicleGear;
 import android.hardware.automotive.vehicle.VehiclePropError;
 import android.os.Binder;
 import android.os.FileUtils;
+import android.os.IBinder;
 import android.os.NewUserRequest;
 import android.os.NewUserResponse;
+import android.os.PersistableBundle;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -108,6 +111,7 @@ import com.android.car.evs.CarEvsService;
 import com.android.car.garagemode.GarageModeService;
 import com.android.car.hal.HalCallback;
 import com.android.car.hal.HalPropConfig;
+import com.android.car.hal.HalPropValue;
 import com.android.car.hal.InputHalService;
 import com.android.car.hal.PowerHalService;
 import com.android.car.hal.UserHalHelper;
@@ -119,6 +123,9 @@ import com.android.car.pm.CarPackageManagerService;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.telemetry.CarTelemetryService;
+import com.android.car.telemetry.scriptexecutorinterface.IScriptExecutor;
+import com.android.car.telemetry.scriptexecutorinterface.IScriptExecutorListener;
+import com.android.car.telemetry.util.IoUtils;
 import com.android.car.user.CarUserService;
 import com.android.car.user.UserHandleHelper;
 import com.android.car.watchdog.CarWatchdogService;
@@ -127,6 +134,7 @@ import com.android.modules.utils.BasicShellCommandHandler;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.Duration;
@@ -248,6 +256,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String COMMAND_LIST_VHAL_PROPS = "list-vhal-props";
     private static final String COMMAND_GET_VHAL_BACKEND = "get-vhal-backend";
 
+    private static final String COMMAND_TEST_ECHO_REVERSE_BYTES = "test-echo-reverse-bytes";
+
     private static final String[] CREATE_OR_MANAGE_USERS_PERMISSIONS = new String[] {
             android.Manifest.permission.CREATE_USERS,
             android.Manifest.permission.MANAGE_USERS
@@ -338,6 +348,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
         // borrow the permission to pass assertHasAtLeastOnePermission() for a user build
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_CHECK_LOCK_IS_SECURE,
                 android.Manifest.permission.INJECT_EVENTS);
+        USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_TEST_ECHO_REVERSE_BYTES,
+                android.car.Car.PERMISSION_CAR_DIAGNOSTIC_READ_ALL);
     }
 
     private static final String PARAM_DAY_MODE = "day";
@@ -434,6 +446,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private final CarWatchdogService mCarWatchdogService;
     private final CarTelemetryService mCarTelemetryService;
     private long mKeyDownTime;
+    private ServiceConnection mScriptExecutorConn;
+    private IScriptExecutor mScriptExecutor;
 
     CarShellCommand(Context context,
             VehicleHal hal,
@@ -741,6 +755,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t  list all supported property IDS by vehicle HAL");
         pw.printf("\t%s", COMMAND_GET_VHAL_BACKEND);
         pw.println("\t  list whether we are connected to AIDL or HIDL vehicle HAL backend");
+        pw.printf("\t%s <PROP_ID> <REQUEST_SIZE>", COMMAND_TEST_ECHO_REVERSE_BYTES);
+        pw.println("\t  test the ECHO_REVERSE_BYTES property. PROP_ID is the ID (int) for "
+                + "ECHO_REVERSE_BYTES, REQUEST_SIZE is how many byteValues in the request. "
+                + "This command can be used for testing LargeParcelable by passing large request.");
     }
 
     private static int showInvalidArguments(IndentingPrintWriter pw) {
@@ -1110,6 +1128,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 break;
             case COMMAND_GET_VHAL_BACKEND:
                 getVhalBackend(writer);
+                break;
+            case COMMAND_TEST_ECHO_REVERSE_BYTES:
+                testEchoReverseBytes(args, writer);
                 break;
             default:
                 writer.println("Unknown command: \"" + cmd + "\"");
@@ -2649,6 +2670,15 @@ final class CarShellCommand extends BasicShellCommandHandler {
         writer.println("\t  Removes metrics config.");
         writer.println("\tremove-all");
         writer.println("\t  Removes all metrics configs.");
+        writer.println("\tping-script-executor [published data filepath] [state filepath]");
+        writer.println("\nEXAMPLES:");
+        writer.println("\t$ adb shell cmd car_service telemetry ping-script-executor "
+                + "< example_script.lua");
+        writer.println("\t$ adb shell cmd car_service telemetry ping-script-executor "
+                + "/data/local/tmp/published_data < example_script.lua");
+        writer.println("\t$ adb shell cmd car_service telemetry ping-script-executor "
+                + "/data/local/tmp/bundle /data/local/tmp/bundle2 < example_script.lua");
+        writer.println("\t  Removes all metrics configs.");
         writer.println("\tlist");
         writer.println("\t  Lists the config metrics in the service.");
         writer.println("\tget-result <name>");
@@ -2720,6 +2750,48 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 carTelemetryManager.removeAllMetricsConfigs();
                 writer.printf("Removing all MetricsConfigs... Please see logcat for details.\n");
                 break;
+            case "ping-script-executor":
+                if (args.length < 2 || args.length > 4) {
+                    writer.println("Invalid number of arguments.");
+                    printTelemetryHelp(writer);
+                    return;
+                }
+                PersistableBundle publishedData = new PersistableBundle();
+                publishedData.putInt("age", 99);
+                publishedData.putStringArray(
+                        "string_array",
+                        new String[]{"a", "b", "c", "a", "b", "c", "a", "b", "c"});
+                PersistableBundle nestedBundle = new PersistableBundle();
+                nestedBundle.putInt("age", 100);
+                nestedBundle.putStringArray(
+                        "string_array",
+                        new String[]{"q", "w", "e", "r", "t", "y"});
+                publishedData.putPersistableBundle("pers_bundle", nestedBundle);
+                PersistableBundle savedState = null;
+                // Read published data
+                if (args.length >= 3) {
+                    try {
+                        publishedData = IoUtils.readBundle(new File(args[2]));
+                    } catch (IOException e) {
+                        writer.println("Published data path is invalid: " + e);
+                        return;
+                    }
+                }
+                // Read saved state
+                if (args.length == 4) {
+                    try {
+                        savedState = IoUtils.readBundle(new File(args[3]));
+                    } catch (IOException e) {
+                        writer.println("Saved data path is invalid: " + e);
+                        return;
+                    }
+                }
+                try {
+                    pingScriptExecutor(writer, publishedData, savedState);
+                } catch (InterruptedException | RemoteException e) {
+                    throw new RuntimeException(e);
+                }
+                break;
             case "list":
                 writer.println("Active metric configs:");
                 mCarTelemetryService.getActiveMetricsConfigDetails().forEach((configDetails) -> {
@@ -2737,11 +2809,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 CarTelemetryManager.MetricsReportCallback callback =
                         (metricsConfigName, report, telemetryError, status) -> {
                             if (report != null) {
-                                writer.println("PersistableBundle[");
-                                for (String key : report.keySet()) {
-                                    writer.println("    " + key + ": " + report.get(key) + ",");
-                                }
-                                writer.println("]");
+                                report.size(); // unparcel()'s
+                                writer.println("Report for " + metricsConfigName + ": " + report);
                             } else if (telemetryError != null) {
                                 parseTelemetryError(telemetryError, writer);
                             }
@@ -2767,6 +2836,120 @@ final class CarShellCommand extends BasicShellCommandHandler {
             default:
                 printTelemetryHelp(writer);
         }
+    }
+
+    private void pingScriptExecutor(
+            IndentingPrintWriter writer,
+            PersistableBundle publishedData,
+            PersistableBundle savedState)
+            throws InterruptedException, RemoteException {
+        writer.println("Sending data to script executor...");
+        if (mScriptExecutor == null) {
+            writer.println("[I] No mScriptExecutor, creating a new one");
+            connectToScriptExecutor(writer);
+        }
+        String script;
+        try (
+                BufferedInputStream in = new BufferedInputStream(
+                        new FileInputStream(getInFileDescriptor()));
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            FileUtils.copy(in, out);
+            script = out.toString();
+        } catch (IOException | NumberFormatException e) {
+            writer.println("[E] Failed to read from stdin: " + e);
+            return;
+        }
+        writer.println("[I] Running the script: ");
+        writer.println(script);
+        writer.flush();
+
+        CountDownLatch resultLatch = new CountDownLatch(1);
+        IScriptExecutorListener listener =
+                new IScriptExecutorListener.Stub() {
+                    @Override
+                    public void onScriptFinished(PersistableBundle result) {
+                        writer.println("Script finished");
+                        result.size(); // unparcel()'s
+                        writer.println("result: " + result);
+                        writer.flush();
+                        resultLatch.countDown();
+                    }
+
+                    @Override
+                    public void onSuccess(PersistableBundle state) {
+                        writer.println("Script succeeded, saving inter result");
+                        state.size(); // unparcel()'s
+                        writer.println("state: " + state);
+                        writer.flush();
+                        resultLatch.countDown();
+                    }
+
+                    @Override
+                    public void onError(int errorType, String msg, String stack) {
+                        writer.println("Script error: " + errorType + ": " + msg);
+                        writer.println("Stack: " + stack);
+                        writer.flush();
+                        resultLatch.countDown();
+                    }
+                };
+        mScriptExecutor.invokeScript(
+                script,
+                "foo",
+                publishedData,
+                savedState,
+                listener);
+        writer.println("[I] Waiting for the result");
+        writer.flush();
+        resultLatch.await(10, TimeUnit.SECONDS); // seconds
+        mContext.unbindService(mScriptExecutorConn);
+    }
+
+    private void connectToScriptExecutor(IndentingPrintWriter writer) throws InterruptedException {
+        CountDownLatch connectionLatch = new CountDownLatch(1);
+        mScriptExecutorConn =
+                new ServiceConnection() {
+                    @Override
+                    public void onServiceConnected(ComponentName name, IBinder service) {
+                        writer.println("[I] Connected to ScriptExecutor Service");
+                        writer.flush();
+                        mScriptExecutor = IScriptExecutor.Stub.asInterface(service);
+                        connectionLatch.countDown();
+                    }
+
+                    @Override
+                    public void onServiceDisconnected(ComponentName name) {
+                        writer.println("[E] Failed to connect to ScriptExecutor Service");
+                        writer.flush();
+                        mScriptExecutor = null;
+                        connectionLatch.countDown();
+                    }
+                };
+        Intent intent = new Intent();
+        intent.setComponent(
+                new ComponentName(
+                        "com.android.car.scriptexecutor",
+                        "com.android.car.scriptexecutor.ScriptExecutor"));
+        writer.println("[I] Binding to the script executor");
+        boolean success =
+                mContext.bindServiceAsUser(
+                        intent,
+                        mScriptExecutorConn,
+                        Context.BIND_AUTO_CREATE,
+                        UserHandle.SYSTEM);
+        if (success) {
+            writer.println("[I] Found ScriptExecutor package");
+            writer.flush();
+        } else {
+            writer.println("[E] Failed to bind to ScriptExecutor");
+            writer.flush();
+            mScriptExecutor = null;
+            if (mScriptExecutorConn != null) {
+                mContext.unbindService(mScriptExecutorConn);
+            }
+            return;
+        }
+        writer.println("[I] Waiting for the connection");
+        connectionLatch.await(5, TimeUnit.SECONDS); // seconds
     }
 
     private void parseTelemetryError(byte[] telemetryError, IndentingPrintWriter writer) {
@@ -2889,6 +3072,78 @@ final class CarShellCommand extends BasicShellCommandHandler {
         } else {
             writer.println("Vehicle HAL backend: HIDL");
         }
+    }
+
+    private void testEchoReverseBytes(String[] args, IndentingPrintWriter writer) {
+        // Note: The output here is used in
+        // AndroidCarApiTest:android.car.apitest.VehicleHalLargeParcelableTest.
+        // Do not change the output format without updating the test.
+        if (args.length != 3) {
+            showInvalidArguments(writer);
+            return;
+        }
+
+        int propId = Integer.parseInt(args[1]);
+        int requestSize = Integer.parseInt(args[2]);
+
+        byte[] byteValues = new byte[requestSize];
+        for (int i = 0; i < requestSize; i++) {
+            byteValues[i] = (byte) (i);
+        }
+
+        try {
+            mHal.set(mHal.getHalPropValueBuilder().build(propId, /* areaId= */ 0, byteValues));
+        } catch (IllegalArgumentException e) {
+            writer.println(
+                    "Test Skipped: The property: " + propId + " is not supported, error: " + e);
+            return;
+        } catch (ServiceSpecificException e) {
+            writer.println(
+                    "Test Failed: Failed to set property: " + propId + ", error: " + e);
+            return;
+        }
+
+        HalPropValue result;
+        try {
+            result = mHal.get(mHal.getHalPropValueBuilder().build(propId, /* areaId= */ 0));
+        } catch (IllegalArgumentException | ServiceSpecificException e) {
+            writer.println(
+                    "Test Failed: Failed to get property: " + propId + ", error: " + e);
+            return;
+        }
+
+        int resultSize = result.getByteValuesSize();
+        if (resultSize != requestSize) {
+            writer.println("Test Failed: expect: " + requestSize + " bytes to be returned, got: "
+                    + resultSize);
+            return;
+        }
+
+        byte[] reverse = new byte[requestSize];
+        for (int i = 0; i < requestSize; i++) {
+            reverse[i] = byteValues[requestSize - 1 - i];
+        }
+
+        byte[] resultValues = result.getByteArray();
+        if (!Arrays.equals(resultValues, reverse)) {
+            writer.println("Test Failed: result mismatch, expect: " + Arrays.toString(reverse)
+                    + ", got: " + Arrays.toString(resultValues));
+            return;
+        }
+
+        try {
+            // Set the property to a single byte to free-up memory. Cannot use empty byte array
+            // here which would cause IllegalArgumentException.
+            mHal.set(mHal.getHalPropValueBuilder().build(propId, /* areaId= */ 0,
+                    new byte[]{ 0x00 }));
+        } catch (IllegalArgumentException | ServiceSpecificException e) {
+            writer.println(
+                    "Test Failed: Failed to clean up property value: failed to set property: "
+                    + propId + ", error: " + e);
+            return;
+        }
+
+        writer.println("Test Succeeded!");
     }
 
     // Check if the given property is global
