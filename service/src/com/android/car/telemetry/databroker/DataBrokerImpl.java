@@ -16,10 +16,14 @@
 
 package com.android.car.telemetry.databroker;
 
+import static com.android.car.telemetry.CarTelemetryService.DEBUG;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
+import android.car.telemetry.TelemetryProto;
+import android.car.telemetry.TelemetryProto.MetricsConfig;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -41,8 +45,6 @@ import com.android.car.CarLog;
 import com.android.car.CarServiceUtils;
 import com.android.car.telemetry.CarTelemetryService;
 import com.android.car.telemetry.ResultStore;
-import com.android.car.telemetry.TelemetryProto;
-import com.android.car.telemetry.TelemetryProto.MetricsConfig;
 import com.android.car.telemetry.publisher.AbstractPublisher;
 import com.android.car.telemetry.publisher.PublisherFactory;
 import com.android.car.telemetry.scriptexecutorinterface.IScriptExecutor;
@@ -68,9 +70,14 @@ public class DataBrokerImpl implements DataBroker {
     static final int MSG_HANDLE_TASK = 1;
     @VisibleForTesting
     static final int MSG_BIND_TO_SCRIPT_EXECUTOR = 2;
+    @VisibleForTesting
+    static final int MSG_STOP_HANGING_SCRIPT = 3;
 
     /** Bind to script executor 5 times before entering disabled state. */
     private static final int MAX_BIND_SCRIPT_EXECUTOR_ATTEMPTS = 5;
+
+    /** Maximum wait time for a script to finish. */
+    private static final long MAX_SCRIPT_EXECUTION_TIME_MILLIS = 30_000L; // 30 seconds
 
     // TODO(b/216134347): Find a better way to find the package.
     private static final String[] SCRIPT_EXECUTOR_PACKAGE_CANDIDATES =
@@ -139,11 +146,6 @@ public class DataBrokerImpl implements DataBroker {
         public void onServiceDisconnected(ComponentName name) {
             // TODO(b/198684473): clean up the state after script executor disconnects
             mTelemetryHandler.post(() -> {
-                // if a script ran and crashed ScriptExecutor, end trace log
-                if (mCurrentMetricsConfigName != null) {
-                    mScriptExecutionTraceLog.traceEnd();
-                }
-                mScriptExecutor = null;
                 unbindScriptExecutor();
             });
         }
@@ -232,7 +234,12 @@ public class DataBrokerImpl implements DataBroker {
      */
     private void unbindScriptExecutor() {
         // TODO(b/198648763): unbind from script executor when there is no work to do
-        mCurrentMetricsConfigName = null;
+        // if a script is running while we unbind from ScriptExecutor, end trace log first
+        if (mCurrentMetricsConfigName != null) {
+            mScriptExecutionTraceLog.traceEnd();
+            mCurrentMetricsConfigName = null;
+        }
+        mScriptExecutor = null;
         try {
             mContext.unbindService(mServiceConnection);
         } catch (IllegalArgumentException e) {
@@ -395,11 +402,13 @@ public class DataBrokerImpl implements DataBroker {
     private void pollAndExecuteTask() {
         // check databroker state is ready to run script
         if (mDisabled || mCurrentMetricsConfigName != null) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "Ignoring the task, disabled or no config.");
             return;
         }
         // check task is valid and ready to be run
         ScriptExecutionTask task = mTaskQueue.peek();
         if (task == null || task.getPriority() > mPriority) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "Ignoring the task, either task is null or low priority");
             return;
         }
         // if script executor is null, bind service
@@ -416,10 +425,19 @@ public class DataBrokerImpl implements DataBroker {
                 "executing script " + mCurrentMetricsConfigName);
         try {
             if (task.isLargeData()) {
-                Slogf.d(CarLog.TAG_TELEMETRY, "invoking script executor for large input");
+                if (DEBUG) {
+                    Slogf.d(CarLog.TAG_TELEMETRY,
+                            "Running with large func %s of %s in ScriptExecutor.",
+                            task.getHandlerName(),
+                            mCurrentMetricsConfigName);
+                }
                 invokeScriptForLargeInput(task);
             } else {
-                Slogf.d(CarLog.TAG_TELEMETRY, "invoking script executor");
+                if (DEBUG) {
+                    Slogf.d(CarLog.TAG_TELEMETRY, "Running func %s of %s in ScriptExecutor.",
+                            task.getHandlerName(),
+                            mCurrentMetricsConfigName);
+                }
                 mScriptExecutor.invokeScript(
                         task.getMetricsConfig().getScript(),
                         task.getHandlerName(),
@@ -427,6 +445,8 @@ public class DataBrokerImpl implements DataBroker {
                         mResultStore.getInterimResult(mCurrentMetricsConfigName),
                         mScriptExecutorListener);
             }
+            mTelemetryHandler.sendEmptyMessageDelayed(
+                    MSG_STOP_HANGING_SCRIPT, MAX_SCRIPT_EXECUTION_TIME_MILLIS);
         } catch (RemoteException e) {
             mScriptExecutionTraceLog.traceEnd();
             Slogf.w(CarLog.TAG_TELEMETRY, "remote exception occurred invoking script", e);
@@ -476,8 +496,12 @@ public class DataBrokerImpl implements DataBroker {
 
     /** Stores final metrics and schedules the next task. */
     private void onScriptFinished(@NonNull PersistableBundle result) {
+        if (DEBUG) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "A script finished, storing the final result.");
+        }
         mTelemetryHandler.post(() -> {
             mScriptExecutionTraceLog.traceEnd(); // end trace as soon as script completes running
+            mTelemetryHandler.removeMessages(MSG_STOP_HANGING_SCRIPT);
             mResultStore.putFinalResult(mCurrentMetricsConfigName, result);
             mScriptFinishedCallback.onScriptFinished(mCurrentMetricsConfigName);
             mCurrentMetricsConfigName = null;
@@ -487,8 +511,12 @@ public class DataBrokerImpl implements DataBroker {
 
     /** Stores interim metrics and schedules the next task. */
     private void onScriptSuccess(@NonNull PersistableBundle stateToPersist) {
+        if (DEBUG) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "A script succeeded, storing the interim result.");
+        }
         mTelemetryHandler.post(() -> {
             mScriptExecutionTraceLog.traceEnd(); // end trace as soon as script completes running
+            mTelemetryHandler.removeMessages(MSG_STOP_HANGING_SCRIPT);
             mResultStore.putInterimResult(mCurrentMetricsConfigName, stateToPersist);
             mCurrentMetricsConfigName = null;
             scheduleNextTask();
@@ -498,8 +526,13 @@ public class DataBrokerImpl implements DataBroker {
     /** Stores telemetry error and schedules the next task. */
     private void onScriptError(
             int errorType, @NonNull String message, @Nullable String stackTrace) {
+        if (DEBUG) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "A script failed: %d %s\n%s",
+                    errorType, message, stackTrace);
+        }
         mTelemetryHandler.post(() -> {
             mScriptExecutionTraceLog.traceEnd(); // end trace as soon as script completes running
+            mTelemetryHandler.removeMessages(MSG_STOP_HANGING_SCRIPT);
             TelemetryProto.TelemetryError.Builder error = TelemetryProto.TelemetryError.newBuilder()
                     .setErrorType(TelemetryProto.TelemetryError.ErrorType.forNumber(errorType))
                     .setMessage(message);
@@ -570,6 +603,11 @@ public class DataBrokerImpl implements DataBroker {
                     break;
                 case MSG_BIND_TO_SCRIPT_EXECUTOR:
                     bindScriptExecutor();
+                    break;
+                case MSG_STOP_HANGING_SCRIPT:
+                    // TODO(b/223224704): log error
+                    unbindScriptExecutor();
+                    scheduleNextTask();
                     break;
                 default:
                     Slogf.w(CarLog.TAG_TELEMETRY, "TaskHandler received unknown message.");
