@@ -18,6 +18,7 @@ package android.car.user;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
+import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -39,6 +40,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
     *
     * @hide
     */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_SUCCESSFUL = CommonResults.STATUS_SUCCESSFUL;
 
     /**
@@ -46,6 +48,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
     *
     * @hide
     */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ANDROID_FAILURE = CommonResults.STATUS_ANDROID_FAILURE;
 
      /**
@@ -53,6 +56,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_SUCCESSFUL_USER_IS_CURRENT_USER =
             CommonResults.LAST_COMMON_STATUS + 1;
 
@@ -61,6 +65,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_USER_DOES_NOT_EXIST = CommonResults.LAST_COMMON_STATUS + 2;
 
     /**
@@ -74,6 +79,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
     private final @Status int mStatus;
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean isSuccess() {
         return mStatus == STATUS_SUCCESSFUL || mStatus == STATUS_SUCCESSFUL_USER_IS_CURRENT_USER;
     }
@@ -105,6 +111,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String statusToString(@Status int value) {
         switch (value) {
             case STATUS_SUCCESSFUL:
@@ -161,12 +168,14 @@ public final class UserStartResult implements Parcelable, OperationResult {
      *         {@link UserStartResult#STATUS_USER_DOES_NOT_EXIST}, or
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @Status int getStatus() {
         return mStatus;
     }
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -178,6 +187,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@android.annotation.NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -188,6 +198,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -218,6 +229,7 @@ public final class UserStartResult implements Parcelable, OperationResult {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @android.annotation.NonNull Parcelable.Creator<UserStartResult> CREATOR
             = new Parcelable.Creator<UserStartResult>() {
         @Override

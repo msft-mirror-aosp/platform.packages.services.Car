@@ -59,7 +59,7 @@ import java.util.Objects;
  */
 public class BluetoothDeviceConnectionPolicy {
     private static final String TAG = CarLog.tagFor(BluetoothDeviceConnectionPolicy.class);
-    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
     private final int mUserId;
     private final Context mContext;
@@ -302,8 +302,7 @@ public class BluetoothDeviceConnectionPolicy {
         profileFilter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         UserHandle currentUser = UserHandle.of(ActivityManager.getCurrentUser());
         mUserContext = mContext.createContextAsUser(currentUser, /* flags= */ 0);
-        mUserContext.registerReceiver(mBluetoothBroadcastReceiver, profileFilter,
-                Context.RECEIVER_NOT_EXPORTED);
+        mUserContext.registerReceiver(mBluetoothBroadcastReceiver, profileFilter);
         mCarHelper.init();
 
         // Since we do this only on start up and on user switch, it's safe to kick off a connect on
