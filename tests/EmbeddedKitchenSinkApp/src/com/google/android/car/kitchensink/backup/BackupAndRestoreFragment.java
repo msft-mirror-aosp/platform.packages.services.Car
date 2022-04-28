@@ -20,7 +20,7 @@ import android.annotation.Nullable;
 import android.app.AlertDialog;
 import android.app.backup.BackupManager;
 import android.os.Bundle;
-import android.telecom.Log;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,9 +30,13 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.car.kitchensink.R;
 
+import java.util.Arrays;
+
 public final class BackupAndRestoreFragment extends Fragment {
 
     private static final String TAG = BackupAndRestoreFragment.class.getSimpleName();
+    private static final String TRANSPORT_DIR_NAME =
+            "com.google.android.car.kitchensink.backup.KitchenSinkBackupTransport";
 
     private BackupManager mBackupManager;
 
@@ -60,9 +64,21 @@ public final class BackupAndRestoreFragment extends Fragment {
         mRestoreButton.setOnClickListener((v) -> restore());
     }
 
-
     private void backup() {
-        showMessage("backup button clicked.");
+        boolean isEnabled = mBackupManager.isBackupEnabled();
+        Log.v(TAG, "backup is enabled: " + isEnabled);
+        if (!isEnabled) {
+            mBackupManager.setBackupEnabled(true);
+        }
+        String[] allTransports = mBackupManager.listAllTransports();
+        Log.v(TAG, "All transports: " + Arrays.toString(allTransports));
+        String currentTransport = mBackupManager.getCurrentTransport();
+        Log.v(TAG, "Current Transport: " + currentTransport);
+
+        StringBuilder sb = new StringBuilder();
+        Arrays.stream(allTransports).forEach(t -> sb.append('\n').append(t));
+        showMessage("Backup button clicked.\nAll transports: " + sb
+                + "\nCurrent Transport: " + currentTransport);
     }
 
     private void restore() {

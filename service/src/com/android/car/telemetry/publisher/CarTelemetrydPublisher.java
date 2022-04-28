@@ -30,6 +30,7 @@ import android.os.RemoteException;
 import com.android.automotive.telemetry.CarDataProto;
 import com.android.car.CarLog;
 import com.android.car.telemetry.databroker.DataSubscriber;
+import com.android.car.telemetry.sessioncontroller.SessionAnnotation;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
@@ -67,6 +68,15 @@ public class CarTelemetrydPublisher extends AbstractPublisher {
             }
             // TODO(b/189142577): Create custom Handler and post message to improve performance
             mTelemetryHandler.post(() -> onCarDataListReceived(dataList));
+        }
+        @Override
+        public String getInterfaceHash() {
+            return ICarDataListener.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ICarDataListener.VERSION;
         }
     };
 
@@ -205,4 +215,7 @@ public class CarTelemetrydPublisher extends AbstractPublisher {
     private void onCarDataListReceived(@NonNull CarDataInternal[] dataList) {
         // TODO(b/189142577): implement
     }
+
+    @Override
+    protected void handleSessionStateChange(SessionAnnotation annotation) {}
 }

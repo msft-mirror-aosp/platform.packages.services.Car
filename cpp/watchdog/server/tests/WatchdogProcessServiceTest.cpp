@@ -32,6 +32,8 @@ namespace aawi = ::android::automotive::watchdog::internal;
 namespace afav = ::android::frameworks::automotive::vhal;
 namespace aahav = ::aidl::android::hardware::automotive::vehicle;
 
+using aahav::VehicleProperty;
+using aawi::ProcessIdentifier;
 using ::android::IBinder;
 using ::android::sp;
 using ::android::binder::Status;
@@ -44,7 +46,7 @@ namespace {
 
 class MockCarWatchdogClient : public ICarWatchdogClientDefault {
 public:
-    MockCarWatchdogClient() { mBinder = new MockBinder(); }
+    MockCarWatchdogClient() { mBinder = sp<MockBinder>::make(); }
     sp<MockBinder> getBinder() const { return mBinder; }
 
     MOCK_METHOD(IBinder*, onAsBinder, (), (override));
@@ -55,7 +57,7 @@ private:
 
 class MockCarWatchdogMonitor : public aawi::ICarWatchdogMonitorDefault {
 public:
-    MockCarWatchdogMonitor() { mBinder = new MockBinder(); }
+    MockCarWatchdogMonitor() { mBinder = sp<MockBinder>::make(); }
     sp<MockBinder> getBinder() const { return mBinder; }
 
     MOCK_METHOD(IBinder*, onAsBinder, (), (override));
@@ -63,6 +65,13 @@ public:
 private:
     sp<MockBinder> mBinder;
 };
+
+ProcessIdentifier constructProcessIdentifier(int32_t pid, int64_t startTimeMillis) {
+    ProcessIdentifier processIdentifier;
+    processIdentifier.pid = pid;
+    processIdentifier.startTimeMillis = startTimeMillis;
+    return processIdentifier;
+}
 
 }  // namespace
 
@@ -73,8 +82,12 @@ public:
     explicit WatchdogProcessServicePeer(const sp<WatchdogProcessService>& watchdogProcessService) :
           mWatchdogProcessService(watchdogProcessService) {}
 
-    void setVhalClient(std::shared_ptr<afav::IVhalClient> client) {
-        mWatchdogProcessService->mVhalService = client;
+    void setVhalService(std::shared_ptr<afav::IVhalClient> service) {
+        mWatchdogProcessService->mVhalService = service;
+    }
+
+    void setNotSupportedVhalProperties(const std::unordered_set<VehicleProperty>& properties) {
+        mWatchdogProcessService->mNotSupportedVhalProperties = properties;
     }
 
 private:
@@ -91,12 +104,17 @@ protected:
         mMockVehicle = SharedRefBase::make<MockVehicle>();
         mMockVhalClient = std::make_shared<MockVhalClient>(mMockVehicle);
         internal::WatchdogProcessServicePeer peer(mWatchdogProcessService);
-        peer.setVhalClient(mMockVhalClient);
+        peer.setVhalService(mMockVhalClient);
+        peer.setNotSupportedVhalProperties(
+                {VehicleProperty::WATCHDOG_ALIVE, VehicleProperty::WATCHDOG_TERMINATED_PROCESS});
+        mWatchdogProcessService->start();
     }
 
     void TearDown() override {
+        mWatchdogProcessService->terminate();
         mWatchdogProcessService.clear();
         mMockVhalClient.reset();
+        mMockVehicle.reset();
     }
 
     sp<WatchdogProcessService> mWatchdogProcessService;
@@ -105,7 +123,7 @@ protected:
 };
 
 sp<MockCarWatchdogClient> createMockCarWatchdogClient(status_t linkToDeathResult) {
-    sp<MockCarWatchdogClient> client = new MockCarWatchdogClient();
+    sp<MockCarWatchdogClient> client = sp<MockCarWatchdogClient>::make();
     sp<MockBinder> binder = client->getBinder();
     EXPECT_CALL(*binder, linkToDeath(_, nullptr, 0)).WillRepeatedly(Return(linkToDeathResult));
     EXPECT_CALL(*binder, unlinkToDeath(_, nullptr, 0, nullptr)).WillRepeatedly(Return(OK));
@@ -114,7 +132,7 @@ sp<MockCarWatchdogClient> createMockCarWatchdogClient(status_t linkToDeathResult
 }
 
 sp<MockCarWatchdogMonitor> createMockCarWatchdogMonitor(status_t linkToDeathResult) {
-    sp<MockCarWatchdogMonitor> monitor = new MockCarWatchdogMonitor();
+    sp<MockCarWatchdogMonitor> monitor = sp<MockCarWatchdogMonitor>::make();
     sp<MockBinder> binder = monitor->getBinder();
     EXPECT_CALL(*binder, linkToDeath(_, nullptr, 0)).WillRepeatedly(Return(linkToDeathResult));
     EXPECT_CALL(*binder, unlinkToDeath(_, nullptr, 0, nullptr)).WillRepeatedly(Return(OK));
@@ -164,7 +182,7 @@ TEST_F(WatchdogProcessServiceTest, TestUnregisterClient) {
     Status status = mWatchdogProcessService->unregisterClient(client);
     ASSERT_TRUE(status.isOk()) << status;
     ASSERT_FALSE(mWatchdogProcessService->unregisterClient(client).isOk())
-            << "Unregistering an unregistered client shoud return an error";
+            << "Unregistering an unregistered client should return an error";
 }
 
 TEST_F(WatchdogProcessServiceTest, TestErrorOnRegisterClientWithDeadBinder) {
@@ -175,10 +193,10 @@ TEST_F(WatchdogProcessServiceTest, TestErrorOnRegisterClientWithDeadBinder) {
 }
 
 TEST_F(WatchdogProcessServiceTest, TestRegisterCarWatchdogService) {
-    sp<MockWatchdogServiceHelper> mockServiceHelper = new MockWatchdogServiceHelper();
+    sp<MockWatchdogServiceHelper> mockServiceHelper = sp<MockWatchdogServiceHelper>::make();
     ASSERT_RESULT_OK(mWatchdogProcessService->registerWatchdogServiceHelper(mockServiceHelper));
 
-    sp<MockCarWatchdogServiceForSystem> mockService = new MockCarWatchdogServiceForSystem();
+    sp<MockCarWatchdogServiceForSystem> mockService = sp<MockCarWatchdogServiceForSystem>::make();
     sp<IBinder> binder = mockService->getBinder();
 
     Status status = mWatchdogProcessService->registerCarWatchdogService(binder);
@@ -190,7 +208,7 @@ TEST_F(WatchdogProcessServiceTest, TestRegisterCarWatchdogService) {
 
 TEST_F(WatchdogProcessServiceTest,
        TestErrorOnRegisterCarWatchdogServiceWithUninitializedWatchdogServiceHelper) {
-    sp<MockCarWatchdogServiceForSystem> mockService = new MockCarWatchdogServiceForSystem();
+    sp<MockCarWatchdogServiceForSystem> mockService = sp<MockCarWatchdogServiceForSystem>::make();
     sp<IBinder> binder = mockService->getBinder();
 
     ASSERT_FALSE(mWatchdogProcessService->registerCarWatchdogService(binder).isOk())
@@ -232,23 +250,36 @@ TEST_F(WatchdogProcessServiceTest, TestTellClientAlive) {
 }
 
 TEST_F(WatchdogProcessServiceTest, TestTellCarWatchdogServiceAlive) {
-    sp<MockWatchdogServiceHelper> mockServiceHelper = new MockWatchdogServiceHelper();
+    sp<MockWatchdogServiceHelper> mockServiceHelper = sp<MockWatchdogServiceHelper>::make();
     ASSERT_RESULT_OK(mWatchdogProcessService->registerWatchdogServiceHelper(mockServiceHelper));
 
-    sp<MockCarWatchdogServiceForSystem> mockService = new MockCarWatchdogServiceForSystem();
+    sp<MockCarWatchdogServiceForSystem> mockService = sp<MockCarWatchdogServiceForSystem>::make();
 
-    std::vector<int32_t> pids = {111, 222};
-    ASSERT_FALSE(
-            mWatchdogProcessService->tellCarWatchdogServiceAlive(mockService, pids, 1234).isOk())
+    std::vector<ProcessIdentifier> processIdentifiers;
+    processIdentifiers.push_back(
+            constructProcessIdentifier(/* pid= */ 111, /* startTimeMillis= */ 0));
+    processIdentifiers.push_back(
+            constructProcessIdentifier(/* pid= */ 222, /* startTimeMillis= */ 0));
+    ASSERT_FALSE(mWatchdogProcessService
+                         ->tellCarWatchdogServiceAlive(mockService, processIdentifiers, 1234)
+                         .isOk())
             << "tellCarWatchdogServiceAlive not synced with checkIfAlive should return an error";
 }
 
 TEST_F(WatchdogProcessServiceTest, TestTellDumpFinished) {
     sp<aawi::ICarWatchdogMonitor> monitor = expectNormalCarWatchdogMonitor();
-    ASSERT_FALSE(mWatchdogProcessService->tellDumpFinished(monitor, 1234).isOk())
+    ASSERT_FALSE(mWatchdogProcessService
+                         ->tellDumpFinished(monitor,
+                                            constructProcessIdentifier(/* pid= */ 1234,
+                                                                       /* startTimeMillis= */ 0))
+                         .isOk())
             << "Unregistered monitor cannot call tellDumpFinished";
     mWatchdogProcessService->registerMonitor(monitor);
-    Status status = mWatchdogProcessService->tellDumpFinished(monitor, 1234);
+    Status status =
+            mWatchdogProcessService
+                    ->tellDumpFinished(monitor,
+                                       constructProcessIdentifier(/* pid= */ 1234,
+                                                                  /* startTimeMillis= */ 0));
     ASSERT_TRUE(status.isOk()) << status;
 }
 

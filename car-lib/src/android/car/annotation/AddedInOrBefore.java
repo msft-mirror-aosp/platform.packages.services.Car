@@ -20,7 +20,7 @@ import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
 import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.ElementType.TYPE;
-import static java.lang.annotation.RetentionPolicy.SOURCE;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
@@ -33,10 +33,8 @@ import java.lang.annotation.Target;
  * {@link android.car.Car#API_VERSION_MINOR_INT} for minor version.
  *
  * @hide
- * @deprecated Change all such annotations with AddedIn annotation with correct API version.
  */
-@Deprecated
-@Retention(SOURCE)
+@Retention(RUNTIME)
 @Target({ANNOTATION_TYPE, FIELD, TYPE, METHOD})
 public @interface AddedInOrBefore {
     int majorVersion();
