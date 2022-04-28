@@ -59,6 +59,7 @@ public final class CarAudioPatchHandle implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return "Patch (mHandleId=" + mHandleId + "): "
                 + mSourceAddress + " => " + mSinkAddress;
@@ -84,6 +85,7 @@ public final class CarAudioPatchHandle implements Parcelable {
         out.writeString(mSinkAddress);
     }
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<CarAudioPatchHandle> CREATOR =
                 new Parcelable.Creator<CarAudioPatchHandle>() {
             public CarAudioPatchHandle createFromParcel(Parcel in) {
@@ -107,6 +109,7 @@ public final class CarAudioPatchHandle implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public String getSourceAddress() {
         return mSourceAddress;
     }
@@ -116,6 +119,7 @@ public final class CarAudioPatchHandle implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public String getSinkAddress() {
         return mSinkAddress;
     }
@@ -125,6 +129,7 @@ public final class CarAudioPatchHandle implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public int getHandleId() {
         return mHandleId;
     }
