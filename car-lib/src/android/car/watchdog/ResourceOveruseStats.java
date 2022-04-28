@@ -112,6 +112,7 @@ public final class ResourceOveruseStats implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -168,6 +169,7 @@ public final class ResourceOveruseStats implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<ResourceOveruseStats> CREATOR
             = new Parcelable.Creator<ResourceOveruseStats>() {
         @Override
@@ -224,6 +226,7 @@ public final class ResourceOveruseStats implements Parcelable {
          *       the stats are aggregated for all packages under the shared UID.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setPackageName(@NonNull String value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
@@ -235,6 +238,7 @@ public final class ResourceOveruseStats implements Parcelable {
          * User handle, whose stats are recorded in the below fields.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setUserHandle(@NonNull UserHandle value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x2;
@@ -243,6 +247,7 @@ public final class ResourceOveruseStats implements Parcelable {
         }
 
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setIoOveruseStats(@NonNull IoOveruseStats value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x4;
@@ -251,6 +256,7 @@ public final class ResourceOveruseStats implements Parcelable {
         }
 
         /** Builds the instance. This builder should not be touched after calling this! */
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull ResourceOveruseStats build() {
             checkNotUsed();
             mBuilderFieldsSet |= 0x8; // Mark builder used
