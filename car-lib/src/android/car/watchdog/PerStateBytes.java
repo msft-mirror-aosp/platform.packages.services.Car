@@ -18,6 +18,7 @@ package android.car.watchdog;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
+import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -84,6 +85,7 @@ public final class PerStateBytes implements Parcelable {
      * Number of bytes attributed to the application foreground mode.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public long getForegroundModeBytes() {
         return mForegroundModeBytes;
     }
@@ -92,6 +94,7 @@ public final class PerStateBytes implements Parcelable {
      * Number of bytes attributed to the application background mode.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public long getBackgroundModeBytes() {
         return mBackgroundModeBytes;
     }
@@ -100,12 +103,14 @@ public final class PerStateBytes implements Parcelable {
      * Number of bytes attributed to the system garage mode.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public long getGarageModeBytes() {
         return mGarageModeBytes;
     }
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -119,6 +124,7 @@ public final class PerStateBytes implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@android.annotation.NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -131,6 +137,7 @@ public final class PerStateBytes implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -152,6 +159,7 @@ public final class PerStateBytes implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @android.annotation.NonNull Parcelable.Creator<PerStateBytes> CREATOR
             = new Parcelable.Creator<PerStateBytes>() {
         @Override
