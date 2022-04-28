@@ -88,6 +88,7 @@ public final class VmsSubscriberManager extends CarManagerBase {
     /**
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static VmsSubscriberManager wrap(Car car, @Nullable VmsClientManager clientManager) {
         if (clientManager == null) {
             return null;
@@ -244,6 +245,7 @@ public final class VmsSubscriberManager extends CarManagerBase {
      * @hide
      */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {}
 
     private void setSubscriptions(Set<VmsAssociatedLayer> subscriptions) {

@@ -141,6 +141,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String cpusetToString(@Cpuset int value) {
         switch (value) {
             case CPUSET_ALL:
@@ -162,6 +163,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String ignorePercentToString(@IgnorePercent int value) {
         switch (value) {
             case IGNORE_PERCENT_LOWER_BOUND:
@@ -183,6 +185,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String timeoutActionToString(@TimeoutAction int value) {
         switch (value) {
             case TIMEOUT_ACTION_NOTIFICATION:
@@ -299,6 +302,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -372,6 +376,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @android.annotation.NonNull Parcelable.Creator<CpuAvailabilityMonitoringConfig> CREATOR
             = new Parcelable.Creator<CpuAvailabilityMonitoringConfig>() {
         @Override
