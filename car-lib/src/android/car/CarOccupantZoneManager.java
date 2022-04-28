@@ -104,6 +104,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
     public @interface DisplayTypeEnum {}
 
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int OCCUPANT_TYPE_INVALID = -1;
 
     /** Represents driver. There can be only one driver for the system. */
@@ -138,6 +139,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
      */
     public static final class OccupantZoneInfo implements Parcelable {
         /** @hide */
+        @AddedInOrBefore(majorVersion = 33)
         public static final int INVALID_ZONE_ID = -1;
         /**
          * This is an unique id to distinguish each occupant zone.
@@ -193,6 +195,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public boolean equals(Object other) {
             if (this == other) {
                 return true;
@@ -206,6 +209,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public int hashCode() {
             int hash = 23;
             hash = hash * 17 + zoneId;
@@ -214,6 +218,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
             return hash;
         }
 
+        @AddedInOrBefore(majorVersion = 33)
         public static final Parcelable.Creator<OccupantZoneInfo> CREATOR =
                 new Parcelable.Creator<OccupantZoneInfo>() {
             public OccupantZoneInfo createFromParcel(Parcel in) {
@@ -226,6 +231,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
         };
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             StringBuilder b = new StringBuilder(64);
             b.append("OccupantZoneInfo{zoneId=");
@@ -278,6 +284,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
          *
          * @param changeFlags Reason for the zone change.
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onOccupantZoneConfigChanged(@ZoneConfigChangeFlags int changeFlags);
     }
 
@@ -471,6 +478,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
+    @AddedInOrBefore(majorVersion = 33)
     public boolean assignProfileUserToOccupantZone(@NonNull OccupantZoneInfo occupantZone,
             @UserIdInt int userId) {
         assertNonNullOccupant(occupantZone);
@@ -576,6 +584,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
 
     /** @hide */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // nothing to do
     }
