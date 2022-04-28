@@ -79,6 +79,7 @@ public final class CarMediaManager extends CarManagerBase {
         /**
          * Called when the primary media source is changed
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onMediaSourceChanged(@NonNull ComponentName componentName);
     }
 
@@ -177,6 +178,7 @@ public final class CarMediaManager extends CarManagerBase {
 
     /** @hide */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         synchronized (mLock) {
             mCallbackMap.clear();
@@ -190,6 +192,7 @@ public final class CarMediaManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(value = android.Manifest.permission.MEDIA_CONTENT_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public boolean isIndependentPlaybackConfig() {
         try {
             return mService.isIndependentPlaybackConfig();
@@ -204,6 +207,7 @@ public final class CarMediaManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(value = android.Manifest.permission.MEDIA_CONTENT_CONTROL)
+    @AddedInOrBefore(majorVersion = 33)
     public void setIndependentPlaybackConfig(boolean independent) {
         try {
             mService.setIndependentPlaybackConfig(independent);

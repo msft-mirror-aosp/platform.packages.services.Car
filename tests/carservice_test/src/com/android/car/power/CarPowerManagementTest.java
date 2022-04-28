@@ -43,12 +43,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
 import com.android.car.MockedCarTestBase;
+import com.android.car.hal.test.AidlMockedVehicleHal.VehicleHalPropertyHandler;
+import com.android.car.hal.test.AidlVehiclePropValueBuilder;
 import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.user.CarUserService;
-import com.android.car.vehiclehal.AidlVehiclePropValueBuilder;
-import com.android.car.vehiclehal.test.AidlMockedVehicleHal.VehicleHalPropertyHandler;
 import com.android.internal.annotations.GuardedBy;
 
 import com.google.android.collect.Lists;
@@ -72,7 +72,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
     private static final int STATE_TRANSITION_MAX_WAIT_MS = 5 * STATE_POLLING_INTERVAL_MS;
     private static final int TEST_SHUTDOWN_TIMEOUT_MS = 100 * STATE_POLLING_INTERVAL_MS;
     private static final int POLICY_APPLICATION_TIMEOUT_MS = 10_000;
-    private static final String POWER_POLICY_S2R = "system_power_policy_suspend_to_ram";
+    private static final String POWER_POLICY_S2R = "system_power_policy_suspend_prep";
 
     private final PowerStatePropertyHandler mPowerStateHandler = new PowerStatePropertyHandler();
     private final MockDisplayInterface mMockDisplayInterface = new MockDisplayInterface();
