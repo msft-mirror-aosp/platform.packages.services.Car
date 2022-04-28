@@ -96,6 +96,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final String EXTRA_BUNDLE_KEY_FOR_INSTRUMENT_CLUSTER_HELPER =
             "android.car.cluster.renderer.IInstrumentClusterHelper";
 
@@ -214,6 +215,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * Called when key event that was addressed to instrument cluster display has been received.
      */
     @MainThread
+    @AddedInOrBefore(majorVersion = 33)
     public void onKeyEvent(@NonNull KeyEvent keyEvent) {
     }
 
@@ -392,6 +394,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
      * @hide
      */
     @Nullable
+    @AddedInOrBefore(majorVersion = 33)
     public ComponentName getComponentFromPackage(@NonNull String packageName) {
         PackageManager packageManager = getPackageManager();
 
@@ -455,6 +458,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
      */
     @Deprecated
     @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public void setClusterActivityLaunchOptions(String category, ActivityOptions activityOptions) {
         setClusterActivityLaunchOptions(activityOptions);
     }
@@ -467,6 +471,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
      *                        or activity stack).
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public void setClusterActivityLaunchOptions(ActivityOptions activityOptions) {
         mActivityOptions = activityOptions;
         updateNavigationActivity();
@@ -478,6 +483,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
      */
     @Deprecated
     @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public void setClusterActivityState(String category, Bundle state) {
         setClusterActivityState(ClusterActivityState.fromBundle(state));
     }
@@ -489,6 +495,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
      *              {@link android.car.cluster.ClusterActivityState}
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public void setClusterActivityState(ClusterActivityState state) {
         mActivityState = state;
         updateNavigationActivity();
@@ -497,6 +504,7 @@ public abstract class InstrumentClusterRenderingService extends Service {
     @CallSuper
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    @AddedInOrBefore(majorVersion = 33)
     protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
         synchronized (mLock) {
             writer.println("**" + getClass().getSimpleName() + "**");
