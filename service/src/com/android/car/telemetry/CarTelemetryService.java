@@ -38,12 +38,14 @@ import android.car.telemetry.CarTelemetryManager;
 import android.car.telemetry.ICarTelemetryReportListener;
 import android.car.telemetry.ICarTelemetryReportReadyListener;
 import android.car.telemetry.ICarTelemetryService;
+import android.car.telemetry.TelemetryProto;
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
+import android.util.ArrayMap;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
@@ -64,14 +66,10 @@ import com.android.internal.annotations.VisibleForTesting;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.IntConsumer;
+import java.util.Set;
 
 /**
  * CarTelemetryService manages OEM telemetry collection, processing and communication
@@ -105,14 +103,29 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
     private SessionController mSessionController;
     private SystemMonitor mSystemMonitor;
     private TimingsTraceLog mTelemetryThreadTraceLog; // can only be used on telemetry thread
+    private final UidPackageMapper mUidMapper;
 
     static class Dependencies {
         /**
          * Get a PublisherFactory instance.
          */
-        public PublisherFactory getPublisherFactory(CarPropertyService carPropertyService,
-                Handler handler, Context context, File publisherDirectory) {
-            return new PublisherFactory(carPropertyService, handler, context, publisherDirectory);
+
+        /** Returns a new PublisherFactory instance. */
+        public PublisherFactory getPublisherFactory(
+                CarPropertyService carPropertyService,
+                Handler handler,
+                Context context,
+                File publisherDirectory,
+                SessionController sessionController, ResultStore resultStore,
+                UidPackageMapper uidMapper) {
+            return new PublisherFactory(
+                    carPropertyService, handler, context, publisherDirectory, sessionController,
+                    resultStore, uidMapper);
+        }
+
+        /** Returns a new UidPackageMapper instance. */
+        public UidPackageMapper getUidPackageMapper(Context context, Handler telemetryHandler) {
+            return new UidPackageMapper(context, telemetryHandler);
         }
     }
 
@@ -125,6 +138,7 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
         mContext = context;
         mCarPropertyService = carPropertyService;
         mDependencies = deps;
+        mUidMapper = mDependencies.getUidPackageMapper(mContext, mTelemetryHandler);
     }
 
     @Override
@@ -139,11 +153,13 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
             File publisherDirectory = new File(rootDirectory, PUBLISHER_DIR);
             publisherDirectory.mkdirs();
             // initialize all necessary components
+            mUidMapper.init();
             mMetricsConfigStore = new MetricsConfigStore(rootDirectory);
             mResultStore = new ResultStore(rootDirectory);
             mSessionController = new SessionController(mContext, mTelemetryHandler);
             mPublisherFactory = mDependencies.getPublisherFactory(mCarPropertyService,
-                    mTelemetryHandler, mContext, publisherDirectory);
+                    mTelemetryHandler, mContext, publisherDirectory, mSessionController,
+                    mResultStore, mUidMapper);
             mDataBroker = new DataBrokerImpl(mContext, mPublisherFactory, mResultStore,
                     mTelemetryThreadTraceLog);
             ActivityManager activityManager = mContext.getSystemService(ActivityManager.class);
@@ -170,6 +186,7 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
             mResultStore.flushToDisk();
             mOnShutdownReboot.release();
             mSessionController.release();
+            mUidMapper.release();
             mTelemetryThreadTraceLog.traceEnd();
         });
         mTelemetryThread.quitSafely();
@@ -195,22 +212,22 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
             writer.println();
         }
         // Print info on stored final results. Configs are inactive after producing final result.
-        Map<String, PersistableBundle> finalResults = mResultStore.getFinalResults();
+        ArrayMap<String, PersistableBundle> finalResults = mResultStore.getAllFinalResults();
         writer.println("Final Results");
         writer.println();
-        for (Map.Entry<String, PersistableBundle> entry : finalResults.entrySet()) {
-            writer.println("    Config name: " + entry.getKey());
+        for (int i = 0; i < finalResults.size(); i++) {
+            writer.println("    Config name: " + finalResults.keyAt(i));
             writer.println("    Bundle keys: "
-                    + Arrays.toString(entry.getValue().keySet().toArray()));
+                    + Arrays.toString(finalResults.valueAt(i).keySet().toArray()));
             writer.println();
         }
         // Print info on stored errors. Configs are inactive after producing errors.
-        Map<String, TelemetryProto.TelemetryError> errors = mResultStore.getErrorResults();
+        ArrayMap<String, TelemetryProto.TelemetryError> errors = mResultStore.getAllErrorResults();
         writer.println("Errors");
         writer.println();
-        for (Map.Entry<String, TelemetryProto.TelemetryError> entry : errors.entrySet()) {
-            writer.println("    Config name: " + entry.getKey());
-            TelemetryProto.TelemetryError error = entry.getValue();
+        for (int i = 0; i < errors.size(); i++) {
+            writer.println("    Config name: " + errors.keyAt(i));
+            TelemetryProto.TelemetryError error = errors.valueAt(i);
             writer.println("    Error");
             writer.println("        Type: " + error.getErrorType());
             writer.println("        Message: " + error.getMessage());
@@ -223,9 +240,10 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
 
     /**
      * Send a telemetry metrics config to the service.
+     *
      * @param metricsConfigName name of the MetricsConfig.
-     * @param config the serialized bytes of a MetricsConfig object.
-     * @param callback to send status code to CarTelemetryManager.
+     * @param config            the serialized bytes of a MetricsConfig object.
+     * @param callback          to send status code to CarTelemetryManager.
      */
     @Override
     public void addMetricsConfig(@NonNull String metricsConfigName, @NonNull byte[] config,
@@ -317,7 +335,7 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
      * {@link ICarTelemetryReportListener}.
      *
      * @param metricsConfigName the unique identifier of a MetricsConfig.
-     * @param listener to receive finished report or error.
+     * @param listener          to receive finished report or error.
      */
     @Override
     public void getFinishedReport(@NonNull String metricsConfigName,
@@ -327,7 +345,7 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
         mTelemetryHandler.post(() -> {
             if (DEBUG) {
                 Slogf.d(CarLog.TAG_TELEMETRY,
-                        "Flushing reports for metrics config " + metricsConfigName);
+                        "Getting report for metrics config " + metricsConfigName);
             }
             mTelemetryThreadTraceLog.traceBegin("getFinishedReport");
             PersistableBundle report;
@@ -357,12 +375,28 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
      */
     @Override
     public void getAllFinishedReports(@NonNull ICarTelemetryReportListener listener) {
-        // TODO(b/184087869): Implement
         mContext.enforceCallingOrSelfPermission(
                 Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE, "getAllFinishedReports");
-        if (DEBUG) {
-            Slogf.d(CarLog.TAG_TELEMETRY, "Flushing all reports");
-        }
+        mTelemetryHandler.post(() -> {
+            if (DEBUG) {
+                Slogf.d(CarLog.TAG_TELEMETRY, "Getting all reports");
+            }
+            mTelemetryThreadTraceLog.traceBegin("getAllFinishedReports");
+            ArrayMap<String, PersistableBundle> reports = mResultStore.getAllFinalResults();
+            for (int i = 0; i < reports.size(); i++) {
+                mResultStore.removeResult(reports.keyAt(i));
+                sendResult(listener, reports.keyAt(i), reports.valueAt(i),
+                        /* error = */ null, STATUS_GET_METRICS_CONFIG_FINISHED);
+            }
+            ArrayMap<String, TelemetryProto.TelemetryError> errors =
+                    mResultStore.getAllErrorResults();
+            for (int i = 0; i < errors.size(); i++) {
+                mResultStore.removeResult(errors.keyAt(i));
+                sendResult(listener, errors.keyAt(i), /* report = */ null,
+                        errors.valueAt(i), STATUS_GET_METRICS_CONFIG_RUNTIME_ERROR);
+            }
+            mTelemetryThreadTraceLog.traceEnd();
+        });
     }
 
     /**
@@ -372,7 +406,17 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
     public void setReportReadyListener(@NonNull ICarTelemetryReportReadyListener listener) {
         mContext.enforceCallingOrSelfPermission(
                 Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE, "setReportReadyListener");
-        mTelemetryHandler.post(() -> mReportReadyListener = listener);
+        mTelemetryHandler.post(() -> {
+            mReportReadyListener = listener;
+            Set<String> configNames = mResultStore.getFinishedMetricsConfigNames();
+            for (String name : configNames) {
+                try {
+                    mReportReadyListener.onReady(name);
+                } catch (RemoteException e) {
+                    Slogf.w(CarLog.TAG_TELEMETRY, "error with ICarTelemetryReportReadyListener", e);
+                }
+            }
+        });
     }
 
     /**
@@ -401,60 +445,6 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
     }
 
     /**
-     * Adds the MetricsConfig. This methods is expected to be used only by {@code CarShellCommand}
-     * class, because CarTelemetryService supports only a single listener and the shell command
-     * shouldn't replace the existing listener. Other usages are not supported.
-     * @param metricsConfigName name of the MetricsConfig.
-     * @param config config body serialized as a binary protobuf.
-     * @param statusConsumer receives the status code.
-     */
-    public void addMetricsConfig(@NonNull String metricsConfigName, @NonNull byte[] config,
-            @NonNull IntConsumer statusConsumer) {
-        mContext.enforceCallingOrSelfPermission(
-                Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE, "addMetricsConfig");
-        mTelemetryHandler.post(
-                () -> statusConsumer.accept(addMetricsConfigInternal(metricsConfigName, config)));
-    }
-
-    /**
-     * Returns the finished reports. This methods is expected to be used only by {@code
-     * CarShellCommand} class, because CarTelemetryService supports only a single listener and the
-     * shell command shouldn't replace the existing listener. Other usages are not supported.
-     *
-     * <p>It sends {@code ErrorType.UNSPECIFIED} if there are no reports.
-     *
-     * @param metricsConfigName MetricsConfig name.
-     * @param deleteResult if true, the result will be deleted from the storage.
-     * @param consumer receives the final result or error.
-     */
-    public void getFinishedReports(
-            @NonNull String metricsConfigName,
-            boolean deleteResult,
-            @NonNull BiConsumer<PersistableBundle, TelemetryProto.TelemetryError> consumer) {
-        mContext.enforceCallingOrSelfPermission(
-                Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE, "getFinishedReports");
-        mTelemetryHandler.post(() -> {
-            PersistableBundle result = mResultStore.getFinalResult(metricsConfigName, deleteResult);
-            TelemetryProto.TelemetryError error =
-                    mResultStore.getErrorResult(metricsConfigName, deleteResult);
-            if (result != null) {
-                consumer.accept(result, null);
-            } else if (error != null) {
-                consumer.accept(null, error);
-            } else {
-                // TODO(b/209469238): Create a NO_RESULT error type
-                TelemetryProto.TelemetryError unknownError =
-                        TelemetryProto.TelemetryError.newBuilder()
-                                .setErrorType(
-                                        TelemetryProto.TelemetryError.ErrorType.UNSPECIFIED)
-                                .setMessage("No results")
-                                .build();
-                consumer.accept(null, unknownError);
-            }
-        });
-    }
-
-    /**
      * Returns the list of config names and versions. This methods is expected to be used only by
      * {@code CarShellCommand} class. Other usages are not supported.
      */
@@ -463,21 +453,6 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
         return mMetricsConfigStore.getActiveMetricsConfigs().stream()
                 .map((config) -> config.getName() + " version=" + config.getVersion())
                 .collect(toList());
-    }
-
-    @Nullable
-    private byte[] getBytes(@Nullable PersistableBundle report) {
-        if (report == null) {
-            return null;
-        }
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            report.writeToStream(bos);
-            return bos.toByteArray();
-        } catch (IOException e) {
-            String msg = "Failed to write PersistableBundle to output stream. ";
-            Slogf.w(CarLog.TAG_TELEMETRY, msg, e);
-            return null;
-        }
     }
 
     @Nullable
@@ -495,7 +470,7 @@ public class CarTelemetryService extends ICarTelemetryService.Stub implements Ca
             @Nullable TelemetryProto.TelemetryError error,
             @CarTelemetryManager.MetricsReportStatus int status) {
         try {
-            listener.onResult(metricsConfigName, getBytes(report), getBytes(error), status);
+            listener.onResult(metricsConfigName, report, getBytes(error), status);
         } catch (RemoteException e) {
             Slogf.w(CarLog.TAG_TELEMETRY, "error with ICarTelemetryReportListener", e);
         }
