@@ -17,9 +17,10 @@
 package com.android.car.telemetry.publisher;
 
 import android.annotation.NonNull;
+import android.car.telemetry.TelemetryProto;
 
-import com.android.car.telemetry.TelemetryProto;
 import com.android.car.telemetry.databroker.DataSubscriber;
+import com.android.car.telemetry.sessioncontroller.SessionAnnotation;
 
 import java.util.List;
 
@@ -27,9 +28,9 @@ import java.util.List;
  * Abstract class for publishers. It is 1-1 with data source and manages sending data to
  * subscribers. Publisher stops itself when there are no subscribers.
  *
- * <p>Note that it doesn't map 1-1 to {@link com.android.car.telemetry.TelemetryProto.Publisher}
+ * <p>Note that it doesn't map 1-1 to {@link android.car.telemetry.TelemetryProto.Publisher}
  * configuration. Single publisher instance can send data as several
- * {@link com.android.car.telemetry.TelemetryProto.Publisher} to subscribers.
+ * {@link android.car.telemetry.TelemetryProto.Publisher} to subscribers.
  *
  * <p>The methods must be called from the telemetry thread.
  */
@@ -52,6 +53,13 @@ public abstract class AbstractPublisher {
     AbstractPublisher(@NonNull PublisherFailureListener failureListener) {
         mFailureListener = failureListener;
     }
+
+    /**
+     * Handles driving session update changes. Must be overridden by concrete publisher classes.
+     *
+     * @param annotation Contains annotating information about the state change.
+     */
+    protected abstract void handleSessionStateChange(@NonNull SessionAnnotation annotation);
 
     /**
      * Adds a subscriber that listens for data produced by this publisher.

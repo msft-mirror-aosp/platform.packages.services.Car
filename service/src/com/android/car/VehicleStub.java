@@ -27,6 +27,9 @@ import com.android.car.hal.HalPropConfig;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
 
+import java.io.FileDescriptor;
+import java.util.ArrayList;
+
 /**
  * VehicleStub represents an IVehicle service interface in either AIDL or legacy HIDL version. It
  * exposes common interface so that the client does not need to care about which version the
@@ -57,22 +60,34 @@ public abstract class VehicleStub {
     }
 
     /**
+     * Checks whether we are connected to AIDL VHAL: {@code true} or HIDL VHAL: {@code false}.
+     */
+    public abstract boolean isAidlVhal();
+
+    /**
      * Creates a new VehicleStub to connect to Vehicle HAL.
      *
      * Create a new VehicleStub to connect to Vehicle HAL according to which backend (AIDL or HIDL)
-     * is available. Caller must call isValid to check the returned {@code VehicleStub} before using
-     * it.
+     * is available. This function will throw {@link IllegalStateException} if no vehicle HAL is
+     * available.
      *
      * @return a vehicle stub to connect to Vehicle HAL.
      */
-    public static VehicleStub newVehicleStub() {
+    public static VehicleStub newVehicleStub() throws IllegalStateException {
         VehicleStub stub = new AidlVehicleStub();
         if (stub.isValid()) {
             return stub;
         }
 
-        Slogf.w(CarLog.TAG_SERVICE, "No AIDL vehicle HAL found, fall back to HIDL version");
-        return new HidlVehicleStub();
+        Slogf.i(CarLog.TAG_SERVICE, "No AIDL vehicle HAL found, fall back to HIDL version");
+
+        stub = new HidlVehicleStub();
+
+        if (!stub.isValid()) {
+            throw new IllegalStateException("Vehicle HAL service is not available.");
+        }
+
+        return stub;
     }
 
     /**
@@ -150,5 +165,18 @@ public abstract class VehicleStub {
      * @throws ServiceSpecificException if VHAL returns service specific error.
      */
     public abstract void set(HalPropValue propValue)
+            throws RemoteException, ServiceSpecificException;
+
+    /**
+     * Dump VHAL debug information.
+     *
+     * Additional arguments could also be provided through {@link args} to debug VHAL.
+     *
+     * @param fd The file descriptor to print output.
+     * @param args Optional additional arguments for the debug command. Can be empty.
+     * @throws RemoteException if the remote operation fails.
+     * @throws ServiceSpecificException if VHAL returns service specific error.
+     */
+    public abstract void dump(FileDescriptor fd, ArrayList<String> args)
             throws RemoteException, ServiceSpecificException;
 }

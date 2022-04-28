@@ -18,6 +18,7 @@ package android.car.storagemonitoring;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.SystemApi;
+import android.car.annotation.AddedInOrBefore;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.JsonWriter;
@@ -37,10 +38,15 @@ import java.util.Objects;
  * behalf of one user of the system, as collected by the kernel.
  *
  * @hide
+ *
+ * @deprecated use {@link android.car.watchdog.CarWatchdogManager} and its related classes
+ * for I/O related tasks.
  */
+@Deprecated
 @SystemApi
 public final class IoStatsEntry implements Parcelable {
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<IoStatsEntry> CREATOR =
             new Parcelable.Creator<IoStatsEntry>() {
 
@@ -60,6 +66,7 @@ public final class IoStatsEntry implements Parcelable {
      * In other cases, the user id can refer to either the kernel itself (uid 0), or low-level
      * system services that are running entirely natively.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public final int uid;
 
     /**
@@ -68,16 +75,19 @@ public final class IoStatsEntry implements Parcelable {
      * This field is allowed to be an approximation and it does not provide any way to
      * relate uptime to specific processes.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public final long runtimeMillis;
 
     /**
      * Statistics for apps running in foreground.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public final IoStatsEntry.Metrics foreground;
 
     /**
      * Statistics for apps running in background.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public final IoStatsEntry.Metrics background;
 
     public IoStatsEntry(int uid,
@@ -112,11 +122,13 @@ public final class IoStatsEntry implements Parcelable {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(uid);
         dest.writeLong(runtimeMillis);
@@ -127,6 +139,7 @@ public final class IoStatsEntry implements Parcelable {
     /**
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToJson(JsonWriter jsonWriter) throws IOException {
         jsonWriter.beginObject();
         jsonWriter.name("uid").value(uid);
@@ -155,6 +168,7 @@ public final class IoStatsEntry implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public IoStatsEntry delta(IoStatsEntry other) {
         if (uid != other.uid) {
             throw new IllegalArgumentException("cannot calculate delta between different user IDs");
@@ -165,6 +179,7 @@ public final class IoStatsEntry implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object other) {
         if (other instanceof IoStatsEntry) {
             IoStatsEntry uidIoStatEntry = (IoStatsEntry) other;
@@ -178,11 +193,13 @@ public final class IoStatsEntry implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         return Objects.hash(uid, runtimeMillis, foreground, background);
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return String.format("uid = %d, runtime = %d, foreground = %s, background = %s",
             uid, runtimeMillis, foreground, background);
@@ -194,6 +211,7 @@ public final class IoStatsEntry implements Parcelable {
      * It matches UID, and I/O activity values, but ignores runtime.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public boolean representsSameMetrics(UidIoRecord record) {
         return record.uid == uid
                 && record.foreground_rchar == foreground.bytesRead
@@ -213,6 +231,7 @@ public final class IoStatsEntry implements Parcelable {
      */
     public static final class Metrics implements Parcelable {
 
+        @AddedInOrBefore(majorVersion = 33)
         public static final Parcelable.Creator<IoStatsEntry.Metrics> CREATOR =
                 new Parcelable.Creator<IoStatsEntry.Metrics>() {
             public IoStatsEntry.Metrics createFromParcel(Parcel in) {
@@ -228,29 +247,34 @@ public final class IoStatsEntry implements Parcelable {
          * Total bytes that processes running on behalf of this user obtained
          * via read() system calls.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public final long bytesRead;
 
         /**
          * Total bytes that processes running on behalf of this user transferred
          * via write() system calls.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public final long bytesWritten;
 
         /**
          * Total bytes that processes running on behalf of this user obtained
          * via read() system calls that actually were served by physical storage.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public final long bytesReadFromStorage;
 
         /**
          * Total bytes that processes running on behalf of this user transferred
          * via write() system calls that were actually sent to physical storage.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public final long bytesWrittenToStorage;
 
         /**
          * Total number of fsync() system calls that processes running on behalf of this user made.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public final long fsyncCalls;
 
         public Metrics(long bytesRead, long bytesWritten, long bytesReadFromStorage,
@@ -263,11 +287,13 @@ public final class IoStatsEntry implements Parcelable {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public int describeContents() {
             return 0;
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeLong(bytesRead);
             dest.writeLong(bytesWritten);
@@ -279,6 +305,7 @@ public final class IoStatsEntry implements Parcelable {
         /**
          * @hide
          */
+        @AddedInOrBefore(majorVersion = 33)
         public void writeToJson(JsonWriter jsonWriter) throws IOException {
             jsonWriter.beginObject();
             jsonWriter.name("bytesRead").value(bytesRead);
@@ -317,6 +344,7 @@ public final class IoStatsEntry implements Parcelable {
          *
          * @hide
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Metrics delta(Metrics other) {
             return new Metrics(bytesRead - other.bytesRead,
                 bytesWritten - other.bytesWritten,
@@ -326,6 +354,7 @@ public final class IoStatsEntry implements Parcelable {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public boolean equals(Object other) {
             if (other instanceof Metrics) {
                 Metrics metrics = (Metrics) other;
@@ -340,12 +369,14 @@ public final class IoStatsEntry implements Parcelable {
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public int hashCode() {
             return Objects.hash(bytesRead, bytesWritten, bytesReadFromStorage,
                 bytesWrittenToStorage, fsyncCalls);
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             return String.format("bytesRead=%d, bytesWritten=%d, bytesReadFromStorage=%d, "
                     + "bytesWrittenToStorage=%d, fsyncCalls=%d", bytesRead, bytesWritten,
