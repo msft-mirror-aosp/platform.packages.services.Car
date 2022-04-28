@@ -102,6 +102,7 @@ public final class CpuAvailabilityInfo implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -152,6 +153,7 @@ public final class CpuAvailabilityInfo implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @android.annotation.NonNull Parcelable.Creator<CpuAvailabilityInfo> CREATOR
             = new Parcelable.Creator<CpuAvailabilityInfo>() {
         @Override
@@ -204,6 +206,7 @@ public final class CpuAvailabilityInfo implements Parcelable {
          * {@link CpuAvailabilityMonitoringConfig}
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull Builder setCpuset(int value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
@@ -215,6 +218,7 @@ public final class CpuAvailabilityInfo implements Parcelable {
          * Returns the current average CPU availability percent.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull Builder setAverageAvailabilityPercent(int value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x2;
@@ -226,6 +230,7 @@ public final class CpuAvailabilityInfo implements Parcelable {
          * Returns true, when the listener has timed out. Otherwise, returns false.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull Builder setTimeout(boolean value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x4;
@@ -234,6 +239,7 @@ public final class CpuAvailabilityInfo implements Parcelable {
         }
 
         /** Builds the instance. This builder should not be touched after calling this! */
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull CpuAvailabilityInfo build() {
             checkNotUsed();
             mBuilderFieldsSet |= 0x8; // Mark builder used

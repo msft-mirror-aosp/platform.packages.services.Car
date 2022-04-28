@@ -154,6 +154,7 @@ public class CarSensorEvent implements Parcelable {
      * When this data was received from car. It is elapsed real-time of data reception from car in
      * nanoseconds since system boot.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public long timestamp;
     /**
      * array holding float type of sensor data. If the sensor has single value, only floatValues[0]
@@ -203,6 +204,7 @@ public class CarSensorEvent implements Parcelable {
         dest.writeLongArray(longValues);
     }
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<CarSensorEvent> CREATOR =
             new Parcelable.Creator<CarSensorEvent>() {
         public CarSensorEvent createFromParcel(Parcel in) {
@@ -246,6 +248,7 @@ public class CarSensorEvent implements Parcelable {
      * Environment data with timestamp and temperature.
      */
     public static class EnvironmentData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
         /** If unsupported by the car, this value is NaN. */
         @AddedInOrBefore(majorVersion = 33)
@@ -264,6 +267,7 @@ public class CarSensorEvent implements Parcelable {
      * @return an EnvironmentData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public EnvironmentData getEnvironmentData(EnvironmentData data) {
         checkType(CarSensorManager.SENSOR_TYPE_ENV_OUTSIDE_TEMPERATURE);
         if (data == null) {
@@ -276,7 +280,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide*/
     public static class IgnitionStateData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public int ignitionState;
 
         /** @hide */
@@ -292,6 +298,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a IgnitionStateData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public IgnitionStateData getIgnitionStateData(IgnitionStateData data) {
         checkType(CarSensorManager.SENSOR_TYPE_IGNITION_STATE);
         if (data == null) {
@@ -304,7 +311,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class NightData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public boolean isNightMode;
 
         /** @hide */
@@ -320,6 +329,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a NightData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public NightData getNightData(NightData data) {
         checkType(CarSensorManager.SENSOR_TYPE_NIGHT);
         if (data == null) {
@@ -332,7 +342,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class GearData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public int gear;
 
         /** @hide */
@@ -348,6 +360,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a GearData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public GearData getGearData(GearData data) {
         checkType(CarSensorManager.SENSOR_TYPE_GEAR);
         if (data == null) {
@@ -360,7 +373,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class ParkingBrakeData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public boolean isEngaged;
 
         /** @hide */
@@ -376,6 +391,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a ParkingBreakData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public ParkingBrakeData getParkingBrakeData(ParkingBrakeData data) {
         checkType(CarSensorManager.SENSOR_TYPE_PARKING_BRAKE);
         if (data == null) {
@@ -388,8 +404,10 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class FuelLevelData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
         /** Fuel level in milliliters.  Negative values indicate this property is unsupported. */
+        @AddedInOrBefore(majorVersion = 33)
         public float level;
 
         /** @hide */
@@ -405,6 +423,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a FuelLevel object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public FuelLevelData getFuelLevelData(FuelLevelData data) {
         checkType(CarSensorManager.SENSOR_TYPE_FUEL_LEVEL);
         if (data == null) {
@@ -425,7 +444,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class OdometerData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public float kms;
 
         /** @hide */
@@ -441,6 +462,7 @@ public class CarSensorEvent implements Parcelable {
      * @return an OdometerData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public OdometerData getOdometerData(OdometerData data) {
         checkType(CarSensorManager.SENSOR_TYPE_ODOMETER);
         if (data == null) {
@@ -453,7 +475,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class RpmData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public float rpm;
 
         /** @hide */
@@ -469,6 +493,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a RpmData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public RpmData getRpmData(RpmData data) {
         checkType(CarSensorManager.SENSOR_TYPE_RPM);
         if (data == null) {
@@ -481,7 +506,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarSpeedData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public float carSpeed;
 
         /** @hide */
@@ -497,6 +524,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a CarSpeedData object corresponding to the data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarSpeedData getCarSpeedData(CarSpeedData data) {
         checkType(CarSensorManager.SENSOR_TYPE_CAR_SPEED);
         if (data == null) {
@@ -509,11 +537,17 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarWheelTickDistanceData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public long sensorResetCount;
+        @AddedInOrBefore(majorVersion = 33)
         public long frontLeftWheelDistanceMm;
+        @AddedInOrBefore(majorVersion = 33)
         public long frontRightWheelDistanceMm;
+        @AddedInOrBefore(majorVersion = 33)
         public long rearRightWheelDistanceMm;
+        @AddedInOrBefore(majorVersion = 33)
         public long rearLeftWheelDistanceMm;
 
         /** @hide */
@@ -529,6 +563,7 @@ public class CarSensorEvent implements Parcelable {
      * @return CarWheelTickDistanceData object corresponding to data contained in the CarSensorEvent
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarWheelTickDistanceData getCarWheelTickDistanceData(CarWheelTickDistanceData data) {
         checkType(CarSensorManager.SENSOR_TYPE_WHEEL_TICK_DISTANCE);
         if (data == null) {
@@ -545,7 +580,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarAbsActiveData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public boolean absIsActive;
 
         /** @hide */
@@ -561,6 +598,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a CarAbsActiveData object corresponding to data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarAbsActiveData getCarAbsActiveData(CarAbsActiveData data) {
         checkType(CarSensorManager.SENSOR_TYPE_ABS_ACTIVE);
         if (data == null) {
@@ -573,7 +611,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarTractionControlActiveData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public boolean tractionControlIsActive;
 
         /** @hide */
@@ -590,6 +630,7 @@ public class CarSensorEvent implements Parcelable {
      *     CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarTractionControlActiveData getCarTractionControlActiveData(
             CarTractionControlActiveData data) {
         checkType(CarSensorManager.SENSOR_TYPE_TRACTION_CONTROL_ACTIVE);
@@ -603,7 +644,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarFuelDoorOpenData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public boolean fuelDoorIsOpen;
 
         /** @hide */
@@ -620,6 +663,7 @@ public class CarSensorEvent implements Parcelable {
      *     CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarFuelDoorOpenData getCarFuelDoorOpenData(CarFuelDoorOpenData data) {
         checkType(CarSensorManager.SENSOR_TYPE_FUEL_DOOR_OPEN);
         if (data == null) {
@@ -632,8 +676,10 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarEvBatteryLevelData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
         /** Battery Level in Watt-hours */
+        @AddedInOrBefore(majorVersion = 33)
         public float evBatteryLevel;
 
         /** @hide */
@@ -650,6 +696,7 @@ public class CarSensorEvent implements Parcelable {
      *     CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarEvBatteryLevelData getCarEvBatteryLevelData(CarEvBatteryLevelData data) {
         checkType(CarSensorManager.SENSOR_TYPE_EV_BATTERY_LEVEL);
         if (data == null) {
@@ -670,7 +717,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarEvChargePortOpenData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public boolean evChargePortIsOpen;
 
         /** @hide */
@@ -687,6 +736,7 @@ public class CarSensorEvent implements Parcelable {
      *     CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarEvChargePortOpenData getCarEvChargePortOpenData(CarEvChargePortOpenData data) {
         checkType(CarSensorManager.SENSOR_TYPE_EV_CHARGE_PORT_OPEN);
         if (data == null) {
@@ -699,7 +749,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarEvChargePortConnectedData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public boolean evChargePortIsConnected;
 
         /** @hide */
@@ -716,6 +768,7 @@ public class CarSensorEvent implements Parcelable {
      *     CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarEvChargePortConnectedData getCarEvChargePortConnectedData(
             CarEvChargePortConnectedData data) {
         checkType(CarSensorManager.SENSOR_TYPE_EV_CHARGE_PORT_CONNECTED);
@@ -729,9 +782,11 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarEvBatteryChargeRateData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
         /** EV battery charging rate in mW.
          * Positive values indicates battery being charged.  Negative values indicate discharge */
+        @AddedInOrBefore(majorVersion = 33)
         public float evChargeRate;
 
         /** @hide */
@@ -748,6 +803,7 @@ public class CarSensorEvent implements Parcelable {
      *     CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarEvBatteryChargeRateData getCarEvBatteryChargeRateData(
             CarEvBatteryChargeRateData data) {
         checkType(CarSensorManager.SENSOR_TYPE_EV_BATTERY_CHARGE_RATE);
@@ -761,7 +817,9 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     public static class CarEngineOilLevelData {
+        @AddedInOrBefore(majorVersion = 33)
         public long timestamp;
+        @AddedInOrBefore(majorVersion = 33)
         public int engineOilLevel;
 
         /** @hide */
@@ -777,6 +835,7 @@ public class CarSensorEvent implements Parcelable {
      * @return a CarEngineOilLEvelData object corresponding to data contained in the CarSensorEvent.
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarEngineOilLevelData getCarEngineOilLevelData(CarEngineOilLevelData data) {
         checkType(CarSensorManager.SENSOR_TYPE_ENGINE_OIL_LEVEL);
         if (data == null) {
@@ -789,6 +848,7 @@ public class CarSensorEvent implements Parcelable {
 
     /** @hide */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(getClass().getName() + "[");

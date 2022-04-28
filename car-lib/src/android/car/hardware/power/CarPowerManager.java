@@ -52,6 +52,7 @@ public class CarPowerManager extends CarManagerBase {
     private static final boolean DBG = false;
 
     /** @hide */
+    @AddedInOrBefore(majorVersion = 33)
     public static final String TAG = CarPowerManager.class.getSimpleName();
 
     private static final int FIRST_POWER_COMPONENT = PowerComponentUtil.FIRST_POWER_COMPONENT;
@@ -285,6 +286,7 @@ public class CarPowerManager extends CarManagerBase {
          * Tells {@link CarPowerManager} that the listener completed the task to handle the power
          * state change.
          */
+        @AddedInOrBefore(majorVersion = 33)
         void complete();
 
         /**
@@ -292,6 +294,7 @@ public class CarPowerManager extends CarManagerBase {
          *
          * <p>The timestamp is system elapsed time in milliseconds.
          */
+        @AddedInOrBefore(majorVersion = 33)
         long getExpirationTime();
     }
 
@@ -307,6 +310,7 @@ public class CarPowerManager extends CarManagerBase {
          *
          * @param state New power state of the system.
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onStateChanged(@CarPowerState int state);
     }
 
@@ -344,6 +348,7 @@ public class CarPowerManager extends CarManagerBase {
          *               In the case {@code state} doesn't allow for completion, {@code future} is
          *               {@code null}.
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onStateChanged(@CarPowerState int state,
                 @Nullable CompletablePowerStateChangeFuture future);
     }
@@ -360,6 +365,7 @@ public class CarPowerManager extends CarManagerBase {
          *
          * @param policy The current power policy.
          */
+        @AddedInOrBefore(majorVersion = 33)
         void onPolicyChanged(@NonNull CarPowerPolicy policy);
     }
 
@@ -381,6 +387,7 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
+    @AddedInOrBefore(majorVersion = 33)
     public void requestShutdownOnNextSuspend() {
         try {
             mService.requestShutdownOnNextSuspend();
@@ -395,6 +402,7 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
+    @AddedInOrBefore(majorVersion = 33)
     public void scheduleNextWakeupTime(int seconds) {
         try {
             mService.scheduleNextWakeupTime(seconds);
@@ -835,6 +843,7 @@ public class CarPowerManager extends CarManagerBase {
 
     /** @hide */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         synchronized (mLock) {
             mListener = null;
