@@ -49,6 +49,8 @@ import androidx.fragment.app.Fragment;
 import com.google.android.car.kitchensink.KitchenSinkActivity;
 import com.google.android.car.kitchensink.R;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -143,8 +145,10 @@ public class MapMceTestFragment extends Fragment {
         View v = inflater.inflate(R.layout.sms_received, container, false);
         mActivity = (KitchenSinkActivity) getHost();
 
-        if (!BluetoothConnectionPermissionChecker.isPermissionGranted(mActivity)) {
-            BluetoothConnectionPermissionChecker.requestPermission(this,
+        if (!BluetoothPermissionChecker.isPermissionGranted(mActivity,
+                Manifest.permission.BLUETOOTH_CONNECT)) {
+            BluetoothPermissionChecker.requestPermission(Manifest.permission.BLUETOOTH_CONNECT,
+                    this,
                     this::registerMapServiceListenerAndNotificationReceiver,
                     () -> {
                     Toast.makeText(getContext(),
@@ -174,7 +178,7 @@ public class MapMceTestFragment extends Fragment {
         reply.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                sendMessage(new Uri[]{Uri.parse(mOriginator.getText().toString())},
+                sendMessage(Collections.singleton(Uri.parse(mOriginator.getText().toString())),
                         REPLY_MESSAGE_TO_SEND);
             }
         });
@@ -221,7 +225,7 @@ public class MapMceTestFragment extends Fragment {
     void launchDevicePicker() {
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothDevicePicker.ACTION_DEVICE_SELECTED);
-        getContext().registerReceiver(mPickerReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        getContext().registerReceiver(mPickerReceiver, filter);
 
         Intent intent = new Intent(BluetoothDevicePicker.ACTION_LAUNCH);
         intent.setFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
@@ -244,7 +248,8 @@ public class MapMceTestFragment extends Fragment {
     public void onResume() {
         super.onResume();
 
-        if (BluetoothConnectionPermissionChecker.isPermissionGranted(mActivity)) {
+        if (BluetoothPermissionChecker.isPermissionGranted(mActivity,
+                Manifest.permission.BLUETOOTH_CONNECT)) {
             registerMapServiceListenerAndNotificationReceiver();
         }
     }
@@ -269,9 +274,11 @@ public class MapMceTestFragment extends Fragment {
         intentFilter.addAction(ACTION_MESSAGE_SENT_SUCCESSFULLY);
         intentFilter.addAction(ACTION_MESSAGE_DELIVERED_SUCCESSFULLY);
         intentFilter.addAction(MAP_CLIENT_ACTION_MESSAGE_RECEIVED);
-        intentFilter.addAction(BluetoothMapClient.ACTION_CONNECTION_STATE_CHANGED);
         getContext().registerReceiver(mTransmissionStatusReceiver, intentFilter,
                 Context.RECEIVER_NOT_EXPORTED);
+
+        intentFilter = new IntentFilter(BluetoothMapClient.ACTION_CONNECTION_STATE_CHANGED);
+        getContext().registerReceiver(mTransmissionStatusReceiver, intentFilter);
     }
 
     private void sendNewMsgOnClick(int msgType) {
@@ -291,12 +298,11 @@ public class MapMceTestFragment extends Fragment {
         for (String telNum : s.split(",")) {
             uris.add(builder.path(telNum).scheme(PhoneAccount.SCHEME_TEL).build());
         }
-        sendMessage(uris.toArray(new Uri[uris.size()]), Integer.toString(mSendNewMsgCounter)
-                + ":  " + messageToSend);
+        sendMessage(uris, Integer.toString(mSendNewMsgCounter) + ":  " + messageToSend);
         mSendNewMsgCounter += 1;
     }
 
-    private void sendMessage(Uri[] recipients, String message) {
+    private void sendMessage(Collection recipients, String message) {
         if (mActivity.checkSelfPermission(Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
             Log.d(TAG,"Don't have SMS permission in kitchesink app. Requesting it");

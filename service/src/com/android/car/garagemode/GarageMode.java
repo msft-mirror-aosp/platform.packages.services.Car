@@ -16,14 +16,17 @@
 
 package com.android.car.garagemode;
 
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.util.Utils.isEventOfType;
 
 import android.car.builtin.job.JobSchedulerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
-import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.car.user.CarUserManager.UserLifecycleListener;
+import android.car.user.UserLifecycleEventFilter;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
@@ -78,10 +81,10 @@ class GarageMode {
     private static final int GARAGE_MODE_EVENT_LOG_FINISH = 1;
     private static final int GARAGE_MODE_EVENT_LOG_CANCELLED = 2;
 
+    private final Context mContext;
     private final Controller mController;
     private final Object mLock = new Object();
     private final Handler mHandler;
-    private final JobSchedulerHelper mJobSchedulerHelper;
 
     @GuardedBy("mLock")
     private boolean mGarageModeActive;
@@ -106,7 +109,7 @@ class GarageMode {
                 finish();
                 return;
             }
-            int numberRunning = mJobSchedulerHelper.getNumberOfRunningJobsAtIdle();
+            int numberRunning = JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext);
             if (numberRunning > 0) {
                 Slogf.d(TAG, "%d jobs are still running. Need to wait more ...", numberRunning);
                 synchronized (mLock) {
@@ -115,7 +118,7 @@ class GarageMode {
             } else {
                 // No idle-mode jobs are running.
                 // Are there any scheduled idle jobs that could run now?
-                int numberReadyToRun = mJobSchedulerHelper.getNumberOfPendingJobs();
+                int numberReadyToRun = JobSchedulerHelper.getNumberOfPendingJobs(mContext);
                 if (numberReadyToRun == 0) {
                     Slogf.d(TAG, "No jobs are running. No jobs are pending. Exiting Garage Mode.");
                     finish();
@@ -166,7 +169,7 @@ class GarageMode {
                 userToStop = mStartedBackgroundUsers.valueAt(0);
             }
             // All jobs done or stopped.
-            if (mJobSchedulerHelper.getNumberOfRunningJobsAtIdle() == 0) {
+            if (JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext) == 0) {
                 // Keep user until job scheduling is stopped. Otherwise, it can crash jobs.
                 if (userToStop != UserHandle.SYSTEM.getIdentifier()) {
                     CarLocalServices.getService(CarUserService.class)
@@ -207,16 +210,18 @@ class GarageMode {
     private boolean mBackgroundUserStopInProcess;
 
     GarageMode(Context context, Controller controller) {
+        mContext = context;
         mController = controller;
         mGarageModeActive = false;
         mHandler = controller.getHandler();
-        mJobSchedulerHelper = new JobSchedulerHelper(context);
         mGarageModeRecorder = new GarageModeRecorder(Clock.systemUTC());
     }
 
     void init() {
+        UserLifecycleEventFilter userStoppedEventFilter = new UserLifecycleEventFilter.Builder()
+                .addEventType(USER_LIFECYCLE_EVENT_TYPE_STOPPED).build();
         CarLocalServices.getService(CarUserService.class)
-                .addUserLifecycleListener(mUserLifecycleListener);
+                .addUserLifecycleListener(userStoppedEventFilter, mUserLifecycleListener);
     }
 
     void release() {
@@ -231,7 +236,9 @@ class GarageMode {
     private final UserLifecycleListener mUserLifecycleListener = new UserLifecycleListener() {
         @Override
         public void onEvent(UserLifecycleEvent event) {
-            if (event.getEventType() != CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED) return;
+            if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) {
+                return;
+            }
 
             synchronized (mLock) {
                 if (mBackgroundUserStopInProcess) {
@@ -268,11 +275,11 @@ class GarageMode {
                     (mIdleCheckerIsRunning ? "" : "not "));
         }
 
-        int numJobs = mJobSchedulerHelper.getNumberOfRunningJobsAtIdle();
+        int numJobs = JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext);
         if (numJobs > 0) {
             writer.printf("GarageMode is waiting for %d jobs:\n", numJobs);
         } else {
-            numJobs = mJobSchedulerHelper.getNumberOfPendingJobs();
+            numJobs = JobSchedulerHelper.getNumberOfPendingJobs(mContext);
             writer.printf("GarageMode is waiting for %d pending idle jobs:\n", numJobs);
         }
     }

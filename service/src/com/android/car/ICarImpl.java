@@ -30,7 +30,6 @@ import android.car.CarFeatures;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.CarBuiltin;
-import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.BinderHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.TraceHelper;
@@ -135,7 +134,8 @@ public class ICarImpl extends ICar.Stub {
     private final CarStorageMonitoringService mCarStorageMonitoringService;
     private final CarMediaService mCarMediaService;
     private final CarUserService mCarUserService;
-    @Nullable private final ExperimentalCarUserService mExperimentalCarUserService;
+    @Nullable
+    private final ExperimentalCarUserService mExperimentalCarUserService;
     private final CarOccupantZoneService mCarOccupantZoneService;
     private final CarUserNoticeService mCarUserNoticeService;
     private final VmsBrokerService mVmsBrokerService;
@@ -178,7 +178,7 @@ public class ICarImpl extends ICar.Stub {
         this(serviceContext, builtinContext, vehicle, systemInterface, vehicleInterfaceName,
                 /* carUserService= */ null, /* carWatchdogService= */ null,
                 /* carPerformanceService= */ null, /* garageModeService= */ null,
-                /* powerPolicyDaemon= */ null);
+                /* powerPolicyDaemon= */ null, /*carTelemetryService= */ null);
     }
 
     @VisibleForTesting
@@ -188,7 +188,8 @@ public class ICarImpl extends ICar.Stub {
             @Nullable CarWatchdogService carWatchdogService,
             @Nullable CarPerformanceService carPerformanceService,
             @Nullable GarageModeService garageModeService,
-            @Nullable ICarPowerPolicySystemNotification powerPolicyDaemon) {
+            @Nullable ICarPowerPolicySystemNotification powerPolicyDaemon,
+            @Nullable CarTelemetryService carTelemetryService) {
         LimitedTimingsTraceLog t = new LimitedTimingsTraceLog(
                 CAR_SERVICE_INIT_TIMING_TAG, TraceHelper.TRACE_TAG_CAR_SERVICE,
                 CAR_SERVICE_INIT_TIMING_MIN_DURATION_MS);
@@ -249,14 +250,12 @@ public class ICarImpl extends ICar.Stub {
             int maxRunningUsers = UserManagerHelper.getMaxRunningUsers(serviceContext);
             mCarUserService = constructWithTrace(t, CarUserService.class,
                     () -> new CarUserService(serviceContext, mHal.getUserHal(), userManager,
-                            ActivityManagerHelper.getInstance(), maxRunningUsers,
-                            mCarUXRestrictionsService));
+                            maxRunningUsers, mCarUXRestrictionsService));
         }
         if (mFeatureController.isFeatureEnabled(Car.EXPERIMENTAL_CAR_USER_SERVICE)) {
             mExperimentalCarUserService = constructWithTrace(t, ExperimentalCarUserService.class,
                     () -> new ExperimentalCarUserService(serviceContext, mCarUserService,
-                            serviceContext.getSystemService(UserManager.class),
-                            ActivityManagerHelper.getInstance()));
+                            serviceContext.getSystemService(UserManager.class)));
         } else {
             mExperimentalCarUserService = null;
         }
@@ -379,7 +378,8 @@ public class ICarImpl extends ICar.Stub {
                 mClusterHomeService = constructWithTrace(
                         t, ClusterHomeService.class,
                         () -> new ClusterHomeService(serviceContext, mHal.getClusterHal(),
-                        mClusterNavigationService, mCarOccupantZoneService, mFixedActivityService));
+                                mClusterNavigationService, mCarOccupantZoneService,
+                                mFixedActivityService));
             } else {
                 Slogf.w(TAG, "Can't init ClusterHomeService, since Old cluster service is running");
                 mClusterHomeService = null;
@@ -397,7 +397,12 @@ public class ICarImpl extends ICar.Stub {
         }
 
         if (mFeatureController.isFeatureEnabled(Car.CAR_TELEMETRY_SERVICE)) {
-            mCarTelemetryService = new CarTelemetryService(serviceContext, mCarPropertyService);
+            if (carTelemetryService == null) {
+                mCarTelemetryService = constructWithTrace(t, CarTelemetryService.class,
+                        () -> new CarTelemetryService(serviceContext, mCarPropertyService));
+            } else {
+                mCarTelemetryService = carTelemetryService;
+            }
         } else {
             mCarTelemetryService = null;
         }
@@ -745,33 +750,8 @@ public class ICarImpl extends ICar.Stub {
         writer.println("Android SDK_INT:" + Build.VERSION.SDK_INT);
         writer.println("Car API major:" + Car.API_VERSION_MAJOR_INT);
         writer.println("Car API minor:" + Car.API_VERSION_MINOR_INT);
-        writer.println("CarBuiltin API minor:" + CarBuiltin.API_VERSION_MINOR_INT);
-        writer.println("CarServiceBuiltin minor:"
-                + BuiltinPackageDependency.getBuiltinServiceMinorVersion(
-                mCarServiceBuiltinPackageContext));
-        String helperMinorString = "CarServiceHelper minor:";
-        int helperServiceMinorVersion = getHelperServiceBuiltinMinorVersion();
-        if (helperServiceMinorVersion < 0) {
-            writer.println(helperMinorString + "not available yet");
-        } else {
-            writer.println(helperMinorString + helperServiceMinorVersion);
-        }
-    }
-
-    private int getHelperServiceBuiltinMinorVersion() {
-        ICarServiceHelper helper;
-        synchronized (mLock) {
-            helper = mICarServiceHelper;
-        }
-        int helperBuiltinMinor = -1;
-        if (helper != null) {
-            try {
-                helperBuiltinMinor = helper.getServiceHelperBuiltinMinorVersion();
-            } catch (RemoteException e) {
-                Slogf.e(CarLog.TAG_SERVICE, "system server crashed?");
-            }
-        }
-        return helperBuiltinMinor;
+        writer.println("Car Platform minor:" + Car.PLATFORM_VERSION_MINOR_INT);
+        writer.println("CarBuiltin Platform minor:" + CarBuiltin.PLATFORM_VERSION_MINOR_INT);
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)

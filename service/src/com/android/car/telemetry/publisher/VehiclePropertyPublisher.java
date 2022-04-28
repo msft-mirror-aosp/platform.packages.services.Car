@@ -22,6 +22,8 @@ import android.car.builtin.util.Slogf;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.ICarPropertyEventListener;
+import android.car.telemetry.TelemetryProto;
+import android.car.telemetry.TelemetryProto.Publisher.PublisherCase;
 import android.os.Handler;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
@@ -30,9 +32,8 @@ import android.util.SparseArray;
 
 import com.android.car.CarLog;
 import com.android.car.CarPropertyService;
-import com.android.car.telemetry.TelemetryProto;
-import com.android.car.telemetry.TelemetryProto.Publisher.PublisherCase;
 import com.android.car.telemetry.databroker.DataSubscriber;
+import com.android.car.telemetry.sessioncontroller.SessionAnnotation;
 import com.android.internal.util.Preconditions;
 
 import java.util.List;
@@ -184,4 +185,7 @@ public class VehiclePropertyPublisher extends AbstractPublisher {
             }
         });
     }
+
+    @Override
+    protected void handleSessionStateChange(SessionAnnotation annotation) {}
 }
