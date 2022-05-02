@@ -334,9 +334,6 @@
     <install-in-user-type package="com.android.cellbroadcastreceiver">
         <install-in user-type="FULL" />
     </install-in-user-type>
-    <install-in-user-type package="com.android.networkstack.permissionconfig">
-        <install-in user-type="FULL" />
-    </install-in-user-type>
     <install-in-user-type package="com.android.storagemanager">
         <install-in user-type="FULL" />
     </install-in-user-type>
@@ -363,6 +360,10 @@
     </install-in-user-type>
     <!-- Provides ability to configure network preferences. -->
     <install-in-user-type package="com.google.android.car.networking.preferenceupdater">
+        <install-in user-type="FULL" />
+    </install-in-user-type>
+    <!-- Provides a reference for configuring internal networks. -->
+    <install-in-user-type package="com.google.android.car.networking.railway">
         <install-in user-type="FULL" />
     </install-in-user-type>
     <install-in-user-type package="com.android.supplemental.process">
