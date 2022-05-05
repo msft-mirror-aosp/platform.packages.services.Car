@@ -111,9 +111,8 @@ public final class AssistUtilsHelper {
         IVoiceInteractionSessionShowCallback callbackWrapper =
                 new InternalVoiceInteractionSessionShowCallback(callback);
 
-        assistUtils.showSessionForActiveService(args, SHOW_SOURCE_PUSH_TO_TALK, callbackWrapper,
-                /* activityToken= */ null);
-        return true;
+        return assistUtils.showSessionForActiveService(args, SHOW_SOURCE_PUSH_TO_TALK,
+                callbackWrapper, /* activityToken= */ null);
     }
 
     private static AssistUtils getAssistUtils(@NonNull Context context) {
@@ -195,6 +194,12 @@ public final class AssistUtilsHelper {
         @Override
         public void onSetUiHints(Bundle args) throws RemoteException {
             Slogf.d(TAG, "onSetUiHints() not used");
+        }
+
+        @Override
+        public void onVoiceSessionWindowVisibilityChanged(boolean visible)
+                throws RemoteException {
+            Slogf.d(TAG, "onVoiceSessionWindowVisibilityChanged() not used");
         }
     }
 
