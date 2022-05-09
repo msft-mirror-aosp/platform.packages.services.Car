@@ -20,6 +20,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedInOrBefore;
 import android.car.builtin.os.ParcelHelper;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -91,6 +92,7 @@ public final class VmsLayersOffering implements Parcelable {
     /**
      * Layers and dependencies in the offering
      */
+    @AddedInOrBefore(majorVersion = 33)
     public @NonNull Set<VmsLayerDependency> getDependencies() {
         return mDependencies;
     }
@@ -98,11 +100,13 @@ public final class VmsLayersOffering implements Parcelable {
     /**
      * ID of the publisher making the offering
      */
+    @AddedInOrBefore(majorVersion = 33)
     public int getPublisherId() {
         return mPublisherId;
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -114,6 +118,7 @@ public final class VmsLayersOffering implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(@android.annotation.Nullable Object o) {
         // You can override field equality logic by defining either of the methods like:
         // boolean fieldNameEquals(VmsLayersOffering other) { ... }
@@ -130,6 +135,7 @@ public final class VmsLayersOffering implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         // You can override field hashCode logic by defining methods like:
         // int fieldNameHashCode() { ... }
@@ -141,6 +147,7 @@ public final class VmsLayersOffering implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -151,6 +158,7 @@ public final class VmsLayersOffering implements Parcelable {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -170,6 +178,7 @@ public final class VmsLayersOffering implements Parcelable {
         onConstructed();
     }
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<VmsLayersOffering> CREATOR
             = new Parcelable.Creator<VmsLayersOffering>() {
         @Override

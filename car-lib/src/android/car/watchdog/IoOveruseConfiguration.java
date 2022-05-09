@@ -20,6 +20,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -123,6 +124,7 @@ public final class IoOveruseConfiguration implements Parcelable {
      * thresholds must be provided and other thresholds are not applicable.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @NonNull PerStateBytes getComponentLevelThresholds() {
         return mComponentLevelThresholds;
     }
@@ -138,6 +140,7 @@ public final class IoOveruseConfiguration implements Parcelable {
      * <p>Vendor component must provide package specific thresholds only for vendor packages.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @NonNull Map<String,PerStateBytes> getPackageSpecificThresholds() {
         return mPackageSpecificThresholds;
     }
@@ -154,6 +157,7 @@ public final class IoOveruseConfiguration implements Parcelable {
      * provided only by the vendor component.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @NonNull Map<String,PerStateBytes> getAppCategorySpecificThresholds() {
         return mAppCategorySpecificThresholds;
     }
@@ -164,12 +168,14 @@ public final class IoOveruseConfiguration implements Parcelable {
      * <p>These thresholds must be provided only by the system component.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @NonNull List<IoOveruseAlertThreshold> getSystemWideThresholds() {
         return mSystemWideThresholds;
     }
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -184,6 +190,7 @@ public final class IoOveruseConfiguration implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -197,6 +204,7 @@ public final class IoOveruseConfiguration implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -231,6 +239,7 @@ public final class IoOveruseConfiguration implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<IoOveruseConfiguration> CREATOR
             = new Parcelable.Creator<IoOveruseConfiguration>() {
         @Override
@@ -318,6 +327,7 @@ public final class IoOveruseConfiguration implements Parcelable {
          * thresholds must be provided and other thresholds are not applicable.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setComponentLevelThresholds(@NonNull PerStateBytes value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
@@ -336,6 +346,7 @@ public final class IoOveruseConfiguration implements Parcelable {
          * <p>Vendor component must provide package specific thresholds only for vendor packages.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setPackageSpecificThresholds(@NonNull Map<String,PerStateBytes> value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x2;
@@ -345,6 +356,7 @@ public final class IoOveruseConfiguration implements Parcelable {
 
         /** @see #setPackageSpecificThresholds */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder addPackageSpecificThresholds(@NonNull String key, @NonNull PerStateBytes value) {
             // You can refine this method's name by providing item's singular name, e.g.:
             // @DataClass.PluralOf("item")) mItems = ...
@@ -366,6 +378,7 @@ public final class IoOveruseConfiguration implements Parcelable {
          * provided only by the vendor component.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setAppCategorySpecificThresholds(@NonNull Map<String,PerStateBytes> value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x4;
@@ -375,6 +388,7 @@ public final class IoOveruseConfiguration implements Parcelable {
 
         /** @see #setAppCategorySpecificThresholds */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder addAppCategorySpecificThresholds(@NonNull String key, @NonNull PerStateBytes value) {
             // You can refine this method's name by providing item's singular name, e.g.:
             // @DataClass.PluralOf("item")) mItems = ...
@@ -390,6 +404,7 @@ public final class IoOveruseConfiguration implements Parcelable {
          * <p>These thresholds must be provided only by the system component.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setSystemWideThresholds(@NonNull List<IoOveruseAlertThreshold> value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x8;
@@ -399,6 +414,7 @@ public final class IoOveruseConfiguration implements Parcelable {
 
         /** @see #setSystemWideThresholds */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder addSystemWideThresholds(@NonNull IoOveruseAlertThreshold value) {
             // You can refine this method's name by providing item's singular name, e.g.:
             // @DataClass.PluralOf("item")) mItems = ...
@@ -409,6 +425,7 @@ public final class IoOveruseConfiguration implements Parcelable {
         }
 
         /** Builds the instance. This builder should not be touched after calling this! */
+        @AddedInOrBefore(majorVersion = 33)
         public @NonNull IoOveruseConfiguration build() {
             checkNotUsed();
             mBuilderFieldsSet |= 0x10; // Mark builder used
