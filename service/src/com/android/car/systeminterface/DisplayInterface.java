@@ -101,13 +101,12 @@ public interface DisplayInterface {
      */
     class DefaultImpl implements DisplayInterface {
         private static final String TAG = DisplayInterface.class.getSimpleName();
-        private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+        private static final boolean DEBUG = Slogf.isLoggable(TAG, Log.DEBUG);
         private final Context mContext;
         private final DisplayManager mDisplayManager;
         private final Object mLock = new Object();
         private final int mMaximumBacklight;
         private final int mMinimumBacklight;
-        private final PowerManagerHelper mPowerManagerHelper;
         private final WakeLockInterface mWakeLockInterface;
         @GuardedBy("mLock")
         private CarPowerManagementService mCarPowerManagementService;
@@ -148,9 +147,8 @@ public interface DisplayInterface {
         DefaultImpl(Context context, WakeLockInterface wakeLockInterface) {
             mContext = context;
             mDisplayManager = context.getSystemService(DisplayManager.class);
-            mPowerManagerHelper = new PowerManagerHelper(context);
-            mMaximumBacklight = mPowerManagerHelper.getMaximumScreenBrightnessSetting();
-            mMinimumBacklight = mPowerManagerHelper.getMinimumScreenBrightnessSetting();
+            mMaximumBacklight = PowerManagerHelper.getMaximumScreenBrightnessSetting(context);
+            mMinimumBacklight = PowerManagerHelper.getMinimumScreenBrightnessSetting(context);
             mWakeLockInterface = wakeLockInterface;
         }
 
@@ -275,11 +273,13 @@ public interface DisplayInterface {
             if (on) {
                 mWakeLockInterface.switchToFullWakeLock();
                 Slogf.i(CarLog.TAG_POWER, "on display");
-                mPowerManagerHelper.setDisplayState(/* on= */ true, SystemClock.uptimeMillis());
+                PowerManagerHelper.setDisplayState(mContext, /* on= */ true,
+                        SystemClock.uptimeMillis());
             } else {
                 mWakeLockInterface.switchToPartialWakeLock();
                 Slogf.i(CarLog.TAG_POWER, "off display");
-                mPowerManagerHelper.setDisplayState(/* on= */ false, SystemClock.uptimeMillis());
+                PowerManagerHelper.setDisplayState(mContext, /* on= */ false,
+                        SystemClock.uptimeMillis());
             }
         }
 

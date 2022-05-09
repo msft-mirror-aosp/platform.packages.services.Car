@@ -13,11 +13,20 @@
 
 <!-- These values can be used to control CarService stack behavior/features on individual devices.
      These can be overridden by OEM's by using an RRO overlay app.
-     See <update APP location> for a sample overlay app. -->
+     See CarServiceOverlay*.apk for sample overlay apps.
+     For Static RROs: Based on the target, define priority in this range
+     Android                  1 - 999
+     SOC vendor            1000 - 1999
+     Supplier              2000 - 4999
+     Car OEM               5000 - 7999
+     For Dynamic RROs: Use ro.android.car.carservice.overlay.packages system property to define
+     dynamic RROs. Currently it is recommended to use only one dynamic RRO for CarService
+     resource overlay.
+     -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <overlayable name="CarServiceCustomization">
         <!-- START VENDOR CUSTOMIZATION -->
-        <policy type="product|system|vendor">
+        <policy type="product|system|vendor|odm|oem">
           <!-- Params from config.xml that can be overlaid -->
           <item type="bool" name="audioUseDynamicRouting"/>
           <item type="bool" name="audioUseCarVolumeGroupMuting"/>
@@ -27,6 +36,7 @@
           <item type="integer" name="audioVolumeKeyEventTimeoutMs"/>
           <item type="bool" name="displayOffMuteLockAllAudio"/>
           <item type="bool" name="useDefaultBluetoothConnectionPolicy"/>
+          <item type="bool" name="useDefaultBluetoothPowerPolicy"/>
           <item type="string" name="instrumentClusterRendererService" translatable="false"/>
           <item type="string" name="config_clusterHomeActivity" translatable="false"/>
           <item type="string" name="rotaryService" translatable="false"/>
@@ -96,7 +106,13 @@
           <item type="bool" name="config_preventTemplatedAppsFromShowingDialog"/>
           <item type="string" name="config_template_activity_class_name" translatable="false"/>
           <item type="bool" name="config_enableExternalCarTimeToExternalTimeSuggestion"/>
+          <item type="integer" name="config_userPreCreationStage"/>
+          <item type="integer" name="config_userPreCreationDelay"/>
           <!-- Params from config.xml that can be overlaid -->
+
+          <!-- XML files that can be overlaid -->
+          <item type="xml" name="car_ux_restrictions_map"/>
+          <!-- XML files that can be overlaid -->
         </policy>
         <!-- END VENDOR CUSTOMIZATION -->
     </overlayable>
