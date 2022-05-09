@@ -24,7 +24,6 @@
 #include <aidl/android/frameworks/automotive/powerpolicy/BnCarPowerPolicyServer.h>
 #include <aidl/android/frameworks/automotive/powerpolicy/internal/BnCarPowerPolicySystemNotification.h>
 #include <android-base/result.h>
-#include <android/hardware/automotive/vehicle/2.0/IVehicle.h>
 #include <binder/IBinder.h>
 #include <binder/Status.h>
 #include <utils/Looper.h>
@@ -156,7 +155,6 @@ public:
 
     void connectToVhalHelper();
     void handleBinderDeath(const AIBinder* client);
-    void handleBinderUnlinked(const AIBinder* clientId);
     void handleVhalDeath();
 
     // Implements ICarPowerPolicySystemNotification.aidl.
@@ -233,7 +231,6 @@ private:
     android::base::Result<void> init(const sp<android::Looper>& looper);
 
     static void onBinderDied(void* cookie);
-    static void onBinderUnlinked(void* cookie);
     static std::string callbackToString(const CallbackInfo& callback);
 
     // For test-only.

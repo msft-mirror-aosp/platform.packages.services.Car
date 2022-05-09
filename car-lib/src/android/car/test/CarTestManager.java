@@ -20,6 +20,7 @@ import android.annotation.RequiresPermission;
 import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarManagerBase;
+import android.car.annotation.AddedInOrBefore;
 import android.os.IBinder;
 import android.os.RemoteException;
 
@@ -48,6 +49,7 @@ public final class CarTestManager extends CarManagerBase {
      * @hide
      */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // test will fail. nothing to do.
     }
@@ -62,6 +64,7 @@ public final class CarTestManager extends CarManagerBase {
      */
     @TestApi
     @RequiresPermission(Car.PERMISSION_CAR_TEST_SERVICE)
+    @AddedInOrBefore(majorVersion = 33)
     public void stopCarService(@NonNull IBinder token) {
         try {
             mService.stopCarService(token);
@@ -79,6 +82,7 @@ public final class CarTestManager extends CarManagerBase {
      */
     @TestApi
     @RequiresPermission(Car.PERMISSION_CAR_TEST_SERVICE)
+    @AddedInOrBefore(majorVersion = 33)
     public void startCarService(@NonNull IBinder token) {
         try {
             mService.startCarService(token);
