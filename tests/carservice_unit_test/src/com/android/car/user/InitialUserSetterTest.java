@@ -26,6 +26,7 @@ import static com.android.car.user.MockedUserHandleBuilder.expectManagedProfileE
 import static com.android.car.user.MockedUserHandleBuilder.expectRegularUserExists;
 import static com.android.car.user.MockedUserHandleBuilder.expectSystemUserExists;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -38,7 +39,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertThrows;
 
@@ -83,9 +83,6 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
     private Context mContext;
 
     @Mock
-    private ActivityManagerHelper mAmHelper;
-
-    @Mock
     private UserManager mUm;
 
     @Mock
@@ -118,7 +115,6 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         when(mContext.createContextAsUser(any(), anyInt())).thenReturn(mContext);
         mSetter = spy(new InitialUserSetter(mContext, mUm, mCarUserService, mListener,
                         mMockedUserHandleHelper, OWNER_NAME, GUEST_NAME));
-        doReturn(mAmHelper).when(() -> ActivityManagerHelper.getInstance());
         mockGetCurrentUser(CURRENT_USER_ID);
 
         // Need explicitly mock this call, otherwise the test will fail because the real method
@@ -732,6 +728,23 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
+    public void testDefaultBehavior_nonFirstBoot_ok_targetIsCurrentUserWhichIsEphemeral()
+            throws Exception {
+        mockGetAliveUsers(CURRENT_USER_ID);
+        expectEphemeralUserExists(mMockedUserHandleHelper, CURRENT_USER_ID);
+        UserHandle newUser = expectAdminUserExists(mMockedUserHandleHelper, USER_ID);
+        expectCreateFullUser(USER_ID, OWNER_NAME, UserManagerHelper.FLAG_ADMIN, newUser);
+        expectSwitchUser(USER_ID);
+
+        mSetter.set(new Builder(InitialUserSetter.TYPE_DEFAULT_BEHAVIOR).build());
+
+        verifyUserSwitched(USER_ID);
+        verifyFallbackDefaultBehaviorNeverCalled();
+        verifySystemUserUnlocked();
+        assertInitialUserSet(newUser);
+    }
+
+    @Test
     public void testDefaultBehavior_nonFirstBoot_fail_switchFail() throws Exception {
         expectHasInitialUser(USER_ID);
         expectSwitchUserFails(USER_ID);
@@ -819,32 +832,32 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
 
     @Test
     public void testUnlockSystemUser_startedOk() throws Exception {
-        when(mAmHelper.startUserInBackground(UserHandle.USER_SYSTEM)).thenReturn(true);
+        expectAmStartBgUser(UserHandle.USER_SYSTEM, /* toBeReturned= */true);
 
         mSetter.unlockSystemUser();
 
-        verify(mAmHelper, never()).unlockUser(UserHandle.USER_SYSTEM);
+        verify(() -> ActivityManagerHelper.unlockUser(UserHandle.USER_SYSTEM), never());
     }
 
     @Test
     public void testUnlockSystemUser_startFailUnlockedInstead() throws Exception {
-        // No need to set startUserInBackground() expectation as it will return false by default
+        expectAmStartBgUser(UserHandle.USER_SYSTEM, /* toBeReturned= */false);
 
         mSetter.unlockSystemUser();
 
-        verify(mAmHelper).unlockUser(UserHandle.USER_SYSTEM);
+        verify(() -> ActivityManagerHelper.unlockUser(UserHandle.USER_SYSTEM));
     }
 
     @Test
     public void testStartForegroundUser_ok() throws Exception {
-        expectAmStartFgUser(10);
+        expectAmStartFgUser(10, /* toBeReturned= */ true);
 
         assertThat(mSetter.startForegroundUser(10)).isTrue();
     }
 
     @Test
-    public void testStartForegroundUser_fail() {
-        // startUserInForegroundWithListener will return false by default
+    public void testStartForegroundUser_fail() throws Exception {
+        expectAmStartFgUser(10, /* toBeReturned= */ false);
 
         assertThat(mSetter.startForegroundUser(10)).isFalse();
     }
@@ -852,7 +865,7 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
     @Test
     public void testStartForegroundUser_nonHeadlessSystemUser() throws Exception {
         mockIsHeadlessSystemUserMode(false);
-        expectAmStartFgUser(UserHandle.USER_SYSTEM);
+        expectAmStartFgUser(UserHandle.USER_SYSTEM, /* toBeReturned= */ true);
 
         assertThat(mSetter.startForegroundUser(UserHandle.USER_SYSTEM)).isTrue();
     }
@@ -863,7 +876,7 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
 
         assertThat(mSetter.startForegroundUser(UserHandle.USER_SYSTEM)).isFalse();
 
-        verify(mAmHelper, never()).startUserInForeground(UserHandle.USER_SYSTEM);
+        verify(() -> ActivityManagerHelper.startUserInForeground(UserHandle.USER_SYSTEM), never());
     }
 
     @Test
@@ -978,6 +991,16 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
+    public void testHasInitialUser_hasOnlyEphemeralUser() {
+        mockIsHeadlessSystemUserMode(true);
+        mockGetAliveUsers(USER_SYSTEM, 10);
+        expectEphemeralUserExists(mMockedUserHandleHelper, 10);
+
+        // TODO(b/231473748): should call hasInitialUser() instead
+        assertThat(mSetter.hasValidInitialUser()).isFalse();
+    }
+
+    @Test
     public void testHasInitialUser_hasOnlyWorkProfile() {
         mockIsHeadlessSystemUserMode(true);
 
@@ -1085,6 +1108,7 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
     private UserHandle expectHasInitialUser(@UserIdInt int userId, boolean isGuest,
             boolean supportsOverrideUserIdProperty) {
         doReturn(true).when(mSetter).hasInitialUser();
+        doReturn(true).when(mSetter).hasValidInitialUser();
         doReturn(userId).when(mSetter).getInitialUser(supportsOverrideUserIdProperty);
         return isGuest
                 ? expectGuestUserExists(mMockedUserHandleHelper, userId, /* isEphemeral= */ true)
@@ -1130,8 +1154,14 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
                 .thenThrow(new RuntimeException("Cannot create user. D'OH!"));
     }
 
-    private void expectAmStartFgUser(@UserIdInt int userId) throws Exception {
-        when(mAmHelper.startUserInForeground(userId)).thenReturn(true);
+    private static void expectAmStartFgUser(@UserIdInt int userId, boolean toBeReturned)
+            throws Exception {
+        doReturn(toBeReturned).when(() -> ActivityManagerHelper.startUserInForeground(userId));
+    }
+
+    private static void expectAmStartBgUser(@UserIdInt int userId, boolean toBeReturned)
+            throws Exception {
+        doReturn(toBeReturned).when(() -> ActivityManagerHelper.startUserInBackground(userId));
     }
 
     private void verifyUserSwitched(@UserIdInt int userId) throws Exception {
