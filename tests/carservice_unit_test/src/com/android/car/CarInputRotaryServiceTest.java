@@ -16,6 +16,8 @@
 
 package com.android.car;
 
+import static com.android.car.CarInputService.ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -27,8 +29,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import android.annotation.UserIdInt;
-import android.app.IActivityManager;
-import android.bluetooth.BluetoothAdapter;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
 import android.content.ContentResolver;
@@ -45,11 +45,11 @@ import android.test.mock.MockContentResolver;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.android.car.bluetooth.CarBluetoothService;
 import com.android.car.hal.InputHalService;
 import com.android.car.hal.UserHalService;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.user.CarUserService;
-import com.android.internal.app.AssistUtils;
 import com.android.internal.util.test.BroadcastInterceptingContext;
 import com.android.internal.util.test.FakeSettingsProvider;
 
@@ -71,10 +71,12 @@ public class CarInputRotaryServiceTest {
     // TODO(b/152069895): decrease value once refactored. In fact, it should not even use
     // runWithScissors(), but only rely on CountdownLatches
     private static final long DEFAULT_TIMEOUT_MS = 5_000;
+    private static final String CAR_ACCESSIBILITY_SERVICE_COMPONENT_NAME =
+            BuiltinPackageDependency.getComponentName(
+                    BuiltinPackageDependency.CAR_ACCESSIBILITY_SERVICE_CLASS);
 
     @Mock private InputHalService mInputHalService;
     @Mock private TelecomManager mTelecomManager;
-    @Mock private AssistUtils mAssistUtils;
     @Mock private CarInputService.KeyEventListener mDefaultMainListener;
     @Mock private Supplier<String> mLastCallSupplier;
     @Mock private IntSupplier mLongPressDelaySupplier;
@@ -82,7 +84,7 @@ public class CarInputRotaryServiceTest {
     @Mock private InputCaptureClientController mCaptureController;
     @Mock private CarOccupantZoneService mCarOccupantZoneService;
     @Mock private CarUxRestrictionsManagerService mUxRestrictionService;
-    @Mock private BluetoothAdapter mBluetoothAdapter;
+    @Mock private CarBluetoothService mCarBluetoothService;
 
     @Spy private final Context mContext = ApplicationProvider.getApplicationContext();
     @Spy private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -122,6 +124,11 @@ public class CarInputRotaryServiceTest {
         }
 
         @Override
+        public Context createContextAsUser(UserHandle user, int flags) {
+            return this;
+        }
+
+        @Override
         public ContentResolver getContentResolver() {
             return mContentResolver;
         }
@@ -140,12 +147,19 @@ public class CarInputRotaryServiceTest {
     }
 
     @Test
-    public void rotaryServiceSettingsUpdated_whenRotaryServiceIsNotEmpty() throws Exception {
+    public void accessibilitySettingsUpdated_whenRotaryServiceIsNotEmpty() throws Exception {
+        final String existingService = "com.android.temp/com.android.car.TempService";
         final String rotaryService = "com.android.car.rotary/com.android.car.rotary.RotaryService";
+
         init(rotaryService);
         assertThat(mMockContext.getString(R.string.rotaryService)).isEqualTo(rotaryService);
-
         final int userId = 11;
+        Settings.Secure.putStringForUser(
+                mMockContext.getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                existingService,
+                userId);
+
 
         // By default RotaryService is not enabled.
         String enabledServices = Settings.Secure.getStringForUser(
@@ -167,7 +181,12 @@ public class CarInputRotaryServiceTest {
                 mMockContext.getContentResolver(),
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
                 userId);
-        assertThat(enabledServices).contains(rotaryService);
+        assertThat(enabledServices).isEqualTo(
+                existingService
+                        + ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR
+                        + CAR_ACCESSIBILITY_SERVICE_COMPONENT_NAME
+                        + ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR
+                        + rotaryService);
 
         enabled = Settings.Secure.getStringForUser(
                 mMockContext.getContentResolver(),
@@ -177,7 +196,8 @@ public class CarInputRotaryServiceTest {
     }
 
     @Test
-    public void rotaryServiceSettingsNotUpdated_whenRotaryServiceIsEmpty() throws Exception {
+    public void accessibilitySettingsUpdated_withoutRotaryService_whenRotaryServiceIsEmpty()
+            throws Exception {
         final String rotaryService = "";
         init(rotaryService);
         assertThat(mMockContext.getString(R.string.rotaryService)).isEqualTo(rotaryService);
@@ -199,7 +219,52 @@ public class CarInputRotaryServiceTest {
                 mMockContext.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_ENABLED,
                 userId);
+        assertThat(enabled).isEqualTo("1");
+        String enabledServices = Settings.Secure.getStringForUser(
+                mMockContext.getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                userId);
+        assertThat(enabledServices).isEqualTo(CAR_ACCESSIBILITY_SERVICE_COMPONENT_NAME);
+    }
+
+    @Test
+    public void accessibilitySettingsUpdated_accessibilityServicesAlreadyEnabled()
+            throws Exception {
+        final String rotaryService = "com.android.car.rotary/com.android.car.rotary.RotaryService";
+        init(rotaryService);
+        assertThat(mMockContext.getString(R.string.rotaryService)).isEqualTo(rotaryService);
+        final int userId = 11;
+        Settings.Secure.putStringForUser(
+                mMockContext.getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                CAR_ACCESSIBILITY_SERVICE_COMPONENT_NAME
+                        + ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR
+                        + rotaryService,
+                userId);
+
+        String enabled = Settings.Secure.getStringForUser(
+                mMockContext.getContentResolver(),
+                Settings.Secure.ACCESSIBILITY_ENABLED,
+                userId);
         assertThat(enabled).isNull();
+
+        // Enable RotaryService by sending user switch event.
+        sendUserLifecycleEvent(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING, userId);
+
+        String enabledServices = Settings.Secure.getStringForUser(
+                mMockContext.getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                userId);
+        assertThat(enabledServices).isEqualTo(
+                CAR_ACCESSIBILITY_SERVICE_COMPONENT_NAME
+                        + ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR
+                        + rotaryService);
+
+        enabled = Settings.Secure.getStringForUser(
+                mMockContext.getContentResolver(),
+                Settings.Secure.ACCESSIBILITY_ENABLED,
+                userId);
+        assertThat(enabled).isEqualTo("1");
     }
 
     @After
@@ -220,14 +285,14 @@ public class CarInputRotaryServiceTest {
         UserInfo userInfo = mock(UserInfo.class);
         doReturn(userInfo).when(userManager).getUserInfo(anyInt());
         UserHalService userHal = mock(UserHalService.class);
-        IActivityManager iActivityManager = mock(IActivityManager.class);
         mCarUserService = new CarUserService(mMockContext, userHal,
-                userManager, iActivityManager, /* maxRunningUsers= */ 2, mUxRestrictionService);
+                userManager, /* maxRunningUsers= */ 2,
+                mUxRestrictionService);
 
         mCarInputService = new CarInputService(mMockContext, mInputHalService, mCarUserService,
-                mCarOccupantZoneService, mHandler, mTelecomManager, mAssistUtils,
+                mCarOccupantZoneService, mCarBluetoothService, mHandler, mTelecomManager,
                 mDefaultMainListener, mLastCallSupplier, mLongPressDelaySupplier,
-                mShouldCallButtonEndOngoingCallSupplier, mCaptureController, mBluetoothAdapter);
+                mShouldCallButtonEndOngoingCallSupplier, mCaptureController);
         mCarInputService.init();
     }
 
@@ -237,7 +302,7 @@ public class CarInputRotaryServiceTest {
         // before proceeding with test execution.
         BlockingUserLifecycleListener blockingListener =
                 BlockingUserLifecycleListener.forAnyEvent().build();
-        mCarUserService.addUserLifecycleListener(blockingListener);
+        mCarUserService.addUserLifecycleListener(/* filter= */null, blockingListener);
 
         runOnMainThreadAndWaitForIdle(() -> mCarUserService.onUserLifecycleEvent(eventType,
                 /* fromUserId= */ UserHandle.USER_NULL, userId));
