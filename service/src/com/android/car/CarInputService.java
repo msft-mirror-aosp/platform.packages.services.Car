@@ -16,26 +16,29 @@
 package com.android.car;
 
 import static android.car.CarOccupantZoneManager.DisplayTypeEnum;
-import static android.hardware.input.InputManager.INJECT_INPUT_EVENT_MODE_ASYNC;
-import static android.service.voice.VoiceInteractionSession.SHOW_SOURCE_PUSH_TO_TALK;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
+import static com.android.car.BuiltinPackageDependency.CAR_ACCESSIBILITY_SERVICE_CLASS;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.util.Utils.getContentResolverForUser;
+import static com.android.car.util.Utils.isEventOfType;
 
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
-import android.app.ActivityManager;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothHeadsetClient;
-import android.bluetooth.BluetoothProfile;
 import android.car.CarOccupantZoneManager;
 import android.car.CarProjectionManager;
+import android.car.builtin.input.InputManagerHelper;
+import android.car.builtin.util.AssistUtilsHelper;
+import android.car.builtin.util.AssistUtilsHelper.VoiceInteractionSessionShowCallbackHelper;
+import android.car.builtin.util.Slogf;
+import android.car.builtin.view.KeyEventHelper;
 import android.car.input.CarInputManager;
 import android.car.input.CustomInputEvent;
 import android.car.input.ICarInput;
 import android.car.input.ICarInputCallback;
 import android.car.input.RotaryEvent;
-import android.car.user.CarUserManager;
+import android.car.user.CarUserManager.UserLifecycleListener;
+import android.car.user.UserLifecycleEventFilter;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -44,31 +47,27 @@ import android.content.res.Resources;
 import android.hardware.input.InputManager;
 import android.net.Uri;
 import android.os.Binder;
-import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.UserHandle;
 import android.provider.CallLog.Calls;
 import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.text.TextUtils;
-import android.util.IndentingPrintWriter;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.ViewConfiguration;
 
+import com.android.car.bluetooth.CarBluetoothService;
 import com.android.car.hal.InputHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.UserHelperLite;
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.app.AssistUtils;
-import com.android.internal.app.IVoiceInteractionSessionShowCallback;
-import com.android.internal.os.BackgroundThread;
-import com.android.server.utils.Slogf;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
@@ -81,8 +80,15 @@ import java.util.function.Supplier;
  */
 public class CarInputService extends ICarInput.Stub
         implements CarServiceBase, InputHalService.InputListener {
+    public static final String ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR = ":";
 
-    private static final String TAG = CarLog.TAG_INPUT;
+    private static final int MAX_RETRIES_FOR_ENABLING_ACCESSIBILITY_SERVICES = 5;
+
+    @VisibleForTesting
+    static final String TAG = CarLog.TAG_INPUT;
+
+    @VisibleForTesting
+    static final String LONG_PRESS_TIMEOUT = "long_press_timeout";
 
     /** An interface to receive {@link KeyEvent}s as they occur. */
     public interface KeyEventListener {
@@ -121,7 +127,7 @@ public class CarInputService extends ICarInput.Stub
 
         /**
          * Marks that a key was released, and stops the long-press timer.
-         *
+         * <p>
          * Returns true if the press was a long-press.
          */
         boolean keyUp() {
@@ -144,8 +150,8 @@ public class CarInputService extends ICarInput.Stub
         }
     }
 
-    private final IVoiceInteractionSessionShowCallback mShowCallback =
-            new IVoiceInteractionSessionShowCallback.Stub() {
+    private final VoiceInteractionSessionShowCallbackHelper mShowCallback =
+            new VoiceInteractionSessionShowCallbackHelper() {
                 @Override
                 public void onFailed() {
                     Slogf.w(TAG, "Failed to show VoiceInteractionSession");
@@ -153,20 +159,16 @@ public class CarInputService extends ICarInput.Stub
 
                 @Override
                 public void onShown() {
-                    Slogf.d(TAG, "IVoiceInteractionSessionShowCallback onShown()");
+                    Slogf.d(TAG, "VoiceInteractionSessionShowCallbackHelper onShown()");
                 }
             };
-
-    @VisibleForTesting
-    static final String EXTRA_CAR_PUSH_TO_TALK =
-            "com.android.car.input.EXTRA_CAR_PUSH_TO_TALK";
 
     private final Context mContext;
     private final InputHalService mInputHalService;
     private final CarUserService mUserService;
     private final CarOccupantZoneService mCarOccupantZoneService;
+    private final CarBluetoothService mCarBluetoothService;
     private final TelecomManager mTelecomManager;
-    private final AssistUtils mAssistUtils;
 
     // The default handler for main-display input events. By default, injects the events into
     // the input queue via InputManager, but can be overridden for testing.
@@ -199,81 +201,50 @@ public class CarInputService extends ICarInput.Stub
 
     private final InputCaptureClientController mCaptureController;
 
-    private final BluetoothAdapter mBluetoothAdapter;
-
-    // BluetoothHeadsetClient set through mBluetoothProfileServiceListener, and used by
-    // launchBluetoothVoiceRecognition().
-    @GuardedBy("mLock")
-    private BluetoothHeadsetClient mBluetoothHeadsetClient;
-
-    private final BluetoothProfile.ServiceListener mBluetoothProfileServiceListener =
-            new BluetoothProfile.ServiceListener() {
-        @Override
-        public void onServiceConnected(int profile, BluetoothProfile proxy) {
-            if (profile == BluetoothProfile.HEADSET_CLIENT) {
-                Slogf.d(TAG, "Bluetooth proxy connected for HEADSET_CLIENT profile");
-                synchronized (mLock) {
-                    mBluetoothHeadsetClient = (BluetoothHeadsetClient) proxy;
-                }
-            }
+    private final UserLifecycleListener mUserLifecycleListener = event -> {
+        if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
+            return;
         }
-
-        @Override
-        public void onServiceDisconnected(int profile) {
-            if (profile == BluetoothProfile.HEADSET_CLIENT) {
-                Slogf.d(TAG, "Bluetooth proxy disconnected for HEADSET_CLIENT profile");
-                synchronized (mLock) {
-                    mBluetoothHeadsetClient = null;
-                }
-            }
-        }
-    };
-
-    private final CarUserManager.UserLifecycleListener mUserLifecycleListener = event -> {
         Slogf.d(TAG, "CarInputService.onEvent(%s)", event);
-        if (CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING == event.getEventType()) {
-            updateRotaryServiceSettings(event.getUserId());
-        }
+
+        updateCarAccessibilityServicesSettings(event.getUserId());
     };
 
-    private static int getViewLongPressDelay(ContentResolver cr) {
-        return Settings.Secure.getIntForUser(
-                cr,
-                Settings.Secure.LONG_PRESS_TIMEOUT,
-                ViewConfiguration.getLongPressTimeout(),
-                UserHandle.USER_CURRENT);
+    private static int getViewLongPressDelay(Context context) {
+        return Settings.Secure.getInt(
+                getContentResolverForUser(context, UserHandle.CURRENT.getIdentifier()),
+                LONG_PRESS_TIMEOUT,
+                ViewConfiguration.getLongPressTimeout());
     }
 
     public CarInputService(Context context, InputHalService inputHalService,
-            CarUserService userService, CarOccupantZoneService occupantZoneService) {
-        this(context, inputHalService, userService, occupantZoneService,
-                new Handler(Looper.getMainLooper()),
-                context.getSystemService(TelecomManager.class), new AssistUtils(context),
-                event ->
-                        context.getSystemService(InputManager.class)
-                                .injectInputEvent(event, INJECT_INPUT_EVENT_MODE_ASYNC),
+            CarUserService userService, CarOccupantZoneService occupantZoneService,
+            CarBluetoothService bluetoothService) {
+        this(context, inputHalService, userService, occupantZoneService, bluetoothService,
+                new Handler(CarServiceUtils.getCommonHandlerThread().getLooper()),
+                context.getSystemService(TelecomManager.class),
+                event -> InputManagerHelper.injectInputEvent(
+                        context.getSystemService(InputManager.class), event),
                 () -> Calls.getLastOutgoingCall(context),
-                () -> getViewLongPressDelay(context.getContentResolver()),
+                () -> getViewLongPressDelay(context),
                 () -> context.getResources().getBoolean(R.bool.config_callButtonEndsOngoingCall),
-                new InputCaptureClientController(context),
-                BluetoothAdapter.getDefaultAdapter());
+                new InputCaptureClientController(context));
     }
 
     @VisibleForTesting
     CarInputService(Context context, InputHalService inputHalService, CarUserService userService,
-            CarOccupantZoneService occupantZoneService, Handler handler,
-            TelecomManager telecomManager, AssistUtils assistUtils,
-            KeyEventListener mainDisplayHandler,
+            CarOccupantZoneService occupantZoneService, CarBluetoothService bluetoothService,
+            Handler handler, TelecomManager telecomManager, KeyEventListener mainDisplayHandler,
             Supplier<String> lastCalledNumberSupplier, IntSupplier longPressDelaySupplier,
             BooleanSupplier shouldCallButtonEndOngoingCallSupplier,
-            InputCaptureClientController captureController, BluetoothAdapter bluetoothAdapter) {
+            InputCaptureClientController captureController) {
         mContext = context;
         mCaptureController = captureController;
         mInputHalService = inputHalService;
         mUserService = userService;
         mCarOccupantZoneService = occupantZoneService;
+        mCarBluetoothService = bluetoothService;
         mTelecomManager = telecomManager;
-        mAssistUtils = assistUtils;
         mMainDisplayHandler = mainDisplayHandler;
         mLastCalledNumberSupplier = lastCalledNumberSupplier;
         mLongPressDelaySupplier = longPressDelaySupplier;
@@ -286,7 +257,6 @@ public class CarInputService extends ICarInput.Stub
 
         mRotaryServiceComponentName = mContext.getString(R.string.rotaryService);
         mShouldCallButtonEndOngoingCallSupplier = shouldCallButtonEndOngoingCallSupplier;
-        mBluetoothAdapter = bluetoothAdapter;
     }
 
     /**
@@ -321,15 +291,9 @@ public class CarInputService extends ICarInput.Stub
         }
         Slogf.d(TAG, "Hal supports key input.");
         mInputHalService.setInputListener(this);
-        if (mBluetoothAdapter != null) {
-            BackgroundThread.getHandler().post(() -> {
-                mBluetoothAdapter.getProfileProxy(mContext,
-                        mBluetoothProfileServiceListener, BluetoothProfile.HEADSET_CLIENT);
-            });
-        }
-        if (!TextUtils.isEmpty(mRotaryServiceComponentName)) {
-            mUserService.addUserLifecycleListener(mUserLifecycleListener);
-        }
+        UserLifecycleEventFilter userSwitchingEventFilter = new UserLifecycleEventFilter.Builder()
+                .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING).build();
+        mUserService.addUserLifecycleListener(userSwitchingEventFilter, mUserLifecycleListener);
     }
 
     @Override
@@ -338,15 +302,8 @@ public class CarInputService extends ICarInput.Stub
             mProjectionKeyEventHandler = null;
             mProjectionKeyEventsSubscribed.clear();
             mInstrumentClusterKeyListener = null;
-            if (mBluetoothHeadsetClient != null) {
-                mBluetoothAdapter.closeProfileProxy(
-                        BluetoothProfile.HEADSET_CLIENT, mBluetoothHeadsetClient);
-                mBluetoothHeadsetClient = null;
-            }
         }
-        if (!TextUtils.isEmpty(mRotaryServiceComponentName)) {
-            mUserService.removeUserLifecycleListener(mUserLifecycleListener);
-        }
+        mUserService.removeUserLifecycleListener(mUserLifecycleListener);
     }
 
     @Override
@@ -382,7 +339,7 @@ public class CarInputService extends ICarInput.Stub
         int newDisplayId = mCarOccupantZoneService.getDisplayIdForDriver(targetDisplayType);
 
         // Display id is overridden even if already set.
-        event.setDisplayId(newDisplayId);
+        KeyEventHelper.setDisplayId(event, newDisplayId);
     }
 
     @Override
@@ -594,7 +551,7 @@ public class CarInputService extends ICarInput.Stub
     private void launchDialerHandler() {
         Slogf.i(TAG, "call key, launch dialer intent");
         Intent dialerIntent = new Intent(Intent.ACTION_DIAL);
-        mContext.startActivityAsUser(dialerIntent, null, UserHandle.CURRENT_OR_SELF);
+        mContext.startActivityAsUser(dialerIntent, UserHandle.CURRENT);
     }
 
     private void dialLastCallHandler() {
@@ -603,9 +560,9 @@ public class CarInputService extends ICarInput.Stub
         String lastNumber = mLastCalledNumberSupplier.get();
         if (!TextUtils.isEmpty(lastNumber)) {
             Intent callLastNumberIntent = new Intent(Intent.ACTION_CALL)
-                    .setData(Uri.fromParts("tel", lastNumber, null))
+                    .setData(Uri.fromParts("tel", lastNumber, /* fragment= */ null))
                     .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            mContext.startActivityAsUser(callLastNumberIntent, null, UserHandle.CURRENT_OR_SELF);
+            mContext.startActivityAsUser(callLastNumberIntent, UserHandle.CURRENT);
         }
     }
 
@@ -633,46 +590,20 @@ public class CarInputService extends ICarInput.Stub
     }
 
     private boolean launchBluetoothVoiceRecognition() {
-        synchronized (mLock) {
-            if (mBluetoothHeadsetClient == null || !isBluetoothVoiceRecognitionEnabled()) {
-                return false;
-            }
-            // getConnectedDevices() does not make any guarantees about the order of the returned
-            // list. As of 2019-02-26, this code is only triggered through a long-press of the
-            // voice recognition key, so handling of multiple connected devices that support voice
-            // recognition is not expected to be a primary use case.
-            List<BluetoothDevice> devices = mBluetoothHeadsetClient.getConnectedDevices();
-            if (devices != null) {
-                for (BluetoothDevice device : devices) {
-                    Bundle bundle = mBluetoothHeadsetClient.getCurrentAgFeatures(device);
-                    if (bundle == null || !bundle.getBoolean(
-                            BluetoothHeadsetClient.EXTRA_AG_FEATURE_VOICE_RECOGNITION)) {
-                        continue;
-                    }
-                    if (mBluetoothHeadsetClient.startVoiceRecognition(device)) {
-                        Slogf.d(TAG, "started voice recognition on BT device at (%s)",
-                                device.getAddress());
-                        return true;
-                    }
-                }
-            }
+        if (isBluetoothVoiceRecognitionEnabled()) {
+            Slogf.d(TAG, "Attempting to start Bluetooth Voice Recognition.");
+            return mCarBluetoothService.startBluetoothVoiceRecognition();
         }
+        Slogf.d(TAG, "Unable to start Bluetooth Voice Recognition, it is not enabled.");
         return false;
     }
 
     private void launchDefaultVoiceAssistantHandler() {
-        Slogf.i(TAG, "voice key, invoke AssistUtils");
+        Slogf.d(TAG, "voice key, invoke AssistUtilsHelper");
 
-        if (mAssistUtils.getAssistComponentForUser(ActivityManager.getCurrentUser()) == null) {
+        if (!AssistUtilsHelper.showPushToTalkSessionForActiveService(mContext, mShowCallback)) {
             Slogf.w(TAG, "Unable to retrieve assist component for current user");
-            return;
         }
-
-        final Bundle args = new Bundle();
-        args.putBoolean(EXTRA_CAR_PUSH_TO_TALK, true);
-
-        mAssistUtils.showSessionForActiveService(args,
-                SHOW_SOURCE_PUSH_TO_TALK, mShowCallback, null /*activityToken*/);
     }
 
     /**
@@ -691,6 +622,25 @@ public class CarInputService extends ICarInput.Stub
         return true;
     }
 
+    private List<String> getAccessibilityServicesToBeEnabled() {
+        String carSafetyAccessibilityServiceComponentName =
+                BuiltinPackageDependency.getComponentName(CAR_ACCESSIBILITY_SERVICE_CLASS);
+        ArrayList<String> accessibilityServicesToBeEnabled = new ArrayList<>();
+        accessibilityServicesToBeEnabled.add(carSafetyAccessibilityServiceComponentName);
+        if (!TextUtils.isEmpty(mRotaryServiceComponentName)) {
+            accessibilityServicesToBeEnabled.add(mRotaryServiceComponentName);
+        }
+        return accessibilityServicesToBeEnabled;
+    }
+
+    private static List<String> createServiceListFromSettingsString(
+            String accessibilityServicesString) {
+        return TextUtils.isEmpty(accessibilityServicesString)
+                ? new ArrayList<>()
+                : Arrays.asList(accessibilityServicesString.split(
+                        ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR));
+    }
+
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
@@ -701,18 +651,42 @@ public class CarInputService extends ICarInput.Stub
         mCaptureController.dump(writer);
     }
 
-    private void updateRotaryServiceSettings(@UserIdInt int userId) {
+    private void updateCarAccessibilityServicesSettings(@UserIdInt int userId) {
         if (UserHelperLite.isHeadlessSystemUser(userId)) {
             return;
         }
-        ContentResolver contentResolver = mContext.getContentResolver();
-        Settings.Secure.putStringForUser(contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                mRotaryServiceComponentName,
-                userId);
-        Settings.Secure.putStringForUser(contentResolver,
-                Settings.Secure.ACCESSIBILITY_ENABLED,
-                "1",
-                userId);
+        List<String> accessibilityServicesToBeEnabled = getAccessibilityServicesToBeEnabled();
+        ContentResolver contentResolverForUser = getContentResolverForUser(mContext, userId);
+        List<String> alreadyEnabledServices = createServiceListFromSettingsString(
+                Settings.Secure.getString(contentResolverForUser,
+                        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES));
+
+        int retry = 0;
+        while (!alreadyEnabledServices.containsAll(accessibilityServicesToBeEnabled)
+                && retry <= MAX_RETRIES_FOR_ENABLING_ACCESSIBILITY_SERVICES) {
+            ArrayList<String> enabledServicesList = new ArrayList<>(alreadyEnabledServices);
+            int numAccessibilityServicesToBeEnabled = accessibilityServicesToBeEnabled.size();
+            for (int i = 0; i < numAccessibilityServicesToBeEnabled; i++) {
+                String serviceToBeEnabled = accessibilityServicesToBeEnabled.get(i);
+                if (!enabledServicesList.contains(serviceToBeEnabled)) {
+                    enabledServicesList.add(serviceToBeEnabled);
+                }
+            }
+            Settings.Secure.putString(contentResolverForUser,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                    String.join(ENABLED_ACCESSIBILITY_SERVICES_SEPARATOR, enabledServicesList));
+            // Read again to account for any race condition with other parts of the code that might
+            // be enabling other accessibility services.
+            alreadyEnabledServices = createServiceListFromSettingsString(
+                    Settings.Secure.getString(contentResolverForUser,
+                            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES));
+            retry++;
+        }
+        if (!alreadyEnabledServices.containsAll(accessibilityServicesToBeEnabled)) {
+            Slogf.e(TAG, "Failed to enable accessibility services");
+        }
+
+        Settings.Secure.putString(contentResolverForUser, Settings.Secure.ACCESSIBILITY_ENABLED,
+                "1");
     }
 }
