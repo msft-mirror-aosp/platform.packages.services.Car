@@ -31,9 +31,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.ActivityOptions;
+import android.car.CarOccupantZoneManager;
+import android.car.ICarOccupantZoneCallback;
 import android.car.cluster.ClusterHomeManager;
 import android.car.cluster.ClusterState;
-import android.car.cluster.IClusterHomeCallback;
+import android.car.cluster.IClusterNavigationStateListener;
+import android.car.cluster.IClusterStateListener;
 import android.car.cluster.navigation.NavigationState.NavigationStateProto;
 import android.car.navigation.CarNavigationInstrumentCluster;
 import android.content.ComponentName;
@@ -65,6 +68,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class ClusterHomeServiceUnitTest {
     private static final int CLUSTER_DISPLAY_ID = 99;
+    private static final int NEW_CLUSTER_DISPLAY_ID = CLUSTER_DISPLAY_ID + 1;
     private static final int CLUSTER_WIDTH = 1024;
     private static final int CLUSTER_HEIGHT = 600;
     private static final int UI_TYPE_CLUSTER_MAPS = UI_TYPE_CLUSTER_HOME + 1;
@@ -91,15 +95,20 @@ public class ClusterHomeServiceUnitTest {
     private ClusterState mClusterState;
     private int mClusterStateChanges;
     private byte[] mNavigationState;
+    private ICarOccupantZoneCallback mOccupantZoneCallback;
 
-    private IClusterHomeCallback mClusterHomeCallback;
-    private class IClusterHomeCallbackImpl extends IClusterHomeCallback.Stub {
+    private IClusterStateListener mClusterStateListener;
+    private IClusterNavigationStateListener mClusterNavigationStateListener;
+
+    private class IClusterStateListenerImpl extends IClusterStateListener.Stub {
         @Override
         public void onClusterStateChanged(ClusterState state, int changes) {
             mClusterState = state;
             mClusterStateChanges = changes;
         }
+    }
 
+    private class IClusterNavigationStateListenerImpl extends IClusterNavigationStateListener.Stub {
         @Override
         public void onNavigationStateChanged(byte[] navigationState) {
             mNavigationState = navigationState;
@@ -115,7 +124,13 @@ public class ClusterHomeServiceUnitTest {
         when(mContext.getSystemService(DisplayManager.class)).thenReturn(mDisplayManager);
 
         when(mOccupantZoneService.getDisplayIdForDriver(DISPLAY_TYPE_INSTRUMENT_CLUSTER))
-                .thenReturn(CLUSTER_DISPLAY_ID);
+                .thenReturn(CLUSTER_DISPLAY_ID)
+                .thenReturn(NEW_CLUSTER_DISPLAY_ID);
+        doAnswer(invocation -> {
+            mOccupantZoneCallback = invocation.getArgument(0);
+            assertThat(mOccupantZoneCallback).isNotNull();
+            return null;
+        }).when(mOccupantZoneService).registerCallback(any(ICarOccupantZoneCallback.class));
         when(mClusterHalService.isCoreSupported()).thenReturn(true);
         when(mClusterHalService.isNavigationStateSupported()).thenReturn(true);
         when(mDisplayManager.getDisplay(CLUSTER_DISPLAY_ID)).thenReturn(mClusterDisplay);
@@ -130,15 +145,21 @@ public class ClusterHomeServiceUnitTest {
         mClusterHomeService.init();
     }
 
-    public void registerClusterHomeCallback() {
-        mClusterHomeCallback = new IClusterHomeCallbackImpl();
-        mClusterHomeService.registerCallback(mClusterHomeCallback);
+    public void registerClusterHomeCallbacks() {
+        mClusterStateListener = new IClusterStateListenerImpl();
+        mClusterNavigationStateListener = new IClusterNavigationStateListenerImpl();
+        mClusterHomeService.registerClusterStateListener(mClusterStateListener);
+        mClusterHomeService.registerClusterNavigationStateListener(mClusterNavigationStateListener);
     }
 
     @After
     public void tearDown() throws Exception {
-        if (mClusterHomeCallback != null) {
-            mClusterHomeService.unregisterCallback(mClusterHomeCallback);
+        if (mClusterStateListener != null) {
+            mClusterHomeService.unregisterClusterStateListener(mClusterStateListener);
+        }
+        if (mClusterNavigationStateListener != null) {
+            mClusterHomeService.unregisterClusterNavigationStateListener(
+                    mClusterNavigationStateListener);
         }
         mClusterHomeService.release();
     }
@@ -159,6 +180,22 @@ public class ClusterHomeServiceUnitTest {
     }
 
     @Test
+    public void occupantZoneConfigChangeRestartsFixedActivityInNewDisplay() throws Exception {
+        mOccupantZoneCallback.onOccupantZoneConfigChanged(
+                CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_DISPLAY);
+
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        ArgumentCaptor<ActivityOptions> activityOptionsCaptor = ArgumentCaptor.forClass(
+                ActivityOptions.class);
+        verify(mFixedActivityService).startFixedActivityModeForDisplayAndUser(
+                intentCaptor.capture(), activityOptionsCaptor.capture(),
+                eq(NEW_CLUSTER_DISPLAY_ID), eq(UserHandle.USER_SYSTEM));
+        assertThat(intentCaptor.getValue().getComponent()).isEqualTo(mClusterHomeActivity);
+        assertThat(activityOptionsCaptor.getValue().getLaunchDisplayId())
+                .isEqualTo(NEW_CLUSTER_DISPLAY_ID);
+    }
+
+    @Test
     public void getClusterStateReturnsClusterState() {
         ClusterState clusterState = mClusterHomeService.getClusterState();
 
@@ -171,7 +208,7 @@ public class ClusterHomeServiceUnitTest {
 
     @Test
     public void onSwitchUiSendsDisplayState() {
-        registerClusterHomeCallback();
+        registerClusterHomeCallbacks();
 
         mClusterHomeService.onSwitchUi(UI_TYPE_CLUSTER_MAPS);
 
@@ -183,7 +220,7 @@ public class ClusterHomeServiceUnitTest {
 
     @Test
     public void displayOnSendsDisplayState() {
-        registerClusterHomeCallback();
+        registerClusterHomeCallbacks();
 
         mClusterHomeService.onDisplayState(ClusterHalService.DISPLAY_ON,
                 /* bounds= */ null, /* insets= */ null);
@@ -196,7 +233,7 @@ public class ClusterHomeServiceUnitTest {
 
     @Test
     public void displayBoundsSendsDisplayState() {
-        registerClusterHomeCallback();
+        registerClusterHomeCallbacks();
 
         Rect newBounds = new Rect(10, 10, CLUSTER_WIDTH - 10, CLUSTER_HEIGHT - 10);
         mClusterHomeService.onDisplayState(ClusterHalService.DONT_CARE,
@@ -210,7 +247,7 @@ public class ClusterHomeServiceUnitTest {
 
     @Test
     public void displayInsetsSendsDisplayState() {
-        registerClusterHomeCallback();
+        registerClusterHomeCallbacks();
 
         Insets newInsets = Insets.of(10, 10, 10, 10);
         mClusterHomeService.onDisplayState(ClusterHalService.DONT_CARE, /* bounds= */ null,
@@ -224,7 +261,7 @@ public class ClusterHomeServiceUnitTest {
 
     @Test
     public void onNavigationStateChangedSendsNavigationState() {
-        registerClusterHomeCallback();
+        registerClusterHomeCallbacks();
 
         Bundle bundle = new Bundle();
         byte[] newNavState = new byte[] {(byte) 1, (byte) 2, (byte) 3};
