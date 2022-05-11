@@ -30,6 +30,8 @@ import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
 import android.util.Log;
 
+import androidx.annotation.GuardedBy;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -52,10 +54,10 @@ public final class GLES20CarEvsCameraPreviewRenderer implements GLSurfaceView.Re
              1.0f, -1.0f, 0.0f };
 
     private static final float[] sVertCarTexData = {
-            0.0f, 0.0f,
-            1.0f, 0.0f,
-            0.0f, 1.0f,
-            1.0f, 1.0f };
+           -0.5f, -0.5f,
+            0.5f, -0.5f,
+           -0.5f,  0.5f,
+            0.5f,  0.5f };
 
     private static final float[] sIdentityMatrix = {
             1.0f, 0.0f, 0.0f, 0.0f,
@@ -87,8 +89,12 @@ public final class GLES20CarEvsCameraPreviewRenderer implements GLSurfaceView.Re
         "    color = texel;                 \n" +
         "}                                  \n";
 
+    private final Object mLock = new Object();
+
     private CarEvsCameraPreviewActivity mActivity;
-    private CarEvsBufferDescriptor mBufferToRender = null;
+
+    @GuardedBy("mLock")
+    private CarEvsBufferDescriptor mBufferInUse = null;
 
     public GLES20CarEvsCameraPreviewRenderer(Context context,
             CarEvsCameraPreviewActivity activity) {
@@ -99,23 +105,64 @@ public final class GLES20CarEvsCameraPreviewRenderer implements GLSurfaceView.Re
         mVertCarPos = ByteBuffer.allocateDirect(sVertCarPosData.length * FLOAT_SIZE_BYTES)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
         mVertCarPos.put(sVertCarPosData).position(0);
+
+        // Rotates the matrix in counter-clockwise
+        int angleInDegree = mContext.getResources().getInteger(
+                R.integer.config_evsRearviewCameraInPlaneRotationAngle);
+        double angleInRadian = Math.toRadians(angleInDegree);
+        float[] rotated = {0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f};
+        float sin = (float)Math.sin(angleInRadian);
+        float cos = (float)Math.cos(angleInRadian);
+
+        rotated[0] += cos * sVertCarTexData[0] - sin * sVertCarTexData[1];
+        rotated[1] += sin * sVertCarTexData[0] + cos * sVertCarTexData[1];
+        rotated[2] += cos * sVertCarTexData[2] - sin * sVertCarTexData[3];
+        rotated[3] += sin * sVertCarTexData[2] + cos * sVertCarTexData[3];
+        rotated[4] += cos * sVertCarTexData[4] - sin * sVertCarTexData[5];
+        rotated[5] += sin * sVertCarTexData[4] + cos * sVertCarTexData[5];
+        rotated[6] += cos * sVertCarTexData[6] - sin * sVertCarTexData[7];
+        rotated[7] += sin * sVertCarTexData[6] + cos * sVertCarTexData[7];
+
         mVertCarTex = ByteBuffer.allocateDirect(sVertCarTexData.length * FLOAT_SIZE_BYTES)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
-        mVertCarTex.put(sVertCarTexData).position(0);
+        mVertCarTex.put(rotated).position(0);
+    }
+
+    public void clearBuffer() {
+        CarEvsBufferDescriptor bufferToReturn = null;
+        synchronized (mLock) {
+            if (mBufferInUse == null) {
+                return;
+            }
+
+            bufferToReturn = mBufferInUse;
+            mBufferInUse = null;
+        }
+
+        // bufferToReturn is not null here.
+        mActivity.returnBuffer(bufferToReturn);
     }
 
     @Override
     public void onDrawFrame(GL10 glUnused) {
         // Use the GLES20 class's static methods instead of a passed GL10 interface.
 
+        CarEvsBufferDescriptor bufferToRender = null;
+        CarEvsBufferDescriptor bufferToReturn = null;
         CarEvsBufferDescriptor newFrame = mActivity.getNewFrame();
-        if (newFrame != null) {
-            // If a new frame has not been delivered yet, we're using a previous frame.
-            if (mBufferToRender != null) {
-                mActivity.returnBuffer(mBufferToRender);
-                mBufferToRender = null;
+        synchronized (mLock) {
+            if (newFrame != null) {
+                // If a new frame has not been delivered yet, we're using a previous frame.
+                if (mBufferInUse != null) {
+                    bufferToReturn = mBufferInUse;
+                }
+                mBufferInUse = newFrame;
             }
-            mBufferToRender = newFrame;
+            bufferToRender = mBufferInUse;
+        }
+
+        if (bufferToReturn != null) {
+            mActivity.returnBuffer(bufferToReturn);
         }
 
         // Specify a shader program to use
@@ -128,12 +175,12 @@ public final class GLES20CarEvsCameraPreviewRenderer implements GLSurfaceView.Re
         }
         GLES20.glUniformMatrix4fv(matrix, 1, false, sIdentityMatrix, 0);
 
-        if (mBufferToRender == null) {
+        if (bufferToRender == null) {
             // Show the default screen
             drawDefaultScreen();
         } else {
             // Retrieve a hardware buffer from a descriptor and update the texture
-            HardwareBuffer buffer = mBufferToRender.getHardwareBuffer();
+            HardwareBuffer buffer = bufferToRender.getHardwareBuffer();
             if (buffer == null) {
                 Log.e(TAG, "HardwareBuffer is invalid.");
                 drawDefaultScreen();

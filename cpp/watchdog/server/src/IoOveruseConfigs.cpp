@@ -83,12 +83,6 @@ const std::vector<std::string> toStringVector(const std::unordered_set<std::stri
     return output;
 }
 
-bool isZeroValueThresholds(const PerStateIoOveruseThreshold& thresholds) {
-    return thresholds.perStateWriteBytes.foregroundBytes == 0 &&
-            thresholds.perStateWriteBytes.backgroundBytes == 0 &&
-            thresholds.perStateWriteBytes.garageModeBytes == 0;
-}
-
 std::string toString(const PerStateIoOveruseThreshold& thresholds) {
     return StringPrintf("name=%s, foregroundBytes=%" PRId64 ", backgroundBytes=%" PRId64
                         ", garageModeBytes=%" PRId64,
@@ -102,23 +96,20 @@ Result<void> containsValidThresholds(const PerStateIoOveruseThreshold& threshold
         return Error() << "Doesn't contain threshold name";
     }
 
-    if (isZeroValueThresholds(thresholds)) {
-        return Error() << "Zero value thresholds for " << thresholds.name;
-    }
-
-    if (thresholds.perStateWriteBytes.foregroundBytes == 0 ||
-        thresholds.perStateWriteBytes.backgroundBytes == 0 ||
-        thresholds.perStateWriteBytes.garageModeBytes == 0) {
-        return Error() << "Some thresholds are zero: " << toString(thresholds);
+    if (thresholds.perStateWriteBytes.foregroundBytes <= 0 ||
+        thresholds.perStateWriteBytes.backgroundBytes <= 0 ||
+        thresholds.perStateWriteBytes.garageModeBytes <= 0) {
+        return Error() << "Some thresholds are less than or equal to zero: "
+                       << toString(thresholds);
     }
     return {};
 }
 
 Result<void> containsValidThreshold(const IoOveruseAlertThreshold& threshold) {
-    if (threshold.durationInSeconds == 0) {
+    if (threshold.durationInSeconds <= 0) {
         return Error() << "Duration must be greater than zero";
     }
-    if (threshold.writtenBytesPerSecond == 0) {
+    if (threshold.writtenBytesPerSecond <= 0) {
         return Error() << "Written bytes/second must be greater than zero";
     }
     return {};
@@ -207,7 +198,7 @@ Result<void> isValidResourceOveruseConfig(
     }
     for (const auto& config : resourceOveruseConfig.resourceSpecificConfigurations) {
         if (config.getTag() != ResourceSpecificConfiguration::ioOveruseConfiguration) {
-            return Error() << "Invalid resource type: " << config.getTag();
+            return Error() << "Invalid resource type: " << static_cast<int32_t>(config.getTag());
         }
         const auto& ioOveruseConfig =
                 config.get<ResourceSpecificConfiguration::ioOveruseConfiguration>();
@@ -238,10 +229,22 @@ Result<void> isValidResourceOveruseConfigs(
     return {};
 }
 
+bool isSafeToKillAnyPackage(const std::vector<std::string>& packages,
+                            const std::unordered_set<std::string>& safeToKillPackages) {
+    for (const auto& packageName : packages) {
+        if (safeToKillPackages.find(packageName) != safeToKillPackages.end()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 IoOveruseConfigs::ParseXmlFileFunction IoOveruseConfigs::sParseXmlFile =
         &OveruseConfigurationXmlHelper::parseXmlFile;
+IoOveruseConfigs::WriteXmlFileFunction IoOveruseConfigs::sWriteXmlFile =
+        &OveruseConfigurationXmlHelper::writeXmlFile;
 
 Result<void> ComponentSpecificConfig::updatePerPackageThresholds(
         const std::vector<PerStateIoOveruseThreshold>& thresholds,
@@ -577,7 +580,8 @@ Result<void> IoOveruseConfigs::update(
     return {};
 }
 
-void IoOveruseConfigs::get(std::vector<ResourceOveruseConfiguration>* resourceOveruseConfigs) {
+void IoOveruseConfigs::get(
+        std::vector<ResourceOveruseConfiguration>* resourceOveruseConfigs) const {
     auto systemConfig = get(mSystemConfig, kSystemComponentUpdatableConfigs);
     if (systemConfig.has_value()) {
         systemConfig->componentType = ComponentType::SYSTEM;
@@ -598,7 +602,8 @@ void IoOveruseConfigs::get(std::vector<ResourceOveruseConfiguration>* resourceOv
 }
 
 std::optional<ResourceOveruseConfiguration> IoOveruseConfigs::get(
-        const ComponentSpecificConfig& componentSpecificConfig, const int32_t componentFilter) {
+        const ComponentSpecificConfig& componentSpecificConfig,
+        const int32_t componentFilter) const {
     if (componentSpecificConfig.mGeneric.name == kDefaultThresholdName) {
         return {};
     }
@@ -645,6 +650,39 @@ std::optional<ResourceOveruseConfiguration> IoOveruseConfigs::get(
     return resourceOveruseConfiguration;
 }
 
+Result<void> IoOveruseConfigs::writeToDisk() {
+    std::vector<ResourceOveruseConfiguration> resourceOveruseConfigs;
+    get(&resourceOveruseConfigs);
+    for (const auto resourceOveruseConfig : resourceOveruseConfigs) {
+        switch (resourceOveruseConfig.componentType) {
+            case ComponentType::SYSTEM:
+                if (const auto result =
+                            sWriteXmlFile(resourceOveruseConfig, kLatestSystemConfigXmlPath);
+                    !result.ok()) {
+                    return Error() << "Failed to write system resource overuse config to disk";
+                }
+                continue;
+            case ComponentType::VENDOR:
+                if (const auto result =
+                            sWriteXmlFile(resourceOveruseConfig, kLatestVendorConfigXmlPath);
+                    !result.ok()) {
+                    return Error() << "Failed to write vendor resource overuse config to disk";
+                }
+                continue;
+            case ComponentType::THIRD_PARTY:
+                if (const auto result =
+                            sWriteXmlFile(resourceOveruseConfig, kLatestThirdPartyConfigXmlPath);
+                    !result.ok()) {
+                    return Error() << "Failed to write third-party resource overuse config to disk";
+                }
+                continue;
+            case ComponentType::UNKNOWN:
+                continue;
+        }
+    }
+    return {};
+}
+
 PerStateBytes IoOveruseConfigs::fetchThreshold(const PackageInfo& packageInfo) const {
     switch (packageInfo.componentType) {
         case ComponentType::SYSTEM:
@@ -689,11 +727,26 @@ bool IoOveruseConfigs::isSafeToKill(const PackageInfo& packageInfo) const {
     }
     switch (packageInfo.componentType) {
         case ComponentType::SYSTEM:
-            return mSystemConfig.mSafeToKillPackages.find(packageInfo.packageIdentifier.name) !=
-                    mSystemConfig.mSafeToKillPackages.end();
+            if (mSystemConfig.mSafeToKillPackages.find(packageInfo.packageIdentifier.name) !=
+                mSystemConfig.mSafeToKillPackages.end()) {
+                return true;
+            }
+            return isSafeToKillAnyPackage(packageInfo.sharedUidPackages,
+                                          mSystemConfig.mSafeToKillPackages);
         case ComponentType::VENDOR:
-            return mVendorConfig.mSafeToKillPackages.find(packageInfo.packageIdentifier.name) !=
-                    mVendorConfig.mSafeToKillPackages.end();
+            if (mVendorConfig.mSafeToKillPackages.find(packageInfo.packageIdentifier.name) !=
+                mVendorConfig.mSafeToKillPackages.end()) {
+                return true;
+            }
+            /*
+             * Packages under the vendor shared UID may contain system packages because when
+             * CarWatchdogService derives the shared component type it attributes system packages
+             * as vendor packages when there is at least one vendor package.
+             */
+            return isSafeToKillAnyPackage(packageInfo.sharedUidPackages,
+                                          mSystemConfig.mSafeToKillPackages) ||
+                    isSafeToKillAnyPackage(packageInfo.sharedUidPackages,
+                                           mVendorConfig.mSafeToKillPackages);
         default:
             return true;
     }

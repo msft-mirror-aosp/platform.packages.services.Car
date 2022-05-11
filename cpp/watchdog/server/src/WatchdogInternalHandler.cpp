@@ -21,6 +21,7 @@
 #include "WatchdogBinderMediator.h"
 
 #include <android/automotive/watchdog/internal/BootPhase.h>
+#include <android/automotive/watchdog/internal/GarageMode.h>
 #include <android/automotive/watchdog/internal/PowerCycle.h>
 #include <android/automotive/watchdog/internal/UserState.h>
 #include <binder/IPCThreadState.h>
@@ -33,9 +34,10 @@ namespace watchdog {
 namespace aawi = ::android::automotive::watchdog::internal;
 
 using aawi::ComponentType;
+using aawi::GarageMode;
 using aawi::ICarWatchdogServiceForSystem;
-using aawi::PackageResourceOveruseAction;
 using aawi::PowerCycle;
+using aawi::ProcessIdentifier;
 using aawi::ResourceOveruseConfiguration;
 using ::android::sp;
 using ::android::String16;
@@ -64,7 +66,7 @@ Status fromExceptionCode(int32_t exceptionCode, std::string message) {
 }  // namespace
 
 status_t WatchdogInternalHandler::dump(int fd, const Vector<String16>& args) {
-    return mBinderMediator->dump(fd, args);
+    return mWatchdogBinderMediator->dump(fd, args);
 }
 
 void WatchdogInternalHandler::checkAndRegisterIoOveruseMonitor() {
@@ -133,7 +135,7 @@ Status WatchdogInternalHandler::unregisterMonitor(const sp<aawi::ICarWatchdogMon
 
 Status WatchdogInternalHandler::tellCarWatchdogServiceAlive(
         const android::sp<ICarWatchdogServiceForSystem>& service,
-        const std::vector<int32_t>& clientsNotResponding, int32_t sessionId) {
+        const std::vector<ProcessIdentifier>& clientsNotResponding, int32_t sessionId) {
     Status status = checkSystemUser();
     if (!status.isOk()) {
         return status;
@@ -145,7 +147,8 @@ Status WatchdogInternalHandler::tellCarWatchdogServiceAlive(
                                                                 sessionId);
 }
 Status WatchdogInternalHandler::tellDumpFinished(
-        const android::sp<aawi::ICarWatchdogMonitor>& monitor, int32_t pid) {
+        const android::sp<aawi::ICarWatchdogMonitor>& monitor,
+        const ProcessIdentifier& processIdentifier) {
     Status status = checkSystemUser();
     if (!status.isOk()) {
         return status;
@@ -153,7 +156,7 @@ Status WatchdogInternalHandler::tellDumpFinished(
     if (monitor == nullptr) {
         return fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, kNullCarWatchdogMonitorError);
     }
-    return mWatchdogProcessService->tellDumpFinished(monitor, pid);
+    return mWatchdogProcessService->tellDumpFinished(monitor, processIdentifier);
 }
 
 Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, int32_t arg1,
@@ -171,6 +174,13 @@ Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, in
             }
             return handlePowerCycleChange(powerCycle);
         }
+        case aawi::StateType::GARAGE_MODE: {
+            GarageMode garageMode = static_cast<GarageMode>(static_cast<uint32_t>(arg1));
+            mWatchdogPerfService->setSystemState(garageMode == GarageMode::GARAGE_MODE_OFF
+                                                         ? SystemState::NORMAL_MODE
+                                                         : SystemState::GARAGE_MODE);
+            return Status::ok();
+        }
         case aawi::StateType::USER_STATE: {
             userid_t userId = static_cast<userid_t>(arg1);
             aawi::UserState userState = static_cast<aawi::UserState>(static_cast<uint32_t>(arg2));
@@ -178,7 +188,7 @@ Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, in
                 return fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT,
                                          StringPrintf("Invalid user state %d", userState));
             }
-            return mWatchdogProcessService->notifyUserStateChange(userId, userState);
+            return handleUserStateChange(userId, userState);
         }
         case aawi::StateType::BOOT_PHASE: {
             aawi::BootPhase phase = static_cast<aawi::BootPhase>(static_cast<uint32_t>(arg1));
@@ -196,25 +206,47 @@ Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, in
 
 Status WatchdogInternalHandler::handlePowerCycleChange(PowerCycle powerCycle) {
     switch (powerCycle) {
-        case PowerCycle::POWER_CYCLE_SHUTDOWN:
-            ALOGI("Received SHUTDOWN power cycle");
+        case PowerCycle::POWER_CYCLE_SHUTDOWN_PREPARE:
+            ALOGI("Received SHUTDOWN_PREPARE power cycle");
             mWatchdogProcessService->setEnabled(/*isEnabled=*/false);
+            // TODO(b/189508862): Upload resource overuse stats on shutdown prepare.
             break;
-        case PowerCycle::POWER_CYCLE_SUSPEND:
-            ALOGI("Received SUSPEND power cycle");
+        case PowerCycle::POWER_CYCLE_SHUTDOWN_ENTER:
+            ALOGI("Received SHUTDOWN_ENTER power cycle");
             mWatchdogProcessService->setEnabled(/*isEnabled=*/false);
-            mWatchdogPerfService->setSystemState(SystemState::GARAGE_MODE);
             break;
         case PowerCycle::POWER_CYCLE_RESUME:
             ALOGI("Received RESUME power cycle");
             mWatchdogProcessService->setEnabled(/*isEnabled=*/true);
-            mWatchdogPerfService->setSystemState(SystemState::NORMAL_MODE);
             break;
         default:
             ALOGW("Unsupported power cycle: %d", powerCycle);
             return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT,
                                              "Unsupported power cycle");
     }
+    return Status::ok();
+}
+
+Status WatchdogInternalHandler::handleUserStateChange(userid_t userId, aawi::UserState userState) {
+    std::string stateDesc;
+    switch (userState) {
+        case aawi::UserState::USER_STATE_STARTED:
+            stateDesc = "started";
+            mWatchdogProcessService->notifyUserStateChange(userId, /*isStarted=*/true);
+            break;
+        case aawi::UserState::USER_STATE_STOPPED:
+            stateDesc = "stopped";
+            mWatchdogProcessService->notifyUserStateChange(userId, /*isStarted=*/false);
+            break;
+        case aawi::UserState::USER_STATE_REMOVED:
+            stateDesc = "removed";
+            mIoOveruseMonitor->removeStatsForUser(userId);
+            break;
+        default:
+            ALOGW("Unsupported user state: %d", userState);
+            return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Unsupported user state");
+    }
+    ALOGI("Received user state change: user(%" PRId32 ") is %s", userId, stateDesc.c_str());
     return Status::ok();
 }
 
@@ -248,15 +280,12 @@ Status WatchdogInternalHandler::getResourceOveruseConfigurations(
     return Status::ok();
 }
 
-Status WatchdogInternalHandler::actionTakenOnResourceOveruse(
-        const std::vector<PackageResourceOveruseAction>& actions) {
+Status WatchdogInternalHandler::controlProcessHealthCheck(bool enable) {
     Status status = checkSystemUser();
     if (!status.isOk()) {
         return status;
     }
-    if (const auto result = mIoOveruseMonitor->actionTakenOnIoOveruse(actions); !result.ok()) {
-        return fromExceptionCode(result.error().code(), result.error().message());
-    }
+    mWatchdogProcessService->setEnabled(enable);
     return Status::ok();
 }
 
