@@ -148,15 +148,15 @@ public class CarTelemetryActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         if (mConnection != null) {
             unbindService(mConnection);
         }
-        writeAppData();
+        super.onDestroy();
     }
 
     private void onServiceBound() {
         mConfigNames = mService.getAllConfigNames();
+        addToLog(mService.dumpLogs());
         Set<String> mActiveConfigs = mService.getActiveConfigs();
         for (int i = 0; i < mConfigNames.length; i++) {
             mConfigNameIndex.put(mConfigNames[i], i);
@@ -173,6 +173,10 @@ public class CarTelemetryActivity extends Activity {
             }
             config.selected = mActiveConfigs.contains(name);
             mConfigList.add(config);
+        }
+        if (mConfigList.size() != 0) {
+            mSelectedInfoConfig = mConfigList.get(0);  // Default to display first config data
+            refreshHistory();
         }
 
         mAdapter = new ConfigListAdaptor(
@@ -212,7 +216,8 @@ public class CarTelemetryActivity extends Activity {
         for (ConfigData config : mConfigList) {
             configMap.put(config.getName(), config);
         }
-        try (FileOutputStream fos = this.openFileOutput(APP_DATA_FILENAME, Context.MODE_PRIVATE);
+        try (FileOutputStream fos =
+                this.openFileOutput(APP_DATA_FILENAME, Context.MODE_PRIVATE);
                 ObjectOutputStream oos = new ObjectOutputStream(fos)) {
             oos.writeObject(configMap);
         } catch (IOException e) {
@@ -230,6 +235,26 @@ public class CarTelemetryActivity extends Activity {
             return null;
         } catch (IOException | ClassNotFoundException e) {
             throw new IllegalStateException("Failed to read app data from file.", e);
+        }
+    }
+
+    private void addToLog(String log) {
+        // Add to logs, only a set number is kept
+        if (mLogs.size() >= LOG_SIZE) {
+            // Remove the oldest
+            mLogs.pollLast();
+        }
+        mLogs.addFirst(log);
+        // Display log
+        mLogView.setText(String.join("\n", mLogs));
+    }
+
+    private void refreshHistory() {
+        mConfigNameView.setText(mSelectedInfoConfig.getName());
+        if (mDataRadioSelected) {
+            mHistoryView.setText(mSelectedInfoConfig.getBundleHistoryString());
+        } else {
+            mHistoryView.setText(mSelectedInfoConfig.getErrorHistoryString());
         }
     }
 
@@ -273,17 +298,10 @@ public class CarTelemetryActivity extends Activity {
                 }
             }
             sb.append(metricsConfigName);
-            // Metric configs are removed after it's done, so we need to update UI
-            config.selected = false;
             mAdapter.notifyItemChanged(index);
-            // Add to logs, only a set number is kept
-            if (mLogs.size() >= LOG_SIZE) {
-                // Remove the oldest
-                mLogs.pollLast();
-            }
-            mLogs.addFirst(sb.toString());
-            // Display log
-            mLogView.setText(String.join("\n", mLogs));
+            addToLog(sb.toString());
+            writeAppData();
+            refreshHistory();
         }
     }
 
@@ -299,7 +317,10 @@ public class CarTelemetryActivity extends Activity {
             } else {
                 mService.removeMetricsConfig(config.getName());
                 config.selected = false;
-                getMainExecutor().execute(() -> mAdapter.notifyItemChanged(index));
+                getMainExecutor().execute(() -> {
+                    mAdapter.notifyItemChanged(index);
+                    writeAppData();
+                });
             }
         }
 
@@ -318,11 +339,14 @@ public class CarTelemetryActivity extends Activity {
         public void onClearButtonClicked(ConfigData config) {
             int index = mConfigNameIndex.get(config.getName());
             config.clearHistory();
-            getMainExecutor().execute(() -> mAdapter.notifyItemChanged(index));
+            getMainExecutor().execute(() -> {
+                mAdapter.notifyItemChanged(index);
+                writeAppData();
+            });
         }
     }
 
-    private static class AddConfigCallback implements AddMetricsConfigCallback {
+    private class AddConfigCallback implements AddMetricsConfigCallback {
         private ConfigData mConfig;
         private ConfigListAdaptor mAdaptor;
         private int mIndex;
@@ -343,7 +367,10 @@ public class CarTelemetryActivity extends Activity {
             } else {
                 mConfig.selected = false;
             }
-            mExecutor.execute(() -> mAdaptor.notifyItemChanged(mIndex));
+            mExecutor.execute(() -> {
+                mAdaptor.notifyItemChanged(mIndex);
+                writeAppData();
+            });
         }
     }
 }
