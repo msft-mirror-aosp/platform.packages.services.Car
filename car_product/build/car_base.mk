@@ -62,6 +62,7 @@ PRODUCT_PACKAGES += \
 # Android Camera service.
 ifneq ($(ENABLE_CAMERA_SERVICE), true)
 PRODUCT_PROPERTY_OVERRIDES += config.disable_cameraservice=true
+PRODUCT_PACKAGES += HideCameraApps
 endif
 
 # ENABLE_EVS_SERVICE must be set as true from the product's makefile if it wants to support
@@ -109,8 +110,8 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/core_minimal.mk)
 PRODUCT_PROPERTY_OVERRIDES += \
     pm.dexopt.disable_bg_dexopt=false \
     pm.dexopt.downgrade_after_inactive_days=10 \
-    dalvik.vm.dex2oat-cpu-set=0,1,2,3 \
-    dalvik.vm.dex2oat-threads=4
+    dalvik.vm.dex2oat-cpu-set=0,1 \
+    dalvik.vm.dex2oat-threads=2
 
 # Required init rc files for car
 PRODUCT_COPY_FILES += \
