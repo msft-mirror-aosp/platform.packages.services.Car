@@ -40,6 +40,7 @@ import android.provider.Settings;
 import android.util.Pair;
 
 import com.android.car.CarLog;
+import com.android.car.R;
 import com.android.car.hal.UserHalHelper;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.UserHelperLite;
@@ -133,7 +134,8 @@ final class InitialUserSetter {
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
             @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper) {
-        this(context, carUserService, listener, userHandleHelper, /* newGuestName= */ null);
+        this(context, carUserService, listener, userHandleHelper,
+                context.getString(R.string.default_guest_name));
     }
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
@@ -390,7 +392,7 @@ final class InitialUserSetter {
     }
 
     private void executeDefaultBehavior(@NonNull InitialUserInfo info, boolean fallback) {
-        if (!hasInitialUser()) {
+        if (!hasValidInitialUser()) {
             if (DBG) Slogf.d(TAG, "executeDefaultBehavior(): no initial user, creating it");
             createAndSwitchUser(new Builder(TYPE_CREATE)
                     .setNewUserName(mNewUserName)
@@ -805,6 +807,9 @@ final class InitialUserSetter {
         return users;
     }
 
+    // TODO(b/231473748): this method should NOT be used to define if it's the first boot - we
+    // should create a new method for that instead (which would check the proper signals) and change
+    // CarUserService.getInitialUserInfoRequestType() to use it instead
     /**
      * Checks whether the device has an initial user that can be switched to.
      */
@@ -813,6 +818,25 @@ final class InitialUserSetter {
         for (int i = 0; i < allUsers.size(); i++) {
             UserHandle user = allUsers.get(i);
             if (mUserHandleHelper.isManagedProfile(user)) continue;
+
+            return true;
+        }
+        return false;
+    }
+
+    // TODO(b/231473748): temporary method that ignores ephemeral user while hasInitialUser() is
+    // used to define if it's first boot - once there is an isInitialBoot() for that purpose, this
+    // method should be removed (and its logic moved to hasInitialUser())
+    @VisibleForTesting
+    boolean hasValidInitialUser() {
+        // TODO(b/231473748): should call method that ignores partial, dying, or pre-created
+        List<UserHandle> allUsers = getAllUsers();
+        for (int i = 0; i < allUsers.size(); i++) {
+            UserHandle user = allUsers.get(i);
+            if (mUserHandleHelper.isManagedProfile(user)
+                    || mUserHandleHelper.isEphemeralUser(user)) {
+                continue;
+            }
 
             return true;
         }

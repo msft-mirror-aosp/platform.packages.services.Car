@@ -158,7 +158,14 @@
     <!-- Allows sending of notifications in T+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+    <!-- To make curl downloads work in CarTelemetryTestFragment -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- To enable suspend to RAM emulation via shell command in CarTelemetryTestFragment -->
+    <uses-permission android:name="android.permission.DEVICE_POWER"/>
+
+    <!-- Allow backup is set to false for KitchenSinkApp to avoid infinite loop during backup -->
     <application android:label="@string/app_title"
+                 android:allowBackup="false"
          android:icon="@drawable/ic_launcher">
         <uses-library android:name="android.test.runner"/>
         <!-- This is for embedded mode. -->

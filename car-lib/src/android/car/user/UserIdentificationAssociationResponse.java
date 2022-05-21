@@ -20,6 +20,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.car.annotation.AddedInOrBefore;
 import android.car.user.CarUserManager.UserIdentificationAssociationValue;
 import android.os.Parcelable;
 
@@ -83,6 +84,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
      * Factory method for failed UserIdentificationAssociationResponse requests.
      */
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public static UserIdentificationAssociationResponse forFailure() {
         return forFailure(/* errorMessage= */ null);
     }
@@ -91,6 +93,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
      * Factory method for failed UserIdentificationAssociationResponse requests.
      */
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public static UserIdentificationAssociationResponse forFailure(@Nullable String errorMessage) {
         return new UserIdentificationAssociationResponse(/* success= */ false,
                 errorMessage, /* values= */ null);
@@ -100,6 +103,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
      * Factory method for successful UserIdentificationAssociationResponse requests.
      */
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public static UserIdentificationAssociationResponse forSuccess(
             @UserIdentificationAssociationValue int[] values) {
         Preconditions.checkArgument(!ArrayUtils.isEmpty(values), "must have at least one value");
@@ -111,6 +115,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
      * Factory method for successful UserIdentificationAssociationResponse requests.
      */
     @NonNull
+    @AddedInOrBefore(majorVersion = 33)
     public static UserIdentificationAssociationResponse forSuccess(
             @UserIdentificationAssociationValue int[] values, @Nullable String errorMessage) {
         Preconditions.checkArgument(!ArrayUtils.isEmpty(values), "must have at least one value");
@@ -141,6 +146,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
      * <p>A successful option has non-null {@link #getValues()}
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public boolean isSuccess() {
         return mSuccess;
     }
@@ -149,6 +155,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
      * Gets the error message returned by the HAL.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @Nullable String getErrorMessage() {
         return mErrorMessage;
     }
@@ -167,12 +174,14 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
      * {@link android.hardware.automotive.vehicle.UserIdentificationAssociationSetValue}.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @Nullable int[] getValues() {
         return mValues;
     }
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -186,6 +195,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -202,6 +212,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -224,6 +235,7 @@ public final class UserIdentificationAssociationResponse implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<UserIdentificationAssociationResponse> CREATOR
             = new Parcelable.Creator<UserIdentificationAssociationResponse>() {
         @Override

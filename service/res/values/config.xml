@@ -75,6 +75,11 @@
           connection process. Disable this default to implement your own policy. -->
     <bool name="useDefaultBluetoothConnectionPolicy">true</bool>
 
+    <!--  Configuration to enable or disable the default Bluetooth Power Policy. This
+          policy determines when to enable and/or disable the Bluetooth adapter based on
+          CarPowerManager power states. Disable this default to implement your own policy. -->
+    <bool name="useDefaultBluetoothPowerPolicy">true</bool>
+
     <!--  Service responsible for displaying information on the car instrument cluster. -->
     <string name="instrumentClusterRendererService" translatable="false">android.car.cluster/.ClusterRenderingService</string>
 
@@ -242,6 +247,8 @@
                asap - the service might be bound when user is not fully loaded, be careful with
                       this value, the service also needs to have directBootAware flag set to true
                userUnlocked - start service when user unlocked the device
+               userPostUnlocked - start service later after user unlocked. This is used when the
+                                  service is not urgent and can wait to start.
                The default value is 'userUnlocked'
 
          If the service bound/started for foreground user it will be unbound/stopped when user
@@ -419,7 +426,7 @@
     <bool name="enableProfileUserAssignmentForMultiDisplay" translatable="false">false</bool>
 
     <!-- The ComponentName of the media source that will be selected as the default -->
-    <string name="config_defaultMediaSource">com.android.bluetooth/com.android.bluetooth.avrcpcontroller.BluetoothMediaBrowserService</string>
+    <string name="config_defaultMediaSource">com.android.bluetooth.services/com.android.bluetooth.avrcpcontroller.BluetoothMediaBrowserService</string>
 
     <!-- A configuration flag to enable ending an ongoing call using the physical Call button. -->
     <bool name="config_callButtonEndsOngoingCall">false</bool>
