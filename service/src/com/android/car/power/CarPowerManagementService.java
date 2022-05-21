@@ -199,7 +199,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     @GuardedBy("mSimulationWaitObject")
     private boolean mInSimulatedDeepSleepMode;
     @GuardedBy("mSimulationWaitObject")
-    private int mResumeDelayFromSimulatedSuspend = NO_WAKEUP_BY_TIMER;
+    private int mResumeDelayFromSimulatedSuspendSec = NO_WAKEUP_BY_TIMER;
 
     @GuardedBy("mLock")
     private CpmsState mCurrentState;
@@ -465,17 +465,23 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void doHandlePowerStateChange() {
         CpmsState state;
         synchronized (mLock) {
-            state = mPendingPowerStates.peekFirst();
-            mPendingPowerStates.clear();
+            state = mPendingPowerStates.pollFirst();
             if (state == null) {
-                Slogf.e(TAG, "Null power state was requested");
+                Slogf.w(TAG, "No more power state to process");
                 return;
             }
             Slogf.i(TAG, "doHandlePowerStateChange: newState=%s", state.name());
             if (!needPowerStateChangeLocked(state)) {
+                // We may need to process the pending power state request.
+                if (!mPendingPowerStates.isEmpty()) {
+                    Slogf.i(TAG, "There is a pending power state change request. requesting the "
+                            + "processing...");
+                    mHandler.handlePowerStateChange();
+                }
                 return;
             }
             // now real power change happens. Whatever was queued before should be all cancelled.
+            mPendingPowerStates.clear();
             cancelWaitingForCompletion();
             mCurrentState = state;
         }
@@ -573,16 +579,11 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             updateCarUserNoticeServiceIfNecessary();
         }
 
-        boolean isPreemptive;
-        synchronized (mLock) {
-            isPreemptive = mPolicyReader.isPreemptivePowerPolicy(mCurrentPowerPolicyId);
-        }
-        if (!mSilentModeHandler.isSilentMode() && isPreemptive) {
+        if (!mSilentModeHandler.isSilentMode()) {
             cancelPreemptivePowerPolicy();
-        } else {
-            applyDefaultPowerPolicyForState(VehicleApPowerStateReport.ON,
-                    PolicyReader.POWER_POLICY_ID_ALL_ON);
         }
+        applyDefaultPowerPolicyForState(VehicleApPowerStateReport.ON,
+                PolicyReader.POWER_POLICY_ID_ALL_ON);
 
         sendPowerManagerEvent(CarPowerManager.STATE_ON, INVALID_TIMEOUT);
 
@@ -1076,7 +1077,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void doHandleDeepSleep(boolean simulatedMode) {
-        int status = applyPreemptivePowerPolicy(PolicyReader.POWER_POLICY_ID_SUSPEND_TO_RAM);
+        int status = applyPreemptivePowerPolicy(PolicyReader.POWER_POLICY_ID_SUSPEND_PREP);
         if (status != PolicyOperationStatus.OK) {
             Slogf.w(TAG, PolicyOperationStatus.errorCodeToString(status));
         }
@@ -1577,10 +1578,14 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             policyId = mPendingPowerPolicyId;
             mPendingPowerPolicyId = null;
         }
-        int status = applyPowerPolicy(policyId, /* upToDaemon= */ true, /* force= */ true);
-        if (status != PolicyOperationStatus.OK) {
-            Slogf.w(TAG, "Failed to cancel system power policy: %s",
-                    PolicyOperationStatus.errorCodeToString(status));
+        if (policyId != null) { // Pending policy exist
+            int status = applyPowerPolicy(policyId, /* upToDaemon= */ true, /* force= */ true);
+            if (status != PolicyOperationStatus.OK) {
+                Slogf.w(TAG, "Failed to cancel system power policy: %s",
+                        PolicyOperationStatus.errorCodeToString(status));
+            }
+        } else {
+            Slogf.w(TAG, "cancelPreemptivePowerPolicy(), no pending power policy");
         }
     }
 
@@ -2070,7 +2075,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         synchronized (mSimulationWaitObject) {
             mInSimulatedDeepSleepMode = true;
             mWakeFromSimulatedSleep = false;
-            mResumeDelayFromSimulatedSuspend = wakeupAfter;
+            mResumeDelayFromSimulatedSuspendSec = wakeupAfter;
         }
         synchronized (mLock) {
             mRebootAfterGarageMode = shouldReboot;
@@ -2354,12 +2359,12 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void simulateSleepByWaiting() {
         Slogf.i(TAG, "Starting to simulate Deep Sleep by waiting");
         synchronized (mSimulationWaitObject) {
-            if (mResumeDelayFromSimulatedSuspend >= 0) {
+            if (mResumeDelayFromSimulatedSuspendSec >= 0) {
                 Slogf.i(TAG, "Scheduling a wakeup after %d seconds",
-                        mResumeDelayFromSimulatedSuspend);
+                        mResumeDelayFromSimulatedSuspendSec);
                 Handler handler = new Handler(Looper.getMainLooper());
                 handler.postDelayed(() -> forceSimulatedResume(),
-                        mResumeDelayFromSimulatedSuspend * 1000);
+                        mResumeDelayFromSimulatedSuspendSec * 1000);
             }
             while (!mWakeFromSimulatedSleep) {
                 try {

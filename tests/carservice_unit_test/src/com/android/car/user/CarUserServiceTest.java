@@ -50,6 +50,7 @@ import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.expectThrows;
 
+import android.annotation.Nullable;
 import android.app.ActivityManager;
 import android.car.ICarResultReceiver;
 import android.car.builtin.app.ActivityManagerHelper;
@@ -411,6 +412,25 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         // Verify: receiver is called since one of the filters evaluates to true.
         verify(mLifecycleEventReceiver).send(eq(mRegularUserId), any());
+    }
+
+    @Test
+    public void testOnUserLifecycleEvent_postUnlockedEvent_notifiesServiceListenersOnly()
+            throws Exception {
+        // Arrange: add listeners with null filters.
+        UserLifecycleListener mockServiceListener = mock(UserLifecycleListener.class);
+        mCarUserService.addUserLifecycleListener(/* filter= */ null, mockServiceListener);
+        mCarUserService.setLifecycleListenerForApp("package1", /* filter= */ null,
+                mLifecycleEventReceiver);
+
+        // Act: user post-unlocked event occurs.
+        sendUserLifecycleEvent(/* fromUser */ 0, mRegularUserId,
+                CarUserManager.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED);
+        waitForHandlerThreadToFinish();
+
+        // Verify: service listener has been called but app listener has not.
+        verify(mockServiceListener).onEvent(any(UserLifecycleEvent.class));
+        verify(mLifecycleEventReceiver, never()).send(anyInt(), any());
     }
 
     /**
@@ -1000,6 +1020,19 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         assertUserSwitchResultWithError(getUserSwitchResult(mGuestUserId),
                 UserSwitchResult.STATUS_HAL_FAILURE, mSwitchUserResponse.errorMessage);
+        verifyNoUserSwitch();
+        verifyNoLogoutUser();
+    }
+
+    @Test
+    public void testSwitchUser_nullHalResponse() throws Exception {
+        mockExistingUsersAndCurrentUser(mAdminUser);
+        mockHalSwitch(mAdminUserId, mGuestUser, /* response= */ null);
+
+        switchUser(mGuestUserId, mAsyncCallTimeoutMs, mUserSwitchFuture);
+
+        assertUserSwitchResultWithError(getUserSwitchResult(mGuestUserId),
+                UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE, /* expectedErrorMessage= */ null);
         verifyNoUserSwitch();
         verifyNoLogoutUser();
     }
@@ -1653,6 +1686,27 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         UserCreationResult result = getUserCreationResult();
         assertThat(result.getStatus()).isEqualTo(UserCreationResult.STATUS_HAL_FAILURE);
+        assertThat(result.getAndroidFailureStatus()).isNull();
+        assertThat(result.getUser()).isNull();
+        assertThat(result.getErrorMessage()).isNull();
+        assertThat(result.getInternalErrorMessage()).isNull();
+
+        verifyUserRemoved(newUser.getIdentifier());
+        assertNoHalUserRemoval();
+    }
+
+    @Test
+    public void testCreateUser_halTimeout() throws Exception {
+        UserHandle newUser = UserHandle.of(42);
+        mockUmCreateUser(mMockedUserManager, "dude", "TypeONegative", 108, newUser);
+        mockHalCreateUser(HalCallback.STATUS_HAL_SET_TIMEOUT, /* response= */ null);
+        mockRemoveUser(newUser);
+
+        createUser("dude", "TypeONegative", 108, mAsyncCallTimeoutMs, mUserCreationFuture,
+                NO_CALLER_RESTRICTIONS);
+
+        UserCreationResult result = getUserCreationResult();
+        assertThat(result.getStatus()).isEqualTo(UserCreationResult.STATUS_HAL_INTERNAL_FAILURE);
         assertThat(result.getAndroidFailureStatus()).isNull();
         assertThat(result.getUser()).isNull();
         assertThat(result.getErrorMessage()).isNull();
@@ -2483,7 +2537,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     }
 
     private void assertUserSwitchResultWithError(UserSwitchResult result, int expectedStatus,
-            String expectedErrorMessage) {
+            @Nullable String expectedErrorMessage) {
         assertUserSwitchResult(result.getStatus(), expectedStatus);
         assertWithMessage("error message on %s", result).that(result.getErrorMessage())
                 .isEqualTo(expectedErrorMessage);

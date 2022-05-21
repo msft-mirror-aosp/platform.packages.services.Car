@@ -47,6 +47,7 @@ PRODUCT_PACKAGES += \
     SampleCustomInputService \
     AdasLocationTestApp \
     curl \
+    CarTelemetryApp \
 
 # SEPolicy for test apps / services
 BOARD_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
@@ -67,8 +68,9 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.carrier=unknown
 
-PRODUCT_SYSTEM_PROPERTIES += \
-    persist.bluetooth.enablenewavrcp=false
+# Set default Bluetooth profiles
+TARGET_SYSTEM_PROP += \
+    packages/services/Car/car_product/properties/bluetooth.prop
 
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     config.disable_systemtextclassifier=true
@@ -151,6 +153,8 @@ PRODUCT_PACKAGES += \
     CarLatinIME \
     CarSettings \
     CarUsbHandler \
+    RotaryIME \
+    RotaryPlayground \
     android.car.builtin \
     car-frameworks-service \
     com.android.car.procfsinspector \

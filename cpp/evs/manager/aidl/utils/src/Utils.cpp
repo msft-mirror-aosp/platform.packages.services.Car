@@ -38,6 +38,7 @@ using ::aidl::android::hardware::graphics::common::BufferUsage;
 using ::aidl::android::hardware::graphics::common::HardwareBuffer;
 using ::aidl::android::hardware::graphics::common::HardwareBufferDescription;
 using ::aidl::android::hardware::graphics::common::PixelFormat;
+using ::android::hardware::Return;
 using ::ndk::ScopedAStatus;
 
 using HIDLBufferUsage = ::android::hardware::graphics::common::V1_0::BufferUsage;
@@ -85,6 +86,12 @@ hidlevs::V1_0::DisplayState Utils::makeToHidl(DisplayState aidlState) {
 
 HardwareBuffer Utils::makeHwBufferFromHidlBuffer(const hidlevs::V1_0::BufferDesc& hidlBuffer,
                                                  bool doDup) {
+    buffer_handle_t h = hidlBuffer.memHandle.getNativeHandle();
+    if (h == nullptr) {
+        LOG(WARNING) << "Buffer " << hidlBuffer.bufferId << " has an invalid native handle.";
+        return {};
+    }
+
     HardwareBuffer hwBuffer = {
             .description =
                     {
@@ -95,8 +102,7 @@ HardwareBuffer Utils::makeHwBufferFromHidlBuffer(const hidlevs::V1_0::BufferDesc
                             .usage = static_cast<BufferUsage>(hidlBuffer.usage),
                             .stride = static_cast<int>(hidlBuffer.stride),
                     },
-            .handle = doDup ? ::android::dupToAidl(hidlBuffer.memHandle.getNativeHandle())
-                            : ::android::makeToAidl(hidlBuffer.memHandle.getNativeHandle()),
+            .handle = doDup ? ::android::dupToAidl(h) : ::android::makeToAidl(h),
     };
 
     return std::move(hwBuffer);
@@ -119,12 +125,16 @@ HardwareBufferDescription Utils::makeFromHidl(const HIDLHardwareBuffer& hidlBuff
 
 HardwareBuffer Utils::makeHwBufferFromHidlBuffer(const hidlevs::V1_1::BufferDesc& hidlBuffer,
                                                  bool doDup) {
+    buffer_handle_t h = hidlBuffer.buffer.nativeHandle.getNativeHandle();
+    if (h == nullptr) {
+        LOG(WARNING) << "Buffer " << hidlBuffer.bufferId << " has an invalid native handle.";
+        return {};
+    }
+
     HardwareBuffer hwBuffer = {
             .description = makeFromHidl(hidlBuffer.buffer),
-            .handle = doDup ? std::move(::android::dupToAidl(
-                                      hidlBuffer.buffer.nativeHandle.getNativeHandle()))
-                            : std::move(::android::makeToAidl(
-                                      hidlBuffer.buffer.nativeHandle.getNativeHandle())),
+            .handle = doDup ? std::move(::android::dupToAidl(h))
+                            : std::move(::android::makeToAidl(h)),
     };
 
     return std::move(hwBuffer);
@@ -360,6 +370,7 @@ DisplayDesc Utils::makeFromHidl(const hidlevs::V1_0::DisplayDesc& hidlDesc) {
 
 Stream Utils::makeFromHidl(const HIDLStream& config) {
     Stream aidlStreamConfig = {
+            .id = config.id,
             .streamType = makeFromHidl(config.streamType),
             .width = static_cast<int32_t>(config.width),
             .height = static_cast<int32_t>(config.height),
@@ -551,12 +562,30 @@ ScopedAStatus Utils::buildScopedAStatusFromEvsResult(EvsResult result) {
     }
 }
 
+ScopedAStatus Utils::buildScopedAStatusFromEvsResult(Return<EvsResult>& result) {
+    if (!result.isOk()) {
+        return ScopedAStatus::fromServiceSpecificError(
+                static_cast<int>(EvsResult::UNDERLYING_SERVICE_ERROR));
+    }
+
+    return Utils::buildScopedAStatusFromEvsResult(static_cast<EvsResult>(result));
+}
+
 ScopedAStatus Utils::buildScopedAStatusFromEvsResult(hidlevs::V1_0::EvsResult result) {
     if (result != hidlevs::V1_0::EvsResult::OK) {
         return ScopedAStatus::fromServiceSpecificError(static_cast<int>(makeFromHidl(result)));
     } else {
         return ScopedAStatus::ok();
     }
+}
+
+ScopedAStatus Utils::buildScopedAStatusFromEvsResult(Return<hidlevs::V1_0::EvsResult>& result) {
+    if (!result.isOk()) {
+        return ScopedAStatus::fromServiceSpecificError(
+                static_cast<int>(EvsResult::UNDERLYING_SERVICE_ERROR));
+    }
+
+    return Utils::buildScopedAStatusFromEvsResult(static_cast<hidlevs::V1_0::EvsResult>(result));
 }
 
 std::string Utils::toString(const EvsEventType& type) {
