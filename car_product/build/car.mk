@@ -159,6 +159,7 @@ PRODUCT_PACKAGES += \
     android.car.builtin \
     car-frameworks-service \
     com.android.car.procfsinspector \
+    com.android.permission \
 
 # RROs
 PRODUCT_PACKAGES += \
