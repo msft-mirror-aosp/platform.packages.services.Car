@@ -65,6 +65,14 @@ cc_library {
     ],
 }
 
+// Public protos for CarTelemetryManager clients.
+filegroup {
+    name: "cartelemetryservice-proto-srcs",
+    srcs: [
+        "src/android/car/telemetry/telemetry.proto"
+    ],
+}
+
 java_library {
     name: "android.car.cluster.navigation",
     proto: {
@@ -99,6 +107,7 @@ java_library {
     ],
     aidl: {
         include_dirs: [
+            "frameworks/native/aidl/binder", // For PersistableBundle.aidl
             "system/bt/binder",
         ],
     },
