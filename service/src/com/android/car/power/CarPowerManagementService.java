@@ -410,6 +410,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     mPowerPolicyListeners.getRegisteredCallbackCount());
             writer.printf("mFactoryResetCallback: %s\n", mFactoryResetCallback);
             writer.printf("mIsListenerWaitingCancelled: %b\n", mIsListenerWaitingCancelled.get());
+            writer.printf("kernel support S2R: %b\n",
+                    mSystemInterface.isSystemSupportingDeepSleep());
+            writer.printf("kernel support S2D: %b\n",
+                    mSystemInterface.isSystemSupportingHibernation());
         }
         mPolicyReader.dump(writer);
         mPowerComponentHandler.dump(writer);
@@ -465,17 +469,23 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void doHandlePowerStateChange() {
         CpmsState state;
         synchronized (mLock) {
-            state = mPendingPowerStates.peekFirst();
-            mPendingPowerStates.clear();
+            state = mPendingPowerStates.pollFirst();
             if (state == null) {
-                Slogf.e(TAG, "Null power state was requested");
+                Slogf.w(TAG, "No more power state to process");
                 return;
             }
             Slogf.i(TAG, "doHandlePowerStateChange: newState=%s", state.name());
             if (!needPowerStateChangeLocked(state)) {
+                // We may need to process the pending power state request.
+                if (!mPendingPowerStates.isEmpty()) {
+                    Slogf.i(TAG, "There is a pending power state change request. requesting the "
+                            + "processing...");
+                    mHandler.handlePowerStateChange();
+                }
                 return;
             }
             // now real power change happens. Whatever was queued before should be all cancelled.
+            mPendingPowerStates.clear();
             cancelWaitingForCompletion();
             mCurrentState = state;
         }
@@ -573,16 +583,11 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             updateCarUserNoticeServiceIfNecessary();
         }
 
-        boolean isPreemptive;
-        synchronized (mLock) {
-            isPreemptive = mPolicyReader.isPreemptivePowerPolicy(mCurrentPowerPolicyId);
-        }
-        if (!mSilentModeHandler.isSilentMode() && isPreemptive) {
+        if (!mSilentModeHandler.isSilentMode()) {
             cancelPreemptivePowerPolicy();
-        } else {
-            applyDefaultPowerPolicyForState(VehicleApPowerStateReport.ON,
-                    PolicyReader.POWER_POLICY_ID_ALL_ON);
         }
+        applyDefaultPowerPolicyForState(VehicleApPowerStateReport.ON,
+                PolicyReader.POWER_POLICY_ID_ALL_ON);
 
         sendPowerManagerEvent(CarPowerManager.STATE_ON, INVALID_TIMEOUT);
 
@@ -1577,10 +1582,14 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             policyId = mPendingPowerPolicyId;
             mPendingPowerPolicyId = null;
         }
-        int status = applyPowerPolicy(policyId, /* upToDaemon= */ true, /* force= */ true);
-        if (status != PolicyOperationStatus.OK) {
-            Slogf.w(TAG, "Failed to cancel system power policy: %s",
-                    PolicyOperationStatus.errorCodeToString(status));
+        if (policyId != null) { // Pending policy exist
+            int status = applyPowerPolicy(policyId, /* upToDaemon= */ true, /* force= */ true);
+            if (status != PolicyOperationStatus.OK) {
+                Slogf.w(TAG, "Failed to cancel system power policy: %s",
+                        PolicyOperationStatus.errorCodeToString(status));
+            }
+        } else {
+            Slogf.w(TAG, "cancelPreemptivePowerPolicy(), no pending power policy");
         }
     }
 
