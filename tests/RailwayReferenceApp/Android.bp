@@ -42,7 +42,9 @@ android_app {
     certificate: "platform",
 
     static_libs: [
-        "androidx.legacy_legacy-support-v4",
+        "androidx-constraintlayout_constraintlayout",
+        "androidx.lifecycle_lifecycle-viewmodel",
+        "guava",
     ],
 
 

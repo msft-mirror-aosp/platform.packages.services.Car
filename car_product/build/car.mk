@@ -48,6 +48,7 @@ PRODUCT_PACKAGES += \
     AdasLocationTestApp \
     curl \
     CarTelemetryApp \
+    RailwayReferenceApp \
 
 # SEPolicy for test apps / services
 BOARD_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
@@ -153,9 +154,12 @@ PRODUCT_PACKAGES += \
     CarLatinIME \
     CarSettings \
     CarUsbHandler \
+    RotaryIME \
+    RotaryPlayground \
     android.car.builtin \
     car-frameworks-service \
     com.android.car.procfsinspector \
+    com.android.permission \
 
 # RROs
 PRODUCT_PACKAGES += \
