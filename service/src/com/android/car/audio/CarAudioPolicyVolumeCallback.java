@@ -16,27 +16,18 @@
 
 package com.android.car.audio;
 
-import static android.car.builtin.media.AudioManagerHelper.adjustToString;
-import static android.car.builtin.media.AudioManagerHelper.isMasterMute;
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
-import static android.media.AudioManager.ADJUST_LOWER;
-import static android.media.AudioManager.ADJUST_MUTE;
-import static android.media.AudioManager.ADJUST_RAISE;
-import static android.media.AudioManager.ADJUST_SAME;
-import static android.media.AudioManager.ADJUST_TOGGLE_MUTE;
-import static android.media.AudioManager.ADJUST_UNMUTE;
-import static android.media.AudioManager.FLAG_FROM_KEY;
-import static android.media.AudioManager.FLAG_SHOW_UI;
 import static android.util.Log.DEBUG;
 import static android.util.Log.VERBOSE;
 
 import static com.android.car.CarLog.TAG_AUDIO;
 
 import android.annotation.NonNull;
-import android.car.builtin.util.Slogf;
 import android.media.AudioManager;
 import android.media.audiopolicy.AudioPolicy;
 import android.media.audiopolicy.AudioPolicy.Builder;
+import android.util.Log;
+import android.util.Slog;
 
 import com.android.car.audio.CarAudioContext.AudioContext;
 import com.android.internal.annotations.VisibleForTesting;
@@ -55,8 +46,8 @@ final class CarAudioPolicyVolumeCallback extends AudioPolicy.AudioPolicyVolumeCa
         policyBuilder.setAudioPolicyVolumeCallback(
                 new CarAudioPolicyVolumeCallback(carAudioService, audioManager,
                         useCarVolumeGroupMuting));
-        if (Slogf.isLoggable(TAG_AUDIO, DEBUG)) {
-            Slogf.d(TAG_AUDIO, "Registered car audio policy volume callback");
+        if (Log.isLoggable(TAG_AUDIO, DEBUG)) {
+            Slog.d(TAG_AUDIO, "Registered car audio policy volume callback");
         }
     }
 
@@ -76,53 +67,47 @@ final class CarAudioPolicyVolumeCallback extends AudioPolicy.AudioPolicyVolumeCa
 
         int zoneId = PRIMARY_AUDIO_ZONE;
         int groupId = mCarAudioService.getVolumeGroupIdForAudioContext(zoneId, suggestedContext);
-        boolean isMuted = isMuted(zoneId, groupId);
 
-        if (Slogf.isLoggable(TAG_AUDIO, VERBOSE)) {
-            Slogf.v(TAG_AUDIO,
-                    "onVolumeAdjustment: %s suggested audio context: %s "
-                            + "suggested volume group: %s is muted: %b",
-                    adjustToString(adjustment), CarAudioContext.toString(suggestedContext),
-                    groupId, isMuted);
+        if (Log.isLoggable(TAG_AUDIO, VERBOSE)) {
+            Slog.v(TAG_AUDIO, "onVolumeAdjustment: "
+                    + AudioManager.adjustToString(adjustment) + " suggested audio context: "
+                    + CarAudioContext.toString(suggestedContext) + " suggested volume group: "
+                    + groupId);
         }
 
-        int currentVolume = mCarAudioService.getGroupVolume(zoneId, groupId);
-        int flags = FLAG_FROM_KEY | FLAG_SHOW_UI;
-        int minGain = mCarAudioService.getGroupMinVolume(zoneId, groupId);
+        final int currentVolume = mCarAudioService.getGroupVolume(zoneId, groupId);
+        final int flags = AudioManager.FLAG_FROM_KEY | AudioManager.FLAG_SHOW_UI;
         switch (adjustment) {
-            case ADJUST_LOWER:
-                int minValue = Math.max(currentVolume - 1, minGain);
-                if (isMuted)  {
-                    minValue = minGain;
-                }
+            case AudioManager.ADJUST_LOWER:
+                int minValue = Math.max(currentVolume - 1,
+                        mCarAudioService.getGroupMinVolume(zoneId, groupId));
                 mCarAudioService.setGroupVolume(zoneId, groupId, minValue, flags);
                 break;
-            case ADJUST_RAISE:
+            case AudioManager.ADJUST_RAISE:
                 int maxValue = Math.min(currentVolume + 1,
                         mCarAudioService.getGroupMaxVolume(zoneId, groupId));
-                if (isMuted)  {
-                    maxValue = minGain;
-                }
                 mCarAudioService.setGroupVolume(zoneId, groupId, maxValue, flags);
                 break;
-            case ADJUST_MUTE:
-            case ADJUST_UNMUTE:
-                setMute(adjustment == ADJUST_MUTE, groupId, flags);
+            case AudioManager.ADJUST_MUTE:
+            case AudioManager.ADJUST_UNMUTE:
+                setMute(adjustment == AudioManager.ADJUST_MUTE, groupId, flags);
                 break;
-            case ADJUST_TOGGLE_MUTE:
-                setMute(!isMuted, groupId, flags);
+            case AudioManager.ADJUST_TOGGLE_MUTE:
+                toggleMute(groupId, flags);
                 break;
-            case ADJUST_SAME:
+            case AudioManager.ADJUST_SAME:
             default:
                 break;
         }
     }
 
-    private boolean isMuted(int zoneId, int groupId) {
+    private void toggleMute(int groupId, int flags) {
         if (mUseCarVolumeGroupMuting) {
-            return mCarAudioService.isVolumeGroupMuted(zoneId, groupId);
+            setMute(!mCarAudioService.isVolumeGroupMuted(PRIMARY_AUDIO_ZONE, groupId), groupId,
+                    flags);
+            return;
         }
-        return isMasterMute(mAudioManager);
+        setMute(!mAudioManager.isMasterMute(), groupId, flags);
     }
 
     private void setMute(boolean mute, int groupId, int flags) {

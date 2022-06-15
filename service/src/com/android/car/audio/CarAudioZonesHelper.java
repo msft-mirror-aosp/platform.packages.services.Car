@@ -17,14 +17,10 @@ package com.android.car.audio;
 
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 
-import static com.android.car.audio.CarAudioUtils.isMicrophoneInputDevice;
-
 import android.annotation.NonNull;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
 import android.text.TextUtils;
-import android.util.ArrayMap;
-import android.util.ArraySet;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 import android.util.Xml;
@@ -39,6 +35,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -75,7 +73,7 @@ import java.util.stream.Collectors;
     private static final Map<String, Integer> CONTEXT_NAME_MAP;
 
     static {
-        CONTEXT_NAME_MAP = new ArrayMap<>(CarAudioContext.CONTEXTS.length);
+        CONTEXT_NAME_MAP = new HashMap<>(CarAudioContext.CONTEXTS.length);
         CONTEXT_NAME_MAP.put("music", CarAudioContext.MUSIC);
         CONTEXT_NAME_MAP.put("navigation", CarAudioContext.NAVIGATION);
         CONTEXT_NAME_MAP.put("voice_command", CarAudioContext.VOICE_COMMAND);
@@ -130,11 +128,11 @@ import java.util.stream.Collectors;
 
     private final CarAudioSettings mCarAudioSettings;
     private final Map<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
-    private final Map<String, AudioDeviceInfo> mAddressToInputAudioDeviceInfoForAllInputDevices;
+    private final Map<String, AudioDeviceInfo> mAddressToInputAudioDeviceInfo;
     private final InputStream mInputStream;
     private final SparseIntArray mZoneIdToOccupantZoneIdMapping;
     private final Set<Integer> mAudioZoneIds;
-    private final Set<String> mAssignedInputAudioDevices;
+    private final Set<String> mInputAudioDevices;
     private final boolean mUseCarVolumeGroupMute;
 
     private int mNextSecondaryZoneId;
@@ -154,12 +152,12 @@ import java.util.stream.Collectors;
         Objects.requireNonNull(inputDeviceInfo);
         mAddressToCarAudioDeviceInfo = CarAudioZonesHelper.generateAddressToInfoMap(
                 carAudioDeviceInfos);
-        mAddressToInputAudioDeviceInfoForAllInputDevices =
+        mAddressToInputAudioDeviceInfo =
                 CarAudioZonesHelper.generateAddressToInputAudioDeviceInfoMap(inputDeviceInfo);
         mNextSecondaryZoneId = PRIMARY_AUDIO_ZONE + 1;
         mZoneIdToOccupantZoneIdMapping = new SparseIntArray();
-        mAudioZoneIds = new ArraySet<>();
-        mAssignedInputAudioDevices = new ArraySet<>();
+        mAudioZoneIds = new HashSet<>();
+        mInputAudioDevices = new HashSet<>();
         mUseCarVolumeGroupMute = useCarVolumeGroupMute;
     }
 
@@ -180,8 +178,8 @@ import java.util.stream.Collectors;
 
     private static Map<String, AudioDeviceInfo> generateAddressToInputAudioDeviceInfoMap(
             @NonNull AudioDeviceInfo[] inputAudioDeviceInfos) {
-        Map<String, AudioDeviceInfo> deviceAddressToInputDeviceMap =
-                new ArrayMap<>(inputAudioDeviceInfos.length);
+        HashMap<String, AudioDeviceInfo> deviceAddressToInputDeviceMap =
+                new HashMap<>(inputAudioDeviceInfos.length);
         for (int i = 0; i < inputAudioDeviceInfos.length; ++i) {
             AudioDeviceInfo device = inputAudioDeviceInfos[i];
             if (device.isSource()) {
@@ -240,18 +238,7 @@ import java.util.stream.Collectors;
         }
 
         verifyPrimaryZonePresent(carAudioZones);
-        addRemainingMicrophonesToPrimaryZone(carAudioZones);
         return carAudioZones;
-    }
-
-    private void addRemainingMicrophonesToPrimaryZone(SparseArray<CarAudioZone> carAudioZones) {
-        CarAudioZone primaryAudioZone = carAudioZones.get(PRIMARY_AUDIO_ZONE);
-        for (AudioDeviceInfo info : mAddressToInputAudioDeviceInfoForAllInputDevices.values()) {
-            if (!mAssignedInputAudioDevices.contains(info.getAddress())
-                    && isMicrophoneInputDevice(info)) {
-                primaryAudioZone.addInputAudioDevice(new AudioDeviceAttributes(info));
-            }
-        }
     }
 
     private void verifyOnlyOnePrimaryZone(CarAudioZone newZone, SparseArray<CarAudioZone> zones) {
@@ -360,8 +347,7 @@ import java.util.stream.Collectors;
                 String audioDeviceAddress =
                         parser.getAttributeValue(NAMESPACE, ATTR_DEVICE_ADDRESS);
                 validateInputAudioDeviceAddress(audioDeviceAddress);
-                AudioDeviceInfo info =
-                        mAddressToInputAudioDeviceInfoForAllInputDevices.get(audioDeviceAddress);
+                AudioDeviceInfo info = mAddressToInputAudioDeviceInfo.get(audioDeviceAddress);
                 Preconditions.checkArgument(info != null,
                         "%s %s of %s does not exist, add input device to"
                                 + " audio_policy_configuration.xml.",
@@ -378,11 +364,11 @@ import java.util.stream.Collectors;
         Preconditions.checkArgument(!audioDeviceAddress.isEmpty(),
                 "%s %s attribute can not be empty.",
                 TAG_INPUT_DEVICE, ATTR_DEVICE_ADDRESS);
-        if (mAssignedInputAudioDevices.contains(audioDeviceAddress)) {
+        if (mInputAudioDevices.contains(audioDeviceAddress)) {
             throw new IllegalArgumentException(TAG_INPUT_DEVICE + " " + audioDeviceAddress
                     + " repeats, " + TAG_INPUT_DEVICES + " can not repeat.");
         }
-        mAssignedInputAudioDevices.add(audioDeviceAddress);
+        mInputAudioDevices.add(audioDeviceAddress);
     }
 
     private void validateOccupantZoneIdIsUnique(int occupantZoneId) {

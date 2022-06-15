@@ -16,18 +16,20 @@
 
 package android.car.watchdoglib;
 
+import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.automotive.watchdog.internal.ICarWatchdog;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.ICarWatchdogServiceForSystem;
-import android.automotive.watchdog.internal.ProcessIdentifier;
+import android.automotive.watchdog.internal.PackageResourceOveruseAction;
 import android.automotive.watchdog.internal.ResourceOveruseConfiguration;
-import android.car.builtin.os.ServiceManagerHelper;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -54,8 +56,7 @@ public final class CarWatchdogDaemonHelper {
     private static final long CAR_WATCHDOG_DAEMON_BIND_RETRY_INTERVAL_MS = 500;
     private static final long CAR_WATCHDOG_DAEMON_FIND_MARGINAL_TIME_MS = 300;
     private static final int CAR_WATCHDOG_DAEMON_BIND_MAX_RETRY = 3;
-    private static final String CAR_WATCHDOG_DAEMON_INTERFACE =
-            "android.automotive.watchdog.internal.ICarWatchdog/default";
+    private static final String CAR_WATCHDOG_DAEMON_INTERFACE = "carwatchdogd_system";
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private final CopyOnWriteArrayList<OnConnectionChangeListener> mConnectionListeners =
@@ -78,7 +79,8 @@ public final class CarWatchdogDaemonHelper {
             for (OnConnectionChangeListener listener : mConnectionListeners) {
                 listener.onConnectionChange(/* isConnected= */false);
             }
-            mHandler.postDelayed(() -> connectToDaemon(CAR_WATCHDOG_DAEMON_BIND_MAX_RETRY),
+            mHandler.sendMessageDelayed(obtainMessage(CarWatchdogDaemonHelper::connectToDaemon,
+                    CarWatchdogDaemonHelper.this, CAR_WATCHDOG_DAEMON_BIND_MAX_RETRY),
                     CAR_WATCHDOG_DAEMON_BIND_RETRY_INTERVAL_MS);
         }
     };
@@ -208,7 +210,7 @@ public final class CarWatchdogDaemonHelper {
      * Tells car watchdog daemon that the service is alive.
      *
      * @param service Car watchdog service which has been pined by car watchdog daemon.
-     * @param clientsNotResponding List of process identifiers of clients that are not responding.
+     * @param clientsNotResponding Array of process ID that are not responding.
      * @param sessionId Session ID that car watchdog daemon has given.
      * @throws IllegalArgumentException If the service is not registered,
      *                                  or session ID is not correct.
@@ -216,7 +218,7 @@ public final class CarWatchdogDaemonHelper {
      * @throws RemoteException
      */
     public void tellCarWatchdogServiceAlive(
-            ICarWatchdogServiceForSystem service, List<ProcessIdentifier> clientsNotResponding,
+            ICarWatchdogServiceForSystem service, int[] clientsNotResponding,
             int sessionId) throws RemoteException {
         invokeDaemonMethod(
                 (daemon) -> daemon.tellCarWatchdogServiceAlive(
@@ -227,14 +229,13 @@ public final class CarWatchdogDaemonHelper {
      * Tells car watchdog daemon that the monitor has dumped clients' process information.
      *
      * @param monitor Car watchdog monitor that dumped process information.
-     * @param processIdentifier Process identifier of process that has been dumped.
+     * @param pid ID of process that has been dumped.
      * @throws IllegalArgumentException If the monitor is not registered.
      * @throws IllegalStateException If car watchdog daemon is not connected.
      * @throws RemoteException
      */
-    public void tellDumpFinished(ICarWatchdogMonitor monitor,
-            ProcessIdentifier processIdentifier) throws RemoteException {
-        invokeDaemonMethod((daemon) -> daemon.tellDumpFinished(monitor, processIdentifier));
+    public void tellDumpFinished(ICarWatchdogMonitor monitor, int pid) throws RemoteException {
+        invokeDaemonMethod((daemon) -> daemon.tellDumpFinished(monitor, pid));
     }
 
     /**
@@ -279,13 +280,15 @@ public final class CarWatchdogDaemonHelper {
     }
 
     /**
-     * Enable/disable the internal client health check process.
-     * Disabling would stop the ANR killing process.
+     * Notifies car watchdog daemon with the actions taken on resource overuse.
      *
-     * @param enable True to enable watchdog's health check process.
+     * @param actions List of actions taken on resource overuse. One action taken per resource
+     *                overusing user package.
+     * @throws RemoteException
      */
-    public void controlProcessHealthCheck(boolean enable) throws RemoteException {
-        invokeDaemonMethod((daemon) -> daemon.controlProcessHealthCheck(enable));
+    public void actionTakenOnResourceOveruse(List<PackageResourceOveruseAction> actions)
+            throws RemoteException {
+        invokeDaemonMethod((daemon) -> daemon.actionTakenOnResourceOveruse(actions));
     }
 
     private void invokeDaemonMethod(Invokable r) throws RemoteException {
@@ -312,14 +315,14 @@ public final class CarWatchdogDaemonHelper {
             Log.i(mTag, "Connected to car watchdog daemon");
             return;
         }
-        final int nextRetry = retryCount - 1;
-        mHandler.postDelayed(() -> connectToDaemon(nextRetry),
+        mHandler.sendMessageDelayed(obtainMessage(CarWatchdogDaemonHelper::connectToDaemon,
+                CarWatchdogDaemonHelper.this, retryCount - 1),
                 CAR_WATCHDOG_DAEMON_BIND_RETRY_INTERVAL_MS);
     }
 
     private boolean makeBinderConnection() {
         long currentTimeMs = SystemClock.uptimeMillis();
-        IBinder binder = ServiceManagerHelper.checkService(CAR_WATCHDOG_DAEMON_INTERFACE);
+        IBinder binder = ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE);
         if (binder == null) {
             Log.w(mTag, "Getting car watchdog daemon binder failed");
             return false;

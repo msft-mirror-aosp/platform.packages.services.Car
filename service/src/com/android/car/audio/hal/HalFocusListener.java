@@ -16,7 +16,7 @@
 
 package com.android.car.audio.hal;
 
-import com.android.car.internal.annotation.AttributeUsage;
+import android.media.AudioAttributes.AttributeUsage;
 
 /**
  * Framework focus listener interface to abstract away the specific HAL version

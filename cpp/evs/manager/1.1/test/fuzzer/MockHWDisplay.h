@@ -12,42 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CPP_EVS_MANAGER_1_1_TEST_FUZZER_MOCKHWDISPLAY_H_
-#define CPP_EVS_MANAGER_1_1_TEST_FUZZER_MOCKHWDISPLAY_H_
+#ifndef EVS_MANAGER_1_1_TEST_FUZZER_MOCKHWDISPLAY_H_
+#define EVS_MANAGER_1_1_TEST_FUZZER_MOCKHWDISPLAY_H_
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-namespace android::automotive::evs::V1_1::implementation {
+namespace android {
+namespace automotive {
+namespace evs {
+namespace V1_1 {
+namespace implementation {
 
-class MockHWDisplay : public ::android::hardware::automotive::evs::V1_1::IEvsDisplay {
+class MockHWDisplay : public IEvsDisplay_1_1 {
 public:
     MockHWDisplay() = default;
 
-    ::android::hardware::Return<void> getDisplayInfo(getDisplayInfo_cb _hidl_cb) override {
-        return {};
+    Return<void> getDisplayInfo(getDisplayInfo_cb _hidl_cb) override { return {}; }
+    Return<EvsResult> setDisplayState(EvsDisplayState state) override { return EvsResult::OK; }
+    Return<EvsDisplayState> getDisplayState() override { return EvsDisplayState::VISIBLE; }
+    Return<void> getTargetBuffer(getTargetBuffer_cb _hidl_cb) override { return {}; }
+    Return<EvsResult> returnTargetBufferForDisplay(const BufferDesc_1_0& buffer) override {
+        return EvsResult::OK;
     }
-    ::android::hardware::Return<::android::hardware::automotive::evs::V1_0::EvsResult>
-    setDisplayState(::android::hardware::automotive::evs::V1_0::DisplayState state) override {
-        return ::android::hardware::automotive::evs::V1_0::EvsResult::OK;
-    }
-    ::android::hardware::Return<::android::hardware::automotive::evs::V1_0::DisplayState>
-    getDisplayState() override {
-        return ::android::hardware::automotive::evs::V1_0::DisplayState::VISIBLE;
-    }
-    ::android::hardware::Return<void> getTargetBuffer(getTargetBuffer_cb _hidl_cb) override {
-        return {};
-    }
-    ::android::hardware::Return<::android::hardware::automotive::evs::V1_0::EvsResult>
-    returnTargetBufferForDisplay(
-            const ::android::hardware::automotive::evs::V1_0::BufferDesc& buffer) override {
-        return ::android::hardware::automotive::evs::V1_0::EvsResult::OK;
-    }
-    ::android::hardware::Return<void> getDisplayInfo_1_1(getDisplayInfo_1_1_cb _info_cb) override {
+    Return<void> getDisplayInfo_1_1(getDisplayInfo_1_1_cb _info_cb) override {
         return {};
     }
 };
 
-}  // namespace android::automotive::evs::V1_1::implementation
+}  // namespace implementation
+}  // namespace V1_1
+}  // namespace evs
+}  // namespace automotive
+}  // namespace android
 
-#endif  // CPP_EVS_MANAGER_1_1_TEST_FUZZER_MOCKHWDISPLAY_H_
+#endif  // EVS_MANAGER_1_1_TEST_FUZZER_MOCKHWDISPLAY_H_

@@ -21,7 +21,7 @@ package android.automotive.watchdog.internal;
  */
 parcelable PackageIdentifier {
   /**
-   * Generic name of the package.
+   * Name of the package.
    */
   @utf8InCpp String name;
 

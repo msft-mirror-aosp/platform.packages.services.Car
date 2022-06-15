@@ -16,5 +16,4 @@
 
 package com.android.car.procfsinspector;
 
-/** @deprecated use CarWatchdogService and its related classes for I/O related tasks */
 parcelable ProcessInfo;

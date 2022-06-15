@@ -34,9 +34,6 @@
     <uses-permission android:name="android.car.permission.STORAGE_MONITORING"/>
     <uses-permission android:name="android.car.permission.READ_CAR_OCCUPANT_AWARENESS_STATE"/>
     <uses-permission android:name="android.car.permission.READ_CAR_POWER_POLICY"/>
-    <uses-permission android:name="android.car.permission.CONTROL_SHUTDOWN_PROCESS"/>
-    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_1"/>
-    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_1"/>
 
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
          android:targetPackage="com.android.car.test"
@@ -54,19 +51,13 @@
             </intent-filter>
         </service>
 
-        <activity
-            android:name="com.android.car.pm.CarPackageManagerServiceTest$NonDoNoHistoryActivity"
-            android:noHistory="true"/>
-        <activity android:name="com.android.car.pm.CarPackageManagerServiceTest$NonDoActivity"/>
-        <activity android:name="com.android.car.pm.CarPackageManagerServiceTest$DoActivity"
+        <activity android:name="com.android.car.pm.ActivityBlockingActivityTest$NonDoNoHistoryActivity"
+             android:noHistory="true"/>
+        <activity android:name="com.android.car.pm.ActivityBlockingActivityTest$NonDoActivity"/>
+        <activity android:name="com.android.car.pm.ActivityBlockingActivityTest$DoActivity"
              android:label="DoActivity">
             <meta-data android:name="distractionOptimized"
                  android:value="true"/>
-        </activity>
-        <activity android:name="androidx.car.app.activity.CarAppActivity"
-            android:label="CarAppActivity">
-            <meta-data android:name="distractionOptimized"
-                android:value="true"/>
         </activity>
 
         <receiver android:name="com.android.car.CarStorageMonitoringBroadcastReceiver"

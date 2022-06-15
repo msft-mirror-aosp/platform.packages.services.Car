@@ -16,21 +16,14 @@
 
 package com.android.car;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
 import android.app.ActivityManager;
 import android.car.ILocationManagerProxy;
 import android.car.IPerUserCarService;
-import android.car.builtin.util.Slogf;
 import android.car.drivingstate.CarDrivingStateEvent;
 import android.car.drivingstate.ICarDrivingStateChangeListener;
 import android.car.hardware.power.CarPowerManager;
+import android.car.hardware.power.CarPowerManager.CarPowerStateListener;
 import android.car.hardware.power.CarPowerManager.CarPowerStateListenerWithCompletion;
-import android.car.hardware.power.CarPowerManager.CompletablePowerStateChangeFuture;
-import android.car.hardware.power.CarPowerPolicy;
-import android.car.hardware.power.CarPowerPolicyFilter;
-import android.car.hardware.power.ICarPowerPolicyListener;
-import android.car.hardware.power.PowerComponent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -44,14 +37,12 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.AtomicFile;
+import android.util.IndentingPrintWriter;
 import android.util.JsonReader;
 import android.util.JsonWriter;
+import android.util.Slog;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
-import com.android.car.power.CarPowerManagementService;
 import com.android.car.systeminterface.SystemInterface;
-import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.File;
@@ -61,6 +52,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * This service stores the last known location from {@link LocationManager} when a car is parked
@@ -91,6 +83,7 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
     private static final String IS_FROM_MOCK_PROVIDER = "isFromMockProvider";
     private static final String CAPTURE_TIME = "captureTime";
 
+    // Used internally for mHandlerThread synchronization
     private final Object mLock = new Object();
 
     // Used internally for mILocationManagerProxy synchronization
@@ -101,67 +94,12 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
             getClass().getSimpleName());
     private final Handler mHandler = new Handler(mHandlerThread.getLooper());
 
-    private final CarPowerManager mCarPowerManager;
-    private final CarDrivingStateService mCarDrivingStateService;
-    private final PerUserCarServiceHelper mPerUserCarServiceHelper;
-    private final CarPowerManagementService mCarPowerManagementService;
-
-    @GuardedBy("mLock")
-    private LocationManager mLocationManager;
+    private CarPowerManager mCarPowerManager;
+    private CarDrivingStateService mCarDrivingStateService;
+    private PerUserCarServiceHelper mPerUserCarServiceHelper;
 
     // Allows us to interact with the {@link LocationManager} as the foreground user.
-    @GuardedBy("mLocationManagerProxyLock")
     private ILocationManagerProxy mILocationManagerProxy;
-
-    // Used for supporting features such as suspend to RAM and suspend to disk. Power policy
-    // listener listens to changes in the PowerComponent.LOCATION state. If PowerComponent.LOCATION
-    // is disabled, suspend gnss functionality. If PowerComponent.LOCATION is enabled, resume gnss
-    // functionality.
-    private final ICarPowerPolicyListener mPowerPolicyListener =
-            new ICarPowerPolicyListener.Stub() {
-                @Override
-                public void onPolicyChanged(CarPowerPolicy appliedPolicy,
-                        CarPowerPolicy accumulatedPolicy) {
-                    LocationManager locationManager;
-
-                    synchronized (mLock) {
-                        // LocationManager can be temporarily unavailable during boot up. Reacquire
-                        // here if mLocationManager is null.
-                        if (mLocationManager == null) {
-                            logd("Null location manager. Retry.");
-                            mLocationManager = mContext.getSystemService(LocationManager.class);
-                        }
-
-                        // If LocationManager is still null after the retry, return.
-                        if (mLocationManager == null) {
-                            logd("Null location manager. Skip gnss controls.");
-                            return;
-                        }
-
-                        locationManager = mLocationManager;
-                    }
-
-                    boolean isOn =
-                            accumulatedPolicy.isComponentEnabled(PowerComponent.LOCATION);
-                    if (isOn) {
-                        logd("Resume GNSS requests.");
-                        locationManager.setAutomotiveGnssSuspended(false);
-                        if (locationManager.isAutomotiveGnssSuspended()) {
-                            Slogf.w(TAG,
-                                    "Failed - isAutomotiveGnssSuspended is true. "
-                                    + "GNSS should NOT be suspended.");
-                        }
-                    } else {
-                        logd("Suspend GNSS requests.");
-                        locationManager.setAutomotiveGnssSuspended(true);
-                        if (!locationManager.isAutomotiveGnssSuspended()) {
-                            Slogf.w(TAG,
-                                    "Failed - isAutomotiveGnssSuspended is false. "
-                                    + "GNSS should be suspended.");
-                        }
-                    }
-                }
-    };
 
     // Maintains mILocationManagerProxy for the current foreground user.
     private final PerUserCarServiceHelper.ServiceCallback mUserServiceCallback =
@@ -177,14 +115,14 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                         try {
                             mILocationManagerProxy = perUserCarService.getLocationManagerProxy();
                         } catch (RemoteException e) {
-                            Slogf.e(TAG, "RemoteException from IPerUserCarService", e);
+                            Slog.e(TAG, "RemoteException from IPerUserCarService", e);
                             return;
                         }
                     }
                     int currentUser = ActivityManager.getCurrentUser();
                     logd("Current user: %s", currentUser);
                     if (UserManager.isHeadlessSystemUserMode()
-                            && currentUser > UserHandle.SYSTEM.getIdentifier()) {
+                            && currentUser > UserHandle.USER_SYSTEM) {
                         asyncOperation(() -> loadLocation());
                     }
                 }
@@ -225,27 +163,6 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
     public CarLocationService(Context context) {
         logd("constructed");
         mContext = context;
-
-        mCarPowerManagementService = CarLocalServices.getService(
-                CarPowerManagementService.class);
-        if (mCarPowerManagementService == null) {
-            Slogf.w(TAG, "Cannot find CarPowerManagementService.");
-        }
-
-        mCarPowerManager = CarLocalServices.createCarPowerManager(mContext);
-        if (mCarPowerManager == null) {
-            Slogf.w(TAG, "Cannot find CarPowerManager.");
-        }
-
-        mPerUserCarServiceHelper = CarLocalServices.getService(PerUserCarServiceHelper.class);
-        if (mPerUserCarServiceHelper == null) {
-            Slogf.w(TAG, "Cannot find PerUserCarServiceHelper.");
-        }
-
-        mCarDrivingStateService = CarLocalServices.getService(CarDrivingStateService.class);
-        if (mCarDrivingStateService == null) {
-            Slogf.w(TAG, "Cannot find CarDrivingStateService.");
-        }
     }
 
     @Override
@@ -253,8 +170,8 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
         logd("init");
         IntentFilter filter = new IntentFilter();
         filter.addAction(LocationManager.MODE_CHANGED_ACTION);
-        mContext.registerReceiver(this, filter, Context.RECEIVER_NOT_EXPORTED);
-
+        mContext.registerReceiver(this, filter);
+        mCarDrivingStateService = CarLocalServices.getService(CarDrivingStateService.class);
         if (mCarDrivingStateService != null) {
             CarDrivingStateEvent event = mCarDrivingStateService.getCurrentDrivingState();
             if (event != null && event.eventValue == CarDrivingStateEvent.DRIVING_STATE_MOVING) {
@@ -264,26 +181,14 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                         mICarDrivingStateChangeEventListener);
             }
         }
-
+        mCarPowerManager = CarLocalServices.createCarPowerManager(mContext);
         if (mCarPowerManager != null) { // null case happens for testing.
-            mCarPowerManager.setListenerWithCompletion((command) -> mHandler.post(command),
-                    CarLocationService.this);
+            mCarPowerManager.setListenerWithCompletion(CarLocationService.this);
         }
-
+        mPerUserCarServiceHelper = CarLocalServices.getService(PerUserCarServiceHelper.class);
         if (mPerUserCarServiceHelper != null) {
             mPerUserCarServiceHelper.registerServiceCallback(mUserServiceCallback);
         }
-
-        synchronized (mLock) {
-            mLocationManager = mContext.getSystemService(LocationManager.class);
-            if (mLocationManager == null) {
-                Slogf.w(TAG, "Null location manager.");
-            }
-        }
-
-        // Power policy listener will check for the LocationManager dependency and reacquire it if
-        // is not available yet at time of boot.
-        addPowerPolicyListener();
     }
 
     @Override
@@ -299,14 +204,10 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
         if (mPerUserCarServiceHelper != null) {
             mPerUserCarServiceHelper.unregisterServiceCallback(mUserServiceCallback);
         }
-        if (mCarPowerManagementService != null) {
-            mCarPowerManagementService.removePowerPolicyListener(mPowerPolicyListener);
-        }
         mContext.unregisterReceiver(this);
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         writer.println(TAG);
         mPerUserCarServiceHelper.dump(writer);
@@ -315,22 +216,19 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
     }
 
     @Override
-    public void onStateChanged(int state, CompletablePowerStateChangeFuture future) {
-        logd("onStateChanged: %d", state);
+    public void onStateChanged(int state, CompletableFuture<Void> future) {
+        logd("onStateChanged: %s", state);
         switch (state) {
-            case CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE:
-                if (future != null) {
-                    future.complete();
-                }
+            case CarPowerStateListener.SHUTDOWN_PREPARE:
+                asyncOperation(() -> {
+                    storeLocation();
+                    // Notify the CarPowerManager that it may proceed to shutdown or suspend.
+                    if (future != null) {
+                        future.complete(null);
+                    }
+                });
                 break;
-            case CarPowerManager.STATE_SHUTDOWN_PREPARE:
-                storeLocation();
-                // Notify the CarPowerManager that it may proceed to shutdown or suspend.
-                if (future != null) {
-                    future.complete();
-                }
-                break;
-            case CarPowerManager.STATE_SUSPEND_EXIT:
+            case CarPowerStateListener.SUSPEND_EXIT:
                 if (mCarDrivingStateService != null) {
                     CarDrivingStateEvent event = mCarDrivingStateService.getCurrentDrivingState();
                     if (event != null
@@ -343,13 +241,13 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                     }
                 }
                 if (future != null) {
-                    future.complete();
+                    future.complete(null);
                 }
             default:
                 // This service does not need to do any work for these events but should still
                 // notify the CarPowerManager that it may proceed.
                 if (future != null) {
-                    future.complete();
+                    future.complete(null);
                 }
                 break;
         }
@@ -381,37 +279,16 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                     logd("Unexpected intent.");
                 }
             } catch (RemoteException e) {
-                Slogf.e(TAG, "RemoteException from ILocationManagerProxy", e);
+                Slog.e(TAG, "RemoteException from ILocationManagerProxy", e);
             }
         }
-    }
-
-    /**
-     * If config_enableCarLocationServiceGnssControlsForPowerManagement is true, add a power policy
-     * listener.
-     */
-    private void addPowerPolicyListener() {
-        if (mCarPowerManagementService == null) {
-            return;
-        }
-
-        if (!mContext.getResources().getBoolean(
-                R.bool.config_enableCarLocationServiceGnssControlsForPowerManagement)) {
-            logd("GNSS controls not enabled.");
-            return;
-        }
-
-        CarPowerPolicyFilter carPowerPolicyFilter = new CarPowerPolicyFilter.Builder()
-                .setComponents(PowerComponent.LOCATION).build();
-        mCarPowerManagementService.addPowerPolicyListener(
-                carPowerPolicyFilter, mPowerPolicyListener);
     }
 
     /** Tells whether the current foreground user is the headless system user. */
     private boolean isCurrentUserHeadlessSystemUser() {
         int currentUserId = ActivityManager.getCurrentUser();
         return UserManager.isHeadlessSystemUserMode()
-                && currentUserId == UserHandle.SYSTEM.getIdentifier();
+                && currentUserId == UserHandle.USER_SYSTEM;
     }
 
     /**
@@ -428,7 +305,7 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                 location = mILocationManagerProxy.getLastKnownLocation(
                         LocationManager.GPS_PROVIDER);
             } catch (RemoteException e) {
-                Slogf.e(TAG, "RemoteException from ILocationManagerProxy", e);
+                Slog.e(TAG, "RemoteException from ILocationManagerProxy", e);
             }
         }
         if (location == null) {
@@ -479,7 +356,7 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                 }
                 atomicFile.finishWrite(fos);
             } catch (IOException e) {
-                Slogf.e(TAG, "Unable to write to disk", e);
+                Slog.e(TAG, "Unable to write to disk", e);
                 atomicFile.failWrite(fos);
             }
         }
@@ -552,7 +429,7 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                         location.setTime(reader.nextLong());
                         break;
                     default:
-                        Slogf.w(TAG, "Unrecognized key: " + name);
+                        Slog.w(TAG, "Unrecognized key: " + name);
                         reader.skipValue();
                 }
             }
@@ -560,9 +437,9 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
         } catch (FileNotFoundException e) {
             logd("Location cache file not found: %s", file);
         } catch (IOException e) {
-            Slogf.e(TAG, "Unable to read from disk", e);
+            Slog.e(TAG, "Unable to read from disk", e);
         } catch (NumberFormatException | IllegalStateException e) {
-            Slogf.e(TAG, "Unexpected format", e);
+            Slog.e(TAG, "Unexpected format", e);
         }
         return location;
     }
@@ -590,7 +467,7 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
                 try {
                     success = mILocationManagerProxy.injectLocation(location);
                 } catch (RemoteException e) {
-                    Slogf.e(TAG, "RemoteException from ILocationManagerProxy", e);
+                    Slog.e(TAG, "RemoteException from ILocationManagerProxy", e);
                 }
             }
         }
@@ -623,6 +500,6 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
 
     private static void logd(String msg, Object... vals) {
         // Disable logs here if they become too spammy.
-        Slogf.d(TAG, msg, vals);
+        Slog.d(TAG, String.format(msg, vals));
     }
 }

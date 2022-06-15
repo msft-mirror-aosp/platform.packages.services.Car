@@ -148,8 +148,7 @@ public final class RotaryFragment extends Fragment {
     public void onStart() {
         super.onStart();
 
-        getContext().registerReceiver(mPackagesUpdatedReceiver, mFilter,
-                Context.RECEIVER_NOT_EXPORTED);
+        getContext().registerReceiver(mPackagesUpdatedReceiver, mFilter);
     }
 
     @Override

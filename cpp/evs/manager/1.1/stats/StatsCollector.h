@@ -14,26 +14,30 @@
  * limitations under the License.
  */
 
-#ifndef CPP_EVS_MANAGER_1_1_STATS_STATSCOLLECTOR_H_
-#define CPP_EVS_MANAGER_1_1_STATS_STATSCOLLECTOR_H_
+#ifndef ANDROID_AUTOMOTIVE_EVS_V1_1_EVSSTATSCOLLECTOR_H
+#define ANDROID_AUTOMOTIVE_EVS_V1_1_EVSSTATSCOLLECTOR_H
 
 #include "CameraUsageStats.h"
-#include "IStatsCollector.h"
 #include "LooperWrapper.h"
-#include "VirtualCamera.h"
-
-#include <android-base/chrono_utils.h>
-#include <android-base/logging.h>
-#include <android-base/result.h>
-#include <android/hardware/automotive/evs/1.1/types.h>
-#include <utils/Mutex.h>
 
 #include <deque>
-#include <thread>  // NOLINT
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
-namespace android::automotive::evs::V1_1::implementation {
+#include <android/hardware/automotive/evs/1.1/types.h>
+#include <android-base/chrono_utils.h>
+#include <android-base/logging.h>
+#include <android-base/result.h>
+#include <utils/Mutex.h>
+
+namespace android {
+namespace automotive {
+namespace evs {
+namespace V1_1 {
+namespace implementation {
+
+class HalCamera;    // From VirtualCamera.h
 
 enum CollectionEvent {
     INIT = 0,
@@ -45,6 +49,7 @@ enum CollectionEvent {
     LAST_EVENT,
 };
 
+
 struct CollectionRecord {
     // Latest statistics collection
     CameraUsageStatsRecord latest = {};
@@ -52,6 +57,7 @@ struct CollectionRecord {
     // History of collected statistics records
     std::deque<CameraUsageStatsRecord> history;
 };
+
 
 struct CollectionInfo {
     // Collection interval between two subsequent collections
@@ -67,42 +73,48 @@ struct CollectionInfo {
     std::unordered_map<std::string, CollectionRecord> records;
 };
 
-// Statistic collector for camera usage statistics.
-// Statistics are not collected until |startCollection|.
-class StatsCollector : public IStatsCollector, public MessageHandler {
+
+class StatsCollector : public MessageHandler {
 public:
-    StatsCollector() :
-          mLooper(new LooperWrapper()),
-          mCurrentCollectionEvent(CollectionEvent::INIT),
-          mPeriodicCollectionInfo({}),
-          mCustomCollectionInfo({}) {}
+    explicit StatsCollector() :
+        mLooper(new LooperWrapper()),
+        mCurrentCollectionEvent(CollectionEvent::INIT),
+        mPeriodicCollectionInfo({}),
+        mCustomCollectionInfo({}) {}
 
-    virtual ~StatsCollector();
+    virtual ~StatsCollector() { stopCollection(); }
 
-    android::base::Result<void> startCollection() override;
+    // Starts collecting CameraUsageStats
+    android::base::Result<void> startCollection();
+
+    // Stops collecting the statistics
+    android::base::Result<void> stopCollection();
 
     // Starts collecting CameraUsageStarts during a given duration at a given
     // interval.
-    android::base::Result<void> startCustomCollection(std::chrono::nanoseconds interval,
-                                                      std::chrono::nanoseconds duration)
-            EXCLUDES(mMutex) override;
+    android::base::Result<void> startCustomCollection(
+            std::chrono::nanoseconds interval,
+            std::chrono::nanoseconds duration) EXCLUDES(mMutex);
 
     // Stops current custom collection and shows the result from the device with
-    // a given unique id.  If this is "all", all results will be returned.
-    android::base::Result<std::string> stopCustomCollection(std::string id = "")
-            EXCLUDES(mMutex) override;
+    // a given unique id.  If this is "all",all results
+    // will be returned.
+    android::base::Result<std::string> stopCustomCollection(
+            std::string id = "") EXCLUDES(mMutex);
 
     // Registers HalCamera object to monitor
-    android::base::Result<void> registerClientToMonitor(const android::sp<HalCamera>& camera)
-            EXCLUDES(mMutex) override;
+    android::base::Result<void> registerClientToMonitor(
+            android::sp<HalCamera>& camera) EXCLUDES(mMutex);
 
-    // Unregister HalCamera object.
-    android::base::Result<void> unregisterClientToMonitor(const std::string& id)
-            EXCLUDES(mMutex) override;
+    // Unregister HalCamera object
+    android::base::Result<void> unregisterClientToMonitor(
+            const std::string& id) EXCLUDES(mMutex);
 
-    // Returns a map that contains the latest statistics pulled from
-    // currently active clients.
-    std::unordered_map<std::string, std::string> toString(const char* indent = "") override;
+    // Returns a string that contains the latest statistics pulled from
+    // currently active clients
+    android::base::Result<void> toString(
+            std::unordered_map<std::string, std::string>* usages,
+            const char* indent = "") EXCLUDES(mMutex);
 
 private:
     // Mutex to protect records
@@ -138,10 +150,14 @@ private:
     // records
     android::base::Result<void> collectLocked(CollectionInfo* info) REQUIRES(mMutex);
 
-    // Returns a string corresponding to a given collection event.
-    std::string collectionEventToString(const CollectionEvent& event) const;
+    // Returns a string corresponding to a given collection event
+    std::string toString(const CollectionEvent& event) const;
 };
 
-}  // namespace android::automotive::evs::V1_1::implementation
+} // namespace implementation
+} // namespace V1_1
+} // namespace evs
+} // namespace automotive
+} // namespace android
 
-#endif  // CPP_EVS_MANAGER_1_1_STATS_STATSCOLLECTOR_H_
+#endif // ANDROID_AUTOMOTIVE_EVS_V1_1_EVSSTATSCOLLECTOR_H

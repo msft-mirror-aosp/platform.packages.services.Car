@@ -17,39 +17,32 @@
 #ifndef CPP_POWERPOLICY_SERVER_SRC_POLICYMANAGER_H_
 #define CPP_POWERPOLICY_SERVER_SRC_POLICYMANAGER_H_
 
-#include <aidl/android/frameworks/automotive/powerpolicy/CarPowerPolicy.h>
-#include <aidl/android/hardware/automotive/vehicle/VehicleApPowerStateReport.h>
 #include <android-base/result.h>
-#include <utils/Vector.h>
+#include <android/frameworks/automotive/powerpolicy/CarPowerPolicy.h>
+#include <android/hardware/automotive/vehicle/2.0/IVehicle.h>
 
 #include <tinyxml2.h>
 
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace android {
 namespace frameworks {
 namespace automotive {
 namespace powerpolicy {
 
-std::string toString(
-        const ::aidl::android::frameworks::automotive::powerpolicy::CarPowerPolicy& policy);
-std::string toString(
-        const std::vector<::aidl::android::frameworks::automotive::powerpolicy::PowerComponent>&
-                components);
-
+std::string toString(const CarPowerPolicy& policy);
+std::string toString(const std::vector<PowerComponent>& components);
 bool isSystemPowerPolicy(const std::string& policyId);
 
-using CarPowerPolicyPtr =
-        std::shared_ptr<::aidl::android::frameworks::automotive::powerpolicy::CarPowerPolicy>;
+using CarPowerPolicyPtr = std::shared_ptr<CarPowerPolicy>;
 using PolicyGroup = std::unordered_map<int32_t, std::string>;
 
-constexpr const char kSystemPolicyIdNoUserInteraction[] = "system_power_policy_no_user_interaction";
-constexpr const char kSystemPolicyIdAllOn[] = "system_power_policy_all_on";
-constexpr const char kSystemPolicyIdInitialOn[] = "system_power_policy_initiall_on";
-constexpr const char kSystemPolicyIdSuspendPrep[] = "system_power_policy_suspend_prep";
+constexpr const char* kSystemPolicyIdNoUserInteraction = "system_power_policy_no_user_interaction";
+constexpr const char* kSystemPolicyIdAllOn = "system_power_policy_all_on";
+constexpr const char* kSystemPolicyIdInitialOn = "system_power_policy_initiall_on";
+constexpr const char* kSystemPolicyIdSuspendToRam = "system_power_policy_suspend_to_ram";
 
 // Forward declaration for testing use only.
 namespace internal {
@@ -76,7 +69,7 @@ public:
     android::base::Result<CarPowerPolicyMeta> getPowerPolicy(const std::string& policyId) const;
     android::base::Result<CarPowerPolicyPtr> getDefaultPowerPolicyForState(
             const std::string& groupId,
-            aidl::android::hardware::automotive::vehicle::VehicleApPowerStateReport state) const;
+            android::hardware::automotive::vehicle::V2_0::VehicleApPowerStateReport state) const;
     bool isPowerPolicyGroupAvailable(const std::string& groupId) const;
     bool isPreemptivePowerPolicy(const std::string& policyId) const;
     android::base::Result<void> definePowerPolicy(

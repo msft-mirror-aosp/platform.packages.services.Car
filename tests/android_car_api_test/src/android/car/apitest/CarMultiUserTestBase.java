@@ -64,6 +64,8 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
     private static final long REMOVE_USER_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30_000);
     private static final long SWITCH_USER_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30_000);
 
+    private static final String PROP_STOP_BG_USERS_ON_SWITCH  = "fw.stop_bg_users_on_switch";
+
     private static final String NEW_USER_NAME_PREFIX = "CarApiTest.";
 
     protected CarUserManager mCarUserManager;
@@ -84,6 +86,9 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
     public final void setMultiUserFixtures() throws Exception {
         Log.d(TAG, "setMultiUserFixtures() for " + mTestName.getMethodName());
 
+        // Make sure user doesn't stop on switch (otherwise test process would crash)
+        setSystemProperty(PROP_STOP_BG_USERS_ON_SWITCH, "0");
+
         mCarUserManager = getCarService(Car.CAR_USER_SERVICE);
         mUserManager = getContext().getSystemService(UserManager.class);
 
@@ -93,7 +98,7 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
             public void onReceive(Context context, Intent intent) {
                 mUserRemoveLatch.countDown();
             }
-        }, filter, Context.RECEIVER_NOT_EXPORTED);
+        }, filter);
 
         List<UserInfo> users = mUserManager.getAliveUsers();
 
@@ -137,18 +142,17 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
                 Log.e(TAG, "user " + user.toFullString() + " was not removed");
             }
         }
-
-        Log.d(TAG, "setMultiUserFixtures(): Saul Goodman, setting mSetupFinished to true");
         mSetupFinished = true;
+    }
+
+    public final void resetStopUserOnSwitch() throws Exception {
+        setSystemProperty(PROP_STOP_BG_USERS_ON_SWITCH, "-1");
     }
 
     @After
     public final void cleanupUserState() throws Exception {
         try {
-            if (!mSetupFinished) {
-                Log.w(TAG, "skipping cleanupUserState() because mSetupFinished is false");
-                return;
-            }
+            if (!mSetupFinished) return;
 
             int currentUserId = getCurrentUserId();
             int initialUserId = mInitialUser.id;
@@ -159,7 +163,7 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
             }
             if (!mUsersToRemove.isEmpty()) {
-                Log.i(TAG, "removing users at end of " + getTestName() + ": " + mUsersToRemove);
+                Log.i(TAG, "removing users at end of  " + getTestName() + ": " + mUsersToRemove);
                 for (Integer userId : mUsersToRemove) {
                     if (hasUser(userId)) {
                         removeUser(userId);
@@ -172,6 +176,9 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
             // Must catch otherwise it would be the test failure, which could hide the real issue
             Log.e(TAG, "Caught exception on " + getTestName()
                     + " disconnectCarAndCleanupUserState()", e);
+        }
+        finally {
+            resetStopUserOnSwitch();
         }
     }
 
@@ -217,13 +224,12 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
                 .that(result).isNotNull();
         assertWithMessage("user creation result (%s) success for user named %s", result, name)
                 .that(result.isSuccess()).isTrue();
-        UserHandle user = result.getUser();
+        UserInfo user = result.getUser();
         assertWithMessage("user on result %s", result).that(user).isNotNull();
-        mUsersToRemove.add(user.getIdentifier());
-        assertWithMessage("new user %s is guest", user.toString())
-                .that(mUserManager.isGuestUser(user.getIdentifier()))
+        mUsersToRemove.add(user.id);
+        assertWithMessage("new user %s is guest", user.toFullString()).that(user.isGuest())
                 .isEqualTo(isGuest);
-        return mUserManager.getUserInfo(result.getUser().getIdentifier());
+        return result.getUser();
     }
 
     protected String getTestName() {
@@ -240,7 +246,7 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
     protected void assertCanAddUser() {
         Bundle restrictions = mUserManager.getUserRestrictions();
-        Log.d(TAG, "Restrictions for user " + getContext().getUser() + ": "
+        Log.d(TAG, "Restrictions for user " + getContext().getUserId() + ": "
                 + AndroidHelper.toString(restrictions));
         assertWithMessage("%s restriction", UserManager.DISALLOW_ADD_USER)
                 .that(restrictions.getBoolean(UserManager.DISALLOW_ADD_USER, false)).isFalse();

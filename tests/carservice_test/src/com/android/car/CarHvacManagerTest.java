@@ -28,12 +28,12 @@ import android.car.hardware.CarPropertyValue;
 import android.car.hardware.hvac.CarHvacManager;
 import android.car.hardware.hvac.CarHvacManager.CarHvacEventCallback;
 import android.car.hardware.hvac.CarHvacManager.PropertyId;
-import android.hardware.automotive.vehicle.VehicleAreaSeat;
-import android.hardware.automotive.vehicle.VehicleAreaWindow;
-import android.hardware.automotive.vehicle.VehiclePropValue;
-import android.hardware.automotive.vehicle.VehicleProperty;
-import android.hardware.automotive.vehicle.VehiclePropertyAccess;
-import android.hardware.automotive.vehicle.VehiclePropertyChangeMode;
+import android.hardware.automotive.vehicle.V2_0.VehicleAreaSeat;
+import android.hardware.automotive.vehicle.V2_0.VehicleAreaWindow;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
+import android.hardware.automotive.vehicle.V2_0.VehicleProperty;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropertyAccess;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropertyChangeMode;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.MutableInt;
@@ -41,8 +41,10 @@ import android.util.MutableInt;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
-import com.android.car.hal.test.AidlMockedVehicleHal.VehicleHalPropertyHandler;
-import com.android.car.hal.test.AidlVehiclePropValueBuilder;
+import com.android.car.vehiclehal.VehiclePropValueBuilder;
+import com.android.car.vehiclehal.test.MockedVehicleHal.VehicleHalPropertyHandler;
+
+import junit.framework.AssertionFailedError;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -67,15 +69,15 @@ public class CarHvacManagerTest extends MockedCarTestBase {
     private int mEventZoneVal;
 
     @Override
-    protected void configureMockedHal() {
+    protected synchronized void configureMockedHal() {
         HvacPropertyHandler handler = new HvacPropertyHandler();
-        addAidlProperty(VehicleProperty.HVAC_DEFROSTER, handler)
+        addProperty(VehicleProperty.HVAC_DEFROSTER, handler)
                 .addAreaConfig(VehicleAreaWindow.FRONT_WINDSHIELD, 0, 0);
-        addAidlProperty(VehicleProperty.HVAC_FAN_SPEED, handler)
+        addProperty(VehicleProperty.HVAC_FAN_SPEED, handler)
                 .addAreaConfig(VehicleAreaSeat.ROW_1_LEFT, 0, 0);
-        addAidlProperty(VehicleProperty.HVAC_TEMPERATURE_SET, handler)
+        addProperty(VehicleProperty.HVAC_TEMPERATURE_SET, handler)
                 .addAreaConfig(VehicleAreaSeat.ROW_1_LEFT, 0, 0);
-        addAidlProperty(VehicleProperty.HVAC_TEMPERATURE_CURRENT, handler)
+        addProperty(VehicleProperty.HVAC_TEMPERATURE_CURRENT, handler)
                 .setChangeMode(VehiclePropertyChangeMode.CONTINUOUS)
                 .setAccess(VehiclePropertyAccess.READ)
                 .addAreaConfig(VehicleAreaSeat.ROW_1_LEFT | VehicleAreaSeat.ROW_1_RIGHT, 0, 0);
@@ -173,7 +175,7 @@ public class CarHvacManagerTest extends MockedCarTestBase {
             }
         });
         mCarHvacManager.setBooleanProperty(PROP, AREA, true);
-        getAidlMockedVehicleHal().injectError(ERR_CODE, PROP, AREA);
+        getMockedVehicleHal().injectError(ERR_CODE, PROP, AREA);
         assertTrue(errorLatch.await(DEFAULT_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
         assertEquals(PROP, propertyIdReceived.value);
         assertEquals(AREA, areaIdReceived.value);
@@ -190,39 +192,39 @@ public class CarHvacManagerTest extends MockedCarTestBase {
         assertTrue(mAvailable.tryAcquire(2L, TimeUnit.SECONDS));
 
         // Inject a boolean event and wait for its callback in onPropertySet.
-        VehiclePropValue v = AidlVehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_DEFROSTER)
+        VehiclePropValue v = VehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_DEFROSTER)
                 .setAreaId(VehicleAreaWindow.FRONT_WINDSHIELD)
                 .setTimestamp(SystemClock.elapsedRealtimeNanos())
-                .addIntValues(1)
+                .addIntValue(1)
                 .build();
         assertEquals(0, mAvailable.availablePermits());
-        getAidlMockedVehicleHal().injectEvent(v);
+        getMockedVehicleHal().injectEvent(v);
 
         assertTrue(mAvailable.tryAcquire(2L, TimeUnit.SECONDS));
         assertTrue(mEventBoolVal);
         assertEquals(mEventZoneVal, VehicleAreaWindow.FRONT_WINDSHIELD);
 
         // Inject a float event and wait for its callback in onPropertySet.
-        v = AidlVehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_TEMPERATURE_CURRENT)
+        v = VehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_TEMPERATURE_CURRENT)
                 .setAreaId(VehicleAreaSeat.ROW_1_LEFT | VehicleAreaSeat.ROW_1_RIGHT)
                 .setTimestamp(SystemClock.elapsedRealtimeNanos())
-                .addFloatValues(67f)
+                .addFloatValue(67f)
                 .build();
         assertEquals(0, mAvailable.availablePermits());
-        getAidlMockedVehicleHal().injectEvent(v);
+        getMockedVehicleHal().injectEvent(v);
 
         assertTrue(mAvailable.tryAcquire(2L, TimeUnit.SECONDS));
         assertEquals(67, mEventFloatVal, 0);
         assertEquals(VehicleAreaSeat.ROW_1_LEFT | VehicleAreaSeat.ROW_1_RIGHT, mEventZoneVal);
 
         // Inject an integer event and wait for its callback in onPropertySet.
-        v = AidlVehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_FAN_SPEED)
+        v = VehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_FAN_SPEED)
                 .setAreaId(VehicleAreaSeat.ROW_1_LEFT)
                 .setTimestamp(SystemClock.elapsedRealtimeNanos())
-                .addIntValues(4)
+                .addIntValue(4)
                 .build();
         assertEquals(0, mAvailable.availablePermits());
-        getAidlMockedVehicleHal().injectEvent(v);
+        getMockedVehicleHal().injectEvent(v);
 
         assertTrue(mAvailable.tryAcquire(2L, TimeUnit.SECONDS));
         assertEquals(4, mEventIntVal);
@@ -243,13 +245,13 @@ public class CarHvacManagerTest extends MockedCarTestBase {
         assertTrue(mAvailable.tryAcquire(2L, TimeUnit.SECONDS));
 
         // Inject a boolean event and wait for its callback in onPropertySet.
-        VehiclePropValue v = AidlVehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_DEFROSTER)
+        VehiclePropValue v = VehiclePropValueBuilder.newBuilder(VehicleProperty.HVAC_DEFROSTER)
                 .setAreaId(VehicleAreaWindow.FRONT_WINDSHIELD)
                 .setTimestamp(SystemClock.elapsedRealtimeNanos())
-                .addIntValues(1)
+                .addIntValue(1)
                 .build();
         assertEquals(0, mAvailable.availablePermits());
-        getAidlMockedVehicleHal().injectEvent(v);
+        getMockedVehicleHal().injectEvent(v);
 
         // Verify client get the callback.
         assertTrue(mAvailable.tryAcquire(2L, TimeUnit.SECONDS));
@@ -258,7 +260,7 @@ public class CarHvacManagerTest extends MockedCarTestBase {
 
         // test unregister callback
         mCarHvacManager.unregisterCallback(listener);
-        assertThrows(AssertionError.class, () -> getAidlMockedVehicleHal().injectEvent(v));
+        assertThrows(AssertionFailedError.class, () -> getMockedVehicleHal().injectEvent(v));
     }
 
     private class HvacPropertyHandler implements VehicleHalPropertyHandler {
@@ -281,11 +283,11 @@ public class CarHvacManagerTest extends MockedCarTestBase {
             Log.d(TAG, "onPropertySubscribe property " + property + " sampleRate " + sampleRate);
             if (mMap.get(property) == null) {
                 Log.d(TAG, "onPropertySubscribe add placeholder property: " + property);
-                VehiclePropValue placeholderValue = AidlVehiclePropValueBuilder.newBuilder(property)
+                VehiclePropValue placeholderValue = VehiclePropValueBuilder.newBuilder(property)
                         .setAreaId(0)
                         .setTimestamp(SystemClock.elapsedRealtimeNanos())
-                        .addIntValues(1)
-                        .addFloatValues(1)
+                        .addIntValue(1)
+                        .addFloatValue(1)
                         .build();
                 mMap.put(property, placeholderValue);
             }

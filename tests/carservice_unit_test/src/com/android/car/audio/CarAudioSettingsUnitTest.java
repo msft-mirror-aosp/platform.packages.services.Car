@@ -18,15 +18,10 @@ package com.android.car.audio;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.when;
-
 import android.car.media.CarAudioManager;
 import android.car.settings.CarSettings;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.ContentResolver;
-import android.content.Context;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -45,23 +40,15 @@ public class CarAudioSettingsUnitTest extends AbstractExtendedMockitoTestCase {
     private static final String TEST_GAIN_INDEX_KEY = "android.car.VOLUME_GROUP/0/0";
     private static final String TEST_MUTE_KEY = "android.car.VOLUME_GROUP_MUTE/0/0";
 
-    @Mock
-    private Context mMockContext;
 
     @Mock
     private ContentResolver mMockContentResolver;
 
     private CarAudioSettings mCarAudioSettings;
 
-    public CarAudioSettingsUnitTest() {
-        super(NO_LOG_TAGS);
-    }
-
     @Before
     public void setUp() {
-        when(mMockContext.getContentResolver()).thenReturn(mMockContentResolver);
-        when(mMockContext.createContextAsUser(any(), anyInt())).thenReturn(mMockContext);
-        mCarAudioSettings = new CarAudioSettings(mMockContext);
+        mCarAudioSettings = new CarAudioSettings(mMockContentResolver);
     }
 
     @Test

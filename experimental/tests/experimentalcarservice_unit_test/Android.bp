@@ -37,6 +37,7 @@ android_test {
         "androidx.test.core",
         "androidx.test.ext.junit",
         "androidx.test.rules",
+        "car-frameworks-service",
         "mockito-target-extended",
         "truth-prebuilt",
         "experimentalcar-service-test-static-lib"
@@ -49,7 +50,5 @@ android_test {
 
     instrumentation_for: "ExperimentalCarService",
 
-    test_suites: ["device-tests"],
-
-    compile_multilib: "both",
+    test_suites: ["device-tests"]
 }

@@ -15,16 +15,11 @@
  */
 package android.car.cluster.renderer;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UiThread;
-import android.car.annotation.AddedInOrBefore;
 import android.car.navigation.CarNavigationInstrumentCluster;
 import android.os.Bundle;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * Contains methods specified for Navigation App renderer in instrument cluster.
@@ -33,12 +28,10 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
  */
 @SystemApi
 @UiThread
-@ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
 public abstract class NavigationRenderer {
     /**
      * Returns properties of instrument cluster for navigation.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public abstract CarNavigationInstrumentCluster getNavigationProperties();
 
     /**
@@ -46,7 +39,6 @@ public abstract class NavigationRenderer {
      *
      * @removed Replaced by {@link #onNavigationStateChanged(Bundle)}
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void onEvent(int eventType, Bundle bundle) {
     }
 
@@ -58,7 +50,6 @@ public abstract class NavigationRenderer {
      *               {@link android.car.cluster.navigation.NavigationState.NavigationStateProto
      *                                        #parseFrom(protoBytes)}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void onNavigationStateChanged(@Nullable Bundle bundle) {
     }
 }

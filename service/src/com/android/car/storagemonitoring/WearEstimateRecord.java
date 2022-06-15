@@ -20,13 +20,11 @@ import android.annotation.NonNull;
 import android.car.storagemonitoring.WearEstimate;
 import android.car.storagemonitoring.WearEstimateChange;
 import android.util.JsonWriter;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * This class represents a wear estimate record as stored by CarStorageMonitoringService.
@@ -48,17 +46,15 @@ public class WearEstimateRecord {
         mOldWearEstimate = Objects.requireNonNull(oldWearEstimate);
         mNewWearEstimate = Objects.requireNonNull(newWearEstimate);
         mTotalCarServiceUptime = totalCarServiceUptime;
-        long unixEpochSeconds = Objects.requireNonNull(unixTimestamp).getEpochSecond();
-        mUnixTimestamp = Instant.ofEpochSecond(unixEpochSeconds);
+        mUnixTimestamp = Objects.requireNonNull(unixTimestamp);
     }
 
     WearEstimateRecord(@NonNull JSONObject json) throws JSONException {
         mOldWearEstimate = new WearEstimate(json.getJSONObject("oldWearEstimate"));
         mNewWearEstimate = new WearEstimate(json.getJSONObject("newWearEstimate"));
         mTotalCarServiceUptime = json.getLong("totalCarServiceUptime");
-        long unixEpochSeconds = Instant.ofEpochMilli(json.getLong("unixTimestamp"))
-                .getEpochSecond();
-        mUnixTimestamp = Instant.ofEpochSecond(unixEpochSeconds);
+        mUnixTimestamp = Instant.ofEpochMilli(json.getLong("unixTimestamp"));
+
     }
 
     void writeToJson(@NonNull JsonWriter jsonWriter) throws IOException {

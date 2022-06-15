@@ -15,8 +15,6 @@
  */
 package android.car;
 
-import android.car.annotation.AddedInOrBefore;
-
 /**
  * Used by lights switch properties to enumerate user selected switch setting.
  * Use getProperty and setProperty in {@link android.car.hardware.property.CarPropertyManager} to
@@ -24,13 +22,9 @@ import android.car.annotation.AddedInOrBefore;
  * @hide
  */
 public final class VehicleLightSwitch {
-    @AddedInOrBefore(majorVersion = 33)
     public static final int OFF = 0;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int ON = 1;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int DAYTIME_RUNNING = 2;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int AUTOMATIC = 0x100;
 
     private VehicleLightSwitch() {}

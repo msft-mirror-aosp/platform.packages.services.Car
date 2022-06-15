@@ -16,8 +16,6 @@
 
 package com.android.car.vms;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
 import android.car.vms.IVmsClientCallback;
 import android.car.vms.VmsAssociatedLayer;
 import android.car.vms.VmsLayer;
@@ -28,7 +26,6 @@ import android.util.ArraySet;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.internal.annotations.GuardedBy;
 
 import java.io.PrintWriter;
@@ -184,7 +181,6 @@ final class VmsClientInfo {
         }
     }
 
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     void dump(PrintWriter writer, String indent) {
         synchronized (mLock) {
             String prefix = indent;

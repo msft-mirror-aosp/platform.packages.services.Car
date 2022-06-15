@@ -25,7 +25,6 @@ import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemProperties;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -43,8 +42,6 @@ public class CarAudioInputTestFragment extends Fragment {
 
     private static final String TAG = "CAR.AUDIO.INPUT.KS";
     private static final boolean DEBUG = true;
-    private static final String PROPERTY_RO_ENABLE_AUDIO_PATCH =
-            "ro.android.car.audio.enableaudiopatch";
 
 
     private Handler mHandler;
@@ -116,9 +113,6 @@ public class CarAudioInputTestFragment extends Fragment {
                 CarAudioManager.AUDIO_FEATURE_DYNAMIC_ROUTING)) {
             return;
         }
-        if (!areAudioPatchAPIsEnabled()) {
-            return;
-        }
         List<Integer> audioZoneList = mCarAudioManager.getAudioZoneIds();
         for (int audioZoneId : audioZoneList) {
             if (mCarAudioManager.getInputDevicesForZoneId(audioZoneId).isEmpty()) {
@@ -130,10 +124,6 @@ public class CarAudioInputTestFragment extends Fragment {
             addAudioZoneInputDevices(audioZoneId);
         }
         mInputAudioZoneAdapter.notifyDataSetChanged();
-    }
-
-    private boolean areAudioPatchAPIsEnabled() {
-        return SystemProperties.getBoolean(PROPERTY_RO_ENABLE_AUDIO_PATCH, /* default= */ false);
     }
 
     private void addAudioZoneInputDevices(int audioZoneId) {

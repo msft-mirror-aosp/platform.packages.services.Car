@@ -16,15 +16,11 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
      xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
-     package="com.android.car.updatable"
-     coreApp="true">
+     package="com.android.car"
+     coreApp="true"
+     android:sharedUserId="android.uid.system">
 
-    <uses-sdk android:minSdkVersion="33"/>
-
-    <!-- NOTE: when you're adding a new permission, you should edit
-     cts/tests/tests/permission2/res/raw/automotive_android_manifest.xml accordingly and run
-     the test with 'atest android.permission2.cts.PermissionPolicyTest' to verify it.
-    -->
+    <original-package android:name="com.android.car"/>
 
     <!-- Used for runtime permissions related to monitoring vehicle information. -->
     <permission-group android:name="android.car.permission-group.CAR_MONITORING"
@@ -40,15 +36,6 @@
          android:protectionLevel="dangerous"
          android:label="@string/car_permission_label_energy"
          android:description="@string/car_permission_desc_energy"/>
-
-    <!-- Allows an application to control the vehicle EV energy information.
-         <p>Protection level: signature|privileged
-    -->
-    <permission android:name="android.car.permission.CONTROL_CAR_ENERGY"
-                android:permissionGroup="android.car.permission-group.CAR_MONITORING"
-                android:protectionLevel="signature|privileged"
-                android:label="@string/car_permission_label_control_car_energy"
-                android:description="@string/car_permission_desc_control_car_energy"/>
 
     <!-- Allows an application to adjust the vehicle's range remaining information.
          <p>Protection level: signature|privileged
@@ -191,8 +178,7 @@
          android:label="@string/car_permission_label_vehicle_dynamics_state"
          android:description="@string/car_permission_desc_vehicle_dynamics_state"/>
 
-    <!-- Allows an application to access the vehicle vendor channel to exchange vendor-specific
-         information.
+    <!-- Allows an application to access the vehicle vendor channel to exchange vendor-specific information.
          <p>Protection level: signature|privileged
     -->
     <permission android:name="android.car.permission.CAR_VENDOR_EXTENSION"
@@ -208,8 +194,8 @@
          android:label="@string/car_permission_label_projection"
          android:description="@string/car_permission_desc_projection"/>
 
-    <!-- Allows an application to get the status of other applications projecting to the vehicle
-         display technologies status changes.
+    <!-- Allows an application to get the status of other applications projecting to the vehicle display.
+         technologies status changes.
          <p>Protection level: signature|privileged
     -->
     <permission android:name="android.car.permission.ACCESS_CAR_PROJECTION_STATUS"
@@ -242,15 +228,6 @@
          android:protectionLevel="normal"
          android:label="@string/car_permission_label_car_info"
          android:description="@string/car_permission_desc_car_info"/>
-
-    <!-- Allows an application to read the vehicle privileged car information. For example, it
-         allows an application to read the vehicle's curb weight, trailer presence, etc.
-         <p>Protection level: signature|privileged
-    -->
-    <permission android:name="android.car.permission.PRIVILEGED_CAR_INFO"
-                android:protectionLevel="signature|privileged"
-                android:label="@string/car_permission_label_privileged_car_info"
-                android:description="@string/car_permission_desc_privileged_car_info"/>
 
     <!-- Allows an application to read information of car's vendor permission.
          <p>Protection level: signature|privileged
@@ -463,7 +440,7 @@
          <p>Protection level: signature
     -->
     <permission android:name="android.car.permission.RECEIVE_CAR_AUDIO_DUCKING_EVENTS"
-         android:protectionLevel="signature|privileged"
+         android:protectionLevel="system|signature"
          android:label="@string/car_permission_label_receive_ducking"
          android:description="@string/car_permission_desc_receive_ducking"/>
 
@@ -495,14 +472,6 @@
          android:protectionLevel="signature|privileged"
          android:label="@string/car_permission_car_cluster_control"
          android:description="@string/car_permission_desc_car_cluster_control"/>
-
-    <!-- Allows an application to listen for navigation state changes in instrument cluster.
-     <p>Protection level: signature|privileged
-    -->
-    <permission android:name="android.car.permission.CAR_MONITOR_CLUSTER_NAVIGATION_STATE"
-        android:protectionLevel="signature|privileged"
-        android:label="@string/car_permission_car_monitor_cluster_navigation_state"
-        android:description="@string/car_permission_desc_car_monitor_cluster_navigation_state"/>
 
     <!-- Allows an application to communicate with a device in AOAP mode.
          <p>Protection level: signature|privileged
@@ -914,14 +883,6 @@
                 android:label="@string/car_permission_label_control_car_power_policy"
                 android:description="@string/car_permission_desc_control_car_power_policy"/>
 
-    <!-- Allows an application to adjust the showdown process.
-         <p>Protection level: signature|privileged
-    -->
-    <permission android:name="android.car.permission.CONTROL_SHUTDOWN_PROCESS"
-                android:protectionLevel="signature|privileged"
-                android:label="@string/car_permission_label_adjust_shutdown_process"
-                android:description="@string/car_permission_desc_adjust_shutdown_process"/>
-
     <!-- Allows an application to render template-based UI metadata on behalf of another
          application.
          <p>Protection level: signature|privileged
@@ -931,25 +892,86 @@
                 android:label="@string/car_permission_label_template_renderer"
                 android:description="@string/car_permission_desc_template_renderer"/>
 
-    <!-- Allows an application to control launching applications in Car.
-         <p>Protection level: signature|privileged
-    -->
-    <permission android:name="android.car.permission.CONTROL_CAR_APP_LAUNCH"
-        android:protectionLevel="signature|privileged"
-        android:label="@string/car_permission_label_control_car_app_launch"
-        android:description="@string/car_permission_desc_control_car_app_launch"/>
-
-    <!-- NOTE: when you're adding a new permission, you should edit
-         cts/tests/tests/permission2/res/raw/automotive_android_manifest.xml accordingly and run
-         the test with 'atest android.permission2.cts.PermissionPolicyTest' to verify it.
-    -->
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
+    <uses-permission android:name="android.permission.DEVICE_POWER"/>
+    <uses-permission android:name="android.permission.GRANT_RUNTIME_PERMISSIONS"/>
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL"/>
+    <uses-permission android:name="android.permission.MANAGE_ACTIVITY_STACKS"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_ROUTING"/>
+    <uses-permission android:name="android.permission.MODIFY_DAY_NIGHT_MODE"/>
+    <uses-permission android:name="android.permission.MODIFY_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.READ_CALL_LOG"/>
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.REAL_GET_TASKS"/>
+    <uses-permission android:name="android.permission.REBOOT"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.REMOVE_TASKS"/>
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"/>
+    <uses-permission android:name="android.permission.MANAGE_APP_OPS_MODES"/>
+    <uses-permission android:name="android.permission.MANAGE_USERS"/>
+    <uses-permission android:name="android.permission.LOCATION_HARDWARE"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.PROVIDE_TRUST_AGENT"/>
+    <uses-permission android:name="android.permission.READ_LOGS"/>
+    <!--  Used by NotificationHelper to change the notifications app name -->
+    <uses-permission android:name="android.permission.SUBSTITUTE_NOTIFICATION_APP_NAME"/>
 
     <application android:label="@string/app_title"
          android:directBootAware="true"
-         android:allowBackup="false">
+         android:allowBackup="false"
+         android:persistent="true">
 
-        <!-- Do not add any new components here. Everything should be proxied through builtin
-             carservice -->
+        <service android:name=".CarService"
+             android:singleUser="true"
+             android:exported="true">
+            <intent-filter>
+                <action android:name="android.car.ICar"/>
+            </intent-filter>
+        </service>
+        <service android:name=".PerUserCarService"
+            android:exported="false"/>
+        <service android:name=".telemetry.ScriptExecutor"
+            android:exported="false"
+            android:isolatedProcess="true"/>
 
+        <activity android:name="com.android.car.pm.ActivityBlockingActivity"
+             android:documentLaunchMode="always"
+             android:excludeFromRecents="true"
+             android:exported="false"
+             android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </activity>
+        <activity android:name="com.android.car.am.ContinuousBlankActivity"
+             android:excludeFromRecents="true"
+             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+             android:exported="false"
+             android:launchMode="singleTask">
+        </activity>
+        <activity android:name="com.android.car.admin.FactoryResetActivity"
+             android:excludeFromRecents="true"
+             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+             android:exported="false"
+             android:launchMode="singleTask">
+        </activity>
+        <activity android:name="com.android.car.admin.NewUserDisclaimerActivity"
+             android:excludeFromRecents="true"
+             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+             android:exported="false"
+             android:launchMode="singleTask">
+        </activity>
+        <activity android:name=".DistractionOptimizedActivityForTesting">
+            <meta-data android:name="distractionOptimized" android:value="true"/>
+        </activity>
+        <activity android:name=".NonDistractionOptimizedActivityForTesting">
+            <meta-data android:name="distractionOptimized" android:value="false"/>
+        </activity>
     </application>
 </manifest>

@@ -24,11 +24,11 @@ import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarLibLog;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.media.AudioManager.AudioDeviceRole;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -36,8 +36,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.util.Log;
-
-import com.android.car.internal.annotation.AttributeUsage;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -73,7 +71,6 @@ public final class CarAudioManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int PRIMARY_AUDIO_ZONE = 0x0;
 
     /**
@@ -81,14 +78,12 @@ public final class CarAudioManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int INVALID_AUDIO_ZONE = 0xffffffff;
 
     /**
      * This is used to determine if dynamic routing is enabled via
      * {@link #isAudioFeatureEnabled()}
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int AUDIO_FEATURE_DYNAMIC_ROUTING = 0x1;
 
     /**
@@ -100,7 +95,6 @@ public final class CarAudioManager extends CarManagerBase {
      * also car volume group muting changed callback will be called upon group mute changes. If
      * disabled, car volume will toggle master mute instead.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int AUDIO_FEATURE_VOLUME_GROUP_MUTING = 0x2;
 
     /** @hide */
@@ -115,7 +109,6 @@ public final class CarAudioManager extends CarManagerBase {
      * Volume Group ID when volume group not found.
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int INVALID_VOLUME_GROUP_ID = -1;
 
     /**
@@ -128,7 +121,6 @@ public final class CarAudioManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final String AUDIOFOCUS_EXTRA_RECEIVE_DUCKING_EVENTS =
             "android.car.media.AUDIOFOCUS_EXTRA_RECEIVE_DUCKING_EVENTS";
 
@@ -141,7 +133,6 @@ public final class CarAudioManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String AUDIOFOCUS_EXTRA_REQUEST_ZONE_ID =
             "android.car.media.AUDIOFOCUS_EXTRA_REQUEST_ZONE_ID";
 
@@ -178,7 +169,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @TestApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isDynamicRoutingEnabled() {
         return isAudioFeatureEnabled(AUDIO_FEATURE_DYNAMIC_ROUTING);
     }
@@ -190,7 +180,6 @@ public final class CarAudioManager extends CarManagerBase {
      * {@link #AUDIO_FEATURE_VOLUME_GROUP_MUTING}
      * @return Returns {@code true} if the feature is enabled, {@code false} otherwise.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isAudioFeatureEnabled(@CarAudioFeature int audioFeature) {
         try {
             return mService.isAudioFeatureEnabled(audioFeature);
@@ -207,7 +196,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public void setGroupVolume(int groupId, int index, int flags) {
         setGroupVolume(PRIMARY_AUDIO_ZONE, groupId, index, flags);
     }
@@ -225,7 +213,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public void setGroupVolume(int zoneId, int groupId, int index, int flags) {
         try {
             mService.setGroupVolume(zoneId, groupId, index, flags);
@@ -242,7 +229,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getGroupMaxVolume(int groupId) {
         return getGroupMaxVolume(PRIMARY_AUDIO_ZONE, groupId);
     }
@@ -257,7 +243,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getGroupMaxVolume(int zoneId, int groupId) {
         try {
             return mService.getGroupMaxVolume(zoneId, groupId);
@@ -274,7 +259,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getGroupMinVolume(int groupId) {
         return getGroupMinVolume(PRIMARY_AUDIO_ZONE, groupId);
     }
@@ -289,7 +273,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getGroupMinVolume(int zoneId, int groupId) {
         try {
             return mService.getGroupMinVolume(zoneId, groupId);
@@ -306,7 +289,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getGroupVolume(int groupId) {
         return getGroupVolume(PRIMARY_AUDIO_ZONE, groupId);
     }
@@ -324,7 +306,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getGroupVolume(int zoneId, int groupId) {
         try {
             return mService.getGroupVolume(zoneId, groupId);
@@ -344,7 +325,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public void setFadeTowardFront(float value) {
         try {
             mService.setFadeTowardFront(value);
@@ -364,7 +344,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public void setBalanceTowardRight(float value) {
         try {
             mService.setBalanceTowardRight(value);
@@ -383,15 +362,10 @@ public final class CarAudioManager extends CarManagerBase {
      *
      * @see #createAudioPatch(String, int, int)
      * @see #releaseAudioPatch(CarAudioPatchHandle)
-     *
-     * @deprecated use {@link AudioManager#getDevices(int)} with
-     * {@link AudioManager#GET_DEVICES_INPUTS} instead
      * @hide
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull String[] getExternalSources() {
         try {
             return mService.getExternalSources();
@@ -418,16 +392,12 @@ public final class CarAudioManager extends CarManagerBase {
      *
      * @see #getExternalSources()
      * @see #releaseAudioPatch(CarAudioPatchHandle)
-     *
-     * @deprecated use {@link android.media.HwAudioSource} instead
      * @hide
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
-    public CarAudioPatchHandle createAudioPatch(String sourceAddress, @AttributeUsage int usage,
-            int gainInMillibels) {
+    public CarAudioPatchHandle createAudioPatch(String sourceAddress,
+            @AudioAttributes.AttributeUsage int usage, int gainInMillibels) {
         try {
             return mService.createAudioPatch(sourceAddress, usage, gainInMillibels);
         } catch (RemoteException e) {
@@ -443,14 +413,10 @@ public final class CarAudioManager extends CarManagerBase {
      *
      * @see #getExternalSources()
      * @see #createAudioPatch(String, int, int)
-     *
-     * @deprecated use {@link android.media.HwAudioSource} instead
      * @hide
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public void releaseAudioPatch(CarAudioPatchHandle patch) {
         try {
             mService.releaseAudioPatch(patch);
@@ -467,7 +433,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getVolumeGroupCount() {
         return getVolumeGroupCount(PRIMARY_AUDIO_ZONE);
     }
@@ -481,7 +446,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public int getVolumeGroupCount(int zoneId) {
         try {
             return mService.getVolumeGroupCount(zoneId);
@@ -498,8 +462,7 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
-    public int getVolumeGroupIdForUsage(@AttributeUsage int usage) {
+    public int getVolumeGroupIdForUsage(@AudioAttributes.AttributeUsage int usage) {
         return getVolumeGroupIdForUsage(PRIMARY_AUDIO_ZONE, usage);
     }
 
@@ -513,8 +476,7 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
-    public int getVolumeGroupIdForUsage(int zoneId, @AttributeUsage int usage) {
+    public int getVolumeGroupIdForUsage(int zoneId, @AudioAttributes.AttributeUsage int usage) {
         try {
             return mService.getVolumeGroupIdForUsage(zoneId, usage);
         } catch (RemoteException e) {
@@ -530,7 +492,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull int[] getUsagesForVolumeGroupId(int groupId) {
         return getUsagesForVolumeGroupId(PRIMARY_AUDIO_ZONE, groupId);
     }
@@ -545,7 +506,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull int[] getUsagesForVolumeGroupId(int zoneId, int groupId) {
         try {
             return mService.getUsagesForVolumeGroupId(zoneId, groupId);
@@ -565,7 +525,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isPlaybackOnVolumeGroupActive(int zoneId, int groupId) {
         try {
             return mService.isPlaybackOnVolumeGroupActive(zoneId, groupId);
@@ -582,7 +541,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull List<Integer> getAudioZoneIds() {
         try {
             int[] zoneIdArray = mService.getAudioZoneIds();
@@ -605,7 +563,6 @@ public final class CarAudioManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @AddedInOrBefore(majorVersion = 33)
     public int getZoneIdForUid(int uid) {
         try {
             return mService.getZoneIdForUid(uid);
@@ -623,7 +580,6 @@ public final class CarAudioManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @AddedInOrBefore(majorVersion = 33)
     public boolean setZoneIdForUid(int zoneId, int uid) {
         try {
             return mService.setZoneIdForUid(zoneId, uid);
@@ -640,7 +596,6 @@ public final class CarAudioManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @AddedInOrBefore(majorVersion = 33)
     public boolean clearZoneIdForUid(int uid) {
         try {
             return mService.clearZoneIdForUid(uid);
@@ -668,8 +623,8 @@ public final class CarAudioManager extends CarManagerBase {
     @SystemApi
     @Nullable
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @AddedInOrBefore(majorVersion = 33)
-    public AudioDeviceInfo getOutputDeviceForUsage(int zoneId, @AttributeUsage int usage) {
+    public AudioDeviceInfo getOutputDeviceForUsage(int zoneId,
+            @AudioAttributes.AttributeUsage int usage) {
         try {
             String deviceAddress = mService.getOutputDeviceAddressForUsage(zoneId, usage);
             if (deviceAddress == null) {
@@ -696,7 +651,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS)
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull List<AudioDeviceInfo> getInputDevicesForZoneId(int zoneId) {
         try {
             return convertInputDevicesToDeviceInfos(
@@ -709,7 +663,6 @@ public final class CarAudioManager extends CarManagerBase {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         if (mService != null && !mCarVolumeCallbacks.isEmpty()) {
             unregisterVolumeCallback();
@@ -731,7 +684,6 @@ public final class CarAudioManager extends CarManagerBase {
      * <p>
      * Requires permission Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void registerCarVolumeCallback(@NonNull CarVolumeCallback callback) {
         Objects.requireNonNull(callback);
 
@@ -748,7 +700,6 @@ public final class CarAudioManager extends CarManagerBase {
      * <p>
      * Requires permission Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterCarVolumeCallback(@NonNull CarVolumeCallback callback) {
         Objects.requireNonNull(callback);
         if (mCarVolumeCallbacks.remove(callback) && mCarVolumeCallbacks.isEmpty()) {
@@ -787,7 +738,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isVolumeGroupMuted(int zoneId, int groupId) {
         try {
             return mService.isVolumeGroupMuted(zoneId, groupId);
@@ -812,7 +762,6 @@ public final class CarAudioManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME)
-    @AddedInOrBefore(majorVersion = 33)
     public void setVolumeGroupMute(int zoneId, int groupId, boolean mute, int flags) {
         try {
             mService.setVolumeGroupMute(zoneId, groupId, mute, flags);
@@ -822,7 +771,7 @@ public final class CarAudioManager extends CarManagerBase {
     }
 
     private List<AudioDeviceInfo> convertInputDevicesToDeviceInfos(
-            List<AudioDeviceAttributes> devices, int flag) {
+            List<AudioDeviceAttributes> devices, @AudioDeviceRole int flag) {
         int addressesSize = devices.size();
         Set<String> deviceAddressMap = new HashSet<>(addressesSize);
         for (int i = 0; i < addressesSize; ++i) {
@@ -930,7 +879,6 @@ public final class CarAudioManager extends CarManagerBase {
          * @param groupId Id of the volume group that volume is changed
          * @param flags see {@link android.media.AudioManager} for flag definitions
          */
-        @AddedInOrBefore(majorVersion = 33)
         public void onGroupVolumeChanged(int zoneId, int groupId, int flags) {}
 
         /**
@@ -945,7 +893,6 @@ public final class CarAudioManager extends CarManagerBase {
          * @param zoneId Id of the audio zone that global mute state change happens
          * @param flags see {@link android.media.AudioManager} for flag definitions
          */
-        @AddedInOrBefore(majorVersion = 33)
         public void onMasterMuteChanged(int zoneId, int flags) {}
 
         /**
@@ -961,7 +908,6 @@ public final class CarAudioManager extends CarManagerBase {
          * @param groupId Id of the volume group that volume is changed
          * @param flags see {@link android.media.AudioManager} for flag definitions
          */
-        @AddedInOrBefore(majorVersion = 33)
         public void onGroupMuteChanged(int zoneId, int groupId, int flags) {}
     }
 }

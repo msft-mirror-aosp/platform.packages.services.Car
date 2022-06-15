@@ -18,16 +18,18 @@ package com.android.car.hal;
 
 import static android.car.evs.CarEvsManager.SERVICE_TYPE_REARVIEW;
 import static android.car.evs.CarEvsManager.SERVICE_TYPE_SURROUNDVIEW;
-import static android.hardware.automotive.vehicle.VehicleProperty.EVS_SERVICE_REQUEST;
+import static android.hardware.automotive.vehicle.V2_0.VehicleProperty.EVS_SERVICE_REQUEST;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
-import android.car.builtin.util.Slogf;
 import android.car.evs.CarEvsManager.CarEvsServiceType;
-import android.hardware.automotive.vehicle.EvsServiceRequestIndex;
-import android.hardware.automotive.vehicle.EvsServiceState;
-import android.hardware.automotive.vehicle.EvsServiceType;
+import android.hardware.automotive.vehicle.V2_0.EvsServiceRequestIndex;
+import android.hardware.automotive.vehicle.V2_0.EvsServiceState;
+import android.hardware.automotive.vehicle.V2_0.EvsServiceType;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropConfig;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
 import android.util.Log;
+import android.util.Slog;
 import android.util.SparseArray;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -44,7 +46,7 @@ import java.util.List;
 public class EvsHalService extends HalServiceBase {
 
     private static final String TAG = EvsHalService.class.getSimpleName();
-    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     private static final int[] SUPPORTED_PROPERTIES = new int[] {
         EVS_SERVICE_REQUEST,
@@ -53,7 +55,7 @@ public class EvsHalService extends HalServiceBase {
     private final Object mLock = new Object();
 
     @GuardedBy("mLock")
-    private final SparseArray<HalPropConfig> mProperties = new SparseArray();
+    private final SparseArray<VehiclePropConfig> mProperties = new SparseArray();
 
     private final VehicleHal mHal;
 
@@ -106,9 +108,9 @@ public class EvsHalService extends HalServiceBase {
     public void init() {
         synchronized (mLock) {
             for (int i = 0; i < mProperties.size(); i++) {
-                HalPropConfig config = mProperties.valueAt(i);
+                VehiclePropConfig config = mProperties.valueAt(i);
                 if (VehicleHal.isPropertySubscribable(config)) {
-                    mHal.subscribeProperty(this, config.getPropId());
+                    mHal.subscribeProperty(this, config.prop);
                 }
             }
         }
@@ -128,64 +130,59 @@ public class EvsHalService extends HalServiceBase {
     }
 
     @Override
-    public void takeProperties(Collection<HalPropConfig> configs) {
+    public void takeProperties(Collection<VehiclePropConfig> configs) {
         if (configs.isEmpty()) {
             return;
         }
 
         synchronized (mLock) {
-            for (HalPropConfig config : configs) {
-                mProperties.put(config.getPropId(), config);
+            for (VehiclePropConfig config : configs) {
+                mProperties.put(config.prop, config);
             }
-
-            mIsEvsServiceRequestSupported = mProperties.contains(EVS_SERVICE_REQUEST);
         }
+
+        mIsEvsServiceRequestSupported = mProperties.contains(EVS_SERVICE_REQUEST);
     }
 
     @Override
-    public void onHalEvents(List<HalPropValue> values) {
+    public void onHalEvents(List<VehiclePropValue> values) {
         EvsHalEventListener listener;
         synchronized (mLock) {
             listener = mListener;
         }
 
         if (listener == null) {
-            Slogf.w(TAG, "EVS Hal event occurs while the listener is null.");
+            Slog.w(TAG, "EVS Hal event occurs while the listener is null.");
             return;
         }
 
         dispatchHalEvents(values, listener);
     }
 
-    private void dispatchHalEvents(List<HalPropValue> values, EvsHalEventListener listener) {
+    private void dispatchHalEvents(List<VehiclePropValue> values, EvsHalEventListener listener) {
         for (int i = 0; i < values.size(); ++i) {
-            HalPropValue v = values.get(i);
+            VehiclePropValue v = values.get(i);
             boolean on = false;
-            @CarEvsServiceType int type;
-            switch (v.getPropId()) {
+            switch (v.prop) {
                 case EVS_SERVICE_REQUEST:
-                    // Check
-                    // android.hardware.automotive.vehicle.VehicleProperty.EVS_SERVICE_REQUEST
-                    try {
-                        int rawServiceType = v.getInt32Value(EvsServiceRequestIndex.TYPE);
-                        type = rawServiceType == EvsServiceType.REARVIEW
-                                ? SERVICE_TYPE_REARVIEW : SERVICE_TYPE_SURROUNDVIEW;
-                        on = v.getInt32Value(EvsServiceRequestIndex.STATE) == EvsServiceState.ON;
-                        if (DBG) {
-                            Slogf.d(TAG,
-                                    "Received EVS_SERVICE_REQUEST: type = " + type + " on = " + on);
-                        }
-                    } catch (IndexOutOfBoundsException e) {
-                        Slogf.e(TAG, "Received invalid EVS_SERVICE_REQUEST, missing type or state,"
-                                + " int32Values: " + v.dumpInt32Values());
-                        break;
+                    // Sees
+                    // android.hardware.automotive.vehicle.V2_0.VehicleProperty.EVS_SERVICE_REQUEST
+                    int rawServiceType =
+                            v.value.int32Values.get(EvsServiceRequestIndex.TYPE);
+                    @CarEvsServiceType int type = rawServiceType == EvsServiceType.REARVIEW ?
+                            SERVICE_TYPE_REARVIEW : SERVICE_TYPE_SURROUNDVIEW;
+                    on = v.value.int32Values.get(
+                            EvsServiceRequestIndex.STATE) == EvsServiceState.ON;
+                    if (DBG) {
+                        Slog.d(TAG, "Received EVS_SERVICE_REQUEST: type = " + type + " on = " + on);
                     }
+
                     listener.onEvent(type, on);
                     break;
 
                 default:
                     if (DBG) {
-                        Slogf.d(TAG, "Received unknown property change: " + v);
+                        Slog.d(TAG, "Received unknown property change: " + v);
                     }
                     break;
             }

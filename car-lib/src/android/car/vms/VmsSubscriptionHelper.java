@@ -17,7 +17,6 @@
 package android.car.vms;
 
 import android.annotation.NonNull;
-import android.car.annotation.AddedInOrBefore;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.SparseBooleanArray;
@@ -63,7 +62,6 @@ public final class VmsSubscriptionHelper {
     /**
      * Adds a subscription to a layer.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void subscribe(@NonNull VmsLayer layer) {
         Objects.requireNonNull(layer, "layer cannot be null");
         synchronized (mLock) {
@@ -77,7 +75,6 @@ public final class VmsSubscriptionHelper {
     /**
      * Adds a subscription to a specific provider of a layer.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void subscribe(@NonNull VmsLayer layer, int providerId) {
         Objects.requireNonNull(layer, "layer cannot be null");
         synchronized (mLock) {
@@ -94,7 +91,6 @@ public final class VmsSubscriptionHelper {
     /**
      * Removes a subscription to a layer.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unsubscribe(@NonNull VmsLayer layer) {
         Objects.requireNonNull(layer, "layer cannot be null");
         synchronized (mLock) {
@@ -108,7 +104,6 @@ public final class VmsSubscriptionHelper {
     /**
      * Removes a subscription to the specific provider of a layer.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unsubscribe(@NonNull VmsLayer layer, int providerId) {
         Objects.requireNonNull(layer, "layer cannot be null");
         synchronized (mLock) {
@@ -128,7 +123,6 @@ public final class VmsSubscriptionHelper {
      * Gets the current set of subscriptions.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public Set<VmsAssociatedLayer> getSubscriptions() {
         return Stream.concat(
                 mLayerSubscriptions.stream().map(

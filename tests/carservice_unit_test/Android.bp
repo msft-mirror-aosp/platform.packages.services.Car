@@ -40,7 +40,7 @@ android_test {
 
     libs: [
         "android.car",
-        "android.car.builtin",
+        "android.car.userlib",
         "android.car.watchdoglib",
         "android.test.runner",
         "android.test.base",
@@ -54,17 +54,14 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.rules",
         "car-service-test-static-lib",
-        "car-service-builtin-test-static-lib",
-        "car-helper-lib",
+        "com.android.car.internal.common",
+        "com.android.car.internal.system",
         "com.android.car.test.lib",
         "compatibility-device-util-axt",
         "frameworks-base-testutils",
         "mockito-target-extended",
-        "SettingsLib",
         "testng",
         "truth-prebuilt",
-        "WindowManager-Shell",  // for CarActivityServiceTaskMonitorUnitTest
-        "vehicle-hal-support-lib",
     ],
 
     test_suites: ["general-tests"],
@@ -72,6 +69,8 @@ android_test {
     // mockito-target-inline dependency
     jni_libs: [
         "libdexmakerjvmtiagent",
+	"libscriptexecutorjni",
+        "libscriptexecutorjniutils-test",
         "libstaticjvmtiagent",
     ],
 }

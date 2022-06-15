@@ -32,13 +32,13 @@ namespace android {
 namespace automotive {
 namespace watchdog {
 
-class MockWatchdogServiceHelper : public WatchdogServiceHelperInterface {
+class MockWatchdogServiceHelper : public IWatchdogServiceHelper {
 public:
     MockWatchdogServiceHelper() {}
     ~MockWatchdogServiceHelper() {}
 
-    MOCK_METHOD(android::base::Result<void>, init,
-                (const android::sp<WatchdogProcessServiceInterface>&), (override));
+    MOCK_METHOD(android::base::Result<void>, init, (const android::sp<WatchdogProcessService>&),
+                (override));
     MOCK_METHOD(android::binder::Status, registerService,
                 (const sp<android::automotive::watchdog::internal::ICarWatchdogServiceForSystem>&),
                 (override));
@@ -61,9 +61,6 @@ public:
             (override));
     MOCK_METHOD(android::binder::Status, resetResourceOveruseStats,
                 (const std::vector<std::string>&), (override));
-    MOCK_METHOD(android::binder::Status, getTodayIoUsageStats,
-                (std::vector<android::automotive::watchdog::internal::UserPackageIoUsageStats>*),
-                (override));
     MOCK_METHOD(void, terminate, (), (override));
 };
 

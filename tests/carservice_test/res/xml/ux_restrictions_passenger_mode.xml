@@ -5,26 +5,26 @@ This xml contains UX restrictions configuration for testing.
 -->
 <UxRestrictions xmlns:car="http://schemas.android.com/apk/res-auto">
     <RestrictionMapping>
-        <DrivingState state="parked">
-            <Restrictions mode="passenger"
-                requiresDistractionOptimization="false" uxr="baseline"/>
+        <DrivingState car:state="parked">
+            <Restrictions car:mode="passenger"
+                car:requiresDistractionOptimization="false" car:uxr="baseline"/>
             <Restrictions
-              requiresDistractionOptimization="true" uxr="no_video"/>
+              car:requiresDistractionOptimization="true" car:uxr="no_video"/>
         </DrivingState>
-        <DrivingState state="idling">
-            <Restrictions mode="passenger"
-                requiresDistractionOptimization="false" uxr="baseline"/>
+        <DrivingState car:state="idling">
+            <Restrictions car:mode="passenger"
+                car:requiresDistractionOptimization="false" car:uxr="baseline"/>
             <Restrictions
-                requiresDistractionOptimization="true" uxr="no_video"/>
+                car:requiresDistractionOptimization="true" car:uxr="no_video"/>
         </DrivingState>
         <!-- Verify parsing multiple DrivingState tags also works.-->
-        <DrivingState state="moving">
-            <Restrictions mode="passenger"
-                requiresDistractionOptimization="false" uxr="baseline"/>
+        <DrivingState car:state="moving">
+            <Restrictions car:mode="passenger"
+                car:requiresDistractionOptimization="false" car:uxr="baseline"/>
         </DrivingState>
-        <DrivingState state="moving">
+        <DrivingState car:state="moving">
             <Restrictions
-                requiresDistractionOptimization="true" uxr="no_video"/>
+                car:requiresDistractionOptimization="true" car:uxr="no_video"/>
         </DrivingState>
     </RestrictionMapping>
 </UxRestrictions>

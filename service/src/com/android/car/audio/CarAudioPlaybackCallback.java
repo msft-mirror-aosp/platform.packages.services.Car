@@ -82,7 +82,6 @@ final class CarAudioPlaybackCallback extends AudioManager.AudioPlaybackCallback 
         }
     }
 
-    @GuardedBy("mLock")
     private void startTimersForContextThatBecameInactiveLocked(
             List<AudioPlaybackConfiguration> inactiveConfigs) {
         List<Integer> activeContexts = mCarPrimaryAudioZone
@@ -93,7 +92,6 @@ final class CarAudioPlaybackCallback extends AudioManager.AudioPlaybackCallback 
         }
     }
 
-    @GuardedBy("mLock")
     private List<AudioPlaybackConfiguration> getNewlyInactiveConfigurationsLocked(
             Map<String, AudioPlaybackConfiguration> newActiveConfigurations) {
         List<AudioPlaybackConfiguration> newlyInactiveConfigurations = new ArrayList<>();
@@ -123,13 +121,11 @@ final class CarAudioPlaybackCallback extends AudioManager.AudioPlaybackCallback 
         return newActiveConfigs;
     }
 
-    @GuardedBy("mLock")
     private List<Integer> getCurrentlyActiveContextsLocked() {
         return mCarPrimaryAudioZone.findActiveContextsFromPlaybackConfigurations(
                 new ArrayList<>(mLastActiveConfigs.values()));
     }
 
-    @GuardedBy("mLock")
     private List<Integer> getStillActiveContextAndRemoveExpiredContextsLocked() {
         List<Integer> contextsToRemove = new ArrayList<>();
         List<Integer> stillActiveContexts = new ArrayList<>();

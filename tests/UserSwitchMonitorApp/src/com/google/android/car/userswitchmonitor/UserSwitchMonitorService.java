@@ -22,6 +22,7 @@ import android.app.Service;
 import android.car.Car;
 import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleEvent;
+import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
@@ -40,10 +41,6 @@ public final class UserSwitchMonitorService extends Service {
 
     static final String TAG = "UserSwitchMonitor";
 
-    private static final String CMD_HELP = "help";
-    private static final String CMD_REGISTER = "register";
-    private static final String CMD_UNREGISTER = "unregister";
-
     private final Object mLock = new Object();
 
     private final int mUserId = android.os.Process.myUserHandle().getIdentifier();
@@ -57,22 +54,19 @@ public final class UserSwitchMonitorService extends Service {
         }
     };
 
+    private Context mContext;
     private Car mCar;
     private CarUserManager mCarUserManager;
     private NotificationManager mNotificationManager;
 
     @Override
     public void onCreate() {
-        mCar = Car.createCar(this);
+        mContext = getApplicationContext();
+        mCar = Car.createCar(mContext);
         mCarUserManager = (CarUserManager) mCar.getCarManager(Car.CAR_USER_SERVICE);
-        registerListener();
-
-        mNotificationManager = getSystemService(NotificationManager.class);
-    }
-
-    private void registerListener() {
-        Log.d(TAG, "registerListener(): " + mListener);
         mCarUserManager.addListener((r)-> r.run(), mListener);
+
+        mNotificationManager = mContext.getSystemService(NotificationManager.class);
     }
 
     @Override
@@ -85,13 +79,11 @@ public final class UserSwitchMonitorService extends Service {
                 NotificationManager.IMPORTANCE_MIN);
         mNotificationManager.createNotificationChannel(channel);
 
-        // Cannot use R.drawable because package name is different on app2
-        int iconResId = getApplicationInfo().icon;
         startForeground(startId,
-                new Notification.Builder(this, channelId)
+                new Notification.Builder(mContext, channelId)
                         .setContentText(name)
                         .setContentTitle(name)
-                        .setSmallIcon(iconResId)
+                        .setSmallIcon(R.drawable.ic_launcher)
                         .build());
 
         return super.onStartCommand(intent, flags, startId);
@@ -101,30 +93,19 @@ public final class UserSwitchMonitorService extends Service {
     public void onDestroy() {
         Log.d(TAG, "onDestroy(" + mUserId + ")");
 
-        unregisterListener();
+        if (mCarUserManager != null) {
+            mCarUserManager.removeListener(mListener);
+        } else {
+            Log.w(TAG, "Cannot remove listener because manager is null");
+        }
         if (mCar != null && mCar.isConnected()) {
             mCar.disconnect();
         }
         super.onDestroy();
     }
 
-    private void unregisterListener() {
-        Log.d(TAG, "unregisterListener(): " + mListener);
-        if (mCarUserManager != null) {
-            mCarUserManager.removeListener(mListener);
-        } else {
-            Log.w(TAG, "Cannot remove listener because manager is null");
-        }
-    }
-
     @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        if (args != null && args.length > 0) {
-            executeCommand(pw, args);
-            return;
-        }
-        super.dump(fd, pw, args);
-
         pw.printf("User id: %d\n", mUserId);
         synchronized (mLock) {
             if (mEvents.isEmpty()) {
@@ -146,47 +127,4 @@ public final class UserSwitchMonitorService extends Service {
         return null;
     }
 
-    private void executeCommand(PrintWriter pw, String[] args) {
-        String cmd = args[0];
-        switch (cmd) {
-            case CMD_HELP:
-                cmdHelp(pw);
-                break;
-            case CMD_REGISTER:
-                cmdRegister(pw);
-                break;
-            case CMD_UNREGISTER:
-                cmdUnregister(pw);
-                break;
-            default:
-                pw.printf("invalid command: %s\n\n",  cmd);
-                cmdHelp(pw);
-        }
-    }
-
-    private void cmdHelp(PrintWriter pw) {
-        pw.printf("Options:\n");
-        pw.printf("  help: show this help\n");
-        pw.printf("  register: register the service to receive events\n");
-        pw.printf("  unregister: unregister the service from receiving events\n");
-    }
-
-    private void cmdRegister(PrintWriter pw) {
-        pw.printf("registering listener %s\n", mListener);
-        runCmd(pw, () -> registerListener());
-    }
-
-    private void cmdUnregister(PrintWriter pw) {
-        pw.printf("unregistering listener %s\n", mListener);
-        runCmd(pw, () -> unregisterListener());
-    }
-
-    private void runCmd(PrintWriter pw, Runnable r) {
-        try {
-            r.run();
-        } catch (Exception e) {
-            Log.e(TAG, "error running command", e);
-            pw.printf("failed: %s\n", e);
-        }
-    }
 }

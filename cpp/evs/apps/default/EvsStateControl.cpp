@@ -20,10 +20,6 @@
 #include "RenderPixelCopy.h"
 #include "RenderTopView.h"
 
-#include <aidl/android/hardware/automotive/vehicle/VehicleGear.h>
-#include <aidl/android/hardware/automotive/vehicle/VehicleProperty.h>
-#include <aidl/android/hardware/automotive/vehicle/VehiclePropertyType.h>
-#include <aidl/android/hardware/automotive/vehicle/VehicleTurnSignal.h>
 #include <android-base/logging.h>
 #include <android/binder_manager.h>
 #include <utils/SystemClock.h>
@@ -32,17 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 
-using ::aidl::android::hardware::automotive::vehicle::StatusCode;
-using ::aidl::android::hardware::automotive::vehicle::VehicleGear;
-using ::aidl::android::hardware::automotive::vehicle::VehicleProperty;
-using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyType;
-using ::aidl::android::hardware::automotive::vehicle::VehiclePropValue;
-using ::aidl::android::hardware::automotive::vehicle::VehicleTurnSignal;
-using ::android::base::Result;
-using ::android::frameworks::automotive::vhal::IHalPropValue;
-using ::android::frameworks::automotive::vhal::IVhalClient;
 using ::android::hardware::automotive::evs::V1_0::EvsResult;
-using ::android::hardware::automotive::vehicle::VhalResult;
 using EvsDisplayState = ::android::hardware::automotive::evs::V1_0::DisplayState;
 using BufferDesc_1_0  = ::android::hardware::automotive::evs::V1_0::BufferDesc;
 using BufferDesc_1_1  = ::android::hardware::automotive::evs::V1_1::BufferDesc;
@@ -58,8 +44,7 @@ inline constexpr VehiclePropertyType getPropType(VehicleProperty prop) {
             & static_cast<int32_t>(VehiclePropertyType::MASK));
 }
 
-EvsStateControl::EvsStateControl(std::shared_ptr<IVhalClient> pVnet,
-                                 android::sp<IEvsEnumerator> pEvs,
+EvsStateControl::EvsStateControl(android::sp<IVehicle> pVnet, android::sp<IEvsEnumerator> pEvs,
                                  android::sp<IEvsDisplay> pDisplay, const ConfigManager& config) :
       mVehicle(pVnet),
       mEvs(pEvs),
@@ -134,11 +119,8 @@ bool EvsStateControl::startUpdateLoop() {
 
 
 void EvsStateControl::terminateUpdateLoop() {
-    if (mRenderThread.get_id() == std::this_thread::get_id()) {
-        // We should not join by ourselves
-        mRenderThread.detach();
-    } else if (mRenderThread.joinable()) {
-        // Join a rendering thread
+    // Join a rendering thread
+    if (mRenderThread.joinable()) {
         mRenderThread.join();
     }
 }
@@ -166,7 +148,6 @@ void EvsStateControl::updateLoop() {
     bool run = true;
     while (run) {
         // Process incoming commands
-        sp<IEvsDisplay> displayHandle;
         {
             std::lock_guard <std::mutex> lock(mLock);
             while (!mCommandQueue.empty()) {
@@ -184,13 +165,6 @@ void EvsStateControl::updateLoop() {
                 }
                 mCommandQueue.pop();
             }
-
-            displayHandle = mDisplay.promote();
-        }
-
-        if (!displayHandle) {
-            LOG(ERROR) << "We've lost the display";
-            break;
         }
 
         // Review vehicle state and choose an appropriate renderer
@@ -203,7 +177,7 @@ void EvsStateControl::updateLoop() {
         if (mCurrentRenderer) {
             // Get the output buffer we'll use to display the imagery
             BufferDesc_1_0 tgtBuffer = {};
-            displayHandle->getTargetBuffer([&tgtBuffer](const BufferDesc_1_0& buff) {
+            mDisplay->getTargetBuffer([&tgtBuffer](const BufferDesc_1_0& buff) {
                                           tgtBuffer = buff;
                                       }
             );
@@ -219,7 +193,7 @@ void EvsStateControl::updateLoop() {
                 }
 
                 // Send the finished image back for display
-                displayHandle->returnTargetBufferForDisplay(tgtBuffer);
+                mDisplay->returnTargetBufferForDisplay(tgtBuffer);
 
                 if (!mFirstFrameIsDisplayed) {
                     mFirstFrameIsDisplayed = true;
@@ -262,7 +236,7 @@ bool EvsStateControl::selectStateForCurrentConditions() {
         }
         if ((mTurnSignalValue.prop == 0) || (invokeGet(&mTurnSignalValue) != StatusCode::OK)) {
             // Silently treat missing turn signal state as no turn signal active
-            mTurnSignalValue.value.int32Values = {sMockSignal};
+            mTurnSignalValue.value.int32Values.setToExternal(&sMockSignal, 1);
             mTurnSignalValue.prop = 0;
         }
     } else {
@@ -278,8 +252,8 @@ bool EvsStateControl::selectStateForCurrentConditions() {
         }
 
         // Build the placeholder vehicle state values (treating single values as 1 element vectors)
-        mGearValue.value.int32Values = {sMockGear};
-        mTurnSignalValue.value.int32Values = {sMockSignal};
+        mGearValue.value.int32Values.setToExternal(&sMockGear, 1);
+        mTurnSignalValue.value.int32Values.setToExternal(&sMockSignal, 1);
     }
 
     // Choose our desired EVS state based on the current car state
@@ -299,20 +273,24 @@ bool EvsStateControl::selectStateForCurrentConditions() {
     return configureEvsPipeline(desiredState);
 }
 
-StatusCode EvsStateControl::invokeGet(VehiclePropValue* pRequestedPropValue) {
-    auto halPropValue = mVehicle->createHalPropValue(pRequestedPropValue->prop);
-    // We are only setting int32Values.
-    halPropValue->setInt32Values(pRequestedPropValue->value.int32Values);
 
-    VhalResult<std::unique_ptr<IHalPropValue>> result = mVehicle->getValueSync(*halPropValue);
+StatusCode EvsStateControl::invokeGet(VehiclePropValue *pRequestedPropValue) {
+    StatusCode status = StatusCode::TRY_AGAIN;
 
-    if (!result.ok()) {
-        return static_cast<StatusCode>(result.error().code());
-    }
-    pRequestedPropValue->value.int32Values = result.value()->getInt32Values();
-    pRequestedPropValue->timestamp = result.value()->getTimestamp();
-    return StatusCode::OK;
+    // Call the Vehicle HAL, which will block until the callback is complete
+    mVehicle->get(*pRequestedPropValue,
+                  [pRequestedPropValue, &status]
+                  (StatusCode s, const VehiclePropValue& v) {
+                       status = s;
+                       if (s == StatusCode::OK) {
+                           *pRequestedPropValue = v;
+                       }
+                  }
+    );
+
+    return status;
 }
+
 
 bool EvsStateControl::configureEvsPipeline(State desiredState) {
     static bool isGlReady = false;
@@ -357,8 +335,7 @@ bool EvsStateControl::configureEvsPipeline(State desiredState) {
                 LOG(ERROR) << "Failed to construct direct renderer.  Skipping state change.";
                 return false;
             }
-        } else if (mCameraList[desiredState].size() > 1 ||
-                   (mCameraList[desiredState].size() > 0 && desiredState == PARKING)) {
+        } else if (mCameraList[desiredState].size() > 1 || desiredState == PARKING) {
             //TODO(b/140668179): RenderTopView needs to be updated to use new
             //                   ConfigManager.
             mDesiredRenderer = std::make_unique<RenderTopView>(mEvs,
@@ -384,14 +361,9 @@ bool EvsStateControl::configureEvsPipeline(State desiredState) {
     }
 
     // Now set the display state based on whether we have a video feed to show
-    sp<IEvsDisplay> displayHandle = mDisplay.promote();
-    if (!displayHandle) {
-        return false;
-    }
-
     if (mDesiredRenderer == nullptr) {
         LOG(DEBUG) << "Turning off the display";
-        displayHandle->setDisplayState(EvsDisplayState::NOT_VISIBLE);
+        mDisplay->setDisplayState(EvsDisplayState::NOT_VISIBLE);
     } else {
         mCurrentRenderer = std::move(mDesiredRenderer);
 
@@ -406,8 +378,7 @@ bool EvsStateControl::configureEvsPipeline(State desiredState) {
         // Activate the display
         LOG(DEBUG) << "EvsActivateDisplayTiming start time: "
                    << android::elapsedRealtime() << " ms.";
-        Return<EvsResult> result = displayHandle->setDisplayState(
-                EvsDisplayState::VISIBLE_ON_NEXT_FRAME);
+        Return<EvsResult> result = mDisplay->setDisplayState(EvsDisplayState::VISIBLE_ON_NEXT_FRAME);
         if (result != EvsResult::OK) {
             LOG(ERROR) << "setDisplayState returned an error "
                        << result.description();

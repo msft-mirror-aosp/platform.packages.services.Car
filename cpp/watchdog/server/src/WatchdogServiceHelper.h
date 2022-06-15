@@ -45,7 +45,7 @@ class WatchdogServiceHelperPeer;
 
 }  // namespace internal
 
-class WatchdogServiceHelperInterface : public android::IBinder::DeathRecipient {
+class IWatchdogServiceHelper : public android::IBinder::DeathRecipient {
 public:
     virtual android::binder::Status registerService(
             const android::sp<
@@ -70,13 +70,10 @@ public:
                     packageIoOveruseStats) = 0;
     virtual android::binder::Status resetResourceOveruseStats(
             const std::vector<std::string>& packageNames) = 0;
-    virtual android::binder::Status getTodayIoUsageStats(
-            std::vector<android::automotive::watchdog::internal::UserPackageIoUsageStats>*
-                    userPackageIoUsageStats) = 0;
 
 protected:
     virtual android::base::Result<void> init(
-            const android::sp<WatchdogProcessServiceInterface>& watchdogProcessService) = 0;
+            const android::sp<WatchdogProcessService>& watchdogProcessService) = 0;
     virtual void terminate() = 0;
 
 private:
@@ -86,9 +83,10 @@ private:
 // WatchdogServiceHelper implements the helper functions for the outbound API requests to
 // the CarWatchdogService. This class doesn't handle the inbound APIs requests from
 // CarWatchdogService except the registration APIs.
-class WatchdogServiceHelper final : public WatchdogServiceHelperInterface {
+class WatchdogServiceHelper final : public IWatchdogServiceHelper {
 public:
-    WatchdogServiceHelper() : mWatchdogProcessService(nullptr), mService(nullptr) {}
+    WatchdogServiceHelper() : mService(nullptr), mWatchdogProcessService(nullptr) {}
+    ~WatchdogServiceHelper();
 
     android::binder::Status registerService(
             const android::sp<
@@ -112,23 +110,19 @@ public:
             const std::vector<android::automotive::watchdog::internal::PackageIoOveruseStats>&
                     packageIoOveruseStats);
     android::binder::Status resetResourceOveruseStats(const std::vector<std::string>& packageNames);
-    android::binder::Status getTodayIoUsageStats(
-            std::vector<android::automotive::watchdog::internal::UserPackageIoUsageStats>*
-                    userPackageIoUsageStats);
 
 protected:
     android::base::Result<void> init(
-            const android::sp<WatchdogProcessServiceInterface>& watchdogProcessService);
+            const android::sp<WatchdogProcessService>& watchdogProcessService);
     void terminate();
 
 private:
     void unregisterServiceLocked();
 
-    android::sp<WatchdogProcessServiceInterface> mWatchdogProcessService;
-
     mutable std::shared_mutex mRWMutex;
     android::sp<android::automotive::watchdog::internal::ICarWatchdogServiceForSystem> mService
             GUARDED_BY(mRWMutex);
+    android::sp<WatchdogProcessService> mWatchdogProcessService;
 
     friend class ServiceManager;
 

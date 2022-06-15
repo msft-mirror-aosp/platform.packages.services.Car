@@ -61,11 +61,13 @@ public class ClusterContentProvider extends ContentProvider {
                 // If the file doesn't exist in internal cache,
                 // copy the file from res.raw into internal cache
                 if (!imageFile.exists()) {
-                    try (InputStream inputStream = getContext().getResources().openRawResource(
+                    InputStream inputStream = getContext().getResources().openRawResource(
                             getContext().getResources().getIdentifier(
                                     filename.substring(0, filename.lastIndexOf(".")),
                                     "raw",
-                                    getContext().getPackageName()))) {
+                                    getContext().getPackageName()));
+
+                    try {
                         Files.copy(inputStream, imageFile.toPath(),
                                 StandardCopyOption.REPLACE_EXISTING);
                     } catch (IOException e) {

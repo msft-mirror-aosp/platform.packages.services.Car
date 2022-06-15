@@ -36,7 +36,7 @@ namespace testing {
 
 // LooperStub allows polling the underlying looper deterministically.
 // NOTE: Current implementation only works for one handler.
-class LooperStub final : public LooperWrapper {
+class LooperStub : public LooperWrapper {
 public:
     LooperStub() : mHandler(nullptr), mShouldPoll(false), mTimer(0) {}
 

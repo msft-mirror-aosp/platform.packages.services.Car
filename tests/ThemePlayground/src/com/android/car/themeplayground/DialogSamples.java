@@ -18,6 +18,7 @@ package com.android.car.themeplayground;
 
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.view.ContextThemeWrapper;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -50,8 +51,8 @@ public class DialogSamples extends AbstractSampleActivity {
 
     private void openDialog(boolean showCheckbox) {
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(this,
-                R.style.Theme_Testing_Dialog_Alert);
+        AlertDialog.Builder builder = new AlertDialog.Builder(
+                new ContextThemeWrapper(this, R.style.Theme_Testing_Dialog_Alert));
 
         if (showCheckbox) {
             // Set Custom Title
@@ -76,8 +77,8 @@ public class DialogSamples extends AbstractSampleActivity {
     }
 
     private void openDialogWithOnlyPositiveButton() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this,
-                R.style.Theme_Testing_Dialog_Alert);
+        AlertDialog.Builder builder = new AlertDialog.Builder(
+                new ContextThemeWrapper(this, R.style.Theme_Testing_Dialog_Alert));
         builder.setTitle("Standard Alert Dialog")
                 .setMessage("With a message to show.");
         builder.setPositiveButton("OK", (dialoginterface, i) -> {
@@ -86,8 +87,8 @@ public class DialogSamples extends AbstractSampleActivity {
     }
 
     private void openDialogWithoutTitle() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this,
-                R.style.Theme_Testing_Dialog_Alert);
+        AlertDialog.Builder builder = new AlertDialog.Builder(
+                new ContextThemeWrapper(this, R.style.Theme_Testing_Dialog_Alert));
         builder.setMessage("I dont have a titile.");
         builder.setPositiveButton("OK", (dialoginterface, i) -> {
         }).setNegativeButton("CANCEL",

@@ -36,7 +36,6 @@ import static android.car.hardware.power.PowerComponent.WIFI;
 import static com.android.car.test.power.CarPowerPolicyUtil.assertPolicyIdentical;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
@@ -54,9 +53,8 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemNotification;
-import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
-import android.hardware.automotive.vehicle.VehicleApPowerStateShutdownParam;
-import android.os.UserManager;
+import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateReq;
+import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateShutdownParam;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.AtomicFile;
 import android.util.Log;
@@ -75,6 +73,7 @@ import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.test.utils.TemporaryFile;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.app.IVoiceInteractionManagerService;
 
 import org.junit.After;
 import org.junit.Before;
@@ -83,15 +82,13 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 @SmallTest
-public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
+public class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
     private static final String TAG = CarPowerManagerUnitTest.class.getSimpleName();
     private static final long WAIT_TIMEOUT_MS = 5_000;
     private static final long WAIT_TIMEOUT_LONG_MS = 10_000;
@@ -118,23 +115,20 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     @Mock
     private Car mCar;
     @Mock
-    private UserManager mUserManager;
-    @Mock
     private CarUserService mCarUserService;
+    @Mock
+    private IVoiceInteractionManagerService mVoiceInteractionManagerService;
     @Mock
     private ICarPowerPolicySystemNotification mPowerPolicyDaemon;
 
     public CarPowerManagerUnitTest() throws Exception {
-        super(CarPowerManager.TAG);
         mComponentStateFile = new TemporaryFile("COMPONENT_STATE_FILE");
     }
 
     @Before
     public void setUp() throws Exception {
-        mPowerHal = new MockedPowerHalService(/*isPowerStateSupported=*/true,
-                /*isDeepSleepAllowed=*/true,
-                /*isHibernationAllowed=*/true,
-                /*isTimedWakeupAllowed=*/true);
+        mPowerHal = new MockedPowerHalService(true /*isPowerStateSupported*/,
+                true /*isDeepSleepAllowed*/, true /*isTimedWakeupAllowed*/);
         mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext)
             .withDisplayInterface(mDisplayInterface)
             .withSystemStateInterface(mSystemStateInterface)
@@ -194,38 +188,30 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     public void testSetListener() throws Exception {
         setPowerOn();
 
-        WaitablePowerStateListener listener = new WaitablePowerStateListener(3);
+        WaitablePowerStateListener listener = new WaitablePowerStateListener(2);
 
         setPowerState(VehicleApPowerStateReq.SHUTDOWN_PREPARE,
                 VehicleApPowerStateShutdownParam.CAN_SLEEP);
 
         assertStateReceivedForShutdownOrSleepWithPostpone(PowerHalService.SET_DEEP_SLEEP_ENTRY, 0);
 
-        List<Integer> states = listener.await();
-        checkThatStatesReceivedInOrder("Check that events were received in order", states,
-                List.of(CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE,
-                        CarPowerManager.STATE_SHUTDOWN_PREPARE,
-                        CarPowerManager.STATE_SUSPEND_ENTER));
+        int finalState = listener.await();
+        assertThat(finalState).isEqualTo(PowerHalService.SET_DEEP_SLEEP_ENTRY);
     }
 
     @Test
     public void testSetListenerWithCompletion() throws Exception {
-        grantAdjustShutdownProcessPermission();
-        List<Integer> expectedStates = List.of(CarPowerManager.STATE_ON,
-                CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE,
-                CarPowerManager.STATE_SHUTDOWN_PREPARE,
-                CarPowerManager.STATE_SUSPEND_ENTER);
-        WaitablePowerStateListenerWithCompletion listener =
-                new WaitablePowerStateListenerWithCompletion(/* initialCount= */ 4);
-
         setPowerOn();
+
+        WaitablePowerStateListenerWithCompletion listener =
+                new WaitablePowerStateListenerWithCompletion(2);
+
         setPowerState(VehicleApPowerStateReq.SHUTDOWN_PREPARE,
                 VehicleApPowerStateShutdownParam.CAN_SLEEP);
         assertStateReceivedForShutdownOrSleepWithPostpone(PowerHalService.SET_DEEP_SLEEP_ENTRY, 0);
 
-        List<Integer> states = listener.await();
-        checkThatStatesReceivedInOrder("Check that events were received in order", states,
-                expectedStates);
+        int finalState = listener.await();
+        assertThat(finalState).isEqualTo(PowerHalService.SET_DEEP_SLEEP_ENTRY);
     }
 
     @Test
@@ -418,14 +404,14 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 + ", maxGarageModeRunningDurationInSecs="
                 + mResources.getInteger(R.integer.maxGarageModeRunningDurationInSecs));
         mPowerComponentHandler = new PowerComponentHandler(mContext, mSystemInterface,
-                new AtomicFile(mComponentStateFile.getFile()));
+                mVoiceInteractionManagerService, new AtomicFile(mComponentStateFile.getFile()));
         mService = new CarPowerManagementService(mContext, mResources, mPowerHal, mSystemInterface,
-                mUserManager, mCarUserService, mPowerPolicyDaemon, mPowerComponentHandler,
+                null, mCarUserService, mPowerPolicyDaemon, mPowerComponentHandler,
                 /* silentModeHwStatePath= */ null, /* silentModeKernelStatePath= */ null,
                 /* bootReason= */ null);
         mService.init();
         mService.setShutdownTimersForTest(0, 0);
-        assertStateReceived(PowerHalService.SET_WAIT_FOR_VHAL, 0);
+        assertStateReceived(MockedPowerHalService.SET_WAIT_FOR_VHAL, 0);
     }
 
     private void assertStateReceived(int expectedState, int expectedParam) throws Exception {
@@ -474,27 +460,11 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 .checkCallingOrSelfPermission(Car.PERMISSION_READ_CAR_POWER_POLICY);
     }
 
-    private void grantAdjustShutdownProcessPermission() {
-        when(mCar.getContext()).thenReturn(mContext);
-        doReturn(PackageManager.PERMISSION_GRANTED).when(mContext)
-                .checkCallingOrSelfPermission(Car.PERMISSION_CONTROL_SHUTDOWN_PROCESS);
-    }
-
-    private static void checkThatStatesReceivedInOrder(String message, List<Integer> states,
-            List<Integer> referenceStates) {
-        assertWithMessage(message).that(states).containsExactlyElementsIn(
-                referenceStates).inOrder();
-    }
-
     private static final class MockDisplayInterface implements DisplayInterface {
         private final Object mLock = new Object();
         @GuardedBy("mLock")
         private boolean mDisplayOn = true;
         private final Semaphore mDisplayStateWait = new Semaphore(0);
-
-        @Override
-        public void init(CarPowerManagementService carPowerManagementService,
-                CarUserService carUserService) {}
 
         @Override
         public void setDisplayBrightness(int brightness) {}
@@ -515,7 +485,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         }
 
         @Override
-        public void startDisplayStateMonitoring() {}
+        public void startDisplayStateMonitoring(CarPowerManagementService service) {}
 
         @Override
         public void stopDisplayStateMonitoring() {}
@@ -539,7 +509,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
      */
     private final class WaitablePowerStateListener {
         private final CountDownLatch mLatch;
-        private List<Integer> mReceivedStates = new ArrayList<Integer>();
+        private int mListenedState = -1;
         private long mTimeoutValue = WAIT_TIMEOUT_MS;
 
         WaitablePowerStateListener(int initialCount, long customTimeout) {
@@ -549,40 +519,36 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
 
         WaitablePowerStateListener(int initialCount) {
             mLatch = new CountDownLatch(initialCount);
-            mCarPowerManager.setListener(mContext.getMainExecutor(),
+            mCarPowerManager.setListener(
                     (state) -> {
-                        mReceivedStates.add(state);
+                        mListenedState = state;
                         mLatch.countDown();
                     });
         }
 
-        List<Integer> await() throws Exception {
-            JavaMockitoHelper.await(mLatch, mTimeoutValue);
-            return List.copyOf(mReceivedStates);
+        int await() throws Exception {
+            JavaMockitoHelper.await(mLatch, WAIT_TIMEOUT_MS);
+            return mListenedState;
         }
     }
 
     /**
      * Helper class to set a power-state listener with completion,
      * verify that the listener gets called the right number of times,
-     * verify that the CompletablePowerStateChangeFuture is provided, complete the
-     * CompletablePowerStateChangeFuture, and return the all listened states in order.
+     * verify that the CompletableFuture is provided, complete the
+     * CompletableFuture, and return the final power state.
      */
     private final class WaitablePowerStateListenerWithCompletion {
         private final CountDownLatch mLatch;
-        private final List<Integer> mReceivedStates = new ArrayList<>();
-        private int mRemainingCount;
-
+        private int mListenedState = -1;
         WaitablePowerStateListenerWithCompletion(int initialCount) {
-            mRemainingCount = initialCount;
             mLatch = new CountDownLatch(initialCount);
-            mCarPowerManager.setListenerWithCompletion(mContext.getMainExecutor(),
+            mCarPowerManager.setListenerWithCompletion(
                     (state, future) -> {
-                        mReceivedStates.add(state);
-                        mRemainingCount--;
-                        if (CarPowerManager.isCompletionAllowed(state)) {
+                        mListenedState = state;
+                        if (state == PowerHalService.SET_SHUTDOWN_PREPARE) {
                             assertThat(future).isNotNull();
-                            future.complete();
+                            future.complete(null);
                         } else {
                             assertThat(future).isNull();
                         }
@@ -590,10 +556,9 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                     });
         }
 
-        List<Integer> await() throws Exception {
+        int await() throws Exception {
             JavaMockitoHelper.await(mLatch, WAIT_TIMEOUT_MS);
-            assertThat(mRemainingCount).isEqualTo(0);
-            return mReceivedStates;
+            return mListenedState;
         }
     }
 
@@ -614,15 +579,6 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
 
         @Override
         public boolean enterDeepSleep() {
-            return simulateSleep();
-        }
-
-        @Override
-        public boolean enterHibernation() {
-            return simulateSleep();
-        }
-
-        private boolean simulateSleep() {
             mSleepWait.release();
             try {
                 mSleepExitWait.acquire();

@@ -15,17 +15,12 @@
  */
 package android.car.content.pm;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedInOrBefore;
 import android.content.pm.Signature;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -39,15 +34,12 @@ import java.util.Arrays;
 public final class AppBlockingPackageInfo implements Parcelable {
 
     /** Package name for the package to block or allow. */
-    @AddedInOrBefore(majorVersion = 33)
     public final String packageName;
 
     /** Represents system app which does not need {@link #signature}. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_SYSTEM_APP = 0x1;
     /** Denylist or allowlist every Activities in the package. When this is set,
      *  {@link #activities} may be null. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_WHOLE_ACTIVITY = 0x2;
     /** @hide */
     @IntDef(flag = true,
@@ -60,7 +52,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
      * @see #FLAG_SYSTEM_APP
      * @see #FLAG_WHOLE_ACTIVITY
      */
-    @AddedInOrBefore(majorVersion = 33)
     public final int flags;
 
     /**
@@ -68,7 +59,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
      * (package version > minRevisionCode)
      * 0 means do not care min version.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public final int minRevisionCode;
 
     /**
@@ -76,7 +66,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
      * (package version < minRevisionCode)
      * 0 means do not care max version.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public final int maxRevisionCode;
 
     /**
@@ -84,13 +73,11 @@ public final class AppBlockingPackageInfo implements Parcelable {
      * name is enough to uniquely identify it (= {@link #flags} having {@link #FLAG_SYSTEM_APP}.
      * Matching any member of array is considered as matching package.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public final Signature[] signatures;
 
     /** List of activities (full class name). This can be null if Activity is not blocked or
      *  allowed. Additionally, {@link #FLAG_WHOLE_ACTIVITY} set in {@link #flags} shall have
      *  null for this. */
-    @AddedInOrBefore(majorVersion = 33)
     public final String[] activities;
 
 
@@ -120,14 +107,11 @@ public final class AppBlockingPackageInfo implements Parcelable {
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeString(packageName);
         dest.writeInt(this.flags);
@@ -137,7 +121,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
         dest.writeStringArray(activities);
     }
 
-    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<AppBlockingPackageInfo> CREATOR =
             new Parcelable.Creator<AppBlockingPackageInfo>() {
 
@@ -153,7 +136,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
     };
 
     /** @hide */
-    @AddedInOrBefore(majorVersion = 33)
     public void verify() throws IllegalArgumentException {
         if (signatures == null && (flags & FLAG_SYSTEM_APP) == 0) {
             throw new IllegalArgumentException(
@@ -162,7 +144,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
     }
 
     /** @hide */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isActivityCovered(String className) {
         if ((flags & FLAG_WHOLE_ACTIVITY) != 0) {
             return true;
@@ -179,7 +160,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         final int prime = 31;
         int result = 1;
@@ -193,7 +173,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
@@ -231,7 +210,6 @@ public final class AppBlockingPackageInfo implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return "AppBlockingPackageInfo [packageName=" + packageName + ", flags=" + flags
                 + ", minRevisionCode=" + minRevisionCode + ", maxRevisionCode=" + maxRevisionCode

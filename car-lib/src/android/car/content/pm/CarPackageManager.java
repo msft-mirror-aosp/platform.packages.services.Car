@@ -16,29 +16,20 @@
 
 package android.car.content.pm;
 
-import static android.car.Car.PERMISSION_CONTROL_APP_BLOCKING;
-
 import android.annotation.IntDef;
 import android.annotation.NonNull;
-import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.annotation.TestApi;
-import android.annotation.UserIdInt;
 import android.app.PendingIntent;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.content.ComponentName;
-import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
-import android.os.ServiceSpecificException;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Provides car specific API related with package management.
@@ -57,7 +48,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_SET_POLICY_WAIT_FOR_CHANGE = 0x1;
     /**
      * Flag for {@link #setAppBlockingPolicy(String, CarAppBlockingPolicy, int)}. When this
@@ -72,7 +62,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_SET_POLICY_ADD = 0x2;
     /**
      * Flag for {@link #setAppBlockingPolicy(String, CarAppBlockingPolicy, int)}. When this
@@ -86,79 +75,7 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_SET_POLICY_REMOVE = 0x4;
-
-    /**
-     * Name of blocked activity.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String BLOCKING_INTENT_EXTRA_BLOCKED_ACTIVITY_NAME = "blocked_activity";
-    /**
-     * int task id of the blocked task.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String BLOCKING_INTENT_EXTRA_BLOCKED_TASK_ID = "blocked_task_id";
-    /**
-     * Name of root activity of blocked task.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String BLOCKING_INTENT_EXTRA_ROOT_ACTIVITY_NAME = "root_activity_name";
-    /**
-     * Boolean indicating whether the root activity is distraction-optimized (DO).
-     * Blocking screen should show a button to restart the task if {@code true}.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String BLOCKING_INTENT_EXTRA_IS_ROOT_ACTIVITY_DO = "is_root_activity_do";
-
-    /**
-     * int display id of the blocked task.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String BLOCKING_INTENT_EXTRA_DISPLAY_ID = "display_id";
-
-    /**
-     * Represents support of all regions for driving safety.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String DRIVING_SAFETY_REGION_ALL = "android.car.drivingsafetyregion.all";
-
-    /**
-     * Metadata which Activity can use to specify the driving safety regions it is supporting.
-     *
-     * <p>Definition of driving safety region is car OEM specific for now and only OEM apps
-     * should use this. If there are multiple regions, it should be comma separated. Not specifying
-     * this means supporting all regions.
-     *
-     * <p>Some examples are:
-     *   <meta-data android:name="android.car.drivingsafetyregions"
-     *   android:value="com.android.drivingsafetyregion.1,com.android.drivingsafetyregion.2"/>
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String DRIVING_SAFETY_ACTIVITY_METADATA_REGIONS =
-            "android.car.drivingsafetyregions";
-
-    /**
-     * Internal error code for throwing {@code NameNotFoundException} from service.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final int ERROR_CODE_NO_PACKAGE = -100;
 
     /** @hide */
     @IntDef(flag = true,
@@ -176,7 +93,6 @@ public final class CarPackageManager extends CarManagerBase {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // nothing to do
     }
@@ -212,7 +128,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public void setAppBlockingPolicy(
             String packageName, CarAppBlockingPolicy policy, @SetPolicyFlags int flags) {
         if ((flags & FLAG_SET_POLICY_WAIT_FOR_CHANGE) != 0
@@ -234,7 +149,6 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void restartTask(int taskId) {
         try {
             mService.restartTask(taskId);
@@ -258,7 +172,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isActivityBackedBySafeActivity(ComponentName activityName) {
         try {
             return mService.isActivityBackedBySafeActivity(activityName);
@@ -273,7 +186,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @hide
      */
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public void setEnableActivityBlocking(boolean enable) {
         try {
             mService.setEnableActivityBlocking(enable);
@@ -291,7 +203,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @return true if the activity is distraction optimized, false if it isn't or if the value
      *         could not be determined.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isActivityDistractionOptimized(String packageName, String className) {
         try {
             return mService.isActivityDistractionOptimized(packageName, className);
@@ -308,7 +219,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @return true if the pending intent represents an activity that is distraction optimized,
      *         false if it isn't or if the value could not be determined.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isPendingIntentDistractionOptimized(@NonNull PendingIntent pendingIntent) {
         try {
             return mService.isPendingIntentDistractionOptimized(pendingIntent);
@@ -325,119 +235,11 @@ public final class CarPackageManager extends CarManagerBase {
      * @param className
      * @return
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isServiceDistractionOptimized(String packageName, String className) {
         try {
             return mService.isServiceDistractionOptimized(packageName, className);
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, false);
         }
-    }
-
-    /**
-     * Returns the current driving safety region of the system. It will return OEM specific regions
-     * or {@link #DRIVING_SAFETY_REGION_ALL} when all regions are supported.
-     *
-     * <p> System's driving safety region is static and does not change until system restarts.
-     *
-     * @hide
-     */
-    @RequiresPermission(anyOf = {PERMISSION_CONTROL_APP_BLOCKING,
-            Car.PERMISSION_CAR_DRIVING_STATE})
-    @NonNull
-    @AddedInOrBefore(majorVersion = 33)
-    public String getCurrentDrivingSafetyRegion() {
-        try {
-            return mService.getCurrentDrivingSafetyRegion();
-        } catch (RemoteException e) {
-            return handleRemoteExceptionFromCarService(e, DRIVING_SAFETY_REGION_ALL);
-        }
-    }
-
-    /**
-     * Enables or disables bypassing of unsafe {@code Activity} blocking for a specific
-     * {@code Activity} temporarily.
-     *
-     * <p> Enabling bypassing only lasts until the user stops using the car or until a user
-     * switching happens. Apps like launcher may ask user's consent to bypass. Note that bypassing
-     * is done for the package for all android users including the current user and user 0.
-     * <p> If bypassing is disabled and if the unsafe app is in foreground with driving state, the
-     * app will be immediately blocked.
-     *
-     * @param packageName Target package name.
-     * @param activityClassName Target Activity name (in full class name).
-     * @param bypass Bypass {@code Activity} blocking when true. Do not bypass anymore when false.
-     * @param userId User Id where the package is installed. Even if the bypassing is enabled for
-     *               all android users, the package should be available for the specified user id.
-     *
-     * @throws NameNotFoundException If the given package / Activity class does not exist for the
-     *         user.
-     *
-     * @hide
-     */
-    @RequiresPermission(allOf = {PERMISSION_CONTROL_APP_BLOCKING,
-            android.Manifest.permission.QUERY_ALL_PACKAGES})
-    @AddedInOrBefore(majorVersion = 33)
-    public void controlTemporaryActivityBlockingBypassingAsUser(String packageName,
-            String activityClassName, boolean bypass, @UserIdInt int userId)
-            throws NameNotFoundException {
-        try {
-            mService.controlOneTimeActivityBlockingBypassingAsUser(packageName, activityClassName,
-                    bypass, userId);
-        } catch (ServiceSpecificException e) {
-            handleServiceSpecificFromCarService(e, packageName, activityClassName, userId);
-        } catch (RemoteException e) {
-            handleRemoteExceptionFromCarService(e);
-        }
-    }
-
-    /**
-     * Returns all supported driving safety regions for the given Activity. If the Activity supports
-     * all regions, it will only include {@link #DRIVING_SAFETY_REGION_ALL}.
-     *
-     * <p> The permission specification requires {@code PERMISSION_CONTROL_APP_BLOCKING} and
-     * {@code QUERY_ALL_PACKAGES} but this API will also work if the client has
-     * {@link Car#PERMISSION_CAR_DRIVING_STATE} and {@code QUERY_ALL_PACKAGES} permissions.
-     *
-     * @param packageName Target package name.
-     * @param activityClassName Target Activity name (in full class name).
-     * @param userId Android user Id to check the package.
-     *
-     * @return Empty list if the Activity does not support driving safety (=no
-     *         {@code distractionOptimized} metadata). Otherwise returns full list of all supported
-     *         regions.
-     *
-     * @throws NameNotFoundException If the given package / Activity class does not exist for the
-     *         user.
-     *
-     * @hide
-     */
-    @RequiresPermission(allOf = {PERMISSION_CONTROL_APP_BLOCKING,
-            android.Manifest.permission.QUERY_ALL_PACKAGES})
-    @NonNull
-    @AddedInOrBefore(majorVersion = 33)
-    public List<String> getSupportedDrivingSafetyRegionsForActivityAsUser(String packageName,
-            String activityClassName, @UserIdInt int userId) throws NameNotFoundException {
-        try {
-            return mService.getSupportedDrivingSafetyRegionsForActivityAsUser(packageName,
-                    activityClassName, userId);
-        } catch (ServiceSpecificException e) {
-            handleServiceSpecificFromCarService(e, packageName, activityClassName, userId);
-        } catch (RemoteException e) {
-            return handleRemoteExceptionFromCarService(e, Collections.EMPTY_LIST);
-        }
-        return Collections.EMPTY_LIST; // cannot reach here but the compiler complains.
-    }
-
-    private void handleServiceSpecificFromCarService(ServiceSpecificException e,
-            String packageName, String activityClassName, @UserIdInt int userId)
-            throws NameNotFoundException {
-        if (e.errorCode == ERROR_CODE_NO_PACKAGE) {
-            throw new NameNotFoundException(
-                    "cannot find " + packageName + "/" + activityClassName + " for user id:"
-                            + userId);
-        }
-        // don't know what this is
-        throw new IllegalStateException(e);
     }
 }

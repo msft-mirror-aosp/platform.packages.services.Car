@@ -16,25 +16,20 @@
 
 package com.android.car.obd2.test;
 
-import static android.hardware.automotive.vehicle.VehicleProperty.OBD2_FREEZE_FRAME;
-
+import static android.hardware.automotive.vehicle.V2_0.VehicleProperty.OBD2_FREEZE_FRAME;
 import static com.android.car.obd2.test.Utils.concatIntArrays;
 import static com.android.car.obd2.test.Utils.stringsToIntArray;
-
 import static org.junit.Assert.*;
 
-import android.hardware.automotive.vehicle.VehiclePropValue;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
 import android.util.JsonReader;
 import android.util.JsonWriter;
-
-import com.android.car.hal.test.DiagnosticJsonReader;
 import com.android.car.obd2.Obd2Connection;
 import com.android.car.obd2.Obd2FreezeFrameGenerator;
-
-import org.junit.Test;
-
+import com.android.car.vehiclehal.DiagnosticJsonReader;
 import java.io.StringReader;
 import java.io.StringWriter;
+import org.junit.Test;
 
 public class Obd2FreezeFrameGeneratorTest {
     private static final String[] EXPECTED_INIT_COMMANDS =
@@ -109,11 +104,11 @@ public class Obd2FreezeFrameGeneratorTest {
         jsonReader.beginArray();
         VehiclePropValue vehiclePropValue = diagnosticJsonReader.build(jsonReader);
         assertEquals(OBD2_FREEZE_FRAME, vehiclePropValue.prop);
-        assertEquals(1155, (long) vehiclePropValue.value.int32Values[0xC]);
-        assertEquals(130, (long) vehiclePropValue.value.int32Values[0xD]);
+        assertEquals(1155, (long) vehiclePropValue.value.int32Values.get(0xC));
+        assertEquals(130, (long) vehiclePropValue.value.int32Values.get(0xD));
         vehiclePropValue = diagnosticJsonReader.build(jsonReader);
         assertEquals(OBD2_FREEZE_FRAME, vehiclePropValue.prop);
-        assertEquals(1155, (long) vehiclePropValue.value.int32Values[0xC]);
-        assertEquals(131, (long) vehiclePropValue.value.int32Values[0xD]);
+        assertEquals(1155, (long) vehiclePropValue.value.int32Values.get(0xC));
+        assertEquals(131, (long) vehiclePropValue.value.int32Values.get(0xD));
     }
 }

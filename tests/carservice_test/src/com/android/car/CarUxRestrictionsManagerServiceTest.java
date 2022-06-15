@@ -15,7 +15,6 @@
  */
 package com.android.car;
 
-import static android.car.CarOccupantZoneManager.DISPLAY_TYPE_MAIN;
 import static android.car.drivingstate.CarDrivingStateEvent.DRIVING_STATE_IDLING;
 import static android.car.drivingstate.CarDrivingStateEvent.DRIVING_STATE_MOVING;
 import static android.car.drivingstate.CarDrivingStateEvent.DRIVING_STATE_PARKED;
@@ -23,6 +22,7 @@ import static android.car.drivingstate.CarDrivingStateEvent.DRIVING_STATE_UNKNOW
 import static android.car.drivingstate.CarUxRestrictions.UX_RESTRICTIONS_BASELINE;
 import static android.car.drivingstate.CarUxRestrictionsManager.UX_RESTRICTION_MODE_BASELINE;
 
+import static androidx.test.InstrumentationRegistry.getContext;
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static com.android.car.CarUxRestrictionsManagerService.CONFIG_FILENAME_PRODUCTION;
@@ -32,7 +32,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -51,16 +50,20 @@ import android.car.hardware.property.CarPropertyEvent;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.hardware.automotive.vehicle.VehicleProperty;
+import android.hardware.automotive.vehicle.V2_0.VehicleProperty;
+import android.hardware.display.DisplayManager;
+import android.hardware.display.VirtualDisplay;
+import android.os.IBinder;
+import android.os.IRemoteCallback;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.util.JsonWriter;
 import android.view.Display;
+import android.view.DisplayAddress;
 
 import androidx.test.filters.MediumTest;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.car.internal.util.IntArray;
 import com.android.car.systeminterface.SystemInterface;
 
 import org.junit.After;
@@ -104,19 +107,27 @@ public class CarUxRestrictionsManagerServiceTest {
     @Mock
     private CarPropertyService mMockCarPropertyService;
     @Mock
-    private CarOccupantZoneService mMockCarOccupantZoneService;
-    @Mock
     private SystemInterface mMockSystemInterface;
+    @Mock
+    private IBinder mIBinder;
+    @Mock
+    private IRemoteCallback mRemoteCallback;
+    @Mock
+    private DisplayManager mDisplayManager;
+    @Mock
+    private Display mDisplay0;
+    @Mock
+    private Display mDisplay1;
 
     private Context mSpyContext;
-    private SystemInterface mOriginalSystemInterface;
+
     private File mTempSystemCarDir;
 
     @Before
     public void setUp() throws Exception {
+        when(mRemoteCallback.asBinder()).thenReturn(mIBinder);
         // Spy context because service needs to access xml resource during init.
         mSpyContext = spy(getInstrumentation().getTargetContext());
-        mOriginalSystemInterface = CarLocalServices.getService(SystemInterface.class);
         CarLocalServices.removeServiceForTest(SystemInterface.class);
         CarLocalServices.addService(SystemInterface.class, mMockSystemInterface);
 
@@ -125,18 +136,14 @@ public class CarUxRestrictionsManagerServiceTest {
 
         setUpMockParkedState();
 
-        when(mMockCarOccupantZoneService.getAllDisplayIdsForDriver(eq(DISPLAY_TYPE_MAIN)))
-                .thenReturn(IntArray.wrap(new int[Display.DEFAULT_DISPLAY]));
-
         mService = new CarUxRestrictionsManagerService(mSpyContext,
-                mMockDrivingStateService, mMockCarPropertyService, mMockCarOccupantZoneService);
+                mMockDrivingStateService, mMockCarPropertyService);
     }
 
     @After
     public void tearDown() throws Exception {
         mService = null;
-        CarLocalServices.removeServiceForTest(SystemInterface.class);
-        CarLocalServices.addService(SystemInterface.class, mOriginalSystemInterface);
+        CarLocalServices.removeAllServices();
     }
 
     @Test
@@ -196,7 +203,7 @@ public class CarUxRestrictionsManagerServiceTest {
 
         CarUxRestrictionsConfiguration actual = mService.loadConfig().get(0);
 
-        assertEquals(actual, expected);
+        assertTrue(actual.equals(expected));
     }
 
     @Test
@@ -261,7 +268,7 @@ public class CarUxRestrictionsManagerServiceTest {
                                 .setRestrictions(510)
                                 .setMode(UX_RESTRICTION_MODE_PASSENGER))
                 .build();
-        assertEquals(actual, expectedConfig);
+        assertTrue(actual.equals(expectedConfig));
     }
 
     @Test
@@ -276,7 +283,7 @@ public class CarUxRestrictionsManagerServiceTest {
 
         // Staged file should be moved as production.
         assertFalse(staged.exists());
-        assertEquals(actual, expected);
+        assertTrue(actual.equals(expected));
     }
 
     @Test
@@ -286,27 +293,12 @@ public class CarUxRestrictionsManagerServiceTest {
         // Prod file contains actual config. Ignore staged since it should not be promoted.
         setupMockFile(CONFIG_FILENAME_PRODUCTION, List.of(expected));
 
-        setUpMockDrivingStateWithFakeSpeed(30f);
+        setUpMockDrivingState();
         CarUxRestrictionsConfiguration actual = mService.loadConfig().get(0);
 
         // Staged file should be untouched.
         assertTrue(staged.exists());
-        assertEquals(actual, expected);
-    }
-
-    @Test
-    public void testLoadConfig_NoPromoteStagedFileWhenMovingBackwards() throws Exception {
-        CarUxRestrictionsConfiguration expected = createEmptyConfig();
-        File staged = setupMockFile(CONFIG_FILENAME_STAGED, null);
-        // Prod file contains actual config. Ignore staged since it should not be promoted.
-        setupMockFile(CONFIG_FILENAME_PRODUCTION, List.of(expected));
-
-        setUpMockDrivingStateWithFakeSpeed(-30f);
-        CarUxRestrictionsConfiguration actual = mService.loadConfig().get(0);
-
-        // Staged file should be untouched.
-        assertTrue(staged.exists());
-        assertEquals(actual, expected);
+        assertTrue(actual.equals(expected));
     }
 
     @Test
@@ -347,6 +339,109 @@ public class CarUxRestrictionsManagerServiceTest {
         assertTrue(restrictions.toString(), expected.isSameRestrictions(restrictions));
     }
 
+    @Test
+    public void testGetCurrentUxRestrictions_UnreportedVirtualDisplay_UseDefaultDisplayRestriction()
+            throws Exception {
+        // Create a virtual display that will get registered with the DisplayManager used by UXRE
+        String virtualDisplayName = "virtual_display";
+        DisplayManager displayManager = getContext().getSystemService(DisplayManager.class);
+        VirtualDisplay virtualDisplay = displayManager.createVirtualDisplay(
+                virtualDisplayName, 10, 10, 10, null, 0);
+        int virtualDisplayId = virtualDisplay.getDisplay().getDisplayId();
+
+        // Setup restrictions on the default display only
+        int defaultPortRestrictions = CarUxRestrictions.UX_RESTRICTIONS_NO_KEYBOARD;
+        int defaultPort = CarUxRestrictionsManagerService.getDefaultDisplayPhysicalPort(
+                displayManager);
+        CarUxRestrictionsConfiguration defaultPortConfig = createMovingConfig(defaultPort,
+                defaultPortRestrictions);
+        setupMockFile(CONFIG_FILENAME_PRODUCTION, List.of(defaultPortConfig));
+
+        // Trigger restrictions by entering driving state
+        mService.init();
+        mService.handleDrivingStateEventLocked(
+                new CarDrivingStateEvent(CarDrivingStateEvent.DRIVING_STATE_MOVING,
+                        SystemClock.elapsedRealtime()));
+
+        // Virtual display should have restrictions for default display
+        CarUxRestrictions restrictions = mService.getCurrentUxRestrictions(virtualDisplayId);
+        CarUxRestrictions expected = new CarUxRestrictions.Builder(
+                /*reqOpt= */ true,
+                defaultPortRestrictions,
+                SystemClock.elapsedRealtimeNanos()).build();
+        assertTrue(restrictions.toString(), expected.isSameRestrictions(restrictions));
+
+        virtualDisplay.release();
+    }
+
+    @Test
+    public void testGetCurrentUxRestrictions_ReportedVirtualDisplay_ReturnsRestrictionsForPort()
+            throws Exception {
+        // Create a virtual display that we own in this process
+        String virtualDisplayName = "virtual_display";
+        DisplayManager displayManager = getContext().getSystemService(DisplayManager.class);
+        VirtualDisplay virtualDisplay = displayManager.createVirtualDisplay(
+                virtualDisplayName, 10, 10, 10, null, 0);
+
+        // Mock displays on two different physical ports, where the virtual display is on the
+        // second port. Don't use the virtual displayId since we are mocking out all the id logic.
+        int displayIdForPhysicalPort1 = 0;
+        int displayIdForPhysicalPort2 = 1;
+        int virtualDisplayId = 2;
+        int physicalDisplayIdForVirtualDisplayId2 = displayIdForPhysicalPort2;
+        int physicalPortForFirstDisplay = 10;
+        int physicalPortForSecondDisplay = 11;
+        when(mSpyContext.getSystemService(DisplayManager.class)).thenReturn(mDisplayManager);
+        mockDisplay(mDisplayManager, mDisplay0, displayIdForPhysicalPort1,
+                physicalPortForFirstDisplay);
+        mockDisplay(mDisplayManager, mDisplay1, displayIdForPhysicalPort2,
+                physicalPortForSecondDisplay);
+        when(mDisplayManager.getDisplay(virtualDisplayId)).thenReturn(virtualDisplay.getDisplay());
+        when(mDisplayManager.getDisplays()).thenReturn(new Display[]{
+                mDisplay0,
+                mDisplay1,
+                virtualDisplay.getDisplay(),
+        });
+
+        // Setup different restrictions for each physical port
+        int port2Restrictions = CarUxRestrictions.UX_RESTRICTIONS_NO_KEYBOARD;
+        CarUxRestrictionsConfiguration defaultPortConfig = createMovingConfig(
+                physicalPortForFirstDisplay,
+                CarUxRestrictions.UX_RESTRICTIONS_NO_DIALPAD);
+        CarUxRestrictionsConfiguration port2Config = createMovingConfig(
+                physicalPortForSecondDisplay,
+                port2Restrictions);
+        setupMockFile(CONFIG_FILENAME_PRODUCTION, List.of(defaultPortConfig, port2Config));
+
+        // Enter driving state to trigger restrictions
+        mService = new CarUxRestrictionsManagerService(mSpyContext,
+                mMockDrivingStateService, mMockCarPropertyService);
+        mService.init();
+        // A CarActivityView would report this itself, but we fake the report here
+        mService.reportVirtualDisplayToPhysicalDisplay(mRemoteCallback, virtualDisplayId,
+                physicalDisplayIdForVirtualDisplayId2);
+        mService.handleDrivingStateEventLocked(
+                new CarDrivingStateEvent(CarDrivingStateEvent.DRIVING_STATE_MOVING,
+                        SystemClock.elapsedRealtime()));
+
+        // Virtual display should have restrictions for port2
+        CarUxRestrictions restrictions = mService.getCurrentUxRestrictions(virtualDisplayId);
+        CarUxRestrictions expected = new CarUxRestrictions.Builder(
+                /*reqOpt= */ true,
+                port2Restrictions,
+                SystemClock.elapsedRealtimeNanos()).build();
+        assertTrue(restrictions.toString(), expected.isSameRestrictions(restrictions));
+
+        virtualDisplay.release();
+    }
+
+    private void mockDisplay(DisplayManager displayManager, Display display, int displayId,
+            int portAddress) {
+        when(displayManager.getDisplay(displayId)).thenReturn(display);
+        when(display.getDisplayId()).thenReturn(displayId);
+        when(display.getAddress()).thenReturn(DisplayAddress.fromPhysicalDisplayId(portAddress));
+    }
+
     // This test only involves calling a few methods and should finish very quickly. If it doesn't
     // finish in 20s, we probably encountered a deadlock.
     @Test(timeout = 20000)
@@ -356,8 +451,7 @@ public class CarUxRestrictionsManagerServiceTest {
         CarDrivingStateService drivingStateService = new CarDrivingStateService(mSpyContext,
                 mMockCarPropertyService);
         CarUxRestrictionsManagerService uxRestrictionsService = new CarUxRestrictionsManagerService(
-                mSpyContext, drivingStateService, mMockCarPropertyService,
-                mMockCarOccupantZoneService);
+                mSpyContext, drivingStateService, mMockCarPropertyService);
 
         CountDownLatch dispatchingStartedSignal = new CountDownLatch(1);
         CountDownLatch initCompleteSignal = new CountDownLatch(1);
@@ -459,8 +553,7 @@ public class CarUxRestrictionsManagerServiceTest {
         CarDrivingStateService drivingStateService = new CarDrivingStateService(mSpyContext,
                 mMockCarPropertyService);
         CarUxRestrictionsManagerService uxRestrictionService = new CarUxRestrictionsManagerService(
-                mSpyContext, drivingStateService, mMockCarPropertyService,
-                mMockCarOccupantZoneService);
+                mSpyContext, drivingStateService, mMockCarPropertyService);
 
         CountDownLatch dispatchingStartedSignal = new CountDownLatch(1);
         CountDownLatch initCompleteSignal = new CountDownLatch(1);
@@ -577,6 +670,20 @@ public class CarUxRestrictionsManagerServiceTest {
         return builder.build();
     }
 
+    private CarUxRestrictionsConfiguration createMovingConfig(Integer port, int restrictions) {
+        Builder builder = new Builder();
+        if (port != null) {
+            builder.setPhysicalPort(port);
+        }
+        CarUxRestrictionsConfiguration.DrivingStateRestrictions drivingStateRestrictions =
+                new CarUxRestrictionsConfiguration.DrivingStateRestrictions();
+        drivingStateRestrictions.setDistractionOptimizationRequired(restrictions != 0);
+        drivingStateRestrictions.setRestrictions(restrictions);
+        builder.setUxRestrictions(CarDrivingStateEvent.DRIVING_STATE_MOVING,
+                drivingStateRestrictions);
+        return builder.build();
+    }
+
     private void setUpMockParkedState() {
         when(mMockDrivingStateService.getCurrentDrivingState()).thenReturn(
                 new CarDrivingStateEvent(CarDrivingStateEvent.DRIVING_STATE_PARKED, 0));
@@ -587,12 +694,12 @@ public class CarUxRestrictionsManagerServiceTest {
                 .thenReturn(speed);
     }
 
-    private void setUpMockDrivingStateWithFakeSpeed(float fakeSpeed) {
+    private void setUpMockDrivingState() {
         when(mMockDrivingStateService.getCurrentDrivingState()).thenReturn(
                 new CarDrivingStateEvent(CarDrivingStateEvent.DRIVING_STATE_MOVING, 0));
 
         CarPropertyValue<Float> speed = new CarPropertyValue<>(VehicleProperty.PERF_VEHICLE_SPEED,
-                0, fakeSpeed);
+                0, 30f);
         when(mMockCarPropertyService.getPropertySafe(VehicleProperty.PERF_VEHICLE_SPEED, 0))
                 .thenReturn(speed);
     }

@@ -22,22 +22,20 @@
 #include "RenderBase.h"
 #include "StreamHandler.h"
 
-#include <aidl/android/hardware/automotive/vehicle/VehiclePropValues.h>
 #include <android/hardware/automotive/evs/1.1/IEvsCamera.h>
 #include <android/hardware/automotive/evs/1.1/IEvsDisplay.h>
 #include <android/hardware/automotive/evs/1.1/IEvsEnumerator.h>
-
-#include <IVhalClient.h>
+#include <android/hardware/automotive/vehicle/2.0/IVehicle.h>
 
 #include <thread>
 
 using namespace ::android::hardware::automotive::evs::V1_1;
+using namespace ::android::hardware::automotive::vehicle::V2_0;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
 using ::android::hardware::hidl_vec;
 using ::android::hardware::hidl_handle;
 using ::android::sp;
-using ::android::wp;
 using ::android::hardware::automotive::evs::V1_1::IEvsDisplay;
 using ::android::hardware::camera::device::V3_2::Stream;
 
@@ -49,9 +47,10 @@ using ::android::hardware::camera::device::V3_2::Stream;
  */
 class EvsStateControl {
 public:
-    EvsStateControl(std::shared_ptr<android::frameworks::automotive::vhal::IVhalClient> pVnet,
-                    android::sp<IEvsEnumerator> pEvs, android::sp<IEvsDisplay> pDisplay,
-                    const ConfigManager& config);
+    EvsStateControl(android::sp <IVehicle>       pVnet,
+                    android::sp <IEvsEnumerator> pEvs,
+                    android::sp <IEvsDisplay>    pDisplay,
+                    const ConfigManager&         config);
 
     enum State {
         OFF = 0,
@@ -85,18 +84,17 @@ public:
 
 private:
     void updateLoop();
-    aidl::android::hardware::automotive::vehicle::StatusCode invokeGet(
-            aidl::android::hardware::automotive::vehicle::VehiclePropValue* pRequestedPropValue);
+    StatusCode invokeGet(VehiclePropValue *pRequestedPropValue);
     bool selectStateForCurrentConditions();
     bool configureEvsPipeline(State desiredState);  // Only call from one thread!
 
-    std::shared_ptr<android::frameworks::automotive::vhal::IVhalClient> mVehicle;
+    sp<IVehicle>                mVehicle;
     sp<IEvsEnumerator>          mEvs;
-    wp<IEvsDisplay>             mDisplay;
+    sp<IEvsDisplay>             mDisplay;
     const ConfigManager&        mConfig;
 
-    aidl::android::hardware::automotive::vehicle::VehiclePropValue mGearValue;
-    aidl::android::hardware::automotive::vehicle::VehiclePropValue mTurnSignalValue;
+    VehiclePropValue            mGearValue;
+    VehiclePropValue            mTurnSignalValue;
 
     State                       mCurrentState = OFF;
 

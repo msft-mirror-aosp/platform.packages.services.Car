@@ -16,5 +16,4 @@
 
 package android.car.storagemonitoring;
 
-/** @deprecated use CarWatchdogManager and its related classes for I/O related tasks */
 parcelable IoStats;

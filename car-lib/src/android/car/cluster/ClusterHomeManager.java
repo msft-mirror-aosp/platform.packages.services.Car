@@ -16,21 +16,17 @@
 
 package android.car.cluster;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.lang.annotation.Retention;
@@ -47,9 +43,7 @@ public class ClusterHomeManager extends CarManagerBase {
      * When the client reports ClusterHome state and if there is no UI in the sub area, it can
      * reports UI_TYPE_CLUSTER_NONE instead.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int UI_TYPE_CLUSTER_NONE = -1;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int UI_TYPE_CLUSTER_HOME = 0;
 
     /** @hide */
@@ -63,155 +57,78 @@ public class ClusterHomeManager extends CarManagerBase {
     public @interface Config {}
 
     /** Bit fields indicates which fields of {@link ClusterState} are changed */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_ON_OFF = 0x01;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_BOUNDS = 0x02;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_INSETS = 0x04;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_UI_TYPE = 0x08;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int CONFIG_DISPLAY_ID = 0x10;
 
     /**
-     * Callback for ClusterHome to get notifications when cluster state changes.
+     * Callback for ClusterHome to get notifications
      */
-    public interface ClusterStateListener {
+    public interface ClusterHomeCallback {
         /**
          * Called when ClusterOS changes the cluster display state, the geometry of cluster display,
          * or the uiType.
          * @param state newly updated {@link ClusterState}
          * @param changes the flag indicates which fields are updated
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onClusterStateChanged(ClusterState state, @Config int changes);
-    }
 
-    /**
-     * Callback for ClusterHome to get notifications when cluster navigation state changes.
-     */
-    public interface ClusterNavigationStateListener {
         /** Called when the App who owns the navigation focus casts the new navigation state. */
-        @AddedInOrBefore(majorVersion = 33)
         void onNavigationState(byte[] navigationState);
     }
 
-    private static class ClusterStateListenerRecord {
+    private static class CallbackRecord {
         final Executor mExecutor;
-        final ClusterStateListener mListener;
-        ClusterStateListenerRecord(Executor executor, ClusterStateListener listener) {
+        final ClusterHomeCallback mCallback;
+        CallbackRecord(Executor executor, ClusterHomeCallback callback) {
             mExecutor = executor;
-            mListener = listener;
+            mCallback = callback;
         }
-
-        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
             }
-            if (!(obj instanceof ClusterStateListenerRecord)) {
+            if (!(obj instanceof CallbackRecord)) {
                 return false;
             }
-            return mListener == ((ClusterStateListenerRecord) obj).mListener;
+            return mCallback == ((CallbackRecord) obj).mCallback;
         }
-
-        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         @Override
         public int hashCode() {
-            return mListener.hashCode();
-        }
-    }
-
-    private static class ClusterNavigationStateListenerRecord {
-        final Executor mExecutor;
-        final ClusterNavigationStateListener mListener;
-
-        ClusterNavigationStateListenerRecord(Executor executor,
-                ClusterNavigationStateListener listener) {
-            mExecutor = executor;
-            mListener = listener;
-        }
-
-        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (!(obj instanceof ClusterNavigationStateListenerRecord)) {
-                return false;
-            }
-            return mListener == ((ClusterNavigationStateListenerRecord) obj).mListener;
-        }
-
-        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-        @Override
-        public int hashCode() {
-            return mListener.hashCode();
+            return mCallback.hashCode();
         }
     }
 
     private final IClusterHomeService mService;
-    private final IClusterStateListenerImpl mClusterStateListenerBinderCallback;
-    private final IClusterNavigationStateListenerImpl mClusterNavigationStateListenerBinderCallback;
-    private final CopyOnWriteArrayList<ClusterStateListenerRecord> mStateListeners =
-            new CopyOnWriteArrayList<>();
-    private final CopyOnWriteArrayList<ClusterNavigationStateListenerRecord>
-            mNavigationStateListeners = new CopyOnWriteArrayList<>();
+    private final IClusterHomeCallbackImpl mBinderCallback;
+    private final CopyOnWriteArrayList<CallbackRecord> mCallbacks = new CopyOnWriteArrayList<>();
 
     /** @hide */
     @VisibleForTesting
     public ClusterHomeManager(Car car, IBinder service) {
         super(car);
         mService = IClusterHomeService.Stub.asInterface(service);
-        mClusterStateListenerBinderCallback = new IClusterStateListenerImpl(this);
-        mClusterNavigationStateListenerBinderCallback =
-                new IClusterNavigationStateListenerImpl(this);
+        mBinderCallback = new IClusterHomeCallbackImpl(this);
     }
 
     /**
      * Registers the callback for ClusterHome.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
-    @AddedInOrBefore(majorVersion = 33)
-    public void registerClusterStateListener(
-            @NonNull Executor executor, @NonNull ClusterStateListener callback) {
+    public void registerClusterHomeCallback(
+            @NonNull Executor executor, @NonNull ClusterHomeCallback callback) {
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
-        ClusterStateListenerRecord clusterStateListenerRecord =
-                new ClusterStateListenerRecord(executor, callback);
-        if (!mStateListeners.addIfAbsent(clusterStateListenerRecord)) {
+        CallbackRecord callbackRecord = new CallbackRecord(executor, callback);
+        if (!mCallbacks.addIfAbsent(callbackRecord)) {
             return;
         }
-        if (mStateListeners.size() == 1) {
+        if (mCallbacks.size() == 1) {
             try {
-                mService.registerClusterStateListener(mClusterStateListenerBinderCallback);
-            } catch (RemoteException e) {
-                handleRemoteExceptionFromCarService(e);
-            }
-        }
-    }
-
-    /**
-     * Registers the callback for ClusterHome.
-     */
-    @RequiresPermission(Car.PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE)
-    @AddedInOrBefore(majorVersion = 33)
-    public void registerClusterNavigationStateListener(
-            @NonNull Executor executor, @NonNull ClusterNavigationStateListener callback) {
-        Objects.requireNonNull(executor, "executor cannot be null");
-        Objects.requireNonNull(callback, "callback cannot be null");
-        ClusterNavigationStateListenerRecord clusterStateListenerRecord =
-                new ClusterNavigationStateListenerRecord(executor, callback);
-        if (!mNavigationStateListeners.addIfAbsent(clusterStateListenerRecord)) {
-            return;
-        }
-        if (mNavigationStateListeners.size() == 1) {
-            try {
-                mService.registerClusterNavigationStateListener(
-                        mClusterNavigationStateListenerBinderCallback);
+                mService.registerCallback(mBinderCallback);
             } catch (RemoteException e) {
                 handleRemoteExceptionFromCarService(e);
             }
@@ -222,48 +139,24 @@ public class ClusterHomeManager extends CarManagerBase {
      * Unregisters the callback.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
-    @AddedInOrBefore(majorVersion = 33)
-    public void unregisterClusterStateListener(@NonNull ClusterStateListener callback) {
+    public void unregisterClusterHomeCallback(@NonNull ClusterHomeCallback callback) {
         Objects.requireNonNull(callback, "callback cannot be null");
-        if (!mStateListeners
-                .remove(new ClusterStateListenerRecord(/* executor= */ null, callback))) {
+        if (!mCallbacks.remove(new CallbackRecord(/* executor= */ null, callback))) {
             return;
         }
-        if (mStateListeners.isEmpty()) {
+        if (mCallbacks.isEmpty()) {
             try {
-                mService.unregisterClusterStateListener(mClusterStateListenerBinderCallback);
+                mService.unregisterCallback(mBinderCallback);
             } catch (RemoteException ignored) {
                 // ignore for unregistering
             }
         }
     }
 
-    /**
-     * Unregisters the callback.
-     */
-    @RequiresPermission(Car.PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE)
-    @AddedInOrBefore(majorVersion = 33)
-    public void unregisterClusterNavigationStateListener(
-            @NonNull ClusterNavigationStateListener callback) {
-        Objects.requireNonNull(callback, "callback cannot be null");
-        if (!mNavigationStateListeners.remove(new ClusterNavigationStateListenerRecord(
-                /* executor= */ null, callback))) {
-            return;
-        }
-        if (mNavigationStateListeners.isEmpty()) {
-            try {
-                mService.unregisterClusterNavigationStateListener(
-                        mClusterNavigationStateListenerBinderCallback);
-            } catch (RemoteException ignored) {
-                // ignore for unregistering
-            }
-        }
-    }
-
-    private static class IClusterStateListenerImpl extends IClusterStateListener.Stub {
+    private static class IClusterHomeCallbackImpl extends IClusterHomeCallback.Stub {
         private final WeakReference<ClusterHomeManager> mManager;
 
-        private IClusterStateListenerImpl(ClusterHomeManager manager) {
+        private IClusterHomeCallbackImpl(ClusterHomeManager manager) {
             mManager = new WeakReference<>(manager);
         }
 
@@ -271,28 +164,19 @@ public class ClusterHomeManager extends CarManagerBase {
         public void onClusterStateChanged(@NonNull ClusterState state, @Config int changes) {
             ClusterHomeManager manager = mManager.get();
             if (manager != null) {
-                for (ClusterStateListenerRecord cb : manager.mStateListeners) {
+                for (CallbackRecord cb : manager.mCallbacks) {
                     cb.mExecutor.execute(
-                            () -> cb.mListener.onClusterStateChanged(state, changes));
+                            () -> cb.mCallback.onClusterStateChanged(state, changes));
                 }
             }
-        }
-    }
-
-    private static class IClusterNavigationStateListenerImpl extends
-            IClusterNavigationStateListener.Stub {
-        private final WeakReference<ClusterHomeManager> mManager;
-
-        private IClusterNavigationStateListenerImpl(ClusterHomeManager manager) {
-            mManager = new WeakReference<>(manager);
         }
 
         @Override
         public void onNavigationStateChanged(@NonNull byte[] navigationState) {
             ClusterHomeManager manager = mManager.get();
             if (manager != null) {
-                for (ClusterNavigationStateListenerRecord lr : manager.mNavigationStateListeners) {
-                    lr.mExecutor.execute(() -> lr.mListener.onNavigationState(navigationState));
+                for (CallbackRecord cb : manager.mCallbacks) {
+                    cb.mExecutor.execute(() -> cb.mCallback.onNavigationState(navigationState));
                 }
             }
         }
@@ -307,7 +191,6 @@ public class ClusterHomeManager extends CarManagerBase {
      *    Index 0 is reserved for ClusterHome, The other indexes are followed by OEM's definition.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
-    @AddedInOrBefore(majorVersion = 33)
     public void reportState(int uiTypeMain, int uiTypeSub, @NonNull byte[] uiAvailability) {
         try {
             mService.reportState(uiTypeMain, uiTypeSub, uiAvailability);
@@ -321,7 +204,6 @@ public class ClusterHomeManager extends CarManagerBase {
      * @param uiType uiType that ClusterHome tries to show in main area
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
-    @AddedInOrBefore(majorVersion = 33)
     public void requestDisplay(int uiType) {
         try {
             mService.requestDisplay(uiType);
@@ -335,7 +217,6 @@ public class ClusterHomeManager extends CarManagerBase {
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public ClusterState getClusterState() {
         ClusterState state = null;
         try {
@@ -359,7 +240,6 @@ public class ClusterHomeManager extends CarManagerBase {
      * @return true if it launches the given Intent as FixedActivity successfully
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
-    @AddedInOrBefore(majorVersion = 33)
     public boolean startFixedActivityModeAsUser(
             Intent intent, @Nullable Bundle options, int userId) {
         try {
@@ -377,7 +257,6 @@ public class ClusterHomeManager extends CarManagerBase {
      * does not stop the activity but it will not be re-launched any more.
      */
     @RequiresPermission(Car.PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL)
-    @AddedInOrBefore(majorVersion = 33)
     public void stopFixedActivityMode() {
         try {
             mService.stopFixedActivityMode();
@@ -387,9 +266,7 @@ public class ClusterHomeManager extends CarManagerBase {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     protected void onCarDisconnected() {
-        mStateListeners.clear();
-        mNavigationStateListeners.clear();
+        mCallbacks.clear();
     }
 }

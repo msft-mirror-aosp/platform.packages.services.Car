@@ -23,7 +23,6 @@
 #include <android/automotive/watchdog/ResourceOveruseStats.h>
 #include <binder/Status.h>
 #include <gmock/gmock.h>
-#include <utils/StrongPointer.h>
 
 namespace android {
 namespace automotive {
@@ -31,7 +30,7 @@ namespace watchdog {
 
 class MockResourceOveruseListener : public IResourceOveruseListenerDefault {
 public:
-    MockResourceOveruseListener() : mMockBinder(android::sp<MockBinder>::make()) {
+    MockResourceOveruseListener() : mMockBinder(new MockBinder()) {
         ON_CALL(*this, onAsBinder()).WillByDefault(::testing::Return(mMockBinder.get()));
     }
     ~MockResourceOveruseListener() { mMockBinder.clear(); }

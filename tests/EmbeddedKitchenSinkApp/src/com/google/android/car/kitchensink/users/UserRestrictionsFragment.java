@@ -31,9 +31,7 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.car.kitchensink.R;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,7 +46,6 @@ public final class UserRestrictionsFragment extends Fragment {
             Arrays.asList(
                     UserManager.DISALLOW_ADD_USER,
                     UserManager.DISALLOW_BLUETOOTH,
-                    UserManager.DISALLOW_CONFIG_BRIGHTNESS,
                     UserManager.DISALLOW_FACTORY_RESET,
                     UserManager.DISALLOW_INSTALL_APPS,
                     UserManager.DISALLOW_MODIFY_ACCOUNTS,
@@ -58,11 +55,6 @@ public final class UserRestrictionsFragment extends Fragment {
                     UserManager.DISALLOW_UNINSTALL_APPS,
                     UserManager.DISALLOW_USER_SWITCH
             );
-
-    static {
-        Collections.sort(CONFIGURABLE_USER_RESTRICTIONS);
-        Log.d(TAG, "Configurable user restrictions: " + CONFIGURABLE_USER_RESTRICTIONS);
-    }
 
     @Nullable
     @Override
@@ -84,29 +76,19 @@ public final class UserRestrictionsFragment extends Fragment {
             UserManager userManager = getUserManager();
 
             // Iterate through all of the user restrictions and set their values
-            List<String> restrictions = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 UserRestrictionListItem item = (UserRestrictionListItem) adapter.getItem(i);
-                String restriction = item.getKey();
-                boolean added = item.getIsChecked();
-                userManager.setUserRestriction(restriction, added);
-                if (added) {
-                    restrictions.add(restriction);
-                }
+                userManager.setUserRestriction(item.getKey(), item.getIsChecked());
             }
-            toast("%d restrictions (%s) have been set on user %d!", restrictions.size(),
-                    restrictions, getContext().getUserId());
+
+            Toast.makeText(
+                    getContext(), "User restrictions have been set!", Toast.LENGTH_SHORT)
+                    .show();
         });
     }
 
-    private void toast(String format, Object...args) {
-        String msg = String.format(format, args);
-        Log.i(TAG, msg);
-        Toast.makeText(getContext(), msg, Toast.LENGTH_SHORT).show();
-    }
-
     private List<UserRestrictionListItem> createUserRestrictionItems() {
-        int userId = getContext().getUser().getIdentifier();
+        int userId = getContext().getUserId();
         UserHandle user = UserHandle.of(userId);
         UserManager userManager = getUserManager();
 

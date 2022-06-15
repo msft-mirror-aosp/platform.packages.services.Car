@@ -15,154 +15,134 @@
  */
 
 #include "Enumerator.h"
-
 #include "HalDisplay.h"
-#include "IPermissionsChecker.h"
 #include "emul/EvsEmulatedCamera.h"
-#include "stats/StatsCollector.h"
+
+#include <regex>
 
 #include <android-base/chrono_utils.h>
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/parseint.h>
-#include <android-base/stringprintf.h>
 #include <android-base/strings.h>
+#include <android-base/stringprintf.h>
 #include <cutils/android_filesystem_config.h>
 #include <hwbinder/IPCThreadState.h>
 
-#include <regex>  // NOLINT
-#include <vector>
-
 namespace {
 
-using ::android::automotive::evs::V1_1::implementation::IPermissionsChecker;
-using ::android::base::EqualsIgnoreCase;
+    const char* kSingleIndent = "\t";
+    const char* kDumpOptionAll = "all";
+    const char* kDumpDeviceCamera = "camera";
+    const char* kDumpDeviceDisplay = "display";
+
+    const char* kDumpCameraCommandCurrent = "--current";
+    const char* kDumpCameraCommandCollected = "--collected";
+    const char* kDumpCameraCommandCustom = "--custom";
+    const char* kDumpCameraCommandCustomStart = "start";
+    const char* kDumpCameraCommandCustomStop = "stop";
+
+    const int kDumpCameraMinNumArgs = 4;
+    const int kOptionDumpDeviceTypeIndex = 1;
+    const int kOptionDumpCameraTypeIndex = 2;
+    const int kOptionDumpCameraCommandIndex = 3;
+    const int kOptionDumpCameraArgsStartIndex = 4;
+
+    const std::regex kEmulatedCameraNamePattern("emulated/[0-9]+", std::regex_constants::icase);
+
+    // Display ID 255 is reserved for the special purpose.
+    constexpr int kExclusiveMainDisplayId = 255;
+}
+
+namespace android {
+namespace automotive {
+namespace evs {
+namespace V1_1 {
+namespace implementation {
+
 using ::android::base::Error;
+using ::android::base::EqualsIgnoreCase;
 using ::android::base::StringAppendF;
 using ::android::base::StringPrintf;
 using ::android::base::WriteStringToFd;
-using ::android::hardware::hidl_handle;
-using ::android::hardware::IPCThreadState;
-using ::android::hardware::Void;
-using ::android::hardware::automotive::evs::V1_0::DisplayState;
-using IEvsCamera_1_0 = ::android::hardware::automotive::evs::V1_0::IEvsCamera;
 using CameraDesc_1_0 = ::android::hardware::automotive::evs::V1_0::CameraDesc;
 using CameraDesc_1_1 = ::android::hardware::automotive::evs::V1_1::CameraDesc;
-using ::android::hardware::camera::device::V3_2::Stream;
 
-const char* kSingleIndent = "\t";
-const char* kDumpOptionAll = "all";
-const char* kDumpDeviceCamera = "camera";
-const char* kDumpDeviceDisplay = "display";
-
-const char* kDumpCameraCommandCurrent = "--current";
-const char* kDumpCameraCommandCollected = "--collected";
-const char* kDumpCameraCommandCustom = "--custom";
-const char* kDumpCameraCommandCustomStart = "start";
-const char* kDumpCameraCommandCustomStop = "stop";
-
-const int kDumpCameraMinNumArgs = 4;
-const int kOptionDumpDeviceTypeIndex = 1;
-const int kOptionDumpCameraTypeIndex = 2;
-const int kOptionDumpCameraCommandIndex = 3;
-const int kOptionDumpCameraArgsStartIndex = 4;
-
-const std::regex kEmulatedCameraNamePattern("emulated/[0-9]+", std::regex_constants::icase);
-
-// Display ID 255 is reserved for the special purpose.
-constexpr int kExclusiveMainDisplayId = 255;
-
-// This surprisingly is not included in STL until C++20.
-template <template <class> class Container, typename T>
-constexpr bool contains(const Container<T>& container, const T& value) {
-    return (std::find(container.begin(), container.end(), value) != container.end());
-}
-
-// Removes the target value if present, and optionally executes a lambda.
-template <typename Container, typename T, typename RemovalLambda>
-constexpr void removeIfPresent(
-        Container* container, const T& value, RemovalLambda removalLambda = []() {}) {
-    auto it = std::find(container->begin(), container->end(), value);
-    if (it != container->end()) {
-        container->erase(it);
-        removalLambda();
+Enumerator::~Enumerator() {
+    if (mClientsMonitor != nullptr) {
+        mClientsMonitor->stopCollection();
     }
 }
 
-class ProdPermissionChecker : public IPermissionsChecker {
-public:
-    bool processHasPermissionsForEvs() override {
-        IPCThreadState* ipc = IPCThreadState::self();
-        const auto userId = ipc->getCallingUid() / AID_USER_OFFSET;
-        const auto appId = ipc->getCallingUid() % AID_USER_OFFSET;
-        if (AID_AUTOMOTIVE_EVS != appId && AID_ROOT != appId && AID_SYSTEM != appId) {
-            LOG(ERROR) << "EVS access denied? "
-                       << "pid = " << ipc->getCallingPid() << ", userId = " << userId
-                       << ", appId = " << appId;
-            return false;
-        }
+bool Enumerator::init(const char* hardwareServiceName) {
+    LOG(DEBUG) << "init";
 
-        return true;
-    }
-};
-
-}  // namespace
-
-namespace android::automotive::evs::V1_1::implementation {
-
-Enumerator::Enumerator(std::unique_ptr<ServiceFactory> serviceFactory,
-                       std::unique_ptr<IStatsCollector> statsCollector,
-                       std::unique_ptr<IPermissionsChecker> permissionChecker) :
-      mServiceFactory(std::move(serviceFactory)),
-      mStatsCollector(std::move(statsCollector)),
-      mPermissionChecker(std::move(permissionChecker)) {
-    // Get an internal display identifier.
-    mServiceFactory->getService()->getDisplayIdList(
-            [this](const android::hardware::hidl_vec<unsigned char>& displayPorts) {
-                for (unsigned char port : displayPorts) {
+    // Connect with the underlying hardware enumerator
+    mHwEnumerator = IEvsEnumerator::getService(hardwareServiceName);
+    bool result = (mHwEnumerator.get() != nullptr);
+    if (result) {
+        // Get an internal display identifier.
+        mHwEnumerator->getDisplayIdList(
+            [this](const auto& displayPorts) {
+                for (auto& port : displayPorts) {
                     mDisplayPorts.push_back(port);
                 }
 
-                if (mDisplayPorts.empty()) {
+                // The first element is the internal display
+                mInternalDisplayPort = mDisplayPorts.front();
+                if (mDisplayPorts.size() < 1) {
                     LOG(WARNING) << "No display is available to EVS service.";
-                } else {
-                    // The first element must be the internal display
-                    mInternalDisplayPort = mDisplayPorts.front();
                 }
-            });
-
-    removeIfPresent(&mDisplayPorts, kExclusiveMainDisplayId, []() {
-        LOG(WARNING) << kExclusiveMainDisplayId
-                     << " is reserved so will not be available for EVS service.";
-    });
-
-    mMonitorEnabled = mStatsCollector->startCollection().ok();
-}
-
-std::unique_ptr<Enumerator> Enumerator::build(
-        std::unique_ptr<ServiceFactory> serviceFactory,
-        std::unique_ptr<IStatsCollector> statsCollector,
-        std::unique_ptr<IPermissionsChecker> permissionChecker) {
-    // Connect with the underlying hardware enumerator.
-    if (!serviceFactory->getService()) {
-        return nullptr;
+            }
+        );
     }
 
-    return std::unique_ptr<Enumerator>{new Enumerator(std::move(serviceFactory),
-                                                      std::move(statsCollector),
-                                                      std::move(permissionChecker))};
-}
+    auto it = std::find(mDisplayPorts.begin(), mDisplayPorts.end(), kExclusiveMainDisplayId);
+    if (it != mDisplayPorts.end()) {
+        LOG(WARNING) << kExclusiveMainDisplayId << " is reserved for the special purpose "
+                     << "so will not be available for EVS service.";
+        mDisplayPorts.erase(it);
+    }
+    mDisplayOwnedExclusively = false;
 
-std::unique_ptr<Enumerator> Enumerator::build(const char* hardwareServiceName) {
-    if (!hardwareServiceName) {
-        return nullptr;
+    // Starts the statistics collection
+    mMonitorEnabled = false;
+    mClientsMonitor = new StatsCollector();
+    if (mClientsMonitor != nullptr) {
+        auto result = mClientsMonitor->startCollection();
+        if (!result.ok()) {
+            LOG(ERROR) << "Failed to start the usage monitor: "
+                       << result.error();
+        } else {
+            mMonitorEnabled = true;
+        }
     }
 
-    return build(std::make_unique<ProdServiceFactory>(hardwareServiceName),
-                 std::make_unique<StatsCollector>(), std::make_unique<ProdPermissionChecker>());
+    return result;
 }
 
-bool Enumerator::isLogicalCamera(const camera_metadata_t* metadata) {
+
+bool Enumerator::checkPermission() {
+    hardware::IPCThreadState *ipc = hardware::IPCThreadState::self();
+    const auto userId = ipc->getCallingUid() / AID_USER_OFFSET;
+    const auto appId = ipc->getCallingUid() % AID_USER_OFFSET;
+#ifdef EVS_DEBUG
+    if (AID_AUTOMOTIVE_EVS != appId && AID_ROOT != appId && AID_SYSTEM != appId) {
+#else
+    if (AID_AUTOMOTIVE_EVS != appId && AID_SYSTEM != appId) {
+#endif
+        LOG(ERROR) << "EVS access denied? "
+                   << "pid = " << ipc->getCallingPid()
+                   << ", userId = " << userId
+                   << ", appId = " << appId;
+        return false;
+    }
+
+    return true;
+}
+
+
+bool Enumerator::isLogicalCamera(const camera_metadata_t *metadata) {
     bool found = false;
 
     if (metadata == nullptr) {
@@ -171,8 +151,9 @@ bool Enumerator::isLogicalCamera(const camera_metadata_t* metadata) {
     }
 
     camera_metadata_ro_entry_t entry;
-    int rc =
-            find_camera_metadata_ro_entry(metadata, ANDROID_REQUEST_AVAILABLE_CAPABILITIES, &entry);
+    int rc = find_camera_metadata_ro_entry(metadata,
+                                           ANDROID_REQUEST_AVAILABLE_CAPABILITIES,
+                                           &entry);
     if (0 != rc) {
         // No capabilities are found in metadata.
         LOG(DEBUG) << __FUNCTION__ << " does not find a target entry";
@@ -193,6 +174,7 @@ bool Enumerator::isLogicalCamera(const camera_metadata_t* metadata) {
     return found;
 }
 
+
 std::unordered_set<std::string> Enumerator::getPhysicalCameraIds(const std::string& id) {
     std::unordered_set<std::string> physicalCameras;
     if (mCameraDevices.find(id) == mCameraDevices.end()) {
@@ -200,8 +182,8 @@ std::unordered_set<std::string> Enumerator::getPhysicalCameraIds(const std::stri
         return physicalCameras;
     }
 
-    const camera_metadata_t* metadata =
-            reinterpret_cast<camera_metadata_t*>(&mCameraDevices[id].metadata[0]);
+    const camera_metadata_t *metadata =
+        reinterpret_cast<camera_metadata_t *>(&mCameraDevices[id].metadata[0]);
     if (!isLogicalCamera(metadata)) {
         // EVS assumes that the device w/o a valid metadata is a physical
         // device.
@@ -211,33 +193,36 @@ std::unordered_set<std::string> Enumerator::getPhysicalCameraIds(const std::stri
     }
 
     camera_metadata_ro_entry entry;
-    int rc = find_camera_metadata_ro_entry(metadata, ANDROID_LOGICAL_MULTI_CAMERA_PHYSICAL_IDS,
+    int rc = find_camera_metadata_ro_entry(metadata,
+                                           ANDROID_LOGICAL_MULTI_CAMERA_PHYSICAL_IDS,
                                            &entry);
     if (0 != rc) {
         LOG(ERROR) << "No physical camera ID is found for a logical camera device " << id;
         return physicalCameras;
     }
 
-    const uint8_t* ids = entry.data.u8;
+    const uint8_t *ids = entry.data.u8;
     size_t start = 0;
     for (size_t i = 0; i < entry.count; ++i) {
         if (ids[i] == '\0') {
             if (start != i) {
-                std::string id(reinterpret_cast<const char*>(ids + start));
+                std::string id(reinterpret_cast<const char *>(ids + start));
                 physicalCameras.emplace(id);
             }
             start = i + 1;
         }
     }
 
-    LOG(INFO) << id << " consists of " << physicalCameras.size() << " physical camera devices.";
+    LOG(INFO) << id << " consists of "
+               << physicalCameras.size() << " physical camera devices.";
     return physicalCameras;
 }
 
+
 // Methods from ::android::hardware::automotive::evs::V1_0::IEvsEnumerator follow.
-Return<void> Enumerator::getCameraList(getCameraList_cb list_cb) {
+Return<void> Enumerator::getCameraList(getCameraList_cb list_cb)  {
     hardware::hidl_vec<CameraDesc_1_0> cameraList;
-    mServiceFactory->getService()->getCameraList_1_1([&cameraList](auto cameraList_1_1) {
+    mHwEnumerator->getCameraList_1_1([&cameraList](auto cameraList_1_1) {
         cameraList.resize(cameraList_1_1.size());
         unsigned i = 0;
         for (auto&& cam : cameraList_1_1) {
@@ -250,9 +235,10 @@ Return<void> Enumerator::getCameraList(getCameraList_cb list_cb) {
     return Void();
 }
 
+
 Return<sp<IEvsCamera_1_0>> Enumerator::openCamera(const hidl_string& cameraId) {
     LOG(DEBUG) << __FUNCTION__;
-    if (!mPermissionChecker->processHasPermissionsForEvs()) {
+    if (!checkPermission()) {
         return nullptr;
     }
 
@@ -271,8 +257,8 @@ Return<sp<IEvsCamera_1_0>> Enumerator::openCamera(const hidl_string& cameraId) {
                                                    mEmulatedCameraDevices[cameraId]);
             }
         } else {
-            device = IEvsCamera_1_1::castFrom(mServiceFactory->getService()->openCamera(cameraId))
-                             .withDefault(nullptr);
+            device = IEvsCamera_1_1::castFrom(mHwEnumerator->openCamera(cameraId))
+                     .withDefault(nullptr);
         }
         if (device == nullptr) {
             LOG(ERROR) << "Failed to open hardware camera " << cameraId;
@@ -283,7 +269,7 @@ Return<sp<IEvsCamera_1_0>> Enumerator::openCamera(const hidl_string& cameraId) {
             hwCamera = new HalCamera(device, cameraId, recordId);
             if (hwCamera == nullptr) {
                 LOG(ERROR) << "Failed to allocate camera wrapper object";
-                mServiceFactory->getService()->closeCamera(device);
+                mHwEnumerator->closeCamera(device);
             }
         }
     }
@@ -298,23 +284,25 @@ Return<sp<IEvsCamera_1_0>> Enumerator::openCamera(const hidl_string& cameraId) {
     if (clientCamera != nullptr) {
         mActiveCameras.try_emplace(cameraId, hwCamera);
     } else {
-        LOG(ERROR) << "Requested camera " << cameraId << " not found or not available";
+        LOG(ERROR) << "Requested camera " << cameraId
+                   << " not found or not available";
     }
 
     // Send the virtual camera object back to the client by strong pointer which will keep it alive
     return clientCamera;
 }
 
+
 Return<void> Enumerator::closeCamera(const ::android::sp<IEvsCamera_1_0>& clientCamera) {
     LOG(DEBUG) << __FUNCTION__;
 
-    if (clientCamera == nullptr) {
+    if (clientCamera.get() == nullptr) {
         LOG(ERROR) << "Ignoring call with null camera pointer.";
         return Void();
     }
 
     // All our client cameras are actually VirtualCamera objects
-    sp<VirtualCamera> virtualCamera = reinterpret_cast<VirtualCamera*>(clientCamera.get());
+    sp<VirtualCamera> virtualCamera = reinterpret_cast<VirtualCamera *>(clientCamera.get());
 
     // Find the parent camera that backs this virtual camera
     for (auto&& halCamera : virtualCamera->getHalCameras()) {
@@ -329,9 +317,8 @@ Return<void> Enumerator::closeCamera(const ::android::sp<IEvsCamera_1_0>& client
             // NOTE:  This should drop our last reference to the camera, resulting in its
             //        destruction.
             mActiveCameras.erase(halCamera->getId());
-            mServiceFactory->getService()->closeCamera(halCamera->getHwCamera());
             if (mMonitorEnabled) {
-                mStatsCollector->unregisterClientToMonitor(halCamera->getId());
+                mClientsMonitor->unregisterClientToMonitor(halCamera->getId());
             }
         }
     }
@@ -342,11 +329,12 @@ Return<void> Enumerator::closeCamera(const ::android::sp<IEvsCamera_1_0>& client
     return Void();
 }
 
+
 // Methods from ::android::hardware::automotive::evs::V1_1::IEvsEnumerator follow.
 Return<sp<IEvsCamera_1_1>> Enumerator::openCamera_1_1(const hidl_string& cameraId,
                                                       const Stream& streamCfg) {
     LOG(DEBUG) << __FUNCTION__;
-    if (!mPermissionChecker->processHasPermissionsForEvs()) {
+    if (!checkPermission()) {
         return nullptr;
     }
 
@@ -366,10 +354,12 @@ Return<sp<IEvsCamera_1_1>> Enumerator::openCamera_1_1(const hidl_string& cameraI
                 if (mEmulatedCameraDevices.find(id) == mEmulatedCameraDevices.end()) {
                     LOG(ERROR) << cameraId << " is not available";
                 } else {
-                    device = EvsEmulatedCamera::Create(id.c_str(), mEmulatedCameraDevices[id]);
+                    device = EvsEmulatedCamera::Create(id.c_str(),
+                                                       mEmulatedCameraDevices[id]);
                 }
             } else {
-                device = mServiceFactory->getService()->openCamera_1_1(id, streamCfg);
+                device = IEvsCamera_1_1::castFrom(mHwEnumerator->openCamera_1_1(id, streamCfg))
+                         .withDefault(nullptr);
             }
 
             if (device == nullptr) {
@@ -383,7 +373,7 @@ Return<sp<IEvsCamera_1_1>> Enumerator::openCamera_1_1(const hidl_string& cameraI
                 hwCamera = new HalCamera(device, id, recordId, streamCfg);
                 if (hwCamera == nullptr) {
                     LOG(ERROR) << "Failed to allocate camera wrapper object";
-                    mServiceFactory->getService()->closeCamera(device);
+                    mHwEnumerator->closeCamera(device);
                     success = false;
                     break;
                 }
@@ -392,7 +382,7 @@ Return<sp<IEvsCamera_1_1>> Enumerator::openCamera_1_1(const hidl_string& cameraI
             // Add the hardware camera to our list, which will keep it alive via ref count
             mActiveCameras.try_emplace(id, hwCamera);
             if (mMonitorEnabled) {
-                mStatsCollector->registerClientToMonitor(hwCamera);
+                mClientsMonitor->registerClientToMonitor(hwCamera);
             }
 
             sourceCameras.push_back(hwCamera);
@@ -414,7 +404,7 @@ Return<sp<IEvsCamera_1_1>> Enumerator::openCamera_1_1(const hidl_string& cameraI
     // 3. Create a proxy camera object
     sp<VirtualCamera> clientCamera = new VirtualCamera(sourceCameras);
     if (clientCamera == nullptr) {
-        // TODO(b/206829268): Any resource needs to be cleaned up explicitly?
+        // TODO: Any resource needs to be cleaned up explicitly?
         LOG(ERROR) << "Failed to create a client camera object";
     } else {
         if (physicalCameras.size() > 1) {
@@ -426,9 +416,10 @@ Return<sp<IEvsCamera_1_1>> Enumerator::openCamera_1_1(const hidl_string& cameraI
         // 4. Owns created proxy camera object
         for (auto&& hwCamera : sourceCameras) {
             if (!hwCamera->ownVirtualCamera(clientCamera)) {
-                // TODO(b/206829268): Remove a reference to this camera from a virtual camera.
+                // TODO: Remove a referece to this camera from a virtual camera
                 // object.
-                LOG(ERROR) << hwCamera->getId() << " failed to own a created proxy camera object.";
+                LOG(ERROR) << hwCamera->getId()
+                           << " failed to own a created proxy camera object.";
             }
         }
     }
@@ -437,21 +428,23 @@ Return<sp<IEvsCamera_1_1>> Enumerator::openCamera_1_1(const hidl_string& cameraI
     return clientCamera;
 }
 
-Return<void> Enumerator::getCameraList_1_1(getCameraList_1_1_cb list_cb) {
+
+Return<void> Enumerator::getCameraList_1_1(getCameraList_1_1_cb list_cb)  {
     LOG(DEBUG) << __FUNCTION__;
-    if (!mPermissionChecker->processHasPermissionsForEvs()) {
+    if (!checkPermission()) {
         return Void();
     }
 
     hardware::hidl_vec<CameraDesc_1_1> hidlCameras;
-    mServiceFactory->getService()->getCameraList_1_1(
-            [&hidlCameras](hardware::hidl_vec<CameraDesc_1_1> enumeratedCameras) {
-                hidlCameras.resize(enumeratedCameras.size());
-                unsigned count = 0;
-                for (auto&& camdesc : enumeratedCameras) {
-                    hidlCameras[count++] = camdesc;
-                }
-            });
+    mHwEnumerator->getCameraList_1_1(
+        [&hidlCameras](hardware::hidl_vec<CameraDesc_1_1> enumeratedCameras) {
+            hidlCameras.resize(enumeratedCameras.size());
+            unsigned count = 0;
+            for (auto&& camdesc : enumeratedCameras) {
+                hidlCameras[count++] = camdesc;
+            }
+        }
+    );
 
     // Update the cached device list
     mCameraDevices.clear();
@@ -472,10 +465,11 @@ Return<void> Enumerator::getCameraList_1_1(getCameraList_1_1_cb list_cb) {
     return Void();
 }
 
+
 Return<sp<IEvsDisplay_1_0>> Enumerator::openDisplay() {
     LOG(DEBUG) << __FUNCTION__;
 
-    if (!mPermissionChecker->processHasPermissionsForEvs()) {
+    if (!checkPermission()) {
         return nullptr;
     }
 
@@ -490,7 +484,7 @@ Return<sp<IEvsDisplay_1_0>> Enumerator::openDisplay() {
     // create/destroy order and provides a cleaner restart sequence if the previous owner
     // is non-responsive for some reason.
     // Request exclusive access to the EVS display
-    sp<IEvsDisplay_1_0> pActiveDisplay = mServiceFactory->getService()->openDisplay();
+    sp<IEvsDisplay_1_0> pActiveDisplay = mHwEnumerator->openDisplay();
     if (pActiveDisplay == nullptr) {
         LOG(ERROR) << "EVS Display unavailable";
 
@@ -499,14 +493,15 @@ Return<sp<IEvsDisplay_1_0>> Enumerator::openDisplay() {
 
     // Remember (via weak pointer) who we think the most recently opened display is so that
     // we can proxy state requests from other callers to it.
-    // TODO(b/206829268): Because of b/129284474, an additional class, HalDisplay, has been defined
-    // and wraps the IEvsDisplay object the driver returns.  We may want to remove this additional
-    // class when it is fixed properly.
+    // TODO: Because of b/129284474, an additional class, HalDisplay, has been defined and
+    // wraps the IEvsDisplay object the driver returns.  We may want to remove this
+    // additional class when it is fixed properly.
     sp<IEvsDisplay_1_0> pHalDisplay = new HalDisplay(pActiveDisplay, mInternalDisplayPort);
     mActiveDisplay = pHalDisplay;
 
     return pHalDisplay;
 }
+
 
 Return<void> Enumerator::closeDisplay(const ::android::sp<IEvsDisplay_1_0>& display) {
     LOG(DEBUG) << __FUNCTION__;
@@ -518,8 +513,8 @@ Return<void> Enumerator::closeDisplay(const ::android::sp<IEvsDisplay_1_0>& disp
         LOG(WARNING) << "Ignoring call to closeDisplay with unrecognized display object.";
     } else {
         // Pass this request through to the hardware layer
-        sp<HalDisplay> halDisplay = reinterpret_cast<HalDisplay*>(pActiveDisplay.get());
-        mServiceFactory->getService()->closeDisplay(halDisplay->getHwDisplay());
+        sp<HalDisplay> halDisplay = reinterpret_cast<HalDisplay *>(pActiveDisplay.get());
+        mHwEnumerator->closeDisplay(halDisplay->getHwDisplay());
         mActiveDisplay = nullptr;
         mDisplayOwnedExclusively = false;
     }
@@ -527,10 +522,11 @@ Return<void> Enumerator::closeDisplay(const ::android::sp<IEvsDisplay_1_0>& disp
     return Void();
 }
 
-Return<DisplayState> Enumerator::getDisplayState() {
+
+Return<EvsDisplayState> Enumerator::getDisplayState()  {
     LOG(DEBUG) << __FUNCTION__;
-    if (!mPermissionChecker->processHasPermissionsForEvs()) {
-        return DisplayState::DEAD;
+    if (!checkPermission()) {
+        return EvsDisplayState::DEAD;
     }
 
     // Do we have a display object we think should be active?
@@ -541,14 +537,15 @@ Return<DisplayState> Enumerator::getDisplayState() {
     } else {
         // We don't have a live display right now
         mActiveDisplay = nullptr;
-        return DisplayState::NOT_OPEN;
+        return EvsDisplayState::NOT_OPEN;
     }
 }
+
 
 Return<sp<IEvsDisplay_1_1>> Enumerator::openDisplay_1_1(uint8_t id) {
     LOG(DEBUG) << __FUNCTION__;
 
-    if (!mPermissionChecker->processHasPermissionsForEvs()) {
+    if (!checkPermission()) {
         return nullptr;
     }
 
@@ -572,7 +569,7 @@ Return<sp<IEvsDisplay_1_1>> Enumerator::openDisplay_1_1(uint8_t id) {
     // create/destroy order and provides a cleaner restart sequence if the previous owner
     // is non-responsive for some reason.
     // Request exclusive access to the EVS display
-    sp<IEvsDisplay_1_1> pActiveDisplay = mServiceFactory->getService()->openDisplay_1_1(id);
+    sp<IEvsDisplay_1_1> pActiveDisplay = mHwEnumerator->openDisplay_1_1(id);
     if (pActiveDisplay == nullptr) {
         LOG(ERROR) << "EVS Display unavailable";
 
@@ -581,18 +578,20 @@ Return<sp<IEvsDisplay_1_1>> Enumerator::openDisplay_1_1(uint8_t id) {
 
     // Remember (via weak pointer) who we think the most recently opened display is so that
     // we can proxy state requests from other callers to it.
-    // TODO(b/206829268): Because of b/129284474, an additional class, HalDisplay, has been defined
-    // and wraps the IEvsDisplay object the driver returns.  We may want to remove this additional
-    // class when it is fixed properly.
+    // TODO: Because of b/129284474, an additional class, HalDisplay, has been defined and
+    // wraps the IEvsDisplay object the driver returns.  We may want to remove this
+    // additional class when it is fixed properly.
     sp<IEvsDisplay_1_1> pHalDisplay = new HalDisplay(pActiveDisplay, id);
     mActiveDisplay = pHalDisplay;
 
     return pHalDisplay;
 }
 
-Return<void> Enumerator::getDisplayIdList(getDisplayIdList_cb _list_cb) {
-    return mServiceFactory->getService()->getDisplayIdList(_list_cb);
+
+Return<void> Enumerator::getDisplayIdList(getDisplayIdList_cb _list_cb)  {
+    return mHwEnumerator->getDisplayIdList(_list_cb);
 }
+
 
 // TODO(b/149874793): Add implementation for EVS Manager and Sample driver
 Return<void> Enumerator::getUltrasonicsArrayList(getUltrasonicsArrayList_cb _hidl_cb) {
@@ -600,6 +599,7 @@ Return<void> Enumerator::getUltrasonicsArrayList(getUltrasonicsArrayList_cb _hid
     _hidl_cb(ultrasonicsArrayDesc);
     return Void();
 }
+
 
 // TODO(b/149874793): Add implementation for EVS Manager and Sample driver
 Return<sp<IEvsUltrasonicsArray>> Enumerator::openUltrasonicsArray(
@@ -609,14 +609,17 @@ Return<sp<IEvsUltrasonicsArray>> Enumerator::openUltrasonicsArray(
     return pEvsUltrasonicsArray;
 }
 
+
 // TODO(b/149874793): Add implementation for EVS Manager and Sample driver
 Return<void> Enumerator::closeUltrasonicsArray(
-        const ::android::sp<IEvsUltrasonicsArray>& evsUltrasonicsArray) {
+        const ::android::sp<IEvsUltrasonicsArray>& evsUltrasonicsArray)  {
     (void)evsUltrasonicsArray;
     return Void();
 }
 
-Return<void> Enumerator::debug(const hidl_handle& fd, const hidl_vec<hidl_string>& options) {
+
+Return<void> Enumerator::debug(const hidl_handle& fd,
+                               const hidl_vec<hidl_string>& options) {
     if (fd.getNativeHandle() != nullptr && fd->numFds > 0) {
         cmdDump(fd->data[0], options);
     } else {
@@ -625,6 +628,7 @@ Return<void> Enumerator::debug(const hidl_handle& fd, const hidl_vec<hidl_string
 
     return {};
 }
+
 
 void Enumerator::cmdDump(int fd, const hidl_vec<hidl_string>& options) {
     if (options.size() == 0) {
@@ -643,9 +647,11 @@ void Enumerator::cmdDump(int fd, const hidl_vec<hidl_string>& options) {
     } else if (EqualsIgnoreCase(option, "--configure-emulated-camera")) {
         cmdConfigureEmulatedCamera(fd, options);
     } else {
-        WriteStringToFd(StringPrintf("Invalid option: %s\n", option.c_str()), fd);
+        WriteStringToFd(StringPrintf("Invalid option: %s\n", option.c_str()),
+                        fd);
     }
 }
+
 
 void Enumerator::cmdHelp(int fd) {
     WriteStringToFd("--help: shows this help.\n"
@@ -666,9 +672,9 @@ void Enumerator::cmdHelp(int fd) {
                     "\tpath: a path to the directory where source files are stored\n"
                     "\twidth: image width in pixels\n"
                     "\theight: image height in pixels\n"
-                    "\tinterval: interval between consecutive frames in milliseconds.\n",
-                    fd);
+                    "\tinterval: interval between consecutive frames in milliseconds.\n", fd);
 }
+
 
 void Enumerator::cmdList(int fd, const hidl_vec<hidl_string>& options) {
     bool listCameras = true;
@@ -679,7 +685,8 @@ void Enumerator::cmdList(int fd, const hidl_vec<hidl_string>& options) {
         listCameras = listAll || EqualsIgnoreCase(option, kDumpDeviceCamera);
         listDisplays = listAll || EqualsIgnoreCase(option, kDumpDeviceDisplay);
         if (!listCameras && !listDisplays) {
-            WriteStringToFd(StringPrintf("Unrecognized option, %s, is ignored.\n", option.c_str()),
+            WriteStringToFd(StringPrintf("Unrecognized option, %s, is ignored.\n",
+                                         option.c_str()),
                             fd);
 
             // Nothing to show, return
@@ -689,15 +696,16 @@ void Enumerator::cmdList(int fd, const hidl_vec<hidl_string>& options) {
 
     std::string buffer;
     if (listCameras) {
-        StringAppendF(&buffer, "Camera devices available to EVS service:\n");
+        StringAppendF(&buffer,"Camera devices available to EVS service:\n");
         if (mCameraDevices.size() < 1) {
             // Camera devices may not be enumerated yet.  This may fail if the
             // user is not permitted to use EVS service.
-            getCameraList_1_1([](const auto cameras) {
-                if (cameras.size() < 1) {
-                    LOG(WARNING) << "No camera device is available to EVS.";
-                }
-            });
+            getCameraList_1_1(
+                [](const auto cameras) {
+                    if (cameras.size() < 1) {
+                        LOG(WARNING) << "No camera device is available to EVS.";
+                    }
+                });
         }
 
         for (auto& [id, desc] : mCameraDevices) {
@@ -712,15 +720,18 @@ void Enumerator::cmdList(int fd, const hidl_vec<hidl_string>& options) {
     }
 
     if (listDisplays) {
-        if (mServiceFactory->getService() != nullptr) {
+        if (mHwEnumerator != nullptr) {
             StringAppendF(&buffer, "Display devices available to EVS service:\n");
             // Get an internal display identifier.
-            mServiceFactory->getService()->getDisplayIdList([&](const auto& displayPorts) {
-                for (auto&& port : displayPorts) {
-                    StringAppendF(&buffer, "%sdisplay port %u\n", kSingleIndent,
-                                  static_cast<unsigned>(port));
+            mHwEnumerator->getDisplayIdList(
+                [&](const auto& displayPorts) {
+                    for (auto&& port : displayPorts) {
+                        StringAppendF(&buffer, "%sdisplay port %u\n",
+                                               kSingleIndent,
+                                               static_cast<unsigned>(port));
+                    }
                 }
-            });
+            );
         } else {
             LOG(WARNING) << "EVS HAL implementation is not available.";
         }
@@ -728,6 +739,7 @@ void Enumerator::cmdList(int fd, const hidl_vec<hidl_string>& options) {
 
     WriteStringToFd(buffer, fd);
 }
+
 
 void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
     // Dumps both cameras and displays if the target device type is not given
@@ -739,7 +751,8 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
         dumpCameras = EqualsIgnoreCase(target, kDumpDeviceCamera);
         dumpDisplays = EqualsIgnoreCase(target, kDumpDeviceDisplay);
         if (!dumpCameras && !dumpDisplays) {
-            WriteStringToFd(StringPrintf("Unrecognized option, %s, is ignored.\n", target.c_str()),
+            WriteStringToFd(StringPrintf("Unrecognized option, %s, is ignored.\n",
+                                         target.c_str()),
                             fd);
             cmdHelp(fd);
             return;
@@ -764,7 +777,8 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
 
         const std::string deviceId = options[kOptionDumpCameraTypeIndex];
         auto target = mActiveCameras.find(deviceId);
-        const bool dumpAllCameras = EqualsIgnoreCase(deviceId, kDumpOptionAll);
+        const bool dumpAllCameras = EqualsIgnoreCase(deviceId,
+                                                     kDumpOptionAll);
         if (!dumpAllCameras && target == mActiveCameras.end()) {
             // Unknown camera identifier
             WriteStringToFd(StringPrintf("Given camera ID %s is unknown or not active.\n",
@@ -778,8 +792,9 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
         if (EqualsIgnoreCase(command, kDumpCameraCommandCurrent)) {
             // Active stream configuration from each active HalCamera objects
             if (!dumpAllCameras) {
-                StringAppendF(&cameraInfo, "HalCamera: %s\n%s", deviceId.c_str(),
-                              target->second->toString(kSingleIndent).c_str());
+                StringAppendF(&cameraInfo, "HalCamera: %s\n%s",
+                                           deviceId.c_str(),
+                                           target->second->toString(kSingleIndent).c_str());
             } else {
                 for (auto&& [id, handle] : mActiveCameras) {
                     // Appends the current status
@@ -788,9 +803,14 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
             }
         } else if (EqualsIgnoreCase(command, kDumpCameraCommandCollected)) {
             // Reads the usage statistics from active HalCamera objects
+            std::unordered_map<std::string, std::string> usageStrings;
             if (mMonitorEnabled) {
-                std::unordered_map<std::string, std::string> usageStrings =
-                        mStatsCollector->toString(kSingleIndent);
+                auto result = mClientsMonitor->toString(&usageStrings, kSingleIndent);
+                if (!result.ok()) {
+                    LOG(ERROR) << "Failed to get the monitoring result";
+                    return;
+                }
+
                 if (!dumpAllCameras) {
                     cameraInfo += usageStrings[deviceId];
                 } else {
@@ -799,7 +819,8 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
                     }
                 }
             } else {
-                WriteStringToFd(StringPrintf("Client monitor is not available.\n"), fd);
+                WriteStringToFd(StringPrintf("Client monitor is not available.\n"),
+                                fd);
                 return;
             }
         } else if (EqualsIgnoreCase(command, kDumpCameraCommandCustom)) {
@@ -821,27 +842,32 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
 
             const std::string subcommand = options[kOptionDumpCameraArgsStartIndex];
             if (EqualsIgnoreCase(subcommand, kDumpCameraCommandCustomStart)) {
-                using std::chrono::duration_cast;
-                using std::chrono::milliseconds;
                 using std::chrono::nanoseconds;
+                using std::chrono::milliseconds;
+                using std::chrono::duration_cast;
                 nanoseconds interval = 0ns;
                 nanoseconds duration = 0ns;
                 if (numOptions > kOptionDumpCameraArgsStartIndex + 2) {
                     duration = duration_cast<nanoseconds>(
-                            milliseconds(std::stoi(options[kOptionDumpCameraArgsStartIndex + 2])));
+                            milliseconds(
+                                    std::stoi(options[kOptionDumpCameraArgsStartIndex + 2])
+                            ));
                 }
 
                 if (numOptions > kOptionDumpCameraArgsStartIndex + 1) {
                     interval = duration_cast<nanoseconds>(
-                            milliseconds(std::stoi(options[kOptionDumpCameraArgsStartIndex + 1])));
+                            milliseconds(
+                                    std::stoi(options[kOptionDumpCameraArgsStartIndex + 1])
+                            ));
                 }
 
                 // Starts a custom collection
-                auto result = mStatsCollector->startCustomCollection(interval, duration);
+                auto result = mClientsMonitor->startCustomCollection(interval, duration);
                 if (!result.ok()) {
-                    LOG(ERROR) << "Failed to start a custom collection.  " << result.error();
+                    LOG(ERROR) << "Failed to start a custom collection.  "
+                               << result.error();
                     StringAppendF(&cameraInfo, "Failed to start a custom collection. %s\n",
-                                  result.error().message().c_str());
+                                               result.error().message().c_str());
                 }
             } else if (EqualsIgnoreCase(subcommand, kDumpCameraCommandCustomStop)) {
                 if (!mMonitorEnabled) {
@@ -849,24 +875,26 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
                     return;
                 }
 
-                auto result = mStatsCollector->stopCustomCollection(deviceId);
+                auto result = mClientsMonitor->stopCustomCollection(deviceId);
                 if (!result.ok()) {
-                    LOG(ERROR) << "Failed to stop a custom collection.  " << result.error();
+                    LOG(ERROR) << "Failed to stop a custom collection.  "
+                               << result.error();
                     StringAppendF(&cameraInfo, "Failed to stop a custom collection. %s\n",
-                                  result.error().message().c_str());
+                                               result.error().message().c_str());
                 } else {
                     // Pull the custom collection
                     cameraInfo += *result;
                 }
             } else {
-                WriteStringToFd(StringPrintf("Unknown argument: %s\n", subcommand.c_str()), fd);
+                WriteStringToFd(StringPrintf("Unknown argument: %s\n",
+                                             subcommand.c_str()),
+                                fd);
                 cmdHelp(fd);
                 return;
             }
         } else {
             WriteStringToFd(StringPrintf("Unknown command: %s\n"
-                                         "Please check the usages:\n",
-                                         command.c_str()),
+                                         "Please check the usages:\n", command.c_str()),
                             fd);
             cmdHelp(fd);
             return;
@@ -877,7 +905,8 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
     }
 
     if (dumpDisplays) {
-        HalDisplay* pDisplay = reinterpret_cast<HalDisplay*>(mActiveDisplay.promote().get());
+        HalDisplay* pDisplay =
+            reinterpret_cast<HalDisplay*>(mActiveDisplay.promote().get());
         if (!pDisplay) {
             WriteStringToFd("No active display is found.\n", fd);
         } else {
@@ -885,6 +914,7 @@ void Enumerator::cmdDumpDevice(int fd, const hidl_vec<hidl_string>& options) {
         }
     }
 }
+
 
 void Enumerator::cmdConfigureEmulatedCamera(int fd, const hidl_vec<hidl_string>& options) {
     if (options.size() < 6) {
@@ -901,26 +931,31 @@ void Enumerator::cmdConfigureEmulatedCamera(int fd, const hidl_vec<hidl_string>&
     }
 
     if (mCameraDevices.find(id) != mCameraDevices.end()) {
-        WriteStringToFd(StringPrintf("Updating %s's configuration.  "
-                                     "This will get effective when currently active stream is "
-                                     "closed.\n",
-                                     id.c_str()),
-                        fd);
+        WriteStringToFd(
+            StringPrintf("Updating %s's configuration.  "
+                         "This will get effective when currently active stream is closed.\n",
+                         id.c_str()), fd);
     }
 
     std::string sourceDir = options[2];
     int width = std::stoi(options[3]);
     int height = std::stoi(options[4]);
     std::chrono::nanoseconds interval = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::milliseconds(std::stoi(options[5])));
+                                            std::chrono::milliseconds(std::stoi(options[5]))
+                                        );
     WriteStringToFd(StringPrintf("Configuring %s as:\n"
                                  "\tResolution: %dx%d\n"
                                  "\tInterval: %f ms\n",
-                                 id.c_str(), width, height, interval.count() / 1000000.),
-                    fd);
+                                 id.c_str(), width, height,
+                                 interval.count() / 1000000.), fd);
 
     EmulatedCameraDesc desc = {width, height, sourceDir, interval};
     mEmulatedCameraDevices.insert_or_assign(id, std::move(desc));
 }
 
-}  // namespace android::automotive::evs::V1_1::implementation
+
+} // namespace implementation
+} // namespace V1_1
+} // namespace evs
+} // namespace automotive
+} // namespace android

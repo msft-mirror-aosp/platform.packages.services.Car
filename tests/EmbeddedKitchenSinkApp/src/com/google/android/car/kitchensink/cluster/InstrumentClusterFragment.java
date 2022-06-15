@@ -34,7 +34,6 @@ import android.car.cluster.navigation.NavigationState.Road;
 import android.car.cluster.navigation.NavigationState.Step;
 import android.car.cluster.navigation.NavigationState.Timestamp;
 import android.car.navigation.CarNavigationStatusManager;
-import android.content.ComponentName;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
@@ -42,7 +41,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.RadioButton;
 import android.widget.Toast;
 
 import androidx.annotation.IdRes;
@@ -126,7 +124,6 @@ public class InstrumentClusterFragment extends Fragment {
         NavigationStateProto[] navigationStateArray = new NavigationStateProto[1];
 
         navigationStateArray[0] = NavigationStateProto.newBuilder()
-                .setServiceStatus(NavigationStateProto.ServiceStatus.NORMAL)
                 .addSteps(Step.newBuilder()
                         .setManeuver(Maneuver.newBuilder()
                                 .setType(Maneuver.Type.DEPART)
@@ -191,14 +188,13 @@ public class InstrumentClusterFragment extends Fragment {
      */
     @NonNull
     private String getRawResourceAsString(@IdRes int resId) throws IOException {
-        try (InputStream inputStream = getResources().openRawResource(resId)) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-            StringBuilder builder = new StringBuilder();
-            for (String line; (line = reader.readLine()) != null; ) {
-                builder.append(line).append("\n");
-            }
-            return builder.toString();
+        InputStream inputStream = getResources().openRawResource(resId);
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+        StringBuilder builder = new StringBuilder();
+        for (String line; (line = reader.readLine()) != null; ) {
+            builder.append(line).append("\n");
         }
+        return builder.toString();
     }
 
     @Nullable
@@ -209,48 +205,11 @@ public class InstrumentClusterFragment extends Fragment {
 
         view.findViewById(R.id.cluster_start_button).setOnClickListener(v -> initCluster());
         view.findViewById(R.id.cluster_stop_button).setOnClickListener(v -> stopCluster());
-        view.findViewById(R.id.cluster_activity_state_default).setOnClickListener(v ->
-                changeClusterActivityState(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT));
-        view.findViewById(R.id.cluster_activity_state_enabled).setOnClickListener(v ->
-                changeClusterActivityState(PackageManager.COMPONENT_ENABLED_STATE_ENABLED));
-        view.findViewById(R.id.cluster_activity_state_disabled).setOnClickListener(v ->
-                changeClusterActivityState(PackageManager.COMPONENT_ENABLED_STATE_DISABLED));
-        updateInitialClusterActivityState(view);
 
         mTurnByTurnButton = view.findViewById(R.id.cluster_turn_left_button);
         mTurnByTurnButton.setOnClickListener(v -> toggleSendTurn());
 
         return view;
-    }
-
-    private void updateInitialClusterActivityState(View view) {
-        PackageManager pm = getContext().getPackageManager();
-        ComponentName clusterActivity =
-                new ComponentName(getContext(), FakeClusterNavigationActivity.class);
-        int currentComponentState = pm.getComponentEnabledSetting(clusterActivity);
-        RadioButton button = view.findViewById(
-                convertClusterActivityStateToViewId(currentComponentState));
-        button.setChecked(true);
-    }
-
-    private int convertClusterActivityStateToViewId(int componentState) {
-        switch (componentState) {
-            case PackageManager.COMPONENT_ENABLED_STATE_DEFAULT:
-                return R.id.cluster_activity_state_default;
-            case PackageManager.COMPONENT_ENABLED_STATE_ENABLED:
-                return R.id.cluster_activity_state_enabled;
-            case PackageManager.COMPONENT_ENABLED_STATE_DISABLED:
-                return R.id.cluster_activity_state_disabled;
-        }
-        throw new IllegalStateException("Unknown component state: " + componentState);
-    }
-
-    private void changeClusterActivityState(int newComponentState) {
-        PackageManager pm = getContext().getPackageManager();
-        ComponentName clusterActivity =
-                new ComponentName(getContext(), FakeClusterNavigationActivity.class);
-        pm.setComponentEnabledSetting(clusterActivity, newComponentState,
-                PackageManager.DONT_KILL_APP);
     }
 
     @Override
@@ -312,7 +271,6 @@ public class InstrumentClusterFragment extends Fragment {
             mTimer.cancel();
             mTimer = null;
         }
-        sendTurn(NavigationStateProto.newBuilder().build());
         mTurnByTurnButton.setText(R.string.cluster_start_guidance);
     }
 
@@ -320,11 +278,13 @@ public class InstrumentClusterFragment extends Fragment {
      * Sends one update of the navigation state through the {@link CarNavigationStatusManager}
      */
     private void sendTurn(@NonNull NavigationStateProto state) {
-        if (hasFocus()) {
+        try {
             Bundle bundle = new Bundle();
             bundle.putByteArray("navstate2", state.toByteArray());
-            mCarNavigationStatusManager.sendNavigationStateChange(bundle);
+            mCarNavigationStatusManager.sendEvent(1, bundle);
             Log.i(TAG, "Sending nav state: " + state);
+        } catch (CarNotConnectedException e) {
+            Log.e(TAG, "Failed to send turn information.", e);
         }
     }
 

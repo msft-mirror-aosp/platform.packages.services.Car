@@ -16,18 +16,14 @@
 package com.android.car.procfsinspector;
 
 import android.annotation.Nullable;
-import android.car.builtin.os.ServiceManagerHelper;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.util.Log;
-
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
-/**
- * @deprecated use {@link com.android.car.watchdog.CarWatchdogService} and its related classes
- * for I/O related tasks.
- */
-@Deprecated
 public final class ProcfsInspector {
     private static final String TAG = "car.procfsinspector";
     private static final String SERVICE_NAME = "com.android.car.procfsinspector";
@@ -40,7 +36,7 @@ public final class ProcfsInspector {
     @Nullable
     private static IProcfsInspector tryGet() {
         return IProcfsInspector.Stub.asInterface(
-            ServiceManagerHelper.checkService(SERVICE_NAME));
+            ServiceManager.getService(SERVICE_NAME));
     }
 
     public static List<ProcessInfo> readProcessTable() {

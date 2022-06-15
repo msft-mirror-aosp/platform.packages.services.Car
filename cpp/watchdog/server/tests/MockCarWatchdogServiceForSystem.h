@@ -33,7 +33,7 @@ namespace watchdog {
 class MockCarWatchdogServiceForSystem :
       public android::automotive::watchdog::internal::ICarWatchdogServiceForSystemDefault {
 public:
-    MockCarWatchdogServiceForSystem() : mBinder(sp<MockBinder>::make()) {
+    MockCarWatchdogServiceForSystem() : mBinder(new MockBinder()) {
         ON_CALL(*this, onAsBinder()).WillByDefault(::testing::Return(mBinder.get()));
     }
 
@@ -53,9 +53,6 @@ public:
             (override));
     MOCK_METHOD(android::binder::Status, resetResourceOveruseStats,
                 (const std::vector<std::string>&), (override));
-    MOCK_METHOD(android::binder::Status, getTodayIoUsageStats,
-                (std::vector<android::automotive::watchdog::internal::UserPackageIoUsageStats>*),
-                (override));
 
 private:
     android::sp<MockBinder> mBinder;

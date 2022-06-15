@@ -19,9 +19,9 @@ package com.android.car;
 import static org.junit.Assert.assertEquals;
 
 import android.car.vms.VmsLayer;
-import android.hardware.automotive.vehicle.VmsBaseMessageIntegerValuesIndex;
-import android.hardware.automotive.vehicle.VmsMessageType;
-import android.hardware.automotive.vehicle.VmsSubscriptionsStateIntegerValuesIndex;
+import android.hardware.automotive.vehicle.V2_0.VmsBaseMessageIntegerValuesIndex;
+import android.hardware.automotive.vehicle.V2_0.VmsMessageType;
+import android.hardware.automotive.vehicle.V2_0.VmsSubscriptionsStateIntegerValuesIndex;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
@@ -76,20 +76,20 @@ public class VmsHalServiceSubscriptionEventTest extends MockedVmsTestBase {
         getMockHalClient().sendMessage(VmsMessageType.SUBSCRIPTIONS_REQUEST);
 
         // Validate response.
-        int[] v = getMockHalClient().receiveMessage().value.int32Values;
+        List<Integer> v = getMockHalClient().receiveMessage().value.int32Values;
         assertEquals(VmsMessageType.SUBSCRIPTIONS_RESPONSE,
-                v[VmsBaseMessageIntegerValuesIndex.MESSAGE_TYPE]);
+                (int) v.get(VmsBaseMessageIntegerValuesIndex.MESSAGE_TYPE));
         assertEquals(sequenceNumber,
-                v[VmsSubscriptionsStateIntegerValuesIndex.SEQUENCE_NUMBER]);
+                (int) v.get(VmsSubscriptionsStateIntegerValuesIndex.SEQUENCE_NUMBER));
         assertEquals(layers.size(),
-                v[VmsSubscriptionsStateIntegerValuesIndex.NUMBER_OF_LAYERS]);
+                (int) v.get(VmsSubscriptionsStateIntegerValuesIndex.NUMBER_OF_LAYERS));
         List<VmsLayer> receivedLayers = new ArrayList<>();
         int start = VmsSubscriptionsStateIntegerValuesIndex.SUBSCRIPTIONS_START;
         int end = VmsSubscriptionsStateIntegerValuesIndex.SUBSCRIPTIONS_START + 3 * layers.size();
         while (start < end) {
-            int type = v[start++];
-            int subtype = v[start++];
-            int version = v[start++];
+            int type = v.get(start++);
+            int subtype = v.get(start++);
+            int version = v.get(start++);
             receivedLayers.add(new VmsLayer(type, subtype, version));
         }
         assertEquals(new HashSet<>(layers), new HashSet<>(receivedLayers));
@@ -108,12 +108,12 @@ public class VmsHalServiceSubscriptionEventTest extends MockedVmsTestBase {
                 layer.getVersion());
 
         // Validate response.
-        int[] v = getMockHalClient().receiveMessage().value.int32Values;
+        List<Integer> v = getMockHalClient().receiveMessage().value.int32Values;
         assertEquals(VmsMessageType.SUBSCRIPTIONS_CHANGE,
-                v[VmsBaseMessageIntegerValuesIndex.MESSAGE_TYPE]);
+                (int) v.get(VmsBaseMessageIntegerValuesIndex.MESSAGE_TYPE));
         assertEquals(sequenceNumber,
-                v[VmsSubscriptionsStateIntegerValuesIndex.SEQUENCE_NUMBER]);
+                (int) v.get(VmsSubscriptionsStateIntegerValuesIndex.SEQUENCE_NUMBER));
         assertEquals(sequenceNumber,
-                v[VmsSubscriptionsStateIntegerValuesIndex.NUMBER_OF_LAYERS]);
+                (int) v.get(VmsSubscriptionsStateIntegerValuesIndex.NUMBER_OF_LAYERS));
     }
 }

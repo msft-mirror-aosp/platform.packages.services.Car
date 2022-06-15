@@ -21,11 +21,10 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 import android.annotation.NonNull;
 import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.DataClass;
+import com.android.internal.util.DataClass;
 
 /**
  * System-wide disk I/O overuse alert threshold.
@@ -94,7 +93,6 @@ public final class IoOveruseAlertThreshold implements Parcelable {
      * <p>Non-zero duration must provided in seconds.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @SuppressLint({ "MethodNameUnits" }) long getDurationInSeconds() {
         return mDurationInSeconds;
     }
@@ -105,14 +103,12 @@ public final class IoOveruseAlertThreshold implements Parcelable {
      * <p>Must provide non-zero bytes.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public long getWrittenBytesPerSecond() {
         return mWrittenBytesPerSecond;
     }
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -125,7 +121,6 @@ public final class IoOveruseAlertThreshold implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -136,8 +131,6 @@ public final class IoOveruseAlertThreshold implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -157,7 +150,6 @@ public final class IoOveruseAlertThreshold implements Parcelable {
     }
 
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<IoOveruseAlertThreshold> CREATOR
             = new Parcelable.Creator<IoOveruseAlertThreshold>() {
         @Override
@@ -175,7 +167,7 @@ public final class IoOveruseAlertThreshold implements Parcelable {
             time = 1615312119067L,
             codegenVersion = "1.0.22",
             sourceFile = "packages/services/Car/car-lib/src/android/car/watchdog/IoOveruseAlertThreshold.java",
-            inputSignatures = "private @android.annotation.SuppressLint long mDurationInSeconds\nprivate  long mWrittenBytesPerSecond\nclass IoOveruseAlertThreshold extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genHiddenConstructor=true)")
+            inputSignatures = "private @android.annotation.SuppressLint long mDurationInSeconds\nprivate  long mWrittenBytesPerSecond\nclass IoOveruseAlertThreshold extends java.lang.Object implements [android.os.Parcelable]\n@com.android.internal.util.DataClass(genToString=true, genHiddenConstructor=true)")
     @Deprecated
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     private void __metadata() {}

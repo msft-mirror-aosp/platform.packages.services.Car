@@ -25,19 +25,22 @@ import static android.car.VehiclePropertyIds.CLUSTER_SWITCH_UI;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
-import android.car.builtin.util.Slogf;
 import android.graphics.Insets;
 import android.graphics.Rect;
-import android.hardware.automotive.vehicle.VehiclePropertyStatus;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropConfig;
+import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
+import android.util.IntArray;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IntArray;
 import com.android.internal.annotations.GuardedBy;
+import com.android.server.utils.Slogf;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -64,7 +67,7 @@ public final class ClusterHalService extends HalServiceBase {
         /**
          * Called when CLUSTER_DISPLAY_STATE message is received.
          *
-         * @param onOff 0 - off, 1 - on
+         * @param onOff  0 - off, 1 - on
          * @param bounds the area to render the cluster Activity in pixel
          * @param insets Insets of the cluster display
          */
@@ -103,11 +106,8 @@ public final class ClusterHalService extends HalServiceBase {
     private volatile boolean mIsCoreSupported;
     private volatile boolean mIsNavigationStateSupported;
 
-    private final HalPropValueBuilder mPropValueBuilder;
-
     public ClusterHalService(VehicleHal hal) {
         mHal = hal;
-        mPropValueBuilder = hal.getHalPropValueBuilder();
     }
 
     @Override
@@ -132,6 +132,7 @@ public final class ClusterHalService extends HalServiceBase {
      * Sets the event callback to receive Cluster HAL events.
      */
     public void setCallback(ClusterHalEventCallback callback) {
+        LinkedList<VehiclePropValue> eventsToDispatch = null;
         synchronized (mLock) {
             mCallback = callback;
         }
@@ -144,10 +145,10 @@ public final class ClusterHalService extends HalServiceBase {
     }
 
     @Override
-    public void takeProperties(@NonNull Collection<HalPropConfig> properties) {
+    public void takeProperties(@NonNull Collection<VehiclePropConfig> properties) {
         IntArray supportedProperties = new IntArray(properties.size());
-        for (HalPropConfig property : properties) {
-            supportedProperties.add(property.getPropId());
+        for (VehiclePropConfig property : properties) {
+            supportedProperties.add(property.prop);
         }
         mIsCoreSupported = true;
         for (int coreProperty : CORE_PROPERTIES) {
@@ -170,47 +171,33 @@ public final class ClusterHalService extends HalServiceBase {
     }
 
     @Override
-    public void onHalEvents(List<HalPropValue> values) {
+    public void onHalEvents(List<VehiclePropValue> values) {
         Slogf.d(TAG, "handleHalEvents(): %s", values);
         ClusterHalEventCallback callback;
         synchronized (mLock) {
             callback = mCallback;
         }
-        if (callback == null || !isCoreSupported()) {
-            return;
-        }
+        if (callback == null || !isCoreSupported()) return;
 
-        for (HalPropValue value : values) {
-            switch (value.getPropId()) {
+        for (VehiclePropValue value : values) {
+            switch (value.prop) {
                 case CLUSTER_SWITCH_UI:
-                    if (value.getInt32ValuesSize() < 1) {
-                        Slogf.e(TAG, "received invalid CLUSTER_SWITCH_UI property from HAL, "
-                                + "expect at least 1 int value.");
-                        break;
-                    }
-                    int uiType = value.getInt32Value(0);
+                    int uiType = value.value.int32Values.get(0);
                     callback.onSwitchUi(uiType);
                     break;
                 case CLUSTER_DISPLAY_STATE:
-                    if (value.getInt32ValuesSize() < 9) {
-                        Slogf.e(TAG, "received invalid CLUSTER_DISPLAY_STATE property from HAL, "
-                                + "expect at least 9 int value.");
-                        break;
-                    }
-                    int onOff = value.getInt32Value(0);
+                    int onOff = value.value.int32Values.get(0);
                     Rect bounds = null;
-                    if (hasNoDontCare(value, /* start= */ 1, /* length= */ 4, "bounds")) {
-                        bounds =
-                                new Rect(
-                                        value.getInt32Value(1), value.getInt32Value(2),
-                                        value.getInt32Value(3), value.getInt32Value(4));
+                    if (hasNoDontCare(value.value.int32Values, 1, 4, "bounds")) {
+                        bounds = new Rect(
+                                value.value.int32Values.get(1), value.value.int32Values.get(2),
+                                value.value.int32Values.get(3), value.value.int32Values.get(4));
                     }
                     Insets insets = null;
-                    if (hasNoDontCare(value, /* start= */ 5, /* length= */ 4, "insets")) {
-                        insets =
-                                Insets.of(
-                                        value.getInt32Value(5), value.getInt32Value(6),
-                                        value.getInt32Value(7), value.getInt32Value(8));
+                    if (hasNoDontCare(value.value.int32Values, 5, 4, "insets")) {
+                        insets = Insets.of(
+                                value.value.int32Values.get(5), value.value.int32Values.get(6),
+                                value.value.int32Values.get(7), value.value.int32Values.get(8));
                     }
                     callback.onDisplayState(onOff, bounds, insets);
                     break;
@@ -220,17 +207,13 @@ public final class ClusterHalService extends HalServiceBase {
         }
     }
 
-    private static boolean hasNoDontCare(HalPropValue value, int start, int length,
-                                         String fieldName) {
+    private static boolean hasNoDontCare(ArrayList<Integer> values, int start, int length,
+            String fieldName) {
         int count = 0;
         for (int i = start; i < start + length; ++i) {
-            if (value.getInt32Value(i) == DONT_CARE) {
-                ++count;
-            }
+            if (values.get(i) == DONT_CARE) ++count;
         }
-        if (count == 0) {
-            return true;
-        }
+        if (count == 0) return true;
         if (count != length) {
             Slogf.w(TAG, "Don't care should be set in the whole %s.", fieldName);
         }
@@ -240,36 +223,29 @@ public final class ClusterHalService extends HalServiceBase {
     /**
      * Reports the current display state and ClusterUI state.
      *
-     * @param onOff 0 - off, 1 - on
-     * @param bounds the area to render the cluster Activity in pixel
-     * @param insets Insets of the cluster display
-     * @param uiTypeMain uiType that ClusterHome tries to show in main area
-     * @param uiTypeSub uiType that ClusterHome tries to show in sub area
+     * @param onOff          0 - off, 1 - on
+     * @param bounds         the area to render the cluster Activity in pixel
+     * @param insets         Insets of the cluster display
+     * @param uiTypeMain     uiType that ClusterHome tries to show in main area
+     * @param uiTypeSub      uiType that ClusterHome tries to show in sub area
      * @param uiAvailability the byte array to represent the availability of ClusterUI.
      */
     public void reportState(int onOff, Rect bounds, Insets insets,
             int uiTypeMain, int uiTypeSub, byte[] uiAvailability) {
-        if (!isCoreSupported()) {
-            return;
-        }
-        int[] intValues = new int[]{
-            onOff,
-            bounds.left,
-            bounds.top,
-            bounds.right,
-            bounds.bottom,
-            insets.left,
-            insets.top,
-            insets.right,
-            insets.bottom,
-            uiTypeMain,
-            uiTypeSub
-        };
-        HalPropValue request = mPropValueBuilder.build(CLUSTER_REPORT_STATE,
-                /* areaId= */ 0, SystemClock.elapsedRealtime(), VehiclePropertyStatus.AVAILABLE,
-                /* int32Values= */ intValues, /* floatValues= */ new float[0],
-                /* int64Values= */ new long[0], /* stringValue= */ new String(),
-                /* byteValues= */ uiAvailability);
+        if (!isCoreSupported()) return;
+        VehiclePropValue request = createVehiclePropValue(CLUSTER_REPORT_STATE);
+        request.value.int32Values.add(onOff);
+        request.value.int32Values.add(bounds.left);
+        request.value.int32Values.add(bounds.top);
+        request.value.int32Values.add(bounds.right);
+        request.value.int32Values.add(bounds.bottom);
+        request.value.int32Values.add(insets.left);
+        request.value.int32Values.add(insets.top);
+        request.value.int32Values.add(insets.right);
+        request.value.int32Values.add(insets.bottom);
+        request.value.int32Values.add(uiTypeMain);
+        request.value.int32Values.add(uiTypeSub);
+        fillByteList(request.value.bytes, uiAvailability);
         send(request);
     }
 
@@ -279,12 +255,9 @@ public final class ClusterHalService extends HalServiceBase {
      * @param uiType uiType that ClusterHome tries to show in main area
      */
     public void requestDisplay(int uiType) {
-        if (!isCoreSupported()) {
-            return;
-        }
-        HalPropValue request = mPropValueBuilder.build(CLUSTER_REQUEST_DISPLAY,
-                /* areaId= */ 0, SystemClock.elapsedRealtime(), VehiclePropertyStatus.AVAILABLE,
-                /* value= */ uiType);
+        if (!isCoreSupported()) return;
+        VehiclePropValue request = createVehiclePropValue(CLUSTER_REQUEST_DISPLAY);
+        request.value.int32Values.add(uiType);
         send(request);
     }
 
@@ -295,21 +268,32 @@ public final class ClusterHalService extends HalServiceBase {
      * @param navigateState the serialized message of {@code NavigationStateProto}
      */
     public void sendNavigationState(byte[] navigateState) {
-        if (!isNavigationStateSupported()) {
-            return;
-        }
-        HalPropValue request = mPropValueBuilder.build(CLUSTER_NAVIGATION_STATE,
-                /* areaId= */ 0, SystemClock.elapsedRealtime(), VehiclePropertyStatus.AVAILABLE,
-                /* value= */ navigateState);
+        if (!isNavigationStateSupported()) return;
+        VehiclePropValue request = createVehiclePropValue(CLUSTER_NAVIGATION_STATE);
+        fillByteList(request.value.bytes, navigateState);
         send(request);
     }
 
-    private void send(HalPropValue request) {
+    private void send(VehiclePropValue request) {
         try {
             mHal.set(request);
-        } catch (ServiceSpecificException | IllegalArgumentException e) {
+        } catch (ServiceSpecificException e) {
             Slogf.e(TAG, "Failed to send request: " + request, e);
         }
+    }
+
+    private static void fillByteList(ArrayList<Byte> byteList, byte[] bytesArray) {
+        byteList.ensureCapacity(bytesArray.length);
+        for (byte b : bytesArray) {
+            byteList.add(b);
+        }
+    }
+
+    private static VehiclePropValue createVehiclePropValue(int property) {
+        VehiclePropValue value = new VehiclePropValue();
+        value.prop = property;
+        value.timestamp = SystemClock.elapsedRealtime();
+        return value;
     }
 
     @Override

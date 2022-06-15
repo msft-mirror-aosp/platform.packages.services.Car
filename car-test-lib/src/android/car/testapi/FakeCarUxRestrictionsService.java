@@ -22,6 +22,7 @@ import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.CarUxRestrictionsConfiguration;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
 import android.car.drivingstate.ICarUxRestrictionsManager;
+import android.os.IRemoteCallback;
 import android.os.RemoteException;
 import android.os.SystemClock;
 
@@ -107,6 +108,17 @@ public class FakeCarUxRestrictionsService extends ICarUxRestrictionsManager.Stub
         synchronized (mLock) {
             return mMode;
         }
+    }
+
+    @Override
+    public void reportVirtualDisplayToPhysicalDisplay(IRemoteCallback binder, int virtualDisplayId,
+            int physicalDisplayId) throws RemoteException {
+
+    }
+
+    @Override
+    public int getMappedPhysicalDisplayOfVirtualDisplay(int displayId) throws RemoteException {
+        return 0;
     }
 
     @Override

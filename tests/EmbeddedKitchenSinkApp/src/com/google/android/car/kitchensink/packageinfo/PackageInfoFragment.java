@@ -16,6 +16,7 @@
 
 package com.google.android.car.kitchensink.packageinfo;
 
+import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
@@ -81,7 +82,7 @@ public final class PackageInfoFragment extends Fragment{
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mUserManager = getContext().getSystemService(UserManager.class);
+        mUserManager = (UserManager) getContext().getSystemService(Context.USER_SERVICE);
         mPackageManager = getActivity().getPackageManager();
     }
 

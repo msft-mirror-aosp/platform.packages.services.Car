@@ -16,10 +16,8 @@
 package android.car.test.mocks;
 
 import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.util.Log;
 
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -91,29 +89,24 @@ public final class JavaMockitoHelper {
      * {@value #ASYNC_TIMEOUT_MS} ms.
      */
     @NonNull
-    public static <T> T getResult(@NonNull Future<T> future,
-            @NonNull String messageFormat, @Nullable Object...messageArgs) {
-        return getResult(future, ASYNC_TIMEOUT_MS, messageFormat, messageArgs);
+    public static <T> T getResult(@NonNull Future<T> future) {
+        return getResult(future, ASYNC_TIMEOUT_MS);
     }
 
     /**
      * Gets the result of a future, or throw a {@link IllegalStateException} if it times out.
      */
     @NonNull
-    public static <T> T getResult(@NonNull Future<T> future, long timeoutMs,
-            @NonNull String messageFormat, @Nullable Object...messageArgs) {
-        String msg = String.format(Objects.requireNonNull(messageFormat, "messageFormat"),
-                messageArgs);
+    public static <T> T getResult(@NonNull Future<T> future, long timeoutMs) {
         try {
             return future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("future for '" + msg + "' interrupted", e);
+            throw new IllegalStateException("future interrupted", e);
         } catch (TimeoutException e) {
-            throw new IllegalStateException("future for '" + msg + "' not called in "
-                    + timeoutMs + "ms", e);
+            throw new IllegalStateException("future not called in " + ASYNC_TIMEOUT_MS + "ms", e);
         } catch (ExecutionException e) {
-            throw new IllegalStateException("failed to get future for '" + msg + "'", e);
+            throw new IllegalStateException("failed to get future", e);
         }
     }
 

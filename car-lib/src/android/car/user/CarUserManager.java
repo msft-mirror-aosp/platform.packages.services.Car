@@ -20,7 +20,7 @@ import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS_FULL;
 import static android.os.Process.myUid;
 
-import static com.android.car.internal.util.FunctionalUtils.getLambdaName;
+import static com.android.internal.util.FunctionalUtils.getLambdaName;
 
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
@@ -32,37 +32,35 @@ import android.annotation.TestApi;
 import android.annotation.UserIdInt;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.ICarResultReceiver;
 import android.car.ICarUserService;
-import android.car.annotation.AddedInOrBefore;
-import android.car.builtin.os.UserManagerHelper;
-import android.car.builtin.util.EventLogHelper;
 import android.car.util.concurrent.AndroidAsyncFuture;
-import android.car.util.concurrent.AndroidFuture;
 import android.car.util.concurrent.AsyncFuture;
+import android.content.pm.UserInfo;
+import android.content.pm.UserInfo.UserInfoFlag;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.provider.Settings;
+import android.sysprop.CarProperties;
 import android.util.ArrayMap;
-import android.util.Dumpable;
+import android.util.EventLog;
 import android.util.Log;
-import android.util.Pair;
 
 import com.android.car.internal.common.CommonConstants;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
+import com.android.car.internal.common.EventLogTags;
 import com.android.car.internal.common.UserHelperLite;
-import com.android.car.internal.os.CarSystemProperties;
-import com.android.car.internal.util.ArrayUtils;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.infra.AndroidFuture;
+import com.android.internal.os.IResultReceiver;
+import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.Preconditions;
 
-import java.io.PrintWriter;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -81,15 +79,11 @@ import java.util.stream.Collectors;
 @TestApi
 public final class CarUserManager extends CarManagerBase {
 
-    /** @hide */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final String TAG = CarUserManager.class.getSimpleName();
-
-    private static final int HAL_TIMEOUT_MS = CarSystemProperties.getUserHalTimeout().orElse(5_000);
+    private static final String TAG = CarUserManager.class.getSimpleName();
+    private static final int HAL_TIMEOUT_MS = CarProperties.user_hal_timeout().orElse(5_000);
     private static final int REMOVE_USER_CALL_TIMEOUT_MS = 60_000;
 
-    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
-    private static final boolean VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
+    private static final boolean DBG = false;
 
     /**
      * {@link UserLifecycleEvent} called when the user is starting, for components to initialize
@@ -99,7 +93,6 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_STARTING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 
@@ -116,7 +109,6 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_SWITCHING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
@@ -133,7 +125,6 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
 
@@ -144,22 +135,8 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKED =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
-
-    /**
-     * {@link UserLifecycleEvent} called after an existing user is unlocked for components to
-     * perform non-urgent tasks for user unlocked.
-     *
-     * <p>Note: This event type is intended only for internal system services. Application listeners
-     * should not use this event type and will not receive any events of this type.
-     *
-     * @hide
-     */
-    @AddedInOrBefore(majorVersion = 33)
-    public static final int USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED =
-            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 
     /**
      * {@link UserLifecycleEvent} called when an existing user is stopping, for components to
@@ -176,7 +153,6 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
 
@@ -189,15 +165,12 @@ public final class CarUserManager extends CarManagerBase {
      */
     @SystemApi
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPED =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 
     /** @hide */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String BUNDLE_PARAM_ACTION = "action";
     /** @hide */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String BUNDLE_PARAM_PREVIOUS_USER_ID = "previous_user";
 
     /**
@@ -205,7 +178,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_KEY_FOB = 1;
 
     /**
@@ -213,7 +185,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_1 = 101;
 
     /**
@@ -221,7 +192,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_2 = 102;
 
     /**
@@ -229,7 +199,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_3 = 103;
 
     /**
@@ -237,7 +206,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_TYPE_CUSTOM_4 = 104;
 
     /**
@@ -261,7 +229,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_ASSOCIATE_CURRENT_USER = 1;
 
     /**
@@ -270,7 +237,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_DISASSOCIATE_CURRENT_USER = 2;
 
     /**
@@ -279,7 +245,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_SET_VALUE_DISASSOCIATE_ALL_USERS = 3;
 
     /**
@@ -301,7 +266,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_UNKNOWN = 1;
 
     /**
@@ -310,7 +274,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_ASSOCIATE_CURRENT_USER = 2;
 
     /**
@@ -319,7 +282,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_ASSOCIATED_ANOTHER_USER = 3;
 
     /**
@@ -328,7 +290,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int USER_IDENTIFICATION_ASSOCIATION_VALUE_NOT_ASSOCIATED_ANY_USER = 4;
 
     /**
@@ -346,45 +307,22 @@ public final class CarUserManager extends CarManagerBase {
     public @interface UserIdentificationAssociationValue{}
 
     private final Object mLock = new Object();
-
     private final ICarUserService mService;
     private final UserManager mUserManager;
 
-    /**
-     * Map of listeners registers by the app.
-     */
     @Nullable
     @GuardedBy("mLock")
-    private ArrayMap<UserLifecycleListener, Pair<UserLifecycleEventFilter, Executor>> mListeners;
+    private ArrayMap<UserLifecycleListener, Executor> mListeners;
 
-    /**
-     * Receiver used to receive user-lifecycle callbacks from the service.
-     */
     @Nullable
     @GuardedBy("mLock")
     private LifecycleResultReceiver mReceiver;
-
-    private final Dumper mDumper;
-
-    /**
-     * Logs the number of received events so it's shown on {@code Dumper.dump()}.
-     */
-    private int mNumberReceivedEvents;
-
-    /**
-     * Logs the received events so they're shown on {@code Dumper.dump()}.
-     *
-     * <p><b>Note</b>: these events are only logged when {@link #VERBOSE} is {@code true}.
-     */
-    @Nullable
-    private List<UserLifecycleEvent> mEvents;
 
     /**
      * @hide
      */
     public CarUserManager(@NonNull Car car, @NonNull IBinder service) {
-        this(car, ICarUserService.Stub.asInterface(service),
-                car.getContext().getSystemService(UserManager.class));
+        this(car, ICarUserService.Stub.asInterface(service), UserManager.get(car.getContext()));
     }
 
     /**
@@ -394,10 +332,6 @@ public final class CarUserManager extends CarManagerBase {
     public CarUserManager(@NonNull Car car, @NonNull ICarUserService service,
             @NonNull UserManager userManager) {
         super(car);
-
-        mDumper = addDumpable(car.getContext(), () -> new Dumper());
-        Log.d(TAG, "CarUserManager(): DBG= " + DBG + ", mDumper=" + mDumper);
-
         mService = service;
         mUserManager = userManager;
     }
@@ -407,10 +341,8 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @TestApi
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    @AddedInOrBefore(majorVersion = 33)
     public AsyncFuture<UserSwitchResult> switchUser(@UserIdInt int targetUserId) {
         int uid = myUid();
         try {
@@ -418,7 +350,7 @@ public final class CarUserManager extends CarManagerBase {
                 @Override
                 protected void onCompleted(UserSwitchResult result, Throwable err) {
                     if (result != null) {
-                        EventLogHelper.writeCarUserManagerSwitchUserResp(uid,
+                        EventLog.writeEvent(EventLogTags.CAR_USER_MGR_SWITCH_USER_RESP, uid,
                                 result.getStatus(), result.getErrorMessage());
                     } else {
                         Log.w(TAG, "switchUser(" + targetUserId + ") failed: " + err);
@@ -426,43 +358,8 @@ public final class CarUserManager extends CarManagerBase {
                     super.onCompleted(result, err);
                 }
             };
-            EventLogHelper.writeCarUserManagerSwitchUserReq(uid, targetUserId);
+            EventLog.writeEvent(EventLogTags.CAR_USER_MGR_SWITCH_USER_REQ, uid, targetUserId);
             mService.switchUser(targetUserId, HAL_TIMEOUT_MS, future);
-            return new AndroidAsyncFuture<>(future);
-        } catch (SecurityException e) {
-            throw e;
-        } catch (RemoteException | RuntimeException e) {
-            AsyncFuture<UserSwitchResult> future =
-                    newSwitchResuiltForFailure(UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE);
-            return handleExceptionFromCarService(e, future);
-        }
-    }
-
-    /**
-     * Logouts the current user (if it was switched to by a device admin).
-     *
-     * @hide
-     */
-    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
-            android.Manifest.permission.CREATE_USERS})
-    @AddedInOrBefore(majorVersion = 33)
-    public AsyncFuture<UserSwitchResult> logoutUser() {
-        int uid = myUid();
-        try {
-            AndroidFuture<UserSwitchResult> future = new AndroidFuture<UserSwitchResult>() {
-                @Override
-                protected void onCompleted(UserSwitchResult result, Throwable err) {
-                    if (result != null) {
-                        EventLogHelper.writeCarUserManagerLogoutUserResp(uid,
-                                result.getStatus(), result.getErrorMessage());
-                    } else {
-                        Log.w(TAG, "logoutUser() failed: " + err);
-                    }
-                    super.onCompleted(result, err);
-                }
-            };
-            EventLogHelper.writeCarUserManagerLogoutUserReq(uid);
-            mService.logoutUser(HAL_TIMEOUT_MS, future);
             return new AndroidAsyncFuture<>(future);
         } catch (SecurityException e) {
             throw e;
@@ -480,24 +377,35 @@ public final class CarUserManager extends CarManagerBase {
         return new AndroidAsyncFuture<>(future);
     }
 
-    private AsyncFuture<UserCreationResult> createUser(@Nullable String name,
-            @NonNull String userType, int flags) {
+    /**
+     * Creates a new Android user.
+     *
+     * @hide
+     */
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+                        android.Manifest.permission.CREATE_USERS})
+    public AsyncFuture<UserCreationResult> createUser(@Nullable String name,
+            @NonNull String userType, @UserInfoFlag int flags) {
         int uid = myUid();
         try {
             AndroidFuture<UserCreationResult> future = new AndroidFuture<UserCreationResult>() {
                 @Override
                 protected void onCompleted(UserCreationResult result, Throwable err) {
                     if (result != null) {
-                        EventLogHelper.writeCarUserManagerCreateUserResp(uid,
+                        EventLog.writeEvent(EventLogTags.CAR_USER_MGR_CREATE_USER_RESP, uid,
                                 result.getStatus(), result.getErrorMessage());
+                        UserInfo user = result.getUser();
+                        if (result.isSuccess() && user != null && user.isGuest()) {
+                            onGuestCreated(user);
+                        }
                     } else {
-                        Log.w(TAG, "createUser(" + userType + "," + flags
+                        Log.w(TAG, "createUser(" + userType + "," + UserInfo.flagsToString(flags)
                                 + ") failed: " + err);
                     }
                     super.onCompleted(result, err);
                 };
             };
-            EventLogHelper.writeCarUserManagerCreateUserReq(uid,
+            EventLog.writeEvent(EventLogTags.CAR_USER_MGR_CREATE_USER_REQ, uid,
                     UserHelperLite.safeName(name), userType, flags);
             mService.createUser(name, userType, flags, HAL_TIMEOUT_MS, future);
             return new AndroidAsyncFuture<>(future);
@@ -517,7 +425,6 @@ public final class CarUserManager extends CarManagerBase {
      */
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    @AddedInOrBefore(majorVersion = 33)
     public AsyncFuture<UserCreationResult> createGuest(@Nullable String name) {
         return createUser(name, UserManager.USER_TYPE_FULL_GUEST, /* flags= */ 0);
     }
@@ -527,11 +434,10 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     public AsyncFuture<UserCreationResult> createUser(@Nullable String name,
-            int flags) {
+            @UserInfoFlag int flags) {
         return createUser(name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
     }
 
@@ -546,10 +452,9 @@ public final class CarUserManager extends CarManagerBase {
      */
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    @AddedInOrBefore(majorVersion = 33)
     public void updatePreCreatedUsers() {
         int uid = myUid();
-        EventLogHelper.writeCarUserManagerPreCreateUserReq(uid);
+        EventLog.writeEvent(EventLogTags.CAR_USER_MGR_PRE_CREATE_USER_REQ, uid);
         try {
             mService.updatePreCreatedUsers();
         } catch (SecurityException e) {
@@ -557,6 +462,12 @@ public final class CarUserManager extends CarManagerBase {
         } catch (RemoteException | RuntimeException e) {
             handleExceptionFromCarService(e, null);
         }
+    }
+
+    // TODO(b/159283854): move to UserManager
+    private void onGuestCreated(UserInfo user) {
+        Settings.Secure.putStringForUser(getContext().getContentResolver(),
+                Settings.Secure.SKIP_FIRST_USE_HINTS, "1", user.id);
     }
 
     /**
@@ -571,10 +482,9 @@ public final class CarUserManager extends CarManagerBase {
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public UserRemovalResult removeUser(@UserIdInt int userId) {
         int uid = myUid();
-        EventLogHelper.writeCarUserManagerRemoveUserReq(uid, userId);
+        EventLog.writeEvent(EventLogTags.CAR_USER_MGR_REMOVE_USER_REQ, uid, userId);
         int status = UserRemovalResult.STATUS_ANDROID_FAILURE;
         try {
             AndroidFuture<UserRemovalResult> future = new AndroidFuture<UserRemovalResult>();
@@ -594,7 +504,7 @@ public final class CarUserManager extends CarManagerBase {
             return handleExceptionFromCarService(e,
                     new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE));
         } finally {
-            EventLogHelper.writeCarUserManagerRemoveUserResp(uid, status);
+            EventLog.writeEvent(EventLogTags.CAR_USER_MGR_REMOVE_USER_RESP, uid, status);
         }
     }
 
@@ -608,63 +518,26 @@ public final class CarUserManager extends CarManagerBase {
     @SystemApi
     @TestApi
     @RequiresPermission(anyOf = {INTERACT_ACROSS_USERS, INTERACT_ACROSS_USERS_FULL})
-    @AddedInOrBefore(majorVersion = 33)
     public void addListener(@NonNull @CallbackExecutor Executor executor,
             @NonNull UserLifecycleListener listener) {
-        addListenerInternal(executor, /* filter= */null, listener);
-    }
-
-    /**
-     * Adds a listener for {@link UserLifecycleEvent user lifecycle events} with a filter that can
-     * specify a specific event type or a user id.
-     *
-     * @throws IllegalStateException if the listener was already added.
-     *
-     * @hide
-     */
-    @SystemApi
-    @TestApi
-    @RequiresPermission(anyOf = {INTERACT_ACROSS_USERS, INTERACT_ACROSS_USERS_FULL})
-    @AddedInOrBefore(majorVersion = 33)
-    public void addListener(@NonNull @CallbackExecutor Executor executor,
-            @NonNull UserLifecycleEventFilter filter, @NonNull UserLifecycleListener listener) {
-        Objects.requireNonNull(filter, "filter cannot be null");
-
-        addListenerInternal(executor, filter, listener);
-    }
-
-    private void addListenerInternal(@CallbackExecutor Executor executor,
-            @Nullable UserLifecycleEventFilter filter, UserLifecycleListener listener) {
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(listener, "listener cannot be null");
 
         int uid = myUid();
-        String packageName = getContext().getPackageName();
-        if (DBG) {
-            Log.d(TAG, "addListener(): uid=" + uid + ", pkg=" + packageName
-                    + ", listener=" + listener + ", filter= " + filter);
-        }
         synchronized (mLock) {
             Preconditions.checkState(mListeners == null || !mListeners.containsKey(listener),
                     "already called for this listener");
             if (mReceiver == null) {
                 mReceiver = new LifecycleResultReceiver();
-                if (DBG) {
-                    Log.d(TAG, "Setting lifecycle receiver with filter " + filter
-                            + " for uid " + uid + " and package " + packageName);
+                try {
+                    EventLog.writeEvent(EventLogTags.CAR_USER_MGR_ADD_LISTENER, uid);
+                    if (DBG) Log.d(TAG, "Setting lifecycle receiver for uid " + uid);
+                    mService.setLifecycleListenerForUid(mReceiver);
+                } catch (RemoteException e) {
+                    handleRemoteExceptionFromCarService(e);
                 }
             } else {
-                if (DBG) {
-                    Log.d(TAG, "Already set receiver for uid " + uid + " and package "
-                            + packageName + " adding new filter " + filter);
-                }
-            }
-            try {
-                boolean hasFilter = filter != null;
-                EventLogHelper.writeCarUserManagerAddListener(uid, packageName, hasFilter);
-                mService.setLifecycleListenerForApp(packageName, filter, mReceiver);
-            } catch (RemoteException e) {
-                handleRemoteExceptionFromCarService(e);
+                if (DBG) Log.d(TAG, "Already set receiver for uid " + uid);
             }
 
             if (mListeners == null) {
@@ -674,10 +547,10 @@ public final class CarUserManager extends CarManagerBase {
                         + " already has " + mListeners.size() + " listeners: "
                         + mListeners.keySet().stream()
                                 .map((l) -> getLambdaName(l))
-                                .collect(Collectors.toList()), new Exception("caller's stack"));
+                                .collect(Collectors.toList()), new Exception());
             }
-            if (DBG) Log.d(TAG, "Adding listener: " + listener + " with filter " + filter);
-            mListeners.put(listener, Pair.create(filter, executor));
+            if (DBG) Log.d(TAG, "Adding listener: " + listener);
+            mListeners.put(listener, executor);
         }
     }
 
@@ -691,25 +564,15 @@ public final class CarUserManager extends CarManagerBase {
     @SystemApi
     @TestApi
     @RequiresPermission(anyOf = {INTERACT_ACROSS_USERS, INTERACT_ACROSS_USERS_FULL})
-    @AddedInOrBefore(majorVersion = 33)
     public void removeListener(@NonNull UserLifecycleListener listener) {
         Objects.requireNonNull(listener, "listener cannot be null");
 
         int uid = myUid();
-        String packageName = getContext().getPackageName();
-        if (DBG) {
-            Log.d(TAG, "removeListener(): uid=" + uid + ", pkg=" + packageName
-                    + ", listener=" + listener);
-        }
         synchronized (mLock) {
             Preconditions.checkState(mListeners != null && mListeners.containsKey(listener),
                     "not called for this listener yet");
             mListeners.remove(listener);
 
-            // Note that there can be some rare corner cases that a listener is removed but its
-            // corresponding filter remains in the service side. This may cause slight inefficiency
-            // due to unnecessary receiver calls. It will still be functionally correct, because the
-            // removed listener will no longer be invoked.
             if (!mListeners.isEmpty()) {
                 if (DBG) Log.d(TAG, "removeListeners(): still " + mListeners.size() + " left");
                 return;
@@ -721,13 +584,10 @@ public final class CarUserManager extends CarManagerBase {
                 return;
             }
 
-            EventLogHelper.writeCarUserManagerRemoveListener(uid, packageName);
-            if (DBG) {
-                Log.d(TAG, "Removing lifecycle receiver for uid=" + uid + " and package "
-                        + packageName);
-            }
+            EventLog.writeEvent(EventLogTags.CAR_USER_MGR_REMOVE_LISTENER, uid);
+            if (DBG) Log.d(TAG, "Removing lifecycle receiver for uid=" + uid);
             try {
-                mService.resetLifecycleListenerForApp(mReceiver);
+                mService.resetLifecycleListenerForUid();
                 mReceiver = null;
             } catch (RemoteException e) {
                 handleRemoteExceptionFromCarService(e);
@@ -740,7 +600,6 @@ public final class CarUserManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isUserHalUserAssociationSupported() {
         try {
             return mService.isUserHalUserAssociationSupported();
@@ -757,17 +616,17 @@ public final class CarUserManager extends CarManagerBase {
     @NonNull
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    @AddedInOrBefore(majorVersion = 33)
     public UserIdentificationAssociationResponse getUserIdentificationAssociation(
             @UserIdentificationAssociationType int... types) {
         Preconditions.checkArgument(!ArrayUtils.isEmpty(types), "must have at least one type");
-        EventLogHelper.writeCarUserManagerGetUserAuthReq(convertToObjectArray(types));
+        EventLog.writeEvent(EventLogTags.CAR_USER_MGR_GET_USER_AUTH_REQ, types.length);
         try {
             UserIdentificationAssociationResponse response =
                     mService.getUserIdentificationAssociation(types);
             if (response != null) {
                 int[] values = response.getValues();
-                EventLogHelper.writeCarUserManagerGetUserAuthResp(convertToObjectArray(values));
+                EventLog.writeEvent(EventLogTags.CAR_USER_MGR_GET_USER_AUTH_RESP,
+                        values != null ? values.length : 0);
             }
             return response;
         } catch (SecurityException e) {
@@ -778,15 +637,6 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
-    private Object[] convertToObjectArray(int[] input) {
-        if (input == null) return null;
-        Object[] output = new Object[input.length];
-        for (int i = 0; i < input.length; i++) {
-            output[i] = input[i];
-        }
-        return output;
-    }
-
     /**
      * Sets the user authentication types associated with this manager's user.
      *
@@ -795,7 +645,6 @@ public final class CarUserManager extends CarManagerBase {
     @NonNull
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    @AddedInOrBefore(majorVersion = 33)
     public AsyncFuture<UserIdentificationAssociationResponse> setUserIdentificationAssociation(
             @UserIdentificationAssociationType int[] types,
             @UserIdentificationAssociationSetValue int[] values) {
@@ -811,7 +660,7 @@ public final class CarUserManager extends CarManagerBase {
             loggedValues[i * 2] = types[i];
             loggedValues[i * 2 + 1 ] = values[i];
         }
-        EventLogHelper.writeCarUserManagerSetUserAuthReq(loggedValues);
+        EventLog.writeEvent(EventLogTags.CAR_USER_MGR_SET_USER_AUTH_REQ, loggedValues);
 
         try {
             AndroidFuture<UserIdentificationAssociationResponse> future =
@@ -827,7 +676,8 @@ public final class CarUserManager extends CarManagerBase {
                             for (int i = 0; i < rawValues.length; i++) {
                                 loggedValues[i] = rawValues[i];
                             }
-                            EventLogHelper.writeCarUserManagerSetUserAuthResp(loggedValues);
+                            EventLog.writeEvent(EventLogTags.CAR_USER_MGR_SET_USER_AUTH_RESP,
+                                    loggedValues);
                         }
                     } else {
                         Log.w(TAG, "setUserIdentificationAssociation(" + Arrays.toString(types)
@@ -853,7 +703,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
-    @AddedInOrBefore(majorVersion = 33)
     public void setUserSwitchUiCallback(@NonNull UserSwitchUiCallback callback) {
         Preconditions.checkArgument(callback != null, "Null callback");
         UserSwitchUiCallbackReceiver userSwitchUiCallbackReceiver =
@@ -866,10 +715,10 @@ public final class CarUserManager extends CarManagerBase {
     }
 
     /**
-     * {@code ICarResultReceiver} used to receive user switch UI Callback.
+     * {@code IResultReceiver} used to receive user switch UI Callback.
      */
     // TODO(b/154958003): use mReceiver instead as now there are two binder objects
-    private final class UserSwitchUiCallbackReceiver extends ICarResultReceiver.Stub {
+    private final class UserSwitchUiCallbackReceiver extends IResultReceiver.Stub {
 
         private final UserSwitchUiCallback mUserSwitchUiCallback;
 
@@ -884,105 +733,51 @@ public final class CarUserManager extends CarManagerBase {
     }
 
     /**
-     * {@code ICarResultReceiver} used to receive lifecycle events and dispatch to the proper
-     * listener.
+     * {@code IResultReceiver} used to receive lifecycle events and dispatch to the proper listener.
      */
-    private class LifecycleResultReceiver extends ICarResultReceiver.Stub {
+    private class LifecycleResultReceiver extends IResultReceiver.Stub {
         @Override
         public void send(int resultCode, Bundle resultData) {
             if (resultData == null) {
                 Log.w(TAG, "Received result (" + resultCode + ") without data");
                 return;
             }
-            int from = resultData.getInt(BUNDLE_PARAM_PREVIOUS_USER_ID,
-                    UserManagerHelper.USER_NULL);
+            int from = resultData.getInt(BUNDLE_PARAM_PREVIOUS_USER_ID, UserHandle.USER_NULL);
             int to = resultCode;
             int eventType = resultData.getInt(BUNDLE_PARAM_ACTION);
             UserLifecycleEvent event = new UserLifecycleEvent(eventType, from, to);
-            ArrayMap<UserLifecycleListener, Pair<UserLifecycleEventFilter, Executor>> listeners;
+            ArrayMap<UserLifecycleListener, Executor> listeners;
             synchronized (mLock) {
-                if (mListeners == null) {
-                    Log.w(TAG, "No listeners for event " + event);
-                    return;
-                }
-                listeners = new ArrayMap<>(mListeners);
+                listeners = mListeners;
+            }
+            if (listeners == null) {
+                Log.w(TAG, "No listeners for event " + event);
+                return;
             }
             int size = listeners.size();
-            EventLogHelper.writeCarUserManagerNotifyLifecycleListener(size, eventType, from, to);
+            EventLog.writeEvent(EventLogTags.CAR_USER_MGR_NOTIFY_LIFECYCLE_LISTENER,
+                    size, eventType, from, to);
             for (int i = 0; i < size; i++) {
                 UserLifecycleListener listener = listeners.keyAt(i);
-                UserLifecycleEventFilter filter = listeners.valueAt(i).first;
-                if (filter != null && !filter.apply(event)) {
-                    if (DBG) {
-                        Log.d(TAG, "Listener " + getLambdaName(listener)
-                                + " is skipped for the event " + event + " due to the filter "
-                                + filter);
-                    }
-                    continue;
-                }
-                Executor executor = listeners.valueAt(i).second;
+                Executor executor = listeners.valueAt(i);
                 if (DBG) {
                     Log.d(TAG, "Calling " + getLambdaName(listener) + " for event " + event);
                 }
                 executor.execute(() -> listener.onEvent(event));
-            }
-            mNumberReceivedEvents++;
-            if (VERBOSE) {
-                if (mEvents == null) {
-                    mEvents = new ArrayList<>();
-                }
-                mEvents.add(event);
             }
         }
     }
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // nothing to do
-    }
-
-    private final class Dumper implements Dumpable {
-        @Override
-        public void dump(PrintWriter pw, String[] args) {
-            String prefix = "  ";
-
-            pw.printf("DBG=%b, VERBOSE=%b\n", DBG, VERBOSE);
-            int listenersSize = 0;
-            synchronized (mLock) {
-                pw.printf("mReceiver: %s\n", mReceiver);
-                if (mListeners == null) {
-                    pw.println("no listeners");
-                } else {
-                    listenersSize = mListeners.size();
-                    pw.printf("%d listeners\n", listenersSize);
-                }
-                if (DBG) {
-                    for (int i = 0; i < listenersSize; i++) {
-                        pw.printf("%s%d: %s\n", prefix, i + 1, mListeners.keyAt(i));
-                    }
-                }
-            }
-            pw.printf("mNumberReceivedEvents: %d\n", mNumberReceivedEvents);
-            if (VERBOSE && mEvents != null) {
-                for (int i = 0; i < mEvents.size(); i++) {
-                    pw.printf("%s%d: %s\n", prefix, i + 1, mEvents.get(i));
-                }
-            }
-        }
-
-        @Override
-        public String getDumpableName() {
-            return CarUserManager.class.getSimpleName();
-        }
     }
 
     /**
      * @hide
      */
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static String lifecycleEventTypeToString(@UserLifecycleEventType int type) {
         switch (type) {
             case USER_LIFECYCLE_EVENT_TYPE_STARTING:
@@ -1002,6 +797,14 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+    // NOTE: this method is called by ExperimentalCarUserManager, so it can get the mService.
+    // "Real" ExperimentalCarUserManager instances should be obtained through
+    //    ExperimentalCarUserManager.from(mCarUserManager)
+    // instead.
+    ExperimentalCarUserManager newExperimentalCarUserManager() {
+        return new ExperimentalCarUserManager(mCar, mService);
+    }
+
     /**
      * Checks if the given {@code userId} represents a valid user.
      *
@@ -1018,12 +821,11 @@ public final class CarUserManager extends CarManagerBase {
      */
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isValidUser(@UserIdInt int userId) {
-        List<UserHandle> allUsers = mUserManager.getUserHandles(/* excludeDying=*/ true);
+        List<UserInfo> allUsers = mUserManager.getAliveUsers();
         for (int i = 0; i < allUsers.size(); i++) {
-            UserHandle user = allUsers.get(i);
-            if (user.getIdentifier() == userId && (userId != UserHandle.SYSTEM.getIdentifier()
+            UserInfo user = allUsers.get(i);
+            if (user.id == userId && (userId != UserHandle.USER_SYSTEM
                     || !UserManager.isHeadlessSystemUserMode())) {
                 return true;
             }
@@ -1053,7 +855,7 @@ public final class CarUserManager extends CarManagerBase {
 
         /** @hide */
         public UserLifecycleEvent(@UserLifecycleEventType int eventType, @UserIdInt int to) {
-            this(eventType, UserManagerHelper.USER_NULL, to);
+            this(eventType, UserHandle.USER_NULL, to);
         }
 
         /**
@@ -1067,7 +869,6 @@ public final class CarUserManager extends CarManagerBase {
          * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_STOPPED}.
          */
         @UserLifecycleEventType
-        @AddedInOrBefore(majorVersion = 33)
         public int getEventType() {
             return mEventType;
         }
@@ -1078,7 +879,6 @@ public final class CarUserManager extends CarManagerBase {
          * @hide
          */
         @UserIdInt
-        @AddedInOrBefore(majorVersion = 33)
         public int getUserId() {
             return mUserId;
         }
@@ -1087,7 +887,6 @@ public final class CarUserManager extends CarManagerBase {
          * Gets the handle of the user whose event is being reported.
          */
         @NonNull
-        @AddedInOrBefore(majorVersion = 33)
         public UserHandle getUserHandle() {
             return UserHandle.of(mUserId);
         }
@@ -1101,7 +900,6 @@ public final class CarUserManager extends CarManagerBase {
          * @hide
          */
         @UserIdInt
-        @AddedInOrBefore(majorVersion = 33)
         public int getPreviousUserId() {
             return mPreviousUserId;
         }
@@ -1113,18 +911,15 @@ public final class CarUserManager extends CarManagerBase {
          * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_SWITCHING}.
          */
         @Nullable
-        @AddedInOrBefore(majorVersion = 33)
         public UserHandle getPreviousUserHandle() {
-            return mPreviousUserId == UserManagerHelper.USER_NULL ? null
-                    : UserHandle.of(mPreviousUserId);
+            return mPreviousUserId == UserHandle.USER_NULL ? null : UserHandle.of(mPreviousUserId);
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             StringBuilder builder = new StringBuilder("Event[type=")
                     .append(lifecycleEventTypeToString(mEventType));
-            if (mPreviousUserId != UserManagerHelper.USER_NULL) {
+            if (mPreviousUserId != UserHandle.USER_NULL) {
                 builder
                     .append(",from=").append(mPreviousUserId)
                     .append(",to=").append(mUserId);
@@ -1133,28 +928,6 @@ public final class CarUserManager extends CarManagerBase {
             }
 
             return builder.append(']').toString();
-        }
-
-        @Override
-        @AddedInOrBefore(majorVersion = 33)
-        public boolean equals(@Nullable Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            UserLifecycleEvent that = (UserLifecycleEvent) o;
-            return mEventType == that.mEventType && mUserId == that.mUserId
-                    && mPreviousUserId == that.mPreviousUserId;
-        }
-
-        @Override
-        @AddedInOrBefore(majorVersion = 33)
-        public int hashCode() {
-            int hash = 23;
-            hash = 17 * hash + mEventType;
-            hash = 17 * hash + mUserId;
-            hash = 17 * hash + mPreviousUserId;
-
-            return hash;
         }
     }
 
@@ -1173,7 +946,6 @@ public final class CarUserManager extends CarManagerBase {
         /**
          * Called to notify the given {@code event}.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onEvent(@NonNull UserLifecycleEvent event);
     }
 
@@ -1190,7 +962,6 @@ public final class CarUserManager extends CarManagerBase {
         /**
          * Called to notify that user switch dialog should be shown now.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void showUserSwitchDialog(@UserIdInt int userId);
     }
 }

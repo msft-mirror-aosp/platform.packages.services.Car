@@ -48,7 +48,7 @@ public class PowerTestFragment extends Fragment {
         final Runnable r = () -> {
             mCarPowerManager = ((KitchenSinkActivity) getActivity()).getPowerManager();
             try {
-                mCarPowerManager.setListener(getContext().getMainExecutor(), mPowerListener);
+                mCarPowerManager.setListener(mPowerListener);
             } catch (IllegalStateException e) {
                 Log.e(TAG, "CarPowerManager listener was not cleared");
             }

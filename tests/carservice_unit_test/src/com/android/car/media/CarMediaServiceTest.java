@@ -25,7 +25,6 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.doAnswer;
@@ -41,10 +40,10 @@ import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.mocks.AndroidMockitoHelper;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
+import android.content.pm.UserInfo;
 import android.content.res.Resources;
 import android.media.session.MediaController;
 import android.media.session.MediaSession;
@@ -52,17 +51,14 @@ import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.UserHandle;
 import android.os.UserManager;
 
 import com.android.car.CarLocalServices;
-import com.android.car.CarLog;
 import com.android.car.CarMediaService;
 import com.android.car.R;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.user.CarUserService;
-import com.android.car.user.UserHandleHelper;
 import com.android.internal.app.IVoiceInteractionManagerService;
 
 import org.junit.After;
@@ -73,7 +69,7 @@ import org.mockito.Mock;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
+public class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
 
     private static final String MEDIA_PACKAGE = "test.package";
     private static final String MEDIA_PACKAGE2 = "test.package2";
@@ -96,15 +92,8 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Mock private SystemInterface mMockSystemInterface;
     @Mock private IVoiceInteractionManagerService mMockVoiceService;
     @Mock private CarPowerManagementService mMockCarPowerManagementService;
-    @Mock private UserHandleHelper mUserHandleHelper;
-    @Mock private SharedPreferences mMockSharedPreferences;
-    @Mock private SharedPreferences.Editor mMockSharedPreferencesEditor;
 
     private CarMediaService mCarMediaService;
-
-    public CarMediaServiceTest() {
-        super(CarLog.TAG_MEDIA);
-    }
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder builder) {
@@ -116,25 +105,15 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
         when(mContext.checkCallingOrSelfPermission(anyString()))
                 .thenReturn(PackageManager.PERMISSION_GRANTED);
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
-        when(mContext.createContextAsUser(any(), anyInt())).thenReturn(mContext);
-        when(mContext.getSharedPreferences(anyString(), anyInt()))
-                .thenReturn(mMockSharedPreferences);
-        when(mMockSharedPreferences.edit()).thenReturn(mMockSharedPreferencesEditor);
-        when(mMockSharedPreferencesEditor.putInt(anyString(), anyInt()))
-                .thenReturn(mMockSharedPreferencesEditor);
-        when(mMockSharedPreferencesEditor.putLong(anyString(), anyLong()))
-                .thenReturn(mMockSharedPreferencesEditor);
-        when(mMockSharedPreferencesEditor.putString(anyString(), anyString()))
-                .thenReturn(mMockSharedPreferencesEditor);
 
         doReturn(mResources).when(mContext).getResources();
-        doReturn(mUserManager).when(mContext).getSystemService(UserManager.class);
-        UserHandle user = UserHandle.of(TEST_USER_ID);
+        doReturn(mUserManager).when(mContext).getSystemService(Context.USER_SERVICE);
+        UserInfo userInfo = new UserInfo(TEST_USER_ID, "test_user", UserInfo.FLAG_PRIMARY);
         AndroidMockitoHelper.mockAmGetCurrentUser(TEST_USER_ID);
-        when(mUserHandleHelper.isEphemeralUser(UserHandle.of(TEST_USER_ID))).thenReturn(false);
+        AndroidMockitoHelper.mockUmGetUserInfo(mUserManager, userInfo);
         doReturn(mMediaSessionManager).when(mContext).getSystemService(MediaSessionManager.class);
 
-        mCarMediaService = new CarMediaService(mContext, mUserService, mUserHandleHelper);
+        mCarMediaService = new CarMediaService(mContext, mUserService);
         CarLocalServices.addService(CarPowerManagementService.class,
                 mMockCarPowerManagementService);
     }
@@ -147,7 +126,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testSetMediaSource_ModePlaybackIndependent() {
         mCarMediaService.setIndependentPlaybackConfig(true);
-        initMediaService();
 
         mCarMediaService.setMediaSource(MEDIA_COMPONENT, MEDIA_SOURCE_MODE_PLAYBACK);
 
@@ -160,7 +138,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testSetMediaSource_ModeBrowseIndependent() {
         mCarMediaService.setIndependentPlaybackConfig(true);
-        initMediaService();
 
         mCarMediaService.setMediaSource(MEDIA_COMPONENT, MEDIA_SOURCE_MODE_BROWSE);
 
@@ -173,7 +150,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testSetMediaSource_ModePlaybackAndBrowseIndependent() {
         mCarMediaService.setIndependentPlaybackConfig(true);
-        initMediaService();
 
         mCarMediaService.setMediaSource(MEDIA_COMPONENT, MEDIA_SOURCE_MODE_BROWSE);
         mCarMediaService.setMediaSource(MEDIA_COMPONENT2, MEDIA_SOURCE_MODE_PLAYBACK);
@@ -187,7 +163,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testSetMediaSource_Dependent() {
         mCarMediaService.setIndependentPlaybackConfig(false);
-        initMediaService();
 
         mCarMediaService.setMediaSource(MEDIA_COMPONENT, MEDIA_SOURCE_MODE_PLAYBACK);
 
@@ -207,7 +182,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testMediaSourceListener_Independent() throws Exception {
         mCarMediaService.setIndependentPlaybackConfig(true);
-        initMediaService();
         ICarMediaSourceListener listenerPlayback = mockMediaSourceListener();
         ICarMediaSourceListener listenerBrowse = mockMediaSourceListener();
 
@@ -222,7 +196,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testMediaSourceListener_IndependentBrowse() throws Exception {
         mCarMediaService.setIndependentPlaybackConfig(true);
-        initMediaService();
         ICarMediaSourceListener listenerPlayback = mockMediaSourceListener();
         ICarMediaSourceListener listenerBrowse = mockMediaSourceListener();
 
@@ -237,7 +210,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testMediaSourceListener_Dependent() throws Exception {
         mCarMediaService.setIndependentPlaybackConfig(false);
-        initMediaService();
         ICarMediaSourceListener listenerPlayback = mockMediaSourceListener();
         ICarMediaSourceListener listenerBrowse = mockMediaSourceListener();
 
@@ -256,7 +228,6 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testMediaSourceListener_Unregister() throws Exception {
-        initMediaService();
         ICarMediaSourceListener listener = mockMediaSourceListener();
 
         mCarMediaService.registerMediaSourceListener(listener, MEDIA_SOURCE_MODE_PLAYBACK);
@@ -268,7 +239,10 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testDefaultMediaSource() {
-        initMediaService(MEDIA_CLASS);
+        initializeMockPackageManager(MEDIA_CLASS);
+        mockUserUnlocked(true);
+
+        mCarMediaService.init();
 
         assertThat(mCarMediaService.getMediaSource(MEDIA_SOURCE_MODE_PLAYBACK))
                 .isEqualTo(MEDIA_COMPONENT);
@@ -284,9 +258,11 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     // Tests that PlaybackState changing to STATE_PLAYING will result the media source changing
     @Test
     public void testActiveSessionListener_StatePlayingChangesSource() {
+        initializeMockPackageManager(MEDIA_CLASS, MEDIA_CLASS2);
+        mockUserUnlocked(true);
         mockPlaybackStateChange(createPlaybackState(PlaybackState.STATE_PLAYING));
 
-        initMediaService(MEDIA_CLASS, MEDIA_CLASS2);
+        mCarMediaService.init();
 
         assertThat(mCarMediaService.getMediaSource(MEDIA_SOURCE_MODE_PLAYBACK))
                 .isEqualTo(MEDIA_COMPONENT2);
@@ -295,9 +271,11 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testActiveSessionListener_IndependentBrowseUnchanged() {
         mCarMediaService.setIndependentPlaybackConfig(true);
+        initializeMockPackageManager(MEDIA_CLASS, MEDIA_CLASS2);
+        mockUserUnlocked(true);
         mockPlaybackStateChange(createPlaybackState(PlaybackState.STATE_PLAYING));
 
-        initMediaService(MEDIA_CLASS, MEDIA_CLASS2);
+        mCarMediaService.init();
 
         assertThat(mCarMediaService.getMediaSource(MEDIA_SOURCE_MODE_PLAYBACK))
                 .isEqualTo(MEDIA_COMPONENT2);
@@ -308,9 +286,11 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testActiveSessionListener_DependentBrowseChanged() {
         mCarMediaService.setIndependentPlaybackConfig(false);
+        initializeMockPackageManager(MEDIA_CLASS, MEDIA_CLASS2);
+        mockUserUnlocked(true);
         mockPlaybackStateChange(createPlaybackState(PlaybackState.STATE_PLAYING));
 
-        initMediaService(MEDIA_CLASS, MEDIA_CLASS2);
+        mCarMediaService.init();
 
         assertThat(mCarMediaService.getMediaSource(MEDIA_SOURCE_MODE_PLAYBACK))
                 .isEqualTo(MEDIA_COMPONENT2);
@@ -320,23 +300,18 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testActiveSessionListener_StatePaused() {
+        initializeMockPackageManager(MEDIA_CLASS, MEDIA_CLASS2);
+        mockUserUnlocked(true);
         mockPlaybackStateChange(createPlaybackState(PlaybackState.STATE_PAUSED));
 
-        initMediaService(MEDIA_CLASS, MEDIA_CLASS2);
+        mCarMediaService.init();
 
         assertThat(mCarMediaService.getMediaSource(MEDIA_SOURCE_MODE_PLAYBACK))
                 .isEqualTo(MEDIA_COMPONENT);
     }
 
-    private void initMediaService(String... classesToResolve) {
-        initializeMockPackageManager(classesToResolve);
-        mockUserUnlocked(true);
-
-        mCarMediaService.init();
-    }
-
     private void mockUserUnlocked(boolean unlocked) {
-        when(mUserManager.isUserUnlocked(any())).thenReturn(unlocked);
+        when(mUserManager.isUserUnlocked(anyInt())).thenReturn(unlocked);
     }
 
     private ICarMediaSourceListener mockMediaSourceListener() {
@@ -383,7 +358,7 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
             info.serviceInfo = serviceInfo;
             packageList.add(info);
         }
-        when(mPackageManager.queryIntentServicesAsUser(any(), anyInt(), any()))
+        when(mPackageManager.queryIntentServicesAsUser(any(), anyInt(), anyInt()))
                 .thenReturn(packageList);
     }
 

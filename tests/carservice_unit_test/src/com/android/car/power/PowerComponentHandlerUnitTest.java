@@ -43,6 +43,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.test.utils.TemporaryFile;
+import com.android.internal.app.IVoiceInteractionManagerService;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -60,6 +61,7 @@ public final class PowerComponentHandlerUnitTest {
     @Mock
     private SystemInterface mSystemInterface;
     @Mock
+    private IVoiceInteractionManagerService mVoiceInteractionManagerService;
     private PowerComponentHandler mHandler;
     private TemporaryFile mComponentStateFile;
 
@@ -67,7 +69,7 @@ public final class PowerComponentHandlerUnitTest {
     public void setUp() throws Exception {
         mComponentStateFile = new TemporaryFile("COMPONENT_STATE_FILE");
         mHandler = new PowerComponentHandler(mContext, mSystemInterface,
-                new AtomicFile(mComponentStateFile.getFile()));
+                mVoiceInteractionManagerService, new AtomicFile(mComponentStateFile.getFile()));
         mHandler.init();
     }
 

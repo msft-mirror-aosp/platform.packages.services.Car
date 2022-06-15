@@ -74,13 +74,13 @@ std::string toString(const std::vector<ResourceOveruseStats>& resourceOveruseSta
 
 namespace internal {
 
-class WatchdogBinderMediatorPeer final {
+class WatchdogBinderMediatorPeer {
 public:
     explicit WatchdogBinderMediatorPeer(const sp<WatchdogBinderMediator>& mediator) :
           mMediator(mediator) {}
     ~WatchdogBinderMediatorPeer() { mMediator.clear(); }
 
-    Result<void> init(const sp<IoOveruseMonitorInterface>& ioOveruseMonitor) {
+    Result<void> init(const sp<IIoOveruseMonitor>& ioOveruseMonitor) {
         mMediator->mIoOveruseMonitor = ioOveruseMonitor;
         return mMediator->init();
     }

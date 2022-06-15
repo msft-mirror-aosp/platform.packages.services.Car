@@ -49,7 +49,7 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 public class FocusInteractionTest {
     private static final int UNDEFINED_CONTEXT_VALUE = -10;
-    private static final int TEST_USER_ID = 100;
+    private static final int TEST_USER_ID = 10;
 
     @Mock
     private CarAudioSettings mMockCarAudioSettings;
@@ -64,8 +64,7 @@ public class FocusInteractionTest {
 
     @Before
     public void setUp() {
-        when(mMockCarAudioSettings.getContentResolverForUser(TEST_USER_ID))
-                .thenReturn(mMockContentResolver);
+        doReturn(mMockContentResolver).when(mMockCarAudioSettings).getContentResolver();
         mFocusInteraction = new FocusInteraction(mMockCarAudioSettings);
     }
 

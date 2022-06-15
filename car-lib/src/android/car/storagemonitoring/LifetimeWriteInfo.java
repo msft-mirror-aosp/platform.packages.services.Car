@@ -15,15 +15,10 @@
  */
 package android.car.storagemonitoring;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-
 import android.annotation.SystemApi;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.JsonWriter;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -38,7 +33,6 @@ import java.util.Objects;
  */
 @SystemApi
 public final class LifetimeWriteInfo implements Parcelable {
-    @AddedInOrBefore(majorVersion = 33)
     public static final Creator<IoStats> CREATOR = new Creator<IoStats>() {
         @Override
         public IoStats createFromParcel(Parcel in) {
@@ -51,11 +45,8 @@ public final class LifetimeWriteInfo implements Parcelable {
         }
     };
 
-    @AddedInOrBefore(majorVersion = 33)
     public final String partition;
-    @AddedInOrBefore(majorVersion = 33)
     public final String fstype;
-    @AddedInOrBefore(majorVersion = 33)
     public final long writtenBytes;
 
     public LifetimeWriteInfo(String partition, String fstype, long writtenBytes) {
@@ -84,7 +75,6 @@ public final class LifetimeWriteInfo implements Parcelable {
 
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeString(partition);
         dest.writeString(fstype);
@@ -94,7 +84,6 @@ public final class LifetimeWriteInfo implements Parcelable {
     /**
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToJson(JsonWriter jsonWriter) throws IOException {
         jsonWriter.beginObject();
         jsonWriter.name("partition").value(partition);
@@ -105,14 +94,11 @@ public final class LifetimeWriteInfo implements Parcelable {
 
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object other) {
         if (other instanceof LifetimeWriteInfo) {
             LifetimeWriteInfo lifetime = (LifetimeWriteInfo) other;
@@ -125,7 +111,6 @@ public final class LifetimeWriteInfo implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return String.format("for partition %s of type %s, %d bytes were written",
                 partition, fstype, writtenBytes);

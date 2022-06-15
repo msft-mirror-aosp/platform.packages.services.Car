@@ -31,7 +31,7 @@ namespace android {
 namespace automotive {
 namespace watchdog {
 
-class MockIoOveruseConfigs : public IoOveruseConfigsInterface {
+class MockIoOveruseConfigs : public IIoOveruseConfigs {
 public:
     MockIoOveruseConfigs() {}
     ~MockIoOveruseConfigs() {}
@@ -43,7 +43,7 @@ public:
     MOCK_METHOD(
             void, get,
             (std::vector<android::automotive::watchdog::internal::ResourceOveruseConfiguration>*),
-            (const, override));
+            (override));
 
     MOCK_METHOD(android::base::Result<void>, writeToDisk, (), (override));
 

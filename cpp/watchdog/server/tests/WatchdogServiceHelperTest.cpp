@@ -16,7 +16,6 @@
 
 #include "MockCarWatchdogServiceForSystem.h"
 #include "MockWatchdogProcessService.h"
-#include "PackageInfoTestUtils.h"
 #include "WatchdogServiceHelper.h"
 
 #include <binder/IBinder.h>
@@ -28,8 +27,6 @@ namespace android {
 namespace automotive {
 namespace watchdog {
 
-namespace {
-
 namespace aawi = ::android::automotive::watchdog::internal;
 
 using aawi::ApplicationCategoryType;
@@ -38,7 +35,6 @@ using aawi::ICarWatchdogServiceForSystem;
 using aawi::PackageInfo;
 using aawi::PackageIoOveruseStats;
 using aawi::UidType;
-using aawi::UserPackageIoUsageStats;
 using ::android::IBinder;
 using ::android::RefBase;
 using ::android::sp;
@@ -52,23 +48,6 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::UnorderedElementsAreArray;
 
-UserPackageIoUsageStats sampleUserPackageIoUsageStats(userid_t userId,
-                                                      const std::string& packageName) {
-    UserPackageIoUsageStats stats;
-    stats.userId = userId;
-    stats.packageName = packageName;
-    stats.ioUsageStats.writtenBytes.foregroundBytes = 100;
-    stats.ioUsageStats.writtenBytes.backgroundBytes = 200;
-    stats.ioUsageStats.writtenBytes.garageModeBytes = 300;
-    stats.ioUsageStats.forgivenWriteBytes.foregroundBytes = 1100;
-    stats.ioUsageStats.forgivenWriteBytes.backgroundBytes = 1200;
-    stats.ioUsageStats.forgivenWriteBytes.garageModeBytes = 1300;
-    stats.ioUsageStats.totalOveruses = 10;
-    return stats;
-}
-
-}  // namespace
-
 namespace internal {
 
 class WatchdogServiceHelperPeer : public RefBase {
@@ -76,7 +55,7 @@ public:
     explicit WatchdogServiceHelperPeer(const sp<WatchdogServiceHelper>& helper) : mHelper(helper) {}
     ~WatchdogServiceHelperPeer() { mHelper.clear(); }
 
-    Result<void> init(const android::sp<WatchdogProcessServiceInterface>& watchdogProcessService) {
+    Result<void> init(const android::sp<WatchdogProcessService>& watchdogProcessService) {
         return mHelper->init(watchdogProcessService);
     }
 
@@ -84,22 +63,36 @@ public:
         return mHelper->mService;
     }
 
-    void terminate() { mHelper->terminate(); }
-
 private:
     sp<WatchdogServiceHelper> mHelper;
 };
 
 }  // namespace internal
 
+namespace {
+
+PackageInfo constructPackageInfo(const char* packageName, int32_t uid, UidType uidType,
+                                 ComponentType componentType,
+                                 ApplicationCategoryType appCategoryType) {
+    PackageInfo packageInfo;
+    packageInfo.packageIdentifier.name = packageName;
+    packageInfo.packageIdentifier.uid = uid;
+    packageInfo.uidType = uidType;
+    packageInfo.componentType = componentType;
+    packageInfo.appCategoryType = appCategoryType;
+    return packageInfo;
+}
+
+}  // namespace
+
 class WatchdogServiceHelperTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
-        mMockWatchdogProcessService = sp<MockWatchdogProcessService>::make();
-        mWatchdogServiceHelper = sp<WatchdogServiceHelper>::make();
+        mMockWatchdogProcessService = new MockWatchdogProcessService();
+        mWatchdogServiceHelper = new WatchdogServiceHelper();
         mWatchdogServiceHelperPeer =
-                sp<internal::WatchdogServiceHelperPeer>::make(mWatchdogServiceHelper);
-        mMockCarWatchdogServiceForSystem = sp<MockCarWatchdogServiceForSystem>::make();
+                new internal::WatchdogServiceHelperPeer(mWatchdogServiceHelper);
+        mMockCarWatchdogServiceForSystem = new MockCarWatchdogServiceForSystem();
         mMockCarWatchdogServiceForSystemBinder = mMockCarWatchdogServiceForSystem->getBinder();
 
         EXPECT_CALL(*mMockWatchdogProcessService, registerWatchdogServiceHelper(_))
@@ -115,13 +108,12 @@ protected:
                     .WillOnce(Return(OK));
             EXPECT_CALL(*mMockWatchdogProcessService, unregisterCarWatchdogService(_)).Times(1);
         }
-        mWatchdogServiceHelperPeer->terminate();
-        mWatchdogServiceHelperPeer.clear();
         mWatchdogServiceHelper.clear();
 
         mMockWatchdogProcessService.clear();
         mMockCarWatchdogServiceForSystem.clear();
         mMockCarWatchdogServiceForSystemBinder.clear();
+        mWatchdogServiceHelperPeer.clear();
     }
 
     void registerCarWatchdogService() {
@@ -143,9 +135,8 @@ protected:
 };
 
 TEST_F(WatchdogServiceHelperTest, TestInit) {
-    sp<WatchdogServiceHelper> helper = sp<WatchdogServiceHelper>::make();
-    sp<MockWatchdogProcessService> mockWatchdogProcessService =
-            sp<MockWatchdogProcessService>::make();
+    sp<WatchdogServiceHelper> helper(new WatchdogServiceHelper());
+    sp<MockWatchdogProcessService> mockWatchdogProcessService(new MockWatchdogProcessService());
 
     EXPECT_CALL(*mockWatchdogProcessService, registerWatchdogServiceHelper(_))
             .WillOnce(Return(Result<void>()));
@@ -154,23 +145,22 @@ TEST_F(WatchdogServiceHelperTest, TestInit) {
 }
 
 TEST_F(WatchdogServiceHelperTest, TestErrorOnInitWithErrorFromWatchdogProcessServiceRegistration) {
-    sp<WatchdogServiceHelper> helper = sp<WatchdogServiceHelper>::make();
-    sp<MockWatchdogProcessService> mockWatchdogProcessService =
-            sp<MockWatchdogProcessService>::make();
+    sp<WatchdogServiceHelper> helper(new WatchdogServiceHelper());
+    sp<MockWatchdogProcessService> mockWatchdogProcessService(new MockWatchdogProcessService());
 
     EXPECT_CALL(*mockWatchdogProcessService, registerWatchdogServiceHelper(_))
-            .WillOnce([](const sp<WatchdogServiceHelperInterface>&) -> Result<void> {
+            .WillOnce([](const sp<IWatchdogServiceHelper>&) -> Result<void> {
                 return Error() << "Failed to register";
             });
 
-    auto result = helper->init(mockWatchdogProcessService);
+    auto result = helper->init(nullptr);
 
     ASSERT_FALSE(result.ok()) << "Watchdog service helper init should fail on error from "
                               << "watchdog process service registration error";
 }
 
 TEST_F(WatchdogServiceHelperTest, TestErrorOnInitWithNullWatchdogProcessServiceInstance) {
-    sp<WatchdogServiceHelper> helper = sp<WatchdogServiceHelper>::make();
+    sp<WatchdogServiceHelper> helper(new WatchdogServiceHelper());
 
     auto result = helper->init(nullptr);
 
@@ -264,7 +254,7 @@ TEST_F(WatchdogServiceHelperTest,
        TestErrorOnCheckIfAliveWithNotRegisteredCarWatchdogServiceBinder) {
     registerCarWatchdogService();
     EXPECT_CALL(*mMockCarWatchdogServiceForSystem, checkIfAlive(_, _)).Times(0);
-    Status status = mWatchdogServiceHelper->checkIfAlive(sp<MockBinder>::make(), 0,
+    Status status = mWatchdogServiceHelper->checkIfAlive(new MockBinder(), 0,
                                                          TimeoutLength::TIMEOUT_CRITICAL);
     ASSERT_FALSE(status.isOk()) << "checkIfAlive should fail when the given car watchdog service "
                                    "binder is not registered with the helper";
@@ -303,7 +293,7 @@ TEST_F(WatchdogServiceHelperTest,
        TestErrorOnPrepareProcessTerminationWithNotRegisteredCarWatchdogServiceBinder) {
     registerCarWatchdogService();
     EXPECT_CALL(*mMockCarWatchdogServiceForSystem, prepareProcessTermination()).Times(0);
-    Status status = mWatchdogServiceHelper->prepareProcessTermination(sp<MockBinder>::make());
+    Status status = mWatchdogServiceHelper->prepareProcessTermination(new MockBinder());
     ASSERT_FALSE(status.isOk()) << "prepareProcessTermination should fail when the given car "
                                    "watchdog service binder is not registered with the helper";
 }
@@ -462,50 +452,6 @@ TEST_F(WatchdogServiceHelperTest,
 
     ASSERT_FALSE(status.isOk()) << "resetResourceOveruseStats should fail when car watchdog "
                                    "service API returns error";
-}
-
-TEST_F(WatchdogServiceHelperTest, TestGetTodayIoUsageStats) {
-    std::vector<UserPackageIoUsageStats>
-            expectedStats{sampleUserPackageIoUsageStats(10, "vendor.package"),
-                          sampleUserPackageIoUsageStats(11, "third_party.package")};
-
-    registerCarWatchdogService();
-
-    EXPECT_CALL(*mMockCarWatchdogServiceForSystem, getTodayIoUsageStats(_))
-            .WillOnce(DoAll(SetArgPointee<0>(expectedStats), Return(Status::ok())));
-
-    std::vector<UserPackageIoUsageStats> actualStats;
-    Status status = mWatchdogServiceHelper->getTodayIoUsageStats(&actualStats);
-
-    ASSERT_TRUE(status.isOk()) << status;
-    EXPECT_THAT(actualStats, UnorderedElementsAreArray(expectedStats));
-}
-
-TEST_F(WatchdogServiceHelperTest,
-       TestErrorOnGetTodayIoUsageStatsWithNoCarWatchdogServiceRegistered) {
-    EXPECT_CALL(*mMockCarWatchdogServiceForSystem, getTodayIoUsageStats(_)).Times(0);
-
-    std::vector<UserPackageIoUsageStats> actualStats;
-    Status status = mWatchdogServiceHelper->getTodayIoUsageStats(&actualStats);
-
-    ASSERT_FALSE(status.isOk()) << "getTodayIoUsageStats should fail when no "
-                                   "car watchdog service registered with the helper";
-    EXPECT_THAT(actualStats, IsEmpty());
-}
-
-TEST_F(WatchdogServiceHelperTest,
-       TestErrorOnGetTodayIoUsageStatsWithErrorStatusFromCarWatchdogService) {
-    registerCarWatchdogService();
-
-    EXPECT_CALL(*mMockCarWatchdogServiceForSystem, getTodayIoUsageStats(_))
-            .WillOnce(Return(Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Illegal state")));
-
-    std::vector<UserPackageIoUsageStats> actualStats;
-    Status status = mWatchdogServiceHelper->getTodayIoUsageStats(&actualStats);
-
-    ASSERT_FALSE(status.isOk()) << "getTodayIoUsageStats should fail when car watchdog "
-                                   "service API returns error";
-    ASSERT_TRUE(actualStats.empty());
 }
 
 }  // namespace watchdog

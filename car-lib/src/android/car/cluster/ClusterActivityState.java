@@ -17,7 +17,6 @@
 package android.car.cluster;
 
 import android.annotation.Nullable;
-import android.car.annotation.AddedInOrBefore;
 import android.graphics.Rect;
 import android.os.Bundle;
 
@@ -40,7 +39,6 @@ public class ClusterActivityState {
      * Returns true if the cluster is currently able to display content, or false if the content
      * area of the cluster is hidden.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isVisible() {
         return mVisible;
     }
@@ -54,7 +52,6 @@ public class ClusterActivityState {
      * <p>
      * All values of this {@link Rect} represent absolute coordinates inside the activity canvas.
      */
-    @AddedInOrBefore(majorVersion = 33)
     @Nullable public Rect getUnobscuredBounds() {
         return mUnobscuredBounds;
     }
@@ -62,7 +59,6 @@ public class ClusterActivityState {
     /**
      * Get any custom extras that were set on this activity state.
      */
-    @AddedInOrBefore(majorVersion = 33)
     @Nullable public Bundle getExtras() {
         return mExtras;
     }
@@ -73,7 +69,6 @@ public class ClusterActivityState {
      *
      * @return this instance for chaining.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public ClusterActivityState setVisible(boolean visible) {
         mVisible = visible;
         return this;
@@ -89,7 +84,6 @@ public class ClusterActivityState {
      *                         represent absolute coordinates inside the activity canvas.
      * @return this instance for chaining.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public ClusterActivityState setUnobscuredBounds(Rect unobscuredBounds) {
         mUnobscuredBounds = unobscuredBounds;
         return this;
@@ -100,7 +94,6 @@ public class ClusterActivityState {
      *
      * @return this instance for chaining.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public ClusterActivityState setExtras(Bundle bundle) {
         mExtras = bundle;
         return this;
@@ -113,7 +106,6 @@ public class ClusterActivityState {
      * Creates a {@link ClusterActivityState} with the given visibility and unobscured bounds (see
      * {@link #setVisible(boolean)} and {@link #setUnobscuredBounds(Rect)} for more details)
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static ClusterActivityState create(boolean visible, Rect unobscuredBounds) {
         return new ClusterActivityState()
                 .setVisible(visible)
@@ -123,7 +115,6 @@ public class ClusterActivityState {
     /**
      * Reconstructs a {@link ClusterActivityState} from a {@link Bundle}
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static ClusterActivityState fromBundle(Bundle bundle) {
         return new ClusterActivityState()
                 .setVisible(bundle.getBoolean(KEY_VISIBLE, true))
@@ -135,7 +126,6 @@ public class ClusterActivityState {
      * Returns a {@link Bundle} representation of this instance. This bundle can then be
      * deserialized using {@link #fromBundle(Bundle)}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public Bundle toBundle() {
         Bundle b = new Bundle();
         b.putBoolean(KEY_VISIBLE, mVisible);
@@ -145,7 +135,6 @@ public class ClusterActivityState {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return this.getClass().getSimpleName() + " {"
                 + "visible: " + mVisible + ", "

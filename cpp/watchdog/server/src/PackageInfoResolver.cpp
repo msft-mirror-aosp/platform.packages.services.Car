@@ -97,9 +97,9 @@ Result<PackageInfo> getPackageInfoForNativeUid(
 sp<PackageInfoResolver> PackageInfoResolver::sInstance = nullptr;
 GetpwuidFunction PackageInfoResolver::sGetpwuidHandler = &getpwuid;
 
-sp<PackageInfoResolverInterface> PackageInfoResolver::getInstance() {
+sp<IPackageInfoResolver> PackageInfoResolver::getInstance() {
     if (sInstance == nullptr) {
-        sInstance = sp<PackageInfoResolver>::make();
+        sInstance = new PackageInfoResolver();
     }
     return sInstance;
 }
@@ -109,7 +109,7 @@ void PackageInfoResolver::terminate() {
 }
 
 Result<void> PackageInfoResolver::initWatchdogServiceHelper(
-        const sp<WatchdogServiceHelperInterface>& watchdogServiceHelper) {
+        const sp<IWatchdogServiceHelper>& watchdogServiceHelper) {
     std::unique_lock writeLock(mRWMutex);
     if (watchdogServiceHelper == nullptr) {
         return Error() << "Must provide a non-null watchdog service helper instance";
@@ -179,23 +179,9 @@ void PackageInfoResolver::updatePackageInfos(const std::vector<uid_t>& uids) {
         if (id.name.empty()) {
             continue;
         }
-        if (packageInfo.uidType == UidType::APPLICATION) {
-            if (const auto it = mPackagesToAppCategories.find(id.name);
-                it != mPackagesToAppCategories.end()) {
-                packageInfo.appCategoryType = it->second;
-            } else if (!packageInfo.sharedUidPackages.empty()) {
-                /* The recommendation for the OEMs is to define the application category mapping
-                 * by the shared package names. However, this a fallback to catch if any mapping is
-                 * defined by the individual package name.
-                 */
-                for (const auto& packageName : packageInfo.sharedUidPackages) {
-                    if (const auto it = mPackagesToAppCategories.find(packageName);
-                        it != mPackagesToAppCategories.end()) {
-                        packageInfo.appCategoryType = it->second;
-                        break;
-                    }
-                }
-            }
+        if (const auto it = mPackagesToAppCategories.find(id.name);
+            packageInfo.uidType == UidType::APPLICATION && it != mPackagesToAppCategories.end()) {
+            packageInfo.appCategoryType = it->second;
         }
         mUidToPackageInfoMapping[id.uid] = packageInfo;
     }

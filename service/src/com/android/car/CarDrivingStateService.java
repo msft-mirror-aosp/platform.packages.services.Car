@@ -16,14 +16,9 @@
 
 package com.android.car;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-
-import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.Car;
 import android.car.VehicleAreaType;
-import android.car.builtin.os.BinderHelper;
-import android.car.builtin.util.Slogf;
 import android.car.drivingstate.CarDrivingStateEvent;
 import android.car.drivingstate.CarDrivingStateEvent.CarDrivingState;
 import android.car.drivingstate.ICarDrivingState;
@@ -33,17 +28,16 @@ import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.ICarPropertyEventListener;
 import android.content.Context;
-import android.hardware.automotive.vehicle.VehicleGear;
-import android.hardware.automotive.vehicle.VehicleProperty;
+import android.hardware.automotive.vehicle.V2_0.VehicleGear;
+import android.hardware.automotive.vehicle.V2_0.VehicleProperty;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.util.IndentingPrintWriter;
+import android.util.Slog;
 
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
-import com.android.car.internal.util.IndentingPrintWriter;
-import com.android.car.util.TransitionLog;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -78,7 +72,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
 
     // For dumpsys logging
     @GuardedBy("mLock")
-    private final LinkedList<TransitionLog> mTransitionLogs = new LinkedList<>();
+    private final LinkedList<Utils.TransitionLog> mTransitionLogs = new LinkedList<>();
 
     @GuardedBy("mLock")
     private int mLastGear;
@@ -113,7 +107,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
     @Override
     public void init() {
         if (!checkPropertySupport()) {
-            Slogf.e(TAG, "init failure.  Driving state will always be fully restrictive");
+            Slog.e(TAG, "init failure.  Driving state will always be fully restrictive");
             return;
         }
         // Gets the boot state first, before getting any events from car.
@@ -140,10 +134,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
                 mDrivingStateClients.unregister(client);
             }
         }
-        synchronized (mLock) {
-            mCurrentDrivingState = createDrivingStateEvent(
-                    CarDrivingStateEvent.DRIVING_STATE_UNKNOWN);
-        }
+        mCurrentDrivingState = createDrivingStateEvent(CarDrivingStateEvent.DRIVING_STATE_UNKNOWN);
     }
 
     /**
@@ -163,7 +154,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
                 }
             }
             if (!found) {
-                Slogf.e(TAG, "Required property not supported: " + propertyId);
+                Slog.e(TAG, "Required property not supported: " + propertyId);
                 return false;
             }
         }
@@ -193,7 +184,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
     public void registerDrivingStateChangeListener(ICarDrivingStateChangeListener listener) {
         if (listener == null) {
             if (DBG) {
-                Slogf.e(TAG, "registerDrivingStateChangeListener(): listener null");
+                Slog.e(TAG, "registerDrivingStateChangeListener(): listener null");
             }
             throw new IllegalArgumentException("Listener is null");
         }
@@ -208,7 +199,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
     @Override
     public void unregisterDrivingStateChangeListener(ICarDrivingStateChangeListener listener) {
         if (listener == null) {
-            Slogf.e(TAG, "unregisterDrivingStateChangeListener(): listener null");
+            Slog.e(TAG, "unregisterDrivingStateChangeListener(): listener null");
             throw new IllegalArgumentException("Listener is null");
         }
 
@@ -221,7 +212,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
      * @return {@link CarDrivingStateEvent} for the given event type
      */
     @Override
-    @NonNull
+    @Nullable
     public CarDrivingStateEvent getCurrentDrivingState() {
         synchronized (mLock) {
             return mCurrentDrivingState;
@@ -230,7 +221,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
 
     @Override
     public void injectDrivingState(CarDrivingStateEvent event) {
-        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CONTROL_APP_BLOCKING);
+        ICarImpl.assertPermission(mContext, Car.PERMISSION_CONTROL_APP_BLOCKING);
 
         dispatchEventToClients(event);
     }
@@ -243,30 +234,26 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
                 try {
                     callback.onDrivingStateChanged(event);
                 } catch (RemoteException e) {
-                    Slogf.e(TAG, "Dispatch to listener %s failed for event (%s)", callback, event);
+                    Slog.e(TAG,
+                            String.format("Dispatch to listener %s failed for event (%s)", callback,
+                                    event));
                 }
             }
             mDrivingStateClients.finishBroadcast();
         });
 
         if (!success) {
-            Slogf.e(TAG, "Unable to post (" + event + ") event to dispatch handler");
+            Slog.e(TAG, "Unable to post (" + event + ") event to dispatch handler");
         }
     }
 
     @Override
-    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         writer.println("*CarDrivingStateService*");
-
-        writer.println("Driving State Clients:");
-        writer.increaseIndent();
-        BinderHelper.dumpRemoteCallbackList(mDrivingStateClients, writer);
-        writer.decreaseIndent();
-
+        mDrivingStateClients.dump(writer, "Driving State Clients ");
         writer.println("Driving state change log:");
         synchronized (mLock) {
-            for (TransitionLog tLog : mTransitionLogs) {
+            for (Utils.TransitionLog tLog : mTransitionLogs) {
                 writer.println(tLog);
             }
             writer.println("Current Driving State: " + mCurrentDrivingState.eventValue);
@@ -299,7 +286,6 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
      * Handle events coming from {@link CarPropertyService}.  Compute the driving state, map it to
      * the corresponding UX Restrictions and dispatch the events to the registered clients.
      */
-    @GuardedBy("mLock")
     @VisibleForTesting
     void handlePropertyEventLocked(CarPropertyEvent event) {
         if (event.getEventType() != CarPropertyEvent.PROPERTY_EVENT_PROPERTY_CHANGE) {
@@ -309,19 +295,19 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
         int propId = value.getPropertyId();
         long curTimestamp = value.getTimestamp();
         if (DBG) {
-            Slogf.d(TAG, "Property Changed: propId=" + propId);
+            Slog.d(TAG, "Property Changed: propId=" + propId);
         }
         switch (propId) {
             case VehicleProperty.PERF_VEHICLE_SPEED:
                 float curSpeed = (Float) value.getValue();
                 if (DBG) {
-                    Slogf.d(TAG, "Speed: " + curSpeed + "@" + curTimestamp);
+                    Slog.d(TAG, "Speed: " + curSpeed + "@" + curTimestamp);
                 }
                 if (curTimestamp > mLastSpeedTimestamp) {
                     mLastSpeedTimestamp = curTimestamp;
                     mLastSpeed = curSpeed;
                 } else if (DBG) {
-                    Slogf.d(TAG, "Ignoring speed with older timestamp:" + curTimestamp);
+                    Slog.d(TAG, "Ignoring speed with older timestamp:" + curTimestamp);
                 }
                 break;
             case VehicleProperty.GEAR_SELECTION:
@@ -330,30 +316,30 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
                 }
                 int curGear = (Integer) value.getValue();
                 if (DBG) {
-                    Slogf.d(TAG, "Gear: " + curGear + "@" + curTimestamp);
+                    Slog.d(TAG, "Gear: " + curGear + "@" + curTimestamp);
                 }
                 if (curTimestamp > mLastGearTimestamp) {
                     mLastGearTimestamp = curTimestamp;
                     mLastGear = (Integer) value.getValue();
                 } else if (DBG) {
-                    Slogf.d(TAG, "Ignoring Gear with older timestamp:" + curTimestamp);
+                    Slog.d(TAG, "Ignoring Gear with older timestamp:" + curTimestamp);
                 }
                 break;
             case VehicleProperty.PARKING_BRAKE_ON:
                 boolean curParkingBrake = (boolean) value.getValue();
                 if (DBG) {
-                    Slogf.d(TAG, "Parking Brake: " + curParkingBrake + "@" + curTimestamp);
+                    Slog.d(TAG, "Parking Brake: " + curParkingBrake + "@" + curTimestamp);
                 }
                 if (curTimestamp > mLastParkingBrakeTimestamp) {
                     mLastParkingBrakeTimestamp = curTimestamp;
                     mLastParkingBrakeState = curParkingBrake;
                 } else if (DBG) {
-                    Slogf.d(TAG, "Ignoring Parking Brake status with an older timestamp:"
+                    Slog.d(TAG, "Ignoring Parking Brake status with an older timestamp:"
                             + curTimestamp);
                 }
                 break;
             default:
-                Slogf.e(TAG, "Received property event for unhandled propId=" + propId);
+                Slog.e(TAG, "Received property event for unhandled propId=" + propId);
                 break;
         }
 
@@ -361,7 +347,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
         // Check if the driving state has changed.  If it has, update our records and
         // dispatch the new events to the listeners.
         if (DBG) {
-            Slogf.d(TAG, "Driving state new->old " + drivingState + "->"
+            Slog.d(TAG, "Driving state new->old " + drivingState + "->"
                     + mCurrentDrivingState.eventValue);
         }
         if (drivingState != mCurrentDrivingState.eventValue) {
@@ -370,7 +356,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
             // Update if there is a change in state.
             mCurrentDrivingState = createDrivingStateEvent(drivingState);
             if (DBG) {
-                Slogf.d(TAG, "dispatching to " + mDrivingStateClients.getRegisteredCallbackCount()
+                Slog.d(TAG, "dispatching to " + mDrivingStateClients.getRegisteredCallbackCount()
                         + " clients");
             }
             // Dispatch to clients on a separate thread to prevent a deadlock
@@ -396,7 +382,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
             mTransitionLogs.remove();
         }
 
-        TransitionLog tLog = new TransitionLog(name, from, to, timestamp);
+        Utils.TransitionLog tLog = new Utils.TransitionLog(name, from, to, timestamp);
         mTransitionLogs.add(tLog);
     }
 
@@ -411,7 +397,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
     private int inferDrivingStateLocked() {
         updateVehiclePropertiesIfNeededLocked();
         if (DBG) {
-            Slogf.d(TAG, "Last known Gear:" + mLastGear + " Last known speed:" + mLastSpeed);
+            Slog.d(TAG, "Last known Gear:" + mLastGear + " Last known speed:" + mLastSpeed);
         }
 
         /*
@@ -432,7 +418,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
         }
 
         // We don't know if the vehicle is parked, let's look at the speed.
-        if (mLastSpeedTimestamp == NOT_RECEIVED) {
+        if (mLastSpeedTimestamp == NOT_RECEIVED || mLastSpeed < 0) {
             return CarDrivingStateEvent.DRIVING_STATE_UNKNOWN;
         } else if (mLastSpeed == 0f) {
             return CarDrivingStateEvent.DRIVING_STATE_IDLING;
@@ -495,7 +481,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
                 mLastGear = (Integer) propertyValue.getValue();
                 mLastGearTimestamp = propertyValue.getTimestamp();
                 if (DBG) {
-                    Slogf.d(TAG, "updateVehiclePropertiesIfNeeded: gear:" + mLastGear);
+                    Slog.d(TAG, "updateVehiclePropertiesIfNeeded: gear:" + mLastGear);
                 }
             }
         }
@@ -508,8 +494,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
                 mLastParkingBrakeState = (boolean) propertyValue.getValue();
                 mLastParkingBrakeTimestamp = propertyValue.getTimestamp();
                 if (DBG) {
-                    Slogf.d(TAG, "updateVehiclePropertiesIfNeeded: brake:"
-                            + mLastParkingBrakeState);
+                    Slog.d(TAG, "updateVehiclePropertiesIfNeeded: brake:" + mLastParkingBrakeState);
                 }
             }
         }
@@ -522,7 +507,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
                 mLastSpeed = (float) propertyValue.getValue();
                 mLastSpeedTimestamp = propertyValue.getTimestamp();
                 if (DBG) {
-                    Slogf.d(TAG, "updateVehiclePropertiesIfNeeded: speed:" + mLastSpeed);
+                    Slog.d(TAG, "updateVehiclePropertiesIfNeeded: speed:" + mLastSpeed);
                 }
             }
         }

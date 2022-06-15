@@ -61,7 +61,7 @@ public final class InternalResourceOveruseConfigurationSubject extends Subject {
     }
 
     public static Subject.Factory<InternalResourceOveruseConfigurationSubject,
-            Iterable<ResourceOveruseConfiguration>> resourceOveruseConfigurations() {
+            Iterable<ResourceOveruseConfiguration>> resourceOveruseStats() {
         return RESOURCE_OVERUSE_CONFIG_SUBJECT_FACTORY;
     }
 
