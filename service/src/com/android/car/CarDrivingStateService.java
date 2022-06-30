@@ -18,6 +18,7 @@ package com.android.car;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.Car;
 import android.car.VehicleAreaType;
@@ -220,7 +221,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
      * @return {@link CarDrivingStateEvent} for the given event type
      */
     @Override
-    @Nullable
+    @NonNull
     public CarDrivingStateEvent getCurrentDrivingState() {
         synchronized (mLock) {
             return mCurrentDrivingState;
@@ -431,7 +432,7 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
         }
 
         // We don't know if the vehicle is parked, let's look at the speed.
-        if (mLastSpeedTimestamp == NOT_RECEIVED || mLastSpeed < 0) {
+        if (mLastSpeedTimestamp == NOT_RECEIVED) {
             return CarDrivingStateEvent.DRIVING_STATE_UNKNOWN;
         } else if (mLastSpeed == 0f) {
             return CarDrivingStateEvent.DRIVING_STATE_IDLING;

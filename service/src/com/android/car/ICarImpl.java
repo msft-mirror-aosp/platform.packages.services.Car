@@ -16,6 +16,8 @@
 
 package com.android.car;
 
+import static android.car.builtin.content.pm.PackageManagerHelper.PROPERTY_CAR_SERVICE_PACKAGE_NAME;
+
 import static com.android.car.CarServiceImpl.CAR_SERVICE_INIT_TIMING_MIN_DURATION_MS;
 import static com.android.car.CarServiceImpl.CAR_SERVICE_INIT_TIMING_TAG;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEPRECATED_CODE;
@@ -25,12 +27,12 @@ import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.app.ActivityManager;
 import android.car.Car;
 import android.car.CarFeatures;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.CarBuiltin;
-import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.BinderHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.TraceHelper;
@@ -40,6 +42,8 @@ import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
 import android.car.user.CarUserManager;
 import android.content.Context;
+import android.content.om.OverlayInfo;
+import android.content.om.OverlayManager;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemNotification;
@@ -51,6 +55,7 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 
@@ -135,7 +140,8 @@ public class ICarImpl extends ICar.Stub {
     private final CarStorageMonitoringService mCarStorageMonitoringService;
     private final CarMediaService mCarMediaService;
     private final CarUserService mCarUserService;
-    @Nullable private final ExperimentalCarUserService mExperimentalCarUserService;
+    @Nullable
+    private final ExperimentalCarUserService mExperimentalCarUserService;
     private final CarOccupantZoneService mCarOccupantZoneService;
     private final CarUserNoticeService mCarUserNoticeService;
     private final VmsBrokerService mVmsBrokerService;
@@ -178,7 +184,7 @@ public class ICarImpl extends ICar.Stub {
         this(serviceContext, builtinContext, vehicle, systemInterface, vehicleInterfaceName,
                 /* carUserService= */ null, /* carWatchdogService= */ null,
                 /* carPerformanceService= */ null, /* garageModeService= */ null,
-                /* powerPolicyDaemon= */ null);
+                /* powerPolicyDaemon= */ null, /*carTelemetryService= */ null);
     }
 
     @VisibleForTesting
@@ -188,7 +194,8 @@ public class ICarImpl extends ICar.Stub {
             @Nullable CarWatchdogService carWatchdogService,
             @Nullable CarPerformanceService carPerformanceService,
             @Nullable GarageModeService garageModeService,
-            @Nullable ICarPowerPolicySystemNotification powerPolicyDaemon) {
+            @Nullable ICarPowerPolicySystemNotification powerPolicyDaemon,
+            @Nullable CarTelemetryService carTelemetryService) {
         LimitedTimingsTraceLog t = new LimitedTimingsTraceLog(
                 CAR_SERVICE_INIT_TIMING_TAG, TraceHelper.TRACE_TAG_CAR_SERVICE,
                 CAR_SERVICE_INIT_TIMING_MIN_DURATION_MS);
@@ -249,14 +256,12 @@ public class ICarImpl extends ICar.Stub {
             int maxRunningUsers = UserManagerHelper.getMaxRunningUsers(serviceContext);
             mCarUserService = constructWithTrace(t, CarUserService.class,
                     () -> new CarUserService(serviceContext, mHal.getUserHal(), userManager,
-                            ActivityManagerHelper.getInstance(), maxRunningUsers,
-                            mCarUXRestrictionsService));
+                            maxRunningUsers, mCarUXRestrictionsService));
         }
         if (mFeatureController.isFeatureEnabled(Car.EXPERIMENTAL_CAR_USER_SERVICE)) {
             mExperimentalCarUserService = constructWithTrace(t, ExperimentalCarUserService.class,
                     () -> new ExperimentalCarUserService(serviceContext, mCarUserService,
-                            serviceContext.getSystemService(UserManager.class),
-                            ActivityManagerHelper.getInstance()));
+                            serviceContext.getSystemService(UserManager.class)));
         } else {
             mExperimentalCarUserService = null;
         }
@@ -379,7 +384,8 @@ public class ICarImpl extends ICar.Stub {
                 mClusterHomeService = constructWithTrace(
                         t, ClusterHomeService.class,
                         () -> new ClusterHomeService(serviceContext, mHal.getClusterHal(),
-                        mClusterNavigationService, mCarOccupantZoneService, mFixedActivityService));
+                                mClusterNavigationService, mCarOccupantZoneService,
+                                mFixedActivityService));
             } else {
                 Slogf.w(TAG, "Can't init ClusterHomeService, since Old cluster service is running");
                 mClusterHomeService = null;
@@ -397,7 +403,12 @@ public class ICarImpl extends ICar.Stub {
         }
 
         if (mFeatureController.isFeatureEnabled(Car.CAR_TELEMETRY_SERVICE)) {
-            mCarTelemetryService = new CarTelemetryService(serviceContext, mCarPropertyService);
+            if (carTelemetryService == null) {
+                mCarTelemetryService = constructWithTrace(t, CarTelemetryService.class,
+                        () -> new CarTelemetryService(serviceContext, mCarPropertyService));
+            } else {
+                mCarTelemetryService = carTelemetryService;
+            }
         } else {
             mCarTelemetryService = null;
         }
@@ -405,13 +416,13 @@ public class ICarImpl extends ICar.Stub {
         // Be careful with order. Service depending on other service should be inited later.
         List<CarServiceBase> allServices = new ArrayList<>();
         allServices.add(mFeatureController);
-        allServices.add(mCarOccupantZoneService);
+        allServices.add(mCarPropertyService); // mCarUXRestrictionsService depends on it
+        allServices.add(mCarOccupantZoneService); // mCarUXRestrictionsService depends on it
         allServices.add(mCarUXRestrictionsService); // mCarUserService depends on it
         allServices.add(mCarUserService);
         addServiceIfNonNull(allServices, mExperimentalCarUserService);
         allServices.add(mSystemActivityMonitoringService);
         allServices.add(mCarPowerManagementService);
-        allServices.add(mCarPropertyService);
         allServices.add(mCarDrivingStateService);
         addServiceIfNonNull(allServices, mOccupantAwarenessService);
         allServices.add(mCarPackageManagerService);
@@ -694,6 +705,7 @@ public class ICarImpl extends ICar.Stub {
             dumpVersions(writer);
             dumpAllServices(writer);
             dumpAllHals(writer);
+            dumpRROs(writer);
         } else if ("--list".equals(args[0])) {
             dumpListOfServices(writer);
             return;
@@ -739,39 +751,46 @@ public class ICarImpl extends ICar.Stub {
         }
     }
 
+    private void dumpRROs(IndentingPrintWriter writer) {
+        writer.println("*Dump Car Service RROs*");
+
+        String packageName = SystemProperties.get(
+                PROPERTY_CAR_SERVICE_PACKAGE_NAME, /*def= */null);
+        if (packageName == null) {
+            writer.println("Car Service updatable package name is null.");
+            return;
+        }
+
+        OverlayManager manager = mContext.getSystemService(OverlayManager.class);
+
+        List<OverlayInfo> installedOverlaysForSystem = manager.getOverlayInfosForTarget(packageName,
+                UserHandle.SYSTEM);
+        writer.println("RROs for System User");
+        for (int i = 0; i < installedOverlaysForSystem.size(); i++) {
+            OverlayInfo overlayInfo = installedOverlaysForSystem.get(i);
+            writer.printf("Overlay: %s, Enabled: %b \n", overlayInfo.getPackageName(),
+                    overlayInfo.isEnabled());
+        }
+
+        int currentUser = ActivityManager.getCurrentUser();
+        writer.printf("RROs for Current User: %d\n", currentUser);
+        List<OverlayInfo> installedOverlaysForCurrentUser = manager.getOverlayInfosForTarget(
+                packageName, UserHandle.of(currentUser));
+        for (int i = 0; i < installedOverlaysForCurrentUser.size(); i++) {
+            OverlayInfo overlayInfo = installedOverlaysForCurrentUser.get(i);
+            writer.printf("Overlay: %s, Enabled: %b \n", overlayInfo.getPackageName(),
+                    overlayInfo.isEnabled());
+        }
+    }
+
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     private void dumpVersions(IndentingPrintWriter writer) {
         writer.println("*Dump versions*");
         writer.println("Android SDK_INT:" + Build.VERSION.SDK_INT);
         writer.println("Car API major:" + Car.API_VERSION_MAJOR_INT);
         writer.println("Car API minor:" + Car.API_VERSION_MINOR_INT);
-        writer.println("CarBuiltin API minor:" + CarBuiltin.API_VERSION_MINOR_INT);
-        writer.println("CarServiceBuiltin minor:"
-                + BuiltinPackageDependency.getBuiltinServiceMinorVersion(
-                mCarServiceBuiltinPackageContext));
-        String helperMinorString = "CarServiceHelper minor:";
-        int helperServiceMinorVersion = getHelperServiceBuiltinMinorVersion();
-        if (helperServiceMinorVersion < 0) {
-            writer.println(helperMinorString + "not available yet");
-        } else {
-            writer.println(helperMinorString + helperServiceMinorVersion);
-        }
-    }
-
-    private int getHelperServiceBuiltinMinorVersion() {
-        ICarServiceHelper helper;
-        synchronized (mLock) {
-            helper = mICarServiceHelper;
-        }
-        int helperBuiltinMinor = -1;
-        if (helper != null) {
-            try {
-                helperBuiltinMinor = helper.getServiceHelperBuiltinMinorVersion();
-            } catch (RemoteException e) {
-                Slogf.e(CarLog.TAG_SERVICE, "system server crashed?");
-            }
-        }
-        return helperBuiltinMinor;
+        writer.println("Car Platform minor:" + Car.PLATFORM_VERSION_MINOR_INT);
+        writer.println("CarBuiltin Platform minor:" + CarBuiltin.PLATFORM_VERSION_MINOR_INT);
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)

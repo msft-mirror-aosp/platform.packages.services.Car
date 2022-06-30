@@ -36,9 +36,9 @@ java_defaults {
         ":android.car.cluster.navigation-src",
         ":android.car.watchdoglib-src",
         ":cartelemetry-cardata-proto-srcs",
+        ":cartelemetryservice-proto-srcs",
         ":com.android.car.procfsinspector-client-src",
         ":statslog-Car-java-gen",
-        ":vehicle-hal-support-lib-src",
         ":iscriptexecutor_aidl",
         "proto/**/*.proto",
         "src/**/*.java",
@@ -78,7 +78,7 @@ java_defaults {
         "android.hidl.base-V1.0-java",
         "android.hardware.automotive.audiocontrol-V1.0-java",
         "android.hardware.automotive.audiocontrol-V2.0-java",
-        "android.hardware.automotive.audiocontrol-V1-java",
+        "android.hardware.automotive.audiocontrol-V2-java",
         "android.hardware.automotive.vehicle-V1-java",
         "android.hardware.automotive.vehicle-V2.0-java",
         "android.hardware.health-V1.0-java",
@@ -101,6 +101,9 @@ java_defaults {
             enabled: false,
         },
     },
+
+    sdk_version: "module_current",
+    platform_apis: false,
 }
 
 java_defaults {
@@ -112,10 +115,7 @@ java_defaults {
 
     defaults: [ "carservice-updatable-min-java-defaults" ],
 
-    sdk_version: "module_current",
-    // TODO(b/202884646) Change into T sdk version
-    min_sdk_version: "current",
-    platform_apis: false,
+    min_sdk_version: "33",
 }
 
 // Non-module build
@@ -123,6 +123,7 @@ android_app {
     name: "CarServiceUpdatableNonModule",
 
     defaults: ["carservice-updatable-java-defaults"],
+    privileged: true,
 
     required: ["allowed_privapp_com.android.car"],
 }
@@ -132,6 +133,7 @@ android_app {
     name: "CarServiceUpdatable",
 
     defaults: ["carservice-updatable-java-defaults"],
+    privileged: true,
 
     apex_available: ["com.android.car.framework"],
 }
@@ -186,7 +188,9 @@ java_library {
 android_library {
     name: "car-service-test-static-lib",
 
-    defaults: ["carservice-updatable-java-defaults"],
+    defaults: ["carservice-updatable-min-java-defaults"],
+
+    manifest: "EmptyAndroidManifest.xml"
 }
 
 filegroup {
@@ -196,12 +200,4 @@ filegroup {
         "src/com/android/car/telemetry/scriptexecutorinterface/IScriptExecutorListener.aidl",
     ],
     path: "src",
-}
-
-// Public protos for CarTelemetryManager clients.
-filegroup {
-    name: "cartelemetryservice-proto-srcs",
-    srcs: [
-        "proto/android/car/telemetry/telemetry.proto"
-    ],
 }

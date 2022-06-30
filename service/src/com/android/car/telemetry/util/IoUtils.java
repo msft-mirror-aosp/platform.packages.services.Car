@@ -75,14 +75,14 @@ public class IoUtils {
     public static void writeBundle(@NonNull File dest, @NonNull PersistableBundle bundle)
             throws IOException {
         AtomicFile atomicFile = new AtomicFile(dest);
-        FileOutputStream fos = null;
-        try {
-            fos = atomicFile.startWrite();
-            bundle.writeToStream(fos);
-            atomicFile.finishWrite(fos);
-        } catch (IOException e) {
-            atomicFile.failWrite(fos);
-            throw e;
+        try (FileOutputStream fos = atomicFile.startWrite()) {
+            try {
+                bundle.writeToStream(fos);
+                atomicFile.finishWrite(fos);
+            } catch (IOException e) {
+                atomicFile.failWrite(fos);
+                throw e;
+            }
         }
     }
 
@@ -110,14 +110,14 @@ public class IoUtils {
     public static void writeProto(
             @NonNull File dest, @NonNull MessageLite proto) throws IOException {
         AtomicFile atomicFile = new AtomicFile(dest);
-        FileOutputStream fos = null;
-        try {
-            fos = atomicFile.startWrite();
-            fos.write(proto.toByteArray());
-            atomicFile.finishWrite(fos);
-        } catch (IOException e) {
-            atomicFile.failWrite(fos);
-            throw e;
+        try (FileOutputStream fos = atomicFile.startWrite()) {
+            try {
+                fos.write(proto.toByteArray());
+                atomicFile.finishWrite(fos);
+            } catch (IOException e) {
+                atomicFile.failWrite(fos);
+                throw e;
+            }
         }
     }
 
@@ -141,7 +141,12 @@ public class IoUtils {
      * Deletes all files silently from the directory. This method does not delete recursively.
      */
     public static void deleteAllSilently(@NonNull File directory) {
-        for (File file : directory.listFiles()) {
+        File[] files = directory.listFiles();
+        if (files == null) {
+            Slogf.i(CarLog.TAG_TELEMETRY, "Skip deleting the empty dir %s", directory.getName());
+            return;
+        }
+        for (File file : files) {
             if (!file.delete()) {
                 Slogf.w(CarLog.TAG_TELEMETRY, "Failed to delete file " + file.getName()
                         + " in directory " + directory.getAbsolutePath());

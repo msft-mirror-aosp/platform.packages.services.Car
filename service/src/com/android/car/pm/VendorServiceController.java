@@ -16,12 +16,15 @@
 
 package com.android.car.pm;
 
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
-import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
 import static android.content.Context.BIND_AUTO_CREATE;
 
 import static com.android.car.util.Utils.isEventAnyOfTypes;
 
+import android.annotation.Nullable;
+import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.car.builtin.util.Slogf;
 import android.car.user.CarUserManager.UserLifecycleEvent;
@@ -61,15 +64,12 @@ import java.util.concurrent.Executor;
  * possible pass {@link #mHandler} when subscribe for callbacks otherwise redirect code to the
  * handler.
  */
-class VendorServiceController implements UserLifecycleListener {
+final class VendorServiceController implements UserLifecycleListener {
 
     @VisibleForTesting
     static final String TAG = CarLog.tagFor(VendorServiceController.class);
 
-    private static final boolean DBG = true;
-
-    private static final int MSG_SWITCH_USER = 1;
-    private static final int MSG_USER_LOCK_CHANGED = 2;
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
     private final List<VendorServiceInfo> mVendorServiceInfos = new ArrayList<>();
     private final HashMap<ConnectionKey, VendorServiceConnection> mConnections =
@@ -83,30 +83,7 @@ class VendorServiceController implements UserLifecycleListener {
     VendorServiceController(Context context, Looper looper) {
         mContext = context;
         mUserManager = context.getSystemService(UserManager.class);
-        mHandler = new Handler(looper) {
-            @Override
-            public void handleMessage(Message msg) {
-                VendorServiceController.this.handleMessage(msg);
-            }
-        };
-    }
-
-    private void handleMessage(Message msg) {
-        switch (msg.what) {
-            case MSG_SWITCH_USER: {
-                int userId = msg.arg1;
-                doSwitchUser(userId);
-                break;
-            }
-            case MSG_USER_LOCK_CHANGED: {
-                int userId = msg.arg1;
-                boolean locked = msg.arg2 == 1;
-                doUserLockChanged(userId, locked);
-                break;
-            }
-            default:
-                Slogf.e(TAG, "Unexpected message " + msg);
-        }
+        mHandler = new Handler(looper);
     }
 
     void init() {
@@ -118,7 +95,8 @@ class VendorServiceController implements UserLifecycleListener {
         UserLifecycleEventFilter userSwitchingOrUnlockingEventFilter =
                 new UserLifecycleEventFilter.Builder()
                         .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING)
-                        .addEventType(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING).build();
+                        .addEventType(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)
+                        .addEventType(USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED).build();
         mCarUserService.addUserLifecycleListener(userSwitchingOrUnlockingEventFilter, this);
 
         startOrBindServicesIfNeeded();
@@ -139,34 +117,32 @@ class VendorServiceController implements UserLifecycleListener {
     @Override
     public void onEvent(UserLifecycleEvent event) {
         if (!isEventAnyOfTypes(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
-                USER_LIFECYCLE_EVENT_TYPE_UNLOCKING)) {
+                USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED)) {
             return;
         }
-        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+        if (DBG) {
             Slogf.d(TAG, "onEvent(" + event + ")");
         }
-
-        // TODO(b/152069895): Use USER_LIFECYCLE_EVENT_TYPE_UNLOCKED and not care about the
-        //     deprecated unlock=false scenario.
-        if (USER_LIFECYCLE_EVENT_TYPE_UNLOCKING == event.getEventType()) {
-            Message msg = mHandler.obtainMessage(
-                    MSG_USER_LOCK_CHANGED,
-                    event.getUserId(),
-                    /* unlocked= */ 1);
-            mHandler.sendMessage(msg);
-        } else if (USER_LIFECYCLE_EVENT_TYPE_SWITCHING == event.getEventType()) {
-            mHandler.removeMessages(MSG_SWITCH_USER);
-            Message msg = mHandler.obtainMessage(
-                    MSG_SWITCH_USER,
-                    event.getUserId(),
-                    /* unlocked= */ 0);
-            mHandler.sendMessage(msg);
+        int userId = event.getUserId();
+        switch (event.getEventType()) {
+            case USER_LIFECYCLE_EVENT_TYPE_SWITCHING:
+                mHandler.post(() -> handleOnUserSwitching(userId));
+                break;
+            case USER_LIFECYCLE_EVENT_TYPE_UNLOCKED:
+                mHandler.post(() -> handleOnUserUnlocked(userId, /* forPostUnlock= */ false));
+                break;
+            case USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED:
+                mHandler.post(() -> handleOnUserUnlocked(userId, /* forPostUnlock= */ true));
+                break;
+            default:
+                // Shouldn't happen as listener was registered with filter
+                Slogf.wtf(TAG, "Invalid event: %s", event);
         }
     }
 
-    private void doSwitchUser(int userId) {
+    private void handleOnUserSwitching(@UserIdInt int userId) {
         // Stop all services which do not run under foreground or system user.
-        final int fgUser = ActivityManager.getCurrentUser();
+        int fgUser = ActivityManager.getCurrentUser();
         if (fgUser != userId) {
             Slogf.w(TAG, "Received userSwitch event for user " + userId
                     + " while current foreground user is " + fgUser + "."
@@ -175,45 +151,40 @@ class VendorServiceController implements UserLifecycleListener {
         }
 
         for (VendorServiceConnection connection : mConnections.values()) {
-            final int connectedUserId = connection.mUser.getIdentifier();
+            int connectedUserId = connection.mUser.getIdentifier();
             if (connectedUserId != UserHandle.SYSTEM.getIdentifier() && connectedUserId != userId) {
                 connection.stopOrUnbindService();
             }
         }
 
         if (userId != UserHandle.SYSTEM.getIdentifier()) {
-            startOrBindServicesForUser(UserHandle.of(userId));
+            startOrBindServicesForUser(UserHandle.of(userId), /* forPostUnlock= */ null);
         } else {
-            Slogf.e(TAG, "Unexpected to receive switch user event for system user");
+            Slogf.wtf(TAG, "Unexpected to receive switch user event for system user");
         }
     }
 
-    private void doUserLockChanged(int userId, boolean unlocked) {
-        final int currentUserId = ActivityManager.getCurrentUser();
+    private void handleOnUserUnlocked(@UserIdInt int userId, boolean forPostUnlock) {
+        int currentUserId = ActivityManager.getCurrentUser();
 
         if (DBG) {
-            Slogf.i(TAG, "onUserLockedChanged, user: " + userId
-                    + ", unlocked: " + unlocked + ", currentUser: " + currentUserId);
+            Slogf.i(TAG, "handleOnUserUnlocked(): user=%d, currentUser=%d", userId, currentUserId);
         }
-        if (unlocked && (userId == currentUserId || userId == UserHandle.SYSTEM.getIdentifier())) {
-            startOrBindServicesForUser(UserHandle.of(userId));
-        } else if (!unlocked && userId != UserHandle.SYSTEM.getIdentifier()) {
-            for (ConnectionKey key : mConnections.keySet()) {
-                if (key.mUserHandle.getIdentifier() == userId) {
-                    stopOrUnbindService(key.mVendorServiceInfo, key.mUserHandle);
-                }
-            }
+        if ((userId == currentUserId || userId == UserHandle.SYSTEM.getIdentifier())) {
+            startOrBindServicesForUser(UserHandle.of(userId), forPostUnlock);
         }
     }
 
-    private void startOrBindServicesForUser(UserHandle user) {
+    private void startOrBindServicesForUser(UserHandle user, @Nullable Boolean forPostUnlock) {
         boolean unlocked = mUserManager.isUserUnlockingOrUnlocked(user);
         boolean systemUser = UserHandle.SYSTEM.equals(user);
         for (VendorServiceInfo service: mVendorServiceInfos) {
+            if (forPostUnlock != null && service.shouldStartOnPostUnlock() != forPostUnlock) {
+                continue;
+            }
             boolean userScopeChecked = (!systemUser && service.isForegroundUserService())
                     || (systemUser && service.isSystemUserService());
-            boolean triggerChecked = service.shouldStartAsap()
-                    || (unlocked && service.shouldStartOnUnlock());
+            boolean triggerChecked = service.shouldStartAsap() || unlocked;
 
             if (userScopeChecked && triggerChecked) {
                 startOrBindService(service, user);
@@ -223,9 +194,9 @@ class VendorServiceController implements UserLifecycleListener {
 
     private void startOrBindServicesIfNeeded() {
         int userId = ActivityManager.getCurrentUser();
-        startOrBindServicesForUser(UserHandle.SYSTEM);
+        startOrBindServicesForUser(UserHandle.SYSTEM, /* forPostUnlock= */ null);
         if (userId > 0) {
-            startOrBindServicesForUser(UserHandle.of(userId));
+            startOrBindServicesForUser(UserHandle.of(userId), /* forPostUnlock= */ null);
         }
     }
 
@@ -279,7 +250,7 @@ class VendorServiceController implements UserLifecycleListener {
     /**
      * Represents connection to the vendor service.
      */
-    private static class VendorServiceConnection implements ServiceConnection, Executor {
+    private static final class VendorServiceConnection implements ServiceConnection, Executor {
         private static final int REBIND_DELAY_MS = 5000;
         private static final int MAX_RECENT_FAILURES = 5;
         private static final int FAILURE_COUNTER_RESET_TIMEOUT = 5 * 60 * 1000; // 5 min.
@@ -311,6 +282,12 @@ class VendorServiceController implements UserLifecycleListener {
             };
         }
 
+        @Override
+        public String toString() {
+            return "VendorServiceConnection[user=" + mUser
+                    + ", service=" + mVendorServiceInfo + "]";
+        }
+
         boolean startOrBindService() {
             if (mStarted || mBound) {
                 return true;  // Already started or bound
@@ -339,9 +316,11 @@ class VendorServiceController implements UserLifecycleListener {
         void stopOrUnbindService() {
             mStopRequested = true;
             if (mStarted) {
+                if (DBG) Slogf.d(TAG, "Stopping %s", this);
                 mUserContext.stopService(mVendorServiceInfo.getIntent());
                 mStarted = false;
             } else if (mBound) {
+                if (DBG) Slogf.d(TAG, "Unbinding %s", this);
                 mUserContext.unbindService(this);
                 mBound = false;
             }
@@ -356,7 +335,7 @@ class VendorServiceController implements UserLifecycleListener {
         public void onServiceConnected(ComponentName name, IBinder service) {
             mBound = true;
             if (DBG) {
-                Slogf.d(TAG, "onServiceConnected, name: " + name);
+                Slogf.d(TAG, "onServiceConnected, name: %s", name);
             }
             if (mStopRequested) {
                 stopOrUnbindService();
@@ -375,11 +354,22 @@ class VendorServiceController implements UserLifecycleListener {
         @Override
         public void onBindingDied(ComponentName name) {
             mBound = false;
+            if (DBG) {
+                Slogf.d(TAG, "onBindingDied, name: " + name);
+            }
             tryToRebind();
         }
 
         private void tryToRebind() {
             if (mStopRequested) {
+                return;
+            }
+
+            if (mFailureHandler.hasMessages(MSG_REBIND)) {
+                if (DBG) {
+                    Slogf.d(TAG, "Rebind already scheduled for "
+                            + mVendorServiceInfo.toShortString());
+                }
                 return;
             }
 

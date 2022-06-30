@@ -19,11 +19,16 @@ package com.android.car.watchdog;
 import static android.app.StatsManager.PULL_SKIP;
 import static android.app.StatsManager.PULL_SUCCESS;
 import static android.car.drivingstate.CarUxRestrictions.UX_RESTRICTIONS_BASELINE;
+import static android.car.settings.CarSettings.Secure.KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE;
 import static android.car.test.mocks.AndroidMockitoHelper.mockAmGetCurrentUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetAllUsers;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserHandles;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserRunning;
+import static android.car.test.util.AndroidHelper.assertFilterHasActions;
+import static android.car.test.util.AndroidHelper.assertFilterHasDataScheme;
 import static android.car.watchdog.CarWatchdogManager.TIMEOUT_CRITICAL;
+import static android.content.Intent.ACTION_PACKAGE_CHANGED;
+import static android.content.Intent.ACTION_USER_REMOVED;
 import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
@@ -40,11 +45,17 @@ import static com.android.car.CarStatsLog.CAR_WATCHDOG_UID_IO_USAGE_SUMMARY;
 import static com.android.car.internal.NotificationHelperBase.RESOURCE_OVERUSE_NOTIFICATION_BASE_ID;
 import static com.android.car.internal.NotificationHelperBase.RESOURCE_OVERUSE_NOTIFICATION_MAX_OFFSET;
 import static com.android.car.watchdog.CarWatchdogService.ACTION_DISMISS_RESOURCE_OVERUSE_NOTIFICATION;
+import static com.android.car.watchdog.CarWatchdogService.ACTION_GARAGE_MODE_OFF;
+import static com.android.car.watchdog.CarWatchdogService.ACTION_GARAGE_MODE_ON;
 import static com.android.car.watchdog.CarWatchdogService.ACTION_LAUNCH_APP_SETTINGS;
 import static com.android.car.watchdog.CarWatchdogService.ACTION_RESOURCE_OVERUSE_DISABLE_APP;
 import static com.android.car.watchdog.CarWatchdogService.MISSING_ARG_VALUE;
 import static com.android.car.watchdog.TimeSource.ZONE_OFFSET;
 import static com.android.car.watchdog.WatchdogPerfHandler.INTENT_EXTRA_NOTIFICATION_ID;
+import static com.android.car.watchdog.WatchdogPerfHandler.PACKAGES_DISABLED_ON_RESOURCE_OVERUSE_SEPARATOR;
+import static com.android.car.watchdog.WatchdogPerfHandler.USER_PACKAGE_SEPARATOR;
+import static com.android.car.watchdog.WatchdogProcessHandler.MISSING_INT_PROPERTY_VALUE;
+import static com.android.car.watchdog.WatchdogProcessHandler.PROPERTY_RO_CLIENT_HEALTHCHECK_INTERVAL;
 import static com.android.car.watchdog.WatchdogStorage.RETENTION_PERIOD;
 import static com.android.car.watchdog.WatchdogStorage.WatchdogDbHelper.DATABASE_NAME;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
@@ -63,6 +74,7 @@ import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -89,6 +101,7 @@ import android.automotive.watchdog.internal.PackageIoOveruseStats;
 import android.automotive.watchdog.internal.PackageMetadata;
 import android.automotive.watchdog.internal.PerStateIoOveruseThreshold;
 import android.automotive.watchdog.internal.PowerCycle;
+import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.automotive.watchdog.internal.ResourceSpecificConfiguration;
 import android.automotive.watchdog.internal.StateType;
 import android.automotive.watchdog.internal.UidType;
@@ -113,20 +126,26 @@ import android.car.watchdog.PerStateBytes;
 import android.car.watchdog.ResourceOveruseConfiguration;
 import android.car.watchdog.ResourceOveruseStats;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.net.Uri;
 import android.os.Binder;
 import android.os.FileUtils;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.SparseArray;
@@ -141,6 +160,7 @@ import com.android.car.CarUxRestrictionsManagerService;
 import com.android.car.admin.NotificationHelper;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.systeminterface.SystemInterface;
+import com.android.car.util.Utils;
 
 import com.google.common.truth.Correspondence;
 
@@ -205,6 +225,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     @Captor private ArgumentCaptor<ICarPowerStateListener> mICarPowerStateListenerCaptor;
     @Captor private ArgumentCaptor<ICarPowerPolicyListener> mICarPowerPolicyListenerCaptor;
     @Captor private ArgumentCaptor<BroadcastReceiver> mBroadcastReceiverCaptor;
+    @Captor private ArgumentCaptor<IntentFilter> mIntentFilterCaptor;
     @Captor private ArgumentCaptor<ICarUxRestrictionsChangeListener>
             mICarUxRestrictionsChangeListener;
     @Captor private ArgumentCaptor<IBinder.DeathRecipient> mDeathRecipientCaptor;
@@ -216,7 +237,6 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     @Captor private ArgumentCaptor<SparseArray<List<String>>> mPackagesByUserIdCaptor;
     @Captor private ArgumentCaptor<StatsPullAtomCallback> mStatsPullAtomCallbackCaptor;
     @Captor private ArgumentCaptor<Intent> mIntentCaptor;
-    @Captor private ArgumentCaptor<int[]> mIntArrayCaptor;
     @Captor private ArgumentCaptor<byte[]> mOveruseStatsCaptor;
     @Captor private ArgumentCaptor<byte[]> mKilledStatsCaptor;
     @Captor private ArgumentCaptor<Integer> mOverusingUidCaptor;
@@ -227,11 +247,12 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     @Captor private ArgumentCaptor<UserHandle> mUserHandle;
     @Captor private ArgumentCaptor<SparseArray<String>> mHeadsUpPackages;
     @Captor private ArgumentCaptor<SparseArray<String>> mNotificationCenterPackages;
+    @Captor private ArgumentCaptor<List<ProcessIdentifier>> mProcessIdentifiersCaptor;
 
     private CarWatchdogService mCarWatchdogService;
     private ICarWatchdogServiceForSystem mWatchdogServiceForSystemImpl;
     private IBinder.DeathRecipient mCarWatchdogDaemonBinderDeathRecipient;
-    private WatchdogStorage mMockWatchdogStorage;
+    private WatchdogStorage mSpiedWatchdogStorage;
     private BroadcastReceiver mBroadcastReceiver;
     private boolean mIsDaemonCrashed;
     private ICarPowerStateListener mCarPowerStateListener;
@@ -246,6 +267,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     private final ArrayMap<String, android.content.pm.PackageInfo> mPmPackageInfoByUserPackage =
             new ArrayMap<>();
     private final ArraySet<String> mDisabledUserPackages = new ArraySet<>();
+    private final SparseArray<String> mDisabledPackagesSettingsStringByUserid = new SparseArray<>();
     private final List<WatchdogStorage.UserPackageSettingsEntry> mUserPackageSettingsEntries =
             new ArrayList<>();
     private final List<WatchdogStorage.IoUsageStatsEntry> mIoUsageStatsEntries = new ArrayList<>();
@@ -269,7 +291,9 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
             .spyStatic(CarLocalServices.class)
             .spyStatic(CarStatsLog.class)
             .spyStatic(CarServiceUtils.class)
-            .spyStatic(BuiltinPackageDependency.class);
+            .spyStatic(BuiltinPackageDependency.class)
+            .spyStatic(Utils.class)
+            .spyStatic(SystemProperties.class);
     }
 
     /**
@@ -306,6 +330,9 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         doReturn(mMockNotificationHelper)
                 .when(() -> BuiltinPackageDependency.createNotificationHelper(
                         mMockBuiltinPackageContext));
+        doReturn(MISSING_INT_PROPERTY_VALUE).when(
+                () -> SystemProperties.getInt(PROPERTY_RO_CLIENT_HEALTHCHECK_INTERVAL,
+                        MISSING_INT_PROPERTY_VALUE));
 
         when(mMockCarUxRestrictionsManagerService.getCurrentUxRestrictions())
                 .thenReturn(new CarUxRestrictions.Builder(/* reqOpt= */ false,
@@ -317,7 +344,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         File tempDbFile = new File(mTempSystemCarDir.getPath(), DATABASE_NAME);
         when(mMockContext.createDeviceProtectedStorageContext()).thenReturn(mMockContext);
         when(mMockContext.getDatabasePath(DATABASE_NAME)).thenReturn(tempDbFile);
-        mMockWatchdogStorage =
+        mSpiedWatchdogStorage =
                 spy(new WatchdogStorage(mMockContext, /* useDataSystemCarDir= */ false,
                         mTimeSource));
 
@@ -326,10 +353,11 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         mockWatchdogStorage();
         mockPackageManager();
         mockBuildStatsEventCalls();
+        mockSettingsStringCalls();
 
         mTimeSource.updateNow(/* numDaysAgo= */ 0);
         mCarWatchdogService = new CarWatchdogService(mMockContext, mMockBuiltinPackageContext,
-                        mMockWatchdogStorage, mTimeSource);
+                mSpiedWatchdogStorage, mTimeSource);
         initService(/* wantedInvocations= */ 1);
     }
 
@@ -356,7 +384,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         mWatchdogServiceForSystemImpl.checkIfAlive(123456, TIMEOUT_CRITICAL);
         verify(mMockCarWatchdogDaemon,
                 timeout(MAX_WAIT_TIME_MS)).tellCarWatchdogServiceAlive(
-                eq(mWatchdogServiceForSystemImpl), any(int[].class), eq(123456));
+                eq(mWatchdogServiceForSystemImpl), any(), eq(123456));
     }
 
     @Test
@@ -399,21 +427,21 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     @Test
     public void testGarageModeStateChangeToOn() throws Exception {
         mBroadcastReceiver.onReceive(mMockContext,
-                new Intent().setAction(CarWatchdogService.ACTION_GARAGE_MODE_ON));
+                new Intent().setAction(ACTION_GARAGE_MODE_ON));
         verify(mMockCarWatchdogDaemon).notifySystemStateChange(StateType.GARAGE_MODE,
                 GarageMode.GARAGE_MODE_ON, MISSING_ARG_VALUE);
-        verify(mMockWatchdogStorage).shrinkDatabase();
+        verify(mSpiedWatchdogStorage).shrinkDatabase();
     }
 
     @Test
     public void testGarageModeStateChangeToOff() throws Exception {
         mBroadcastReceiver.onReceive(mMockContext,
-                new Intent().setAction(CarWatchdogService.ACTION_GARAGE_MODE_OFF));
+                new Intent().setAction(ACTION_GARAGE_MODE_OFF));
         // GARAGE_MODE_OFF is notified twice: Once during the initial daemon connect and once when
         // the ACTION_GARAGE_MODE_OFF intent is received.
         verify(mMockCarWatchdogDaemon, times(2)).notifySystemStateChange(StateType.GARAGE_MODE,
                 GarageMode.GARAGE_MODE_OFF, MISSING_ARG_VALUE);
-        verify(mMockWatchdogStorage, never()).shrinkDatabase();
+        verify(mSpiedWatchdogStorage, never()).shrinkDatabase();
     }
 
     @Test
@@ -425,7 +453,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         mockUmIsUserRunning(mMockUserManager, /* userId= */ 102, /* isRunning= */ true);
         setCarPowerState(CarPowerManager.STATE_SHUTDOWN_ENTER);
         mBroadcastReceiver.onReceive(mMockContext,
-                new Intent().setAction(CarWatchdogService.ACTION_GARAGE_MODE_ON));
+                new Intent().setAction(ACTION_GARAGE_MODE_ON));
 
         restartWatchdogDaemonAndAwait();
 
@@ -447,7 +475,33 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                         .putExtra(Intent.EXTRA_USER, UserHandle.of(100)));
         verify(mMockCarWatchdogDaemon).notifySystemStateChange(StateType.USER_STATE, 100,
                 UserState.USER_STATE_REMOVED);
-        verify(mMockWatchdogStorage).syncUsers(new int[] {101, 102});
+        verify(mSpiedWatchdogStorage).syncUsers(new int[] {101, 102});
+    }
+
+    @Test
+    public void testDeviceRebootBroadcast() throws Exception {
+        mBroadcastReceiver.onReceive(mMockContext,
+                new Intent().setAction(Intent.ACTION_REBOOT)
+                        .setFlags(Intent.FLAG_RECEIVER_FOREGROUND));
+        verify(mMockCarWatchdogDaemon).notifySystemStateChange(StateType.POWER_CYCLE,
+                PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER, /* arg2= */ 0);
+    }
+
+    @Test
+    public void testDeviceShutdownBroadcast() throws Exception {
+        mBroadcastReceiver.onReceive(mMockContext,
+                new Intent().setAction(Intent.ACTION_SHUTDOWN)
+                        .setFlags(Intent.FLAG_RECEIVER_FOREGROUND));
+        verify(mMockCarWatchdogDaemon).notifySystemStateChange(StateType.POWER_CYCLE,
+                PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER, /* arg2= */ 0);
+    }
+
+    @Test
+    public void testDeviceShutdownBroadcastWithoutFlagReceiverForeground() throws Exception {
+        mBroadcastReceiver.onReceive(mMockContext,
+                new Intent().setAction(Intent.ACTION_SHUTDOWN));
+        verify(mMockCarWatchdogDaemon, never()).notifySystemStateChange(StateType.POWER_CYCLE,
+                PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER, /* arg2= */ 0);
     }
 
     @Test
@@ -466,6 +520,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         verify(mSpiedPackageManager).setApplicationEnabledSetting(eq(packageName),
                 eq(COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED), eq(0),
                 eq(userHandle.getIdentifier()), anyString());
+
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:system_package");
 
         verifyNoMoreInteractions(mSpiedPackageManager);
         captureAndVerifyCancelNotificationAsUser(userHandle, RESOURCE_OVERUSE_NOTIFICATION_BASE_ID);
@@ -589,10 +645,58 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 eq(COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED), eq(0),
                 eq(userHandle.getIdentifier()), anyString());
 
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:system_package");
+
         verify(mMockBuiltinPackageContext).startActivityAsUser(any(), any());
 
-        verifyNoMoreInteractions(mSpiedPackageManager);
         verify(mMockNotificationHelper, never()).cancelNotificationAsUser(any(), anyInt());
+    }
+
+    @Test
+    public void testHandlePackageChangedBroadcastForEnabledPackage() throws Exception {
+        String packageName = "system_package";
+        int userId = 100;
+
+        mDisabledPackagesSettingsStringByUserid.put(100,
+                "vendor_package;system_package;third_party_package");
+        mDisabledPackagesSettingsStringByUserid.put(101, "system_package");
+
+        doReturn(COMPONENT_ENABLED_STATE_ENABLED).when(mSpiedPackageManager)
+                .getApplicationEnabledSetting(or(eq("system_package"),
+                        eq("irrelevant_random_package")), eq(100));
+
+        mBroadcastReceiver.onReceive(mMockContext, new Intent(ACTION_PACKAGE_CHANGED)
+                .putExtra(Intent.EXTRA_USER_HANDLE, userId)
+                .setData(Uri.parse("package:" + packageName)));
+
+        mBroadcastReceiver.onReceive(mMockContext, new Intent(ACTION_PACKAGE_CHANGED)
+                .putExtra(Intent.EXTRA_USER_HANDLE, userId)
+                .setData(Uri.parse("package:irrelevant_random_package")));
+
+        verifyDisabledPackagesSettingsKey(
+                /* message= */ " after enabling system_package for user 100",
+                /* userPackagesCsv= */
+                "100:vendor_package,100:third_party_package,101:system_package");
+    }
+
+    @Test
+    public void testHandlePackageChangedBroadcastForDisabledPackage() throws Exception {
+        String packageName = "system_package";
+        int userId = 100;
+
+        mDisabledPackagesSettingsStringByUserid.put(100, "vendor_package;system_package");
+        mDisabledPackagesSettingsStringByUserid.put(101, "system_package");
+
+        doReturn(COMPONENT_ENABLED_STATE_DISABLED).when(mSpiedPackageManager)
+                .getApplicationEnabledSetting("system_package", 100);
+
+        mBroadcastReceiver.onReceive(mMockContext, new Intent(ACTION_PACKAGE_CHANGED)
+                .putExtra(Intent.EXTRA_USER_HANDLE, userId)
+                .setData(Uri.parse("package:" + packageName)));
+
+        verifyDisabledPackagesSettingsKey(
+                /* message= */ "",
+                /* userPackagesCsv= */ "100:vendor_package,100:system_package,101:system_package");
     }
 
     @Test
@@ -617,7 +721,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         ResourceOveruseStatsSubject.assertEquals(actualStats, expectedStats);
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -631,7 +735,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         long duration = mTimeSource.now().getEpochSecond() - startTime;
         doReturn(new IoOveruseStats.Builder(startTime, duration).setTotalOveruses(5)
                 .setTotalTimesKilled(2).setTotalBytesWritten(24_000).build())
-                .when(mMockWatchdogStorage)
+                .when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(UserHandle.getUserId(uid), packageName, 6);
 
         injectIoOveruseStatsForPackages(mGenericPackageNameByUid,
@@ -662,7 +766,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         injectPackageInfos(Collections.singletonList(constructPackageManagerPackageInfo(
                 packageName, uid, null, ApplicationInfo.FLAG_SYSTEM, 0)));
 
-        doReturn(null).when(mMockWatchdogStorage)
+        doReturn(null).when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(UserHandle.getUserId(uid), packageName, 6);
 
         injectIoOveruseStatsForPackages(mGenericPackageNameByUid,
@@ -696,7 +800,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         long duration = mTimeSource.now().getEpochSecond() - startTime;
         doReturn(new IoOveruseStats.Builder(startTime, duration).setTotalOveruses(5)
                 .setTotalTimesKilled(2).setTotalBytesWritten(24_000).build())
-                .when(mMockWatchdogStorage)
+                .when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(UserHandle.getUserId(uid), packageName, 6);
 
         ResourceOveruseStats actualStats = mCarWatchdogService.getResourceOveruseStats(
@@ -781,7 +885,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         ResourceOveruseStatsSubject.assertThat(actualStats)
                 .containsExactlyElementsIn(expectedStats);
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -812,14 +916,14 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         IoOveruseStats thirdPartyPkgOldStats = new IoOveruseStats.Builder(
                 startTime, now.toEpochSecond() - startTime).setTotalOveruses(5)
                 .setTotalTimesKilled(2).setTotalBytesWritten(24_000).build();
-        doReturn(thirdPartyPkgOldStats).when(mMockWatchdogStorage)
+        doReturn(thirdPartyPkgOldStats).when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(11, "third_party_package", 6);
 
         startTime = now.minusDays(6).toEpochSecond();
         IoOveruseStats vendorPkgOldStats = new IoOveruseStats.Builder(
                 startTime, now.toEpochSecond() - startTime).setTotalOveruses(2)
                 .setTotalTimesKilled(0).setTotalBytesWritten(35_000).build();
-        doReturn(vendorPkgOldStats).when(mMockWatchdogStorage)
+        doReturn(vendorPkgOldStats).when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(12, "vendor_package.critical", 6);
 
         List<ResourceOveruseStats> actualStats = mCarWatchdogService.getAllResourceOveruseStats(
@@ -905,7 +1009,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         ResourceOveruseStatsSubject.assertThat(actualStats)
                 .containsExactlyElementsIn(expectedStats);
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -965,7 +1069,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         ResourceOveruseStatsSubject.assertThat(actualStats)
                 .containsExactlyElementsIn(expectedStats);
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -996,14 +1100,14 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         IoOveruseStats thirdPartyPkgOldStats = new IoOveruseStats.Builder(
                 startTime, now.toEpochSecond() - startTime).setTotalOveruses(5)
                 .setTotalTimesKilled(2).setTotalBytesWritten(24_000).build();
-        doReturn(thirdPartyPkgOldStats).when(mMockWatchdogStorage)
+        doReturn(thirdPartyPkgOldStats).when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(11, "third_party_package", 6);
 
         startTime = now.minusDays(6).toEpochSecond();
         IoOveruseStats vendorPkgOldStats = new IoOveruseStats.Builder(
                 startTime, now.toEpochSecond() - startTime).setTotalOveruses(2)
                 .setTotalTimesKilled(0).setTotalBytesWritten(6_900_000).build();
-        doReturn(vendorPkgOldStats).when(mMockWatchdogStorage)
+        doReturn(vendorPkgOldStats).when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(12, "vendor_package.critical", 6);
 
         List<ResourceOveruseStats> actualStats = mCarWatchdogService.getAllResourceOveruseStats(
@@ -1091,7 +1195,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 startTime, now.toEpochSecond() - startTime).setTotalOveruses(2)
                 .setTotalTimesKilled(0).setTotalBytesWritten(6_900_000).build();
 
-        doReturn(vendorPkgOldStats).when(mMockWatchdogStorage)
+        doReturn(vendorPkgOldStats).when(mSpiedWatchdogStorage)
                 .getHistoricalIoOveruseStats(12, "vendor_package.critical", 6);
 
         ResourceOveruseStats actualStats =
@@ -1147,28 +1251,28 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testFailsGetResourceOveruseStatsForUserPackageWithInvalidArgs() throws Exception {
         assertThrows(NullPointerException.class,
                 () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage(
-                        /* packageName= */ null, UserHandle.of(10),
+                        /* packageName= */ null, UserHandle.of(100),
                         CarWatchdogManager.FLAG_RESOURCE_OVERUSE_IO,
                         CarWatchdogManager.STATS_PERIOD_CURRENT_DAY));
 
         assertThrows(NullPointerException.class,
-                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some.package",
+                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some_package",
                         /* userHandle= */ null, CarWatchdogManager.FLAG_RESOURCE_OVERUSE_IO,
                         CarWatchdogManager.STATS_PERIOD_CURRENT_DAY));
 
         assertThrows(IllegalArgumentException.class,
-                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some.package",
+                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some_package",
                         UserHandle.ALL, CarWatchdogManager.FLAG_RESOURCE_OVERUSE_IO,
                         CarWatchdogManager.STATS_PERIOD_CURRENT_DAY));
 
         assertThrows(IllegalArgumentException.class,
-                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some.package",
-                        UserHandle.of(10), /* resourceOveruseFlag= */ 0,
+                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some_package",
+                        UserHandle.of(100), /* resourceOveruseFlag= */ 0,
                         CarWatchdogManager.STATS_PERIOD_CURRENT_DAY));
 
         assertThrows(IllegalArgumentException.class,
-                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some.package",
-                        UserHandle.of(10), CarWatchdogManager.FLAG_RESOURCE_OVERUSE_IO,
+                () -> mCarWatchdogService.getResourceOveruseStatsForUserPackage("some_package",
+                        UserHandle.of(100), CarWatchdogManager.FLAG_RESOURCE_OVERUSE_IO,
                         /* maxStatsPeriod= */ 0));
     }
 
@@ -1330,14 +1434,14 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
     @Test
     public void testSetKillablePackageAsUser() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
-                constructPackageManagerPackageInfo("third_party_package", 1103456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1101278, null),
-                constructPackageManagerPackageInfo("third_party_package", 1203456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1201278, null)));
+                constructPackageManagerPackageInfo("third_party_package", 10103456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10101278, null),
+                constructPackageManagerPackageInfo("third_party_package", 10203456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10201278, null)));
 
-        UserHandle userHandle = UserHandle.of(11);
+        UserHandle userHandle = UserHandle.of(101);
         mCarWatchdogService.setKillablePackageAsUser("third_party_package", userHandle,
                 /* isKillable= */ false);
         mCarWatchdogService.setKillablePackageAsUser("vendor_package.critical",
@@ -1345,65 +1449,65 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package", 11,
+                new PackageKillableState("third_party_package", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("vendor_package.critical", 11,
+                new PackageKillableState("vendor_package.critical", 101,
                         PackageKillableState.KILLABLE_STATE_NEVER),
-                new PackageKillableState("third_party_package", 12,
+                new PackageKillableState("third_party_package", 102,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("vendor_package.critical", 12,
+                new PackageKillableState("vendor_package.critical", 102,
                         PackageKillableState.KILLABLE_STATE_NEVER));
 
         assertThrows(IllegalArgumentException.class,
                 () -> mCarWatchdogService.setKillablePackageAsUser("vendor_package.critical",
                         userHandle, /* isKillable= */ true));
 
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12, 13);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102, 103);
         injectPackageInfos(Collections.singletonList(
-                constructPackageManagerPackageInfo("third_party_package", 1303456, null)));
+                constructPackageManagerPackageInfo("third_party_package", 10303456, null)));
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package", 11,
+                new PackageKillableState("third_party_package", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("vendor_package.critical", 11,
+                new PackageKillableState("vendor_package.critical", 101,
                         PackageKillableState.KILLABLE_STATE_NEVER),
-                new PackageKillableState("third_party_package", 12,
+                new PackageKillableState("third_party_package", 102,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("vendor_package.critical", 12,
+                new PackageKillableState("vendor_package.critical", 102,
                         PackageKillableState.KILLABLE_STATE_NEVER),
-                new PackageKillableState("third_party_package", 13,
+                new PackageKillableState("third_party_package", 103,
                         PackageKillableState.KILLABLE_STATE_YES));
 
-        verify(mMockWatchdogStorage, times(11)).markDirty();
+        verify(mSpiedWatchdogStorage, times(11)).markDirty();
     }
 
     @Test
     public void testSetKillablePackageAsUserWithSharedUids() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "third_party_package.A", 1103456, "third_party_shared_package.A"),
+                        "third_party_package.A", 10103456, "third_party_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.B", 1103456, "third_party_shared_package.A"),
+                        "third_party_package.B", 10103456, "third_party_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.C", 1101356, "third_party_shared_package.B"),
+                        "third_party_package.C", 10101356, "third_party_shared_package.B"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.D", 1101356, "third_party_shared_package.B")));
+                        "third_party_package.D", 10101356, "third_party_shared_package.B")));
 
-        UserHandle userHandle = UserHandle.of(11);
+        UserHandle userHandle = UserHandle.of(101);
         mCarWatchdogService.setKillablePackageAsUser("third_party_package.A", userHandle,
                 /* isKillable= */ false);
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package.A", 11,
+                new PackageKillableState("third_party_package.A", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("third_party_package.B", 11,
+                new PackageKillableState("third_party_package.B", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("third_party_package.C", 11,
+                new PackageKillableState("third_party_package.C", 101,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("third_party_package.D", 11,
+                new PackageKillableState("third_party_package.D", 101,
                         PackageKillableState.KILLABLE_STATE_YES));
 
         mCarWatchdogService.setKillablePackageAsUser("third_party_package.B", userHandle,
@@ -1413,26 +1517,26 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package.A", 11,
+                new PackageKillableState("third_party_package.A", 101,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("third_party_package.B", 11,
+                new PackageKillableState("third_party_package.B", 101,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("third_party_package.C", 11,
+                new PackageKillableState("third_party_package.C", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("third_party_package.D", 11,
+                new PackageKillableState("third_party_package.D", 101,
                         PackageKillableState.KILLABLE_STATE_NO));
 
-        verify(mMockWatchdogStorage, times(7)).markDirty();
+        verify(mSpiedWatchdogStorage, times(7)).markDirty();
     }
 
     @Test
     public void testSetKillablePackageAsUserForAllUsers() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
-                constructPackageManagerPackageInfo("third_party_package", 1103456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1101278, null),
-                constructPackageManagerPackageInfo("third_party_package", 1203456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1201278, null)));
+                constructPackageManagerPackageInfo("third_party_package", 10103456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10101278, null),
+                constructPackageManagerPackageInfo("third_party_package", 10203456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10201278, null)));
 
         mCarWatchdogService.setKillablePackageAsUser("third_party_package", UserHandle.ALL,
                 /* isKillable= */ false);
@@ -1441,110 +1545,110 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package", 11,
+                new PackageKillableState("third_party_package", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("vendor_package.critical", 11,
+                new PackageKillableState("vendor_package.critical", 101,
                         PackageKillableState.KILLABLE_STATE_NEVER),
-                new PackageKillableState("third_party_package", 12,
+                new PackageKillableState("third_party_package", 102,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("vendor_package.critical", 12,
+                new PackageKillableState("vendor_package.critical", 102,
                         PackageKillableState.KILLABLE_STATE_NEVER));
 
         assertThrows(IllegalArgumentException.class,
                 () -> mCarWatchdogService.setKillablePackageAsUser("vendor_package.critical",
                         UserHandle.ALL, /* isKillable= */ true));
 
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12, 13);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102, 103);
         injectPackageInfos(Collections.singletonList(
-                constructPackageManagerPackageInfo("third_party_package", 1303456, null)));
+                constructPackageManagerPackageInfo("third_party_package", 10303456, null)));
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package", 11,
+                new PackageKillableState("third_party_package", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("vendor_package.critical", 11,
+                new PackageKillableState("vendor_package.critical", 101,
                         PackageKillableState.KILLABLE_STATE_NEVER),
-                new PackageKillableState("third_party_package", 12,
+                new PackageKillableState("third_party_package", 102,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("vendor_package.critical", 12,
+                new PackageKillableState("vendor_package.critical", 102,
                         PackageKillableState.KILLABLE_STATE_NEVER),
-                new PackageKillableState("third_party_package", 13,
+                new PackageKillableState("third_party_package", 103,
                         PackageKillableState.KILLABLE_STATE_NO));
 
-        verify(mMockWatchdogStorage, times(11)).markDirty();
+        verify(mSpiedWatchdogStorage, times(11)).markDirty();
     }
 
     @Test
     public void testSetKillablePackageAsUsersForAllUsersWithSharedUids() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "third_party_package.A", 1103456, "third_party_shared_package.A"),
+                        "third_party_package.A", 10103456, "third_party_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.B", 1103456, "third_party_shared_package.A"),
+                        "third_party_package.B", 10103456, "third_party_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.C", 1101356, "third_party_shared_package.B"),
+                        "third_party_package.C", 10101356, "third_party_shared_package.B"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.D", 1101356, "third_party_shared_package.B"),
+                        "third_party_package.D", 10101356, "third_party_shared_package.B"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.A", 1203456, "third_party_shared_package.A"),
+                        "third_party_package.A", 10203456, "third_party_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.B", 1203456, "third_party_shared_package.A")));
+                        "third_party_package.B", 10203456, "third_party_shared_package.A")));
 
         mCarWatchdogService.setKillablePackageAsUser("third_party_package.A", UserHandle.ALL,
                 /* isKillable= */ false);
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package.A", 11,
+                new PackageKillableState("third_party_package.A", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("third_party_package.B", 11,
+                new PackageKillableState("third_party_package.B", 101,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("third_party_package.C", 11,
+                new PackageKillableState("third_party_package.C", 101,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("third_party_package.D", 11,
+                new PackageKillableState("third_party_package.D", 101,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("third_party_package.A", 12,
+                new PackageKillableState("third_party_package.A", 102,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("third_party_package.B", 12,
+                new PackageKillableState("third_party_package.B", 102,
                         PackageKillableState.KILLABLE_STATE_NO));
 
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12, 13);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102, 103);
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "third_party_package.A", 1303456, "third_party_shared_package.A"),
+                        "third_party_package.A", 10303456, "third_party_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.B", 1303456, "third_party_shared_package.A")));
+                        "third_party_package.B", 10303456, "third_party_shared_package.A")));
 
         PackageKillableStateSubject.assertThat(
-                mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.of(13)))
+                mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.of(103)))
                 .containsExactly(
-                new PackageKillableState("third_party_package.A", 13,
+                new PackageKillableState("third_party_package.A", 103,
                         PackageKillableState.KILLABLE_STATE_NO),
-                new PackageKillableState("third_party_package.B", 13,
+                new PackageKillableState("third_party_package.B", 103,
                         PackageKillableState.KILLABLE_STATE_NO));
 
-        verify(mMockWatchdogStorage, times(5)).markDirty();
+        verify(mSpiedWatchdogStorage, times(5)).markDirty();
     }
 
     @Test
     public void testGetPackageKillableStatesAsUser() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
-                constructPackageManagerPackageInfo("third_party_package", 1103456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1101278, null),
-                constructPackageManagerPackageInfo("third_party_package", 1203456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1201278, null)));
+                constructPackageManagerPackageInfo("third_party_package", 10103456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10101278, null),
+                constructPackageManagerPackageInfo("third_party_package", 10203456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10201278, null)));
 
         PackageKillableStateSubject.assertThat(
-                mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.of(11)))
+                mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.of(101)))
                 .containsExactly(
-                        new PackageKillableState("third_party_package", 11,
+                        new PackageKillableState("third_party_package", 101,
                                 PackageKillableState.KILLABLE_STATE_YES),
-                        new PackageKillableState("vendor_package.critical", 11,
+                        new PackageKillableState("vendor_package.critical", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER));
 
-        verify(mMockWatchdogStorage, times(2)).markDirty();
+        verify(mSpiedWatchdogStorage, times(2)).markDirty();
     }
 
     @Test
@@ -1574,7 +1678,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                         new PackageKillableState("vendor_package.critical.B", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER));
 
-        verify(mMockWatchdogStorage, times(6)).markDirty();
+        verify(mSpiedWatchdogStorage, times(6)).markDirty();
     }
 
     @Test
@@ -1596,39 +1700,39 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 .containsExactly(new PackageKillableState("some_pkg_as_vendor_pkg", 100,
                         PackageKillableState.KILLABLE_STATE_YES));
 
-        verify(mMockWatchdogStorage).markDirty();
+        verify(mSpiedWatchdogStorage).markDirty();
     }
 
     @Test
     public void testGetPackageKillableStatesAsUserWithSharedUids() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "system_package.A", 1103456, "vendor_shared_package.A"),
+                        "system_package.A", 10103456, "vendor_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "vendor_package.B", 1103456, "vendor_shared_package.A"),
+                        "vendor_package.B", 10103456, "vendor_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.C", 1105678, "third_party_shared_package"),
+                        "third_party_package.C", 10105678, "third_party_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.D", 1105678, "third_party_shared_package"),
+                        "third_party_package.D", 10105678, "third_party_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "system_package.A", 1203456, "vendor_shared_package.A"),
+                        "system_package.A", 10203456, "vendor_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "vendor_package.B", 1203456, "vendor_shared_package.A")));
+                        "vendor_package.B", 10203456, "vendor_shared_package.A")));
 
         PackageKillableStateSubject.assertThat(
-                mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.of(11)))
+                mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.of(101)))
                 .containsExactly(
-                        new PackageKillableState("system_package.A", 11,
+                        new PackageKillableState("system_package.A", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER),
-                        new PackageKillableState("vendor_package.B", 11,
+                        new PackageKillableState("vendor_package.B", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER),
-                        new PackageKillableState("third_party_package.C", 11,
+                        new PackageKillableState("third_party_package.C", 101,
                                 PackageKillableState.KILLABLE_STATE_YES),
-                        new PackageKillableState("third_party_package.D", 11,
+                        new PackageKillableState("third_party_package.D", 101,
                                 PackageKillableState.KILLABLE_STATE_YES));
 
-        verify(mMockWatchdogStorage, times(2)).markDirty();
+        verify(mSpiedWatchdogStorage, times(2)).markDirty();
     }
 
     @Test
@@ -1661,7 +1765,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                         new PackageKillableState("third_party_package.D", 100,
                                 PackageKillableState.KILLABLE_STATE_YES));
 
-        verify(mMockWatchdogStorage, times(2)).markDirty();
+        verify(mSpiedWatchdogStorage, times(2)).markDirty();
     }
 
     @Test
@@ -1687,66 +1791,66 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                         new PackageKillableState("vendor_package.B", 100,
                                 PackageKillableState.KILLABLE_STATE_YES));
 
-        verify(mMockWatchdogStorage).markDirty();
+        verify(mSpiedWatchdogStorage).markDirty();
     }
 
     @Test
     public void testGetPackageKillableStatesAsUserForAllUsers() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
-                constructPackageManagerPackageInfo("third_party_package", 1103456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1101278, null),
-                constructPackageManagerPackageInfo("third_party_package", 1203456, null),
-                constructPackageManagerPackageInfo("vendor_package.critical", 1201278, null)));
+                constructPackageManagerPackageInfo("third_party_package", 10103456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10101278, null),
+                constructPackageManagerPackageInfo("third_party_package", 10203456, null),
+                constructPackageManagerPackageInfo("vendor_package.critical", 10201278, null)));
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
-                new PackageKillableState("third_party_package", 11,
+                new PackageKillableState("third_party_package", 101,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("vendor_package.critical", 11,
+                new PackageKillableState("vendor_package.critical", 101,
                         PackageKillableState.KILLABLE_STATE_NEVER),
-                new PackageKillableState("third_party_package", 12,
+                new PackageKillableState("third_party_package", 102,
                         PackageKillableState.KILLABLE_STATE_YES),
-                new PackageKillableState("vendor_package.critical", 12,
+                new PackageKillableState("vendor_package.critical", 102,
                         PackageKillableState.KILLABLE_STATE_NEVER));
 
-        verify(mMockWatchdogStorage, times(4)).markDirty();
+        verify(mSpiedWatchdogStorage, times(4)).markDirty();
     }
 
     @Test
     public void testGetPackageKillableStatesAsUserForAllUsersWithSharedUids() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 101, 102);
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "system_package.A", 1103456, "vendor_shared_package.A"),
+                        "system_package.A", 10103456, "vendor_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "vendor_package.B", 1103456, "vendor_shared_package.A"),
+                        "vendor_package.B", 10103456, "vendor_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.C", 1105678, "third_party_shared_package"),
+                        "third_party_package.C", 10105678, "third_party_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.D", 1105678, "third_party_shared_package"),
+                        "third_party_package.D", 10105678, "third_party_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "system_package.A", 1203456, "vendor_shared_package.A"),
+                        "system_package.A", 10203456, "vendor_shared_package.A"),
                 constructPackageManagerPackageInfo(
-                        "vendor_package.B", 1203456, "vendor_shared_package.A")));
+                        "vendor_package.B", 10203456, "vendor_shared_package.A")));
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL))
                 .containsExactly(
-                        new PackageKillableState("system_package.A", 11,
+                        new PackageKillableState("system_package.A", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER),
-                        new PackageKillableState("vendor_package.B", 11,
+                        new PackageKillableState("vendor_package.B", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER),
-                        new PackageKillableState("third_party_package.C", 11,
+                        new PackageKillableState("third_party_package.C", 101,
                                 PackageKillableState.KILLABLE_STATE_YES),
-                        new PackageKillableState("third_party_package.D", 11,
+                        new PackageKillableState("third_party_package.D", 101,
                                 PackageKillableState.KILLABLE_STATE_YES),
-                        new PackageKillableState("system_package.A", 12,
+                        new PackageKillableState("system_package.A", 102,
                                 PackageKillableState.KILLABLE_STATE_NEVER),
-                        new PackageKillableState("vendor_package.B", 12,
+                        new PackageKillableState("vendor_package.B", 102,
                                 PackageKillableState.KILLABLE_STATE_NEVER));
 
-        verify(mMockWatchdogStorage, times(3)).markDirty();
+        verify(mSpiedWatchdogStorage, times(3)).markDirty();
     }
 
     @Test
@@ -1969,13 +2073,13 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testGetResourceOveruseConfigurationsWithReconnectedDaemon() throws Exception {
         /*
          * Emulate daemon crash and restart during the get request. The below get request should be
-         * waiting for daemon connection before the first call to ServiceManager.getService. But to
-         * make sure the test is deterministic emulate daemon restart only on the second call to
-         * ServiceManager.getService.
+         * waiting for daemon connection before the first call to ServiceManager.checkService. But
+         * to make sure the test is deterministic emulate daemon restart only on the second call to
+         * ServiceManager.checkService.
          */
         doReturn(null)
                 .doReturn(mMockBinder)
-                .when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+                .when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
 
         List<ResourceOveruseConfiguration> actualConfigs =
@@ -1992,12 +2096,12 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         /*
          * Emulate daemon crash and restart during the get and set requests. The below get request
          * should be waiting for daemon connection before the first call to
-         * ServiceManager.getService. But to make sure the test is deterministic emulate daemon
-         * restart only on the second call to ServiceManager.getService.
+         * ServiceManager.checkService. But to make sure the test is deterministic emulate daemon
+         * restart only on the second call to ServiceManager.checkService.
          */
         doReturn(null)
                 .doReturn(mMockBinder)
-                .when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+                .when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
 
         /* Capture and respond with the configuration received in the set request. */
@@ -2036,9 +2140,9 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         setRequiresDistractionOptimization(true);
         setDisplayStateEnabled(false);
         int criticalSysPkgUid = Binder.getCallingUid();
-        int nonCriticalSysPkgUid = 1001056;
-        int nonCriticalVndrPkgUid = 1002564;
-        int thirdPartyPkgUid = 1002044;
+        int nonCriticalSysPkgUid = 10001056;
+        int nonCriticalVndrPkgUid = 10002564;
+        int thirdPartyPkgUid = 10002044;
 
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
@@ -2090,8 +2194,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         pushLatestIoOveruseStatsAndWait(packageIoOveruseStats);
 
-        assertThat(mDisabledUserPackages).containsExactlyElementsIn(Collections.singleton(
-                "10:third_party_package"));
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:third_party_package");
 
         List<ResourceOveruseStats> expectedStats = new ArrayList<>();
 
@@ -2137,8 +2240,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         setRequiresDistractionOptimization(true);
         setDisplayStateEnabled(false);
         int criticalSysSharedUid = Binder.getCallingUid();
-        int nonCriticalVndrSharedUid = 1002564;
-        int thirdPartySharedUid = 1002044;
+        int nonCriticalVndrSharedUid = 10002564;
+        int thirdPartySharedUid = 10002044;
 
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
@@ -2186,8 +2289,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         pushLatestIoOveruseStatsAndWait(packageIoOveruseStats);
 
-        assertThat(mDisabledUserPackages).containsExactlyElementsIn(Arrays.asList(
-                "10:third_party_package.A", "10:third_party_package.B"));
+        verifyDisabledPackages(
+                /* userPackagesCsv= */ "100:third_party_package.A,100:third_party_package.B");
 
         List<ResourceOveruseStats> expectedStats = new ArrayList<>();
 
@@ -2232,30 +2335,32 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testGetTodayIoUsageStats() throws Exception {
         List<WatchdogStorage.IoUsageStatsEntry> ioUsageStatsEntries = Arrays.asList(
                 WatchdogStorageUnitTest.constructIoUsageStatsEntry(
-                        /* userId= */ 10, "system_package", /* startTime */ 0, /* duration= */ 1234,
+                        /* userId= */ 100, "system_package", /* startTime */ 0,
+                        /* duration= */1234,
                         /* remainingWriteBytes= */ constructPerStateBytes(200, 300, 400),
                         /* writtenBytes= */ constructPerStateBytes(1000, 2000, 3000),
                         /* forgivenWriteBytes= */ constructPerStateBytes(100, 100, 100),
                         /* totalOveruses= */ 2, /* forgivenOveruses= */ 0,
                         /* totalTimesKilled= */ 1),
                 WatchdogStorageUnitTest.constructIoUsageStatsEntry(
-                        /* userId= */ 11, "vendor_package", /* startTime */ 0, /* duration= */ 1234,
+                        /* userId= */ 101, "vendor_package", /* startTime */ 0,
+                        /* duration= */ 1234,
                         /* remainingWriteBytes= */ constructPerStateBytes(500, 600, 700),
                         /* writtenBytes= */ constructPerStateBytes(1100, 2300, 4300),
                         /* forgivenWriteBytes= */ constructPerStateBytes(100, 100, 100),
                         /* totalOveruses= */ 4, /* forgivenOveruses= */ 1,
                         /* totalTimesKilled= */ 10));
-        when(mMockWatchdogStorage.getTodayIoUsageStats()).thenReturn(ioUsageStatsEntries);
+        when(mSpiedWatchdogStorage.getTodayIoUsageStats()).thenReturn(ioUsageStatsEntries);
 
         List<UserPackageIoUsageStats> actualStats =
                 mWatchdogServiceForSystemImpl.getTodayIoUsageStats();
 
         List<UserPackageIoUsageStats> expectedStats = Arrays.asList(
-                constructUserPackageIoUsageStats(/* userId= */ 10, "system_package",
+                constructUserPackageIoUsageStats(/* userId= */ 100, "system_package",
                         /* writtenBytes= */ constructPerStateBytes(1000, 2000, 3000),
                         /* forgivenWriteBytes= */ constructPerStateBytes(100, 100, 100),
                         /* totalOveruses= */ 2),
-                constructUserPackageIoUsageStats(/* userId= */ 11, "vendor_package",
+                constructUserPackageIoUsageStats(/* userId= */ 101, "vendor_package",
                         /* writtenBytes= */ constructPerStateBytes(1100, 2300, 4300),
                         /* forgivenWriteBytes= */ constructPerStateBytes(100, 100, 100),
                         /* totalOveruses= */ 4));
@@ -2268,14 +2373,14 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
     @Test
     public void testPersistStatsOnRestart() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 10, 11, 12);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 100, 101, 102);
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "third_party_package", 1103456, "vendor_shared_package.critical"),
+                        "third_party_package", 10103456, "vendor_shared_package.critical"),
                 constructPackageManagerPackageInfo(
-                        "vendor_package", 1103456, "vendor_shared_package.critical"),
-                constructPackageManagerPackageInfo("third_party_package.A", 1001100, null),
-                constructPackageManagerPackageInfo("third_party_package.A", 1201100, null)));
+                        "vendor_package", 10103456, "vendor_shared_package.critical"),
+                constructPackageManagerPackageInfo("third_party_package.A", 10001100, null),
+                constructPackageManagerPackageInfo("third_party_package.A", 10201100, null)));
 
         SparseArray<PackageIoOveruseStats> packageIoOveruseStatsByUid =
                 injectIoOveruseStatsForPackages(
@@ -2285,7 +2390,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                         /* shouldNotifyPackages= */ new ArraySet<>());
 
         mCarWatchdogService.setKillablePackageAsUser(
-                "third_party_package.A", UserHandle.of(12), /* isKillable= */ false);
+                "third_party_package.A", UserHandle.of(102), /* isKillable= */ false);
 
         restartService(/* totalRestarts= */ 1, /* wantedDbWrites= */ 1);
 
@@ -2295,51 +2400,51 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         List<ResourceOveruseStats> expectedStats = Arrays.asList(
                 constructResourceOveruseStats(
-                        /* uid= */ 1103456, "shared:vendor_shared_package.critical",
-                        packageIoOveruseStatsByUid.get(1103456).ioOveruseStats),
-                constructResourceOveruseStats(/* uid= */ 1001100, "third_party_package.A",
-                        packageIoOveruseStatsByUid.get(1001100).ioOveruseStats),
-                constructResourceOveruseStats(/* uid= */ 1201100, "third_party_package.A",
-                        packageIoOveruseStatsByUid.get(1201100).ioOveruseStats));
+                        /* uid= */ 10103456, "shared:vendor_shared_package.critical",
+                        packageIoOveruseStatsByUid.get(10103456).ioOveruseStats),
+                constructResourceOveruseStats(/* uid= */ 10001100, "third_party_package.A",
+                        packageIoOveruseStatsByUid.get(10001100).ioOveruseStats),
+                constructResourceOveruseStats(/* uid= */ 10201100, "third_party_package.A",
+                        packageIoOveruseStatsByUid.get(10201100).ioOveruseStats));
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL))
                 .containsExactly(
-                        new PackageKillableState("third_party_package", 11,
+                        new PackageKillableState("third_party_package", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER),
-                        new PackageKillableState("vendor_package", 11,
+                        new PackageKillableState("vendor_package", 101,
                                 PackageKillableState.KILLABLE_STATE_NEVER),
-                        new PackageKillableState("third_party_package.A", 10,
+                        new PackageKillableState("third_party_package.A", 100,
                                 PackageKillableState.KILLABLE_STATE_YES),
-                        new PackageKillableState("third_party_package.A", 12,
+                        new PackageKillableState("third_party_package.A", 102,
                                 PackageKillableState.KILLABLE_STATE_NO));
 
         // Changing and getting package killable states marks the database as dirty
-        verify(mMockWatchdogStorage, times(5)).markDirty();
+        verify(mSpiedWatchdogStorage, times(5)).markDirty();
 
         ResourceOveruseStatsSubject.assertThat(actualStats)
                 .containsExactlyElementsIn(expectedStats);
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
     public void testWriteToDbOnDateChange() throws Exception {
-        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 10);
+        mockUmGetUserHandles(mMockUserManager, /* excludeDying= */ true, 100);
         injectPackageInfos(Arrays.asList(
-                constructPackageManagerPackageInfo("system_package", 1011200, null),
-                constructPackageManagerPackageInfo("third_party_package", 1001100, null)));
+                constructPackageManagerPackageInfo("system_package", 10011200, null),
+                constructPackageManagerPackageInfo("third_party_package", 10001100, null)));
 
         setDisplayStateEnabled(false);
         mTimeSource.updateNow(/* numDaysAgo= */ 1);
         List<PackageIoOveruseStats> prevDayStats = Arrays.asList(
-                constructPackageIoOveruseStats(1011200, /* shouldNotify= */ false,
+                constructPackageIoOveruseStats(10011200, /* shouldNotify= */ false,
                         /* forgivenWriteBytes= */ constructPerStateBytes(600, 700, 800),
                         constructInternalIoOveruseStats(/* killableOnOveruse= */ true,
                                 /* remainingWriteBytes= */ constructPerStateBytes(0, 0, 0),
                                 /* writtenBytes= */ constructPerStateBytes(600, 700, 800),
                                 /* totalOveruses= */ 3)),
-                constructPackageIoOveruseStats(1001100, /* shouldNotify= */ false,
+                constructPackageIoOveruseStats(10001100, /* shouldNotify= */ false,
                         /* forgivenWriteBytes= */ constructPerStateBytes(1050, 1100, 1200),
                         constructInternalIoOveruseStats(/* killableOnOveruse= */ true,
                                 /* remainingWriteBytes= */ constructPerStateBytes(50, 60, 70),
@@ -2349,19 +2454,19 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         List<WatchdogStorage.UserPackageSettingsEntry> expectedSavedUserPackageEntries =
                 Arrays.asList(
-                        new WatchdogStorage.UserPackageSettingsEntry(/* userId= */ 10,
+                        new WatchdogStorage.UserPackageSettingsEntry(/* userId= */ 100,
                                 "system_package",
                                 /* killableState= */ PackageKillableState.KILLABLE_STATE_YES),
-                        new WatchdogStorage.UserPackageSettingsEntry(/* userId= */ 10,
+                        new WatchdogStorage.UserPackageSettingsEntry(/* userId= */ 100,
                                 "third_party_package",
                                 /* killableState= */ PackageKillableState.KILLABLE_STATE_YES));
 
         List<WatchdogStorage.IoUsageStatsEntry> expectedSavedIoUsageEntries = Arrays.asList(
-                new WatchdogStorage.IoUsageStatsEntry(/* userId= */ 10, "system_package",
+                new WatchdogStorage.IoUsageStatsEntry(/* userId= */ 100, "system_package",
                 new WatchdogPerfHandler.PackageIoUsage(prevDayStats.get(0).ioOveruseStats,
                         /* forgivenWriteBytes= */ constructPerStateBytes(600, 700, 800),
                         /* forgivenOveruses= */ 3, /* totalTimesKilled= */ 1)),
-                new WatchdogStorage.IoUsageStatsEntry(/* userId= */ 10, "third_party_package",
+                new WatchdogStorage.IoUsageStatsEntry(/* userId= */ 100, "third_party_package",
                         new WatchdogPerfHandler.PackageIoUsage(prevDayStats.get(1).ioOveruseStats,
                                 /* forgivenWriteBytes= */ constructPerStateBytes(1050, 1100, 1200),
                                 /* forgivenOveruses= */ 0, /* totalTimesKilled= */ 0)));
@@ -2369,13 +2474,13 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         setDisplayStateEnabled(true);
         mTimeSource.updateNow(/* numDaysAgo= */ 0);
         List<PackageIoOveruseStats> currentDayStats = Arrays.asList(
-                constructPackageIoOveruseStats(1011200, /* shouldNotify= */ false,
+                constructPackageIoOveruseStats(10011200, /* shouldNotify= */ false,
                         /* forgivenWriteBytes= */ constructPerStateBytes(0, 0, 0),
                         constructInternalIoOveruseStats(/* killableOnOveruse= */ true,
                                 /* remainingWriteBytes= */ constructPerStateBytes(500, 550, 600),
                                 /* writtenBytes= */ constructPerStateBytes(100, 150, 200),
                                 /* totalOveruses= */ 0)),
-                constructPackageIoOveruseStats(1001100, /* shouldNotify= */ false,
+                constructPackageIoOveruseStats(10001100, /* shouldNotify= */ false,
                         /* forgivenWriteBytes= */ constructPerStateBytes(0, 0, 0),
                         constructInternalIoOveruseStats(/* killableOnOveruse= */ true,
                                 /* remainingWriteBytes= */ constructPerStateBytes(250, 360, 470),
@@ -2396,9 +2501,9 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                         CarWatchdogManager.STATS_PERIOD_CURRENT_DAY);
 
         List<ResourceOveruseStats> expectedCurrentDayStats = Arrays.asList(
-                constructResourceOveruseStats(/* uid= */ 1011200, "system_package",
+                constructResourceOveruseStats(/* uid= */ 10011200, "system_package",
                         currentDayStats.get(0).ioOveruseStats),
-                constructResourceOveruseStats(/* uid= */ 1001100, "third_party_package",
+                constructResourceOveruseStats(/* uid= */ 10001100, "third_party_package",
                         currentDayStats.get(1).ioOveruseStats));
 
         ResourceOveruseStatsSubject.assertThat(actualCurrentDayStats)
@@ -2417,9 +2522,9 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         pushLatestIoOveruseStatsAndWait(
                 sampleIoOveruseStats(/* requireRecurrentOveruseStats= */ false));
 
-        verify(mMockWatchdogStorage, never()).saveUserPackageSettings(any());
-        verify(mMockWatchdogStorage, never()).saveIoUsageStats(any());
-        verify(mMockWatchdogStorage, never()).forgiveHistoricalOveruses(any(), anyInt());
+        verify(mSpiedWatchdogStorage, never()).saveUserPackageSettings(any());
+        verify(mSpiedWatchdogStorage, never()).saveIoUsageStats(any());
+        verify(mSpiedWatchdogStorage, never()).forgiveHistoricalOveruses(any(), anyInt());
     }
 
     @Test
@@ -2615,7 +2720,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testUserNotificationOnHistoricalRecurrentOveruse() throws Exception {
         doReturn(Arrays.asList(new WatchdogStorage.NotForgivenOverusesEntry(100,
                 "system_package.non_critical", 2)))
-                .when(mMockWatchdogStorage)
+                .when(mSpiedWatchdogStorage)
                 .getNotForgivenHistoricalIoOveruses(RECURRING_OVERUSE_PERIOD_IN_DAYS);
 
         // Force CarWatchdogService to fetch historical not forgiven overuses.
@@ -2680,7 +2785,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         verify(() -> CarStatsLog.write(eq(CarStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED),
                 anyInt(), anyInt(), anyInt(), anyInt(), any(), any()), never());
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
     }
 
     @Test
@@ -2699,7 +2804,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         verify(() -> CarStatsLog.write(eq(CarStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED),
                 anyInt(), anyInt(), anyInt(), anyInt(), any(), any()), never());
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
     }
 
     @Test
@@ -2718,7 +2823,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         verify(() -> CarStatsLog.write(eq(CarStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED),
                 anyInt(), anyInt(), anyInt(), anyInt(), any(), any()), never());
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
     }
 
     @Test
@@ -2732,11 +2837,11 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         pushLatestIoOveruseStatsAndWait(packageIoOveruseStats);
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
 
         setRequiresDistractionOptimization(false);
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
 
         setDisplayStateEnabled(false);
 
@@ -2746,10 +2851,10 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__USER_NO_INTERACTION_MODE,
                 /* killedUids= */ new int[]{10010004, 10110004, 10010005, 10110005}));
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).containsExactly(
-                "100:vendor_package.non_critical", "101:vendor_package.non_critical",
-                "100:third_party_package.A", "101:third_party_package.A",
-                "100:third_party_package.B", "101:third_party_package.B");
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:vendor_package.non_critical,"
+                + "101:vendor_package.non_critical,100:third_party_package.A,"
+                + "101:third_party_package.A,100:third_party_package.B,"
+                + "101:third_party_package.B");
     }
 
     @Test
@@ -2770,10 +2875,10 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__USER_NO_INTERACTION_MODE,
                 /* killedUids= */ new int[]{10010004, 10110004, 10010005, 10110005}));
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).containsExactly(
-                "100:vendor_package.non_critical", "101:vendor_package.non_critical",
-                "100:third_party_package.A", "101:third_party_package.A",
-                "100:third_party_package.B", "101:third_party_package.B");
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:vendor_package.non_critical,"
+                + "101:vendor_package.non_critical,100:third_party_package.A,"
+                + "101:third_party_package.A,100:third_party_package.B,"
+                + "101:third_party_package.B");
     }
 
     @Test
@@ -2789,7 +2894,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         pushLatestIoOveruseStatsAndWait(packageIoOveruseStats);
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
 
         mTimeSource.updateNow(/* numDaysAgo= */ 0);
 
@@ -2804,10 +2909,10 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__USER_NO_INTERACTION_MODE,
                 /* killedUids= */ new int[]{10010004, 10110004, 10010005, 10110005}));
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).containsExactly(
-                "100:vendor_package.non_critical", "101:vendor_package.non_critical",
-                "100:third_party_package.A", "101:third_party_package.A",
-                "100:third_party_package.B", "101:third_party_package.B");
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:vendor_package.non_critical,"
+                + "101:vendor_package.non_critical,100:third_party_package.A,"
+                + "101:third_party_package.A,100:third_party_package.B,"
+                + "101:third_party_package.B");
     }
 
     @Test
@@ -2826,7 +2931,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         pushLatestIoOveruseStatsAndWait(packageIoOveruseStats);
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
 
         setRequiresDistractionOptimization(false);
         setDisplayStateEnabled(false);
@@ -2837,9 +2942,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__USER_NO_INTERACTION_MODE,
                 /* killedUids= */ new int[]{10110004, 10010005}));
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages)
-                .containsExactly("101:vendor_package.non_critical", "100:third_party_package.A",
-                        "100:third_party_package.B");
+        verifyDisabledPackages(/* userPackagesCsv= */ "101:vendor_package.non_critical,"
+                + "100:third_party_package.A,100:third_party_package.B");
     }
 
     @Test
@@ -2853,7 +2957,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         pushLatestIoOveruseStatsAndWait(packageIoOveruseStats);
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
 
         mCarWatchdogService.setKillablePackageAsUser(
                 "vendor_package.non_critical", new UserHandle(100), /* isKillable= */ false);
@@ -2869,9 +2973,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__USER_NO_INTERACTION_MODE,
                 /* killedUids= */ new int[]{10110004, 10010005}));
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages)
-                .containsExactly("101:vendor_package.non_critical", "100:third_party_package.A",
-                        "100:third_party_package.B");
+        verifyDisabledPackages(/* userPackagesCsv= */ "101:vendor_package.non_critical,"
+                + "100:third_party_package.A,100:third_party_package.B");
     }
 
     @Test
@@ -2888,7 +2991,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         pushLatestIoOveruseStatsAndWait(packageIoOveruseStats);
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages();
 
         mCarWatchdogService.setKillablePackageAsUser(
                 "vendor_package.non_critical", new UserHandle(100), /* isKillable= */ true);
@@ -2902,10 +3005,10 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__USER_NO_INTERACTION_MODE,
                 /* killedUids= */ new int[]{10010004, 10110004, 10010005, 10110005}));
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).containsExactly(
-                "100:vendor_package.non_critical", "101:vendor_package.non_critical",
-                "100:third_party_package.A", "101:third_party_package.A",
-                "100:third_party_package.B", "101:third_party_package.B");
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:vendor_package.non_critical,"
+                + "101:vendor_package.non_critical,100:third_party_package.A,"
+                + "101:third_party_package.A,100:third_party_package.B,"
+                + "101:third_party_package.B");
     }
 
     @Test
@@ -2914,8 +3017,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         setUpSampleUserAndPackages();
         setRequiresDistractionOptimization(false);
         setDisplayStateEnabled(false);
-        mBroadcastReceiver.onReceive(mMockContext,
-                new Intent().setAction(CarWatchdogService.ACTION_GARAGE_MODE_ON));
+        mBroadcastReceiver.onReceive(mMockContext, new Intent().setAction(ACTION_GARAGE_MODE_ON));
 
         List<PackageIoOveruseStats> packageIoOveruseStats =
                 sampleIoOveruseStats(/* requireRecurrentOveruseStats= */ true);
@@ -2928,16 +3030,16 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__GARAGE_MODE,
                 /* killedUids= */ new int[]{10010004, 10110004, 10010005, 10110005}));
 
-        assertWithMessage("Disabled user packages").that(mDisabledUserPackages).containsExactly(
-                "100:vendor_package.non_critical", "101:vendor_package.non_critical",
-                "100:third_party_package.A", "101:third_party_package.A",
-                "100:third_party_package.B", "101:third_party_package.B");
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:vendor_package.non_critical,"
+                + "101:vendor_package.non_critical,100:third_party_package.A,"
+                + "101:third_party_package.A,100:third_party_package.B,"
+                + "101:third_party_package.B");
     }
 
     @Test
     public void testDisableHistoricalRecurrentlyOverusingApp() throws Exception {
         doReturn(Arrays.asList(new WatchdogStorage.NotForgivenOverusesEntry(100,
-                "third_party_package", 2))).when(mMockWatchdogStorage)
+                "third_party_package", 2))).when(mSpiedWatchdogStorage)
                 .getNotForgivenHistoricalIoOveruses(RECURRING_OVERUSE_PERIOD_IN_DAYS);
 
         // Force CarWatchdogService to fetch historical not forgiven overuses.
@@ -2954,12 +3056,12 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         // Third party package is disabled given the two historical overuses and one current
         // overuse.
-        assertWithMessage("Disabled packages after recurring overuse with history")
-                .that(mDisabledUserPackages)
-                .containsExactlyElementsIn(Collections.singleton("100:third_party_package"));
+        verifyDisabledPackages(/* message= */ "after recurring overuse with history",
+                /* userPackagesCsv= */ "100:third_party_package");
 
         // Package was enabled again.
         mDisabledUserPackages.clear();
+        mDisabledPackagesSettingsStringByUserid.clear();
 
         PackageIoOveruseStats packageIoOveruseStats =
                 constructPackageIoOveruseStats(thirdPartyPkgUid, /* shouldNotify= */ true,
@@ -2972,8 +3074,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         pushLatestIoOveruseStatsAndWait(Collections.singletonList(packageIoOveruseStats));
 
         // From the 3 total overuses, one overuse was forgiven previously.
-        assertWithMessage("Disabled packages after non-recurring overuse")
-                .that(mDisabledUserPackages).isEmpty();
+        verifyNoDisabledPackages(/* message= */ "after non-recurring overuse");
 
         // Add one overuse.
         packageIoOveruseStats.ioOveruseStats.totalOveruses = 4;
@@ -2982,14 +3083,13 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         // Third party package is disabled again given the three current overuses. From the 4 total
         // overuses, one overuse was forgiven previously.
-        assertWithMessage("Disabled packages after recurring overuse from the same day")
-                .that(mDisabledUserPackages)
-                .containsExactlyElementsIn(Collections.singleton("100:third_party_package"));
+        verifyDisabledPackages(/* message= */ "after recurring overuse from the same day",
+                /* userPackagesCsv= */ "100:third_party_package");
 
         // Force write to database
         restartService(/* totalRestarts= */ 2, /* wantedDbWrites= */ 1);
 
-        verify(mMockWatchdogStorage).forgiveHistoricalOveruses(mPackagesByUserIdCaptor.capture(),
+        verify(mSpiedWatchdogStorage).forgiveHistoricalOveruses(mPackagesByUserIdCaptor.capture(),
                 eq(RECURRING_OVERUSE_PERIOD_IN_DAYS));
 
         assertWithMessage("Forgiven packages")
@@ -3000,7 +3100,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     @Test
     public void testDisableHistoricalRecurrentlyOverusingAppAfterDateChange() throws Exception {
         doReturn(Arrays.asList(new WatchdogStorage.NotForgivenOverusesEntry(100,
-                "third_party_package", 2))).when(mMockWatchdogStorage)
+                "third_party_package", 2))).when(mSpiedWatchdogStorage)
                 .getNotForgivenHistoricalIoOveruses(RECURRING_OVERUSE_PERIOD_IN_DAYS);
 
         mTimeSource.updateNow(/* numDaysAgo= */ 1);
@@ -3017,14 +3117,13 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         // Third party package is disabled given the two historical overuses and one current
         // overuse.
-        assertThat(mDisabledUserPackages)
-                .containsExactlyElementsIn(Collections.singleton("100:third_party_package"));
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:third_party_package");
 
         // Force write to database by pushing non-overusing I/O overuse stats.
         mTimeSource.updateNow(/* numDaysAgo= */ 0);
         pushLatestIoOveruseStatsAndWait(Collections.singletonList(ioOveruseStats.get(0)));
 
-        verify(mMockWatchdogStorage).forgiveHistoricalOveruses(mPackagesByUserIdCaptor.capture(),
+        verify(mSpiedWatchdogStorage).forgiveHistoricalOveruses(mPackagesByUserIdCaptor.capture(),
                 eq(RECURRING_OVERUSE_PERIOD_IN_DAYS));
 
         assertWithMessage("Forgiven packages")
@@ -3057,7 +3156,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         ResourceOveruseStatsSubject.assertEquals(actualStats, expectedStats);
 
-        verify(mMockWatchdogStorage).deleteUserPackage(eq(user.getIdentifier()), eq(packageName));
+        verify(mSpiedWatchdogStorage).deleteUserPackage(eq(user.getIdentifier()), eq(packageName));
     }
 
     @Test
@@ -3137,7 +3236,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                         PackageKillableState.KILLABLE_STATE_NO)
         );
 
-        verify(mMockWatchdogStorage, times(2)).deleteUserPackage(anyInt(),
+        verify(mSpiedWatchdogStorage, times(2)).deleteUserPackage(anyInt(),
                 eq("third_party_package.A"));
     }
 
@@ -3165,7 +3264,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         assertWithMessage("Pulled system I/O usage summary atoms after restart")
                 .that(mPulledSystemIoUsageSummaries).isEmpty();
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -3206,7 +3305,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         assertWithMessage("Pulled system I/O usage summary atoms after a week")
                 .that(mPulledSystemIoUsageSummaries).containsExactlyElementsIn(expectedSummaries);
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -3265,7 +3364,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         assertWithMessage("Pulled uid I/O usage summary atoms after restart")
                 .that(mPulledUidIoUsageSummaries).isEmpty();
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -3314,7 +3413,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         assertWithMessage("Pulled uid I/O usage summary atoms after a week")
                 .that(mPulledUidIoUsageSummaries).containsExactlyElementsIn(expectedSummaries);
 
-        verifyNoMoreInteractions(mMockWatchdogStorage);
+        verifyNoMoreInteractions(mSpiedWatchdogStorage);
     }
 
     @Test
@@ -3331,24 +3430,24 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 constructPackageManagerPackageInfo(
                         "system_package.A", 6001, null, ApplicationInfo.FLAG_SYSTEM, 0),
                 constructPackageManagerPackageInfo(
-                        "vendor_package.B", 5100, null, 0, ApplicationInfo.PRIVATE_FLAG_OEM),
+                        "vendor_package.B", 10005100, null, 0, ApplicationInfo.PRIVATE_FLAG_OEM),
                 constructPackageManagerPackageInfo(
-                        "vendor_package.C", 1345678, null, 0, ApplicationInfo.PRIVATE_FLAG_ODM),
-                constructPackageManagerPackageInfo("third_party_package.D", 120056, null)));
+                        "vendor_package.C", 10345678, null, 0, ApplicationInfo.PRIVATE_FLAG_ODM),
+                constructPackageManagerPackageInfo("third_party_package.D", 10200056, null)));
 
-        int[] uids = new int[]{6001, 5100, 120056, 1345678};
+        int[] uids = new int[]{6001, 10005100, 10200056, 10345678};
         List<PackageInfo> actualPackageInfos = mWatchdogServiceForSystemImpl.getPackageInfosForUids(
                 uids, new ArrayList<>());
 
         List<PackageInfo> expectedPackageInfos = Arrays.asList(
                 constructPackageInfo("system_package.A", 6001, new ArrayList<>(),
                         UidType.NATIVE, ComponentType.SYSTEM, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("vendor_package.B", 5100, new ArrayList<>(),
+                constructPackageInfo("vendor_package.B", 10005100, new ArrayList<>(),
                         UidType.NATIVE, ComponentType.VENDOR, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("third_party_package.D", 120056, new ArrayList<>(),
+                constructPackageInfo("third_party_package.D", 10200056, new ArrayList<>(),
                         UidType.APPLICATION, ComponentType.THIRD_PARTY,
                         ApplicationCategoryType.OTHERS),
-                constructPackageInfo("vendor_package.C", 1345678, new ArrayList<>(),
+                constructPackageInfo("vendor_package.C", 10345678, new ArrayList<>(),
                         UidType.APPLICATION, ComponentType.VENDOR,
                         ApplicationCategoryType.OTHERS));
 
@@ -3360,18 +3459,18 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo("system_package.A", 6050,
                         "system_shared_package", ApplicationInfo.FLAG_UPDATED_SYSTEM_APP, 0),
-                constructPackageManagerPackageInfo("system_package.B", 110035,
+                constructPackageManagerPackageInfo("system_package.B", 10100035,
                         "vendor_shared_package", 0, ApplicationInfo.PRIVATE_FLAG_PRODUCT),
-                constructPackageManagerPackageInfo("vendor_package.C", 110035,
+                constructPackageManagerPackageInfo("vendor_package.C", 10100035,
                         "vendor_shared_package", 0, ApplicationInfo.PRIVATE_FLAG_VENDOR),
                 constructPackageManagerPackageInfo(
                         "third_party_package.D", 6050, "system_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.E", 110035, "vendor_shared_package"),
+                        "third_party_package.E", 10100035, "vendor_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.F", 120078, "third_party_shared_package")));
+                        "third_party_package.F", 10200078, "third_party_shared_package")));
 
-        int[] uids = new int[]{6050, 110035, 120056, 120078};
+        int[] uids = new int[]{6050, 10100035, 10200078};
         List<PackageInfo> actualPackageInfos = mWatchdogServiceForSystemImpl.getPackageInfosForUids(
                 uids, new ArrayList<>());
 
@@ -3379,11 +3478,11 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 constructPackageInfo("shared:system_shared_package", 6050,
                         Arrays.asList("system_package.A", "third_party_package.D"),
                         UidType.NATIVE, ComponentType.SYSTEM, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("shared:vendor_shared_package", 110035,
+                constructPackageInfo("shared:vendor_shared_package", 10100035,
                         Arrays.asList("vendor_package.C", "system_package.B",
                                 "third_party_package.E"), UidType.APPLICATION,
                         ComponentType.VENDOR, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("shared:third_party_shared_package", 120078,
+                constructPackageInfo("shared:third_party_shared_package", 10200078,
                         Collections.singletonList("third_party_package.F"),
                         UidType.APPLICATION,  ComponentType.THIRD_PARTY,
                         ApplicationCategoryType.OTHERS));
@@ -3395,41 +3494,43 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testGetPackageInfosForUidsWithVendorPackagePrefixes() throws Exception {
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "vendor_package.A", 110034, null, 0, ApplicationInfo.PRIVATE_FLAG_PRODUCT),
-                constructPackageManagerPackageInfo("vendor_pkg.B", 110035,
+                        "vendor_package.A", 10010034, null, 0,
+                        ApplicationInfo.PRIVATE_FLAG_PRODUCT),
+                constructPackageManagerPackageInfo("vendor_pkg.B", 10010035,
                         "vendor_shared_package", ApplicationInfo.FLAG_SYSTEM, 0),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.C", 110035, "vendor_shared_package"),
+                        "third_party_package.C", 10010035, "vendor_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.D", 110035, "vendor_shared_package"),
+                        "third_party_package.D", 10010035, "vendor_shared_package"),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.F", 120078, "third_party_shared_package"),
-                constructPackageManagerPackageInfo("vndr_pkg.G", 126345, "vendor_package.shared",
+                        "third_party_package.F", 10200078, "third_party_shared_package"),
+                constructPackageManagerPackageInfo("vndr_pkg.G", 10206345, "vendor_package.shared",
                         ApplicationInfo.FLAG_SYSTEM, 0),
                 /*
                  * A 3p package pretending to be a vendor package because 3p packages won't have the
                  * required flags.
                  */
-                constructPackageManagerPackageInfo("vendor_package.imposter", 123456, null, 0, 0)));
+                constructPackageManagerPackageInfo("vendor_package.imposter", 10203456, null, 0,
+                        0)));
 
-        int[] uids = new int[]{110034, 110035, 120078, 126345, 123456};
+        int[] uids = new int[]{10010034, 10010035, 10200078, 10206345, 10203456};
         List<PackageInfo> actualPackageInfos = mWatchdogServiceForSystemImpl.getPackageInfosForUids(
                 uids, Arrays.asList("vendor_package.", "vendor_pkg.", "shared:vendor_package."));
 
         List<PackageInfo> expectedPackageInfos = Arrays.asList(
-                constructPackageInfo("vendor_package.A", 110034, new ArrayList<>(),
+                constructPackageInfo("vendor_package.A", 10010034, new ArrayList<>(),
                         UidType.APPLICATION, ComponentType.VENDOR, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("shared:vendor_shared_package", 110035,
+                constructPackageInfo("shared:vendor_shared_package", 10010035,
                         Arrays.asList("vendor_pkg.B", "third_party_package.C",
                                 "third_party_package.D"), UidType.APPLICATION,
                         ComponentType.VENDOR, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("shared:third_party_shared_package", 120078,
+                constructPackageInfo("shared:third_party_shared_package", 10200078,
                         Collections.singletonList("third_party_package.F"), UidType.APPLICATION,
                         ComponentType.THIRD_PARTY, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("shared:vendor_package.shared", 126345,
+                constructPackageInfo("shared:vendor_package.shared", 10206345,
                         Collections.singletonList("vndr_pkg.G"), UidType.APPLICATION,
                         ComponentType.VENDOR, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("vendor_package.imposter", 123456,
+                constructPackageInfo("vendor_package.imposter", 10203456,
                         new ArrayList<>(), UidType.APPLICATION, ComponentType.THIRD_PARTY,
                         ApplicationCategoryType.OTHERS));
 
@@ -3440,11 +3541,11 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     public void testGetPackageInfosForUidsWithMissingApplicationInfos() throws Exception {
         injectPackageInfos(Arrays.asList(
                 constructPackageManagerPackageInfo(
-                        "vendor_package.A", 110034, null, 0, ApplicationInfo.PRIVATE_FLAG_OEM),
-                constructPackageManagerPackageInfo("vendor_package.B", 110035,
+                        "vendor_package.A", 10100034, null, 0, ApplicationInfo.PRIVATE_FLAG_OEM),
+                constructPackageManagerPackageInfo("vendor_package.B", 10100035,
                         "vendor_shared_package", 0, ApplicationInfo.PRIVATE_FLAG_VENDOR),
                 constructPackageManagerPackageInfo(
-                        "third_party_package.C", 110035, "vendor_shared_package")));
+                        "third_party_package.C", 10100035, "vendor_shared_package")));
 
         BiConsumer<Integer, String> addPackageToSharedUid = (uid, packageName) -> {
             List<String> packages = mPackagesBySharedUid.get(uid);
@@ -3455,28 +3556,28 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
             mPackagesBySharedUid.put(uid, packages);
         };
 
-        addPackageToSharedUid.accept(110035, "third_party.package.G");
-        mGenericPackageNameByUid.put(120056, "third_party.package.H");
-        mGenericPackageNameByUid.put(120078, "shared:third_party_shared_package");
-        addPackageToSharedUid.accept(120078, "third_party_package.I");
+        addPackageToSharedUid.accept(10100035, "third_party_package.G");
+        mGenericPackageNameByUid.put(10200056, "third_party_package.H");
+        mGenericPackageNameByUid.put(10200078, "shared:third_party_shared_package");
+        addPackageToSharedUid.accept(10200078, "third_party_package.I");
 
 
-        int[] uids = new int[]{110034, 110035, 120056, 120078};
+        int[] uids = new int[]{10100034, 10100035, 10200056, 10200078};
 
         List<PackageInfo> actualPackageInfos = mWatchdogServiceForSystemImpl.getPackageInfosForUids(
                 uids, new ArrayList<>());
 
         List<PackageInfo> expectedPackageInfos = Arrays.asList(
-                constructPackageInfo("vendor_package.A", 110034, new ArrayList<>(),
+                constructPackageInfo("vendor_package.A", 10100034, new ArrayList<>(),
                         UidType.APPLICATION, ComponentType.VENDOR, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("shared:vendor_shared_package", 110035,
+                constructPackageInfo("shared:vendor_shared_package", 10100035,
                         Arrays.asList("vendor_package.B", "third_party_package.C",
-                                "third_party.package.G"),
+                                "third_party_package.G"),
                         UidType.APPLICATION, ComponentType.VENDOR, ApplicationCategoryType.OTHERS),
-                constructPackageInfo("third_party.package.H", 120056, new ArrayList<>(),
+                constructPackageInfo("third_party_package.H", 10200056, new ArrayList<>(),
                         UidType.APPLICATION, ComponentType.UNKNOWN,
                         ApplicationCategoryType.OTHERS),
-                constructPackageInfo("shared:third_party_shared_package", 120078,
+                constructPackageInfo("shared:third_party_shared_package", 10200078,
                         Collections.singletonList("third_party_package.I"),
                         UidType.APPLICATION, ComponentType.UNKNOWN,
                         ApplicationCategoryType.OTHERS));
@@ -3499,6 +3600,39 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 () -> mCarWatchdogService.controlProcessHealthCheck(false));
 
         verify(mMockCarWatchdogDaemon, never()).controlProcessHealthCheck(anyBoolean());
+    }
+
+    @Test
+    public void testDisablePackageForUser() throws Exception {
+        assertWithMessage("Performed resource overuse kill")
+                .that(mCarWatchdogService.performResourceOveruseKill("third_party_package",
+                        /* userId= */ 100)).isTrue();
+
+        verifyDisabledPackages(/* userPackagesCsv= */ "100:third_party_package");
+    }
+
+    @Test
+    public void testDisablePackageForUserWithDisabledPackage() throws Exception {
+        doReturn(COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED).when(mSpiedPackageManager)
+                .getApplicationEnabledSetting(anyString(), anyInt());
+
+        assertWithMessage("Performed resource overuse kill")
+                .that(mCarWatchdogService.performResourceOveruseKill("third_party_package",
+                        /* userId= */ 100)).isFalse();
+
+        verifyNoDisabledPackages();
+    }
+
+    @Test
+    public void testDisablePackageForUserWithNonexistentPackage() throws Exception {
+        doThrow(IllegalArgumentException.class).when(mSpiedPackageManager)
+                .getApplicationEnabledSetting(anyString(), anyInt());
+
+        assertWithMessage("Performed resource overuse kill")
+                .that(mCarWatchdogService.performResourceOveruseKill("fake_package",
+                        /* userId= */ 100)).isFalse();
+
+        verifyNoDisabledPackages();
     }
 
     @Test
@@ -3634,7 +3768,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     private void mockWatchdogDaemon() throws Exception {
         when(mMockBinder.queryLocalInterface(anyString())).thenReturn(mMockCarWatchdogDaemon);
         when(mMockCarWatchdogDaemon.asBinder()).thenReturn(mMockBinder);
-        doReturn(mMockBinder).when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+        doReturn(mMockBinder).when(
+                () -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         when(mMockCarWatchdogDaemon.getResourceOveruseConfigurations()).thenReturn(
                 sampleInternalResourceOveruseConfigurations());
         mIsDaemonCrashed = false;
@@ -3644,7 +3779,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         doAnswer((args) -> {
             mUserPackageSettingsEntries.addAll(args.getArgument(0));
             return true;
-        }).when(mMockWatchdogStorage).saveUserPackageSettings(any());
+        }).when(mSpiedWatchdogStorage).saveUserPackageSettings(any());
         doAnswer((args) -> {
             List<WatchdogStorage.IoUsageStatsEntry> ioUsageStatsEntries = args.getArgument(0);
             for (WatchdogStorage.IoUsageStatsEntry entry : ioUsageStatsEntries) {
@@ -3657,12 +3792,14 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                                         entry.ioUsage.getTotalTimesKilled())));
             }
             return ioUsageStatsEntries.size();
-        }).when(mMockWatchdogStorage).saveIoUsageStats(any());
-        doReturn(mUserPackageSettingsEntries).when(mMockWatchdogStorage).getUserPackageSettings();
-        doReturn(mIoUsageStatsEntries).when(mMockWatchdogStorage).getTodayIoUsageStats();
+        }).when(mSpiedWatchdogStorage).saveIoUsageStats(any());
+        doReturn(mUserPackageSettingsEntries).when(mSpiedWatchdogStorage).getUserPackageSettings();
+        doReturn(mIoUsageStatsEntries).when(mSpiedWatchdogStorage).getTodayIoUsageStats();
+        doReturn(List.of()).when(mSpiedWatchdogStorage)
+                .getNotForgivenHistoricalIoOveruses(RECURRING_OVERUSE_PERIOD_IN_DAYS);
         doAnswer(args -> sampleDailyIoUsageSummariesForAWeek(args.getArgument(1),
                 SYSTEM_DAILY_IO_USAGE_SUMMARY_MULTIPLIER))
-                .when(mMockWatchdogStorage)
+                .when(mSpiedWatchdogStorage)
                 .getDailySystemIoUsageSummaries(anyLong(), anyLong(), anyLong());
         doAnswer(args -> {
             ArrayList<WatchdogStorage.UserPackageDailySummaries> summaries =
@@ -3677,7 +3814,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
             summaries.sort(Comparator.comparingLong(WatchdogStorage
                     .UserPackageDailySummaries::getTotalWrittenBytes).reversed());
             return summaries;
-        }).when(mMockWatchdogStorage)
+        }).when(mSpiedWatchdogStorage)
                 .getTopUsersDailyIoUsageSummaries(anyInt(), anyLong(), anyLong(), anyLong());
     }
 
@@ -3701,14 +3838,14 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         setCarPowerState(CarPowerManager.STATE_SHUTDOWN_PREPARE);
         setCarPowerState(CarPowerManager.STATE_SHUTDOWN_ENTER);
         mCarWatchdogService.release();
-        verify(mMockWatchdogStorage, times(totalRestarts)).startWrite();
-        verify(mMockWatchdogStorage, times(wantedDbWrites)).saveIoUsageStats(any());
-        verify(mMockWatchdogStorage, times(wantedDbWrites)).saveUserPackageSettings(any());
-        verify(mMockWatchdogStorage, times(wantedDbWrites)).markWriteSuccessful();
-        verify(mMockWatchdogStorage, times(wantedDbWrites)).endWrite();
-        verify(mMockWatchdogStorage, times(totalRestarts)).release();
+        verify(mSpiedWatchdogStorage, times(totalRestarts)).startWrite();
+        verify(mSpiedWatchdogStorage, times(wantedDbWrites)).saveIoUsageStats(any());
+        verify(mSpiedWatchdogStorage, times(wantedDbWrites)).saveUserPackageSettings(any());
+        verify(mSpiedWatchdogStorage, times(wantedDbWrites)).markWriteSuccessful();
+        verify(mSpiedWatchdogStorage, times(wantedDbWrites)).endWrite();
+        verify(mSpiedWatchdogStorage, times(totalRestarts)).release();
         mCarWatchdogService = new CarWatchdogService(mMockContext, mMockBuiltinPackageContext,
-                        mMockWatchdogStorage, mTimeSource);
+                mSpiedWatchdogStorage, mTimeSource);
         initService(/* wantedInvocations= */ totalRestarts + 1);
     }
 
@@ -3725,11 +3862,25 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     }
 
     private void captureBroadcastReceiver(int wantedInvocations) {
-        verify(mMockContext, times(wantedInvocations))
+        verify(mMockContext, times(wantedInvocations * 2))
                 .registerReceiverForAllUsers(mBroadcastReceiverCaptor.capture(),
-                        any(), any(), any(), anyInt());
+                        mIntentFilterCaptor.capture(), any(), any(), anyInt());
+
         mBroadcastReceiver = mBroadcastReceiverCaptor.getValue();
         assertWithMessage("Broadcast receiver").that(mBroadcastReceiver).isNotNull();
+
+        List<IntentFilter> filters = mIntentFilterCaptor.getAllValues();
+        int totalFilters = filters.size();
+        assertThat(totalFilters).isAtLeast(2);
+        // When CarWatchdogService is restarted, registerReceiverForAllUsers will be called more
+        // than 2 times. Thus, verify the filters only from the latest 2 calls.
+        IntentFilter filter = filters.get(totalFilters - 2);
+        assertFilterHasActions(filter, ACTION_DISMISS_RESOURCE_OVERUSE_NOTIFICATION,
+                ACTION_GARAGE_MODE_ON, ACTION_GARAGE_MODE_OFF, ACTION_LAUNCH_APP_SETTINGS,
+                ACTION_RESOURCE_OVERUSE_DISABLE_APP, ACTION_USER_REMOVED);
+        filter = filters.get(totalFilters - 1);
+        assertFilterHasActions(filter, ACTION_PACKAGE_CHANGED);
+        assertFilterHasDataScheme(filter, /* dataScheme= */ "package");
     }
 
     private void captureCarUxRestrictionsChangeListener(int wantedInvocations) {
@@ -3780,10 +3931,10 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
          */
         CarServiceUtils.runOnLooperSync(CarServiceUtils.getHandlerThread(CarWatchdogService.class
                 .getSimpleName()).getLooper(), () -> {});
-        verify(mMockWatchdogStorage, times(wantedInvocations)).syncUsers(any());
-        verify(mMockWatchdogStorage, times(wantedInvocations)).getUserPackageSettings();
-        verify(mMockWatchdogStorage, times(wantedInvocations)).getTodayIoUsageStats();
-        verify(mMockWatchdogStorage, times(wantedInvocations)).getNotForgivenHistoricalIoOveruses(
+        verify(mSpiedWatchdogStorage, times(wantedInvocations)).syncUsers(any());
+        verify(mSpiedWatchdogStorage, times(wantedInvocations)).getUserPackageSettings();
+        verify(mSpiedWatchdogStorage, times(wantedInvocations)).getTodayIoUsageStats();
+        verify(mSpiedWatchdogStorage, times(wantedInvocations)).getNotForgivenHistoricalIoOveruses(
                 RECURRING_OVERUSE_PERIOD_IN_DAYS);
     }
 
@@ -3827,6 +3978,30 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 });
     }
 
+    private void mockSettingsStringCalls() {
+        doAnswer(args -> {
+            ContentResolver contentResolver = mock(ContentResolver.class);
+            when(contentResolver.getUserId()).thenReturn(args.getArgument(1));
+            return contentResolver;
+        }).when(() -> Utils.getContentResolverForUser(any(), anyInt()));
+
+        when(Settings.Secure.getString(any(ContentResolver.class),
+                eq(KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE))).thenAnswer(
+                        args -> {
+                            ContentResolver contentResolver = args.getArgument(0);
+                            int userId = contentResolver.getUserId();
+                            return mDisabledPackagesSettingsStringByUserid.get(userId);
+                        });
+
+        when(Settings.Secure.putString(any(ContentResolver.class),
+                eq(KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE), anyString())).thenAnswer(args -> {
+                    ContentResolver contentResolver = args.getArgument(0);
+                    int userId = contentResolver.getUserId();
+                    mDisabledPackagesSettingsStringByUserid.put(userId, args.getArgument(2));
+                    return null;
+                });
+    }
+
     private void mockPackageManager() throws Exception {
         when(mMockPackageManager.getNamesForUids(any())).thenAnswer(args -> {
             int[] uids = args.getArgument(0);
@@ -3844,7 +4019,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         when(mMockPackageManager.getApplicationInfoAsUser(anyString(), anyInt(), any()))
                 .thenAnswer(args -> {
                     int userId = ((UserHandle) args.getArgument(2)).getIdentifier();
-                    String userPackageId = userId + ":" + args.getArgument(0);
+                    String userPackageId = userId + USER_PACKAGE_SEPARATOR + args.getArgument(0);
                     android.content.pm.PackageInfo packageInfo =
                             mPmPackageInfoByUserPackage.get(userPackageId);
                     if (packageInfo == null) {
@@ -3855,7 +4030,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 });
         when(mMockPackageManager.getPackageInfoAsUser(anyString(), anyInt(), anyInt()))
                 .thenAnswer(args -> {
-                    String userPackageId = args.getArgument(2) + ":" + args.getArgument(0);
+                    String userPackageId = args.getArgument(2) + USER_PACKAGE_SEPARATOR
+                            + args.getArgument(0);
                     android.content.pm.PackageInfo packageInfo =
                             mPmPackageInfoByUserPackage.get(userPackageId);
                     if (packageInfo == null) {
@@ -3878,7 +4054,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 });
         when(mMockPackageManager.getPackageUidAsUser(anyString(), anyInt()))
                 .thenAnswer(args -> {
-                    String userPackageId = args.getArgument(1) + ":" + args.getArgument(0);
+                    String userPackageId = args.getArgument(1) + USER_PACKAGE_SEPARATOR
+                            + args.getArgument(0);
                     android.content.pm.PackageInfo packageInfo =
                             mPmPackageInfoByUserPackage.get(userPackageId);
                     if (packageInfo == null) {
@@ -3889,7 +4066,8 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 });
 
         doAnswer((args) -> {
-            String value = args.getArgument(3) + ":" + args.getArgument(0);
+            String value = args.getArgument(3) + USER_PACKAGE_SEPARATOR
+                    + args.getArgument(0);
             mDisabledUserPackages.add(value);
             return null;
         }).when(mSpiedPackageManager).setApplicationEnabledSetting(
@@ -3924,7 +4102,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     }
 
     private void crashWatchdogDaemon() {
-        doReturn(null).when(() -> ServiceManager.getService(CAR_WATCHDOG_DAEMON_INTERFACE));
+        doReturn(null).when(() -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
         mCarWatchdogDaemonBinderDeathRecipient.binderDied();
         mIsDaemonCrashed = true;
     }
@@ -3943,13 +4121,18 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     private void testClientHealthCheck(TestClient client, int badClientCount) throws Exception {
         mCarWatchdogService.registerClient(client, TIMEOUT_CRITICAL);
         mWatchdogServiceForSystemImpl.checkIfAlive(123456, TIMEOUT_CRITICAL);
+
         verify(mMockCarWatchdogDaemon, timeout(MAX_WAIT_TIME_MS)).tellCarWatchdogServiceAlive(
-                eq(mWatchdogServiceForSystemImpl), mIntArrayCaptor.capture(), eq(123456));
-        assertThat(mIntArrayCaptor.getValue()).isEmpty();
+                eq(mWatchdogServiceForSystemImpl), mProcessIdentifiersCaptor.capture(), eq(123456));
+
+        assertThat(mProcessIdentifiersCaptor.getValue()).isEmpty();
+
         mWatchdogServiceForSystemImpl.checkIfAlive(987654, TIMEOUT_CRITICAL);
+
         verify(mMockCarWatchdogDaemon, timeout(MAX_WAIT_TIME_MS)).tellCarWatchdogServiceAlive(
-                eq(mWatchdogServiceForSystemImpl), mIntArrayCaptor.capture(), eq(987654));
-        assertThat(mIntArrayCaptor.getValue().length).isEqualTo(badClientCount);
+                eq(mWatchdogServiceForSystemImpl), mProcessIdentifiersCaptor.capture(), eq(987654));
+
+        assertThat(mProcessIdentifiersCaptor.getValue().size()).isEqualTo(badClientCount);
     }
 
     private List<android.automotive.watchdog.internal.ResourceOveruseConfiguration>
@@ -3997,7 +4180,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 packages.add(packageInfo.packageName);
                 mPackagesBySharedUid.put(uid, packages);
             }
-            String userPackageId = userId + ":" + packageInfo.packageName;
+            String userPackageId = userId + USER_PACKAGE_SEPARATOR + packageInfo.packageName;
             assertWithMessage("Duplicate package infos provided for user package id: %s",
                     userPackageId).that(mPmPackageInfoByUserPackage.containsKey(userPackageId))
                     .isFalse();
@@ -4019,7 +4202,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         CarServiceUtils.runOnMainSyncDelayed(() -> {}, OVERUSE_HANDLING_DELAY_MILLS * 2);
 
         if (mGenericPackageNameByUid.size() > 0) {
-            verify(mMockWatchdogStorage, atLeastOnce()).markDirty();
+            verify(mSpiedWatchdogStorage, atLeastOnce()).markDirty();
         }
     }
 
@@ -4095,6 +4278,47 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                             totalOveruses)));
         }
         return packageIoOveruseStats;
+    }
+
+    private void verifyDisabledPackages(String userPackagesCsv) {
+        verifyDisabledPackages(/* message= */ "", userPackagesCsv);
+    }
+
+    private void verifyDisabledPackages(String message, String userPackagesCsv) {
+        assertWithMessage("Disabled user packages %s", message).that(mDisabledUserPackages)
+                .containsExactlyElementsIn(userPackagesCsv.split(","));
+
+        verifyDisabledPackagesSettingsKey(message, userPackagesCsv);
+    }
+
+    private void verifyDisabledPackagesSettingsKey(String message, String userPackagesCsv) {
+        List<String> userPackagesFromSettingsString = new ArrayList<>();
+        for (int i = 0; i < mDisabledPackagesSettingsStringByUserid.size(); ++i) {
+            int userId = mDisabledPackagesSettingsStringByUserid.keyAt(i);
+            String value = mDisabledPackagesSettingsStringByUserid.valueAt(i);
+            List<String> packages = TextUtils.isEmpty(value) ? new ArrayList<>()
+                    : new ArrayList<>(Arrays.asList(value.split(
+                            PACKAGES_DISABLED_ON_RESOURCE_OVERUSE_SEPARATOR)));
+            packages.forEach(element ->
+                    userPackagesFromSettingsString.add(userId + USER_PACKAGE_SEPARATOR + element));
+        }
+
+        assertWithMessage(
+                "KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE settings string user packages %s",
+                message).that(userPackagesFromSettingsString)
+                .containsExactlyElementsIn(userPackagesCsv.split(","));
+    }
+
+    private void verifyNoDisabledPackages() {
+        verifyNoDisabledPackages(/* message= */ "");
+    }
+
+    private void verifyNoDisabledPackages(String message) {
+        assertWithMessage("Disabled user packages %s", message).that(mDisabledUserPackages)
+                .isEmpty();
+        assertWithMessage(
+                "KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE settings string user packages %s",
+                message).that(mDisabledPackagesSettingsStringByUserid.size()).isEqualTo(0);
     }
 
     private void captureAndVerifyUserNotifications(
@@ -4556,7 +4780,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         List<AtomsProto.CarWatchdogSystemIoUsageSummary> expectedSummaries = new ArrayList<>();
         while (!beginWeekStartDate.equals(endWeekStartDate)) {
             long startEpochSecond = beginWeekStartDate.toEpochSecond();
-            verify(mMockWatchdogStorage).getDailySystemIoUsageSummaries(
+            verify(mSpiedWatchdogStorage).getDailySystemIoUsageSummaries(
                     IO_USAGE_SUMMARY_MIN_SYSTEM_TOTAL_WRITTEN_BYTES, startEpochSecond,
                     beginWeekStartDate.plusWeeks(1).toEpochSecond());
             expectedSummaries.add(AtomsProto.CarWatchdogSystemIoUsageSummary.newBuilder()
@@ -4578,7 +4802,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         List<AtomsProto.CarWatchdogUidIoUsageSummary> expectedSummaries = new ArrayList<>();
         while (!beginWeekStartDate.equals(endWeekStartDate)) {
             long startEpochSecond = beginWeekStartDate.toEpochSecond();
-            verify(mMockWatchdogStorage).getTopUsersDailyIoUsageSummaries(
+            verify(mSpiedWatchdogStorage).getTopUsersDailyIoUsageSummaries(
                     UID_IO_USAGE_SUMMARY_TOP_COUNT * 2,
                     IO_USAGE_SUMMARY_MIN_SYSTEM_TOTAL_WRITTEN_BYTES, startEpochSecond,
                     beginWeekStartDate.plusWeeks(1).toEpochSecond());

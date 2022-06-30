@@ -30,28 +30,26 @@ class CpuSettings:
 
   def __str__(self):
     strs = []
-    strs.append("CpuSettings:[")
-    strs.append("\nallcores:")
+    strs.append("CpuSettings:{")
+    add_line_with_indentation(strs, "allcores:", 4)
     strs.append(str(self.allcores))
-    strs.append("\nonlines:")
+    add_line_with_indentation(strs, "onlines:", 4)
     strs.append(str(self.onlines))
-    strs.append("\ngovernor:")
+    add_line_with_indentation(strs, "governor:", 4)
     strs.append(str(self.governor))
-    strs.append("\ngovernors:[")
+    add_line_with_indentation(strs, "governors:[", 4)
     for k in self.governors:
-      strs.append('\n')
-      strs.append(str(k))
+      add_line_with_indentation(strs, str(k), 8)
       strs.append('=')
       strs.append(str(self.governors[k]))
     strs.append("]")
-    strs.append("\ncpusets:[")
+    add_line_with_indentation(strs, "cpusets:[", 4)
     for k in self.cpusets:
-      strs.append('\n')
-      strs.append(str(k))
+      add_line_with_indentation(strs, str(k), 8)
       strs.append('=')
       strs.append(str(self.cpusets[k]))
     strs.append("]")
-    strs.append("]\n")
+    strs.append("}\n")
     return ''.join(strs)
 
 class CpuConfig:
@@ -63,13 +61,12 @@ class CpuConfig:
   def __str__(self):
     strs = []
     strs.append("CpuConfig:[")
-    strs.append("\nallcores:")
+    add_line_with_indentation(strs, "allcores:", 2)
     strs.append(str(self.allcores))
-    strs.append("\ncoreMaxFreqKHz:")
+    add_line_with_indentation(strs, "coreMaxFreqKHz:", 2)
     strs.append(str(self.coreMaxFreqKHz))
     for k in self.configs:
-      strs.append('\n')
-      strs.append(str(k))
+      add_line_with_indentation(strs, str(k), 2)
       strs.append(':')
       strs.append(str(self.configs[k]))
     strs.append("]")
@@ -155,3 +152,6 @@ def parse_config(configFile):
 
 def get_script_dir():
   return os.path.dirname(os.path.realpath(sys.argv[0]))
+
+def add_line_with_indentation(strs, msg="", spaces=1):
+  strs.append("\n" + spaces * " " + msg)

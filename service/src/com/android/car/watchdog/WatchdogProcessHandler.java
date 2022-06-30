@@ -25,6 +25,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DU
 import android.annotation.NonNull;
 import android.annotation.UserIdInt;
 import android.automotive.watchdog.internal.ICarWatchdogServiceForSystem;
+import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.car.builtin.util.Slogf;
 import android.car.watchdog.ICarWatchdogServiceCallback;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
@@ -33,6 +34,8 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 
@@ -41,11 +44,16 @@ import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Handles clients' health status checking and reporting the statuses to the watchdog daemon.
  */
 public final class WatchdogProcessHandler {
+    static final String PROPERTY_RO_CLIENT_HEALTHCHECK_INTERVAL =
+            "ro.carwatchdog.client_healthcheck.interval";
+    static final int MISSING_INT_PROPERTY_VALUE = -1;
+
     private static final int[] ALL_TIMEOUTS =
             { TIMEOUT_CRITICAL, TIMEOUT_MODERATE, TIMEOUT_NORMAL };
 
@@ -82,6 +90,8 @@ public final class WatchdogProcessHandler {
     @GuardedBy("mLock")
     private final SparseBooleanArray mStoppedUser = new SparseBooleanArray();
 
+    private long mOverriddenClientHealthCheckWindowMs = MISSING_INT_PROPERTY_VALUE;
+
     public WatchdogProcessHandler(ICarWatchdogServiceForSystem serviceImpl,
             CarWatchdogDaemonHelper daemonHelper) {
         mWatchdogServiceForSystem = serviceImpl;
@@ -96,6 +106,15 @@ public final class WatchdogProcessHandler {
                 mPingedClientMap.put(timeout, new SparseArray<ClientInfo>());
                 mClientCheckInProgress.put(timeout, false);
             }
+        }
+        // Overridden timeout value must be greater than  or equal to the maximum possible timeout
+        // value. Otherwise, clients will be pinged more frequently than the guaranteed timeout
+        // duration.
+        int clientHealthCheckWindowSec = SystemProperties.getInt(
+                PROPERTY_RO_CLIENT_HEALTHCHECK_INTERVAL, MISSING_INT_PROPERTY_VALUE);
+        if (clientHealthCheckWindowSec != MISSING_INT_PROPERTY_VALUE) {
+            mOverriddenClientHealthCheckWindowMs = Math.max(clientHealthCheckWindowSec * 1000L,
+                    getTimeoutDurationMs(TIMEOUT_NORMAL));
         }
         if (CarWatchdogService.DEBUG) {
             Slogf.d(CarWatchdogService.TAG, "WatchdogProcessHandler is initialized");
@@ -329,7 +348,7 @@ public final class WatchdogProcessHandler {
         }
         sendPingToClients(timeout);
         mMainHandler.postDelayed(
-                () -> analyzeClientResponse(timeout), timeoutToDurationMs(timeout));
+                () -> analyzeClientResponse(timeout), getTimeoutDurationMs(timeout));
     }
 
     private int getNewSessionId() {
@@ -354,10 +373,10 @@ public final class WatchdogProcessHandler {
     }
 
     private void reportHealthCheckResult(int sessionId) {
-        int[] clientsNotResponding;
+        List<ProcessIdentifier> clientsNotResponding;
         ArrayList<ClientInfo> clientsToNotify;
         synchronized (mLock) {
-            clientsNotResponding = toIntArray(mClientsNotResponding);
+            clientsNotResponding = toProcessIdentifierList(mClientsNotResponding);
             clientsToNotify = new ArrayList<>(mClientsNotResponding);
             mClientsNotResponding.clear();
         }
@@ -382,13 +401,17 @@ public final class WatchdogProcessHandler {
     }
 
     @NonNull
-    private int[] toIntArray(@NonNull ArrayList<ClientInfo> list) {
-        int size = list.size();
-        int[] intArray = new int[size];
-        for (int i = 0; i < size; i++) {
-            intArray[i] = list.get(i).pid;
+    private List<ProcessIdentifier> toProcessIdentifierList(
+            @NonNull ArrayList<ClientInfo> clientInfos) {
+        List<ProcessIdentifier> processIdentifiers = new ArrayList<>(clientInfos.size());
+        for (int i = 0; i < clientInfos.size(); i++) {
+            ClientInfo clientInfo = clientInfos.get(i);
+            ProcessIdentifier processIdentifier = new ProcessIdentifier();
+            processIdentifier.pid = clientInfo.pid;
+            processIdentifier.startTimeMillis = clientInfo.startTimeMillis;
+            processIdentifiers.add(processIdentifier);
         }
-        return intArray;
+        return processIdentifiers;
     }
 
     private String timeoutToString(int timeout) {
@@ -405,7 +428,10 @@ public final class WatchdogProcessHandler {
         }
     }
 
-    private long timeoutToDurationMs(int timeout) {
+    private long getTimeoutDurationMs(int timeout) {
+        if (mOverriddenClientHealthCheckWindowMs != MISSING_INT_PROPERTY_VALUE) {
+            return mOverriddenClientHealthCheckWindowMs;
+        }
         switch (timeout) {
             case TIMEOUT_CRITICAL:
                 return 3000L;
@@ -422,6 +448,7 @@ public final class WatchdogProcessHandler {
     private final class ClientInfo implements IBinder.DeathRecipient {
         public final ICarWatchdogServiceCallback client;
         public final int pid;
+        public final long startTimeMillis;
         @UserIdInt public final int userId;
         public final int timeout;
         public volatile int sessionId;
@@ -430,6 +457,8 @@ public final class WatchdogProcessHandler {
                 int timeout) {
             this.client = client;
             this.pid = pid;
+            // TODO(b/213939034): Read pid start time and populate this field.
+            this.startTimeMillis = SystemClock.elapsedRealtime();
             this.userId = userId;
             this.timeout = timeout;
         }

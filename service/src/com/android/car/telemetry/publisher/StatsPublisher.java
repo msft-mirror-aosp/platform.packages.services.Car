@@ -32,6 +32,8 @@ import android.app.StatsManager.StatsUnavailableException;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
+import android.car.telemetry.TelemetryProto;
+import android.car.telemetry.TelemetryProto.Publisher.PublisherCase;
 import android.os.Handler;
 import android.os.PersistableBundle;
 import android.os.Process;
@@ -43,11 +45,10 @@ import com.android.car.telemetry.AtomsProto.ProcessMemoryState;
 import com.android.car.telemetry.StatsLogProto;
 import com.android.car.telemetry.StatsdConfigProto;
 import com.android.car.telemetry.StatsdConfigProto.StatsdConfig;
-import com.android.car.telemetry.TelemetryProto;
-import com.android.car.telemetry.TelemetryProto.Publisher.PublisherCase;
 import com.android.car.telemetry.databroker.DataSubscriber;
 import com.android.car.telemetry.publisher.statsconverters.ConfigMetricsReportListConverter;
 import com.android.car.telemetry.publisher.statsconverters.StatsConversionException;
+import com.android.car.telemetry.sessioncontroller.SessionAnnotation;
 import com.android.car.telemetry.util.IoUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
@@ -165,11 +166,11 @@ public class StatsPublisher extends AbstractPublisher {
     private final PersistableBundle mSavedStatsConfigs;
 
     StatsPublisher(
-            @NonNull PublisherFailureListener failureListener,
+            @NonNull PublisherListener listener,
             @NonNull StatsManagerProxy statsManager,
             @NonNull File publisherDirectory,
             @NonNull Handler telemetryHandler) {
-        super(failureListener);
+        super(listener);
         mStatsManager = statsManager;
         mTelemetryHandler = telemetryHandler;
         mSavedStatsConfigsFile = new File(publisherDirectory, SAVED_STATS_CONFIGS_FILE);
@@ -730,4 +731,7 @@ public class StatsPublisher extends AbstractPublisher {
                         .setWhat(WTF_OCCURRED_ATOM_MATCHER_ID))
                 .build();
     }
+
+    @Override
+    protected void handleSessionStateChange(SessionAnnotation annotation) {}
 }

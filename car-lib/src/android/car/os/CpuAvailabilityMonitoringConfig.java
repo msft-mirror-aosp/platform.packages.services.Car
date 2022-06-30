@@ -17,7 +17,8 @@
 package android.car.os;
 
 import android.annotation.SuppressLint;
-import android.annotation.SystemApi;
+import android.car.annotation.AddedInOrBefore;
+import android.car.annotation.ExperimentalFeature;
 import android.os.Parcelable;
 
 import com.android.car.internal.util.DataClass;
@@ -27,22 +28,27 @@ import com.android.car.internal.util.DataClass;
  *
  * @hide
  */
-@SystemApi
+@ExperimentalFeature
 @DataClass(genToString = true, genBuilder = true, genHiddenConstDefs = true)
 public final class CpuAvailabilityMonitoringConfig implements Parcelable {
     /** Constant to monitor all cpusets. */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int CPUSET_ALL = 1;
 
     /** Constant to monitor only background cpusets. */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int CPUSET_BACKGROUND = 2;
 
     /** Constant to ignore the CPU availability lower bound percent. */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int IGNORE_PERCENT_LOWER_BOUND = 0;
 
     /** Constant to ignore the CPU availability upper bound percent. */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int IGNORE_PERCENT_UPPER_BOUND = 100;
 
     /** Constant to avoid timing out when monitoring CPU availability. */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int MONITORING_TIMEOUT_NEVER = -1;
 
     /**
@@ -51,15 +57,17 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
      * <p>When the timeout action is notification, the timeout resets on each notification and the
      * listener is again on the next timeout. This repeats until the listener is explicitly removed.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int TIMEOUT_ACTION_NOTIFICATION = 1;
 
     /** Constant to remove the listener on timeout. */
+    @AddedInOrBefore(majorVersion = 33)
     public static final int TIMEOUT_ACTION_REMOVE = 2;
 
     /**
      * CPUSETs to monitor.
      */
-    private int mCpuset = CPUSET_ALL;
+    private @Cpuset int mCpuset = CPUSET_ALL;
 
     /**
      * CPU availability lower bound percent.
@@ -133,6 +141,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String cpusetToString(@Cpuset int value) {
         switch (value) {
             case CPUSET_ALL:
@@ -154,6 +163,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String ignorePercentToString(@IgnorePercent int value) {
         switch (value) {
             case IGNORE_PERCENT_LOWER_BOUND:
@@ -175,6 +185,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static String timeoutActionToString(@TimeoutAction int value) {
         switch (value) {
             case TIMEOUT_ACTION_NOTIFICATION:
@@ -187,12 +198,21 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     @DataClass.Generated.Member
     /* package-private */ CpuAvailabilityMonitoringConfig(
-            int cpuset,
+            @Cpuset int cpuset,
             int lowerBoundPercent,
             int upperBoundPercent,
             @SuppressLint({ "MethodNameUnits" }) long timeoutInSeconds,
             @TimeoutAction int timeoutAction) {
         this.mCpuset = cpuset;
+
+        if (!(mCpuset == CPUSET_ALL)
+                && !(mCpuset == CPUSET_BACKGROUND)) {
+            throw new java.lang.IllegalArgumentException(
+                    "cpuset was " + mCpuset + " but must be one of: "
+                            + "CPUSET_ALL(" + CPUSET_ALL + "), "
+                            + "CPUSET_BACKGROUND(" + CPUSET_BACKGROUND + ")");
+        }
+
         this.mLowerBoundPercent = lowerBoundPercent;
         this.mUpperBoundPercent = upperBoundPercent;
         this.mTimeoutInSeconds = timeoutInSeconds;
@@ -214,7 +234,8 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
      * CPUSETs to monitor.
      */
     @DataClass.Generated.Member
-    public int getCpuset() {
+    @AddedInOrBefore(majorVersion = 33)
+    public @Cpuset int getCpuset() {
         return mCpuset;
     }
 
@@ -232,6 +253,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
      * Must not ignore both this field and {@link #mUpperBoundPercent} in the same configuration.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public int getLowerBoundPercent() {
         return mLowerBoundPercent;
     }
@@ -250,6 +272,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
      * Must not ignore both this field and {@link #mLowerBoundPercent} in the same configuration.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public int getUpperBoundPercent() {
         return mUpperBoundPercent;
     }
@@ -260,6 +283,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
      * <p>To avoid timing out, specify {@link #MONITORING_TIMEOUT_NEVER} as the value.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @SuppressLint({ "MethodNameUnits" }) long getTimeoutInSeconds() {
         return mTimeoutInSeconds;
     }
@@ -271,18 +295,20 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
      * this field is ignored.
      */
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public @TimeoutAction int getTimeoutAction() {
         return mTimeoutAction;
     }
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
 
         return "CpuAvailabilityMonitoringConfig { " +
-                "cpuset = " + mCpuset + ", " +
+                "cpuset = " + cpusetToString(mCpuset) + ", " +
                 "lowerBoundPercent = " + mLowerBoundPercent + ", " +
                 "upperBoundPercent = " + mUpperBoundPercent + ", " +
                 "timeoutInSeconds = " + mTimeoutInSeconds + ", " +
@@ -292,6 +318,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@android.annotation.NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -305,6 +332,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -321,6 +349,15 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
         int timeoutAction = in.readInt();
 
         this.mCpuset = cpuset;
+
+        if (!(mCpuset == CPUSET_ALL)
+                && !(mCpuset == CPUSET_BACKGROUND)) {
+            throw new java.lang.IllegalArgumentException(
+                    "cpuset was " + mCpuset + " but must be one of: "
+                            + "CPUSET_ALL(" + CPUSET_ALL + "), "
+                            + "CPUSET_BACKGROUND(" + CPUSET_BACKGROUND + ")");
+        }
+
         this.mLowerBoundPercent = lowerBoundPercent;
         this.mUpperBoundPercent = upperBoundPercent;
         this.mTimeoutInSeconds = timeoutInSeconds;
@@ -339,6 +376,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
     }
 
     @DataClass.Generated.Member
+    @AddedInOrBefore(majorVersion = 33)
     public static final @android.annotation.NonNull Parcelable.Creator<CpuAvailabilityMonitoringConfig> CREATOR
             = new Parcelable.Creator<CpuAvailabilityMonitoringConfig>() {
         @Override
@@ -359,7 +397,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
     @DataClass.Generated.Member
     public static final class Builder {
 
-        private int mCpuset;
+        private @Cpuset int mCpuset;
         private int mLowerBoundPercent;
         private int mUpperBoundPercent;
         private @SuppressLint({ "MethodNameUnits" }) long mTimeoutInSeconds;
@@ -412,7 +450,8 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
          * CPUSETs to monitor.
          */
         @DataClass.Generated.Member
-        public @android.annotation.NonNull Builder setCpuset(int value) {
+        @AddedInOrBefore(majorVersion = 33)
+        public @android.annotation.NonNull Builder setCpuset(@Cpuset int value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
             mCpuset = value;
@@ -433,6 +472,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
          * Must not ignore both this field and {@link #mUpperBoundPercent} in the same configuration.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull Builder setLowerBoundPercent(int value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x2;
@@ -454,6 +494,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
          * Must not ignore both this field and {@link #mLowerBoundPercent} in the same configuration.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull Builder setUpperBoundPercent(int value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x4;
@@ -467,6 +508,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
          * <p>To avoid timing out, specify {@link #MONITORING_TIMEOUT_NEVER} as the value.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull Builder setTimeoutInSeconds(@SuppressLint({ "MethodNameUnits" }) long value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x8;
@@ -481,6 +523,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
          * this field is ignored.
          */
         @DataClass.Generated.Member
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull Builder setTimeoutAction(@TimeoutAction int value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x10;
@@ -489,6 +532,7 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
         }
 
         /** Builds the instance. This builder should not be touched after calling this! */
+        @AddedInOrBefore(majorVersion = 33)
         public @android.annotation.NonNull CpuAvailabilityMonitoringConfig build() {
             checkNotUsed();
             mBuilderFieldsSet |= 0x20; // Mark builder used
@@ -517,10 +561,10 @@ public final class CpuAvailabilityMonitoringConfig implements Parcelable {
     }
 
     @DataClass.Generated(
-            time = 1644367472366L,
+            time = 1645637084585L,
             codegenVersion = "1.0.23",
             sourceFile = "packages/services/Car/car-lib/src/android/car/os/CpuAvailabilityMonitoringConfig.java",
-            inputSignatures = "public static final  int CPUSET_ALL\npublic static final  int CPUSET_BACKGROUND\npublic static final  int IGNORE_PERCENT_LOWER_BOUND\npublic static final  int IGNORE_PERCENT_UPPER_BOUND\npublic static final  int MONITORING_TIMEOUT_NEVER\npublic static final  int TIMEOUT_ACTION_NOTIFICATION\npublic static final  int TIMEOUT_ACTION_REMOVE\nprivate  int mCpuset\nprivate  int mLowerBoundPercent\nprivate  int mUpperBoundPercent\nprivate @android.annotation.SuppressLint long mTimeoutInSeconds\nprivate @android.car.os.CpuAvailabilityMonitoringConfig.TimeoutAction int mTimeoutAction\nclass CpuAvailabilityMonitoringConfig extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genBuilder=true, genHiddenConstDefs=true)")
+            inputSignatures = "public static final  int CPUSET_ALL\npublic static final  int CPUSET_BACKGROUND\npublic static final  int IGNORE_PERCENT_LOWER_BOUND\npublic static final  int IGNORE_PERCENT_UPPER_BOUND\npublic static final  int MONITORING_TIMEOUT_NEVER\npublic static final  int TIMEOUT_ACTION_NOTIFICATION\npublic static final  int TIMEOUT_ACTION_REMOVE\nprivate @android.car.os.CpuAvailabilityMonitoringConfig.Cpuset int mCpuset\nprivate  int mLowerBoundPercent\nprivate  int mUpperBoundPercent\nprivate @android.annotation.SuppressLint long mTimeoutInSeconds\nprivate @android.car.os.CpuAvailabilityMonitoringConfig.TimeoutAction int mTimeoutAction\nclass CpuAvailabilityMonitoringConfig extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genBuilder=true, genHiddenConstDefs=true)")
     @Deprecated
     private void __metadata() {}
 

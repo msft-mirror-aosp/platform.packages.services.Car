@@ -229,7 +229,7 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
                     }
                     synchronized (mLock) {
                         // Handle only the latest event
-                        Slogf.e(TAG_EVS, "Handling GearSelection");
+                        Slogf.i(TAG_EVS, "Handling GearSelection event");
                         handlePropertyEventLocked(events.get(events.size() - 1));
                     }
                 }
@@ -334,8 +334,8 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
                 }
 
                 int previousState = mState;
-                Slogf.d(TAG_EVS, "Transition requested: " + toString(previousState)
-                        + " -> " + toString(destination));
+                Slogf.i(TAG_EVS, "Transition requested: %s -> %s", stateToString(previousState),
+                        stateToString(destination));
 
                 switch (destination) {
                     case SERVICE_STATE_UNAVAILABLE:
@@ -364,8 +364,11 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
             }
 
             if (result == ERROR_NONE) {
+                Slogf.i(TAG_EVS, "Transition completed: %s", stateToString(destination));
                 // Broadcasts current state
                 broadcastStateTransition(serviceType, newState);
+            } else {
+                Slogf.e(TAG_EVS, "Transition failed: error = %d", result);
             }
 
             return result;
@@ -389,12 +392,12 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
             }
         }
 
-        public boolean checkCurrentStateRequiresActivity() {
+        public boolean checkCurrentStateRequiresSystemActivity() {
             synchronized (mLock) {
-                return mState == SERVICE_STATE_ACTIVE || mState == SERVICE_STATE_REQUESTED;
+                return (mState == SERVICE_STATE_ACTIVE || mState == SERVICE_STATE_REQUESTED) &&
+                        mLastRequestPriority == REQUEST_PRIORITY_HIGH;
             }
         }
-
 
         @GuardedBy("mLock")
         private @CarEvsError int handleTransitionToUnavailableLocked() {
@@ -431,6 +434,15 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
                         // Requested to connect to the Extended View System service
                         if (!mHalWrapper.connectToHalServiceIfNecessary()) {
                             return ERROR_UNAVAILABLE;
+                        }
+
+                        if (mStateEngine.checkCurrentStateRequiresSystemActivity() ||
+                                (mLastEvsHalEvent != null &&
+                                 mLastEvsHalEvent.isRequestingToStartActivity())) {
+                            // Request to launch the viewer because we lost the Extended View System
+                            // service while a client was actively streaming a video.
+                            mHandler.postDelayed(mActivityRequestTimeoutRunnable,
+                                                 STREAM_START_REQUEST_TIMEOUT_MS);
                         }
                     }
                     break;
@@ -604,7 +616,7 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
             return ERROR_NONE;
         }
 
-        private String toString(@CarEvsServiceState int state) {
+        private String stateToString(@CarEvsServiceState int state) {
             switch (state) {
                 case SERVICE_STATE_UNAVAILABLE:
                     return "UNAVAILABLE";
@@ -621,7 +633,7 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
 
         public String toString() {
             synchronized (mLock) {
-                return toString(mState);
+                return stateToString(mState);
             }
         }
     }
@@ -710,7 +722,7 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
     @GuardedBy("mLock")
     private boolean requestActivityIfNecessaryLocked() {
         // TODO(b/202398413): add a test case to verify below logic
-        if (!mStateEngine.checkCurrentStateRequiresActivity() &&
+        if (!mStateEngine.checkCurrentStateRequiresSystemActivity() &&
                 (mLastEvsHalEvent == null || !mLastEvsHalEvent.isRequestingToStartActivity())) {
             return false;
         }
@@ -866,14 +878,8 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
                     mGearSelectionPropertyListener);
         }
 
-
-
-        // Attempts to transit to the INACTIVE state
-        if (!mHalWrapper.init() || mStateEngine.execute(REQUEST_PRIORITY_HIGH,
-                SERVICE_STATE_INACTIVE) != ERROR_NONE) {
-            Slogf.e(TAG_EVS, "Failed to create a service handle or transit to the INACTIVE state,");
-            mHalWrapper.release();
-
+        if (!mHalWrapper.init()) {
+            Slogf.e(TAG_EVS, "Failed to initialize a service handle");
             if (mUseGearSelection && mPropertyService != null) {
                 if (DBG) {
                     Slogf.d(TAG_EVS, "Unregister a property listener on init() failure.");
@@ -881,7 +887,11 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
                 mPropertyService.unregisterListener(VehicleProperty.GEAR_SELECTION,
                         mGearSelectionPropertyListener);
             }
+            return;
         }
+
+        // Attempts to transit to the INACTIVE state
+        connectToHalServiceIfNecessary(EVS_HAL_SERVICE_BIND_RETRY_INTERVAL_MS);
     }
 
     @Override
@@ -1275,7 +1285,7 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
         }
 
         long timestamp = value.getTimestamp();
-        if (timestamp <= mLastEvsHalEvent.getTimestamp()) {
+        if (timestamp != 0 && timestamp <= mLastEvsHalEvent.getTimestamp()) {
             if (DBG) {
                 Slogf.d(TAG_EVS,
                         "Ignoring GEAR_SELECTION change happened past, timestamp = " + timestamp +

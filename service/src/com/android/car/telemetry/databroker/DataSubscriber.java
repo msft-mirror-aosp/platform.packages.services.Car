@@ -17,10 +17,9 @@
 package com.android.car.telemetry.databroker;
 
 import android.annotation.NonNull;
+import android.car.telemetry.TelemetryProto;
 import android.os.PersistableBundle;
 import android.os.SystemClock;
-
-import com.android.car.telemetry.TelemetryProto;
 
 import java.util.Objects;
 
@@ -59,21 +58,38 @@ public class DataSubscriber {
     }
 
     /**
+     * Returns the publisher type (as a number) indicates which type of
+     * {@link TelemetryProto.Publisher} will publish the data.
+     */
+    private int getPublisherType() {
+        return getPublisherParam().getPublisherCase().getNumber();
+    }
+
+    /**
      * Creates a {@link ScriptExecutionTask} and pushes it to the priority queue where the task
      * will be pending execution. Flag isLargeData indicates whether data is large.
+     *
+     * @param data The published data.
+     * @param isLargeData Whether the data is large.
+     * @return The number of tasks that are pending execution that are produced by the calling
+     * publisher.
      */
-    public void push(@NonNull PersistableBundle data, boolean isLargeData) {
+    public int push(@NonNull PersistableBundle data, boolean isLargeData) {
         ScriptExecutionTask task = new ScriptExecutionTask(
-                this, data, SystemClock.elapsedRealtime(), isLargeData);
-        mDataBroker.addTaskToQueue(task);
+                this, data, SystemClock.elapsedRealtime(), isLargeData, getPublisherType());
+        return mDataBroker.addTaskToQueue(task);
     }
 
     /**
      * Creates a {@link ScriptExecutionTask} and pushes it to the priority queue where the task
      * will be pending execution. Defaults isLargeData flag to false.
+     *
+     * @param data The published data.
+     * @return The number of tasks that are pending execution that are produced by the calling
+     * publisher.
      */
-    public void push(@NonNull PersistableBundle data) {
-        push(data, false);
+    public int push(@NonNull PersistableBundle data) {
+        return push(data, false);
     }
 
     /** Returns the {@link TelemetryProto.MetricsConfig}. */

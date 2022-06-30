@@ -27,6 +27,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DU
 import android.annotation.FloatRange;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.car.annotation.AddedInOrBefore;
 import android.car.builtin.os.BuildHelper;
 import android.car.drivingstate.CarDrivingStateEvent.CarDrivingState;
 import android.os.Parcel;
@@ -116,6 +117,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
      *                     See values in {@link CarDrivingStateEvent.CarDrivingState}.
      * @param currentSpeed Current speed in meter per second.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarUxRestrictions getUxRestrictions(
             @CarDrivingState int drivingState, float currentSpeed) {
         return getUxRestrictions(drivingState, currentSpeed, UX_RESTRICTION_MODE_BASELINE);
@@ -132,9 +134,18 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
      * @param currentSpeed Current speed in meter per second.
      * @param mode         Current UX Restriction mode.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public CarUxRestrictions getUxRestrictions(@CarDrivingState int drivingState,
-            float currentSpeed, @NonNull String mode) {
+            @FloatRange(from = 0f) float currentSpeed, @NonNull String mode) {
         Objects.requireNonNull(mode, "mode must not be null");
+
+        if (Float.isNaN(currentSpeed) || currentSpeed < 0f) {
+            if (BuildHelper.isEngBuild() || BuildHelper.isUserDebugBuild()) {
+                throw new IllegalArgumentException("Invalid currentSpeed: " + currentSpeed);
+            }
+            Log.e(TAG, "getUxRestrictions: Invalid currentSpeed: " + currentSpeed);
+            return createDefaultUxRestrictionsEvent();
+        }
         RestrictionsPerSpeedRange restriction = null;
         if (mRestrictionModes.containsKey(mode)) {
             restriction = findUxRestrictionsInList(currentSpeed,
@@ -173,6 +184,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
      * to default display {@link android.view.Display#DEFAULT_DISPLAY}.
      */
     @Nullable
+    @AddedInOrBefore(majorVersion = 33)
     public Integer getPhysicalPort() {
         return mPhysicalPort;
     }
@@ -235,6 +247,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     /**
      * Writes current configuration as Json.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public void writeJson(@NonNull JsonWriter writer) throws IOException {
         Objects.requireNonNull(writer, "writer must not be null");
         // We need to be lenient to accept infinity number (as max speed).
@@ -302,6 +315,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         CharArrayWriter charWriter = new CharArrayWriter();
         JsonWriter writer = new JsonWriter(charWriter);
@@ -320,6 +334,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
      * <p>Supports reading files persisted in multiple JSON schemas, including the pre-R version 1
      * format, and the R format version 2.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public static CarUxRestrictionsConfiguration readJson(@NonNull JsonReader reader,
             int schemaVersion) throws IOException {
         Objects.requireNonNull(reader, "reader must not be null");
@@ -520,12 +535,14 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         return Objects.hash(mPhysicalPort, mMaxStringLength, mMaxCumulativeContentItems,
                 mMaxContentDepth, mRestrictionModes);
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
@@ -544,6 +561,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     /**
      * Compares {@code this} configuration object with {@code other} on restriction parameters.
      */
+    @AddedInOrBefore(majorVersion = 33)
     public boolean hasSameParameters(@NonNull CarUxRestrictionsConfiguration other) {
         Objects.requireNonNull(other, "other must not be null");
         return mMaxContentDepth == other.mMaxContentDepth
@@ -555,6 +573,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
      * Dump the driving state to UX restrictions mapping.
      */
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    @AddedInOrBefore(majorVersion = 33)
     public void dump(@NonNull PrintWriter writer) {
         Objects.requireNonNull(writer, "writer must not be null");
         writer.println("Physical display port: " + mPhysicalPort);
@@ -615,6 +634,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
             DRIVING_STATE_MOVING,
     };
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<CarUxRestrictionsConfiguration> CREATOR =
             new Parcelable.Creator<CarUxRestrictionsConfiguration>() {
 
@@ -631,6 +651,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
@@ -658,6 +679,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(mRestrictionModes.size());
         for (Map.Entry<String, RestrictionModeContainer> entry : mRestrictionModes.entrySet()) {
@@ -688,6 +710,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          *
          * @return {@code port} .
          */
+        @AddedInOrBefore(majorVersion = 33)
         public static int validatePort(int port) {
             if (0 <= port && port <= 255) {
                 return port;
@@ -707,6 +730,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         private int mMaxCumulativeContentItems = UX_RESTRICTIONS_UNKNOWN;
         private int mMaxStringLength = UX_RESTRICTIONS_UNKNOWN;
 
+        @AddedInOrBefore(majorVersion = 33)
         public final Map<String, RestrictionModeContainer> mRestrictionModes = new ArrayMap<>();
 
         public Builder() {
@@ -721,6 +745,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * @param port Port that is connected to a display.
          *             See {@link android.view.DisplayAddress.Physical#getPort()}.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Builder setPhysicalPort(int port) {
             mPhysicalPort = port;
             return this;
@@ -729,6 +754,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         /**
          * Sets ux restrictions for driving state.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Builder setUxRestrictions(@CarDrivingState int drivingState,
                 boolean requiresOptimization,
                 @CarUxRestrictions.CarUxRestrictionsInfo int restrictions) {
@@ -753,6 +779,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * @deprecated Use {@link #setUxRestrictions(int, DrivingStateRestrictions)} instead.
          */
         @Deprecated
+        @AddedInOrBefore(majorVersion = 33)
         public Builder setUxRestrictions(@CarDrivingState int drivingState,
                 @NonNull SpeedRange speedRange, boolean requiresOptimization,
                 @CarUxRestrictions.CarUxRestrictionsInfo int restrictions) {
@@ -770,6 +797,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * @param drivingStateRestrictions Restrictions to set.
          * @return This builder object for method chaining.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Builder setUxRestrictions(
                 int drivingState, DrivingStateRestrictions drivingStateRestrictions) {
             SpeedRange speedRange = drivingStateRestrictions.mSpeedRange;
@@ -793,6 +821,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         /**
          * Sets max string length.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Builder setMaxStringLength(int maxStringLength) {
             mMaxStringLength = maxStringLength;
             return this;
@@ -801,6 +830,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         /**
          * Sets max cumulative content items.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Builder setMaxCumulativeContentItems(int maxCumulativeContentItems) {
             mMaxCumulativeContentItems = maxCumulativeContentItems;
             return this;
@@ -809,6 +839,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         /**
          * Sets max content depth.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public Builder setMaxContentDepth(int maxContentDepth) {
             mMaxContentDepth = maxContentDepth;
             return this;
@@ -817,6 +848,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         /**
          * @return CarUxRestrictionsConfiguration based on builder configuration.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public CarUxRestrictionsConfiguration build() {
             // Unspecified driving state should be fully restricted to be safe.
             addDefaultRestrictionsToBaseline();
@@ -959,6 +991,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * set it to {@link SpeedRange#MAX_SPEED}.
          */
         public static final class SpeedRange implements Comparable<SpeedRange> {
+            @AddedInOrBefore(majorVersion = 33)
             public static final float MAX_SPEED = Float.POSITIVE_INFINITY;
 
             private float mMinSpeed;
@@ -993,11 +1026,13 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
              * @param speed Speed to check
              * @return {@code true} if in range; {@code false} otherwise.
              */
+            @AddedInOrBefore(majorVersion = 33)
             public boolean includes(float speed) {
                 return mMinSpeed <= speed && speed < mMaxSpeed;
             }
 
             @Override
+            @AddedInOrBefore(majorVersion = 33)
             public int compareTo(SpeedRange other) {
                 // First compare min speed; then max speed.
                 int minSpeedComparison = Float.compare(mMinSpeed, other.mMinSpeed);
@@ -1009,11 +1044,13 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
             }
 
             @Override
+            @AddedInOrBefore(majorVersion = 33)
             public int hashCode() {
                 return Objects.hash(mMinSpeed, mMaxSpeed);
             }
 
             @Override
+            @AddedInOrBefore(majorVersion = 33)
             public boolean equals(Object obj) {
                 if (this == obj) {
                     return true;
@@ -1027,6 +1064,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
             }
 
             @Override
+            @AddedInOrBefore(majorVersion = 33)
             public String toString() {
                 return new StringBuilder()
                         .append("[min: ").append(mMinSpeed)
@@ -1056,6 +1094,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         /**
          * Sets whether Distraction Optimization (DO) is required. Defaults to {@code true}.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public DrivingStateRestrictions setDistractionOptimizationRequired(
                 boolean distractionOptimizationRequired) {
             mReqOpt = distractionOptimizationRequired;
@@ -1066,6 +1105,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * Sets active restrictions.
          * Defaults to {@link CarUxRestrictions#UX_RESTRICTIONS_FULLY_RESTRICTED}.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public DrivingStateRestrictions setRestrictions(
                 @CarUxRestrictions.CarUxRestrictionsInfo int restrictions) {
             mRestrictions = restrictions;
@@ -1076,6 +1116,7 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * Sets restriction mode to apply to.
          * Defaults to {@link CarUxRestrictionsManager#UX_RESTRICTION_MODE_BASELINE}.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public DrivingStateRestrictions setMode(@NonNull String mode) {
             mMode = Objects.requireNonNull(mode, "mode must not be null");
             return this;
@@ -1085,12 +1126,14 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
          * Sets speed range to apply to. Optional value. Not setting one means the restrictions
          * apply to full speed range, namely {@code 0} to {@link Builder.SpeedRange#MAX_SPEED}.
          */
+        @AddedInOrBefore(majorVersion = 33)
         public DrivingStateRestrictions setSpeedRange(@NonNull Builder.SpeedRange speedRange) {
             mSpeedRange = speedRange;
             return this;
         }
 
         @Override
+        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             return new StringBuilder()
                     .append("Mode: ").append(mMode)

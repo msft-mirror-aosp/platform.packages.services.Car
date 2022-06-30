@@ -80,6 +80,10 @@ public interface SystemStateInterface {
         return true;
     }
 
+    /**
+     * @deprecated see {@link ProcfsInspector}
+     */
+    @Deprecated
     default List<ProcessInfo> getRunningProcesses() {
         return ProcfsInspector.readProcessTable();
     }
@@ -94,7 +98,6 @@ public interface SystemStateInterface {
         private static final int SUSPEND_TRY_TIMEOUT_MS = 1_000;
 
         private final Context mContext;
-        private final PowerManagerHelper mPowerManagerHelper;
         private List<Pair<Runnable, Duration>> mActionsList = new ArrayList<>();
         private ScheduledExecutorService mExecutorService;
         private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
@@ -112,12 +115,11 @@ public interface SystemStateInterface {
         @VisibleForTesting
         public DefaultImpl(Context context) {
             mContext = context;
-            mPowerManagerHelper = new PowerManagerHelper(context);
         }
 
         @Override
         public void shutdown() {
-            mPowerManagerHelper.shutdown(/* confirm= */ false , /* reason= */ null,
+            PowerManagerHelper.shutdown(mContext, /* confirm= */ false , /* reason= */ null,
                     /* wait= */ true);
         }
 

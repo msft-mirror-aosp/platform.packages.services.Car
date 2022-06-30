@@ -16,10 +16,15 @@
 
 package com.android.car.telemetry.databroker;
 
+import static com.android.car.telemetry.CarTelemetryService.DEBUG;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
+import android.car.telemetry.TelemetryProto;
+import android.car.telemetry.TelemetryProto.MetricsConfig;
+import android.car.telemetry.TelemetryProto.TelemetryError;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -36,13 +41,13 @@ import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.ArrayMap;
+import android.util.Log;
+import android.util.SparseIntArray;
 
 import com.android.car.CarLog;
 import com.android.car.CarServiceUtils;
 import com.android.car.telemetry.CarTelemetryService;
 import com.android.car.telemetry.ResultStore;
-import com.android.car.telemetry.TelemetryProto;
-import com.android.car.telemetry.TelemetryProto.MetricsConfig;
 import com.android.car.telemetry.publisher.AbstractPublisher;
 import com.android.car.telemetry.publisher.PublisherFactory;
 import com.android.car.telemetry.scriptexecutorinterface.IScriptExecutor;
@@ -54,6 +59,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -68,9 +74,14 @@ public class DataBrokerImpl implements DataBroker {
     static final int MSG_HANDLE_TASK = 1;
     @VisibleForTesting
     static final int MSG_BIND_TO_SCRIPT_EXECUTOR = 2;
+    @VisibleForTesting
+    static final int MSG_STOP_HANGING_SCRIPT = 3;
 
     /** Bind to script executor 5 times before entering disabled state. */
     private static final int MAX_BIND_SCRIPT_EXECUTOR_ATTEMPTS = 5;
+
+    /** Maximum wait time for a script to finish. */
+    private static final long MAX_SCRIPT_EXECUTION_TIME_MILLIS = 30_000L; // 30 seconds
 
     // TODO(b/216134347): Find a better way to find the package.
     private static final String[] SCRIPT_EXECUTOR_PACKAGE_CANDIDATES =
@@ -89,6 +100,12 @@ public class DataBrokerImpl implements DataBroker {
     /** Thread-safe priority queue for scheduling tasks. */
     private final PriorityBlockingQueue<ScriptExecutionTask> mTaskQueue =
             new PriorityBlockingQueue<>();
+
+    /**
+     * Index is the type of {@link TelemetryProto.Publisher}, value is the number of tasks pending
+     * script execution that are produced by that publisher.
+     */
+    private final SparseIntArray mPublisherCountArray = new SparseIntArray();
 
     /**
      * Maps MetricsConfig name to its subscriptions. This map is useful for removing MetricsConfigs.
@@ -117,7 +134,7 @@ public class DataBrokerImpl implements DataBroker {
      */
     private String mCurrentMetricsConfigName;
     private IScriptExecutor mScriptExecutor;
-    private ScriptFinishedCallback mScriptFinishedCallback;
+    private DataBrokerListener mDataBrokerListener;
 
     /**
      * Used only for the purpose of tracking the duration of running a script. The duration
@@ -139,13 +156,37 @@ public class DataBrokerImpl implements DataBroker {
         public void onServiceDisconnected(ComponentName name) {
             // TODO(b/198684473): clean up the state after script executor disconnects
             mTelemetryHandler.post(() -> {
-                // if a script ran and crashed ScriptExecutor, end trace log
-                if (mCurrentMetricsConfigName != null) {
-                    mScriptExecutionTraceLog.traceEnd();
-                }
-                mScriptExecutor = null;
                 unbindScriptExecutor();
             });
+        }
+    };
+
+    private final AbstractPublisher.PublisherListener mPublisherListener =
+            new AbstractPublisher.PublisherListener() {
+        @Override
+        public void onPublisherFailure(
+                @NonNull List<TelemetryProto.MetricsConfig> affectedConfigs,
+                @Nullable Throwable error) {
+            Slogf.w(CarLog.TAG_TELEMETRY, "Publisher failed", error);
+            // when a publisher fails, construct an TelemetryError result and send to client
+            String stackTrace = null;
+            if (error != null) {
+                stackTrace = Log.getStackTraceString(error);
+            }
+            TelemetryError telemetryError = buildTelemetryError(
+                    TelemetryError.ErrorType.PUBLISHER_FAILED, "Publisher failed", stackTrace);
+            for (TelemetryProto.MetricsConfig config : affectedConfigs) {
+                // this will remove the MetricsConfig and notify the client of result
+                mDataBrokerListener.onReportFinished(config.getName(), telemetryError);
+            }
+        }
+
+        @Override
+        public void onConfigFinished(@NonNull TelemetryProto.MetricsConfig metricsConfig) {
+            String configName = metricsConfig.getName();
+            Slogf.i(CarLog.TAG_TELEMETRY,
+                    "Publisher sets MetricsConfig(" + configName + ") as finished");
+            mDataBrokerListener.onReportFinished(configName);
         }
     };
 
@@ -158,16 +199,8 @@ public class DataBrokerImpl implements DataBroker {
         mPublisherFactory = publisherFactory;
         mResultStore = resultStore;
         mScriptExecutorListener = new ScriptExecutorListener(this);
-        mPublisherFactory.initialize(this::onPublisherFailure);
+        mPublisherFactory.initialize(mPublisherListener);
         mScriptExecutionTraceLog = traceLog;
-    }
-
-    private void onPublisherFailure(
-            @NonNull AbstractPublisher publisher,
-            @NonNull List<TelemetryProto.MetricsConfig> affectedConfigs,
-            @Nullable Throwable error) {
-        // TODO(b/193680465): disable MetricsConfig and log the error
-        Slogf.w(CarLog.TAG_TELEMETRY, "publisher failed", error);
     }
 
     @Nullable
@@ -232,7 +265,12 @@ public class DataBrokerImpl implements DataBroker {
      */
     private void unbindScriptExecutor() {
         // TODO(b/198648763): unbind from script executor when there is no work to do
-        mCurrentMetricsConfigName = null;
+        // if a script is running while we unbind from ScriptExecutor, end trace log first
+        if (mCurrentMetricsConfigName != null) {
+            mScriptExecutionTraceLog.traceEnd();
+            mCurrentMetricsConfigName = null;
+        }
+        mScriptExecutor = null;
         try {
             mContext.unbindService(mServiceConnection);
         } catch (IllegalArgumentException e) {
@@ -269,6 +307,9 @@ public class DataBrokerImpl implements DataBroker {
         List<DataSubscriber> dataSubscribers = new ArrayList<>(
                 metricsConfig.getSubscribersList().size());
         for (TelemetryProto.Subscriber subscriber : metricsConfig.getSubscribersList()) {
+            if (subscriber.getPriority() < 0) {
+                throw new IllegalArgumentException("Subscribers must have non-negative priority");
+            }
             // protobuf publisher to a concrete Publisher
             AbstractPublisher publisher = mPublisherFactory.getPublisher(
                     subscriber.getPublisher().getPublisherCase());
@@ -278,15 +319,8 @@ public class DataBrokerImpl implements DataBroker {
                     metricsConfig,
                     subscriber);
             dataSubscribers.add(dataSubscriber);
-
-            try {
-                // The publisher will start sending data to the subscriber.
-                // TODO(b/191378559): handle bad configs
-                publisher.addDataSubscriber(dataSubscriber);
-            } catch (IllegalArgumentException e) {
-                Slogf.w(CarLog.TAG_TELEMETRY, "Invalid config", e);
-                return;
-            }
+            // addDataSubscriber could throw an exception, let CarTelemetryService handle it
+            publisher.addDataSubscriber(dataSubscriber);
         }
         mSubscriptionMap.put(metricsConfigName, dataSubscribers);
     }
@@ -315,7 +349,16 @@ public class DataBrokerImpl implements DataBroker {
         // iterating, so it may or may not reflect any updates since the iterator was created.
         // But since adding & polling from queue should happen in the same thread, the task queue
         // should not be changed while tasks are being iterated and removed.
-        mTaskQueue.removeIf(task -> task.isAssociatedWithMetricsConfig(metricsConfigName));
+        Iterator<ScriptExecutionTask> it = mTaskQueue.iterator();
+        while (it.hasNext()) {
+            ScriptExecutionTask task = it.next();
+            if (task.isAssociatedWithMetricsConfig(metricsConfigName)) {
+                mTaskQueue.remove(task);
+                mPublisherCountArray.append(
+                        task.getPublisherType(),
+                        mPublisherCountArray.get(task.getPublisherType()) - 1);
+            }
+        }
     }
 
     @Override
@@ -323,15 +366,20 @@ public class DataBrokerImpl implements DataBroker {
         mPublisherFactory.removeAllDataSubscribers();
         mSubscriptionMap.clear();
         mTaskQueue.clear();
+        mPublisherCountArray.clear();
     }
 
     @Override
-    public void addTaskToQueue(@NonNull ScriptExecutionTask task) {
+    public int addTaskToQueue(@NonNull ScriptExecutionTask task) {
         if (mDisabled) {
-            return;
+            return mPublisherCountArray.get(task.getPublisherType());
         }
         mTaskQueue.add(task);
+        mPublisherCountArray.append(
+                task.getPublisherType(),
+                mPublisherCountArray.get(task.getPublisherType()) + 1);
         scheduleNextTask();
+        return mPublisherCountArray.get(task.getPublisherType());
     }
 
     /**
@@ -352,16 +400,19 @@ public class DataBrokerImpl implements DataBroker {
     }
 
     @Override
-    public void setOnScriptFinishedCallback(@NonNull ScriptFinishedCallback callback) {
+    public void setDataBrokerListener(@NonNull DataBrokerListener dataBrokerListener) {
         if (mDisabled) {
             return;
         }
-        mScriptFinishedCallback = callback;
+        mDataBrokerListener = dataBrokerListener;
     }
 
     @Override
     public void setTaskExecutionPriority(int priority) {
         if (mDisabled) {
+            return;
+        }
+        if (priority == mPriority) {
             return;
         }
         mPriority = priority;
@@ -395,11 +446,13 @@ public class DataBrokerImpl implements DataBroker {
     private void pollAndExecuteTask() {
         // check databroker state is ready to run script
         if (mDisabled || mCurrentMetricsConfigName != null) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "Ignoring the task, disabled or no config.");
             return;
         }
         // check task is valid and ready to be run
         ScriptExecutionTask task = mTaskQueue.peek();
         if (task == null || task.getPriority() > mPriority) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "Ignoring the task, either task is null or low priority");
             return;
         }
         // if script executor is null, bind service
@@ -410,16 +463,28 @@ public class DataBrokerImpl implements DataBroker {
             return;
         }
         mTaskQueue.poll(); // remove task from queue
+        mPublisherCountArray.append(
+                task.getPublisherType(),
+                mPublisherCountArray.get(task.getPublisherType()) - 1);
         // update current config name because a script is currently running
         mCurrentMetricsConfigName = task.getMetricsConfig().getName();
         mScriptExecutionTraceLog.traceBegin(
                 "executing script " + mCurrentMetricsConfigName);
         try {
             if (task.isLargeData()) {
-                Slogf.d(CarLog.TAG_TELEMETRY, "invoking script executor for large input");
+                if (DEBUG) {
+                    Slogf.d(CarLog.TAG_TELEMETRY,
+                            "Running with large func %s of %s in ScriptExecutor.",
+                            task.getHandlerName(),
+                            mCurrentMetricsConfigName);
+                }
                 invokeScriptForLargeInput(task);
             } else {
-                Slogf.d(CarLog.TAG_TELEMETRY, "invoking script executor");
+                if (DEBUG) {
+                    Slogf.d(CarLog.TAG_TELEMETRY, "Running func %s of %s in ScriptExecutor.",
+                            task.getHandlerName(),
+                            mCurrentMetricsConfigName);
+                }
                 mScriptExecutor.invokeScript(
                         task.getMetricsConfig().getScript(),
                         task.getHandlerName(),
@@ -427,6 +492,8 @@ public class DataBrokerImpl implements DataBroker {
                         mResultStore.getInterimResult(mCurrentMetricsConfigName),
                         mScriptExecutorListener);
             }
+            mTelemetryHandler.sendEmptyMessageDelayed(
+                    MSG_STOP_HANGING_SCRIPT, MAX_SCRIPT_EXECUTION_TIME_MILLIS);
         } catch (RemoteException e) {
             mScriptExecutionTraceLog.traceEnd();
             Slogf.w(CarLog.TAG_TELEMETRY, "remote exception occurred invoking script", e);
@@ -474,42 +541,95 @@ public class DataBrokerImpl implements DataBroker {
         }
     }
 
+    private TelemetryError buildTelemetryError(
+            @NonNull TelemetryError.ErrorType errorType,
+            @NonNull String message,
+            @Nullable String stackTrace) {
+        TelemetryError.Builder error = TelemetryError.newBuilder()
+                .setErrorType(errorType)
+                .setMessage(message);
+        if (stackTrace != null) {
+            error.setStackTrace(stackTrace);
+        }
+        return error.build();
+    }
+
+    /**
+     * This helper method should be called as soon as script execution returns.
+     * It returns the name of the MetricsConfig whose script returned.
+     */
+    private String endScriptExecution() {
+        mScriptExecutionTraceLog.traceEnd(); // end trace as soon as script completes running
+        mTelemetryHandler.removeMessages(MSG_STOP_HANGING_SCRIPT); // script did not hang
+        // get and set the mCurrentMetricsConfigName to null
+        String configName = mCurrentMetricsConfigName;
+        mCurrentMetricsConfigName = null;
+        return configName;
+    }
+
     /** Stores final metrics and schedules the next task. */
     private void onScriptFinished(@NonNull PersistableBundle result) {
+        if (DEBUG) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "A script finished, storing the final result.");
+        }
         mTelemetryHandler.post(() -> {
-            mScriptExecutionTraceLog.traceEnd(); // end trace as soon as script completes running
-            mResultStore.putFinalResult(mCurrentMetricsConfigName, result);
-            mScriptFinishedCallback.onScriptFinished(mCurrentMetricsConfigName);
-            mCurrentMetricsConfigName = null;
-            scheduleNextTask();
+            String configName = endScriptExecution();
+            if (configName == null) {
+                return;
+            }
+            // delegate to DataBrokerListener to handle storing data and scheduling next task
+            mDataBrokerListener.onReportFinished(configName, result);
         });
     }
 
     /** Stores interim metrics and schedules the next task. */
     private void onScriptSuccess(@NonNull PersistableBundle stateToPersist) {
+        if (DEBUG) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "A script succeeded, storing the interim result.");
+        }
         mTelemetryHandler.post(() -> {
-            mScriptExecutionTraceLog.traceEnd(); // end trace as soon as script completes running
-            mResultStore.putInterimResult(mCurrentMetricsConfigName, stateToPersist);
-            mCurrentMetricsConfigName = null;
-            scheduleNextTask();
+            String configName = endScriptExecution();
+            if (configName == null) {
+                return;
+            }
+            // delegate to DataBrokerListener to handle storing data and scheduling next task
+            mDataBrokerListener.onEventConsumed(configName, stateToPersist);
         });
     }
 
     /** Stores telemetry error and schedules the next task. */
     private void onScriptError(
             int errorType, @NonNull String message, @Nullable String stackTrace) {
+        if (DEBUG) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "A script failed: %d %s\n%s",
+                    errorType, message, stackTrace);
+        }
         mTelemetryHandler.post(() -> {
-            mScriptExecutionTraceLog.traceEnd(); // end trace as soon as script completes running
-            TelemetryProto.TelemetryError.Builder error = TelemetryProto.TelemetryError.newBuilder()
-                    .setErrorType(TelemetryProto.TelemetryError.ErrorType.forNumber(errorType))
-                    .setMessage(message);
-            if (stackTrace != null) {
-                error.setStackTrace(stackTrace);
+            String configName = endScriptExecution();
+            if (configName == null) {
+                return;
             }
-            mResultStore.putErrorResult(mCurrentMetricsConfigName, error.build());
-            mScriptFinishedCallback.onScriptFinished(mCurrentMetricsConfigName);
-            mCurrentMetricsConfigName = null;
-            scheduleNextTask();
+            // delegate to DataBrokerListener to handle storing data and scheduling next task
+            mDataBrokerListener.onReportFinished(
+                    configName,
+                    buildTelemetryError(
+                            TelemetryError.ErrorType.forNumber(errorType),
+                            message,
+                            stackTrace));
+        });
+    }
+
+    private void onMetricsReport(
+            @NonNull PersistableBundle report, @Nullable PersistableBundle stateToPersist) {
+        if (DEBUG) {
+            Slogf.d(CarLog.TAG_TELEMETRY, "A script produced a report without finishing.");
+        }
+        mTelemetryHandler.post(() -> {
+            String configName = endScriptExecution();
+            if (configName == null) {
+                return;
+            }
+            mDataBrokerListener.onMetricsReport(configName, report, stateToPersist);
         });
     }
 
@@ -547,6 +667,16 @@ public class DataBrokerImpl implements DataBroker {
             }
             dataBroker.onScriptError(errorType, message, stackTrace);
         }
+
+        @Override
+        public void onMetricsReport(
+                @NonNull PersistableBundle report, @Nullable PersistableBundle stateToPersist) {
+            DataBrokerImpl dataBroker = mWeakDataBroker.get();
+            if (dataBroker == null) {
+                return;
+            }
+            dataBroker.onMetricsReport(report, stateToPersist);
+        }
     }
 
     /** Callback handler to handle scheduling and rescheduling of {@link ScriptExecutionTask}s. */
@@ -570,6 +700,11 @@ public class DataBrokerImpl implements DataBroker {
                     break;
                 case MSG_BIND_TO_SCRIPT_EXECUTOR:
                     bindScriptExecutor();
+                    break;
+                case MSG_STOP_HANGING_SCRIPT:
+                    // TODO(b/223224704): log error
+                    unbindScriptExecutor();
+                    scheduleNextTask();
                     break;
                 default:
                     Slogf.w(CarLog.TAG_TELEMETRY, "TaskHandler received unknown message.");

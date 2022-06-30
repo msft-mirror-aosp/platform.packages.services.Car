@@ -241,8 +241,9 @@
     <string name="radio_na" translatable="false">N/A</string>
 
     <!-- sensors test -->
-    <string name="location_title" translatable="false">Location/Orientation:</string>
-    <string name="sensor_title" translatable="false">Car Sensor Data:</string>
+    <string name="location_title" translatable="false">Location Data:</string>
+    <string name="sensor_title" translatable="false">Sensor Data:</string>
+    <string name="car_sensor_title" translatable="false">Car Sensor Data:</string>
     <string name="sensor_na" translatable="false">N/A</string>
 
     <string name="sensor_environment" translatable="false">Environment[%1$s]: temperature=%2$s</string>
@@ -393,13 +394,18 @@
     <string name="app_crash_occurred_config" translatable="false">app_crash_occurred:</string>
     <string name="anr_occurred_config" translatable="false">anr_occurred:</string>
     <string name="wtf_occurred_config" translatable="false">wtf_occurred:</string>
-    <string name="wifi_netstats_config" translatable="false">wifi_netstats:</string>
+    <string name="wifi_netstats_config" translatable="false">wifi_netstats_top_consumers:</string>
     <string name="stats_and_connectivity_config" translatable="false">stats and connectivity:</string>
+    <string name="memory_config" translatable="false">memory:</string>
     <string name="add_metrics_config" translatable="false">Add MetricsConfig</string>
     <string name="remove_metrics_config" translatable="false">Remove MetricsConfig</string>
+    <string name="download_data" translatable="false">Download Data</string>
+    <string name="emulate_suspend_to_RAM" translatable="false">Suspend to RAM</string>
+    <string name="emulate_reboot" translatable="false">Reboot</string>
     <string name="get_report" translatable="false">Get Report</string>
     <string name="print_mem_info" translatable="false">Print Memory Info</string>
     <string name="receive_report_notification_text" translatable="false">Receive Report Ready Notification = %s</string>
+    <string name="driving_sessions_config" translatable="false">driving sessions:</string>
 
     <!-- Watchdog Test -->
     <string name="non_recurring_io_overuse" translatable="false">Non-recurring I/O overuse</string>

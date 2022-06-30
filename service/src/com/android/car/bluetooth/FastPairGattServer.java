@@ -491,6 +491,10 @@ class FastPairGattServer {
                 Slogf.d(TAG, "Decrypted, LocalMacAddress: %s remoteAddress: %s",
                         localAddress, reportedDevice);
             }
+            if (mLocalRpaDevice == null) {
+                Slogf.w(TAG, "Cannot get own address; AdvertisingSet#getOwnAddress"
+                        + " is not supported in this platform version.");
+            }
             // Test that the received device address matches this devices address
             if (reportedDevice.equals(localDevice) || reportedDevice.equals(mLocalRpaDevice)) {
                 if (DBG) {
@@ -573,9 +577,13 @@ class FastPairGattServer {
      * configurations.
      */
     void setup() {
+        // Setup filter to receive pairing attempts and passkey. Make this a high priority broadcast
+        // receiver so others can't intercept it before we can handle it.
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothDevice.ACTION_PAIRING_REQUEST);
-        mContext.registerReceiver(mPairingAttemptsReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        filter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
+        mContext.registerReceiver(mPairingAttemptsReceiver, filter);
+
         mModelIdCharacteristic = new BluetoothGattCharacteristic(FAST_PAIR_MODEL_ID_UUID.getUuid(),
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ);

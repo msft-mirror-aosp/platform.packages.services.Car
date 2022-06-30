@@ -25,9 +25,6 @@ ifeq ($(DISABLE_CAR_PRODUCT_VISUAL_OVERLAY),)
 PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/car_product/overlay-visual
 endif
 
-PRODUCT_COPY_FILES += \
-    packages/services/Car/car_product/build/component-overrides.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sysconfig/component-overrides.xml \
-
 PRODUCT_PACKAGES += \
     com.android.wifi \
     Home \
@@ -57,7 +54,6 @@ PRODUCT_PACKAGES += \
     libnfc_ndef \
     libpowermanager \
     libvariablespeed \
-    A2dpSinkService \
     PackageInstaller \
     carbugreportd \
     vehicle_binding_util \
@@ -66,21 +62,30 @@ PRODUCT_PACKAGES += \
 # Android Camera service.
 ifneq ($(ENABLE_CAMERA_SERVICE), true)
 PRODUCT_PROPERTY_OVERRIDES += config.disable_cameraservice=true
+PRODUCT_PACKAGES += HideCameraApps
 endif
 
-# EVS service
-PRODUCT_PACKAGES += android.automotive.evs.manager@1.1
+# ENABLE_EVS_SERVICE must be set as true from the product's makefile if it wants to support
+# the Extended View System service.
+ifeq ($(ENABLE_EVS_SERVICE), true)
+PRODUCT_PACKAGES += evsmanagerd
+
+# CUSTOMIZE_EVS_SERVICE_PARAMETER must be set as true from the product's makefile if it wants
+# to use IEvsEnumearor instances other than hw/1.
+ifneq ($(CUSTOMIZE_EVS_SERVICE_PARAMETER), true)
+PRODUCT_COPY_FILES += \
+    packages/services/Car/cpp/evs/manager/aidl/init.evs.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.evs.rc
+endif
 
 ifeq ($(ENABLE_EVS_SAMPLE), true)
 # ENABLE_EVS_SAMPLE should set be true or their vendor specific equivalents should be included in
 # the device.mk with the corresponding selinux policies
-LOCAL_EVS_PROPERTIES ?= persist.automotive.evs.mode=0
-PRODUCT_PRODUCT_PROPERTIES += $(LOCAL_EVS_PROPERTIES)
 PRODUCT_PACKAGES += evs_app \
-                    android.hardware.automotive.evs@1.1-sample \
-                    android.frameworks.automotive.display@1.0-service
+                    android.hardware.automotive.evs-default \
+                    cardisplayproxyd
 include packages/services/Car/cpp/evs/apps/sepolicy/evsapp.mk
-endif
+endif  # ENABLE_EVS_SAMPLE
+
 ifeq ($(ENABLE_CAREVSSERVICE_SAMPLE), true)
 PRODUCT_PACKAGES += CarEvsCameraPreviewApp
 endif
@@ -88,6 +93,8 @@ ifeq ($(ENABLE_REAR_VIEW_CAMERA_SAMPLE), true)
 PRODUCT_PACKAGES += SampleRearViewCamera
 PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/tests/SampleRearViewCamera/overlay
 endif
+
+endif  # ENABLE_EVS_SERVICE
 
 # Device running Android is a car
 PRODUCT_COPY_FILES += \
@@ -103,8 +110,8 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/core_minimal.mk)
 PRODUCT_PROPERTY_OVERRIDES += \
     pm.dexopt.disable_bg_dexopt=false \
     pm.dexopt.downgrade_after_inactive_days=10 \
-    dalvik.vm.dex2oat-cpu-set=0,1,2,3 \
-    dalvik.vm.dex2oat-threads=4
+    dalvik.vm.dex2oat-cpu-set=0,1 \
+    dalvik.vm.dex2oat-threads=2
 
 # Required init rc files for car
 PRODUCT_COPY_FILES += \

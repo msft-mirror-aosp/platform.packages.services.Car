@@ -16,6 +16,7 @@
 
 #include "GlWrapper.h"
 
+#include <aidl/android/frameworks/automotive/display/DisplayDesc.h>
 #include <aidl/android/hardware/graphics/common/HardwareBufferDescription.h>
 #include <aidlcommonsupport/NativeHandle.h>
 #include <ui/DisplayMode.h>
@@ -30,10 +31,13 @@
 
 namespace {
 
+using ::aidl::android::frameworks::automotive::display::DisplayDesc;
+using ::aidl::android::frameworks::automotive::display::ICarDisplayProxy;
+using ::aidl::android::frameworks::automotive::display::Rotation;
+using ::aidl::android::hardware::common::NativeHandle;
 using ::aidl::android::hardware::graphics::common::HardwareBufferDescription;
 using ::android::GraphicBuffer;
 using ::android::sp;
-using ::android::frameworks::automotive::display::V1_0::IAutomotiveDisplayProxyService;
 
 constexpr const char vertexShaderSource[] = "#version 300 es                    \n"
                                             "layout(location = 0) in vec4 pos;  \n"
@@ -178,46 +182,64 @@ GLuint buildShaderProgram(const char* vtxSrc, const char* pxlSrc) {
     return program;
 }
 
+::android::sp<HGraphicBufferProducer> convertNativeHandleToHGBP(const NativeHandle& aidlHandle) {
+    native_handle_t* handle = ::android::dupFromAidl(aidlHandle);
+    if (handle->numFds != 0 || handle->numInts < std::ceil(sizeof(size_t) / sizeof(int))) {
+        LOG(ERROR) << "Invalid native handle";
+        return nullptr;
+    }
+    ::android::hardware::hidl_vec<uint8_t> halToken;
+    halToken.setToExternal(reinterpret_cast<uint8_t*>(const_cast<int*>(&(handle->data[1]))),
+                           handle->data[0]);
+    ::android::sp<HGraphicBufferProducer> hgbp =
+            HGraphicBufferProducer::castFrom(::android::retrieveHalInterface(halToken));
+    return std::move(hgbp);
+}
+
 }  // namespace
 
 namespace aidl::android::hardware::automotive::evs::implementation {
 
 // Main entry point
-bool GlWrapper::initialize(const sp<IAutomotiveDisplayProxyService>& pWindowProxy,
+bool GlWrapper::initialize(const std::shared_ptr<ICarDisplayProxy>& pWindowProxy,
                            uint64_t displayId) {
     LOG(DEBUG) << __FUNCTION__;
 
     if (!pWindowProxy) {
-        LOG(ERROR) << "Could not get IAutomotiveDisplayProxyService.";
+        LOG(ERROR) << "Could not get ICarDisplayProxy.";
         return false;
     }
 
-    // We will use the first display in the list as the primary.
-    pWindowProxy->getDisplayInfo(displayId, [this](auto dpyConfig, auto dpyState) {
-        ::android::ui::DisplayMode* pConfig =
-                reinterpret_cast<::android::ui::DisplayMode*>(dpyConfig.data());
-        mWidth = pConfig->resolution.getWidth();
-        mHeight = pConfig->resolution.getHeight();
+    DisplayDesc displayDesc;
+    auto status = pWindowProxy->getDisplayInfo(displayId, &displayDesc);
+    if (!status.isOk()) {
+        LOG(ERROR) << "Failed to read the display information";
+        return false;
+    }
 
-        ::android::ui::DisplayState* pState =
-                reinterpret_cast<::android::ui::DisplayState*>(dpyState.data());
-        if (pState->orientation != ::android::ui::ROTATION_0 &&
-            pState->orientation != ::android::ui::ROTATION_180) {
-            // rotate
-            std::swap(mWidth, mHeight);
-        }
+    mWidth = displayDesc.width;
+    mHeight = displayDesc.height;
+    if ((displayDesc.orientation != Rotation::ROTATION_0) &&
+        (displayDesc.orientation != Rotation::ROTATION_180)) {
+        std::swap(mWidth, mHeight);
+    }
+    LOG(INFO) << "Display resolution is " << mWidth << "x" << mHeight;
 
-        LOG(DEBUG) << "Display resolution is " << mWidth << " x " << mHeight;
-    });
+    NativeHandle aidlHandle;
+    status = pWindowProxy->getHGraphicBufferProducer(displayId, &aidlHandle);
+    if (!status.isOk()) {
+        LOG(ERROR) << "Failed to get IGraphicBufferProducer from ICarDisplayProxy.";
+        return false;
+    }
 
-    mGfxBufferProducer = pWindowProxy->getIGraphicBufferProducer(displayId);
+    mGfxBufferProducer = convertNativeHandleToHGBP(aidlHandle);
     if (!mGfxBufferProducer) {
-        LOG(ERROR) << "Failed to get IGraphicBufferProducer from IAutomotiveDisplayProxyService.";
+        LOG(ERROR) << "Failed to convert a NativeHandle to HGBP.";
         return false;
     }
 
     mSurfaceHolder = getSurfaceFromHGBP(mGfxBufferProducer);
-    if (!mSurfaceHolder) {
+    if (mSurfaceHolder == nullptr) {
         LOG(ERROR) << "Failed to get a Surface from HGBP.";
         return false;
     }
@@ -258,14 +280,14 @@ bool GlWrapper::initialize(const sp<IAutomotiveDisplayProxyService>& pWindowProx
     EGLint numConfigs = -1;
     eglChooseConfig(mDisplay, config_attribs, &egl_config, 1, &numConfigs);
     if (numConfigs != 1) {
-        LOG(ERROR) << "Didn't find a suitable format for our display window";
+        LOG(ERROR) << "Didn't find a suitable format for our display window, " << getEGLError();
         return false;
     }
 
     // Create the EGL render target surface
     mSurface = eglCreateWindowSurface(mDisplay, egl_config, mWindow, nullptr);
     if (mSurface == EGL_NO_SURFACE) {
-        LOG(ERROR) << "eglCreateWindowSurface failed.";
+        LOG(ERROR) << "eglCreateWindowSurface failed, " << getEGLError();
         return false;
     }
 
@@ -316,7 +338,9 @@ void GlWrapper::shutdown() {
     }
 
     // Release all GL resources
-    eglMakeCurrent(mDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    if (eglGetCurrentContext() == mContext) {
+        eglMakeCurrent(mDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
     eglDestroySurface(mDisplay, mSurface);
     eglDestroyContext(mDisplay, mContext);
     eglTerminate(mDisplay);
@@ -328,54 +352,54 @@ void GlWrapper::shutdown() {
     mSurfaceHolder = nullptr;
 }
 
-void GlWrapper::showWindow(const sp<IAutomotiveDisplayProxyService>& pWindowProxy, uint64_t id) {
+void GlWrapper::showWindow(const std::shared_ptr<ICarDisplayProxy>& pWindowProxy, uint64_t id) {
     if (pWindowProxy) {
         pWindowProxy->showWindow(id);
     } else {
-        LOG(ERROR) << "IAutomotiveDisplayProxyService is not available.";
+        LOG(ERROR) << "ICarDisplayProxy is not available.";
     }
 }
 
-void GlWrapper::hideWindow(const sp<IAutomotiveDisplayProxyService>& pWindowProxy, uint64_t id) {
+void GlWrapper::hideWindow(const std::shared_ptr<ICarDisplayProxy>& pWindowProxy, uint64_t id) {
     if (pWindowProxy) {
         pWindowProxy->hideWindow(id);
     } else {
-        LOG(ERROR) << "IAutomotiveDisplayProxyService is not available.";
+        LOG(ERROR) << "ICarDisplayProxy is not available.";
     }
 }
 
 bool GlWrapper::updateImageTexture(buffer_handle_t handle,
                                    const HardwareBufferDescription& description) {
-    // If we haven't done it yet, create an "image" object to wrap the gralloc buffer
-    if (mKHRimage == EGL_NO_IMAGE_KHR) {
-        // create a temporary GraphicBuffer to wrap the provided handle
-        sp<GraphicBuffer> pGfxBuffer =
-                new GraphicBuffer(description.width, description.height,
-                                  static_cast<::android::PixelFormat>(description.format),
-                                  description.layers, static_cast<uint32_t>(description.usage),
-                                  description.stride, const_cast<native_handle_t*>(handle),
-                                  false /* keep ownership */
-                );
-        if (!pGfxBuffer) {
-            LOG(ERROR) << "Failed to allocate GraphicBuffer to wrap our native handle";
-            return false;
-        }
-
-        // Get a GL compatible reference to the graphics buffer we've been given
-        EGLint eglImageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-        EGLClientBuffer cbuf = static_cast<EGLClientBuffer>(pGfxBuffer->getNativeBuffer());
-        mKHRimage = eglCreateImageKHR(mDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, cbuf,
-                                      eglImageAttributes);
-        if (mKHRimage == EGL_NO_IMAGE_KHR) {
-            LOG(ERROR) << "Error creating EGLImage: " << getEGLError();
-            return false;
-        }
-
-        // Update the texture handle we already created to refer to this gralloc buffer
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, mTextureMap);
-        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, static_cast<GLeglImageOES>(mKHRimage));
+    if (mKHRimage != EGL_NO_IMAGE_KHR) {
+        return true;
     }
+
+    // Create a temporary GraphicBuffer to wrap the provided handle.
+    sp<GraphicBuffer> pGfxBuffer =
+            new GraphicBuffer(description.width, description.height,
+                              static_cast<::android::PixelFormat>(description.format),
+                              description.layers, static_cast<uint32_t>(description.usage),
+                              description.stride, const_cast<native_handle_t*>(handle),
+                              /* keepOwnership= */ false);
+    if (!pGfxBuffer) {
+        LOG(ERROR) << "Failed to allocate GraphicBuffer to wrap our native handle";
+        return false;
+    }
+
+    // Get a GL compatible reference to the graphics buffer we've been given
+    EGLint eglImageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    EGLClientBuffer cbuf = static_cast<EGLClientBuffer>(pGfxBuffer->getNativeBuffer());
+    mKHRimage = eglCreateImageKHR(mDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, cbuf,
+                                  eglImageAttributes);
+    if (mKHRimage == EGL_NO_IMAGE_KHR) {
+        LOG(ERROR) << "Error creating EGLImage: " << getEGLError();
+        return false;
+    }
+
+    // Update the texture handle we already created to refer to this gralloc buffer
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, mTextureMap);
+    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, static_cast<GLeglImageOES>(mKHRimage));
 
     return true;
 }
@@ -432,7 +456,9 @@ void GlWrapper::renderImageToScreen() {
 
     glFinish();
 
-    eglSwapBuffers(mDisplay, mSurface);
+    if (eglSwapBuffers(mDisplay, mSurface) == EGL_FALSE) {
+        LOG(WARNING) << "Failed to swap EGL buffers, " << getEGLError();
+    }
 }
 
 }  // namespace aidl::android::hardware::automotive::evs::implementation

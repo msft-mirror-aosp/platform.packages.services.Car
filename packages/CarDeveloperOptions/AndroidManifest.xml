@@ -319,6 +319,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.network.TetherProvisioningCarrierDialogActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$TetherSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -1869,6 +1878,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$TurnScreenOnSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$InteractAcrossProfilesSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -1942,6 +1960,15 @@
 
         <activity
             android:name="com.android.settings.Settings$NotificationAppListActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$NotificationReviewPermissionsActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2292,6 +2319,24 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$BluetoothBroadcastActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$BluetoothFindBroadcastsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.panel.SettingsPanelActivity"
             android:enabled="false"
             android:exported="false"
@@ -2435,6 +2480,15 @@
             <intent-filter tools:node="removeAll"/>
         </activity>
 
+        <activity
+            android:name="com.android.settingslib.qrcode.QrCodeScanModeActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
         <activity-alias
             android:name="com.android.settings.Settings"
             android:enabled="false"
@@ -2527,6 +2581,15 @@
 
         <activity-alias
             android:name="com.android.settings.FontSizeSettingsForSetupWizardActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity-alias>
+
+        <activity-alias
+            android:name="com.android.settings.TextReadingForSetupWizardActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2751,6 +2814,15 @@
 
         <receiver
             android:name="com.android.settings.sim.receivers.SimCompleteBootReceiver"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
+        <receiver
+            android:name="com.android.settings.safetycenter.SafetySourceBroadcastReceiver"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"

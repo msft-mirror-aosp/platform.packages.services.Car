@@ -20,6 +20,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedInOrBefore;
 import android.os.Parcel;
 import android.os.Parcelable;
 
@@ -58,6 +59,7 @@ public final class CarAudioPatchHandle implements Parcelable {
     }
 
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return "Patch (mHandleId=" + mHandleId + "): "
                 + mSourceAddress + " => " + mSinkAddress;
@@ -76,12 +78,14 @@ public final class CarAudioPatchHandle implements Parcelable {
      * Serialize our internal data to a parcel
      */
     @Override
+    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel out, int flags) {
         out.writeInt(mHandleId);
         out.writeString(mSourceAddress);
         out.writeString(mSinkAddress);
     }
 
+    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<CarAudioPatchHandle> CREATOR =
                 new Parcelable.Creator<CarAudioPatchHandle>() {
             public CarAudioPatchHandle createFromParcel(Parcel in) {
@@ -95,6 +99,7 @@ public final class CarAudioPatchHandle implements Parcelable {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
@@ -104,6 +109,7 @@ public final class CarAudioPatchHandle implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public String getSourceAddress() {
         return mSourceAddress;
     }
@@ -113,6 +119,7 @@ public final class CarAudioPatchHandle implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public String getSinkAddress() {
         return mSinkAddress;
     }
@@ -122,6 +129,7 @@ public final class CarAudioPatchHandle implements Parcelable {
      *
      * @hide
      */
+    @AddedInOrBefore(majorVersion = 33)
     public int getHandleId() {
         return mHandleId;
     }
