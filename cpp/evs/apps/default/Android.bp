@@ -41,6 +41,7 @@ cc_binary {
 
     shared_libs: [
         "libbase",
+        "libbinder",
         "libbinder_ndk",
         "libcutils",
         "libutils",
@@ -63,6 +64,7 @@ cc_binary {
     static_libs: [
         "libmath",
         "libjsoncpp",
+        "libvhalclient",
     ],
 
     required: [
@@ -72,6 +74,8 @@ cc_binary {
     ],
 
     init_rc: ["evs_app.rc"],
+
+    defaults: ["vhalclient_defaults"],
 
     cflags: ["-DLOG_TAG=\"EvsApp\""] + [
         "-DGL_GLEXT_PROTOTYPES",
