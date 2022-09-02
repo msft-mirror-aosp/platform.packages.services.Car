@@ -48,11 +48,15 @@ cc_defaults {
 
     fuzz_config: {
         cc: [
+            "aae-engprod-fuzz@google.com",
             "changyeon@google.com",
-            "garysungang@google.com",
-            "guodonghu@google.com",
-            "smara@google.com",
-            "zhaomingyin@google.com",
+        ],
+        // Android > Automotive > Embedded > Test Bugs
+        componentid: 162915,
+        // aae-fuzz-bugs
+        hotlists: ["1986127"],
+        libfuzzer_options: [
+            "timeout=120",
         ],
     },
 }
@@ -71,6 +75,11 @@ cc_fuzz {
         "VirtualCameraFuzzer.cpp",
     ],
     defaults: ["evs_fuzz_default"],
+    fuzz_config: {
+        libfuzzer_options: [
+            "max_len=4096",
+        ],
+    },
 }
 
 cc_fuzz {

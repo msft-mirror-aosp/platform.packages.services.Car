@@ -22,6 +22,8 @@
     <string name="car_permission_desc_camera" msgid="917024932164501426">"Kufikia kamera ya gari lako."</string>
     <string name="car_permission_label_energy" msgid="7409144323527821558">"kufikia maelezo ya nishati ya gari"</string>
     <string name="car_permission_desc_energy" msgid="3392963810053235407">"Kufikia maelezo ya nishati ya gari lako."</string>
+    <string name="car_permission_label_control_car_energy" msgid="2788215385574313796">"Dhibiti mipangilio ya mfumo wa chaji wa gari la umeme"</string>
+    <string name="car_permission_desc_control_car_energy" msgid="8765015897869031807">"Dhibiti mipangilio ya mfumo wa chaji wa gari lako la umeme."</string>
     <string name="car_permission_label_adjust_range_remaining" msgid="839033553999920138">"kurekebisha umbali unaosalia wa kusafiri wa gari"</string>
     <string name="car_permission_desc_adjust_range_remaining" msgid="2369321650437370673">"Kurekebisha thamani inayosalia ya umbali wa kusafiri wa gari."</string>
     <string name="car_permission_label_hvac" msgid="1499454192558727843">"kufikia hali ya joto, hewa na kiyoyozi (hvac) katika gari"</string>
@@ -58,6 +60,8 @@
     <string name="car_permission_desc_car_display_in_cluster" msgid="2668300546822672927">"Ruhusu programu itangaze shughuli zinazoonyeshwa kwenye kikundi cha zana"</string>
     <string name="car_permission_car_cluster_control" msgid="1382247204230165674">"Kidhibiti cha kikundi cha zana"</string>
     <string name="car_permission_desc_car_cluster_control" msgid="9222776665281176031">"Kuanzisha programu katika kikundi cha data"</string>
+    <string name="car_permission_car_monitor_cluster_navigation_state" msgid="7025307242306902441">"Hali ya uelekezaji kwenye kikundi cha zana"</string>
+    <string name="car_permission_desc_car_monitor_cluster_navigation_state" msgid="8745047153878713339">"Sikiliza mabadiliko ya hali ya uelekezaji kwenye kikundi cha zana"</string>
     <string name="car_permission_label_bind_instrument_cluster_rendering" msgid="8627480897198377418">"Uwasilishaji wa Kikundi cha Zana"</string>
     <string name="car_permission_desc_bind_instrument_cluster_rendering" msgid="5073596870485006783">"Kupokea data ya kikundi cha zana"</string>
     <string name="car_permission_label_car_ux_restrictions_configuration" msgid="6801393970411049725">"Mipangilio ya Masharti ya UX"</string>
@@ -72,13 +76,6 @@
     <string name="car_permission_desc_control_car_occupant_awareness_system" msgid="7123482622084531911">"Huruhusu udhibiti wa kuanzisha na kusimamisha grafu ya utambuzi ya Mfumo wa Kutambua Waliomo"</string>
     <string name="car_permission_label_bind_input_service" msgid="6698489034024273750">"Huduma ya Kuweka Data ya Gari"</string>
     <string name="car_permission_desc_bind_input_service" msgid="1670323419931890170">"Kudhibiti matukio ya kuweka data"</string>
-    <string name="car_can_bus_failure" msgid="2334035748788283914">"Imeshindwa kuleta maelezo ya kebo CAN"</string>
-    <string name="car_can_bus_failure_desc" msgid="4125516222786484733">"Kebo ya CAN haifanyi kazi. Ondoa kisha urudishe tena kisanduku cha sehemu kuu na uzime kisha uwashe gari"</string>
-    <string name="activity_blocked_text" msgid="8088902789540147995">"Huwezi kutumia kipengele hiki wakati unaendesha gari"</string>
-    <string name="exit_button_message" msgid="8554690915924055685">"Ili uanzishe tena ukitumia vipengele salama vya programu, chagua <xliff:g id="EXIT_BUTTON">%s</xliff:g>."</string>
-    <string name="exit_button" msgid="5829638404777671253">"Rudi Nyuma"</string>
-    <string name="exit_button_close_application" msgid="8824289547809332460">"Funga programu"</string>
-    <string name="exit_button_go_back" msgid="3469083862100560326">"Nyuma"</string>
     <string name="car_permission_label_diag_read" msgid="7248894224877702604">"kusoma data ya uchunguzi"</string>
     <string name="car_permission_desc_diag_read" msgid="1121426363040966178">"Kusoma data ya uchunguzi kwenye gari."</string>
     <string name="car_permission_label_diag_clear" msgid="4783070510879698157">"kufuta data ya uchunguzi wa gari"</string>
@@ -93,6 +90,8 @@
     <string name="car_permission_desc_storage_monitoring" msgid="2075712271139671318">"Kudhibiti matumizi ya kifaa cha kuhifadhi"</string>
     <string name="car_permission_label_driving_state" msgid="7754624599537393650">"kusikiliza hali ya kuendesha gari"</string>
     <string name="car_permission_desc_driving_state" msgid="2684025262811635737">"Kusikiliza mabadiliko katika hali ya Kuendesha gari."</string>
+    <string name="car_permission_label_use_telemetry_service" msgid="948005838683758846">"Tumia Huduma ya Ukusanyaji wa Takwimu za Gari"</string>
+    <string name="car_permission_desc_use_telemetry_service" msgid="3633214312435700766">"Kusanya data ya hali ya mfumo wa gari."</string>
     <string name="car_permission_label_use_evs_service" msgid="1729276125209310607">"Tumia Huduma ya EVS ya Gari"</string>
     <string name="car_permission_desc_use_evs_service" msgid="2374737642186632816">"Jisajili kwa video za kutiririsha za EVS"</string>
     <string name="car_permission_label_request_evs_activity" msgid="3906551972883482883">"Kuomba shughuli za kukagua EVS"</string>
@@ -121,12 +120,14 @@
     <string name="car_permission_desc_control_car_seats" msgid="2407536601226470563">"Kudhibiti viti vya gari."</string>
     <string name="car_permission_label_car_info" msgid="4707513570676492315">"kufikia maelezo ya msingi ya gari"</string>
     <string name="car_permission_desc_car_info" msgid="2118081474543537653">"Kufikia maelezo ya msingi ya gari."</string>
+    <string name="car_permission_label_privileged_car_info" msgid="1304018073760220785">"fikia taarifa za gari zinazofikiwa na watu mahususi"</string>
+    <string name="car_permission_desc_privileged_car_info" msgid="2245117655328125350">"Fikia taarifa za gari zinazofikiwa na watu mahususi."</string>
     <string name="car_permission_label_vendor_permission_info" msgid="4471260460536888654">"kufikia maelezo ya ruhusa ya muuzaji wa gari"</string>
     <string name="car_permission_desc_vendor_permission_info" msgid="8152113853528488398">"Kufikia maelezo ya ruhusa ya muuzaji wa gari"</string>
     <string name="car_permission_label_car_exterior_lights" msgid="541304469604902110">"kusoma hali ya taa za nje ya gari"</string>
     <string name="car_permission_desc_car_exterior_lights" msgid="4038037584100849318">"Kufikia hali ya taa za nje ya gari."</string>
-    <string name="car_permission_label_car_unix_time" msgid="1670260167623542214">"fikia muda wa UNIX wa gari"</string>
-    <string name="car_permission_desc_car_unix_time" msgid="9104228524876348441">"Fikia muda wa UNIX wa gari."</string>
+    <string name="car_permission_label_car_epoch_time" msgid="6303397910662625112">"kufikia saa za kipindi cha gari"</string>
+    <string name="car_permission_desc_car_epoch_time" msgid="398907082895238558">"Kufikia saa za kipindi cha gari."</string>
     <string name="car_permission_label_encryption_binding_seed" msgid="4652180636501144684">"fikia mfululizo wa biti za kuunganisha usimbaji fiche wa gari"</string>
     <string name="car_permission_desc_encryption_binding_seed" msgid="6290944678417286024">"Fikia mfululizo wa biti za kuunganisha usimbaji fiche wa gari."</string>
     <string name="car_permission_label_control_car_exterior_lights" msgid="101357531386232141">"kusoma taa za nje ya gari"</string>
@@ -165,19 +166,14 @@
     <string name="car_permission_desc_read_car_power_policy" msgid="5430714179790601808">"Soma sera ya nishati ya gari."</string>
     <string name="car_permission_label_control_car_power_policy" msgid="6840069695926008330">"dhibiti sera ya nishati ya gari"</string>
     <string name="car_permission_desc_control_car_power_policy" msgid="8565782440893507028">"Dhibiti sera ya nishati ya gari."</string>
+    <string name="car_permission_label_adjust_shutdown_process" msgid="184826150481255557">"rekebisha mchakato wa kuzima"</string>
+    <string name="car_permission_desc_adjust_shutdown_process" msgid="5059212045073049971">"Rekebisha mchakato wa kuzima."</string>
     <string name="car_permission_label_template_renderer" msgid="3464887382919754850">"kutekeleza violezo"</string>
     <string name="car_permission_desc_template_renderer" msgid="6047233999260920122">"Kutekeleza violezo."</string>
+    <string name="car_permission_label_control_car_app_launch" msgid="214632389637409226">"kudhibiti programu za kufungua"</string>
+    <string name="car_permission_desc_control_car_app_launch" msgid="4245527461733374198">"Dhibiti programu za kufungua."</string>
+    <string name="car_can_bus_failure" msgid="2334035748788283914">"Imeshindwa kuleta maelezo ya kebo CAN"</string>
+    <string name="car_can_bus_failure_desc" msgid="4125516222786484733">"Kebo ya CAN haifanyi kazi. Ondoa kisha urudishe tena kisanduku cha sehemu kuu na uzime kisha uwashe gari"</string>
     <string name="trust_device_default_name" msgid="4213625926070261253">"Kifaa Changu"</string>
     <string name="default_guest_name" msgid="2912812799433131476">"Mgeni"</string>
-    <string name="importance_default" msgid="8587741629268312938">"Umuhimu wa kiwango cha chaguomsingi"</string>
-    <string name="importance_high" msgid="3141530792377745041">"Umuhimu wa kiwango cha juu"</string>
-    <string name="factory_reset_notification_title" msgid="2530056626309489398">"Unahitaji kurejesha mipangilio ya kiwandani"</string>
-    <string name="factory_reset_notification_text" msgid="6517642677900094724">"Data yote kwenye mfumo wa habari na burudani itafutwa. Baada ya kuweka upya, unaweza kuweka wasifu mpya."</string>
-    <string name="factory_reset_notification_button" msgid="5450535366202106371">"Zaidi"</string>
-    <string name="factory_reset_parked_title" msgid="258340498079453871">"Weka upya mfumo wa habari na burudani"</string>
-    <string name="factory_reset_parked_text" msgid="910347526834275166">"Mfumo wako umepokea ombi la kurejesha mipangilio iliyotoka nayo kiwandani na kufuta data yote. Unaweza kuuweka upya sasa au utawekwa upya gari litakapowashwa. Kisha unaweza kuweka wasifu mpya."</string>
-    <string name="factory_reset_now_button" msgid="1245040835119663310">"Weka Upya Sasa"</string>
-    <string name="factory_reset_later_button" msgid="2401829720674483843">"Weka Upya Baadaye"</string>
-    <string name="factory_reset_later_text" msgid="5896142140528784784">"Mfumo wa habari na burudani utawekwa upya gari litakapowashwa."</string>
-    <string name="factory_reset_driving_text" msgid="6702298505761254553">"Ni lazima uegeshe gari ili uanze kuweka upya."</string>
 </resources>
