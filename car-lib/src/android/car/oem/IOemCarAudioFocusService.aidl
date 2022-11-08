@@ -17,14 +17,9 @@
 package android.car.oem;
 
 import android.media.AudioFocusInfo;
-import android.car.oem.OemCarAudioFocusResult;
-import android.car.oem.OemCarAudioFocusEvaluationRequest;
 
 /** @hide */
 interface IOemCarAudioFocusService {
     void audioFocusChanged(in List<AudioFocusInfo> currentFocusHolders,
            in List<AudioFocusInfo> currentFocusLosers, int zoneId);
-
-    OemCarAudioFocusResult evaluateAudioFocusRequest(in
-           OemCarAudioFocusEvaluationRequest request);
 }

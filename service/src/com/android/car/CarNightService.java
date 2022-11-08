@@ -170,7 +170,7 @@ public class CarNightService implements CarServiceBase {
             Slogf.d(CarLog.TAG_SENSOR, "CAR dayNight init.");
         }
         synchronized (mLock) {
-            mCarPropertyService.registerListenerSafe(VehicleProperty.NIGHT_MODE, 0,
+            mCarPropertyService.registerListener(VehicleProperty.NIGHT_MODE, 0,
                     mICarPropertyEventListener);
             CarPropertyValue propertyValue = mCarPropertyService.getPropertySafe(
                     VehicleProperty.NIGHT_MODE, 0);

@@ -121,14 +121,14 @@ public final class BluetoothDeviceConnectionPolicy {
          */
         public void init() {
             if (mCarPropertyService != null) {
-                mCarPropertyService.registerListenerSafe(VehiclePropertyIds.SEAT_OCCUPANCY,
+                mCarPropertyService.registerListener(VehiclePropertyIds.SEAT_OCCUPANCY,
                         CarPropertyManager.SENSOR_RATE_ONCHANGE, mSeatOnOccupiedListener);
             }
         }
 
         public void release() {
             if (mCarPropertyService != null) {
-                mCarPropertyService.unregisterListenerSafe(VehiclePropertyIds.SEAT_OCCUPANCY,
+                mCarPropertyService.unregisterListener(VehiclePropertyIds.SEAT_OCCUPANCY,
                         mSeatOnOccupiedListener);
             }
         }

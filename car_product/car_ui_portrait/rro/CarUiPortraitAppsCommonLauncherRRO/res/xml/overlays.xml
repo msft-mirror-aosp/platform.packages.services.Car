@@ -23,6 +23,4 @@
     <item target="integer/control_bar_columns" value="@integer/control_bar_columns"/>
   
     <item target="bool/enable_control_bar_overflow" value="@bool/enable_control_bar_overflow"/>
-
-    <item target="drawable/ic_overflow_button" value="@drawable/ic_overflow_button"/>
 </overlay>

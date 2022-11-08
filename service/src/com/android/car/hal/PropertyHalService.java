@@ -298,6 +298,20 @@ public class PropertyHalService extends HalServiceBase {
         return MGR_PROP_ID_TO_HAL_PROP_ID.getKey(halPropId, halPropId);
     }
 
+    // Checks if the property exists in this VHAL before calling methods in IVehicle.
+    private boolean isPropertySupportedInVehicle(int halPropId) {
+        synchronized (mLock) {
+            return mHalPropIdToPropConfig.contains(halPropId);
+        }
+    }
+
+    private void assertPropertySupported(int halPropId) {
+        if (!isPropertySupportedInVehicle(halPropId)) {
+            throw new IllegalArgumentException("Vehicle property not supported: "
+                    + VehiclePropertyIds.toString(halToManagerPropId(halPropId)));
+        }
+    }
+
     // Generates a {@link AsyncGetSetRequest} according to a {@link AsyncGetRequestInfo}.
     //
     // Generates a new PropertyHalService Request ID. Associate the ID with the request and
@@ -390,6 +404,8 @@ public class PropertyHalService extends HalServiceBase {
     public CarPropertyValue getProperty(int mgrPropId, int areaId)
             throws IllegalArgumentException, ServiceSpecificException {
         int halPropId = managerToHalPropId(mgrPropId);
+        assertPropertySupported(halPropId);
+
         // CarPropertyManager catches and rethrows exception, no need to handle here.
         HalPropValue halPropValue = mVehicleHal.get(halPropId, areaId);
         if (halPropValue == null) {
@@ -406,7 +422,9 @@ public class PropertyHalService extends HalServiceBase {
      * Returns sample rate for the property
      */
     public float getSampleRate(int mgrPropId) {
-        return mVehicleHal.getSampleRate(managerToHalPropId(mgrPropId));
+        int halPropId = managerToHalPropId(mgrPropId);
+        assertPropertySupported(halPropId);
+        return mVehicleHal.getSampleRate(halPropId);
     }
 
     /**
@@ -465,6 +483,7 @@ public class PropertyHalService extends HalServiceBase {
     public void setProperty(CarPropertyValue carPropertyValue)
             throws IllegalArgumentException, ServiceSpecificException {
         int halPropId = managerToHalPropId(carPropertyValue.getPropertyId());
+        assertPropertySupported(halPropId);
         HalPropConfig halPropConfig;
         synchronized (mLock) {
             halPropConfig = mHalPropIdToPropConfig.get(halPropId);
@@ -476,21 +495,29 @@ public class PropertyHalService extends HalServiceBase {
     }
 
     /**
-     * Subscribe to this property at the specified update updateRateHz.
+     * Subscribe to this property at the specified update rate.
      *
      * @throws IllegalArgumentException thrown if property is not supported by VHAL.
      */
-    public void subscribeProperty(int mgrPropId, float updateRateHz)
-            throws IllegalArgumentException {
+    public void subscribeProperty(int mgrPropId, float updateRate) throws IllegalArgumentException {
         if (DBG) {
-            Slogf.d(TAG, "subscribeProperty propertyId: %s, updateRateHz=%f",
-                    VehiclePropertyIds.toString(mgrPropId), updateRateHz);
+            Slogf.d(TAG, "subscribeProperty propId: %s, rate=%f",
+                    VehiclePropertyIds.toString(mgrPropId), updateRate);
         }
         int halPropId = managerToHalPropId(mgrPropId);
+        assertPropertySupported(halPropId);
+        float rate = updateRate;
         synchronized (mLock) {
+            HalPropConfig halPropConfig = mHalPropIdToPropConfig.get(halPropId);
+            if (rate > halPropConfig.getMaxSampleRate()) {
+                rate = halPropConfig.getMaxSampleRate();
+            } else if (rate < halPropConfig.getMinSampleRate()) {
+                rate = halPropConfig.getMinSampleRate();
+            }
             mSubscribedHalPropIds.add(halPropId);
         }
-        mVehicleHal.subscribeProperty(this, halPropId, updateRateHz);
+
+        mVehicleHal.subscribeProperty(this, halPropId, rate);
     }
 
     /**
@@ -498,10 +525,10 @@ public class PropertyHalService extends HalServiceBase {
      */
     public void unsubscribeProperty(int mgrPropId) {
         if (DBG) {
-            Slogf.d(TAG, "unsubscribeProperty mgrPropId=%s",
-                    VehiclePropertyIds.toString(mgrPropId));
+            Slogf.d(TAG, "unsubscribeProperty propId=%s", VehiclePropertyIds.toString(mgrPropId));
         }
         int halPropId = managerToHalPropId(mgrPropId);
+        assertPropertySupported(halPropId);
         synchronized (mLock) {
             if (mSubscribedHalPropIds.contains(halPropId)) {
                 mSubscribedHalPropIds.remove(halPropId);
@@ -585,11 +612,7 @@ public class PropertyHalService extends HalServiceBase {
                     continue;
                 }
                 int halPropId = halPropValue.getPropId();
-                HalPropConfig halPropConfig;
-                synchronized (mLock) {
-                    halPropConfig = mHalPropIdToPropConfig.get(halPropId);
-                }
-                if (halPropConfig == null) {
+                if (!isPropertySupportedInVehicle(halPropId)) {
                     Slogf.w(TAG, "onHalEvents - received HalPropValue for unsupported property: %s",
                             VehiclePropertyIds.toString(halToManagerPropId(halPropId)));
                     continue;
@@ -603,6 +626,10 @@ public class PropertyHalService extends HalServiceBase {
                     continue;
                 }
                 int mgrPropId = halToManagerPropId(halPropId);
+                HalPropConfig halPropConfig;
+                synchronized (mLock) {
+                    halPropConfig = mHalPropIdToPropConfig.get(halPropId);
+                }
                 CarPropertyValue<?> carPropertyValue = halPropValue.toCarPropertyValue(mgrPropId,
                         halPropConfig);
                 CarPropertyEvent carPropertyEvent = new CarPropertyEvent(

@@ -107,7 +107,7 @@ public class CarVendorExtensionManagerTest extends MockedCarTestBase {
                     .build(),
             AidlVehiclePropConfigBuilder.newBuilder(CUSTOM_ZONED_FLOAT_PROP_ID)
                     .addAreaConfig(VehicleAreaSeat.ROW_1_LEFT | VehicleAreaSeat.ROW_1_RIGHT, 0, 0)
-                    .addAreaConfig(VehicleAreaSeat.ROW_2_LEFT, MIN_PROP_FLOAT, MAX_PROP_FLOAT)
+                    .addAreaConfig(VehicleAreaSeat.ROW_1_LEFT, MIN_PROP_FLOAT, MAX_PROP_FLOAT)
                     .addAreaConfig(VehicleAreaSeat.ROW_2_RIGHT, MIN_PROP_FLOAT, MAX_PROP_FLOAT)
                     .build(),
             AidlVehiclePropConfigBuilder.newBuilder(CUSTOM_BYTES_PROP_ID_1)
@@ -161,11 +161,11 @@ public class CarVendorExtensionManagerTest extends MockedCarTestBase {
         mManager.setProperty(
                 Float.class,
                 CUSTOM_ZONED_FLOAT_PROP_ID,
-                VehicleAreaSeat.ROW_2_RIGHT,
+                VehicleAreaSeat.ROW_1_RIGHT,
                 value);
 
         float actualValue = mManager.getProperty(
-                Float.class, CUSTOM_ZONED_FLOAT_PROP_ID, VehicleAreaSeat.ROW_2_RIGHT);
+                Float.class, CUSTOM_ZONED_FLOAT_PROP_ID, VehicleAreaSeat.ROW_1_RIGHT);
         assertEquals(value, actualValue, EPS);
     }
 
@@ -174,10 +174,9 @@ public class CarVendorExtensionManagerTest extends MockedCarTestBase {
         final byte[] expectedData = new byte[] { 1, 2, 3, 4, -1, 127, -127, 0 };
 
         // Write to CUSTOM_BYTES_PROP_ID_1 and read this value from CUSTOM_BYTES_PROP_ID_2
-        mManager.setProperty(
+        mManager.setGlobalProperty(
                 byte[].class,
                 CUSTOM_BYTES_PROP_ID_1,
-                VehicleAreaSeat.ROW_1_LEFT | VehicleAreaSeat.ROW_1_RIGHT,
                 expectedData);
 
         byte[] actualData = mManager.getGlobalProperty(
@@ -196,10 +195,9 @@ public class CarVendorExtensionManagerTest extends MockedCarTestBase {
             .nextBytes(expectedData);
 
         // Write to CUSTOM_BYTES_PROP_ID_1 and read this value from CUSTOM_BYTES_PROP_ID_2
-        mManager.setProperty(
+        mManager.setGlobalProperty(
                 byte[].class,
                 CUSTOM_BYTES_PROP_ID_1,
-                VehicleAreaSeat.ROW_1_LEFT | VehicleAreaSeat.ROW_1_RIGHT,
                 expectedData);
 
         byte[] actualData = mManager.getGlobalProperty(

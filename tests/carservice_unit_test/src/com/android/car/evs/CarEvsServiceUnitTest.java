@@ -16,14 +16,25 @@
 
 package com.android.car.evs;
 
+import static android.car.hardware.property.CarPropertyEvent.PROPERTY_EVENT_PROPERTY_CHANGE;
+import static android.car.hardware.property.CarPropertyEvent.PROPERTY_EVENT_ERROR;
+import static android.car.evs.CarEvsManager.ERROR_BUSY;
 import static android.car.evs.CarEvsManager.ERROR_NONE;
 import static android.car.evs.CarEvsManager.ERROR_UNAVAILABLE;
+import static android.car.evs.CarEvsManager.SERVICE_STATE_ACTIVE;
+import static android.car.evs.CarEvsManager.SERVICE_STATE_INACTIVE;
+import static android.car.evs.CarEvsManager.SERVICE_STATE_REQUESTED;
+import static android.car.evs.CarEvsManager.SERVICE_STATE_UNAVAILABLE;
 import static android.car.evs.CarEvsManager.STREAM_EVENT_STREAM_STOPPED;
-import static android.car.hardware.property.CarPropertyEvent.PROPERTY_EVENT_ERROR;
-import static android.car.hardware.property.CarPropertyEvent.PROPERTY_EVENT_PROPERTY_CHANGE;
+
+import static android.car.test.mocks.AndroidMockitoHelper.mockAmGetCurrentUser;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetAllUsers;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserHandles;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserRunning;
 
 import static com.android.car.CarLog.TAG_EVS;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 
@@ -31,28 +42,43 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.AdditionalMatchers.or;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyFloat;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.car.hardware.CarPropertyValue;
+import android.car.hardware.property.CarPropertyEvent;
+import android.car.hardware.property.ICarPropertyEventListener;
 import android.car.evs.CarEvsBufferDescriptor;
 import android.car.evs.CarEvsManager;
+import android.car.evs.CarEvsManager.CarEvsError;
+import android.car.evs.CarEvsManager.CarEvsServiceState;
+import android.car.evs.CarEvsManager.CarEvsServiceType;
 import android.car.evs.CarEvsManager.CarEvsStreamEvent;
 import android.car.evs.CarEvsStatus;
 import android.car.evs.ICarEvsStatusListener;
 import android.car.evs.ICarEvsStreamCallback;
-import android.car.hardware.CarPropertyValue;
-import android.car.hardware.property.CarPropertyEvent;
-import android.car.hardware.property.ICarPropertyEventListener;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.hardware.HardwareBuffer;
@@ -61,15 +87,33 @@ import android.hardware.automotive.vehicle.VehicleGear;
 import android.hardware.automotive.vehicle.VehicleProperty;
 import android.hardware.display.DisplayManager;
 import android.os.Binder;
+import android.os.FileUtils;
 import android.os.IBinder;
+import android.os.Process;
+import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.os.UserHandle;
+import android.os.UserManager;
+import android.util.ArrayMap;
+import android.util.ArraySet;
 import android.util.Log;
+import android.util.SparseArray;
+import android.util.StatsEvent;
+import android.view.Display;
 
 import com.android.car.BuiltinPackageDependency;
+import com.android.car.CarLocalServices;
 import com.android.car.CarPropertyService;
 import com.android.car.CarServiceUtils;
+import com.android.car.admin.NotificationHelper;
+import com.android.car.evs.CarEvsService;
 import com.android.car.hal.EvsHalService;
+import com.android.car.internal.evs.EvsHalWrapper;
+import com.android.car.evs.EvsHalWrapperImpl;
+import com.android.car.systeminterface.SystemInterface;
+
+import com.google.common.truth.Correspondence;
 
 import org.junit.After;
 import org.junit.Before;
@@ -80,8 +124,24 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 /**
  * <p>This class contains unit tests for the {@link CarEvsService}.
@@ -161,9 +221,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         doReturn(mMockEvsHalWrapper).when(() -> CarEvsService.createHalWrapper(any(), any()));
 
         // Get the property listener
-        when(mMockCarPropertyService
-                .registerListenerSafe(anyInt(), anyFloat(),
-                        mGearSelectionListenerCaptor.capture())).thenReturn(true);
+        doNothing().when(mMockCarPropertyService)
+                .registerListener(anyInt(), anyFloat(), mGearSelectionListenerCaptor.capture());
 
         mCarEvsService = new CarEvsService(mMockContext, mMockBuiltinPackageContext,
                         mMockEvsHalService, mMockCarPropertyService);
@@ -219,11 +278,11 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.init();
         verify(mMockEvsHalWrapper, times(3)).init();
 
-        when(mMockCarPropertyService.getPropertySafe(anyInt(), anyInt())).thenReturn(null);
+        when(mMockCarPropertyService.getProperty(anyInt(), anyInt())).thenReturn(null);
         mCarEvsService.init();
         verify(mMockEvsHalWrapper, times(4)).init();
 
-        when(mMockCarPropertyService.getPropertySafe(anyInt(), anyInt()))
+        when(mMockCarPropertyService.getProperty(anyInt(), anyInt()))
                 .thenReturn(GEAR_SELECTION_PROPERTY_NEUTRAL);
         mCarEvsService.init();
         verify(mMockEvsHalWrapper, times(5)).init();
@@ -236,7 +295,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
 
         mCarEvsService.setToUseGearSelection(/* useGearSelection= */ true);
         mCarEvsService.release();
-        verify(mMockCarPropertyService).unregisterListenerSafe(anyInt(), any());
+        verify(mMockCarPropertyService).unregisterListener(anyInt(), any());
     }
 
     @Test
@@ -510,7 +569,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         CarPropertyEvent event = new CarPropertyEvent(PROPERTY_EVENT_PROPERTY_CHANGE,
                                                   GEAR_SELECTION_PROPERTY_REVERSE);
         when(mMockEvsHalService.isEvsServiceRequestSupported()).thenReturn(false);
-        when(mMockCarPropertyService.getPropertySafe(anyInt(), anyInt()))
+        when(mMockCarPropertyService.getProperty(anyInt(), anyInt()))
                 .thenReturn(GEAR_SELECTION_PROPERTY_REVERSE);
 
         mCarEvsService.setToUseGearSelection(/* useGearSelection= */ true);
@@ -524,7 +583,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
     @Test
     public void testEmptyCarPropertyEvent() throws Exception {
         when(mMockEvsHalService.isEvsServiceRequestSupported()).thenReturn(false);
-        when(mMockCarPropertyService.getPropertySafe(anyInt(), anyInt()))
+        when(mMockCarPropertyService.getProperty(anyInt(), anyInt()))
                 .thenReturn(GEAR_SELECTION_PROPERTY_REVERSE);
 
         mCarEvsService.setToUseGearSelection(/* useGearSelection= */ true);
@@ -540,7 +599,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         CarPropertyEvent event = new CarPropertyEvent(PROPERTY_EVENT_ERROR,
                                                   GEAR_SELECTION_PROPERTY_REVERSE);
         when(mMockEvsHalService.isEvsServiceRequestSupported()).thenReturn(false);
-        when(mMockCarPropertyService.getPropertySafe(anyInt(), anyInt()))
+        when(mMockCarPropertyService.getProperty(anyInt(), anyInt()))
                 .thenReturn(GEAR_SELECTION_PROPERTY_REVERSE);
 
         mCarEvsService.setToUseGearSelection(/* useGearSelection= */ true);
@@ -557,7 +616,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
                                                       CURRENT_GEAR_PROPERTY_REVERSE);
         mCarEvsService.setServiceState(CarEvsManager.SERVICE_STATE_INACTIVE);
         when(mMockEvsHalService.isEvsServiceRequestSupported()).thenReturn(false);
-        when(mMockCarPropertyService.getPropertySafe(anyInt(), anyInt()))
+        when(mMockCarPropertyService.getProperty(anyInt(), anyInt()))
                 .thenReturn(GEAR_SELECTION_PROPERTY_REVERSE);
 
         mCarEvsService.setToUseGearSelection(/* useGearSelection= */ true);

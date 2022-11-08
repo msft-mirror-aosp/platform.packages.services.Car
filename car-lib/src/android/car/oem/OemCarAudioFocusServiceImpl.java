@@ -49,15 +49,6 @@ final class OemCarAudioFocusServiceImpl extends IOemCarAudioFocusService.Stub
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    @NonNull
-    public OemCarAudioFocusResult evaluateAudioFocusRequest(
-            @NonNull OemCarAudioFocusEvaluationRequest request) {
-        return mOemCarAudioFocusService.evaluateAudioFocusRequest(request);
-    }
-
-    @Override
     public void init() {
         mOemCarAudioFocusService.init();
     }

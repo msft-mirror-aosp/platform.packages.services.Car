@@ -64,7 +64,6 @@ import static com.android.car.audio.GainBuilder.MAX_GAIN;
 import static com.android.car.audio.GainBuilder.MIN_GAIN;
 import static com.android.car.audio.GainBuilder.STEP_SIZE;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -74,7 +73,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.car.Car;
@@ -113,7 +112,6 @@ import com.android.car.CarOccupantZoneService;
 import com.android.car.R;
 import com.android.car.audio.hal.AudioControlFactory;
 import com.android.car.audio.hal.AudioControlWrapper;
-import com.android.car.audio.hal.AudioControlWrapper.AudioControlDeathRecipient;
 import com.android.car.audio.hal.AudioControlWrapperAidl;
 import com.android.car.test.utils.TemporaryFile;
 
@@ -1235,34 +1233,6 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         assertWithMessage("Secondary user ID config changed")
                 .that(mCarAudioService.getUserIdForZone(SECONDARY_ZONE_ID))
                 .isEqualTo(TEST_USER_ID_SECONDARY);
-    }
-
-    @Test
-    public void serviceDied_registersAudioGainCallback() {
-        mCarAudioService.init();
-        ArgumentCaptor<AudioControlDeathRecipient> captor =
-                ArgumentCaptor.forClass(AudioControlDeathRecipient.class);
-        verify(mAudioControlWrapperAidl).linkToDeath(captor.capture());
-        AudioControlDeathRecipient runnable = captor.getValue();
-        reset(mAudioControlWrapperAidl);
-
-        runnable.serviceDied();
-
-        verify(mAudioControlWrapperAidl).registerAudioGainCallback(any());
-    }
-
-    @Test
-    public void serviceDied_registersFocusListener() {
-        mCarAudioService.init();
-        ArgumentCaptor<AudioControlDeathRecipient> captor =
-                ArgumentCaptor.forClass(AudioControlDeathRecipient.class);
-        verify(mAudioControlWrapperAidl).linkToDeath(captor.capture());
-        AudioControlDeathRecipient runnable = captor.getValue();
-        reset(mAudioControlWrapperAidl);
-
-        runnable.serviceDied();
-
-        verify(mAudioControlWrapperAidl).registerFocusListener(any());
     }
 
     private ICarOccupantZoneCallback getOccupantZoneCallback() {

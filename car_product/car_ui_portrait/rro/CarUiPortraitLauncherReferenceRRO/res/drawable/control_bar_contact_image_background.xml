@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <!--
   ~ Copyright (C) 2022 The Android Open Source Project
   ~
@@ -13,12 +14,8 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="@color/car_secondary_container"
-        android:pathData="M12,15.375 L6,9.375 7.4,7.975 12,12.575 16.6,7.975 18,9.375Z"/>
-</vector>
+
+<shape
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+</shape>
