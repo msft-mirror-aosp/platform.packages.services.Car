@@ -22,10 +22,6 @@ import android.car.annotation.ApiRequirements;
 import android.media.AudioFocusInfo;
 import android.os.Parcelable;
 
-import com.android.internal.annotations.VisibleForTesting;
-
-import java.util.Objects;
-
 /**
  * Class to encapsulate the focus information of evaluation from a car oem audio focus service
  *
@@ -47,8 +43,7 @@ public final class AudioFocusEntry implements Parcelable {
             int audioContextId,
             int audioVolumeGroupId,
             int focusResult) {
-        mAudioFocusInfo = Objects.requireNonNull(audioFocusInfo,
-                "Audio focus info can not be null");
+        mAudioFocusInfo = audioFocusInfo;
         mAudioContextId = audioContextId;
         mAudioVolumeGroupId = audioVolumeGroupId;
         mAudioFocusResult = focusResult;
@@ -118,7 +113,7 @@ public final class AudioFocusEntry implements Parcelable {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_2,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
-        mAudioFocusInfo.writeToParcel(dest, flags);
+        dest.writeTypedObject(mAudioFocusInfo, flags);
         dest.writeInt(mAudioContextId);
         dest.writeInt(mAudioVolumeGroupId);
         dest.writeInt(mAudioFocusResult);
@@ -133,9 +128,8 @@ public final class AudioFocusEntry implements Parcelable {
 
     /** @hide */
     @SuppressWarnings({"unchecked", "RedundantCast"})
-    @VisibleForTesting
-    public AudioFocusEntry(@NonNull android.os.Parcel in) {
-        AudioFocusInfo audioFocusInfo = AudioFocusInfo.CREATOR.createFromParcel(in);
+    private AudioFocusEntry(@NonNull android.os.Parcel in) {
+        AudioFocusInfo audioFocusInfo = in.readTypedObject(AudioFocusInfo.CREATOR);
         int audioContextId = in.readInt();
         int audioVolumeGroupId = in.readInt();
         int focusResult = in.readInt();
@@ -162,34 +156,6 @@ public final class AudioFocusEntry implements Parcelable {
         }
     };
 
-    @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_2,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-
-        if (!(o instanceof AudioFocusEntry)) {
-            return false;
-        }
-
-        AudioFocusEntry that = (AudioFocusEntry) o;
-
-        return mAudioContextId == that.mAudioContextId
-                && mAudioFocusResult == that.mAudioFocusResult
-                && mAudioVolumeGroupId == that.mAudioVolumeGroupId
-                && mAudioFocusInfo.equals(that.mAudioFocusInfo);
-    }
-
-    @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_2,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    public int hashCode() {
-        return Objects.hash(mAudioFocusInfo.hashCode(), mAudioContextId, mAudioFocusResult,
-                mAudioVolumeGroupId);
-    }
-
     /**
      * A builder for {@link AudioFocusEntry}
      */
@@ -205,19 +171,13 @@ public final class AudioFocusEntry implements Parcelable {
 
         private long mBuilderFieldsSet = 0L;
 
-        public Builder(@NonNull AudioFocusEntry entry) {
-            this(Objects.requireNonNull(entry, "Audio focus entry can not be null")
-                            .mAudioFocusInfo, entry.mAudioContextId, entry.mAudioVolumeGroupId,
-                    entry.mAudioFocusResult);
-        }
 
         public Builder(
                 @NonNull AudioFocusInfo audioFocusInfo,
                 int audioContextId,
                 int audioVolumeGroupId,
                 int focusResult) {
-            mAudioFocusInfo = Objects.requireNonNull(audioFocusInfo,
-                    "Audio focus info can not be null");
+            mAudioFocusInfo = audioFocusInfo;
             mAudioContextId = audioContextId;
             mAudioVolumeGroupId = audioVolumeGroupId;
             mAudioFocusResult = focusResult;
@@ -226,11 +186,10 @@ public final class AudioFocusEntry implements Parcelable {
         /** see {@link AudioFocusEntry#getAudioFocusInfo()} */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_2,
                 minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-        public @NonNull Builder setAudioFocusInfo(@NonNull AudioFocusInfo audioFocusInfo) {
+        public @NonNull Builder setAudioFocusInfo(@NonNull AudioFocusInfo value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
-            mAudioFocusInfo = Objects.requireNonNull(audioFocusInfo,
-                    "Audio focus info can not be null");
+            mAudioFocusInfo = value;
             return this;
         }
 

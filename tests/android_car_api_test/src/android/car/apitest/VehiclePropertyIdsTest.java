@@ -49,8 +49,7 @@ public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
                     "HW_ROTARY_INPUT",
                     "SUPPORT_CUSTOMIZE_VENDOR_PERMISSION",
                     "SUPPORTED_PROPERTY_IDS",
-                    "STORAGE_ENCRYPTION_BINDING_SEED",
-                    "SHUTDOWN_REQUEST");
+                    "STORAGE_ENCRYPTION_BINDING_SEED");
 
     // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
     @Override

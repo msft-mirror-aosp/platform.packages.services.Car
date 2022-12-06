@@ -20,7 +20,8 @@ import android.car.CarVersion;
 import android.car.oem.OemCarAudioFocusService;
 import android.car.oem.OemCarService;
 import android.util.Log;
-import android.util.Slog;
+
+import com.android.internal.annotations.GuardedBy;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -28,64 +29,60 @@ import java.io.PrintWriter;
 public final class OemCarServiceImpl extends OemCarService {
 
     private static final String TAG = OemCarServiceImpl.class.getSimpleName();
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
     private static final CarVersion SUPPORTED_CAR_VERSION =
             CarVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 
+    private final Object mLock = new Object();
 
-    private final OemCarAudioFocusServiceImpl mOemCarAudioFocusServiceImpl =
-            new OemCarAudioFocusServiceImpl();
+    @GuardedBy("mLock")
+    private OemCarAudioFocusServiceImpl mOemCarAudioFocusServiceImpl;
 
     @Override
     public void onCreate() {
-        if (DEBUG) {
-            Slog.d(TAG, "onCreate");
-        }
+        Log.d(TAG, "onCreate");
 
+        // Initialize all subcomponents.
+        synchronized (mLock) {
+            mOemCarAudioFocusServiceImpl = new OemCarAudioFocusServiceImpl();
+        }
         super.onCreate();
     }
 
 
     @Override
     public void onDestroy() {
-        if (DEBUG) {
-            Slog.d(TAG, "onDestroy");
-        }
+        Log.d(TAG, "onDestroy");
         // Releases resource from subcomponents.
+        synchronized (mLock) {
+            mOemCarAudioFocusServiceImpl = null;
+        }
         super.onDestroy();
     }
 
     @Override
     public void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
-        if (DEBUG) {
-            Slog.d(TAG, "dump");
-        }
+        Log.d(TAG, "dump");
         writer.println("Dump OemCarServiceImpl");
-        writer.printf("\tSUPPORTED_CAR_VERSION: %s", SUPPORTED_CAR_VERSION);
-        mOemCarAudioFocusServiceImpl.dump(writer, args);
+        writer.println("SUPPORTED_CAR_VERSION:" + SUPPORTED_CAR_VERSION);
+
     }
 
     @Override
     public OemCarAudioFocusService getOemAudioFocusService() {
-        if (DEBUG) {
-            Slog.d(TAG, "getOemAudioFocusService returned " + mOemCarAudioFocusServiceImpl);
+        synchronized (mLock) {
+            Log.d(TAG, "getOemAudioFocusService returned " + mOemCarAudioFocusServiceImpl);
+            return mOemCarAudioFocusServiceImpl;
         }
-        return mOemCarAudioFocusServiceImpl;
     }
 
     @Override
     public void onCarServiceReady() {
-        if (DEBUG) {
-            Slog.d(TAG, "onCarServiceReady");
-        }
-        mOemCarAudioFocusServiceImpl.onCarServiceReady();
+        Log.d(TAG, "onCarServiceReady");
     }
 
     @Override
     public CarVersion getSupportedCarVersion() {
-        if (DEBUG) {
-            Slog.d(TAG, "OemCarServiceImpl getSupportedCarVersion called");
-        }
+        Log.d(TAG, "OemCarServiceImpl getSupportedCarVersion called");
         return SUPPORTED_CAR_VERSION;
     }
 

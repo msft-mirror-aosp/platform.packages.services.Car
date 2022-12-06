@@ -15,7 +15,6 @@
  */
 package com.android.car.audio;
 
-import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.media.AudioAttributes.USAGE_ANNOUNCEMENT;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE;
 import static android.media.AudioAttributes.USAGE_ASSISTANT;
@@ -56,10 +55,6 @@ import android.os.Build;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.car.CarLocalServices;
-import com.android.car.oem.CarOemProxyService;
-
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -76,8 +71,6 @@ public class CarAudioFocusUnitTest {
     private static final String FIRST_CLIENT_ID = "first-client-id";
     private static final String SECOND_CLIENT_ID = "second-client-id";
     private static final String THIRD_CLIENT_ID = "third-client-id";
-    private static final String CALL_CLIENT_ID = "AudioFocus_For_Phone_Ring_And_Calls";
-
     private static final String PACKAGE_NAME = "com.android.car.audio";
     private static final int AUDIOFOCUS_FLAG = 0;
 
@@ -98,29 +91,20 @@ public class CarAudioFocusUnitTest {
     private ContentObserverFactory mMockContentObserverFactory;
     @Mock
     private CarVolumeInfoWrapper mMockCarVolumeInfoWrapper;
-    @Mock
-    private CarOemProxyService mMockCarOemProxyService;
 
     private FocusInteraction mFocusInteraction;
+
 
     @Before
     public void setUp() {
         mFocusInteraction = new FocusInteraction(mCarAudioSettings, mMockContentObserverFactory);
-        CarLocalServices.removeServiceForTest(CarOemProxyService.class);
-        CarLocalServices.addService(CarOemProxyService.class, mMockCarOemProxyService);
-    }
-
-    @After
-    public void tearDown() {
-        CarLocalServices.removeServiceForTest(CarOemProxyService.class);
     }
 
     @Test
     public void constructor_withNullCarAudioContext_fails() {
         NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
             new CarAudioFocus(mMockAudioManager, mMockPackageManager,
-                    mFocusInteraction, /* carAudioContext= */ null, mMockCarVolumeInfoWrapper,
-                    PRIMARY_AUDIO_ZONE);
+                    mFocusInteraction, /* carAudioContext= */ null, mMockCarVolumeInfoWrapper);
         });
 
         assertWithMessage("Constructor with null car audio context exception")
@@ -130,9 +114,8 @@ public class CarAudioFocusUnitTest {
     @Test
     public void constructor_withNullAudioManager_fails() {
         NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
-            new CarAudioFocus(/* audioManager= */ null, mMockPackageManager,
-                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper,
-                    PRIMARY_AUDIO_ZONE);
+            new CarAudioFocus(null, mMockPackageManager,
+                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper);
         });
 
         assertWithMessage("Constructor with null audio manager exception")
@@ -142,9 +125,8 @@ public class CarAudioFocusUnitTest {
     @Test
     public void constructor_withNullPackageManager_fails() {
         NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
-            new CarAudioFocus(mMockAudioManager, /* packageManager= */ null,
-                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper,
-                    PRIMARY_AUDIO_ZONE);
+            new CarAudioFocus(mMockAudioManager, null,
+                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper);
         });
 
         assertWithMessage("Constructor with null package manager exception")
@@ -155,9 +137,7 @@ public class CarAudioFocusUnitTest {
     public void constructor_withNullFocusInteractions_fails() {
         NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
             new CarAudioFocus(mMockAudioManager, mMockPackageManager,
-                    /* focusInteractions= */ null, TEST_CAR_AUDIO_CONTEXT,
-                    mMockCarVolumeInfoWrapper,
-                    PRIMARY_AUDIO_ZONE);
+                    null, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper);
         });
 
         assertWithMessage("Constructor with null focus interaction exception")
@@ -168,8 +148,7 @@ public class CarAudioFocusUnitTest {
     public void constructor_withNullVolumeInfoWrapper_fails() {
         NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
             new CarAudioFocus(mMockAudioManager, mMockPackageManager,
-                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, /* carVolumeInfo= */ null,
-                    PRIMARY_AUDIO_ZONE);
+                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, /* carVolumeInfo= */ null);
         });
 
         assertWithMessage("Constructor with null focus volume info wrapper exception")
@@ -196,24 +175,6 @@ public class CarAudioFocusUnitTest {
         carAudioFocus.onAudioFocusRequest(sameClientAndUsageFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
 
         verify(mMockAudioManager, times(2)).setFocusRequestResult(sameClientAndUsageFocusInfo,
-                AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
-    }
-
-    @Test
-    public void onAudioFocusRequest_withSameCallClientIdDifferentUsage_requestGranted() {
-        CarAudioFocus carAudioFocus = getCarAudioFocus();
-        AudioFocusInfo audioFocusInfo = getInfo(USAGE_VOICE_COMMUNICATION, CALL_CLIENT_ID,
-                AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, /* acceptsDelayedFocus= */ false);
-        carAudioFocus.onAudioFocusRequest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
-
-        AudioFocusInfo sameClientAndUsageFocusInfo = getInfo(USAGE_NOTIFICATION_RINGTONE,
-                CALL_CLIENT_ID, AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
-                /* acceptsDelayedFocus= */ false);
-        carAudioFocus.onAudioFocusRequest(sameClientAndUsageFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
-
-        verify(mMockAudioManager, times(1)).setFocusRequestResult(audioFocusInfo,
-                AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
-        verify(mMockAudioManager, times(1)).setFocusRequestResult(sameClientAndUsageFocusInfo,
                 AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
     }
 
@@ -1278,8 +1239,7 @@ public class CarAudioFocusUnitTest {
 
     private CarAudioFocus getCarAudioFocus() {
         CarAudioFocus carAudioFocus = new CarAudioFocus(mMockAudioManager, mMockPackageManager,
-                mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper,
-                PRIMARY_AUDIO_ZONE);
+                mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper);
         carAudioFocus.setOwningPolicy(mAudioPolicy);
         return carAudioFocus;
     }
