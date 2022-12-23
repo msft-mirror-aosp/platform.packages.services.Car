@@ -68,14 +68,14 @@ public final class UserAssignmentTest extends BaseCarUserServiceTestCase {
                 mPerUserVisibleUserAllocationSetting).isEqualTo(expectedSetting);
         // OccupantZoneHelper, display id is same with zone id
         int displayId = mZoneHelper.zoneRearLeft.zoneId;
-        verify(mICarServiceHelper).startUserInBackgroundVisibleOnDisplay(userId, displayId);
+        verify(mICarServiceHelper).startUserInBackgroundOnSecondaryDisplay(userId, displayId);
     }
 
     @Before
     public void setupCommon() throws Exception {
-        when(mICarServiceHelper.startUserInBackgroundVisibleOnDisplay(anyInt(), anyInt()))
-                .thenReturn(true);
-        doReturn(true).when(() -> UserManagerHelper.isVisibleBackgroundUsersSupported(any()));
+        when(mICarServiceHelper.startUserInBackgroundOnSecondaryDisplay(anyInt(),
+                anyInt())).thenReturn(true);
+        doReturn(true).when(() -> UserManagerHelper.isUsersOnSecondaryDisplaysSupported(any()));
     }
 
     @After

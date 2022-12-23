@@ -1386,13 +1386,6 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     /**
-     * Notifies that user activity has happened.
-     */
-    public void notifyUserActivity(int displayId, long eventTime) {
-        // TODO(b/260103061): Implement this method.
-    }
-
-    /**
      * Sends display brightness to VHAL.
      * @param brightness value 0-100%
      */
@@ -1573,13 +1566,6 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     public void removePowerPolicyListener(ICarPowerPolicyListener listener) {
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_READ_CAR_POWER_POLICY);
         mPowerPolicyListeners.unregister(listener);
-    }
-
-    /**
-     * @see android.car.hardware.power.CarPowerManager#setDisplayPowerState
-     */
-    public void setDisplayPowerState(int displayId, boolean enable) {
-        // TODO(b/260103061): Implement this method.
     }
 
     void notifySilentModeChange(boolean silent) {

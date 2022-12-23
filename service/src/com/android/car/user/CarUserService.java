@@ -2449,7 +2449,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             Slogf.i(TAG, "startOtherUsers(): start user %d for display %d", userId,
                     displayId);
             boolean userStarted =
-                    CarServiceHelperWrapper.getInstance().startUserInBackgroundVisibleOnDisplay(
+                    CarServiceHelperWrapper.getInstance().startUserInBackgroundOnSecondaryDisplay(
                             userId, displayId);
             if (!userStarted) {
                 Slogf.w(TAG, "startOtherUsers(): Cannot start and assign user %d to display %d",

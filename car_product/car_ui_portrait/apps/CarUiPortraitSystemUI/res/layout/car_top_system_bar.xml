@@ -51,7 +51,7 @@
             android:paddingEnd="@dimen/car_padding_2"
             android:elevation="@dimen/clock_elevation"
             android:singleLine="true"
-            style="@style/TextAppearance.TopSystemBar.Text"
+            android:textAppearance="@style/TextAppearance.TopSystemBar.Text"
             systemui:amPmStyle="normal"/>
 
         <LinearLayout
