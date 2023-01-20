@@ -12,8 +12,6 @@ android.car ApiVersion T readFromParcel(Parcel source, ApiVersionFactory<T> fact
 android.car Car String PROPERTY_EMULATED_PLATFORM_VERSION_MAJOR
 android.car Car String PROPERTY_EMULATED_PLATFORM_VERSION_MINOR
 android.car Car String CAR_SERVICE_BINDER_SERVICE_NAME
-android.car Car String CAR_OCCUPANT_CONNECTION_SERVICE
-android.car Car String CAR_REMOTE_DEVICE_SERVICE
 android.car Car String EXPERIMENTAL_CAR_USER_SERVICE
 android.car Car String CAR_INSTRUMENT_CLUSTER_SERVICE
 android.car Car String CLUSTER_HOME_SERVICE
@@ -76,7 +74,6 @@ android.car CarProjectionManager int PROJECTION_AP_FAILED
 android.car CarProjectionManager void regsiterProjectionListener(CarProjectionListener listener, int voiceSearchFilter)
 android.car CarProjectionManager void unregsiterProjectionListener()
 android.car CarProjectionManager void onCarDisconnected()
-android.car CarRemoteDeviceManager void onCarDisconnected()
 android.car VehicleAreaSeat int SIDE_LEFT
 android.car VehicleAreaSeat int SIDE_CENTER
 android.car VehicleAreaSeat int SIDE_RIGHT
@@ -84,6 +81,13 @@ android.car VehicleAreaSeat int fromRowAndSide(int rowNumber, int side)
 android.car VehicleHvacFanDirection int FACE
 android.car VehicleHvacFanDirection int FLOOR
 android.car VehicleHvacFanDirection int DEFROST
+android.car VehicleLightState int OFF
+android.car VehicleLightState int ON
+android.car VehicleLightState int DAYTIME_RUNNING
+android.car VehicleLightSwitch int OFF
+android.car VehicleLightSwitch int ON
+android.car VehicleLightSwitch int DAYTIME_RUNNING
+android.car VehicleLightSwitch int AUTOMATIC
 android.car VehicleOilLevel int CRITICALLY_LOW
 android.car VehicleOilLevel int LOW
 android.car VehicleOilLevel int NORMAL
@@ -148,12 +152,10 @@ android.car.app CarActivityManager int ERROR_CODE_ACTIVITY_NOT_FOUND
 android.car.app CarActivityManager void onCarDisconnected()
 android.car.app CarActivityManager boolean registerTaskMonitor()
 android.car.app CarActivityManager void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo)
-android.car.app CarActivityManager void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo, SurfaceControl leash)
 android.car.app CarActivityManager void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo)
 android.car.app CarActivityManager void onTaskInfoChanged(ActivityManager.RunningTaskInfo taskInfo)
 android.car.app CarActivityManager void unregisterTaskMonitor()
 android.car.app CarActivityManager List<ActivityManager.RunningTaskInfo> getVisibleTasks()
-android.car.app CarActivityManager IBinder createMirroringToken(int taskId)
 android.car.cluster CarInstrumentClusterManager void onCarDisconnected()
 android.car.cluster ClusterHomeManager int UI_TYPE_CLUSTER_NONE
 android.car.cluster ClusterHomeManager int UI_TYPE_CLUSTER_HOME
@@ -242,11 +244,7 @@ android.car.drivingstate CarUxRestrictionsConfiguration boolean hasSameParameter
 android.car.drivingstate CarUxRestrictionsConfiguration void dump(PrintWriter writer)
 android.car.drivingstate CarUxRestrictionsConfiguration.Builder Map<String,RestrictionModeContainer> mRestrictionModes
 android.car.drivingstate CarUxRestrictionsConfiguration.Builder int validatePort(int port)
-android.car.drivingstate CarUxRestrictionsConfiguration.Builder int validateOccupantZoneId(int zoneId)
-android.car.drivingstate CarUxRestrictionsConfiguration.Builder int validateDisplayType(int displayType)
 android.car.drivingstate CarUxRestrictionsConfiguration.Builder Builder setPhysicalPort(int port)
-android.car.drivingstate CarUxRestrictionsConfiguration.Builder Builder setOccupantZoneId(int occupantZoneId)
-android.car.drivingstate CarUxRestrictionsConfiguration.Builder Builder setDisplayType(int displayType)
 android.car.drivingstate CarUxRestrictionsConfiguration.Builder Builder setUxRestrictions(int drivingState, boolean requiresOptimization, int restrictions)
 android.car.drivingstate CarUxRestrictionsConfiguration.Builder Builder setUxRestrictions(int drivingState, SpeedRange speedRange, boolean requiresOptimization, int restrictions)
 android.car.drivingstate CarUxRestrictionsConfiguration.Builder Builder setUxRestrictions(int drivingState, DrivingStateRestrictions drivingStateRestrictions)
@@ -267,6 +265,12 @@ android.car.hardware CarPropertyConfig int getFirstAndOnlyAreaId()
 android.car.hardware CarPropertyConfig boolean hasArea(int areaId)
 android.car.hardware CarPropertyConfig String toString()
 android.car.hardware CarPropertyConfig Builder<T> newBuilder(Class<T> type, int propertyId, int areaType)
+android.car.hardware CarPropertyConfig.AreaConfig Parcelable.Creator<AreaConfig<Object>> CREATOR
+android.car.hardware CarPropertyConfig.AreaConfig T getMinValue()
+android.car.hardware CarPropertyConfig.AreaConfig T getMaxValue()
+android.car.hardware CarPropertyConfig.AreaConfig int describeContents()
+android.car.hardware CarPropertyConfig.AreaConfig void writeToParcel(Parcel dest, int flags)
+android.car.hardware CarPropertyConfig.AreaConfig String toString()
 android.car.hardware CarPropertyValue String toString()
 android.car.hardware CarSensorConfig String WHEEL_TICK_DISTANCE_SUPPORTED_WHEELS
 android.car.hardware CarSensorConfig String WHEEL_TICK_DISTANCE_FRONT_LEFT_UM_PER_TICK
@@ -280,24 +284,24 @@ android.car.hardware CarSensorConfig Bundle getBundle()
 android.car.hardware CarSensorConfig int getInt(String key)
 android.car.hardware CarSensorConfig int getType()
 android.car.hardware CarSensorConfig String toString()
-android.car.hardware CarSensorEvent EnvironmentData getEnvironmentData(EnvironmentData outData)
-android.car.hardware CarSensorEvent IgnitionStateData getIgnitionStateData(IgnitionStateData dataParam)
-android.car.hardware CarSensorEvent NightData getNightData(NightData dataParam)
-android.car.hardware CarSensorEvent GearData getGearData(GearData dataParam)
-android.car.hardware CarSensorEvent ParkingBrakeData getParkingBrakeData(ParkingBrakeData dataParam)
-android.car.hardware CarSensorEvent FuelLevelData getFuelLevelData(FuelLevelData dataParam)
-android.car.hardware CarSensorEvent OdometerData getOdometerData(OdometerData dataParam)
-android.car.hardware CarSensorEvent RpmData getRpmData(RpmData dataParam)
-android.car.hardware CarSensorEvent CarSpeedData getCarSpeedData(CarSpeedData dataParam)
-android.car.hardware CarSensorEvent CarWheelTickDistanceData getCarWheelTickDistanceData(CarWheelTickDistanceData dataParam)
-android.car.hardware CarSensorEvent CarAbsActiveData getCarAbsActiveData(CarAbsActiveData dataParam)
-android.car.hardware CarSensorEvent CarTractionControlActiveData getCarTractionControlActiveData(CarTractionControlActiveData dataParam)
-android.car.hardware CarSensorEvent CarFuelDoorOpenData getCarFuelDoorOpenData(CarFuelDoorOpenData dataParam)
-android.car.hardware CarSensorEvent CarEvBatteryLevelData getCarEvBatteryLevelData(CarEvBatteryLevelData dataParam)
-android.car.hardware CarSensorEvent CarEvChargePortOpenData getCarEvChargePortOpenData(CarEvChargePortOpenData dataParam)
-android.car.hardware CarSensorEvent CarEvChargePortConnectedData getCarEvChargePortConnectedData(CarEvChargePortConnectedData dataParam)
-android.car.hardware CarSensorEvent CarEvBatteryChargeRateData getCarEvBatteryChargeRateData(CarEvBatteryChargeRateData dataParam)
-android.car.hardware CarSensorEvent CarEngineOilLevelData getCarEngineOilLevelData(CarEngineOilLevelData dataParam)
+android.car.hardware CarSensorEvent EnvironmentData getEnvironmentData(EnvironmentData data)
+android.car.hardware CarSensorEvent IgnitionStateData getIgnitionStateData(IgnitionStateData data)
+android.car.hardware CarSensorEvent NightData getNightData(NightData data)
+android.car.hardware CarSensorEvent GearData getGearData(GearData data)
+android.car.hardware CarSensorEvent ParkingBrakeData getParkingBrakeData(ParkingBrakeData data)
+android.car.hardware CarSensorEvent FuelLevelData getFuelLevelData(FuelLevelData data)
+android.car.hardware CarSensorEvent OdometerData getOdometerData(OdometerData data)
+android.car.hardware CarSensorEvent RpmData getRpmData(RpmData data)
+android.car.hardware CarSensorEvent CarSpeedData getCarSpeedData(CarSpeedData data)
+android.car.hardware CarSensorEvent CarWheelTickDistanceData getCarWheelTickDistanceData(CarWheelTickDistanceData data)
+android.car.hardware CarSensorEvent CarAbsActiveData getCarAbsActiveData(CarAbsActiveData data)
+android.car.hardware CarSensorEvent CarTractionControlActiveData getCarTractionControlActiveData(CarTractionControlActiveData data)
+android.car.hardware CarSensorEvent CarFuelDoorOpenData getCarFuelDoorOpenData(CarFuelDoorOpenData data)
+android.car.hardware CarSensorEvent CarEvBatteryLevelData getCarEvBatteryLevelData(CarEvBatteryLevelData data)
+android.car.hardware CarSensorEvent CarEvChargePortOpenData getCarEvChargePortOpenData(CarEvChargePortOpenData data)
+android.car.hardware CarSensorEvent CarEvChargePortConnectedData getCarEvChargePortConnectedData(CarEvChargePortConnectedData data)
+android.car.hardware CarSensorEvent CarEvBatteryChargeRateData getCarEvBatteryChargeRateData(CarEvBatteryChargeRateData data)
+android.car.hardware CarSensorEvent CarEngineOilLevelData getCarEngineOilLevelData(CarEngineOilLevelData data)
 android.car.hardware CarSensorEvent String toString()
 android.car.hardware CarSensorEvent.IgnitionStateData long timestamp
 android.car.hardware CarSensorEvent.IgnitionStateData int ignitionState
@@ -371,7 +375,7 @@ android.car.hardware.power PowerComponentUtil int FIRST_POWER_COMPONENT
 android.car.hardware.power PowerComponentUtil int LAST_POWER_COMPONENT
 android.car.hardware.power PowerComponentUtil boolean isValidPowerComponent(int component)
 android.car.hardware.power PowerComponentUtil boolean hasComponents(CarPowerPolicy policy, CarPowerPolicyFilter filter)
-android.car.hardware.power PowerComponentUtil int toPowerComponent(String componentArg, boolean prefix)
+android.car.hardware.power PowerComponentUtil int toPowerComponent(String component, boolean prefix)
 android.car.hardware.power PowerComponentUtil String powerComponentToString(int component)
 android.car.hardware.property CarPropertyEvent int PROPERTY_EVENT_PROPERTY_CHANGE
 android.car.hardware.property CarPropertyEvent int PROPERTY_EVENT_ERROR
@@ -383,9 +387,6 @@ android.car.hardware.property CarPropertyEvent void writeToParcel(Parcel dest, i
 android.car.hardware.property CarPropertyEvent CarPropertyEvent createErrorEventWithErrorCode(int propertyId, int areaId, int errorCode)
 android.car.hardware.property CarPropertyEvent int getErrorCode()
 android.car.hardware.property CarPropertyEvent String toString()
-android.car.hardware.property CarPropertyEvent boolean equals(Object object)
-android.car.hardware.property CarPropertyEvent int hashCode()
-android.car.hardware.property CarPropertyManager int STATUS_OK
 android.car.hardware.property CarPropertyManager String getReadPermission(int propId)
 android.car.hardware.property CarPropertyManager String getWritePermission(int propId)
 android.car.hardware.property CarPropertyManager void onCarDisconnected()
@@ -489,7 +490,6 @@ android.car.occupantawareness SystemStatusEvent Parcelable.Creator<SystemStatusE
 android.car.occupantawareness SystemStatusEvent int describeContents()
 android.car.occupantawareness SystemStatusEvent void writeToParcel(Parcel dest, int flags)
 android.car.occupantawareness SystemStatusEvent String toString()
-android.car.occupantconnection CarOccupantConnectionManager void onCarDisconnected()
 android.car.os CarPerformanceManager void onCarDisconnected()
 android.car.os CarPerformanceManager void addCpuAvailabilityChangeListener(Executor executor, CpuAvailabilityMonitoringConfig config, CpuAvailabilityChangeListener listener)
 android.car.os CarPerformanceManager void removeCpuAvailabilityChangeListener(Executor executor, CpuAvailabilityChangeListener listener)
@@ -532,7 +532,6 @@ android.car.projection ProjectionOptions.Builder Builder setUiMode(int uiMode)
 android.car.projection ProjectionOptions.Builder Builder setConsentActivity(ComponentName consentActivity)
 android.car.projection ProjectionOptions.Builder Builder setAccessPointMode(int accessPointMode)
 android.car.projection ProjectionOptions.Builder ProjectionOptions build()
-android.car.remoteaccess CarRemoteAccessManager void onCarDisconnected()
 android.car.settings CarSettings int[] DEFAULT_GARAGE_MODE_WAKE_UP_TIME
 android.car.settings CarSettings int DEFAULT_GARAGE_MODE_MAINTENANCE_WINDOW
 android.car.settings CarSettings.Global String DEFAULT_USER_RESTRICTIONS_SET
@@ -560,9 +559,6 @@ android.car.test CarLocationTestHelper boolean injectLocation(Location location,
 android.car.test CarTestManager void onCarDisconnected()
 android.car.test CarTestManager void stopCarService(IBinder token)
 android.car.test CarTestManager void startCarService(IBinder token)
-android.car.test CarTestManager String dumpVhal(List<String> options, long waitTimeoutMs)
-android.car.test CarTestManager boolean hasAidlVhal()
-android.car.test CarTestManager String getOemServiceName()
 android.car.user CarUserManager String TAG
 android.car.user CarUserManager int USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED
 android.car.user CarUserManager String BUNDLE_PARAM_ACTION
@@ -590,6 +586,7 @@ android.car.user CarUserManager UserIdentificationAssociationResponse getUserIde
 android.car.user CarUserManager AsyncFuture<UserIdentificationAssociationResponse> setUserIdentificationAssociation(int[] types, int[] values)
 android.car.user CarUserManager void setUserSwitchUiCallback(UserSwitchUiCallback callback)
 android.car.user CarUserManager void onCarDisconnected()
+android.car.user CarUserManager String lifecycleEventTypeToString(int type)
 android.car.user CarUserManager boolean isValidUser(int userId)
 android.car.user CarUserManager.UserLifecycleEvent int getUserId()
 android.car.user CarUserManager.UserLifecycleEvent int getPreviousUserId()
