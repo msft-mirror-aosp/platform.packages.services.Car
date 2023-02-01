@@ -18,6 +18,7 @@
 
 #include "WatchdogInternalHandler.h"
 
+#include "UidProcStatsCollector.h"
 #include "WatchdogBinderMediator.h"
 
 #include <android/automotive/watchdog/internal/BootPhase.h>
@@ -37,7 +38,9 @@ using aawi::ComponentType;
 using aawi::GarageMode;
 using aawi::ICarWatchdogServiceForSystem;
 using aawi::PowerCycle;
+using aawi::ProcessIdentifier;
 using aawi::ResourceOveruseConfiguration;
+using aawi::ThreadPolicyWithPriority;
 using ::android::sp;
 using ::android::String16;
 using ::android::binder::Status;
@@ -65,7 +68,7 @@ Status fromExceptionCode(int32_t exceptionCode, std::string message) {
 }  // namespace
 
 status_t WatchdogInternalHandler::dump(int fd, const Vector<String16>& args) {
-    return mBinderMediator->dump(fd, args);
+    return mWatchdogBinderMediator->dump(fd, args);
 }
 
 void WatchdogInternalHandler::checkAndRegisterIoOveruseMonitor() {
@@ -134,7 +137,7 @@ Status WatchdogInternalHandler::unregisterMonitor(const sp<aawi::ICarWatchdogMon
 
 Status WatchdogInternalHandler::tellCarWatchdogServiceAlive(
         const android::sp<ICarWatchdogServiceForSystem>& service,
-        const std::vector<int32_t>& clientsNotResponding, int32_t sessionId) {
+        const std::vector<ProcessIdentifier>& clientsNotResponding, int32_t sessionId) {
     Status status = checkSystemUser();
     if (!status.isOk()) {
         return status;
@@ -146,7 +149,8 @@ Status WatchdogInternalHandler::tellCarWatchdogServiceAlive(
                                                                 sessionId);
 }
 Status WatchdogInternalHandler::tellDumpFinished(
-        const android::sp<aawi::ICarWatchdogMonitor>& monitor, int32_t pid) {
+        const android::sp<aawi::ICarWatchdogMonitor>& monitor,
+        const ProcessIdentifier& processIdentifier) {
     Status status = checkSystemUser();
     if (!status.isOk()) {
         return status;
@@ -154,7 +158,7 @@ Status WatchdogInternalHandler::tellDumpFinished(
     if (monitor == nullptr) {
         return fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, kNullCarWatchdogMonitorError);
     }
-    return mWatchdogProcessService->tellDumpFinished(monitor, pid);
+    return mWatchdogProcessService->tellDumpFinished(monitor, processIdentifier);
 }
 
 Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, int32_t arg1,
@@ -182,10 +186,6 @@ Status WatchdogInternalHandler::notifySystemStateChange(aawi::StateType type, in
         case aawi::StateType::USER_STATE: {
             userid_t userId = static_cast<userid_t>(arg1);
             aawi::UserState userState = static_cast<aawi::UserState>(static_cast<uint32_t>(arg2));
-            if (userState >= aawi::UserState::NUM_USER_STATES) {
-                return fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT,
-                                         StringPrintf("Invalid user state %d", userState));
-            }
             return handleUserStateChange(userId, userState);
         }
         case aawi::StateType::BOOT_PHASE: {
@@ -225,22 +225,37 @@ Status WatchdogInternalHandler::handlePowerCycleChange(PowerCycle powerCycle) {
     return Status::ok();
 }
 
-Status WatchdogInternalHandler::handleUserStateChange(userid_t userId, aawi::UserState userState) {
+Status WatchdogInternalHandler::handleUserStateChange(userid_t userId,
+                                                      const aawi::UserState& userState) {
     std::string stateDesc;
     switch (userState) {
         case aawi::UserState::USER_STATE_STARTED:
             stateDesc = "started";
-            mWatchdogProcessService->notifyUserStateChange(userId, /*isStarted=*/true);
+            mWatchdogProcessService->onUserStateChange(userId, /*isStarted=*/true);
+            break;
+        case aawi::UserState::USER_STATE_SWITCHING:
+            stateDesc = "switching";
+            mWatchdogPerfService->onUserStateChange(userId, userState);
+            break;
+        case aawi::UserState::USER_STATE_UNLOCKING:
+            stateDesc = "unlocking";
+            mWatchdogPerfService->onUserStateChange(userId, userState);
+            break;
+        case aawi::UserState::USER_STATE_POST_UNLOCKED:
+            stateDesc = "post_unlocked";
+            mWatchdogPerfService->onUserStateChange(userId, userState);
             break;
         case aawi::UserState::USER_STATE_STOPPED:
             stateDesc = "stopped";
-            mWatchdogProcessService->notifyUserStateChange(userId, /*isStarted=*/false);
+            mWatchdogProcessService->onUserStateChange(userId, /*isStarted=*/false);
             break;
         case aawi::UserState::USER_STATE_REMOVED:
             stateDesc = "removed";
             mIoOveruseMonitor->removeStatsForUser(userId);
             break;
         default:
+            // UserState::USER_STATE_UNLOCKED is not sent by CarService to the daemon. If signal is
+            // received, an exception will be thrown.
             ALOGW("Unsupported user state: %d", userState);
             return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Unsupported user state");
     }
@@ -278,13 +293,36 @@ Status WatchdogInternalHandler::getResourceOveruseConfigurations(
     return Status::ok();
 }
 
-Status WatchdogInternalHandler::controlProcessHealthCheck(bool disable) {
+Status WatchdogInternalHandler::controlProcessHealthCheck(bool enable) {
     Status status = checkSystemUser();
     if (!status.isOk()) {
         return status;
     }
-    mWatchdogProcessService->setEnabled(!disable);
+    mWatchdogProcessService->setEnabled(enable);
     return Status::ok();
+}
+
+Status WatchdogInternalHandler::setThreadPriority(int pid, int tid, int uid, int policy,
+                                                  int priority) {
+    Status status = checkSystemUser();
+    if (!status.isOk()) {
+        return status;
+    }
+    return mThreadPriorityController->setThreadPriority(pid, tid, uid, policy, priority);
+}
+
+Status WatchdogInternalHandler::getThreadPriority(int pid, int tid, int uid,
+                                                  ThreadPolicyWithPriority* result) {
+    Status status = checkSystemUser();
+    if (!status.isOk()) {
+        return status;
+    }
+    return mThreadPriorityController->getThreadPriority(pid, tid, uid, result);
+}
+
+void WatchdogInternalHandler::setThreadPriorityController(
+        std::unique_ptr<ThreadPriorityController> threadPriorityController) {
+    mThreadPriorityController = std::move(threadPriorityController);
 }
 
 }  // namespace watchdog

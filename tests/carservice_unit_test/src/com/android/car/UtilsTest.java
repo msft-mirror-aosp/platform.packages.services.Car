@@ -16,13 +16,27 @@
 
 package com.android.car;
 
-import static com.google.common.truth.Truth.assertThat;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.when;
 
-import android.bluetooth.BluetoothDevice;
+import android.car.test.mocks.AbstractExtendedMockitoTestCase.ExpectWtf;
+import android.car.user.CarUserManager.UserLifecycleEvent;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Process;
 import android.text.TextUtils;
 
+import com.android.car.util.TransitionLog;
+import com.android.car.util.Utils;
+
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -33,41 +47,43 @@ import java.util.UUID;
 @RunWith(MockitoJUnitRunner.class)
 public final class UtilsTest {
 
+    private static final String TAG = UtilsTest.class.getSimpleName();
+
+    private static final UserLifecycleEvent USER_STARTING_EVENT =
+            new UserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, 111);
+
     @Mock
-    private BluetoothDevice mMockBluetoothDevice;
+    private Context mContext;
 
-    @Test
-    public void testGetDeviceDebugInfo() {
-        when(mMockBluetoothDevice.getName()).thenReturn("deviceName");
-        when(mMockBluetoothDevice.getAddress()).thenReturn("deviceAddress");
+    @Mock
+    private PackageManager mPm;
 
-        assertThat(Utils.getDeviceDebugInfo(mMockBluetoothDevice))
-            .isEqualTo("(name = deviceName, addr = deviceAddress)");
-    }
-
-    @Test
-    public void testGetDeviceDebugInfo_nullDevice() {
-        assertThat(Utils.getDeviceDebugInfo(null)).isEqualTo("(null)");
+    @Before
+    public void setFixtures() {
+        when(mContext.getPackageManager()).thenReturn(mPm);
+        when(mContext.getSystemService(PackageManager.class)).thenReturn(mPm);
     }
 
     @Test
     public void testTransitionLogToString() {
-        Utils.TransitionLog transitionLog =
-                new Utils.TransitionLog("serviceName", "state1", "state2", 1623777864000L);
+        TransitionLog transitionLog =
+                new TransitionLog("serviceName", "state1", "state2", 1623777864000L);
         String result = transitionLog.toString();
 
-        assertThat(result).startsWith("06-15 17:24:24");
+        // Should match the date pattern "MM-dd HH:mm:ss".
+        assertThat(result).matches("^[01]\\d-[0-3]\\d [0-2]\\d:[0-6]\\d:[0-6]\\d\\s+.*");
         assertThat(result).contains("serviceName:");
         assertThat(result).contains("from state1 to state2");
     }
 
     @Test
     public void testTransitionLogToString_withExtra() {
-        Utils.TransitionLog transitionLog =
-                new Utils.TransitionLog("serviceName", "state1", "state2", 1623777864000L, "extra");
+        TransitionLog transitionLog =
+                new TransitionLog("serviceName", "state1", "state2", 1623777864000L, "extra");
         String result = transitionLog.toString();
 
-        assertThat(result).startsWith("06-15 17:24:24");
+        // Should match the date pattern "MM-dd HH:mm:ss".
+        assertThat(result).matches("^[01]\\d-[0-3]\\d [0-2]\\d:[0-6]\\d:[0-6]\\d\\s+.*");
         assertThat(result).contains("serviceName:");
         assertThat(result).contains("extra");
         assertThat(result).contains("from state1 to state2");
@@ -136,5 +152,94 @@ public final class UtilsTest {
 
         assertThat(Utils.concatByteArrays(bytes1, bytes2)).asList()
                 .containsExactlyElementsIn(expected).inOrder();
+    }
+
+    @Test
+    public void testIsEventOfType_returnsTrue() {
+        assertThat(Utils.isEventOfType(TAG, USER_STARTING_EVENT,
+                USER_LIFECYCLE_EVENT_TYPE_STARTING)).isTrue();
+    }
+
+    @Test
+    @ExpectWtf
+    public void testIsEventOfType_returnsFalse() {
+        assertThat(Utils.isEventOfType(TAG, USER_STARTING_EVENT,
+                USER_LIFECYCLE_EVENT_TYPE_SWITCHING)).isFalse();
+    }
+
+    @Test
+    public void testIsEventAnyOfTypes_returnsTrue() {
+        assertThat(Utils.isEventAnyOfTypes(TAG, USER_STARTING_EVENT,
+                USER_LIFECYCLE_EVENT_TYPE_SWITCHING, USER_LIFECYCLE_EVENT_TYPE_STARTING)).isTrue();
+    }
+
+    @Test
+    @ExpectWtf
+    public void testIsEventAnyOfTypes_emptyEventTypes_returnsFalse() {
+        assertThat(Utils.isEventAnyOfTypes(TAG, USER_STARTING_EVENT)).isFalse();
+    }
+
+    @Test
+    @ExpectWtf
+    public void testIsEventAnyOfTypes_returnsFalse() {
+        assertThat(Utils.isEventAnyOfTypes(TAG, USER_STARTING_EVENT,
+                USER_LIFECYCLE_EVENT_TYPE_SWITCHING, USER_LIFECYCLE_EVENT_TYPE_STOPPING)).isFalse();
+    }
+
+    @Test
+    public void testCheckCalledByPackage_nullPackages() {
+        String packageName = "Bond.James.Bond";
+        int myUid = Process.myUid();
+        // Don't need to mock pm call, it will return null
+
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> Utils.checkCalledByPackage(mContext, packageName));
+
+        String msg = e.getMessage();
+        assertWithMessage("exception message (pkg)").that(msg).contains(packageName);
+        assertWithMessage("exception message (uid)").that(msg).contains(String.valueOf(myUid));
+    }
+
+    @Test
+    public void testCheckCalledByPackage_emptyPackages() {
+        String packageName = "Bond.James.Bond";
+        int myUid = Process.myUid();
+        when(mPm.getPackagesForUid(myUid)).thenReturn(new String[] {});
+
+        // Don't need to mock pm call, it will return null
+
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> Utils.checkCalledByPackage(mContext, packageName));
+
+        String msg = e.getMessage();
+        assertWithMessage("exception message (pkg)").that(msg).contains(packageName);
+        assertWithMessage("exception message (uid)").that(msg).contains(String.valueOf(myUid));
+    }
+
+    @Test
+    public void testCheckCalledByPackage_wrongPackages() {
+        String packageName = "Bond.James.Bond";
+        int myUid = Process.myUid();
+        when(mPm.getPackagesForUid(myUid)).thenReturn(new String[] {"Bond, James Bond"});
+
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> Utils.checkCalledByPackage(mContext, packageName));
+
+        String msg = e.getMessage();
+        assertWithMessage("exception message (pkg)").that(msg).contains(packageName);
+        assertWithMessage("exception message (uid)").that(msg).contains(String.valueOf(myUid));
+    }
+
+    @Test
+    public void testCheckCalledByPackage_ok() {
+        String packageName = "Bond.James.Bond";
+        int myUid = Process.myUid();
+        when(mPm.getPackagesForUid(myUid)).thenReturn(new String[] {
+                "Bond, James Bond", packageName, "gold.finger"
+        });
+
+        Utils.checkCalledByPackage(mContext, packageName);
+
+        // No need to assert, test would fail if it threw
     }
 }

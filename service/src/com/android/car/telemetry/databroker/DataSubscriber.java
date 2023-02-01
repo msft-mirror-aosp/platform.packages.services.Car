@@ -28,6 +28,12 @@ import java.util.Objects;
  * All methods of this class must be accessed on telemetry thread.
  */
 public class DataSubscriber {
+    /**
+     * Binder transaction size limit is 1MB for all binders per process, so for large script input
+     * file pipe will be used to transfer the data to script executor instead of binder call. This
+     * is the input size threshold above which piping is used.
+     */
+    public static final int SCRIPT_INPUT_SIZE_THRESHOLD_BYTES = 20 * 1024; // 20 kb
 
     private final DataBroker mDataBroker;
     private final TelemetryProto.MetricsConfig mMetricsConfig;
@@ -58,21 +64,38 @@ public class DataSubscriber {
     }
 
     /**
+     * Returns the publisher type (as a number) indicates which type of
+     * {@link TelemetryProto.Publisher} will publish the data.
+     */
+    private int getPublisherType() {
+        return getPublisherParam().getPublisherCase().getNumber();
+    }
+
+    /**
      * Creates a {@link ScriptExecutionTask} and pushes it to the priority queue where the task
      * will be pending execution. Flag isLargeData indicates whether data is large.
+     *
+     * @param data The published data.
+     * @param isLargeData Whether the data is large.
+     * @return The number of tasks that are pending execution that are produced by the calling
+     * publisher.
      */
-    public void push(@NonNull PersistableBundle data, boolean isLargeData) {
+    public int push(@NonNull PersistableBundle data, boolean isLargeData) {
         ScriptExecutionTask task = new ScriptExecutionTask(
-                this, data, SystemClock.elapsedRealtime(), isLargeData);
-        mDataBroker.addTaskToQueue(task);
+                this, data, SystemClock.elapsedRealtime(), isLargeData, getPublisherType());
+        return mDataBroker.addTaskToQueue(task);
     }
 
     /**
      * Creates a {@link ScriptExecutionTask} and pushes it to the priority queue where the task
      * will be pending execution. Defaults isLargeData flag to false.
+     *
+     * @param data The published data.
+     * @return The number of tasks that are pending execution that are produced by the calling
+     * publisher.
      */
-    public void push(@NonNull PersistableBundle data) {
-        push(data, false);
+    public int push(@NonNull PersistableBundle data) {
+        return push(data, false);
     }
 
     /** Returns the {@link TelemetryProto.MetricsConfig}. */

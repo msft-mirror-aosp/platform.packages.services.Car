@@ -22,16 +22,16 @@ import static com.android.compatibility.common.util.TestUtils.BooleanSupplierWit
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 
 import android.annotation.NonNull;
+import android.app.ActivityManager;
 import android.app.UiAutomation;
 import android.car.Car;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ServiceConnection;
-import android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType;
+import android.hardware.automotive.vehicle.InitialUserInfoRequestType;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.Looper;
@@ -48,9 +48,11 @@ import org.junit.Rule;
 import org.junit.rules.TestName;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +61,7 @@ public abstract class CarApiTestBase {
 
     private static final String TAG = CarApiTestBase.class.getSimpleName();
 
-    protected static final long DEFAULT_WAIT_TIMEOUT_MS = 60_000;
+    protected static final long DEFAULT_WAIT_TIMEOUT_MS = 120_000;
 
     /**
      * Constant used to wait blindly, when there is no condition that can be checked.
@@ -92,6 +94,13 @@ public abstract class CarApiTestBase {
         mConnectionListener.waitForConnection(DEFAULT_WAIT_TIMEOUT_MS);
     }
 
+    @Before
+    public final void dontStopUserOnSwitch() throws Exception {
+        Log.d(TAG, "Calling am.setStopUserOnSwitch(false) for " + mTestName.getMethodName());
+        getContext().getSystemService(ActivityManager.class)
+                .setStopUserOnSwitch(ActivityManager.STOP_USER_ON_SWITCH_FALSE);
+    }
+
     @After
     public final void disconnectCar() throws Exception {
         if (mCar == null) {
@@ -99,6 +108,13 @@ public abstract class CarApiTestBase {
             return;
         }
         mCar.disconnect();
+    }
+
+    @After
+    public final void resetStopUserOnSwitch() throws Exception {
+        Log.d(TAG, "Calling am.setStopUserOnSwitch(default) for " + mTestName.getMethodName());
+        getContext().getSystemService(ActivityManager.class)
+                .setStopUserOnSwitch(ActivityManager.STOP_USER_ON_SWITCH_DEFAULT);
     }
 
     protected Car getCar() {
@@ -140,28 +156,29 @@ public abstract class CarApiTestBase {
         @Override
         public void onServiceDisconnected(ComponentName name) {
             assertMainThread();
+            fail("Car service crashed");
         }
     }
 
-    protected static void suspendToRamAndResume(boolean disableBackgroundUsersStart)
+    protected static void suspendToRamAndResume()
             throws Exception {
         Log.d(TAG, "Emulate suspend to RAM and resume");
         try {
-            if (disableBackgroundUsersStart) {
-                runShellCommand("cmd car_service set-start-bg-users-on-garage-mode false");
-            }
+            Log.d(TAG, "Disabling background users starting on garage mode");
+            runShellCommand("cmd car_service set-start-bg-users-on-garage-mode false");
 
             PowerManager powerManager = sContext.getSystemService(PowerManager.class);
             // clear log
             runShellCommand("logcat -b all -c");
-            runShellCommand("cmd car_service suspend");
+            // We use a simulated suspend because physically suspended devices cannot be woken up by
+            // a shell command.
+            runShellCommand("cmd car_service suspend --simulate --skip-garagemode "
+                    + "--wakeup-after 3");
             // Check for suspend success
             waitUntil("screen is still on after suspend",
                     SUSPEND_TIMEOUT_MS, () -> !powerManager.isScreenOn());
 
-            // Force turn off garage mode
-            runShellCommand("cmd car_service garage-mode off");
-            runShellCommand("cmd car_service resume");
+            // The device will resume after 3 seconds.
             waitForLogcatMessage("logcat -b events", "car_user_svc_initial_user_info_req_complete: "
                     + InitialUserInfoRequestType.RESUME, 60_000);
         } catch (Exception e) {
@@ -193,11 +210,11 @@ public abstract class CarApiTestBase {
                     break;
                 }
                 if ((SystemClock.elapsedRealtime() - startTime) > timeoutMs) {
-                    fail("match was not found, Timeout: " + timeoutMs + " ms");
+                    fail("logcat message(%s) not found in %d ms", match, timeoutMs);
                 }
             }
         } catch (IOException e) {
-            fail("match was not found, IO exception: " + e);
+            fail("match (%s) was not found, IO exception: %s", match, e);
         }
     }
 
@@ -216,7 +233,7 @@ public abstract class CarApiTestBase {
             SystemClock.sleep(SMALL_NAP_MS);
         } while (SystemClock.elapsedRealtime() < deadline);
 
-        fail(msg + " after: " + timeoutMs + "ms");
+        fail("%s after %d ms", msg, timeoutMs);
         return false;
     }
 
@@ -226,5 +243,32 @@ public abstract class CarApiTestBase {
 
     protected String getTestName() {
         return getClass().getSimpleName() + "." + mTestName.getMethodName();
+    }
+
+    protected static void fail(String format, Object...args) {
+        String message = String.format(format, args);
+        Log.e(TAG, "test failed: " + message);
+        org.junit.Assert.fail(message);
+    }
+
+    protected static String executeShellCommand(String commandFormat, Object... args)
+            throws IOException {
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        return executeShellCommand(uiAutomation, commandFormat, args);
+    }
+
+    private static String executeShellCommand(UiAutomation uiAutomation, String commandFormat,
+            Object... args) throws IOException {
+        ParcelFileDescriptor stdout = uiAutomation.executeShellCommand(
+                String.format(commandFormat, args));
+        try (InputStream inputStream = new ParcelFileDescriptor.AutoCloseInputStream(stdout)) {
+            ByteArrayOutputStream result = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = inputStream.read(buffer)) != -1) {
+                result.write(buffer, 0, length);
+            }
+            return result.toString("UTF-8");
+        }
     }
 }

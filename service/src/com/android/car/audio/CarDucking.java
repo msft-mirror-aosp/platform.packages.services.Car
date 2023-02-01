@@ -20,12 +20,12 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DU
 
 import android.annotation.NonNull;
 import android.media.AudioFocusInfo;
-import android.util.IndentingPrintWriter;
 import android.util.SparseArray;
 
 import com.android.car.audio.CarZonesAudioFocus.CarFocusCallback;
 import com.android.car.audio.hal.AudioControlWrapper;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -49,8 +49,10 @@ final class CarDucking implements CarFocusCallback {
         mAudioControlWrapper = Objects.requireNonNull(audioControlWrapper);
         for (int i = 0; i < carAudioZones.size(); i++) {
             int zoneId = carAudioZones.keyAt(i);
-            mCurrentDuckingInfo.put(zoneId,
-                    new CarDuckingInfo(zoneId, new ArrayList<>(), new ArrayList<>(), new int[0]));
+            mCurrentDuckingInfo.put(
+                    zoneId,
+                    new CarDuckingInfo(
+                            zoneId, new ArrayList<>(), new ArrayList<>(), new ArrayList<>()));
         }
     }
 
@@ -104,11 +106,6 @@ final class CarDucking implements CarFocusCallback {
         int zoneId = oldDuckingInfo.mZoneId;
         CarAudioZone zone = mCarAudioZones.get(zoneId);
 
-        int[] usagesHoldingFocus = CarDuckingUtils.getUsagesHoldingFocus(focusHolders);
-        List<String> addressesToDuck = CarDuckingUtils.getAddressesToDuck(usagesHoldingFocus, zone);
-        List<String> addressesToUnduck = CarDuckingUtils.getAddressesToUnduck(addressesToDuck,
-                oldDuckingInfo.mAddressesToDuck);
-
-        return new CarDuckingInfo(zoneId, addressesToDuck, addressesToUnduck, usagesHoldingFocus);
+        return CarDuckingUtils.generateDuckingInfo(oldDuckingInfo, focusHolders, zone);
     }
 }

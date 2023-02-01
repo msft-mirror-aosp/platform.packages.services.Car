@@ -17,12 +17,14 @@
 package com.android.car;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
 import static org.testng.Assert.assertThrows;
 
 import android.car.Car;
 import android.car.VehicleAreaType;
+import android.car.VehicleAreaWheel;
 import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
@@ -33,11 +35,13 @@ import android.car.hardware.property.PropertyNotAvailableAndRetryException;
 import android.car.hardware.property.PropertyNotAvailableException;
 import android.car.hardware.property.VehicleHalStatusCode;
 import android.car.test.util.Visitor;
-import android.hardware.automotive.vehicle.V2_0.VehicleArea;
-import android.hardware.automotive.vehicle.V2_0.VehicleAreaSeat;
-import android.hardware.automotive.vehicle.V2_0.VehiclePropValue;
-import android.hardware.automotive.vehicle.V2_0.VehiclePropertyGroup;
-import android.hardware.automotive.vehicle.V2_0.VehiclePropertyType;
+import android.hardware.automotive.vehicle.RawPropValues;
+import android.hardware.automotive.vehicle.VehicleArea;
+import android.hardware.automotive.vehicle.VehicleAreaSeat;
+import android.hardware.automotive.vehicle.VehiclePropValue;
+import android.hardware.automotive.vehicle.VehiclePropertyGroup;
+import android.hardware.automotive.vehicle.VehiclePropertyType;
+import android.hardware.automotive.vehicle.VehicleVendorPermission;
 import android.os.Build;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
@@ -47,7 +51,7 @@ import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
-import com.android.car.vehiclehal.test.MockedVehicleHal.VehicleHalPropertyHandler;
+import com.android.car.hal.test.AidlMockedVehicleHal.VehicleHalPropertyHandler;
 
 import com.google.common.truth.Truth;
 
@@ -57,8 +61,10 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -128,6 +134,10 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             0x1107 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32
                     | VehicleArea.GLOBAL;
     private static final int FAKE_INT_PROPERTY_VALUE = 3;
+    // A property that always returns null to simulate an unavailable property.
+    private static final int NULL_VALUE_PROP =
+            0x1108 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32
+                    | VehicleArea.GLOBAL;
 
     // Vendor properties for testing exceptions.
     private static final int PROP_CAUSE_STATUS_CODE_TRY_AGAIN =
@@ -140,6 +150,22 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             0x1204 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;
     private static final int PROP_CAUSE_STATUS_CODE_ACCESS_DENIED =
             0x1205 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;
+
+    // Vendor properties for testing permissions
+    private static final int PROP_WITH_READ_ONLY_PERMISSION =
+            0x1301 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;
+    private static final int PROP_WITH_WRITE_ONLY_PERMISSION =
+            0x1302 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;
+    private static final int SUPPORT_CUSTOM_PERMISSION = 287313669;
+    private static final java.util.Collection<Integer> VENDOR_PERMISSION_CONFIG =
+            Collections.unmodifiableList(
+                    Arrays.asList(PROP_WITH_READ_ONLY_PERMISSION,
+                    VehicleVendorPermission.PERMISSION_GET_VENDOR_CATEGORY_1,
+                    VehicleVendorPermission.PERMISSION_NOT_ACCESSIBLE,
+                    PROP_WITH_WRITE_ONLY_PERMISSION,
+                    VehicleVendorPermission.PERMISSION_NOT_ACCESSIBLE,
+                    VehicleVendorPermission.PERMISSION_SET_VENDOR_CATEGORY_1));
+
 
     // Use FAKE_PROPERTY_ID to test api return null or throw exception.
     private static final int FAKE_PROPERTY_ID = 0x111;
@@ -216,6 +242,11 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 case INT_PROP_STATUS_UNAVAILABLE:
                 case FLOAT_PROP_STATUS_UNAVAILABLE:
                 case VehiclePropertyIds.INFO_VIN:
+                case NULL_VALUE_PROP:
+                case SUPPORT_CUSTOM_PERMISSION:
+                case PROP_WITH_READ_ONLY_PERMISSION:
+                case PROP_WITH_WRITE_ONLY_PERMISSION:
+                case VehiclePropertyIds.TIRE_PRESSURE:
                     break;
                 default:
                     Assert.fail("Unexpected CarPropertyConfig: " + cfg.toString());
@@ -364,6 +395,26 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         assertThat(config.getPropertyId()).isEqualTo(CUSTOM_SEAT_MIXED_PROP_ID_1);
         // return null if can not find the propertyConfig for the property.
         assertThat(mManager.getCarPropertyConfig(FAKE_PROPERTY_ID)).isNull();
+    }
+
+    @Test
+    public void testGetPropertyConfig_withReadOnlyPermission() {
+        CarPropertyConfig configForReadOnlyProperty = mManager
+                .getCarPropertyConfig(PROP_WITH_READ_ONLY_PERMISSION);
+
+        assertThat(configForReadOnlyProperty).isNotNull();
+        assertThat(configForReadOnlyProperty.getPropertyId())
+                .isEqualTo(PROP_WITH_READ_ONLY_PERMISSION);
+    }
+
+    @Test
+    public void testGetPropertyConfig_withWriteOnlyPermission() {
+        CarPropertyConfig configForWriteOnlyProperty = mManager
+                .getCarPropertyConfig(PROP_WITH_WRITE_ONLY_PERMISSION);
+
+        assertThat(configForWriteOnlyProperty).isNotNull();
+        assertThat(configForWriteOnlyProperty.getPropertyId())
+                .isEqualTo(PROP_WITH_WRITE_ONLY_PERMISSION);
     }
 
     @Test
@@ -519,8 +570,13 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 ()->mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_INTERNAL_ERROR,
                         VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL));
 
+        assertThrows(IllegalStateException.class,
+                ()->mManager.getProperty(NULL_VALUE_PROP,
+                    VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL));
+
         Truth.assertThat(mManager.getProperty(PROP_CAUSE_STATUS_CODE_TRY_AGAIN,
                 VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL)).isNull();
+
     }
 
     @Test
@@ -534,7 +590,6 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         assertThrows(PropertyAccessDeniedSecurityException.class,
                 () -> mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_ACCESS_DENIED,
                         VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL));
-
         assertThrows(IllegalArgumentException.class,
                 () -> mManager.getProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG,
                         VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL));
@@ -562,6 +617,10 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         assertThrows(CarInternalErrorException.class,
                 () -> mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_INTERNAL_ERROR,
                         VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL));
+
+        assertThrows(PropertyNotAvailableException.class,
+                ()->mManager.getProperty(NULL_VALUE_PROP,
+                    VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL));
     }
 
     @Test
@@ -576,17 +635,19 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         VehiclePropValue firstFakeValueDriveSide = new VehiclePropValue();
         firstFakeValueDriveSide.prop = CUSTOM_SEAT_INT_PROP_1;
         firstFakeValueDriveSide.areaId = DRIVER_SIDE_AREA_ID;
-        firstFakeValueDriveSide.value.int32Values.add(2);
+        firstFakeValueDriveSide.value = new RawPropValues();
+        firstFakeValueDriveSide.value.int32Values = new int[]{2};
         firstFakeValueDriveSide.timestamp = SystemClock.elapsedRealtimeNanos();
         VehiclePropValue secFakeValueDriveSide = new VehiclePropValue();
         secFakeValueDriveSide.prop = CUSTOM_SEAT_INT_PROP_1;
         secFakeValueDriveSide.areaId = DRIVER_SIDE_AREA_ID;
-        secFakeValueDriveSide.value.int32Values.add(3); // 0 in HAL indicate false;
+        secFakeValueDriveSide.value = new RawPropValues();
+        secFakeValueDriveSide.value.int32Values = new int[]{3}; // 0 in HAL indicate false;
         secFakeValueDriveSide.timestamp = SystemClock.elapsedRealtimeNanos();
         // inject the new event first
-        getMockedVehicleHal().injectEvent(secFakeValueDriveSide);
+        getAidlMockedVehicleHal().injectEvent(secFakeValueDriveSide);
         // inject the old event
-        getMockedVehicleHal().injectEvent(firstFakeValueDriveSide);
+        getAidlMockedVehicleHal().injectEvent(firstFakeValueDriveSide);
         callback.assertOnChangeEventCalled();
         // Client should only get the new event
         assertThat((int) callback.getLastCarPropertyValue(CUSTOM_SEAT_INT_PROP_1).getValue())
@@ -606,24 +667,64 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         VehiclePropValue fakeValueDriveSide = new VehiclePropValue();
         fakeValueDriveSide.prop = CUSTOM_SEAT_INT_PROP_2;
         fakeValueDriveSide.areaId = DRIVER_SIDE_AREA_ID;
-        fakeValueDriveSide.value.int32Values.add(4);
+        fakeValueDriveSide.value = new RawPropValues();
+        fakeValueDriveSide.value.int32Values = new int[]{4};
         fakeValueDriveSide.timestamp = SystemClock.elapsedRealtimeNanos();
 
         VehiclePropValue fakeValuePsgSide = new VehiclePropValue();
         fakeValuePsgSide.prop = CUSTOM_SEAT_INT_PROP_2;
         fakeValuePsgSide.areaId = PASSENGER_SIDE_AREA_ID;
-        fakeValuePsgSide.value.int32Values.add(5);
+        fakeValuePsgSide.value = new RawPropValues();
+        fakeValuePsgSide.value.int32Values = new int[]{5};
         fakeValuePsgSide.timestamp = SystemClock.elapsedRealtimeNanos();
 
         // inject passenger event before driver event
-        getMockedVehicleHal().injectEvent(fakeValuePsgSide);
-        getMockedVehicleHal().injectEvent(fakeValueDriveSide);
+        getAidlMockedVehicleHal().injectEvent(fakeValuePsgSide);
+        getAidlMockedVehicleHal().injectEvent(fakeValueDriveSide);
         callback.assertOnChangeEventCalled();
 
         // both events should be received by listener
         assertThat((int) callback.getLastCarPropertyValue(CUSTOM_SEAT_INT_PROP_2).getValue())
                 .isEqualTo(4);
         assertThat(callback.getEventCounter()).isEqualTo(2);
+    }
+
+    @Test
+    public void testOnChangeEventInvalidPayload() throws Exception {
+        // init
+        mManager.setProperty(Integer.class, CUSTOM_SEAT_INT_PROP_1, DRIVER_SIDE_AREA_ID, 1);
+        TestSequenceCallback callback = new TestSequenceCallback(0);
+        mManager.registerCallback(callback, CUSTOM_SEAT_INT_PROP_1, 0);
+        callback.assertRegisterCompleted();
+
+        List<VehiclePropValue> props = new ArrayList<VehiclePropValue>();
+        VehiclePropValue emptyProp = new VehiclePropValue();
+        emptyProp.prop = CUSTOM_SEAT_INT_PROP_1;
+        props.add(emptyProp);
+
+        VehiclePropValue twoIntsProp = new VehiclePropValue();
+        twoIntsProp.prop = CUSTOM_SEAT_INT_PROP_1;
+        twoIntsProp.value = new RawPropValues();
+        twoIntsProp.value.int32Values = new int[]{0, 1};
+        props.add(twoIntsProp);
+
+        VehiclePropValue propWithFloat = new VehiclePropValue();
+        propWithFloat.prop = CUSTOM_SEAT_INT_PROP_1;
+        propWithFloat.value = new RawPropValues();
+        propWithFloat.value.floatValues = new float[]{0f};
+        props.add(propWithFloat);
+
+        VehiclePropValue propWithString = new VehiclePropValue();
+        propWithString.prop = CUSTOM_SEAT_INT_PROP_1;
+        propWithString.value = new RawPropValues();
+        propWithString.value.stringValue = "1234";
+        props.add(propWithString);
+
+        for (VehiclePropValue prop: props) {
+            // inject passenger event before driver event
+            getAidlMockedVehicleHal().injectEvent(prop);
+            assertThat(callback.getEventCounter()).isEqualTo(0);
+        }
     }
 
     @Test
@@ -719,6 +820,94 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 mManager.setIntProperty(prop, /* areaId= */ 0, /* val= */ 0));
     }
 
+    @Test
+    public void registerCallback_handlesContinuousPropertyUpdateRate() {
+        float wheelLeftFrontValue = 11.11f;
+        long wheelLeftFrontTimestampNanos = Duration.ofSeconds(1).toNanos();
+
+        float notNewEnoughWheelLeftFrontValue = 22.22f;
+        long notNewEnoughWheelLeftFrontTimestampNanos = Duration.ofMillis(1999).toNanos();
+
+        float newEnoughWheelLeftFrontValue = 33.33f;
+        long newEnoughWheelLeftFrontTimestampNanos = Duration.ofSeconds(2).toNanos();
+
+        TestCallback testCallback = new TestCallback(2);
+        assertThat(mManager.registerCallback(testCallback, VehiclePropertyIds.TIRE_PRESSURE,
+                1f)).isTrue();
+
+        getAidlMockedVehicleHal().injectEvent(
+                newTirePressureVehiclePropValue(VehicleAreaWheel.WHEEL_LEFT_FRONT,
+                        wheelLeftFrontValue, wheelLeftFrontTimestampNanos));
+        getAidlMockedVehicleHal().injectEvent(
+                newTirePressureVehiclePropValue(VehicleAreaWheel.WHEEL_LEFT_FRONT,
+                        notNewEnoughWheelLeftFrontValue, notNewEnoughWheelLeftFrontTimestampNanos));
+        getAidlMockedVehicleHal().injectEvent(
+                newTirePressureVehiclePropValue(VehicleAreaWheel.WHEEL_LEFT_FRONT,
+                        newEnoughWheelLeftFrontValue, newEnoughWheelLeftFrontTimestampNanos));
+
+        List<CarPropertyValue<?>> carPropertyValues = testCallback.getCarPropertyValues();
+        assertThat(carPropertyValues).hasSize(2);
+
+        assertTirePressureCarPropertyValue(carPropertyValues.get(0),
+                VehicleAreaWheel.WHEEL_LEFT_FRONT, wheelLeftFrontValue,
+                wheelLeftFrontTimestampNanos);
+
+        assertTirePressureCarPropertyValue(carPropertyValues.get(1),
+                VehicleAreaWheel.WHEEL_LEFT_FRONT, newEnoughWheelLeftFrontValue,
+                newEnoughWheelLeftFrontTimestampNanos);
+    }
+
+    @Test
+    public void registerCallback_handlesOutOfTimeOrderEventsWithDifferentAreaIds() {
+        float wheelLeftFrontValue = 11.11f;
+        long wheelLeftFrontTimestampNanos = Duration.ofSeconds(4).toNanos();
+
+        float wheelRightFrontValue = 22.22f;
+        long wheelRightFrontTimestampNanos = Duration.ofSeconds(3).toNanos();
+
+        float wheelLeftRearValue = 33.33f;
+        long wheelLeftRearTimestampNanos = Duration.ofSeconds(2).toNanos();
+
+        float wheelRightRearValue = 44.44f;
+        long wheelRightRearTimestampNanos = Duration.ofSeconds(1).toNanos();
+
+        TestCallback testCallback = new TestCallback(4);
+        assertThat(mManager.registerCallback(testCallback, VehiclePropertyIds.TIRE_PRESSURE,
+                1f)).isTrue();
+
+        // inject events in time order from newest to oldest
+        getAidlMockedVehicleHal().injectEvent(
+                newTirePressureVehiclePropValue(VehicleAreaWheel.WHEEL_LEFT_FRONT,
+                        wheelLeftFrontValue, wheelLeftFrontTimestampNanos));
+        getAidlMockedVehicleHal().injectEvent(
+                newTirePressureVehiclePropValue(VehicleAreaWheel.WHEEL_RIGHT_FRONT,
+                        wheelRightFrontValue, wheelRightFrontTimestampNanos));
+        getAidlMockedVehicleHal().injectEvent(
+                newTirePressureVehiclePropValue(VehicleAreaWheel.WHEEL_LEFT_REAR,
+                        wheelLeftRearValue, wheelLeftRearTimestampNanos));
+        getAidlMockedVehicleHal().injectEvent(
+                newTirePressureVehiclePropValue(VehicleAreaWheel.WHEEL_RIGHT_REAR,
+                        wheelRightRearValue, wheelRightRearTimestampNanos));
+
+        List<CarPropertyValue<?>> carPropertyValues = testCallback.getCarPropertyValues();
+        assertThat(carPropertyValues).hasSize(4);
+
+        assertTirePressureCarPropertyValue(carPropertyValues.get(0),
+                VehicleAreaWheel.WHEEL_LEFT_FRONT, wheelLeftFrontValue,
+                wheelLeftFrontTimestampNanos);
+
+        assertTirePressureCarPropertyValue(carPropertyValues.get(1),
+                VehicleAreaWheel.WHEEL_RIGHT_FRONT, wheelRightFrontValue,
+                wheelRightFrontTimestampNanos);
+
+        assertTirePressureCarPropertyValue(carPropertyValues.get(2),
+                VehicleAreaWheel.WHEEL_LEFT_REAR, wheelLeftRearValue, wheelLeftRearTimestampNanos);
+
+        assertTirePressureCarPropertyValue(carPropertyValues.get(3),
+                VehicleAreaWheel.WHEEL_RIGHT_REAR, wheelRightRearValue,
+                wheelRightRearTimestampNanos);
+    }
+
     private void userHalPropertiesTest(String method, Visitor<Integer> visitor) {
         List<String> failedProperties = new ArrayList<String>();
         for (int propertyId : USER_HAL_PROPERTIES) {
@@ -735,36 +924,52 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
     }
 
     @Override
-    protected synchronized void configureMockedHal() {
+    protected void configureMockedHal() {
         PropertyHandler handler = new PropertyHandler();
-        addProperty(CUSTOM_SEAT_MIXED_PROP_ID_1, handler).setConfigArray(CONFIG_ARRAY_1)
+        addAidlProperty(CUSTOM_SEAT_MIXED_PROP_ID_1, handler).setConfigArray(CONFIG_ARRAY_1)
                 .addAreaConfig(DRIVER_SIDE_AREA_ID).addAreaConfig(PASSENGER_SIDE_AREA_ID);
-        addProperty(CUSTOM_GLOBAL_MIXED_PROP_ID_2, handler).setConfigArray(CONFIG_ARRAY_2);
-        addProperty(CUSTOM_GLOBAL_MIXED_PROP_ID_3, handler).setConfigArray(CONFIG_ARRAY_3);
-        addProperty(CUSTOM_GLOBAL_INT_ARRAY_PROP, handler);
+        addAidlProperty(CUSTOM_GLOBAL_MIXED_PROP_ID_2, handler).setConfigArray(CONFIG_ARRAY_2);
+        addAidlProperty(CUSTOM_GLOBAL_MIXED_PROP_ID_3, handler).setConfigArray(CONFIG_ARRAY_3);
+        addAidlProperty(CUSTOM_GLOBAL_INT_ARRAY_PROP, handler);
 
-        addProperty(INT_ARRAY_PROP_STATUS_ERROR, handler);
-        addProperty(INT_PROP_STATUS_UNAVAILABLE, handler);
-        addProperty(FLOAT_PROP_STATUS_UNAVAILABLE, handler);
-        addProperty(BOOLEAN_PROP_STATUS_ERROR, handler);
+        addAidlProperty(INT_ARRAY_PROP_STATUS_ERROR, handler);
+        addAidlProperty(INT_PROP_STATUS_UNAVAILABLE, handler);
+        addAidlProperty(FLOAT_PROP_STATUS_UNAVAILABLE, handler);
+        addAidlProperty(BOOLEAN_PROP_STATUS_ERROR, handler);
+        addAidlProperty(VehiclePropertyIds.TIRE_PRESSURE, handler).addAreaConfig(
+                VehicleAreaWheel.WHEEL_LEFT_REAR).addAreaConfig(
+                VehicleAreaWheel.WHEEL_RIGHT_REAR).addAreaConfig(
+                VehicleAreaWheel.WHEEL_RIGHT_FRONT).addAreaConfig(
+                VehicleAreaWheel.WHEEL_LEFT_FRONT).setChangeMode(
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS).setMaxSampleRate(
+                10).setMinSampleRate(1);
 
         VehiclePropValue tempValue = new VehiclePropValue();
-        tempValue.value.floatValues.add(INIT_TEMP_VALUE);
+        tempValue.value = new RawPropValues();
+        tempValue.value.floatValues = new float[]{INIT_TEMP_VALUE};
         tempValue.prop = VehiclePropertyIds.HVAC_TEMPERATURE_SET;
-        addProperty(VehiclePropertyIds.HVAC_TEMPERATURE_SET, tempValue)
+        addAidlProperty(VehiclePropertyIds.HVAC_TEMPERATURE_SET, tempValue)
                 .addAreaConfig(DRIVER_SIDE_AREA_ID).addAreaConfig(PASSENGER_SIDE_AREA_ID);
-        addProperty(VehiclePropertyIds.INFO_VIN);
+        addAidlProperty(VehiclePropertyIds.INFO_VIN);
 
-        addProperty(PROP_CAUSE_STATUS_CODE_ACCESS_DENIED, handler);
-        addProperty(PROP_CAUSE_STATUS_CODE_TRY_AGAIN, handler);
-        addProperty(PROP_CAUSE_STATUS_CODE_INTERNAL_ERROR, handler);
-        addProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, handler);
-        addProperty(PROP_CAUSE_STATUS_CODE_NOT_AVAILABLE, handler);
+        addAidlProperty(PROP_CAUSE_STATUS_CODE_ACCESS_DENIED, handler);
+        addAidlProperty(PROP_CAUSE_STATUS_CODE_TRY_AGAIN, handler);
+        addAidlProperty(PROP_CAUSE_STATUS_CODE_INTERNAL_ERROR, handler);
+        addAidlProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, handler);
+        addAidlProperty(PROP_CAUSE_STATUS_CODE_NOT_AVAILABLE, handler);
 
-        addProperty(CUSTOM_SEAT_INT_PROP_1, handler).addAreaConfig(DRIVER_SIDE_AREA_ID)
+        addAidlProperty(CUSTOM_SEAT_INT_PROP_1, handler).addAreaConfig(DRIVER_SIDE_AREA_ID)
                                                         .addAreaConfig(PASSENGER_SIDE_AREA_ID);
-        addProperty(CUSTOM_SEAT_INT_PROP_2, handler).addAreaConfig(DRIVER_SIDE_AREA_ID)
+        addAidlProperty(CUSTOM_SEAT_INT_PROP_2, handler).addAreaConfig(DRIVER_SIDE_AREA_ID)
                                                         .addAreaConfig(PASSENGER_SIDE_AREA_ID);
+
+        addAidlProperty(NULL_VALUE_PROP, handler);
+
+        // Add properties for permission testing.
+        addAidlProperty(SUPPORT_CUSTOM_PERMISSION, handler).setConfigArray(
+                VENDOR_PERMISSION_CONFIG);
+        addAidlProperty(PROP_WITH_READ_ONLY_PERMISSION, handler);
+        addAidlProperty(PROP_WITH_WRITE_ONLY_PERMISSION, handler);
     }
 
     private class PropertyHandler implements VehicleHalPropertyHandler {
@@ -773,11 +978,8 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         public synchronized void onPropertySet(VehiclePropValue value) {
             // Simulate HalClient.set() behavior.
             int statusCode = mapPropertyToVhalStatusCode(value.prop);
-            if (statusCode == VehicleHalStatusCode.STATUS_INVALID_ARG) {
-                throw new IllegalArgumentException();
-            }
-
             if (statusCode != VehicleHalStatusCode.STATUS_OK) {
+                // The ServiceSpecificException here would pass the statusCode back to caller.
                 throw new ServiceSpecificException(statusCode);
             }
 
@@ -788,15 +990,19 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         public synchronized VehiclePropValue onPropertyGet(VehiclePropValue value) {
             // Simulate HalClient.get() behavior.
             int vhalStatusCode = mapPropertyToVhalStatusCode(value.prop);
-            if (vhalStatusCode == VehicleHalStatusCode.STATUS_INVALID_ARG) {
-                throw new IllegalArgumentException();
-            }
-
             if (vhalStatusCode != VehicleHalStatusCode.STATUS_OK) {
+                // The ServiceSpecificException here would pass the statusCode back to caller.
                 throw new ServiceSpecificException(vhalStatusCode);
             }
 
             int propertyStatus = mapPropertyToCarPropertyStatusCode(value.prop);
+            if (value.prop == NULL_VALUE_PROP) {
+                // Return null to simulate an unavailable property.
+                // HAL implementation should return STATUS_TRY_AGAIN when a property is unavailable,
+                // however, it may also return null with STATUS_OKAY and we want to handle this
+                // properly.
+                return null;
+            }
             VehiclePropValue currentValue = mMap.get(value.prop);
             if (currentValue == null) {
                 return value;
@@ -852,6 +1058,26 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         }
     }
 
+    private static VehiclePropValue newTirePressureVehiclePropValue(int areaId, float floatValue,
+            long timestampNanos) {
+        VehiclePropValue vehiclePropValue = new VehiclePropValue();
+        vehiclePropValue.prop = VehiclePropertyIds.TIRE_PRESSURE;
+        vehiclePropValue.areaId = areaId;
+        vehiclePropValue.value = new RawPropValues();
+        vehiclePropValue.value.floatValues = new float[]{floatValue};
+        vehiclePropValue.timestamp = timestampNanos;
+        return vehiclePropValue;
+    }
+
+    private static void assertTirePressureCarPropertyValue(CarPropertyValue<?> carPropertyValue,
+            int areaId, float floatValue, long timestampNanos) {
+        assertThat(carPropertyValue.getPropertyId()).isEqualTo(VehiclePropertyIds.TIRE_PRESSURE);
+        assertThat(carPropertyValue.getAreaId()).isEqualTo(areaId);
+        assertThat(carPropertyValue.getStatus()).isEqualTo(CarPropertyValue.STATUS_AVAILABLE);
+        assertThat(carPropertyValue.getTimestamp()).isEqualTo(timestampNanos);
+        assertThat(carPropertyValue.getValue()).isEqualTo(floatValue);
+    }
+
     private static class TestErrorCallback implements CarPropertyManager.CarPropertyEventCallback {
 
         private static final String CALLBACK_TAG = "ErrorEventTest";
@@ -901,6 +1127,43 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 throw new IllegalStateException("Register failed in " + CALLBACK_SHORT_TIMEOUT_MS
                         + " ms.");
             }
+        }
+    }
+
+    private static class TestCallback implements CarPropertyManager.CarPropertyEventCallback {
+        private final List<CarPropertyValue<?>> mCarPropertyValues = new ArrayList<>();
+        private final int mNumberOfExpectedCarPropertyValues;
+        private final CountDownLatch mCountDownLatch;
+
+        TestCallback(int numberOfExpectedCarPropertyValues) {
+            mNumberOfExpectedCarPropertyValues = numberOfExpectedCarPropertyValues;
+            mCountDownLatch = new CountDownLatch(numberOfExpectedCarPropertyValues);
+        }
+
+        @Override
+        public void onChangeEvent(CarPropertyValue carPropertyValue) {
+            mCarPropertyValues.add(carPropertyValue);
+            mCountDownLatch.countDown();
+        }
+
+        @Override
+        public void onErrorEvent(int propertyId, int areaId) {
+            Log.e(TAG, "TestCallback onErrorEvent - property ID: " + propertyId + " areaId: "
+                    + areaId);
+        }
+
+        public List<CarPropertyValue<?>> getCarPropertyValues() {
+            try {
+                assertWithMessage("Expected " + mNumberOfExpectedCarPropertyValues
+                        + " CarPropertyValues before timeout, but only received: "
+                        + mCarPropertyValues.size()).that(
+                        mCountDownLatch.await(CALLBACK_SHORT_TIMEOUT_MS,
+                                TimeUnit.MILLISECONDS)).isTrue();
+
+            } catch (InterruptedException e) {
+                fail("TestCallback was interrupted: " + e);
+            }
+            return mCarPropertyValues;
         }
     }
 

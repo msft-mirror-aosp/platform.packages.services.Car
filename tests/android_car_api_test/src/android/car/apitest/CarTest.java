@@ -21,11 +21,14 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.testng.Assert.assertThrows;
 
 import android.car.Car;
+import android.car.CarVersion;
 import android.car.ICar;
+import android.car.PlatformVersion;
 import android.car.hardware.CarSensorManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ServiceConnection;
+import android.os.Build;
 import android.os.IBinder;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -110,5 +113,50 @@ public class CarTest {
         assertThat(mICar).isNotNull();
         Car car2 = new Car(mContext, mICar, null);
         assertThat(car2.isConnected()).isTrue();
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    public void testApiVersion_deprecated() throws Exception {
+        int ApiVersionTooHigh = 1000000;
+        int MinorApiVersionTooHigh = 1000000;
+        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT)).isTrue();
+        assertThat(Car.isApiVersionAtLeast(ApiVersionTooHigh)).isFalse();
+
+        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT - 1,
+                MinorApiVersionTooHigh)).isTrue();
+        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                Car.API_VERSION_MINOR_INT)).isTrue();
+        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                MinorApiVersionTooHigh)).isFalse();
+        assertThat(Car.isApiVersionAtLeast(ApiVersionTooHigh, 0)).isFalse();
+
+        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                Build.VERSION.SDK_INT)).isTrue();
+        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                Build.VERSION.SDK_INT + 1)).isFalse();
+        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT)).isTrue();
+        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT + 1)).isFalse();
+    }
+
+    @Test
+    public void testApiVersion_car() throws Exception {
+        CarVersion carVersion = Car.getCarVersion();
+
+        assertThat(carVersion).isNotNull();
+        assertThat(carVersion.getMajorVersion()).isAtLeast(Build.VERSION.SDK_INT);
+        assertThat(carVersion.getMajorVersion()).isAtMost(Build.VERSION_CODES.CUR_DEVELOPMENT);
+        assertThat(carVersion.getMinorVersion()).isAtLeast(0);
+    }
+
+    @Test
+    public void testApiVersion_platform() throws Exception {
+        PlatformVersion platformVersion = Car.getPlatformVersion();
+
+        assertThat(platformVersion).isNotNull();
+        assertThat(platformVersion.getMajorVersion()).isEqualTo(Build.VERSION.SDK_INT);
+        assertThat(platformVersion.getMinorVersion()).isAtLeast(0);
     }
 }

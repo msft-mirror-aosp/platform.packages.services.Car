@@ -17,6 +17,9 @@ package com.android.car.bugreport;
 
 import static com.android.car.bugreport.BugReportService.MAX_PROGRESS_VALUE;
 
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toList;
+
 import android.Manifest;
 import android.app.Activity;
 import android.car.Car;
@@ -47,6 +50,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.io.ByteStreams;
 
 import java.io.File;
@@ -54,8 +59,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
 import java.util.Date;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -70,16 +75,18 @@ import java.util.Random;
 public class BugReportActivity extends Activity {
     private static final String TAG = BugReportActivity.class.getSimpleName();
 
-    /** Starts silent (no audio message recording) bugreporting. */
-    private static final String ACTION_START_SILENT =
-            "com.android.car.bugreport.action.START_SILENT";
+    /** Starts {@link MetaBugReport#TYPE_AUDIO_FIRST} bugreporting. */
+    private static final String ACTION_START_AUDIO_FIRST =
+            "com.android.car.bugreport.action.START_AUDIO_FIRST";
 
-    /** This is deprecated action. Please start SILENT bugreport using {@link BugReportService}. */
+    /** This is used internally by {@link BugReportService}. */
     private static final String ACTION_ADD_AUDIO =
             "com.android.car.bugreport.action.ADD_AUDIO";
 
     private static final int VOICE_MESSAGE_MAX_DURATION_MILLIS = 60 * 1000;
-    private static final int AUDIO_PERMISSIONS_REQUEST_ID = 1;
+    private static final int PERMISSIONS_REQUEST_ID = 1;
+    private static final ImmutableSortedSet<String> REQUIRED_PERMISSIONS = ImmutableSortedSet.of(
+            Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS);
 
     private static final String EXTRA_BUGREPORT_ID = "bugreport-id";
 
@@ -147,6 +154,15 @@ public class BugReportActivity extends Activity {
         addAudioIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         addAudioIntent.putExtra(EXTRA_BUGREPORT_ID, bug.getId());
         return addAudioIntent;
+    }
+
+    static Intent buildStartBugReportIntent(Context context) {
+        Intent intent = new Intent(context, BugReportActivity.class);
+        intent.setAction(ACTION_START_AUDIO_FIRST);
+        // Clearing is needed, otherwise multiple BugReportActivity-ies get opened and
+        // MediaRecorder crashes.
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        return intent;
     }
 
     @Override
@@ -240,9 +256,8 @@ public class BugReportActivity extends Activity {
         setContentView(R.layout.bug_report_activity);
 
         // Connect to the services here, because they are used only when showing the dialog.
-        // We need to minimize system state change when performing SILENT bug report.
-        mConfig = new Config();
-        mConfig.start();
+        // We need to minimize system state change when performing TYPE_AUDIO_LATER bug report.
+        mConfig = Config.create();
         mCar = Car.createCar(this, /* handler= */ null,
                 Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT, this::onCarLifecycleChanged);
 
@@ -338,25 +353,16 @@ public class BugReportActivity extends Activity {
             return;
         }
 
-        if (ACTION_START_SILENT.equals(getIntent().getAction())) {
-            Log.i(TAG, "Starting a silent bugreport.");
-            MetaBugReport bugReport = createBugReport(this, MetaBugReport.TYPE_SILENT);
-            startBugReportCollection(bugReport);
-            finish();
-            return;
-        }
-
-        // Close the notification shade and other dialogs when showing BugReportActivity dialog.
-        sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
-
-        if (ACTION_ADD_AUDIO.equals(getIntent().getAction())) {
+        if (ACTION_START_AUDIO_FIRST.equals(getIntent().getAction())) {
+            Log.i(TAG, "Starting a TYPE_AUDIO_FIRST bugreport.");
+            createNewBugReportWithAudioMessage();
+        } else if (ACTION_ADD_AUDIO.equals(getIntent().getAction())) {
             addAudioToExistingBugReport(
                     getIntent().getIntExtra(EXTRA_BUGREPORT_ID, /* defaultValue= */ -1));
-            return;
+        } else {
+            Log.w(TAG, "Unsupported intent action provided: " + getIntent().getAction());
+            finish();
         }
-
-        Log.i(TAG, "Starting an interactive bugreport.");
-        createNewBugReportWithAudioMessage();
     }
 
     private void addAudioToExistingBugReport(int bugreportId) {
@@ -378,7 +384,7 @@ public class BugReportActivity extends Activity {
     }
 
     private void createNewBugReportWithAudioMessage() {
-        MetaBugReport bug = createBugReport(this, MetaBugReport.TYPE_INTERACTIVE);
+        MetaBugReport bug = createBugReport(this, MetaBugReport.TYPE_AUDIO_FIRST);
         startAudioMessageRecording(
                 /* isNewBugReport= */ true,
                 bug,
@@ -393,6 +399,10 @@ public class BugReportActivity extends Activity {
             return;
         }
         mAudioRecordingStarted = true;
+
+        // Close the notification shade and other dialogs when showing the audio record dialog.
+        sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+
         mAudioManager = getSystemService(AudioManager.class);
         mIsNewBugReport = isNewBugReport;
         mMetaBugReport = bug;
@@ -408,11 +418,22 @@ public class BugReportActivity extends Activity {
                     mMetaBugReport.getTimestamp()));
         }
 
-        if (!hasRecordPermissions()) {
-            requestRecordPermissions();
-        } else {
+        ImmutableList<String> missingPermissions = findMissingPermissions();
+        if (missingPermissions.isEmpty()) {
             startRecordingWithPermission();
+        } else {
+            requestPermissions(missingPermissions.toArray(new String[missingPermissions.size()]),
+                    PERMISSIONS_REQUEST_ID);
         }
+    }
+
+    /**
+     * Finds required permissions not granted.
+     */
+    private ImmutableList<String> findMissingPermissions() {
+        return REQUIRED_PERMISSIONS.stream().filter(permission -> checkSelfPermission(permission)
+                != PackageManager.PERMISSION_GRANTED).collect(
+                collectingAndThen(toList(), ImmutableList::copyOf));
     }
 
     /**
@@ -427,7 +448,7 @@ public class BugReportActivity extends Activity {
         }
         stopAudioRecording();
         if (mIsNewBugReport) {
-            // The app creates a temp dir only for new INTERACTIVE bugreports.
+            // It creates a temp dir only for new TYPE_AUDIO_FIRST bugreports only.
             File tempDir = FileUtils.getTempDir(this, mMetaBugReport.getTimestamp());
             new DeleteFilesAndDirectoriesAsyncTask().execute(tempDir);
         } else {
@@ -464,6 +485,7 @@ public class BugReportActivity extends Activity {
         Bundle bundle = new Bundle();
         bundle.putParcelable(BugReportService.EXTRA_META_BUG_REPORT, bug);
         Intent intent = new Intent(this, BugReportService.class);
+        intent.setAction(BugReportService.ACTION_COLLECT_BUGREPORT);
         intent.putExtras(bundle);
         startForegroundService(intent);
     }
@@ -486,37 +508,26 @@ public class BugReportActivity extends Activity {
         finish();
     }
 
-    private void requestRecordPermissions() {
-        requestPermissions(
-                new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSIONS_REQUEST_ID);
-    }
-
-    private boolean hasRecordPermissions() {
-        return checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                == PackageManager.PERMISSION_GRANTED;
-    }
-
     @Override
     public void onRequestPermissionsResult(
             int requestCode, String[] permissions, int[] grantResults) {
-        if (requestCode != AUDIO_PERMISSIONS_REQUEST_ID) {
+        if (requestCode != PERMISSIONS_REQUEST_ID) {
             return;
         }
-        for (int i = 0; i < grantResults.length; i++) {
-            if (Manifest.permission.RECORD_AUDIO.equals(permissions[i])
-                    && grantResults[i] == PackageManager.PERMISSION_GRANTED) {
-                // Start recording from UI thread, otherwise when MediaRecord#start() fails,
-                // stack trace gets confusing.
-                mHandler.post(this::startRecordingWithPermission);
-                return;
-            }
+
+        ImmutableList<String> missingPermissions = findMissingPermissions();
+        if (missingPermissions.isEmpty()) {
+            // Start recording from UI thread, otherwise when MediaRecord#start() fails,
+            // stack trace gets confusing.
+            mHandler.post(this::startRecordingWithPermission);
+        } else {
+            handleMissingPermissions(missingPermissions);
         }
-        handleNoPermission(permissions);
     }
 
-    private void handleNoPermission(String[] permissions) {
+    private void handleMissingPermissions(ImmutableList missingPermissions) {
         String text = this.getText(R.string.toast_permissions_denied) + " : "
-                + Arrays.toString(permissions);
+                + String.join(", ", missingPermissions);
         Log.w(TAG, text);
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
         if (mMetaBugReport == null) {
@@ -537,7 +548,7 @@ public class BugReportActivity extends Activity {
         Log.i(TAG, "Started voice recording, and saving audio to " + mAudioFile);
 
         mLastAudioFocusRequest = new AudioFocusRequest.Builder(
-                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
                 .setOnAudioFocusChangeListener(focusChange ->
                         Log.d(TAG, "AudioManager focus change " + focusChange))
                 .setAudioAttributes(new AudioAttributes.Builder()
@@ -546,7 +557,8 @@ public class BugReportActivity extends Activity {
                         .build())
                 .setAcceptsDelayedFocusGain(true)
                 .build();
-        int focusGranted = mAudioManager.requestAudioFocus(mLastAudioFocusRequest);
+        int focusGranted = Objects.requireNonNull(mAudioManager)
+                .requestAudioFocus(mLastAudioFocusRequest);
         // NOTE: We will record even if the audio focus was not granted.
         Log.d(TAG,
                 "AudioFocus granted " + (focusGranted == AudioManager.AUDIOFOCUS_REQUEST_GRANTED));
@@ -596,7 +608,8 @@ public class BugReportActivity extends Activity {
             mRecorder = null;
         }
         if (mLastAudioFocusRequest != null) {
-            int focusAbandoned = mAudioManager.abandonAudioFocusRequest(mLastAudioFocusRequest);
+            int focusAbandoned = Objects.requireNonNull(mAudioManager)
+                    .abandonAudioFocusRequest(mLastAudioFocusRequest);
             Log.d(TAG, "Audio focus abandoned "
                     + (focusAbandoned == AudioManager.AUDIOFOCUS_REQUEST_GRANTED));
             mLastAudioFocusRequest = null;
@@ -613,7 +626,7 @@ public class BugReportActivity extends Activity {
      * Creates a {@link MetaBugReport} and saves it in a local sqlite database.
      *
      * @param context an Android context.
-     * @param type bug report type, {@link MetaBugReport.BugReportType}.
+     * @param type    bug report type, {@link MetaBugReport.BugReportType}.
      */
     static MetaBugReport createBugReport(Context context, int type) {
         String timestamp = MetaBugReport.toBugReportTimestamp(new Date());
@@ -695,8 +708,9 @@ public class BugReportActivity extends Activity {
                  InputStream input = new FileInputStream(mAudioFile)) {
                 ByteStreams.copy(input, out);
             } catch (IOException e) {
+                // Allow user to try again if it fails to write audio.
                 BugStorageUtils.setBugReportStatus(mContext, bug,
-                        com.android.car.bugreport.Status.STATUS_WRITE_FAILED,
+                        com.android.car.bugreport.Status.STATUS_AUDIO_PENDING,
                         "Failed to write audio to bug report");
                 Log.e(TAG, "Failed to write audio to bug report", e);
                 return null;

@@ -35,8 +35,10 @@ import android.automotive.watchdog.internal.ICarWatchdogServiceForSystem;
 import android.automotive.watchdog.internal.PackageInfo;
 import android.automotive.watchdog.internal.PackageIoOveruseStats;
 import android.automotive.watchdog.internal.PowerCycle;
+import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.automotive.watchdog.internal.ResourceOveruseConfiguration;
 import android.automotive.watchdog.internal.StateType;
+import android.automotive.watchdog.internal.ThreadPolicyWithPriority;
 import android.automotive.watchdog.internal.UserPackageIoUsageStats;
 import android.os.Binder;
 import android.os.IBinder;
@@ -59,8 +61,8 @@ import java.util.List;
  * <p>This class contains unit tests for the {@link CarWatchdogDaemonHelper}.
  */
 public class CarWatchdogDaemonHelperTest {
-
-    private static final String CAR_WATCHDOG_DAEMON_INTERFACE = "carwatchdogd_system";
+    private static final String CAR_WATCHDOG_DAEMON_INTERFACE =
+            "android.automotive.watchdog.internal.ICarWatchdog/default";
 
     @Mock CarWatchdogDaemonHelper.OnConnectionChangeListener mListener;
     @Mock private IBinder mBinder = new Binder();
@@ -69,13 +71,14 @@ public class CarWatchdogDaemonHelperTest {
     private MockitoSession mMockSession;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         mMockSession = mockitoSession()
                 .initMocks(this)
                 .strictness(Strictness.LENIENT)
                 .spyStatic(ServiceManager.class)
                 .startMocking();
         mockQueryService(CAR_WATCHDOG_DAEMON_INTERFACE, mBinder, mFakeCarWatchdog);
+        when(mFakeCarWatchdog.getInterfaceVersion()).thenReturn(2);
         mCarWatchdogDaemonHelper = new CarWatchdogDaemonHelper();
         mCarWatchdogDaemonHelper.connect();
     }
@@ -134,20 +137,26 @@ public class CarWatchdogDaemonHelperTest {
     @Test
     public void testIndirectCall_TellCarWatchdogServiceAlive() throws Exception {
         ICarWatchdogServiceForSystem service = new ICarWatchdogServiceForSystem.Default();
-        int[] pids = new int[]{111};
+        List<ProcessIdentifier> processIdentifiers = new ArrayList<>();
+        ProcessIdentifier processIdentifier = new ProcessIdentifier();
+        processIdentifier.pid = 111;
+        processIdentifier.startTimeMillis = 1000;
 
-        mCarWatchdogDaemonHelper.tellCarWatchdogServiceAlive(service, pids, 123456);
+        mCarWatchdogDaemonHelper.tellCarWatchdogServiceAlive(service, processIdentifiers, 123456);
 
-        verify(mFakeCarWatchdog).tellCarWatchdogServiceAlive(service, pids, 123456);
+        verify(mFakeCarWatchdog).tellCarWatchdogServiceAlive(service, processIdentifiers, 123456);
     }
 
     @Test
     public void testIndirectCall_TellDumpFinished() throws Exception {
         ICarWatchdogMonitor monitor = new ICarWatchdogMonitor.Default();
 
-        mCarWatchdogDaemonHelper.tellDumpFinished(monitor, 123456);
+        ProcessIdentifier processIdentifier = new ProcessIdentifier();
+        processIdentifier.pid = 123456;
+        processIdentifier.startTimeMillis = 1000;
+        mCarWatchdogDaemonHelper.tellDumpFinished(monitor, processIdentifier);
 
-        verify(mFakeCarWatchdog).tellDumpFinished(monitor, 123456);
+        verify(mFakeCarWatchdog).tellDumpFinished(monitor, processIdentifier);
     }
 
     @Test
@@ -217,6 +226,66 @@ public class CarWatchdogDaemonHelperTest {
                 () -> mCarWatchdogDaemonHelper.unregisterCarWatchdogService(service));
     }
 
+    @Test
+    public void testSetThreadPriority() throws Exception {
+        int testPid = 1;
+        int testTid = 2;
+        int testUid = 3;
+        int testPolicy = 4;
+        int testPriority = 5;
+
+        mCarWatchdogDaemonHelper.setThreadPriority(
+                    testPid, testTid, testUid, testPolicy, testPriority);
+
+        verify(mFakeCarWatchdog).setThreadPriority(
+                testPid, testTid, testUid, testPolicy, testPriority);
+    }
+
+    @Test
+    public void testSetThreadPriority_DaemonVersionTooLow() throws Exception {
+        int testPid = 1;
+        int testTid = 2;
+        int testUid = 3;
+        int testPolicy = 4;
+        int testPriority = 5;
+        when(mFakeCarWatchdog.getInterfaceVersion()).thenReturn(1);
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> mCarWatchdogDaemonHelper.setThreadPriority(
+                        testPid, testTid, testUid, testPolicy, testPriority));
+    }
+
+    @Test
+    public void testGetThreadPriority() throws Exception {
+        int testPid = 1;
+        int testTid = 2;
+        int testUid = 3;
+        int testPolicy = 4;
+        int testPriority = 5;
+        ThreadPolicyWithPriority p = new ThreadPolicyWithPriority();
+        p.policy = testPolicy;
+        p.priority = testPriority;
+        when(mFakeCarWatchdog.getThreadPriority(testPid, testTid, testUid))
+                .thenReturn(p);
+
+        int[] result = mCarWatchdogDaemonHelper.getThreadPriority(testPid, testTid, testUid);
+
+        assertThat(result[0]).isEqualTo(testPolicy);
+        assertThat(result[1]).isEqualTo(testPriority);
+    }
+
+    @Test
+    public void testGetThreadPriority_DaemonVersionTooLow() throws Exception {
+        int testPid = 1;
+        int testTid = 2;
+        int testUid = 3;
+        when(mFakeCarWatchdog.getInterfaceVersion()).thenReturn(1);
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> mCarWatchdogDaemonHelper.getThreadPriority(testPid, testTid, testUid));
+    }
+
+
     // FakeCarWatchdog mimics ICarWatchdog daemon in local process.
     private final class FakeCarWatchdog extends ICarWatchdog.Default {
 
@@ -268,6 +337,16 @@ public class CarWatchdogDaemonHelperTest {
         @Override
         public List<UserPackageIoUsageStats> getTodayIoUsageStats() {
             return new ArrayList<>();
+        }
+
+        @Override
+        public String getInterfaceHash() {
+            return ICarWatchdogServiceForSystem.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ICarWatchdogServiceForSystem.VERSION;
         }
     }
 }

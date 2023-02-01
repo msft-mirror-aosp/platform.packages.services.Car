@@ -15,8 +15,6 @@ ArrayReturn: android.car.content.pm.CarAppBlockingPolicy#blacklists:
     Field should be Collection<AppBlockingPackageInfo> (or subclass) instead of raw array; was `android.car.content.pm.AppBlockingPackageInfo[]`
 ArrayReturn: android.car.content.pm.CarAppBlockingPolicy#whitelists:
     Field should be Collection<AppBlockingPackageInfo> (or subclass) instead of raw array; was `android.car.content.pm.AppBlockingPackageInfo[]`
-ArrayReturn: android.car.input.CarInputHandlingService#CarInputHandlingService(android.car.input.CarInputHandlingService.InputFilter[]) parameter #0:
-    Method parameter should be Collection<InputFilter> (or subclass) instead of raw array; was `android.car.input.CarInputHandlingService.InputFilter[]`
 
 
 AutoBoxing: android.car.diagnostic.CarDiagnosticEvent#getFuelSystemStatus():
@@ -33,6 +31,12 @@ AutoBoxing: android.car.diagnostic.CarDiagnosticEvent#getVendorFloatSensor(int):
     Must avoid boxed primitives (`java.lang.Float`)
 AutoBoxing: android.car.diagnostic.CarDiagnosticEvent#getVendorIntegerSensor(int):
     Must avoid boxed primitives (`java.lang.Integer`)
+
+
+BuilderSetStyle: android.car.diagnostic.CarDiagnosticEvent.Builder#newFreezeFrameBuilder():
+    Builder methods names should use setFoo() / addFoo() / clearFoo() style: method android.car.diagnostic.CarDiagnosticEvent.Builder.newFreezeFrameBuilder()
+BuilderSetStyle: android.car.diagnostic.CarDiagnosticEvent.Builder#newLiveFrameBuilder():
+    Builder methods names should use setFoo() / addFoo() / clearFoo() style: method android.car.diagnostic.CarDiagnosticEvent.Builder.newLiveFrameBuilder()
 
 
 CallbackInterface: android.car.hardware.CarVendorExtensionManager.CarVendorExtensionCallback:
@@ -77,13 +81,16 @@ ExecutorRegistration: android.car.hardware.cabin.CarCabinManager#registerCallbac
     Registration methods should have overload that accepts delivery Executor: `registerCallback`
 ExecutorRegistration: android.car.hardware.hvac.CarHvacManager#registerCallback(android.car.hardware.hvac.CarHvacManager.CarHvacEventCallback):
     Registration methods should have overload that accepts delivery Executor: `registerCallback`
-
+ExecutorRegistration: android.car.media.CarMediaManager#addMediaSourceListener(android.car.media.CarMediaManager.MediaSourceChangedListener, int):
+    Registration methods should have overload that accepts delivery Executor: `addMediaSourceListener`
 ExecutorRegistration: android.car.storagemonitoring.CarStorageMonitoringManager#registerListener(android.car.storagemonitoring.CarStorageMonitoringManager.IoStatsListener):
     Registration methods should have overload that accepts delivery Executor: `registerListener`
 ExecutorRegistration: android.car.trust.CarTrustAgentEnrollmentManager#setBleCallback(android.car.trust.CarTrustAgentEnrollmentManager.CarTrustAgentBleCallback):
     Registration methods should have overload that accepts delivery Executor: `setBleCallback`
 ExecutorRegistration: android.car.trust.CarTrustAgentEnrollmentManager#setEnrollmentCallback(android.car.trust.CarTrustAgentEnrollmentManager.CarTrustAgentEnrollmentCallback):
     Registration methods should have overload that accepts delivery Executor: `setEnrollmentCallback`
+ExecutorRegistration: android.car.watchdog.CarWatchdogManager#tellClientAlive(android.car.watchdog.CarWatchdogManager.CarWatchdogClientCallback, int):
+    Registration methods should have overload that accepts delivery Executor: `tellClientAlive`
 
 
 HiddenSuperclass: android.car.CarAppFocusManager:
@@ -140,10 +147,10 @@ IntentName: android.car.media.CarAudioManager#AUDIOFOCUS_EXTRA_RECEIVE_DUCKING_E
     Intent extra constant name must be EXTRA_FOO: AUDIOFOCUS_EXTRA_RECEIVE_DUCKING_EVENTS
 
 
-InternalField: android.car.input.CarInputHandlingService.InputFilter#mKeyCode:
-    Internal field mKeyCode must not be exposed
-InternalField: android.car.input.CarInputHandlingService.InputFilter#mTargetDisplay:
-    Internal field mTargetDisplay must not be exposed
+ListenerLast: android.car.watchdog.CarWatchdogManager#registerClient(java.util.concurrent.Executor, android.car.watchdog.CarWatchdogManager.CarWatchdogClientCallback, int) parameter #2:
+    Listeners should always be at end of argument list (method `registerClient`)
+ListenerLast: android.car.watchdog.CarWatchdogManager#tellClientAlive(android.car.watchdog.CarWatchdogManager.CarWatchdogClientCallback, int) parameter #1:
+    Listeners should always be at end of argument list (method `tellClientAlive`)
 
 
 MinMaxConstant: android.car.diagnostic.IntegerSensorIndex#MAX_AIR_FLOW_RATE_FROM_MASS_AIR_FLOW_SENSOR:
@@ -156,6 +163,30 @@ MinMaxConstant: android.car.diagnostic.IntegerSensorIndex#MAX_OXYGEN_SENSOR_CURR
     If min/max could change in future, make them dynamic methods: android.car.diagnostic.IntegerSensorIndex#MAX_OXYGEN_SENSOR_CURRENT
 MinMaxConstant: android.car.diagnostic.IntegerSensorIndex#MAX_OXYGEN_SENSOR_VOLTAGE:
     If min/max could change in future, make them dynamic methods: android.car.diagnostic.IntegerSensorIndex#MAX_OXYGEN_SENSOR_VOLTAGE
+
+
+MissingGetterMatchingBuilder: android.car.diagnostic.CarDiagnosticEvent.Builder#setDtc(String):
+    android.car.diagnostic.CarDiagnosticEvent does not declare a `getDtc()` method matching method android.car.diagnostic.CarDiagnosticEvent.Builder.setDtc(String)
+MissingGetterMatchingBuilder: android.car.diagnostic.CarDiagnosticEvent.Builder#setFloatValue(int, float):
+    android.car.diagnostic.CarDiagnosticEvent does not declare a `getFloatValue()` method matching method android.car.diagnostic.CarDiagnosticEvent.Builder.setFloatValue(int,float)
+MissingGetterMatchingBuilder: android.car.diagnostic.CarDiagnosticEvent.Builder#setIntValue(int, int):
+    android.car.diagnostic.CarDiagnosticEvent does not declare a `getIntValue()` method matching method android.car.diagnostic.CarDiagnosticEvent.Builder.setIntValue(int,int)
+MissingGetterMatchingBuilder: android.car.diagnostic.CarDiagnosticEvent.Builder#setTimeStamp(long):
+    android.car.diagnostic.CarDiagnosticEvent does not declare a `getTimeStamp()` method matching method android.car.diagnostic.CarDiagnosticEvent.Builder.setTimeStamp(long)
+MissingGetterMatchingBuilder: android.car.hardware.CarPropertyConfig.Builder#addArea(int):
+    android.car.hardware.CarPropertyConfig does not declare a `getAreas()` method matching method android.car.hardware.CarPropertyConfig.Builder.addArea(int)
+MissingGetterMatchingBuilder: android.car.hardware.CarPropertyConfig.Builder#addAreaConfig(int, T, T):
+    android.car.hardware.CarPropertyConfig does not declare a `getAreaConfigs()` method matching method android.car.hardware.CarPropertyConfig.Builder.addAreaConfig(int,T,T)
+MissingGetterMatchingBuilder: android.car.hardware.CarPropertyConfig.Builder#addAreas(int[]):
+    android.car.hardware.CarPropertyConfig does not declare a getter method matching method android.car.hardware.CarPropertyConfig.Builder.addAreas(int[]) (expected one of: [getAreas(), getAreases()])
+MissingGetterMatchingBuilder: android.car.hardware.CarPropertyConfig.Builder#setConfigString(String):
+    android.car.hardware.CarPropertyConfig does not declare a `getConfigString()` method matching method android.car.hardware.CarPropertyConfig.Builder.setConfigString(String)
+MissingGetterMatchingBuilder: android.car.projection.ProjectionStatus.Builder#addMobileDevice(android.car.projection.ProjectionStatus.MobileDevice):
+    android.car.projection.ProjectionStatus does not declare a `getMobileDevices()` method matching method android.car.projection.ProjectionStatus.Builder.addMobileDevice(android.car.projection.ProjectionStatus.MobileDevice)
+MissingGetterMatchingBuilder: android.car.projection.ProjectionStatus.Builder#setProjectionTransport(int):
+    android.car.projection.ProjectionStatus does not declare a `getProjectionTransport()` method matching method android.car.projection.ProjectionStatus.Builder.setProjectionTransport(int)
+MissingGetterMatchingBuilder: android.car.projection.ProjectionStatus.MobileDevice.Builder#addTransport(int):
+    android.car.projection.ProjectionStatus.MobileDevice does not declare a `getTransports()` method matching method android.car.projection.ProjectionStatus.MobileDevice.Builder.addTransport(int)
 
 
 MissingNullability: android.car.AoapService#dump(java.io.FileDescriptor, java.io.PrintWriter, String[]) parameter #0:
@@ -388,24 +419,6 @@ MissingNullability: android.car.hardware.hvac.CarHvacManager#unregisterCallback(
     Missing nullability on parameter `callback` in method `unregisterCallback`
 MissingNullability: android.car.hardware.hvac.CarHvacManager.CarHvacEventCallback#onChangeEvent(android.car.hardware.CarPropertyValue) parameter #0:
     Missing nullability on parameter `value` in method `onChangeEvent`
-MissingNullability: android.car.input.CarInputHandlingService#CarInputHandlingService(android.car.input.CarInputHandlingService.InputFilter[]) parameter #0:
-    Missing nullability on parameter `handledKeys` in method `CarInputHandlingService`
-MissingNullability: android.car.input.CarInputHandlingService#dump(java.io.FileDescriptor, java.io.PrintWriter, String[]) parameter #0:
-    Missing nullability on parameter `fd` in method `dump`
-MissingNullability: android.car.input.CarInputHandlingService#dump(java.io.FileDescriptor, java.io.PrintWriter, String[]) parameter #1:
-    Missing nullability on parameter `writer` in method `dump`
-MissingNullability: android.car.input.CarInputHandlingService#dump(java.io.FileDescriptor, java.io.PrintWriter, String[]) parameter #2:
-    Missing nullability on parameter `args` in method `dump`
-MissingNullability: android.car.input.CarInputHandlingService#onBind(android.content.Intent):
-    Missing nullability on method `onBind` return
-MissingNullability: android.car.input.CarInputHandlingService#onBind(android.content.Intent) parameter #0:
-    Missing nullability on parameter `intent` in method `onBind`
-MissingNullability: android.car.input.CarInputHandlingService#onKeyEvent(android.view.KeyEvent, int) parameter #0:
-    Missing nullability on parameter `keyEvent` in method `onKeyEvent`
-MissingNullability: android.car.input.CarInputHandlingService.InputFilter#CREATOR:
-    Missing nullability on field `CREATOR` in class `class android.car.input.CarInputHandlingService.InputFilter`
-MissingNullability: android.car.input.CarInputHandlingService.InputFilter#writeToParcel(android.os.Parcel, int) parameter #0:
-    Missing nullability on parameter `dest` in method `writeToParcel`
 MissingNullability: android.car.media.CarAudioManager#createAudioPatch(String, int, int):
     Missing nullability on method `createAudioPatch` return
 MissingNullability: android.car.media.CarAudioManager#createAudioPatch(String, int, int) parameter #0:
@@ -630,6 +643,14 @@ MissingNullability: android.car.vms.VmsSubscriptionState#writeToParcel(android.o
     Missing nullability on parameter `out` in method `writeToParcel`
 
 
+NullableCollection: android.car.cluster.ClusterActivityState#getExtras():
+    Return type of method android.car.cluster.ClusterActivityState.getExtras() is a nullable collection (`android.os.Bundle`); must be non-null
+NullableCollection: android.car.telemetry.CarTelemetryManager.MetricsReportCallback#onResult(String, android.os.PersistableBundle, byte[], int) parameter #1:
+    Type of parameter report in android.car.telemetry.CarTelemetryManager.MetricsReportCallback.onResult(String metricsConfigName, android.os.PersistableBundle report, byte[] telemetryError, int status) is a nullable collection (`android.os.PersistableBundle`); must be non-null
+NullableCollection: android.car.watchdog.CarWatchdogManager#getResourceOveruseConfigurations(int):
+    Return type of method android.car.watchdog.CarWatchdogManager.getResourceOveruseConfigurations(int) is a nullable collection (`java.util.List`); must be non-null
+
+
 OnNameExpected: android.car.AoapService#canSwitchToAoap(android.hardware.usb.UsbDevice):
     If implemented by developer, should follow the on<Something> style; otherwise consider marking final
 OnNameExpected: android.car.AoapService#dump(java.io.FileDescriptor, java.io.PrintWriter, String[]):
@@ -640,14 +661,22 @@ OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#d
     If implemented by developer, should follow the on<Something> style; otherwise consider marking final
 OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#getBitmap(android.net.Uri, int, int):
     If implemented by developer, should follow the on<Something> style; otherwise consider marking final
+OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#getBitmap(android.net.Uri, int, int, float):
+    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
 OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#getNavigationRenderer():
     Methods implemented by developers should follow the on<Something> style, was `getNavigationRenderer`
+OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#setClusterActivityLaunchOptions(android.app.ActivityOptions):
+    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
+OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#setClusterActivityState(android.car.cluster.ClusterActivityState):
+    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
+OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#startFixedActivityModeForDisplayAndUser(android.content.Intent, android.app.ActivityOptions, int):
+    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
 OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#startNavigationActivity(android.content.ComponentName):
+    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
+OnNameExpected: android.car.cluster.renderer.InstrumentClusterRenderingService#stopFixedActivityMode(int):
     If implemented by developer, should follow the on<Something> style; otherwise consider marking final
 OnNameExpected: android.car.content.pm.CarAppBlockingPolicyService#getAppBlockingPolicy():
     Methods implemented by developers should follow the on<Something> style, was `getAppBlockingPolicy`
-OnNameExpected: android.car.input.CarInputHandlingService#dump(java.io.FileDescriptor, java.io.PrintWriter, String[]):
-    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
 
 
 ParcelConstructor: android.car.content.pm.AppBlockingPackageInfo#AppBlockingPackageInfo(android.os.Parcel):
@@ -682,10 +711,6 @@ ProtectedMember: android.car.cluster.renderer.InstrumentClusterRenderingService#
     Protected methods not allowed; must be public: method android.car.cluster.renderer.InstrumentClusterRenderingService.startNavigationActivity(android.content.ComponentName)}
 ProtectedMember: android.car.content.pm.CarAppBlockingPolicyService#getAppBlockingPolicy():
     Protected methods not allowed; must be public: method android.car.content.pm.CarAppBlockingPolicyService.getAppBlockingPolicy()}
-ProtectedMember: android.car.input.CarInputHandlingService#dump(java.io.FileDescriptor, java.io.PrintWriter, String[]):
-    Protected methods not allowed; must be public: method android.car.input.CarInputHandlingService.dump(java.io.FileDescriptor,java.io.PrintWriter,String[])}
-ProtectedMember: android.car.input.CarInputHandlingService#onKeyEvent(android.view.KeyEvent, int):
-    Protected methods not allowed; must be public: method android.car.input.CarInputHandlingService.onKeyEvent(android.view.KeyEvent,int)}
 ProtectedMember: android.car.vms.VmsPublisherClientService#onVmsPublisherServiceReady():
     Protected methods not allowed; must be public: method android.car.vms.VmsPublisherClientService.onVmsPublisherServiceReady()}
 
@@ -726,6 +751,10 @@ SamShouldBeLast: android.car.CarProjectionManager#registerProjectionListener(and
     SAM-compatible parameters (such as parameter 1, "listener", in android.car.CarProjectionManager.registerProjectionListener) should be last to improve Kotlin interoperability; see https://kotlinlang.org/docs/reference/java-interop.html#sam-conversions
 SamShouldBeLast: android.car.diagnostic.CarDiagnosticManager#registerListener(android.car.diagnostic.CarDiagnosticManager.OnDiagnosticEventListener, int, int):
     SAM-compatible parameters (such as parameter 1, "listener", in android.car.diagnostic.CarDiagnosticManager.registerListener) should be last to improve Kotlin interoperability; see https://kotlinlang.org/docs/reference/java-interop.html#sam-conversions
+SamShouldBeLast: android.car.media.CarMediaManager#addMediaSourceListener(android.car.media.CarMediaManager.MediaSourceChangedListener, int):
+    SAM-compatible parameters (such as parameter 1, "callback", in android.car.media.CarMediaManager.addMediaSourceListener) should be last to improve Kotlin interoperability; see https://kotlinlang.org/docs/reference/java-interop.html#sam-conversions
+SamShouldBeLast: android.car.media.CarMediaManager#removeMediaSourceListener(android.car.media.CarMediaManager.MediaSourceChangedListener, int):
+    SAM-compatible parameters (such as parameter 1, "callback", in android.car.media.CarMediaManager.removeMediaSourceListener) should be last to improve Kotlin interoperability; see https://kotlinlang.org/docs/reference/java-interop.html#sam-conversions
 
 
 ServiceName: android.car.Car#CAR_DRIVING_STATE_SERVICE:
@@ -754,6 +783,22 @@ StartWithLower: android.car.diagnostic.CarDiagnosticEvent.SparkIgnitionMonitors#
     Non-static field ACRefrigerant must be named using fooBar style
 StartWithLower: android.car.diagnostic.CarDiagnosticEvent.SparkIgnitionMonitors#EGR:
     Non-static field EGR must be named using fooBar style
+
+
+StaticFinalBuilder: android.car.diagnostic.CarDiagnosticEvent.Builder:
+    Builder must be final: android.car.diagnostic.CarDiagnosticEvent.Builder
+StaticFinalBuilder: android.car.hardware.CarPropertyConfig.Builder:
+    Builder must be final: android.car.hardware.CarPropertyConfig.Builder
+
+
+UserHandle: android.car.admin.CarDevicePolicyManager#removeUser(android.os.UserHandle):
+    When a method overload is needed to target a specific UserHandle, callers should be directed to use Context.createPackageContextAsUser() and re-obtain the relevant Manager, and no new API should be added
+UserHandle: android.car.watchdog.CarWatchdogManager#getPackageKillableStatesAsUser(android.os.UserHandle):
+    When a method overload is needed to target a specific UserHandle, callers should be directed to use Context.createPackageContextAsUser() and re-obtain the relevant Manager, and no new API should be added
+UserHandle: android.car.watchdog.CarWatchdogManager#getResourceOveruseStatsForUserPackage(String, android.os.UserHandle, int, int):
+    When a method overload is needed to target a specific UserHandle, callers should be directed to use Context.createPackageContextAsUser() and re-obtain the relevant Manager, and no new API should be added
+UserHandle: android.car.watchdog.CarWatchdogManager#setKillablePackageAsUser(String, android.os.UserHandle, boolean):
+    When a method overload is needed to target a specific UserHandle, callers should be directed to use Context.createPackageContextAsUser() and re-obtain the relevant Manager, and no new API should be added
 
 
 UserHandleName: android.car.projection.ProjectionOptions:

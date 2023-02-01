@@ -45,6 +45,7 @@ import static org.mockito.Mockito.when;
 
 import android.app.StatsManager;
 import android.car.telemetry.TelemetryProto;
+import android.content.Context;
 import android.os.Looper;
 import android.os.Message;
 import android.os.PersistableBundle;
@@ -54,6 +55,7 @@ import android.os.SystemClock;
 import com.android.car.telemetry.AtomsProto.AppStartMemoryStateCaptured;
 import com.android.car.telemetry.AtomsProto.Atom;
 import com.android.car.telemetry.AtomsProto.ProcessMemoryState;
+import com.android.car.telemetry.ResultStore;
 import com.android.car.telemetry.StatsLogProto;
 import com.android.car.telemetry.StatsLogProto.ConfigMetricsReport;
 import com.android.car.telemetry.StatsLogProto.DimensionsValue;
@@ -77,11 +79,8 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.List;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsPublisherTest {
@@ -258,21 +257,20 @@ public class StatsPublisherTest {
 
     private final FakeHandlerWrapper mFakeHandlerWrapper =
             new FakeHandlerWrapper(Looper.getMainLooper(), FakeHandlerWrapper.Mode.QUEUEING);
+    private final FakePublisherListener mFakePublisherListener = new FakePublisherListener();
 
-    private File mRootDirectory;
+    private ResultStore mResultStore;
     private StatsPublisher mPublisher;  // subject
 
-    // These 2 variables are set in onPublisherFailure() callback. Defaults to null.
-    private Throwable mPublisherFailure;
-    private List<TelemetryProto.MetricsConfig> mFailedConfigs;
-
+    @Mock private Context mMockContext;
     @Mock private StatsManagerProxy mStatsManager;
 
     @Captor private ArgumentCaptor<PersistableBundle> mBundleCaptor;
 
     @Before
     public void setUp() throws Exception {
-        mRootDirectory = Files.createTempDirectory("telemetry_test").toFile();
+        mResultStore = new ResultStore(
+                mMockContext, Files.createTempDirectory("telemetry_test").toFile());
         mPublisher = createRestartedPublisher();
         when(mStatsManager.getStatsMetadata()).thenReturn(CONFIG_STATS_REPORT.toByteArray());
     }
@@ -281,11 +279,11 @@ public class StatsPublisherTest {
      * Emulates a restart by creating a new StatsPublisher. StatsManager and PersistableBundle
      * stays the same.
      */
-    private StatsPublisher createRestartedPublisher() throws Exception {
+    private StatsPublisher createRestartedPublisher() {
         return new StatsPublisher(
-                this::onPublisherFailure,
+                mFakePublisherListener,
                 mStatsManager,
-                mRootDirectory,
+                mResultStore,
                 mFakeHandlerWrapper.getMockHandler());
     }
 
@@ -353,7 +351,8 @@ public class StatsPublisherTest {
         mPublisher.removeDataSubscriber(DATA_SUBSCRIBER_1);
 
         verify(mStatsManager, times(1)).removeConfig(SUBSCRIBER_1_HASH);
-        assertThat(getSavedStatsConfigs().keySet()).isEmpty();
+        assertThat(mResultStore.getPublisherData(StatsPublisher.class.getSimpleName(), false))
+                .isNull();
         assertThat(mPublisher.hasDataSubscriber(DATA_SUBSCRIBER_1)).isFalse();
     }
 
@@ -377,7 +376,8 @@ public class StatsPublisherTest {
         publisher2.removeAllDataSubscribers();
 
         verify(mStatsManager, times(1)).removeConfig(SUBSCRIBER_1_HASH);
-        assertThat(getSavedStatsConfigs().keySet()).isEmpty();
+        assertThat(mResultStore.getPublisherData(StatsPublisher.class.getSimpleName(), false))
+                .isNull();
         assertThat(publisher2.hasDataSubscriber(DATA_SUBSCRIBER_1)).isFalse();
     }
 
@@ -398,8 +398,9 @@ public class StatsPublisherTest {
 
         mPublisher.addDataSubscriber(DATA_SUBSCRIBER_1);
 
-        assertThat(mPublisherFailure).hasMessageThat().contains("Failed to add config");
-        assertThat(mFailedConfigs).hasSize(1);  // got all the failed configs
+        assertThat(mFakePublisherListener.mPublisherFailure)
+                .hasMessageThat().contains("Failed to add config");
+        assertThat(mFakePublisherListener.mFailedConfigs).hasSize(1);  // got all the failed configs
     }
 
     @Test
@@ -468,7 +469,7 @@ public class StatsPublisherTest {
     }
 
     @Test
-    public void testBundleWithLargeSize_isLargeData() throws Exception {
+    public void testBundleWithLargeSize_isLargeData() {
         PersistableBundle bundle = new PersistableBundle();
         bundle.putBooleanArray("bool", new boolean[1000]);
         bundle.putLongArray("long", new long[1000]);
@@ -484,7 +485,7 @@ public class StatsPublisherTest {
     }
 
     @Test
-    public void testBundleWithSmallSize_isNotLargeData() throws Exception {
+    public void testBundleWithSmallSize_isNotLargeData() {
         PersistableBundle bundle = new PersistableBundle();
         bundle.putBooleanArray("bool", new boolean[100]);
         bundle.putLongArray("long", new long[100]);
@@ -518,24 +519,9 @@ public class StatsPublisherTest {
 
         // subscriber shouldn't get data, because of EMPTY_METRICS_REPORT.
         verify(subscriber, times(0)).push(any(), anyBoolean());
-        assertThat(mFailedConfigs).containsExactly(METRICS_CONFIG);
-        assertThat(mPublisherFailure).hasMessageThat().contains("Found invalid configs");
-    }
-
-    private PersistableBundle getSavedStatsConfigs() throws Exception {
-        File savedConfigsFile = new File(mRootDirectory, StatsPublisher.SAVED_STATS_CONFIGS_FILE);
-        if (!savedConfigsFile.exists()) {
-            return new PersistableBundle();
-        }
-        try (FileInputStream fileInputStream = new FileInputStream(savedConfigsFile)) {
-            return PersistableBundle.readFromStream(fileInputStream);
-        }
-    }
-
-    private void onPublisherFailure(AbstractPublisher publisher,
-                List<TelemetryProto.MetricsConfig> affectedConfigs, Throwable error) {
-        mPublisherFailure = error;
-        mFailedConfigs = affectedConfigs;
+        assertThat(mFakePublisherListener.mFailedConfigs).containsExactly(METRICS_CONFIG);
+        assertThat(mFakePublisherListener.mPublisherFailure)
+                .hasMessageThat().contains("Found invalid configs");
     }
 
     private static void assertThatMessageIsScheduledWithGivenDelay(Message msg, long delayMillis) {

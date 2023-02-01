@@ -29,33 +29,32 @@ import static java.nio.charset.StandardCharsets.UTF_16;
 
 import android.annotation.NonNull;
 import android.app.StatsManager.StatsUnavailableException;
+import android.car.builtin.os.TraceHelper;
+import android.car.builtin.util.Slogf;
+import android.car.builtin.util.TimingsTraceLog;
 import android.car.telemetry.TelemetryProto;
 import android.car.telemetry.TelemetryProto.Publisher.PublisherCase;
 import android.os.Handler;
 import android.os.PersistableBundle;
 import android.os.Process;
-import android.os.Trace;
 import android.util.LongSparseArray;
-import android.util.TimingsTraceLog;
 
 import com.android.car.CarLog;
 import com.android.car.telemetry.AtomsProto.ProcessCpuTime;
 import com.android.car.telemetry.AtomsProto.ProcessMemoryState;
+import com.android.car.telemetry.ResultStore;
 import com.android.car.telemetry.StatsLogProto;
 import com.android.car.telemetry.StatsdConfigProto;
 import com.android.car.telemetry.StatsdConfigProto.StatsdConfig;
 import com.android.car.telemetry.databroker.DataSubscriber;
 import com.android.car.telemetry.publisher.statsconverters.ConfigMetricsReportListConverter;
 import com.android.car.telemetry.publisher.statsconverters.StatsConversionException;
-import com.android.car.telemetry.util.IoUtils;
+import com.android.car.telemetry.sessioncontroller.SessionAnnotation;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
-import com.android.server.utils.Slogf;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -100,22 +99,12 @@ public class StatsPublisher extends AbstractPublisher {
     @VisibleForTesting
     static final long WTF_OCCURRED_EVENT_METRIC_ID = 14;
 
-    // The file that contains stats config key and stats config version
-    @VisibleForTesting
-    static final String SAVED_STATS_CONFIGS_FILE = "stats_config_keys_versions";
-
     // TODO(b/202115033): Flatten the load spike by pulling reports for each MetricsConfigs
     //                    using separate periodical timers.
     private static final Duration PULL_REPORTS_PERIOD = Duration.ofMinutes(10);
 
     private static final String BUNDLE_CONFIG_KEY_PREFIX = "statsd-publisher-config-id-";
     private static final String BUNDLE_CONFIG_VERSION_PREFIX = "statsd-publisher-config-version-";
-    /**
-     * Binder transaction size limit is 1MB for all binders per process, so for large script input
-     * file pipe will be used to transfer the data to script executor instead of binder call. This
-     * is the input size threshold above which piping is used.
-     */
-    private static final int SCRIPT_INPUT_SIZE_THRESHOLD_BYTES = 20 * 1024; // 20 kb
 
     @VisibleForTesting
     static final StatsdConfigProto.FieldMatcher PROCESS_MEMORY_STATE_FIELDS_MATCHER =
@@ -147,11 +136,8 @@ public class StatsPublisher extends AbstractPublisher {
                     .build();
 
     private final StatsManagerProxy mStatsManager;
-    private final File mSavedStatsConfigsFile;
+    private final ResultStore mResultStore;
     private final Handler mTelemetryHandler;
-
-    // True if the publisher is periodically pulling reports from StatsD.
-    private boolean mIsPullingReports = false;
 
     /** Assign the method to {@link Runnable}, otherwise the handler fails to remove it. */
     private final Runnable mPullReportsPeriodically = this::pullReportsPeriodically;
@@ -162,50 +148,35 @@ public class StatsPublisher extends AbstractPublisher {
     // Maps config_key to the set of DataSubscriber.
     private final LongSparseArray<DataSubscriber> mConfigKeyToSubscribers = new LongSparseArray<>();
 
-    private final PersistableBundle mSavedStatsConfigs;
+    private PersistableBundle mSavedStatsConfigs;
+
+    // True if the publisher is periodically pulling reports from StatsD.
+    private boolean mIsPullingReports = false;
 
     StatsPublisher(
-            @NonNull PublisherFailureListener failureListener,
+            @NonNull PublisherListener listener,
             @NonNull StatsManagerProxy statsManager,
-            @NonNull File publisherDirectory,
+            @NonNull ResultStore resultStore,
             @NonNull Handler telemetryHandler) {
-        super(failureListener);
+        super(listener);
         mStatsManager = statsManager;
+        mResultStore = resultStore;
         mTelemetryHandler = telemetryHandler;
-        mSavedStatsConfigsFile = new File(publisherDirectory, SAVED_STATS_CONFIGS_FILE);
-        mSavedStatsConfigs = loadBundle();
-    }
-
-    /** Loads the PersistableBundle containing stats config keys and versions from disk. */
-    @NonNull
-    private PersistableBundle loadBundle() {
-        if (!mSavedStatsConfigsFile.exists()) {
-            return new PersistableBundle();
-        }
-        try {
-            return IoUtils.readBundle(mSavedStatsConfigsFile);
-        } catch (IOException e) {
-            // TODO(b/199947533): handle failure
-            Slogf.e(CarLog.TAG_TELEMETRY, "Failed to read file "
-                    + mSavedStatsConfigsFile.getAbsolutePath(), e);
-            return new PersistableBundle();
+        // Loads the PersistableBundle containing stats config keys and versions from disk
+        mSavedStatsConfigs = mResultStore.getPublisherData(
+                StatsPublisher.class.getSimpleName(), false);
+        if (mSavedStatsConfigs == null) {
+            mSavedStatsConfigs = new PersistableBundle();
         }
     }
 
     /** Writes the PersistableBundle containing stats config keys and versions to disk. */
-    private void saveBundle() {
+    private void savePublisherState() {
         if (mSavedStatsConfigs.size() == 0) {
-            mSavedStatsConfigsFile.delete();
+            mResultStore.removePublisherData(StatsPublisher.class.getSimpleName());
             return;
         }
-        try {
-            IoUtils.writeBundle(mSavedStatsConfigsFile, mSavedStatsConfigs);
-        } catch (IOException e) {
-            // TODO(b/199947533): handle failure
-            Slogf.e(CarLog.TAG_TELEMETRY,
-                    "Cannot write to " + mSavedStatsConfigsFile.getAbsolutePath()
-                            + ". Added stats config info is lost.", e);
-        }
+        mResultStore.putPublisherData(StatsPublisher.class.getSimpleName(), mSavedStatsConfigs);
     }
 
     @Override
@@ -218,6 +189,7 @@ public class StatsPublisher extends AbstractPublisher {
         long configKey = buildConfigKey(subscriber);
         mConfigKeyToSubscribers.put(configKey, subscriber);
         addStatsConfig(configKey, subscriber);
+
         if (!mIsPullingReports) {
             if (DEBUG) {
                 Slogf.d(CarLog.TAG_TELEMETRY, "Stats report will be pulled in "
@@ -241,7 +213,7 @@ public class StatsPublisher extends AbstractPublisher {
             return;
         }
         TimingsTraceLog traceLog = new TimingsTraceLog(
-                CarLog.TAG_TELEMETRY, Trace.TRACE_TAG_SYSTEM_SERVER);
+                CarLog.TAG_TELEMETRY, TraceHelper.TRACE_TAG_CAR_SERVICE);
         Map<Long, PersistableBundle> metricBundles = null;
         try {
             traceLog.traceBegin("convert stats report");
@@ -312,7 +284,7 @@ public class StatsPublisher extends AbstractPublisher {
                 }
             }
         }
-        if (bytes < SCRIPT_INPUT_SIZE_THRESHOLD_BYTES) {
+        if (bytes < DataSubscriber.SCRIPT_INPUT_SIZE_THRESHOLD_BYTES) {
             return false;
         }
         return true;
@@ -347,7 +319,7 @@ public class StatsPublisher extends AbstractPublisher {
         }
 
         TimingsTraceLog traceLog = new TimingsTraceLog(
-                CarLog.TAG_TELEMETRY, Trace.TRACE_TAG_SYSTEM_SERVER);
+                CarLog.TAG_TELEMETRY, TraceHelper.TRACE_TAG_CAR_SERVICE);
         try {
             traceLog.traceBegin("pull stats report");
             // TODO(b/202131100): Get the active list of configs using
@@ -436,8 +408,8 @@ public class StatsPublisher extends AbstractPublisher {
                 // will ry deleting StatsD configs again.
             }
         }
-        saveBundle();
         mSavedStatsConfigs.clear();
+        savePublisherState();
         mIsPullingReports = false;
         mTelemetryHandler.removeCallbacks(mPullReportsPeriodically);
     }
@@ -505,7 +477,7 @@ public class StatsPublisher extends AbstractPublisher {
             mStatsManager.addConfig(configKey, config.toByteArray());
             mSavedStatsConfigs.putInt(bundleVersion, subscriber.getMetricsConfig().getVersion());
             mSavedStatsConfigs.putLong(bundleConfigKey, configKey);
-            saveBundle();
+            savePublisherState();
         } catch (StatsUnavailableException e) {
             Slogf.w(CarLog.TAG_TELEMETRY, "Failed to add config" + configKey, e);
             // We will notify the failure immediately, as we're expecting StatsManager to be stable.
@@ -525,7 +497,7 @@ public class StatsPublisher extends AbstractPublisher {
             mStatsManager.removeConfig(configKey);
             mSavedStatsConfigs.remove(bundleVersion);
             mSavedStatsConfigs.remove(bundleConfigKey);
-            saveBundle();
+            savePublisherState();
         } catch (StatsUnavailableException e) {
             Slogf.w(CarLog.TAG_TELEMETRY, "Failed to remove config " + configKey
                     + ". Ignoring the failure. Will retry removing again when"
@@ -729,4 +701,7 @@ public class StatsPublisher extends AbstractPublisher {
                         .setWhat(WTF_OCCURRED_ATOM_MATCHER_ID))
                 .build();
     }
+
+    @Override
+    protected void handleSessionStateChange(SessionAnnotation annotation) {}
 }

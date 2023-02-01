@@ -41,7 +41,7 @@ import static org.testng.Assert.assertThrows;
 
 import android.car.hardware.power.CarPowerPolicy;
 import android.content.res.Resources;
-import android.hardware.automotive.vehicle.V2_0.VehicleApPowerStateReport;
+import android.hardware.automotive.vehicle.VehicleApPowerStateReport;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -66,7 +66,9 @@ public final class PolicyReaderUnitTest {
     private static final String POLICY_GROUP_ID_MIXED = "mixed_policy_group";
     private static final String NO_USER_INTERACTION_POLICY_ID =
             "system_power_policy_no_user_interaction";
-    private static final String SUSPEND_TO_RAM_POLICY_ID = "system_power_policy_suspend_to_ram";
+    private static final String SUSPEND_PREP_POLICY_ID = "system_power_policy_suspend_prep";
+    private static final String ALL_ON_POLICY_ID = "system_power_policy_all_on";
+    private static final String INITIAL_ON_POLICY_ID = "system_power_policy_initial_on";
 
     private static final CarPowerPolicy POLICY_OTHER_OFF = new CarPowerPolicy(POLICY_ID_OTHER_OFF,
             new int[]{WIFI},
@@ -95,8 +97,8 @@ public final class PolicyReaderUnitTest {
                     new int[]{BLUETOOTH, WIFI, CELLULAR, ETHERNET, NFC, CPU},
                     new int[]{AUDIO, MEDIA, DISPLAY, PROJECTION, INPUT, VOICE_INTERACTION,
                             VISUAL_INTERACTION, TRUSTED_DEVICE_DETECTION, LOCATION, MICROPHONE});
-    private static final CarPowerPolicy SYSTEM_POWER_POLICY_SUSPEND_TO_RAM =
-            new CarPowerPolicy(SUSPEND_TO_RAM_POLICY_ID,
+    private static final CarPowerPolicy SYSTEM_POWER_POLICY_SUSPEND_PREP =
+            new CarPowerPolicy(SUSPEND_PREP_POLICY_ID,
                     new int[]{},
                     new int[]{AUDIO, BLUETOOTH, WIFI, LOCATION, MICROPHONE, CPU});
 
@@ -117,8 +119,8 @@ public final class PolicyReaderUnitTest {
     }
 
     @Test
-    public void testSystemPowerPolicySuspendToRam() throws Exception {
-        assertSystemPowerPolicy(SUSPEND_TO_RAM_POLICY_ID, SYSTEM_POWER_POLICY_SUSPEND_TO_RAM);
+    public void testSystemPowerPolicySuspendPrep() throws Exception {
+        assertSystemPowerPolicy(SUSPEND_PREP_POLICY_ID, SYSTEM_POWER_POLICY_SUSPEND_PREP);
     }
 
     @Test
@@ -205,6 +207,26 @@ public final class PolicyReaderUnitTest {
     @Test
     public void testInvalidXml_incorrectSystemPolicyId() throws Exception {
         assertInvalidXml(R.raw.invalid_system_power_policy_incorrect_id);
+    }
+
+    @Test
+    public void testDefaultPolicies() throws Exception {
+        assertDefaultPolicies();
+    }
+
+    @Test
+    public void testDefaultPoliciesWithCustomVendorPolicies() throws Exception {
+        readPowerPolicyXml(R.raw.valid_power_policy);
+
+        assertDefaultPolicies();
+    }
+
+    private void assertDefaultPolicies() {
+        assertThat(mPolicyReader.getPowerPolicy(ALL_ON_POLICY_ID)).isNotNull();
+        assertThat(mPolicyReader.getPreemptivePowerPolicy(NO_USER_INTERACTION_POLICY_ID))
+                .isNotNull();
+        assertThat(mPolicyReader.getPowerPolicy(INITIAL_ON_POLICY_ID)).isNotNull();
+        assertThat(mPolicyReader.getPreemptivePowerPolicy(SUSPEND_PREP_POLICY_ID)).isNotNull();
     }
 
     private void assertValidPolicyPart() throws Exception {

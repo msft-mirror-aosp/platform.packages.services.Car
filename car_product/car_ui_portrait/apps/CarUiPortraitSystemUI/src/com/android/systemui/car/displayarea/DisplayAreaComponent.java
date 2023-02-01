@@ -16,18 +16,16 @@
 
 package com.android.systemui.car.displayarea;
 
-import static android.car.settings.CarSettings.Secure.KEY_SETUP_WIZARD_IN_PROGRESS;
-
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Handler;
-import android.os.UserHandle;
-import android.provider.Settings;
+import android.os.Looper;
 import android.util.Log;
 
-import com.android.systemui.SystemUI;
+import com.android.systemui.CoreStartable;
 import com.android.systemui.dagger.SysUISingleton;
 
 import javax.inject.Inject;
@@ -36,7 +34,7 @@ import javax.inject.Inject;
  * Dagger Subcomponent for DisplayAreas within SysUI.
  */
 @SysUISingleton
-public class DisplayAreaComponent extends SystemUI {
+public class DisplayAreaComponent extends CoreStartable {
     public static final String TAG = "DisplayAreaComponent";
     // action name for the intent when to update the foreground DA visibility
     public static final String DISPLAY_AREA_VISIBILITY_CHANGED =
@@ -46,10 +44,8 @@ public class DisplayAreaComponent extends SystemUI {
             "EXTRA_IS_DISPLAY_AREA_VISIBLE";
 
     private final CarDisplayAreaController mCarDisplayAreaController;
-
     private final Context mContext;
-    private int mCurrentUser;
-    private boolean mIsDefaultTdaFullScreen;
+    final Handler mHandler = new Handler(Looper.myLooper());
 
     @Inject
     public DisplayAreaComponent(Context context,
@@ -61,61 +57,23 @@ public class DisplayAreaComponent extends SystemUI {
 
     @Override
     public void start() {
+        logIfDebuggable("start:");
         if (CarDisplayAreaUtils.isCustomDisplayPolicyDefined(mContext)) {
             // Register the DA's
             mCarDisplayAreaController.register();
 
-            // add a receiver to listen to ACTION_USER_SWITCHED when user is switching. We would
-            // make the default foreground DA full screen when SUW is being presented to the user.
-            IntentFilter filter = new IntentFilter();
-            filter.addAction(Intent.ACTION_USER_SWITCHED);
-            // When SUW is in progress, make foregroundDA fullscreen.
-            final Handler handler = new Handler();
-            Runnable runnable = new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        // ignore user 0 -> USER_SYSTEM and USER_ALL for suw
-                        if (mCurrentUser != UserHandle.USER_ALL
-                                && mCurrentUser != UserHandle.USER_SYSTEM) {
-                            int res = Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                                    KEY_SETUP_WIZARD_IN_PROGRESS, mCurrentUser);
-                            // res == 1 -> SUW in progress
-                            if (res == 1 && !mIsDefaultTdaFullScreen) {
-                                if (!mCarDisplayAreaController.isForegroundDaVisible()) {
-                                    mCarDisplayAreaController.hideTitleBar();
-                                    mCarDisplayAreaController.makeForegroundDaVisible(true);
-                                }
-                                mCarDisplayAreaController.makeForegroundDAFullScreen();
-                                mIsDefaultTdaFullScreen = true;
-                            } else if (res == 0 && mIsDefaultTdaFullScreen) {
-                                // reset
-                                mCarDisplayAreaController.makeForegroundDaVisible(false);
-                                mCarDisplayAreaController.setDefaultBounds();
-                                mCarDisplayAreaController.showTitleBar();
-                                mIsDefaultTdaFullScreen = false;
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, " error finding SETUP_WIZARD_IN_PROGRESS ", e);
-                    } finally {
-                        if (mIsDefaultTdaFullScreen) {
-                            // only poll this when default TDA is full screen. We want to check
-                            // the progress of suw every second until the user exits the suw.
-                            handler.postDelayed(this, 1000);
-                        }
-                    }
-                }
-            };
-
+            IntentFilter packageChangeFilter = new IntentFilter();
+            // add a receiver to listen to ACTION_PACKAGE_ADDED to perform any action when a new
+            // application is installed on the system.
+            packageChangeFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
+            packageChangeFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+            packageChangeFilter.addDataScheme("package");
             mContext.registerReceiverForAllUsers(new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
-                    mCurrentUser = intent.getIntExtra(Intent.EXTRA_USER_HANDLE,
-                            UserHandle.USER_ALL);
-                    handler.post(runnable);
+                    mCarDisplayAreaController.updateVoicePlateActivityMap();
                 }
-            }, filter, null, null);
+            }, packageChangeFilter, null, null);
         }
     }
 
@@ -126,6 +84,12 @@ public class DisplayAreaComponent extends SystemUI {
      * DEFAULT state where maps are shown above DA for default apps.
      */
     public enum FOREGROUND_DA_STATE {
-        CONTROL_BAR, DEFAULT, FULL
+        CONTROL_BAR, DEFAULT, FULL, FULL_TO_DEFAULT
+    }
+
+    private static void logIfDebuggable(String message) {
+        if (Build.IS_DEBUGGABLE) {
+            Log.d(TAG, message);
+        }
     }
 }

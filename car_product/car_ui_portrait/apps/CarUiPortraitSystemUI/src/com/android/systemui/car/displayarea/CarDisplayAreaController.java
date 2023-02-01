@@ -27,29 +27,37 @@ import static com.android.systemui.car.displayarea.CarDisplayAreaOrganizer.CONTR
 import static com.android.systemui.car.displayarea.CarDisplayAreaOrganizer.FEATURE_TITLE_BAR;
 import static com.android.systemui.car.displayarea.CarDisplayAreaOrganizer.FEATURE_VOICE_PLATE;
 import static com.android.systemui.car.displayarea.CarDisplayAreaOrganizer.FOREGROUND_DISPLAY_AREA_ROOT;
-import static com.android.systemui.car.displayarea.CarFullscreenTaskListener.MAPS;
 import static com.android.systemui.car.displayarea.DisplayAreaComponent.DISPLAY_AREA_VISIBILITY_CHANGED;
 import static com.android.systemui.car.displayarea.DisplayAreaComponent.FOREGROUND_DA_STATE.CONTROL_BAR;
 import static com.android.systemui.car.displayarea.DisplayAreaComponent.FOREGROUND_DA_STATE.DEFAULT;
+import static com.android.systemui.car.displayarea.DisplayAreaComponent.FOREGROUND_DA_STATE.FULL;
+import static com.android.systemui.car.displayarea.DisplayAreaComponent.FOREGROUND_DA_STATE.FULL_TO_DEFAULT;
 import static com.android.systemui.car.displayarea.DisplayAreaComponent.INTENT_EXTRA_IS_DISPLAY_AREA_VISIBLE;
 import static com.android.wm.shell.ShellTaskOrganizer.TASK_LISTENER_TYPE_FULLSCREEN;
+import static com.android.wm.shell.ShellTaskOrganizer.TASK_LISTENER_TYPE_MULTI_WINDOW;
 
 import android.app.ActivityManager;
 import android.app.ActivityTaskManager;
 import android.app.TaskStackListener;
 import android.app.UiModeManager;
+import android.car.Car;
+import android.car.app.CarActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.util.ArraySet;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -63,6 +71,7 @@ import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.WindowManagerGlobal;
+import android.widget.ImageView;
 import android.window.DisplayAreaAppearedInfo;
 import android.window.DisplayAreaInfo;
 import android.window.WindowContainerToken;
@@ -73,16 +82,23 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.android.internal.app.AssistUtils;
 import com.android.systemui.R;
+import com.android.systemui.car.CarDeviceProvisionedController;
+import com.android.systemui.car.CarDeviceProvisionedListener;
+import com.android.systemui.car.CarServiceProvider;
 import com.android.systemui.qs.QSHost;
+import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.policy.ConfigurationController;
+import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.HandlerExecutor;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.SyncTransactionQueue;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.inject.Inject;
 
@@ -90,11 +106,13 @@ import javax.inject.Inject;
  * Controls the bounds of the home background, audio bar and application displays. This is a
  * singleton class as there should be one controller used to register and control the DA's
  */
-public class CarDisplayAreaController implements ConfigurationController.ConfigurationListener {
+public class CarDisplayAreaController implements ConfigurationController.ConfigurationListener,
+        CommandQueue.Callbacks {
 
     // Layer index of how display areas should be placed. Keeping a gap of 100 if we want to
     // add some other display area layers in between in the future.
     static final int FOREGROUND_LAYER_INDEX = 0;
+    static final int TITLE_BAR_LAYER_INDEX = 10;
     static final int BACKGROUND_LAYER_INDEX = 100;
     static final int CONTROL_BAR_LAYER_INDEX = 200;
     static final int VOICE_PLATE_LAYER_SHOWN_INDEX = 300;
@@ -114,7 +132,10 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
     private final SyncTransactionQueue mSyncQueue;
     private final CarDisplayAreaOrganizer mOrganizer;
     private final CarFullscreenTaskListener mCarFullscreenTaskListener;
-    private final String mControlBarActivityComponent;
+    private final ComponentName mControlBarActivityComponent;
+    private final CarUiPortraitDisplaySystemBarsController mCarUiDisplaySystemBarsController;
+    private final CarDeviceProvisionedController mCarDeviceProvisionedController;
+    private final List<ComponentName> mBackgroundActivityComponent;
     private final HashMap<String, Boolean> mForegroundDAComponentsVisibilityMap;
     private final ArraySet<ComponentName> mIgnoreOpeningForegroundDAComponentsSet;
     private final int mTitleBarDragThreshold;
@@ -122,7 +143,6 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
     private final int mEnterExitAnimationDurationMs;
     // height of DA hosting the control bar.
     private final int mControlBarDisplayHeight;
-    private final ComponentName mAssistantVoicePlateActivityName;
     private final int mDpiDensity;
     private final int mTotalScreenWidth;
     // height of DA hosting default apps and covering the maps fully.
@@ -132,11 +152,13 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
     private final int mTitleBarHeight;
     private final int mScreenHeightWithoutNavBar;
     private final int mTotalScreenHeight;
+    private final ComponentName mNotificationCenterComponent;
     private final CarDisplayAreaTouchHandler mCarDisplayAreaTouchHandler;
     private final Context mApplicationContext;
     private final int mForegroundDisplayTop;
     private final AssistUtils mAssistUtils;
     private HashSet<Integer> mActiveTasksOnForegroundDA;
+    private HashSet<Integer> mActiveTasksOnBackgroundDA;
     private final ConfigurationController mConfigurationController;
     private final UiModeManager mUiModeManager;
     private DisplayAreaAppearedInfo mForegroundApplicationsDisplay;
@@ -148,44 +170,202 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
     private boolean mIsHostingDefaultApplicationDisplayAreaVisible;
     private WindowManager mTitleBarWindowManager;
     private View mTitleBarView;
+    private View mTitleHandleBarView;
+    private ImageView mImmersiveButtonView;
+    private Drawable mChevronUpDrawable;
+    private Drawable mChevronDownDrawable;
     private boolean mIsForegroundDaVisible = false;
-    private final TaskStackListener mOnActivityRestartAttemptListener = new TaskStackListener() {
-        @Override
-        public void onActivityRestartAttempt(ActivityManager.RunningTaskInfo task,
-                boolean homeTaskVisible, boolean clearedTask, boolean wasVisible)
-                throws RemoteException {
-            super.onActivityRestartAttempt(task, homeTaskVisible, clearedTask, wasVisible);
-            updateForegroundDaVisibility(task.topActivity, -1);
-        }
-
-        @Override
-        public void onTaskMovedToFront(ActivityManager.RunningTaskInfo taskInfo)
-                throws RemoteException {
-            super.onTaskMovedToFront(taskInfo);
-            updateForegroundDaVisibility(taskInfo.topActivityInfo.getComponentName(),
-                    taskInfo.taskId);
-        }
-
-        @Override
-        public void onTaskRemoved(int taskId) throws RemoteException {
-            super.onTaskRemoved(taskId);
-            if (mActiveTasksOnForegroundDA == null) {
-                return;
-            }
-            mActiveTasksOnForegroundDA.remove(taskId);
-            if (mActiveTasksOnForegroundDA.isEmpty()) {
-                logIfDebuggable("onTaskRemoved: no more tasks left in foreground DA ");
-                startAnimation(CONTROL_BAR);
-            }
-        }
-    };
+    private boolean mIsForegroundDaFullScreen = false;
+    private boolean mIsForegroundAppRequestingImmersiveMode = false;
     private boolean mIsUiModeNight = false;
+    private boolean mIsUserSetupInProgress;
+    // contains the list of activities that will be displayed on feature {@link
+    // CarDisplayAreaOrganizer.FEATURE_VOICE_PLATE)
+    private final Set<ComponentName> mVoicePlateActivitySet;
+    // true if there are activities still pending to be mapped to the voice plate DA as
+    // Car object was not created.
+    private boolean mIsPendingVoicePlateActivityMappingToDA;
+    private boolean mIsControlBarDisplayAreaEmpty = true;
+    private int mControlBarTaskId = -1;
+    private final CarServiceProvider mCarServiceProvider;
+    private Car mCar;
+
     /**
      * The WindowContext that is registered with {@link #mTitleBarWindowManager} with options to
      * specify the {@link RootDisplayArea} to attach the confirmation window.
      */
     @Nullable
     private Context mTitleBarWindowContext;
+    private final TaskStackListener mOnActivityRestartAttemptListener = new TaskStackListener() {
+        @Override
+        public void onActivityRestartAttempt(ActivityManager.RunningTaskInfo task,
+                boolean homeTaskVisible, boolean clearedTask, boolean wasVisible)
+                throws RemoteException {
+            super.onActivityRestartAttempt(task, homeTaskVisible, clearedTask, wasVisible);
+            logIfDebuggable("onActivityRestartAttempt: " + task);
+            updateForegroundDaVisibility(task);
+        }
+
+        @Override
+        public void onTaskMovedToFront(ActivityManager.RunningTaskInfo taskInfo)
+                throws RemoteException {
+            super.onTaskMovedToFront(taskInfo);
+            logIfDebuggable("onTaskMovedToFront: " + taskInfo);
+            updateForegroundDaVisibility(taskInfo);
+        }
+
+        @Override
+        public void onTaskRemoved(int taskId) throws RemoteException {
+            super.onTaskRemoved(taskId);
+            Log.e(TAG, " onTaskRemoved: " + taskId);
+            // maybe recover
+            if (mActiveTasksOnBackgroundDA != null
+                    && mActiveTasksOnBackgroundDA.isEmpty()) {
+                // re launch background app
+                relaunchBackgroundApp();
+            }
+
+            if (mIsControlBarDisplayAreaEmpty && taskId == mControlBarTaskId) {
+                relaunchControlBarApp();
+            }
+        }
+    };
+
+    private final CarFullscreenTaskListener.OnTaskChangeListener mOnTaskChangeListener =
+            new CarFullscreenTaskListener.OnTaskChangeListener() {
+                @Override
+                public void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo) {
+                    logIfDebuggable("onTaskAppeared: " + taskInfo);
+                    updateForegroundDaVisibility(taskInfo);
+                    ComponentName componentName = null;
+                    if (taskInfo.baseIntent != null) {
+                        componentName = taskInfo.baseIntent.getComponent();
+                    }
+
+                    boolean isBackgroundApp = mBackgroundActivityComponent.contains(componentName);
+                    if (isBackgroundApp) {
+                        addActiveTaskToBackgroundDAMap(taskInfo.taskId);
+                    }
+
+                    boolean isControlBarApp = mControlBarActivityComponent.equals(componentName);
+                    if (isControlBarApp) {
+                        mIsControlBarDisplayAreaEmpty = false;
+                    }
+                }
+
+                @Override
+                public void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo) {
+                    Log.e(TAG, " onTaskVanished: " + taskInfo);
+                    boolean isBackgroundApp = false;
+                    boolean isControlBarApp = false;
+                    ComponentName cmp = null;
+                    if (taskInfo.baseIntent != null) {
+                        cmp = taskInfo.baseIntent.getComponent();
+                        if (cmp != null) {
+                            isBackgroundApp = mBackgroundActivityComponent.contains(cmp);
+                            isControlBarApp = cmp.equals(mControlBarActivityComponent);
+                        }
+                    }
+
+                    if (mActiveTasksOnBackgroundDA != null
+                            && mActiveTasksOnBackgroundDA.remove(taskInfo.taskId)) {
+                        logIfDebuggable("removed task " + taskInfo.taskId
+                                + " from background DA, total tasks: "
+                                + mActiveTasksOnBackgroundDA.size());
+                    }
+
+                    if (isBackgroundApp && mActiveTasksOnBackgroundDA != null
+                            && mActiveTasksOnBackgroundDA.isEmpty()) {
+                        // re launch background app
+                        relaunchBackgroundApp();
+                    }
+
+                    if (isControlBarApp) {
+                        // re launch controlbar app
+                        mIsControlBarDisplayAreaEmpty = true;
+                        relaunchControlBarApp();
+                    }
+
+                    if (taskInfo.displayAreaFeatureId == FEATURE_VOICE_PLATE) {
+                        resetVoicePlateDisplayArea();
+                    }
+
+                    if (mActiveTasksOnForegroundDA == null) {
+                        return;
+                    }
+
+                    if (mActiveTasksOnForegroundDA.remove(taskInfo.taskId)) {
+                        logIfDebuggable("removed task " + taskInfo.taskId
+                                + " from foreground DA, total tasks: "
+                                + mActiveTasksOnForegroundDA.size());
+                    }
+
+                    if (mActiveTasksOnForegroundDA.isEmpty()
+                            && isHostingDefaultApplicationDisplayAreaVisible()) {
+                        logIfDebuggable("no more tasks left in foreground DA, closing... ");
+                        startAnimation(CONTROL_BAR);
+                    }
+                }
+            };
+
+    private final CarUiPortraitDisplaySystemBarsController.Callback
+            mCarUiPortraitDisplaySystemBarsControllerCallback =
+            new CarUiPortraitDisplaySystemBarsController.Callback() {
+                @Override
+                public void onImmersiveRequestedChanged(ComponentName componentName,
+                        boolean requested) {
+                    // If the requesting application is a voice plate, background, or ignored
+                    // package, ignore immersive requests.
+                    if (mVoicePlateActivitySet != null && mVoicePlateActivitySet.contains(
+                            componentName)) {
+                        return;
+                    }
+                    if (mBackgroundActivityComponent != null
+                            && mBackgroundActivityComponent.contains(componentName)) {
+                        return;
+                    }
+                    if (mIgnoreOpeningForegroundDAComponentsSet != null
+                            && mIgnoreOpeningForegroundDAComponentsSet.contains(componentName)) {
+                        return;
+                    }
+
+                    if (mTitleHandleBarView != null) {
+                        mTitleHandleBarView.setVisibility(requested ? View.GONE : View.VISIBLE);
+                    }
+                    if (mImmersiveButtonView != null) {
+                        mImmersiveButtonView.setVisibility(requested ? View.VISIBLE : View.GONE);
+                    }
+                    mIsForegroundAppRequestingImmersiveMode = requested;
+                }
+
+                @Override
+                public void onImmersiveStateChanged(boolean immersive) {
+                    setImmersive(immersive);
+                }
+            };
+
+    private final CarDeviceProvisionedListener mCarDeviceProvisionedListener =
+            new CarDeviceProvisionedListener() {
+                @Override
+                public void onUserSetupInProgressChanged() {
+                    updateUserSetupState();
+                }
+    };
+
+    private void relaunchBackgroundApp() {
+        logIfDebuggable("relaunching background app...");
+        Intent mapsIntent = new Intent();
+        mapsIntent.setComponent(mBackgroundActivityComponent.get(0));
+        mApplicationContext.startActivityAsUser(mapsIntent, UserHandle.CURRENT);
+    }
+
+    private void relaunchControlBarApp() {
+        logIfDebuggable("relaunching controlbar app...");
+        Intent controlBarIntent = new Intent();
+        controlBarIntent.setComponent(mControlBarActivityComponent);
+        mApplicationContext.startActivityAsUser(controlBarIntent,
+                UserHandle.CURRENT);
+    }
 
     /**
      * Initializes the controller
@@ -196,37 +376,57 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             ShellExecutor shellExecutor,
             ConfigurationController configurationController,
             QSHost host,
-            CarDisplayAreaOrganizer organizer) {
+            CarServiceProvider carServiceProvider,
+            CarDisplayAreaOrganizer organizer,
+            CarUiPortraitDisplaySystemBarsController carUiPortraitDisplaySystemBarsController,
+            CommandQueue commandQueue,
+            CarDeviceProvisionedController deviceProvisionedController) {
         mApplicationContext = applicationContext;
         mSyncQueue = syncQueue;
         mOrganizer = organizer;
         mShellExecutor = shellExecutor;
         mCarFullscreenTaskListener = carFullscreenTaskListener;
         mConfigurationController = configurationController;
+        mCarServiceProvider = carServiceProvider;
+        mCarUiDisplaySystemBarsController = carUiPortraitDisplaySystemBarsController;
+        mCarDeviceProvisionedController = deviceProvisionedController;
+        mCarUiDisplaySystemBarsController.registerCallback(mApplicationContext.getDisplayId(),
+                mCarUiPortraitDisplaySystemBarsControllerCallback);
         mUiModeManager = host.getUserContext().getSystemService(UiModeManager.class);
         mConfigurationController.addCallback(this);
         mDpiDensity = mOrganizer.getDpiDensity();
-        mTotalScreenHeight = applicationContext.getResources().getDimensionPixelSize(
+        Resources resources = applicationContext.getResources();
+        mTotalScreenHeight = resources.getDimensionPixelSize(
                 R.dimen.total_screen_height);
-        mTotalScreenWidth = applicationContext.getResources().getDimensionPixelSize(
+        mTotalScreenWidth = resources.getDimensionPixelSize(
                 R.dimen.total_screen_width);
-        mControlBarDisplayHeight = applicationContext.getResources().getDimensionPixelSize(
+        mControlBarDisplayHeight = resources.getDimensionPixelSize(
                 R.dimen.control_bar_height);
-        mFullDisplayHeight = applicationContext.getResources().getDimensionPixelSize(
+        mFullDisplayHeight = resources.getDimensionPixelSize(
                 R.dimen.full_app_display_area_height);
-        mDefaultDisplayHeight = applicationContext.getResources().getDimensionPixelSize(
+        mDefaultDisplayHeight = resources.getDimensionPixelSize(
                 R.dimen.default_app_display_area_height);
+        mChevronUpDrawable = resources.getDrawable(R.drawable.ic_chevron_up);
+        mChevronDownDrawable = resources.getDrawable(R.drawable.ic_chevron_down);
         mCarDisplayAreaTouchHandler = new CarDisplayAreaTouchHandler(
                 new HandlerExecutor(applicationContext.getMainThreadHandler()));
-        mControlBarActivityComponent = applicationContext.getResources().getString(
-                R.string.config_controlBarActivity);
-        mAssistantVoicePlateActivityName = ComponentName.unflattenFromString(
-                applicationContext.getResources().getString(
-                        R.string.config_assistantVoicePlateActivity));
+        mControlBarActivityComponent = ComponentName.unflattenFromString(
+                resources.getString(
+                        R.string.config_controlBarActivity));
+        mNotificationCenterComponent = ComponentName.unflattenFromString(resources.getString(
+                R.string.config_notificationCenterActivity));
+        mBackgroundActivityComponent = new ArrayList<>();
+        mVoicePlateActivitySet = new ArraySet<>();
+        String[] backgroundActivities = mApplicationContext.getResources().getStringArray(
+                R.array.config_backgroundActivities);
+        for (String backgroundActivity : backgroundActivities) {
+            mBackgroundActivityComponent
+                    .add(ComponentName.unflattenFromString(backgroundActivity));
+        }
         mAssistUtils = new AssistUtils(applicationContext);
+        commandQueue.addCallback(this);
 
         // Get bottom nav bar height.
-        Resources resources = applicationContext.getResources();
         int navBarHeight = resources.getDimensionPixelSize(
                 com.android.internal.R.dimen.navigation_bar_height);
         if (navBarHeight > 0) {
@@ -255,9 +455,9 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
 
         mScreenHeightWithoutNavBar = mTotalScreenHeight - mNavBarBounds.height();
         mTitleBarHeight = resources.getDimensionPixelSize(R.dimen.title_bar_display_area_height);
-        mEnterExitAnimationDurationMs = applicationContext.getResources().getInteger(
+        mEnterExitAnimationDurationMs = resources.getInteger(
                 R.integer.enter_exit_animation_foreground_display_area_duration_ms);
-        mTitleBarDragThreshold = applicationContext.getResources().getDimensionPixelSize(
+        mTitleBarDragThreshold = resources.getDimensionPixelSize(
                 R.dimen.title_bar_display_area_touch_drag_threshold);
         mForegroundDisplayTop = mScreenHeightWithoutNavBar - mDefaultDisplayHeight;
 
@@ -274,6 +474,31 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             ComponentName componentName = ComponentName.unflattenFromString(component);
             mIgnoreOpeningForegroundDAComponentsSet.add(componentName);
         }
+    }
+
+    @Override
+    public void animateExpandNotificationsPanel() {
+        String name = mNotificationCenterComponent.flattenToShortString();
+        if (isHostingDefaultApplicationDisplayAreaVisible()
+                && mForegroundDAComponentsVisibilityMap.containsKey(name)
+                && mForegroundDAComponentsVisibilityMap.get(name)) {
+            // notifications activity already visible
+            return;
+        }
+        Intent intent = new Intent();
+        intent.setComponent(mNotificationCenterComponent);
+        mApplicationContext.startActivityAsUser(intent, UserHandle.CURRENT);
+    }
+
+    @Override
+    public void animateCollapsePanels(int flags, boolean force) {
+        if (mIsForegroundDaFullScreen) {
+            return;
+        }
+        Intent homeActivityIntent = new Intent(Intent.ACTION_MAIN);
+        homeActivityIntent.addCategory(Intent.CATEGORY_HOME);
+        homeActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mApplicationContext.startActivityAsUser(homeActivityIntent, UserHandle.CURRENT);
     }
 
     /**
@@ -303,6 +528,19 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 taskInfo.baseIntent.getComponent());
     }
 
+    void setControlBarVisibility(boolean show) {
+        SurfaceControl.Transaction tx = new SurfaceControl.Transaction();
+        // Reset the layer for voice plate. This is needed as when the tasks are launched on
+        // other DA's those are brought to the top.
+        tx.setLayer(mControlBarDisplay.getLeash(), CONTROL_BAR_LAYER_INDEX);
+        if (show) {
+            tx.show(mControlBarDisplay.getLeash());
+        } else {
+            tx.hide(mControlBarDisplay.getLeash());
+        }
+        tx.apply(true);
+    }
+
     /**
      * Show the title bar within a targeted display area using the rootDisplayAreaId.
      */
@@ -311,7 +549,6 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             mTitleBarView.setVisibility(View.VISIBLE);
             return;
         }
-
         hideTitleBar();
         createTitleBar();
     }
@@ -320,10 +557,40 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         LayoutInflater inflater = LayoutInflater.from(mApplicationContext);
         mTitleBarView = inflater.inflate(R.layout.title_bar_display_area_view, null, true);
         mTitleBarView.setVisibility(View.VISIBLE);
+        mTitleHandleBarView = mTitleBarView.findViewById(R.id.title_handle_bar);
+        mImmersiveButtonView = mTitleBarView.findViewById(R.id.immersive_button);
+        if (mImmersiveButtonView != null) {
+            mImmersiveButtonView.setImageDrawable(
+                    mIsForegroundDaFullScreen ? mChevronDownDrawable
+                            : mChevronUpDrawable);
+            mImmersiveButtonView.setOnClickListener(v -> {
+                mCarUiDisplaySystemBarsController.requestImmersiveMode(
+                        mApplicationContext.getDisplayId(), !mIsForegroundDaFullScreen);
+            });
+        }
 
         // Show the confirmation.
         WindowManager.LayoutParams lp = getTitleBarWindowLayoutParams();
         getWindowManager().addView(mTitleBarView, lp);
+    }
+
+    private void setImmersive(boolean immersive) {
+        if (mIsForegroundDaFullScreen == immersive) {
+            return;
+        }
+        mIsForegroundDaFullScreen = immersive;
+        if (mIsForegroundDaFullScreen) {
+            if (!isForegroundDaVisible()) {
+                makeForegroundDaVisible(true);
+            }
+            startAnimation(FULL);
+        } else {
+            startAnimation(FULL_TO_DEFAULT);
+        }
+        if (mImmersiveButtonView != null) {
+            mImmersiveButtonView.setImageDrawable(
+                    mIsForegroundDaFullScreen ? mChevronDownDrawable : mChevronUpDrawable);
+        }
     }
 
     private WindowManager getWindowManager() {
@@ -399,38 +666,17 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
 
     /** Registers the DA organizer. */
     public void register() {
-        // add CarFullscreenTaskListener to control the foreground DA when the task appears.
-        mCarFullscreenTaskListener.registerOnTaskChangeListener(
-                new CarFullscreenTaskListener.OnTaskChangeListener() {
-                    @Override
-                    public void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo) {
-                        if (taskInfo.displayAreaFeatureId == FEATURE_VOICE_PLATE) {
-                            showVoicePlateDisplayArea();
-                            return;
-                        }
+        logIfDebuggable("register organizer and set default bounds");
 
-                        if (taskInfo.displayAreaFeatureId == FEATURE_DEFAULT_TASK_CONTAINER
-                                && taskInfo.isVisible()
-                                && !shouldIgnoreOpeningForegroundDA(taskInfo)) {
-                            if (!isHostingDefaultApplicationDisplayAreaVisible()) {
-                                logIfDebuggable("opening DA on request for: " + taskInfo);
-                                startAnimation(DEFAULT);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo) {
-                        if (taskInfo.displayAreaFeatureId == FEATURE_VOICE_PLATE) {
-                            resetVoicePlateDisplayArea();
-                        }
-                    }
-                });
-
-        ShellTaskOrganizer taskOrganizer = new ShellTaskOrganizer(mShellExecutor,
-                mApplicationContext);
+        ShellTaskOrganizer taskOrganizer = new ShellTaskOrganizer(mShellExecutor);
         taskOrganizer.addListenerForType(mCarFullscreenTaskListener, TASK_LISTENER_TYPE_FULLSCREEN);
+        // Use the same TaskListener for MULTI_WINDOW windowing mode as there is nothing that has
+        // to be done differently. This is because the tasks are still running in 'fullscreen'
+        // within a DisplayArea.
+        taskOrganizer.addListenerForType(mCarFullscreenTaskListener,
+                TASK_LISTENER_TYPE_MULTI_WINDOW);
 
+        taskOrganizer.registerOrganizer();
         // Register DA organizer.
         registerOrganizer();
 
@@ -462,6 +708,9 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
 
                     @Override
                     public void onMove(float x, float y) {
+                        if (mIsForegroundAppRequestingImmersiveMode) {
+                            return;
+                        }
                         if (y <= mScreenHeightWithoutNavBar - mDefaultDisplayHeight
                                 - mControlBarDisplayHeight) {
                             return;
@@ -472,14 +721,13 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
 
                     @Override
                     public void onFinish(float x, float y) {
+                        if (mIsForegroundAppRequestingImmersiveMode) {
+                            return;
+                        }
                         if (y >= mTitleBarDragThreshold) {
                             animateToControlBarState((int) y,
                                     mScreenHeightWithoutNavBar + mTitleBarHeight, 0);
                             mCarDisplayAreaTouchHandler.updateTitleBarVisibility(false);
-                            Intent intent = new Intent(DISPLAY_AREA_VISIBILITY_CHANGED);
-                            intent.putExtra(INTENT_EXTRA_IS_DISPLAY_AREA_VISIBLE, false);
-                            LocalBroadcastManager.getInstance(mApplicationContext).sendBroadcast(
-                                    intent);
                         } else {
                             animateToDefaultState((int) y,
                                     mScreenHeightWithoutNavBar - mDefaultDisplayHeight
@@ -489,8 +737,48 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 });
         mCarDisplayAreaTouchHandler.enable(true);
 
+        mCarServiceProvider.addListener(car -> {
+            mCar = car;
+            if (mIsPendingVoicePlateActivityMappingToDA) {
+                mIsPendingVoicePlateActivityMappingToDA = false;
+                updateVoicePlateActivityMap();
+            }
+        });
+
         ActivityTaskManager.getInstance().registerTaskStackListener(
                 mOnActivityRestartAttemptListener);
+        // add CarFullscreenTaskListener to control the foreground DA when the task appears.
+        mCarFullscreenTaskListener.registerOnTaskChangeListener(mOnTaskChangeListener);
+
+        updateUserSetupState();
+        mCarDeviceProvisionedController.addCallback(mCarDeviceProvisionedListener);
+    }
+
+    void updateVoicePlateActivityMap() {
+        Context currentUserContext = mApplicationContext.createContextAsUser(
+                UserHandle.of(ActivityManager.getCurrentUser()), /* flags= */ 0);
+
+        Intent voiceIntent = new Intent(Intent.ACTION_VOICE_ASSIST, /* uri= */ null);
+        List<ResolveInfo> result = currentUserContext.getPackageManager().queryIntentActivities(
+                voiceIntent, PackageManager.MATCH_ALL);
+        if (!result.isEmpty() && mCar == null) {
+            mIsPendingVoicePlateActivityMappingToDA = true;
+            return;
+        } else if (result.isEmpty()) {
+            return;
+        }
+
+        CarActivityManager carAm = (CarActivityManager) mCar.getCarManager(
+                Car.CAR_ACTIVITY_SERVICE);
+        for (ResolveInfo info : result) {
+            if (mVoicePlateActivitySet.add(info.activityInfo.getComponentName())) {
+                logIfDebuggable("adding the following component to voice plate: "
+                        + info.activityInfo.getComponentName());
+                CarDisplayAreaUtils.setPersistentActivity(carAm,
+                        info.activityInfo.getComponentName(),
+                        FEATURE_VOICE_PLATE, "VoicePlate");
+            }
+        }
     }
 
     @Override
@@ -509,24 +797,39 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         }
     }
 
-    private void updateForegroundDaVisibility(ComponentName componentName, int taskId) {
-        if (componentName == null || isDisplayAreaAnimating()) {
+    private void updateForegroundDaVisibility(ActivityManager.RunningTaskInfo taskInfo) {
+        if (taskInfo.baseIntent == null || taskInfo.baseIntent.getComponent() == null
+                || isDisplayAreaAnimating()) {
             return;
         }
 
-        String packageName = componentName.getPackageName();
-        boolean isMaps = packageName.contains(MAPS);
-        boolean ignoreOpeningForegroundDA = mIgnoreOpeningForegroundDAComponentsSet.contains(
-                componentName);
+        ComponentName componentName = taskInfo.baseIntent.getComponent();
 
         // Voice plate will be shown as the top most layer. Also, we don't want to change the
         // state of the DA's when voice plate is shown.
-        boolean isVoicePlate = componentName.equals(mAssistantVoicePlateActivityName);
+        boolean isVoicePlate = mVoicePlateActivitySet.contains(componentName);
         if (isVoicePlate) {
             showVoicePlateDisplayArea();
             return;
         }
-        if (isMaps) {
+
+        boolean isControlBar = componentName.equals(mControlBarActivityComponent);
+        boolean isBackgroundApp = mBackgroundActivityComponent.contains(componentName);
+        if (isBackgroundApp) {
+            // we don't want to change the state of the foreground DA when background
+            // apps are launched.
+            return;
+        }
+
+        if (isControlBar) {
+            // we don't want to change the state of the foreground DA when
+            // controlbar apps are launched.
+            mControlBarTaskId = taskInfo.taskId;
+            return;
+        }
+
+        if (mIsForegroundDaFullScreen) {
+            logIfDebuggable("foregroundDA in fullscreen mode, skip updating its state ");
             return;
         }
 
@@ -535,35 +838,58 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             mAssistUtils.hideCurrentSession();
         }
 
+        // Any task that does NOT meet all the below criteria should be ignored.
+        // 1. displayAreaFeatureId should be FEATURE_DEFAULT_TASK_CONTAINER
+        // 2. should be visible
+        // 3. for the current user ONLY. System user launches some tasks on cluster that should
+        //    not affect the state of the foreground DA
+        // 4. any task that is manually defined to be ignored
+        if (!(taskInfo.displayAreaFeatureId == FEATURE_DEFAULT_TASK_CONTAINER
+                && taskInfo.isVisible()
+                && taskInfo.userId == ActivityManager.getCurrentUser()
+                && !shouldIgnoreOpeningForegroundDA(taskInfo))) {
+            return;
+        }
+
         String name = componentName.flattenToShortString();
 
+        // check if the foreground DA is visible to the user
         if (isHostingDefaultApplicationDisplayAreaVisible()) {
             if (mForegroundDAComponentsVisibilityMap.containsKey(name)
                     && mForegroundDAComponentsVisibilityMap.get(name)) {
+                // close the foreground DA
                 startAnimation(CONTROL_BAR);
             }
-            if (!ignoreOpeningForegroundDA) {
-                addTaskToActiveMap(taskId);
-            }
-        } else if (!ignoreOpeningForegroundDA) {
+            addActiveTaskToForegroundDAMap(taskInfo.taskId);
+        } else {
             logIfDebuggable("opening DA on request for cmp: " + componentName);
             startAnimation(DEFAULT);
-            addTaskToActiveMap(taskId);
+            addActiveTaskToForegroundDAMap(taskInfo.taskId);
         }
 
-        if (ignoreOpeningForegroundDA || name.equals(mControlBarActivityComponent)) {
-            return;
-        }
         mForegroundDAComponentsVisibilityMap.replaceAll((n, v) -> name.equals(n));
     }
 
-    private void addTaskToActiveMap(int taskId) {
+    private void addActiveTaskToForegroundDAMap(int taskId) {
         if (mActiveTasksOnForegroundDA == null) {
             mActiveTasksOnForegroundDA = new HashSet<>();
         }
         if (taskId != -1) {
-            logIfDebuggable("adding task to foreground DA: " + taskId);
             mActiveTasksOnForegroundDA.add(taskId);
+            logIfDebuggable("added task to foreground DA: " + taskId + " total tasks: "
+                    + mActiveTasksOnForegroundDA.size());
+        }
+    }
+
+    private void addActiveTaskToBackgroundDAMap(int taskId) {
+        if (mActiveTasksOnBackgroundDA == null) {
+            mActiveTasksOnBackgroundDA = new HashSet<>();
+        }
+        if (taskId != -1) {
+            mActiveTasksOnBackgroundDA.add(taskId);
+            logIfDebuggable("added task to background DA: " + taskId + " total tasks: "
+                    + mActiveTasksOnBackgroundDA.size());
+
         }
     }
 
@@ -636,7 +962,7 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         // TODO(b/188102153): replace to set mForegroundApplicationsDisplay to top.
         tx.setLayer(mBackgroundApplicationDisplay.getLeash(), BACKGROUND_LAYER_INDEX);
         tx.setLayer(mForegroundApplicationsDisplay.getLeash(), FOREGROUND_LAYER_INDEX);
-        tx.setLayer(mTitleBarDisplay.getLeash(), FOREGROUND_LAYER_INDEX);
+        tx.setLayer(mTitleBarDisplay.getLeash(), TITLE_BAR_LAYER_INDEX);
         tx.setLayer(mVoicePlateDisplay.getLeash(), VOICE_PLATE_LAYER_SHOWN_INDEX);
         tx.setLayer(mControlBarDisplay.getLeash(), CONTROL_BAR_LAYER_INDEX);
 
@@ -658,6 +984,7 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         mCarDisplayAreaTouchHandler.enable(false);
         ActivityTaskManager.getInstance()
                 .unregisterTaskStackListener(mOnActivityRestartAttemptListener);
+        mCarDeviceProvisionedController.removeCallback(mCarDeviceProvisionedListener);
         mTitleBarView.setVisibility(View.GONE);
     }
 
@@ -665,10 +992,13 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
      * This method should be called after the registration of DA's are done. The method expects a
      * target state as an argument, according to which the animations will take place. For example,
      * if the target state is {@link DisplayAreaComponent.FOREGROUND_DA_STATE#DEFAULT} then the
-     * foreground
-     * DA hosting default applications will animate to the default set height.
+     * foreground DA hosting default applications will animate to the default set height.
      */
     public void startAnimation(DisplayAreaComponent.FOREGROUND_DA_STATE toState) {
+        if (mIsUserSetupInProgress) {
+            // No animations while in setup
+            return;
+        }
         // TODO: currently the animations are only bottom/up. Make it more generic animations here.
         int fromPos = 0;
         int toPos = 0;
@@ -683,7 +1013,17 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 mCarDisplayAreaTouchHandler.updateTitleBarVisibility(false);
                 break;
             case FULL:
-                // TODO: Implement this.
+                fromPos =
+                        isForegroundDaVisible() ? mScreenHeightWithoutNavBar - mDefaultDisplayHeight
+                                - mControlBarDisplayHeight
+                                : mScreenHeightWithoutNavBar + mTitleBarHeight;
+                toPos = mTitleBarHeight;
+                animateToFullState(fromPos, toPos, mEnterExitAnimationDurationMs);
+                break;
+            case FULL_TO_DEFAULT:
+                toPos = mScreenHeightWithoutNavBar - mDefaultDisplayHeight
+                        - mControlBarDisplayHeight;
+                animateFullToDefaultState(fromPos, toPos, mEnterExitAnimationDurationMs);
                 break;
             default:
                 // Foreground DA opens to default height.
@@ -701,6 +1041,7 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 mScreenHeightWithoutNavBar - mControlBarDisplayHeight;
         animate(fromPos, toPos, CONTROL_BAR, durationMs);
         mIsHostingDefaultApplicationDisplayAreaVisible = false;
+        broadcastForegroundDAVisibilityChange(false);
     }
 
     private void animateToDefaultState(int fromPos, int toPos, int durationMs) {
@@ -711,8 +1052,35 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         mBackgroundApplicationDisplayBounds.bottom = toPos - mTitleBarHeight;
         animate(fromPos, toPos, DEFAULT, durationMs);
         mIsHostingDefaultApplicationDisplayAreaVisible = true;
+        broadcastForegroundDAVisibilityChange(true);
         if (mCarDisplayAreaTouchHandler != null) {
             mCarDisplayAreaTouchHandler.updateTitleBarVisibility(true);
+        }
+    }
+
+    private void animateFullToDefaultState(int fromPos, int toPos, int durationMs) {
+        mBackgroundApplicationDisplayBounds.bottom = toPos - mTitleBarHeight;
+        mIsForegroundDaFullScreen = false;
+        animate(fromPos, toPos, FULL_TO_DEFAULT, durationMs);
+        mIsHostingDefaultApplicationDisplayAreaVisible = true;
+        showTitleBar();
+        setControlBarVisibility(true);
+        if (mCarDisplayAreaTouchHandler != null) {
+            mCarDisplayAreaTouchHandler.updateTitleBarVisibility(true);
+        }
+    }
+
+    private void animateToFullState(int fromPos, int toPos, int durationMs) {
+        if (!isForegroundDaVisible()) {
+            makeForegroundDaVisible(true);
+        }
+        setControlBarVisibility(false);
+        mBackgroundApplicationDisplayBounds.bottom = mTotalScreenHeight;
+        makeForegroundDAFullScreen(/* setFullPosition= */ false, /* showTitleBar= */ true);
+        animate(fromPos, toPos, FULL, durationMs);
+        mIsHostingDefaultApplicationDisplayAreaVisible = true;
+        if (mCarDisplayAreaTouchHandler != null) {
+            mCarDisplayAreaTouchHandler.updateTitleBarVisibility(false);
         }
     }
 
@@ -720,8 +1088,8 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             int durationMs) {
         if (mOrganizer != null) {
             mOrganizer.scheduleOffset(fromPos, toPos, mBackgroundApplicationDisplayBounds,
-                    mBackgroundApplicationDisplay, mForegroundApplicationsDisplay,
-                    mControlBarDisplay, toState, durationMs);
+                    mForegroundApplicationDisplayBounds, mBackgroundApplicationDisplay,
+                    mForegroundApplicationsDisplay, mControlBarDisplay, toState, durationMs);
         }
     }
 
@@ -736,7 +1104,6 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             mIsForegroundDaVisible = false;
         }
         tx.apply(true);
-
     }
 
     boolean isForegroundDaVisible() {
@@ -788,13 +1155,14 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         mCarDisplayAreaTouchHandler.setTitleBarBounds(titleBarBounds);
 
         // Set the initial bounds for first and second displays.
-        WindowContainerTransaction wct = new WindowContainerTransaction();
-        updateBounds(wct);
-        mOrganizer.applyTransaction(wct);
+        updateBounds();
+        mIsForegroundDaFullScreen = false;
     }
 
     /** Updates the default and background display bounds for the given config. */
-    private void updateBounds(WindowContainerTransaction wct) {
+    private void updateBounds() {
+        WindowContainerTransaction wct = new WindowContainerTransaction();
+
         Rect foregroundApplicationDisplayBound = mForegroundApplicationDisplayBounds;
         Rect titleBarDisplayBounds = mTitleBarDisplayBounds;
         Rect voicePlateDisplayBounds = mVoicePlateDisplayBounds;
@@ -879,35 +1247,74 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         wct.setScreenSizeDp(controlBarDisplayToken, controlBarDisplayWidthDp,
                 controlBarDisplayHeightDp);
         wct.setSmallestScreenWidthDp(controlBarDisplayToken, controlBarDisplayWidthDp);
+        mSyncQueue.queue(wct);
 
         mSyncQueue.runInSync(t -> {
+            Rect foregroundApplicationAndTitleBarDisplayBound = new Rect(0, -mTitleBarHeight,
+                    foregroundApplicationDisplayBound.width(),
+                    foregroundApplicationDisplayBound.height());
+            t.setCrop(mForegroundApplicationsDisplay.getLeash(),
+                    foregroundApplicationAndTitleBarDisplayBound);
             t.setPosition(mForegroundApplicationsDisplay.getLeash(),
                     foregroundApplicationDisplayBound.left,
                     foregroundApplicationDisplayBound.top);
+
+            t.setWindowCrop(mVoicePlateDisplay.getLeash(),
+                    voicePlateDisplayBounds.width(), voicePlateDisplayBounds.height());
             t.setPosition(mVoicePlateDisplay.getLeash(),
                     voicePlateDisplayBounds.left,
                     voicePlateDisplayBounds.top);
+
+            t.setWindowCrop(mTitleBarDisplay.getLeash(),
+                    titleBarDisplayBounds.width(), titleBarDisplayBounds.height());
             t.setPosition(mTitleBarDisplay.getLeash(),
                     titleBarDisplayBounds.left, -mTitleBarHeight);
+
+            t.setWindowCrop(mBackgroundApplicationDisplay.getLeash(),
+                    backgroundApplicationDisplayBound.width(),
+                    backgroundApplicationDisplayBound.height());
             t.setPosition(mBackgroundApplicationDisplay.getLeash(),
                     backgroundApplicationDisplayBound.left,
                     backgroundApplicationDisplayBound.top);
+
+            t.setWindowCrop(mImeContainerDisplayArea.getLeash(),
+                    backgroundApplicationDisplayBound.width(),
+                    backgroundApplicationDisplayBound.height());
             t.setPosition(mImeContainerDisplayArea.getLeash(),
                     backgroundApplicationDisplayBound.left,
                     backgroundApplicationDisplayBound.top);
+
+            t.setWindowCrop(mControlBarDisplay.getLeash(),
+                    controlBarDisplayBound.width(), controlBarDisplayBound.height());
             t.setPosition(mControlBarDisplay.getLeash(),
                     controlBarDisplayBound.left,
                     controlBarDisplayBound.top);
         });
     }
 
+    /** Bypass the typical fullscreen flow specifically for SUW */
+    void immersiveForSUW(boolean immersive) {
+        if (immersive) {
+            makeForegroundDAFullScreen(/* setFullPosition= */ true, /* showTitleBar= */ false);
+        } else {
+            setDefaultBounds();
+        }
+        mCarUiDisplaySystemBarsController.requestImmersiveModeForSUW(
+                mApplicationContext.getDisplayId(), immersive);
+    }
+
     /**
      * Update the bounds of foreground DA to cover full screen.
+     *
+     * @param setFullPosition whether or not the surface's position should be set to the full
+     *                        position. Setting this to true will set the position to the full
+     *                        screen while setting to false will use the default display bounds.
      */
-    void makeForegroundDAFullScreen() {
+    void makeForegroundDAFullScreen(boolean setFullPosition, boolean showTitleBar) {
         logIfDebuggable("make foregroundDA fullscreen");
         WindowContainerTransaction wct = new WindowContainerTransaction();
-        Rect foregroundApplicationDisplayBounds = new Rect(0, 0, mTotalScreenWidth,
+        int topBound = showTitleBar ? mTitleBarHeight : 0;
+        Rect foregroundApplicationDisplayBounds = new Rect(0, topBound, mTotalScreenWidth,
                 mTotalScreenHeight);
         WindowContainerToken foregroundDisplayToken =
                 mForegroundApplicationsDisplay.getDisplayAreaInfo().token;
@@ -923,11 +1330,48 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 foregroundDisplayHeightDp);
         wct.setSmallestScreenWidthDp(foregroundDisplayToken,
                 Math.min(foregroundDisplayWidthDp, foregroundDisplayHeightDp));
+        mSyncQueue.queue(wct);
 
         mSyncQueue.runInSync(t -> {
-            t.setPosition(mForegroundApplicationsDisplay.getLeash(), 0, 0);
+            Rect foregroundApplicationAndTitleBarDisplayBound = new Rect(0, -topBound,
+                    foregroundApplicationDisplayBounds.width(),
+                    foregroundApplicationDisplayBounds.height());
+            t.setWindowCrop(mForegroundApplicationsDisplay.getLeash(),
+                    foregroundApplicationAndTitleBarDisplayBound);
+            if (setFullPosition) {
+                t.setPosition(mForegroundApplicationsDisplay.getLeash(), 0, 0);
+            }
         });
 
-        mOrganizer.applyTransaction(wct);
+        mIsForegroundDaFullScreen = true;
+    }
+
+    private void broadcastForegroundDAVisibilityChange(boolean visible) {
+        Intent intent = new Intent(DISPLAY_AREA_VISIBILITY_CHANGED);
+        intent.putExtra(INTENT_EXTRA_IS_DISPLAY_AREA_VISIBLE, visible);
+        LocalBroadcastManager.getInstance(mApplicationContext).sendBroadcast(
+                intent);
+    }
+
+    private void updateUserSetupState() {
+        boolean userSetupInProgress = mCarDeviceProvisionedController
+                .isCurrentUserSetupInProgress();
+        if (mIsUserSetupInProgress == userSetupInProgress) {
+            return;
+        }
+        mIsUserSetupInProgress = userSetupInProgress;
+        if (mIsUserSetupInProgress) {
+            if (!isForegroundDaVisible()) {
+                hideTitleBar();
+                makeForegroundDaVisible(true);
+            }
+            setControlBarVisibility(false);
+            immersiveForSUW(true);
+        } else {
+            makeForegroundDaVisible(false);
+            immersiveForSUW(false);
+            showTitleBar();
+            setControlBarVisibility(true);
+        }
     }
 }

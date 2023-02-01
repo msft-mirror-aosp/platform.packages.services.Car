@@ -18,13 +18,15 @@
 #define CPP_WATCHDOG_SERVER_SRC_WATCHDOGPERFSERVICE_H_
 
 #include "LooperWrapper.h"
-#include "ProcDiskStats.h"
-#include "ProcStat.h"
+#include "ProcDiskStatsCollector.h"
+#include "ProcStatCollector.h"
 #include "UidStatsCollector.h"
 
+#include <WatchdogProperties.sysprop.h>
 #include <android-base/chrono_utils.h>
 #include <android-base/result.h>
 #include <android/automotive/watchdog/internal/PowerCycle.h>
+#include <android/automotive/watchdog/internal/UserState.h>
 #include <cutils/multiuser.h>
 #include <gtest/gtest_prod.h>
 #include <utils/Errors.h>
@@ -52,6 +54,8 @@ class WatchdogPerfServicePeer;
 
 }  // namespace internal
 
+constexpr std::chrono::seconds kDefaultPostSystemEventDurationSec = 30s;
+constexpr std::chrono::seconds kDefaultUserSwitchTimeoutSec = 30s;
 constexpr const char* kStartCustomCollectionFlag = "--start_perf";
 constexpr const char* kEndCustomCollectionFlag = "--stop_perf";
 constexpr const char* kIntervalFlag = "--interval";
@@ -67,10 +71,10 @@ enum SystemState {
  * DataProcessor defines methods that must be implemented in order to process the data collected
  * by |WatchdogPerfService|.
  */
-class IDataProcessorInterface : public android::RefBase {
+class DataProcessorInterface : public android::RefBase {
 public:
-    IDataProcessorInterface() {}
-    virtual ~IDataProcessorInterface() {}
+    DataProcessorInterface() {}
+    virtual ~DataProcessorInterface() {}
     // Returns the name of the data processor.
     virtual std::string name() const = 0;
     // Callback to initialize the data processor.
@@ -80,12 +84,17 @@ public:
     // Callback to process the data collected during boot-time.
     virtual android::base::Result<void> onBoottimeCollection(
             time_t time, const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStat>& procStat) = 0;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector) = 0;
     // Callback to process the data collected periodically post boot complete.
     virtual android::base::Result<void> onPeriodicCollection(
             time_t time, SystemState systemState,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStat>& procStat) = 0;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector) = 0;
+    // Callback to process the data collected during user switch.
+    virtual android::base::Result<void> onUserSwitchCollection(
+            time_t time, userid_t from, userid_t to,
+            const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
+            const android::wp<ProcStatCollectorInterface>& procStatCollector) = 0;
     /**
      * Callback to process the data collected on custom collection and filter the results only to
      * the specified |filterPackages|.
@@ -94,13 +103,13 @@ public:
             time_t time, SystemState systemState,
             const std::unordered_set<std::string>& filterPackages,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStat>& procStat) = 0;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector) = 0;
     /**
      * Callback to periodically monitor the collected data and trigger the given |alertHandler|
      * on detecting resource overuse.
      */
     virtual android::base::Result<void> onPeriodicMonitor(
-            time_t time, const android::wp<IProcDiskStatsInterface>& procDiskStats,
+            time_t time, const android::wp<ProcDiskStatsCollectorInterface>& procDiskStatsCollector,
             const std::function<void()>& alertHandler) = 0;
     // Callback to dump the boot-time collected and periodically collected data.
     virtual android::base::Result<void> onDump(int fd) const = 0;
@@ -118,6 +127,7 @@ enum EventType {
     // Collection events.
     BOOT_TIME_COLLECTION,
     PERIODIC_COLLECTION,
+    USER_SWITCH_COLLECTION,
     CUSTOM_COLLECTION,
 
     // Monitor event.
@@ -132,6 +142,12 @@ enum SwitchMessage {
      * and monitor.
      */
     END_BOOTTIME_COLLECTION = EventType::LAST_EVENT + 1,
+
+    /**
+     * On receiving this message, collect the last user switch record and start periodic collection
+     * and monitor.
+     */
+    END_USER_SWITCH_COLLECTION,
 
     /**
      * On receiving this message, ends custom collection, discard collected data and start periodic
@@ -149,7 +165,7 @@ class WatchdogPerfServiceInterface : public MessageHandler {
 public:
     // Register a data processor to process the data collected by |WatchdogPerfService|.
     virtual android::base::Result<void> registerDataProcessor(
-            android::sp<IDataProcessorInterface> processor) = 0;
+            android::sp<DataProcessorInterface> processor) = 0;
     /**
      * Starts the boot-time collection in the looper handler on a new thread and returns
      * immediately. Must be called only once. Otherwise, returns an error.
@@ -159,8 +175,14 @@ public:
     virtual void terminate() = 0;
     // Sets the system state.
     virtual void setSystemState(SystemState systemState) = 0;
-    // Ends the boot-time collection by switching to periodic collection and returns immediately.
+    // Ends the boot-time collection by switching to periodic collection after the post event
+    // duration.
     virtual android::base::Result<void> onBootFinished() = 0;
+    // Starts and ends the user switch collection depending on the user states received.
+    virtual android::base::Result<void> onUserStateChange(
+            userid_t userId,
+            const android::automotive::watchdog::internal::UserState& userState) = 0;
+
     /**
      * Depending on the arguments, it either:
      * 1. Starts a custom collection.
@@ -178,22 +200,27 @@ public:
 class WatchdogPerfService final : public WatchdogPerfServiceInterface {
 public:
     WatchdogPerfService() :
+          mPostSystemEventDurationNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                  std::chrono::seconds(sysprop::postSystemEventDuration().value_or(
+                          kDefaultPostSystemEventDurationSec.count())))),
+          mUserSwitchTimeoutNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                  std::chrono::seconds(sysprop::userSwitchTimeout().value_or(
+                          kDefaultUserSwitchTimeoutSec.count())))),
           mHandlerLooper(android::sp<LooperWrapper>::make()),
           mSystemState(NORMAL_MODE),
           mBoottimeCollection({}),
           mPeriodicCollection({}),
+          mUserSwitchCollection({}),
           mCustomCollection({}),
           mPeriodicMonitor({}),
           mCurrCollectionEvent(EventType::INIT),
           mUidStatsCollector(android::sp<UidStatsCollector>::make()),
-          mProcStat(android::sp<ProcStat>::make()),
-          mProcDiskStats(android::sp<ProcDiskStats>::make()),
+          mProcStatCollector(android::sp<ProcStatCollector>::make()),
+          mProcDiskStatsCollector(android::sp<ProcDiskStatsCollector>::make()),
           mDataProcessors({}) {}
 
-    ~WatchdogPerfService() { terminate(); }
-
     android::base::Result<void> registerDataProcessor(
-            android::sp<IDataProcessorInterface> processor) override;
+            android::sp<DataProcessorInterface> processor) override;
 
     android::base::Result<void> start() override;
 
@@ -202,6 +229,10 @@ public:
     void setSystemState(SystemState systemState) override;
 
     android::base::Result<void> onBootFinished() override;
+
+    android::base::Result<void> onUserStateChange(
+            userid_t userId,
+            const android::automotive::watchdog::internal::UserState& userState) override;
 
     android::base::Result<void> onCustomCollection(int fd,
                                                    const Vector<android::String16>& args) override;
@@ -222,6 +253,13 @@ private:
         std::unordered_set<std::string> filterPackages;
 
         std::string toString() const;
+    };
+
+    struct UserSwitchEventMetadata : WatchdogPerfService::EventMetadata {
+        // User id of user being switched from.
+        userid_t from = 0;
+        // User id of user being switched to.
+        userid_t to = 0;
     };
 
     // Dumps the collectors' status when they are disabled.
@@ -249,6 +287,9 @@ private:
      */
     android::base::Result<void> endCustomCollection(int fd);
 
+    // Start a user switch collection.
+    android::base::Result<void> startUserSwitchCollection();
+
     // Handles the messages received by the lopper.
     void handleMessage(const Message& message) override;
 
@@ -267,50 +308,56 @@ private:
      */
     EventMetadata* currCollectionMetadataLocked();
 
+    // Duration to extend a system event collection after the final signal is received.
+    std::chrono::nanoseconds mPostSystemEventDurationNs;
+
+    // Timeout duration for user switch collection in case final signal isn't received.
+    std::chrono::nanoseconds mUserSwitchTimeoutNs;
+
     // Thread on which the actual collection happens.
     std::thread mCollectionThread;
 
     // Makes sure only one collection is running at any given time.
     mutable Mutex mMutex;
 
-    // Handler lopper to execute different collection events on the collection thread.
+    // Handler looper to execute different collection events on the collection thread.
     android::sp<LooperWrapper> mHandlerLooper GUARDED_BY(mMutex);
 
     // Current system state.
     SystemState mSystemState GUARDED_BY(mMutex);
 
-    // Info for the |CollectionEvent::BOOT_TIME| collection event.
+    // Info for the |EventType::BOOT_TIME_COLLECTION| collection event.
     EventMetadata mBoottimeCollection GUARDED_BY(mMutex);
 
-    // Info for the |CollectionEvent::PERIODIC| collection event.
+    // Info for the |EventType::PERIODIC_COLLECTION| collection event.
     EventMetadata mPeriodicCollection GUARDED_BY(mMutex);
 
-    /*
-     * Info for the |CollectionEvent::CUSTOM| collection event. The info is cleared at the end of
-     * every custom collection.
-     */
+    // Info for the |EventType::USER_SWITCH_COLLECTION| collection event.
+    UserSwitchEventMetadata mUserSwitchCollection GUARDED_BY(mMutex);
+
+    // Info for the |EventType::CUSTOM_COLLECTION| collection event. The info is cleared at the end
+    // of every custom collection.
     EventMetadata mCustomCollection GUARDED_BY(mMutex);
 
-    // Info for the |EventType::PERIODIC| monitor event.
+    // Info for the |EventType::PERIODIC_MONITOR| monitor event.
     EventMetadata mPeriodicMonitor GUARDED_BY(mMutex);
 
-    /**
-     * Tracks either the WatchdogPerfService's state or current collection event. Updated on
-     * |start|, |onBootComplete|, |startCustomCollection|, |endCustomCollection|, and |terminate|.
-     */
+    // Tracks either the WatchdogPerfService's state or current collection event. Updated on
+    // |start|, |onBootFinished|, |onUserStateChange|, |startCustomCollection|,
+    // |endCustomCollection|, and |terminate|.
     EventType mCurrCollectionEvent GUARDED_BY(mMutex);
 
     // Collector for UID process and I/O stats.
     android::sp<UidStatsCollectorInterface> mUidStatsCollector GUARDED_BY(mMutex);
 
     // Collector/parser for `/proc/stat`.
-    android::sp<ProcStat> mProcStat GUARDED_BY(mMutex);
+    android::sp<ProcStatCollectorInterface> mProcStatCollector GUARDED_BY(mMutex);
 
     // Collector/parser for `/proc/diskstats` file.
-    android::sp<IProcDiskStatsInterface> mProcDiskStats GUARDED_BY(mMutex);
+    android::sp<ProcDiskStatsCollectorInterface> mProcDiskStatsCollector GUARDED_BY(mMutex);
 
     // Data processors for the collected performance data.
-    std::vector<android::sp<IDataProcessorInterface>> mDataProcessors GUARDED_BY(mMutex);
+    std::vector<android::sp<DataProcessorInterface>> mDataProcessors GUARDED_BY(mMutex);
 
     // For unit tests.
     friend class internal::WatchdogPerfServicePeer;
