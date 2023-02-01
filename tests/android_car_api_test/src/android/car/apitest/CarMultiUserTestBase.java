@@ -16,17 +16,24 @@
 
 package android.car.apitest;
 
+import static android.car.test.util.UserTestingHelper.setMaxSupportedUsers;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
 import static com.google.common.truth.Truth.assertWithMessage;
+
+import static org.junit.Assume.assumeTrue;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.car.Car;
+import android.car.CarOccupantZoneManager;
+import android.car.test.ApiCheckerRule.Builder;
 import android.car.test.util.AndroidHelper;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
@@ -46,9 +53,11 @@ import android.os.UserManager;
 import android.util.Log;
 
 import org.junit.After;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +75,10 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
     private static final String NEW_USER_NAME_PREFIX = "CarApiTest.";
 
+    private static final int sMaxNumberUsersBefore = UserManager.getMaxSupportedUsers();
+    private static boolean sChangedMaxNumberUsers;
+
+    protected CarOccupantZoneManager mCarOccupantZoneManager;
     protected CarUserManager mCarUserManager;
     protected UserManager mUserManager;
 
@@ -77,23 +90,35 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
     private final CountDownLatch mUserRemoveLatch = new CountDownLatch(1);
     private final List<Integer> mUsersToRemove = new ArrayList<>();
 
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "Received a broadcast: " + AndroidHelper.toString(intent));
+            mUserRemoveLatch.countDown();
+        }
+    };
+
     // Guard to avoid test failure on @After when @Before failed (as it would hide the real issue)
     private boolean mSetupFinished;
 
+    // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
+    @Override
+    protected void configApiCheckerRule(Builder builder) {
+        builder.disableAnnotationsCheck();
+    }
+
     @Before
     public final void setMultiUserFixtures() throws Exception {
-        Log.d(TAG, "setMultiUserFixtures() for " + mTestName.getMethodName());
+        Log.d(TAG, "setMultiUserFixtures() for " + getTestName());
 
+        mCarOccupantZoneManager = getCarService(Car.CAR_OCCUPANT_ZONE_SERVICE);
         mCarUserManager = getCarService(Car.CAR_USER_SERVICE);
         mUserManager = getContext().getSystemService(UserManager.class);
 
         IntentFilter filter = new IntentFilter(Intent.ACTION_USER_REMOVED);
-        getContext().registerReceiver(new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                mUserRemoveLatch.countDown();
-            }
-        }, filter, Context.RECEIVER_NOT_EXPORTED);
+        getContext().registerReceiver(mReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        Log.d(TAG, "Registered a broadcast receiver: " + mReceiver
+                + " with filter: " + filter);
 
         List<UserInfo> users = mUserManager.getAliveUsers();
 
@@ -150,6 +175,9 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
                 return;
             }
 
+            getContext().unregisterReceiver(mReceiver);
+            Log.d(TAG, "Unregistered a broadcast receiver: " + mReceiver);
+
             int currentUserId = getCurrentUserId();
             int initialUserId = mInitialUser.id;
             if (currentUserId != initialUserId) {
@@ -172,6 +200,22 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
             // Must catch otherwise it would be the test failure, which could hide the real issue
             Log.e(TAG, "Caught exception on " + getTestName()
                     + " disconnectCarAndCleanupUserState()", e);
+        }
+    }
+
+    protected static void setupMaxNumberOfUsers(int requiredUsers) {
+        if (sMaxNumberUsersBefore < requiredUsers) {
+            sChangedMaxNumberUsers = true;
+            Log.i(TAG, "Increasing maximizing number of users from " + sMaxNumberUsersBefore
+                    + " to " + requiredUsers);
+            setMaxSupportedUsers(requiredUsers);
+        }
+    }
+
+    protected static void restoreMaxNumberOfUsers() {
+        if (sChangedMaxNumberUsers) {
+            Log.i(TAG, "Restoring maximum number of users to " + sMaxNumberUsersBefore);
+            setMaxSupportedUsers(sMaxNumberUsersBefore);
         }
     }
 
@@ -224,10 +268,6 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
                 .that(mUserManager.isGuestUser(user.getIdentifier()))
                 .isEqualTo(isGuest);
         return mUserManager.getUserInfo(result.getUser().getIdentifier());
-    }
-
-    protected String getTestName() {
-        return getClass().getSimpleName() + "." + mTestName.getMethodName();
     }
 
     private String getNewUserName(String name) {
@@ -300,6 +340,20 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
                 .that(result.isSuccess()).isTrue();
     }
 
+    protected void startUserInBackgroundOnSecondaryDisplay(@UserIdInt int userId, int displayId)
+            throws Exception {
+        Log.i(TAG, "Starting background user " + userId + " on display " + displayId);
+        // TODO(b/257335554): Call CarUserManager method when ready.
+        getContext().getSystemService(ActivityManager.class)
+                .startUserInBackgroundVisibleOnDisplay(userId, displayId);
+    }
+
+    protected static void forceStopUser(@UserIdInt int userId) throws Exception {
+        Log.i(TAG, "Force-stopping user " + userId);
+        // TODO(b/257335554): Call CarUserManager method when ready.
+        ActivityManager.getService().stopUser(userId, /* force=*/ true, /* listener= */ null);
+    }
+
     @Nullable
     protected UserInfo getUser(@UserIdInt int id) {
         List<UserInfo> list = mUserManager.getUsers();
@@ -327,7 +381,6 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
         Log.v(TAG, "Set: " + SystemProperties.get(property));
     }
 
-
     protected void assertUserInfo(UserInfo actualUser, UserInfo expectedUser) {
         assertWithMessage("Wrong id for user %s", actualUser.toFullString())
                 .that(actualUser.id).isEqualTo(expectedUser.id);
@@ -341,5 +394,51 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
     private static boolean isUserCreatedByTheseTests(UserInfo user) {
         return user.name != null && user.name.startsWith(NEW_USER_NAME_PREFIX);
+    }
+
+    /**
+     * Checks if the target device supports MUMD (multi-user multi-display).
+     * @throws AssumptionViolatedException if the device does not support MUMD.
+     */
+    // TODO(b/250108245): Currently doing this because using DeviceState rule is very heavy. We
+    //  may want to use PermissionsCheckerRule as a light-weight feature check
+    //  (and probably rename it to something like DeviceStateLite).
+    protected static void requireMumd() {
+        assumeTrue(
+                "The device does not support multiple users on multiple displays",
+                getTargetContext().getSystemService(UserManager.class)
+                        .isVisibleBackgroundUsersSupported());
+    }
+
+    /**
+     * Returns a secondary display that is available to start a background user on.
+     *
+     * @return the id of a secondary display that is not assigned to any user, if any.
+     * @throws IllegalStateException when there is no secondary display available.
+     */
+    protected int getDisplayForStartingBackgroundUser() {
+        int[] displayIds = getTargetContext().getSystemService(ActivityManager.class)
+                .getDisplayIdsForStartingVisibleBackgroundUsers();
+        Log.d(TAG, "getSecondaryDisplayIdsForStartingBackgroundUsers() display IDs"
+                + " returned by AM: " + Arrays.toString(displayIds));
+        if (displayIds == null || displayIds.length == 0) {
+            throw new IllegalStateException("No secondary display is available to start a user.");
+        }
+
+        for (int displayId : displayIds) {
+            int userId = mCarOccupantZoneManager.getUserForDisplayId(displayId);
+            if (userId == CarOccupantZoneManager.INVALID_USER_ID) {
+                Log.d(TAG, "Returning first available display: " + displayId);
+                return displayId;
+            }
+            Log.d(TAG, "Display " + displayId + "is curretnly assigned to user " + userId);
+        }
+
+        throw new IllegalStateException(
+                "All secondary displays are assigned. No secondary display is available.");
+    }
+
+    private static Context getTargetContext() {
+        return getInstrumentation().getTargetContext();
     }
 }

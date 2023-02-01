@@ -19,7 +19,11 @@ package android.car.test.mocks;
 import static android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS;
 import static android.car.test.mocks.AndroidMockitoHelper.mockAmGetCurrentUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockBinderGetCallingUserHandle;
+import static android.car.test.mocks.AndroidMockitoHelper.mockCarGetCarVersion;
+import static android.car.test.mocks.AndroidMockitoHelper.mockCarGetPlatformVersion;
+import static android.car.test.mocks.AndroidMockitoHelper.mockCarIsApiVersionAtLeast;
 import static android.car.test.mocks.AndroidMockitoHelper.mockContextCheckCallingOrSelfPermission;
+import static android.car.test.mocks.AndroidMockitoHelper.mockContextCreateContextAsUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockContextGetService;
 import static android.car.test.mocks.AndroidMockitoHelper.mockDpmLogoutUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockQueryService;
@@ -28,9 +32,12 @@ import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetAliveUsers;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetSystemUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserHandles;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserInfo;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetVisibleUsers;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmHasUserRestrictionForUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsHeadlessSystemUserMode;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserRunning;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserUnlockingOrUnlocked;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserVisible;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmRemoveUserWhenPossible;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 
@@ -43,6 +50,9 @@ import static org.mockito.Mockito.mock;
 import android.app.ActivityManager;
 import android.app.Service;
 import android.app.admin.DevicePolicyManager;
+import android.car.Car;
+import android.car.CarVersion;
+import android.car.PlatformVersion;
 import android.car.test.util.UserTestingHelper;
 import android.car.test.util.Visitor;
 import android.content.Context;
@@ -61,6 +71,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.quality.Strictness;
 
 public final class AndroidMockitoHelperTest {
@@ -87,12 +98,19 @@ public final class AndroidMockitoHelperTest {
                 .spyStatic(ActivityManager.class)
                 .spyStatic(ServiceManager.class)
                 .spyStatic(Binder.class)
+                .spyStatic(Car.class)
                 .startMocking();
     }
 
     @After
     public void tearDown() {
-        mMockSession.finishMocking();
+        try {
+            mMockSession.finishMocking();
+        } finally {
+            // When using inline mock maker, clean up inline mocks to prevent OutOfMemory errors.
+            // See https://github.com/mockito/mockito/issues/1614 and b/259280359.
+            Mockito.framework().clearInlineMocks();
+        }
     }
 
     @Test
@@ -150,6 +168,24 @@ public final class AndroidMockitoHelperTest {
     }
 
     @Test
+    @SuppressWarnings("DirectInvocationOnMock")
+    public void testMockUmIsUserUnlockingOrUnlocked_true() {
+        mockUmIsUserUnlockingOrUnlocked(mMockedUserManager, TEST_USER_ID, true);
+
+        assertThat(mMockedUserManager.isUserUnlockingOrUnlocked(TEST_USER_ID)).isTrue();
+        assertThat(mMockedUserManager.isUserUnlockingOrUnlocked(mTestUserHandle)).isTrue();
+    }
+
+    @Test
+    @SuppressWarnings("DirectInvocationOnMock")
+    public void testMockUmIsUserUnlockingOrUnlocked_false() {
+        mockUmIsUserUnlockingOrUnlocked(mMockedUserManager, TEST_USER_ID, false);
+
+        assertThat(mMockedUserManager.isUserUnlockingOrUnlocked(TEST_USER_ID)).isFalse();
+        assertThat(mMockedUserManager.isUserUnlockingOrUnlocked(mTestUserHandle)).isFalse();
+    }
+
+    @Test
     public void testMockUmGetAliveUsers() {
         UserInfo user1 = mMockedUserManager.createUser("test1",
                 UserManager.USER_TYPE_FULL_SECONDARY, UserInfo.FLAG_ADMIN);
@@ -173,8 +209,6 @@ public final class AndroidMockitoHelperTest {
 
     @Test
     public void testMockUmHasUserRestrictionForUser() {
-        VisitorImpl<UserInfo> visitor = new VisitorImpl<>();
-
         mockUmHasUserRestrictionForUser(mMockedUserManager, mTestUserHandle, "no_Homers_club",
                 /* value= */ true);
 
@@ -193,6 +227,24 @@ public final class AndroidMockitoHelperTest {
                 /* overrideDevicePolicy= */ true);
 
         assertThat(visitor.mVisited).isEqualTo(mTestUserInfo);
+    }
+
+    @Test
+    public void testMockUmGetVisibleUsers() {
+        UserHandle user1 = UserHandle.of(100);
+        UserHandle user2 = UserHandle.of(200);
+
+        mockUmGetVisibleUsers(mMockedUserManager, 100, 200);
+
+        assertThat(mMockedUserManager.getVisibleUsers()).containsExactly(user1, user2);
+    }
+
+    @Test
+    @SuppressWarnings("DirectInvocationOnMock")
+    public void testMockUmIsUserVisible() {
+        mockUmIsUserVisible(mMockedUserManager, true);
+
+        assertThat(mMockedUserManager.isUserVisible()).isTrue();
     }
 
     @Test
@@ -259,6 +311,31 @@ public final class AndroidMockitoHelperTest {
     }
 
     @Test
+    public void testMockCarGetCarVersion() {
+        CarVersion carVersion = CarVersion.forMajorVersion(666);
+
+        mockCarGetCarVersion(carVersion);
+
+        assertThat(Car.getCarVersion()).isSameInstanceAs(carVersion);
+    }
+
+    @Test
+    public void testMockCarGetPlatformVersion() {
+        PlatformVersion platformVersion = PlatformVersion.forMajorVersion(666);
+
+        mockCarGetPlatformVersion(platformVersion);
+
+        assertThat(Car.getPlatformVersion()).isSameInstanceAs(platformVersion);
+    }
+
+    @Test
+    public void testMockCarIsApiVersionAtLeast() {
+        mockCarIsApiVersionAtLeast(66, 6, true);
+
+        assertThat(Car.isApiVersionAtLeast(66, 6)).isTrue();
+    }
+
+    @Test
     public void mockContextCheckCallingOrSelfPermission_returnsPermissionDenied() {
         Context context = mock(Context.class);
 
@@ -267,5 +344,17 @@ public final class AndroidMockitoHelperTest {
 
         assertThat(context.checkCallingOrSelfPermission(PERMISSION_CAR_CONTROL_AUDIO_SETTINGS))
                 .isEqualTo(PERMISSION_DENIED);
+    }
+
+    @Test
+    public void testMockContextCreateContextAsUser() {
+        Context context = mock(Context.class);
+        Context userContext = mock(Context.class);
+        int userId = 1000;
+
+        mockContextCreateContextAsUser(context, userContext, userId);
+
+        assertThat(context.createContextAsUser(UserHandle.of(userId), /* flags= */ 0)).isEqualTo(
+                userContext);
     }
 }

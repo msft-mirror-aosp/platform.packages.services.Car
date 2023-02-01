@@ -16,6 +16,9 @@
 package com.google.android.car.kitchensink;
 
 import android.annotation.Nullable;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.Context;
 import android.os.Handler;
@@ -25,7 +28,11 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
+import android.widget.Toast;
 
+import com.google.android.car.kitchensink.drivemode.DriveModeSwitchController;
+
+import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,6 +43,14 @@ import java.util.List;
  *
  * <p>Usage: {$code adb shell dumpsys activity
  * com.google.android.car.kitchensink/.KitchenSinkActivity cmd <CMD>}
+ *
+ * <p><p>Note</p>: this class is meant only for "global" commands (i.e., actions that could be
+ * applied regardless of the current {@code KitchenSink} fragment), or for commands that don't have
+ * an equivalent UI (for example, the key attestation ones). If you want to provide commands to
+ * control the behavior of a fragment, you should implement {@code dump} on that fragment directly
+ * (see
+ * {@link com.google.android.car.kitchensink.VirtualDisplayFragment#dump(String,FileDescriptor,PrintWriter,String[])}
+ * as an example);
  *
  * <p><p>Note</p>: you must launch {@code KitchenSink} first. Example: {@code
  * adb shell am start com.google.android.car.kitchensink/.KitchenSinkActivity}
@@ -50,22 +65,27 @@ final class KitchenSinkShellCommand {
     private static final String CMD_SET_UNINSTALL_BLOCKED = "set-uninstall-blocked";
     private static final String CMD_GENERATE_DEVICE_ATTESTATION_KEY_PAIR =
             "generate-device-attestation-key-pair";
+    private static final String CMD_POST_NOTIFICATION = "post-notification";
+    private static final String CMD_POST_TOAST = "post-toast";
+    private static final String CMD_SET_DRIVE_MODE_SWITCH= "set-drive-mode-switch";
 
     private final Context mContext;
     private final @Nullable DevicePolicyManager mDpm;
     private final IndentingPrintWriter mWriter;
     private final String[] mArgs;
+    private final int mNotificationId;
 
     @Nullable // dynamically created on post() method
     private Handler mHandler;
 
     private int mNextArgIndex;
 
-    KitchenSinkShellCommand(Context context, PrintWriter writer, String[] args) {
+    KitchenSinkShellCommand(Context context, PrintWriter writer, String[] args, int id) {
         mContext = context;
         mDpm = context.getSystemService(DevicePolicyManager.class);
         mWriter = new IndentingPrintWriter(writer);
         mArgs = args;
+        mNotificationId = id;
     }
 
     void run() {
@@ -90,6 +110,15 @@ final class KitchenSinkShellCommand {
             case CMD_GENERATE_DEVICE_ATTESTATION_KEY_PAIR:
                 generateDeviceAttestationKeyPair();
                 break;
+            case CMD_POST_NOTIFICATION:
+                postNotification();
+                break;
+            case CMD_POST_TOAST:
+                postToast();
+                break;
+            case CMD_SET_DRIVE_MODE_SWITCH:
+                setDriveModeSwitch();
+                break;
             default:
                 showHelp("Invalid command: %s", cmd);
         }
@@ -113,6 +142,12 @@ final class KitchenSinkShellCommand {
                 CMD_SET_UNINSTALL_BLOCKED, "<PKG>", "<true|false>");
         showCommandHelp("Generates a device attestation key.",
                 CMD_GENERATE_DEVICE_ATTESTATION_KEY_PAIR, "<ALIAS>", "[FLAGS]");
+        showCommandHelp("Post Notification.",
+                CMD_POST_NOTIFICATION, "<MESSAGE>");
+        showCommandHelp("Post Toast.",
+                CMD_POST_TOAST, "<MESSAGE>");
+        showCommandHelp("Enables / Disables the DriveMode Switch in the System UI.",
+                CMD_SET_DRIVE_MODE_SWITCH, "<true|false>");
         mWriter.decreaseIndent();
     }
 
@@ -173,6 +208,41 @@ final class KitchenSinkShellCommand {
         Log.i(TAG, "key: " + kp);
     }
 
+    private void postNotification() {
+        String message = getNextArg();
+        String channelId = "importance_high";
+
+        NotificationManager notificationMgr = mContext.getSystemService(NotificationManager.class);
+        notificationMgr.createNotificationChannel(
+                new NotificationChannel(channelId, "Importance High",
+                        NotificationManager.IMPORTANCE_HIGH));
+        Notification notification = new Notification
+                .Builder(mContext, channelId)
+                .setContentTitle("Car Emergency")
+                .setContentText(message)
+                .setCategory(Notification.CATEGORY_CAR_EMERGENCY)
+                .setColor(mContext.getColor(android.R.color.holo_red_light))
+                .setColorized(true)
+                .setSmallIcon(R.drawable.car_ic_mode)
+                .build();
+        notificationMgr.notify(mNotificationId, notification);
+        Log.i(TAG, "Post Notification: id=" + mNotificationId + ", message=" + message);
+    }
+
+    private void postToast() {
+        String message = getNextArg();
+        Toast.makeText(mContext, message, Toast.LENGTH_SHORT).show();
+        Log.i(TAG, "Post Toast: " + message);
+    }
+
+    private void setDriveModeSwitch() {
+        boolean value = getNextBooleanArg();
+        DriveModeSwitchController driveModeSwitchController = new DriveModeSwitchController(
+                mContext
+        );
+        driveModeSwitchController.setDriveMode(value);
+    }
+
     private void warnAboutAsyncCall() {
         mWriter.printf("Command will be executed asynchronally; use `adb logcat %s *:s` for result"
                 + "\n", TAG);
@@ -208,7 +278,7 @@ final class KitchenSinkShellCommand {
             mWriter.println("Error: missing argument");
             mWriter.flush();
             throw new IllegalArgumentException(
-                    "Missing argument. Args=" + Arrays.toString(mArgs));
+                    "Missing argument. Args=" + Arrays.toString(mArgs), e);
         }
     }
 

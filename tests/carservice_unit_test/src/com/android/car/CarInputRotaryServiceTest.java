@@ -35,6 +35,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
+import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
@@ -49,6 +50,8 @@ import com.android.car.bluetooth.CarBluetoothService;
 import com.android.car.hal.InputHalService;
 import com.android.car.hal.UserHalService;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
+import com.android.car.pm.CarPackageManagerService;
+import com.android.car.power.CarPowerManagementService;
 import com.android.car.user.CarUserService;
 import com.android.internal.util.test.BroadcastInterceptingContext;
 import com.android.internal.util.test.FakeSettingsProvider;
@@ -77,7 +80,9 @@ public class CarInputRotaryServiceTest {
 
     @Mock private InputHalService mInputHalService;
     @Mock private TelecomManager mTelecomManager;
-    @Mock private CarInputService.KeyEventListener mDefaultMainListener;
+    @Mock private DisplayManager mDisplayManager;
+    @Mock private CarInputService.KeyEventListener mDefaultKeyEventMainListener;
+    @Mock private CarInputService.MotionEventListener mDefaultMotionEventMainListener;
     @Mock private Supplier<String> mLastCallSupplier;
     @Mock private IntSupplier mLongPressDelaySupplier;
     @Mock private BooleanSupplier mShouldCallButtonEndOngoingCallSupplier;
@@ -85,6 +90,8 @@ public class CarInputRotaryServiceTest {
     @Mock private CarOccupantZoneService mCarOccupantZoneService;
     @Mock private CarUxRestrictionsManagerService mUxRestrictionService;
     @Mock private CarBluetoothService mCarBluetoothService;
+    @Mock private CarPowerManagementService mCarPowerManagementService;
+    @Mock private CarPackageManagerService mCarPackageManagerService;
 
     @Spy private final Context mContext = ApplicationProvider.getApplicationContext();
     @Spy private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -287,11 +294,12 @@ public class CarInputRotaryServiceTest {
         UserHalService userHal = mock(UserHalService.class);
         mCarUserService = new CarUserService(mMockContext, userHal,
                 userManager, /* maxRunningUsers= */ 2,
-                mUxRestrictionService);
+                mUxRestrictionService, mCarPackageManagerService);
 
         mCarInputService = new CarInputService(mMockContext, mInputHalService, mCarUserService,
-                mCarOccupantZoneService, mCarBluetoothService, mHandler, mTelecomManager,
-                mDefaultMainListener, mLastCallSupplier, mLongPressDelaySupplier,
+                mCarOccupantZoneService, mCarBluetoothService, mCarPowerManagementService, mHandler,
+                mTelecomManager, mDisplayManager, mDefaultKeyEventMainListener,
+                mDefaultMotionEventMainListener, mLastCallSupplier, mLongPressDelaySupplier,
                 mShouldCallButtonEndOngoingCallSupplier, mCaptureController);
         mCarInputService.init();
     }

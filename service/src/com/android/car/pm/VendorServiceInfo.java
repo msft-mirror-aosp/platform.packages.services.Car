@@ -37,11 +37,15 @@ final class VendorServiceInfo {
     private static final int USER_SCOPE_ALL = 0;
     private static final int USER_SCOPE_SYSTEM = 1;
     private static final int USER_SCOPE_FOREGROUND = 2;
+    private static final int USER_SCOPE_VISIBLE = 3;
+    private static final int USER_SCOPE_BACKGROUND_VISIBLE = 4;
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({
             USER_SCOPE_ALL,
             USER_SCOPE_FOREGROUND,
             USER_SCOPE_SYSTEM,
+            USER_SCOPE_VISIBLE,
+            USER_SCOPE_BACKGROUND_VISIBLE,
     })
     @interface UserScope {}
 
@@ -81,12 +85,24 @@ final class VendorServiceInfo {
         mBind = bind;
     }
 
+    boolean isAllUserService() {
+        return mUserScope == USER_SCOPE_ALL;
+    }
+
     boolean isSystemUserService() {
         return mUserScope == USER_SCOPE_ALL || mUserScope == USER_SCOPE_SYSTEM;
     }
 
     boolean isForegroundUserService() {
         return mUserScope == USER_SCOPE_ALL || mUserScope == USER_SCOPE_FOREGROUND;
+    }
+
+    boolean isVisibleUserService() {
+        return mUserScope == USER_SCOPE_ALL || mUserScope == USER_SCOPE_VISIBLE;
+    }
+
+    boolean isBackgroundVisibleUserService() {
+        return mUserScope == USER_SCOPE_ALL || mUserScope == USER_SCOPE_BACKGROUND_VISIBLE;
     }
 
     boolean shouldStartOnUnlock() {
@@ -170,6 +186,12 @@ final class VendorServiceInfo {
                             case "foreground":
                                 userScope = USER_SCOPE_FOREGROUND;
                                 break;
+                            case "visible":
+                                userScope = USER_SCOPE_VISIBLE;
+                                break;
+                            case "backgroundVisible":
+                                userScope = USER_SCOPE_BACKGROUND_VISIBLE;
+                                break;
                             default:
                                 throw new IllegalArgumentException("Unexpected user scope: " + val);
                         }
@@ -248,6 +270,10 @@ final class VendorServiceInfo {
                 return "FOREGROUND";
             case USER_SCOPE_SYSTEM:
                 return "SYSTEM";
+            case USER_SCOPE_VISIBLE:
+                return "VISIBLE";
+            case USER_SCOPE_BACKGROUND_VISIBLE:
+                return "BACKGROUND_VISIBLE";
             default:
                 return "INVALID-" + userScope;
         }

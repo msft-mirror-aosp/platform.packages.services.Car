@@ -35,6 +35,7 @@ import android.car.CarBugreportManager;
 import android.car.CarNotConnectedException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.hardware.display.DisplayManager;
 import android.media.AudioManager;
 import android.media.Ringtone;
@@ -265,7 +266,8 @@ public class BugReportService extends Service {
         mIsCollectingBugReport.set(true);
         mBugReportProgress.set(0);
 
-        startForeground(BUGREPORT_IN_PROGRESS_NOTIF_ID, buildProgressNotification());
+        startForeground(BUGREPORT_IN_PROGRESS_NOTIF_ID, buildProgressNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         showProgressNotification();
 
         collectBugReport();
@@ -557,7 +559,7 @@ public class BugReportService extends Service {
             startActivity(BugReportActivity.buildAddAudioIntent(this, mMetaBugReport));
         } else {
             // NOTE: If bugreport is TYPE_AUDIO_FIRST, it will already contain an audio message.
-            Status status = mConfig.getAutoUpload()
+            Status status = mConfig.isAutoUpload()
                     ? Status.STATUS_UPLOAD_PENDING : Status.STATUS_PENDING_USER_ACTION;
             BugStorageUtils.setBugReportStatus(BugReportService.this,
                     mMetaBugReport, status, /* message= */ "");

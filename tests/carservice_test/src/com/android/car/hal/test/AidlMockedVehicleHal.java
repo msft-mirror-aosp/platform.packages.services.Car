@@ -45,6 +45,7 @@ import android.hardware.automotive.vehicle.VehiclePropertyAccess;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
+import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.internal.annotations.GuardedBy;
@@ -52,17 +53,25 @@ import com.android.internal.annotations.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
+
 public class AidlMockedVehicleHal extends IVehicle.Stub {
 
+    private static final String TAG = AidlMockedVehicleHal.class.getSimpleName();
+
     /**
-    * Interface for handler of each property.
-    */
+     * Interface for handler of each property.
+     */
     public interface VehicleHalPropertyHandler {
         default void onPropertySet(VehiclePropValue value) {}
+
         default VehiclePropValue onPropertyGet(VehiclePropValue value) {
             return null;
         }
+
         default void onPropertySubscribe(int property, float sampleRate) {}
+
         default void onPropertyUnsubscribe(int property) {}
 
         VehicleHalPropertyHandler NOP = new VehicleHalPropertyHandler() {};
@@ -132,7 +141,7 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
                     propValues.payloads[0] = value;
                     callback.onPropertyEvent(propValues, /* sharedMemoryCount= */ 0);
                 } catch (RemoteException e) {
-                    e.printStackTrace();
+                    Log.e(TAG, "Failed invoking callback", e);
                     fail("Remote exception while injecting events.");
                 }
             }
@@ -156,10 +165,10 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
                     error.areaId = areaId;
                     error.errorCode = errorCode;
                     VehiclePropErrors propErrors = new VehiclePropErrors();
-                    propErrors.payloads = new VehiclePropError[] {error};
+                    propErrors.payloads = new VehiclePropError[]{error};
                     callback.onPropertySetError(propErrors);
                 } catch (RemoteException e) {
-                    e.printStackTrace();
+                    Log.e(TAG, "Failed invoking callback", e);
                     fail("Remote exception while injecting errors.");
                 }
             }
@@ -373,27 +382,25 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
         }
     }
 
-    public static class StaticPropertyHandler extends FailingPropertyHandler {
-        private final Object mLock = new Object();
-        @GuardedBy("mLock")
+    @NotThreadSafe
+    public static final class StaticPropertyHandler extends FailingPropertyHandler {
+
         private final VehiclePropValue mValue;
 
         public StaticPropertyHandler(VehiclePropValue value) {
-            synchronized (mLock) {
-                mValue = value;
-            }
+            mValue = value;
         }
 
         @Override
-        public synchronized VehiclePropValue onPropertyGet(VehiclePropValue value) {
-            synchronized (mLock) {
-                return mValue;
-            }
+        public VehiclePropValue onPropertyGet(VehiclePropValue value) {
+            return mValue;
         }
     }
 
-    public static class ErrorCodeHandler extends FailingPropertyHandler {
+    @ThreadSafe
+    public static final class ErrorCodeHandler extends FailingPropertyHandler {
         private final Object mLock = new Object();
+
         @GuardedBy("mLock")
         private int mStatus;
 
@@ -402,12 +409,14 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
                 mStatus = status;
             }
         }
+
         @Override
-        public synchronized VehiclePropValue onPropertyGet(VehiclePropValue value) {
+        public VehiclePropValue onPropertyGet(VehiclePropValue value) {
             synchronized (mLock) {
                 throw new ServiceSpecificException(mStatus);
             }
         }
+
         @Override
         public void onPropertySet(VehiclePropValue value) {
             synchronized (mLock) {
@@ -416,29 +425,25 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
         }
     }
 
-    public static class DefaultPropertyHandler implements VehicleHalPropertyHandler {
+    @NotThreadSafe
+    public static final class DefaultPropertyHandler implements VehicleHalPropertyHandler {
+
         private final VehiclePropConfig mConfig;
 
-        private final Object mLock = new Object();
-        @GuardedBy("mLock")
-        private VehiclePropValue mValue;
-        @GuardedBy("mLock")
         private boolean mSubscribed;
+
+        private VehiclePropValue mValue;
 
         public DefaultPropertyHandler(VehiclePropConfig config, VehiclePropValue initialValue) {
             mConfig = config;
             mValue = initialValue;
         }
 
-        @Override
         public void onPropertySet(VehiclePropValue value) {
             assertThat(mConfig.prop).isEqualTo(value.prop);
             assertThat(mConfig.access & VehiclePropertyAccess.WRITE).isEqualTo(
                     VehiclePropertyAccess.WRITE);
-
-            synchronized (mLock) {
-                mValue = value;
-            }
+            mValue = value;
         }
 
         @Override
@@ -446,31 +451,23 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
             assertThat(mConfig.prop).isEqualTo(value.prop);
             assertThat(mConfig.access & VehiclePropertyAccess.READ).isEqualTo(
                     VehiclePropertyAccess.READ);
-            synchronized (mLock) {
-                return mValue;
-            }
+            return mValue;
         }
 
         @Override
         public void onPropertySubscribe(int property, float sampleRate) {
             assertThat(mConfig.prop).isEqualTo(property);
-            synchronized (mLock) {
-                mSubscribed = true;
-            }
+            mSubscribed = true;
         }
 
         @Override
         public void onPropertyUnsubscribe(int property) {
             assertThat(mConfig.prop).isEqualTo(property);
-
-            synchronized (mLock) {
-                if (!mSubscribed) {
-                    throw new IllegalArgumentException("Property was not subscribed 0x"
-                            + toHexString(property));
-                }
-                mSubscribed = false;
+            if (!mSubscribed) {
+                throw new IllegalArgumentException("Property was not subscribed 0x"
+                        + toHexString(property));
             }
+            mSubscribed = false;
         }
     }
-
 }

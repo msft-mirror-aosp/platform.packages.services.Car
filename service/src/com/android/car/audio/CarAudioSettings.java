@@ -21,7 +21,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.provider.Settings;
 
-import com.android.car.util.Utils;
+import com.android.car.CarServiceUtils;
 
 import java.util.Objects;
 
@@ -65,7 +65,7 @@ public class CarAudioSettings {
                 masterMuteValue ? 1 : 0);
     }
 
-    boolean getMasterMute() {
+    boolean isMasterMute() {
         return Settings.Global.getInt(mContext.getContentResolver(),
                 VOLUME_SETTINGS_KEY_MASTER_MUTE, 0) != 0;
     }
@@ -122,6 +122,6 @@ public class CarAudioSettings {
     }
 
     ContentResolver getContentResolverForUser(@UserIdInt int userId) {
-        return Utils.getContentResolverForUser(mContext, userId);
+        return CarServiceUtils.getContentResolverForUser(mContext, userId);
     }
 }

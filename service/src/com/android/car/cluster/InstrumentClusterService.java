@@ -19,6 +19,7 @@ import static android.car.builtin.app.ActivityManagerHelper.createActivityOption
 import static android.car.cluster.renderer.InstrumentClusterRenderingService.EXTRA_BUNDLE_KEY_FOR_INSTRUMENT_CLUSTER_HELPER;
 import static android.car.settings.CarSettings.Global.DISABLE_INSTRUMENTATION_SERVICE;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEPRECATED_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.SystemApi;
@@ -110,8 +111,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
     @Override
     public void onNavigationStateChanged(Bundle bundle) {
         // No retry here as new events will be sent later.
-        IInstrumentClusterNavigation navigationBinder = getNavigationBinder(
-                /* retryOnFail= */ false);
+        IInstrumentClusterNavigation navigationBinder = getNavigationBinder();
         if (navigationBinder == null) {
             Slogf.e(TAG, "onNavigationStateChanged failed, renderer not ready, Bundle:" + bundle);
             return;
@@ -128,8 +128,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
         // Failure in this call leads into an issue in the client, so throw exception
         // when it cannot be recovered / retried.
         for (int i = 0; i < RENDERER_WAIT_MAX_RETRY; i++) {
-            IInstrumentClusterNavigation navigationBinder = getNavigationBinder(
-                    /* retryOnFail= */ true);
+            IInstrumentClusterNavigation navigationBinder = getNavigationBinder();
             if (navigationBinder == null) {
                 continue;
             }
@@ -234,7 +233,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
         return mRendererService;
     }
 
-    private IInstrumentClusterNavigation getNavigationBinder(boolean retryOnFail) {
+    private IInstrumentClusterNavigation getNavigationBinder() {
         IInstrumentCluster renderer;
         synchronized (mLock) {
             if (mIInstrumentClusterNavigationFromRenderer != null) {
@@ -362,6 +361,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
     /**
      * @deprecated {@link android.car.cluster.CarInstrumentClusterManager} is now deprecated.
      */
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
     @Deprecated
     public IInstrumentClusterManagerService.Stub getManagerService() {
         return mClusterManagerService;

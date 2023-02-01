@@ -102,11 +102,11 @@ public class MockedCarTestBase {
     private SystemInterface mFakeSystemInterface;
     private MockedCarTestContext mMockedCarTestContext;
     private CarTelemetryService mCarTelemetryService;
+    private CarWatchdogService mCarWatchdogService = mock(CarWatchdogService.class);
+    private CarPerformanceService mCarPerformanceService;
 
     private final CarUserService mCarUserService = mock(CarUserService.class);
     private final MockIOInterface mMockIOInterface = new MockIOInterface();
-    private final CarWatchdogService mCarWatchdogService = mock(CarWatchdogService.class);
-    private final CarPerformanceService mCarPerformanceService = mock(CarPerformanceService.class);
     private final GarageModeService mGarageModeService = mock(GarageModeService.class);
     private final FakeCarPowerPolicyDaemon mPowerPolicyDaemon = new FakeCarPowerPolicyDaemon();
 
@@ -169,6 +169,23 @@ public class MockedCarTestBase {
      */
     protected void useAidlVhal() {
         mUseAidlVhal = true;
+    }
+
+    /**
+     * Set the CarWatchDogService to be used during the test.
+     */
+    protected void setCarWatchDogService(CarWatchdogService service) {
+        mCarWatchdogService = service;
+    }
+
+    /**
+     * Set the CarPerformanceService to be used during the test.
+     *
+     * Must be called during {@link configureMockedHal}. If not called, the real service would be
+     * used.
+     */
+    protected void setCarPerformanceService(CarPerformanceService service) {
+        mCarPerformanceService = service;
     }
 
     /**
@@ -445,6 +462,8 @@ public class MockedCarTestBase {
         cpms.getHandler().runWithScissors(() -> {}, STATE_HANDLING_TIMEOUT);
     }
 
+    @SuppressWarnings("CollectionIncompatibleType") // HidlVehiclePropConfigBuilder does not
+                                                    // implement equals
     private void setHidlConfigBuilder(HidlVehiclePropConfigBuilder builder,
             HidlMockedVehicleHal.VehicleHalPropertyHandler propertyHandler) {
         int propId = builder.build().prop;
@@ -460,6 +479,8 @@ public class MockedCarTestBase {
         }
     }
 
+    @SuppressWarnings("CollectionIncompatibleType") // AidlVehiclePropConfigBuilder does not
+                                                    // implement equals
     private void setAidlConfigBuilder(AidlVehiclePropConfigBuilder builder,
             AidlMockedVehicleHal.VehicleHalPropertyHandler propertyHandler) {
         int propId = builder.build().prop;
@@ -494,7 +515,7 @@ public class MockedCarTestBase {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 synchronized (waitForConnection) {
-                    waitForConnection.notify();
+                    waitForConnection.notifyAll();
                 }
             }
 
@@ -505,7 +526,12 @@ public class MockedCarTestBase {
         car.connect();
         synchronized (waitForConnection) {
             if (!car.isConnected()) {
-                waitForConnection.wait(DEFAULT_WAIT_TIMEOUT_MS);
+                long nowMs = System.currentTimeMillis();
+                long deadlineMs = nowMs + DEFAULT_WAIT_TIMEOUT_MS;
+                while (!car.isConnected() && nowMs < deadlineMs) {
+                    waitForConnection.wait(deadlineMs - nowMs);
+                    nowMs = System.currentTimeMillis();
+                }
             }
         }
 

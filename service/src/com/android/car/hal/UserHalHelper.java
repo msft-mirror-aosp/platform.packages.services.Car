@@ -16,6 +16,7 @@
 package com.android.car.hal;
 
 import static com.android.car.CarServiceUtils.toIntArray;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.PRIVATE_CONSTRUCTOR;
 import static com.android.internal.util.Preconditions.checkArgument;
 
 import android.annotation.UserIdInt;
@@ -45,6 +46,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.car.hal.HalCallback.HalCallbackStatus;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.DebugUtils;
 import com.android.car.user.UserHandleHelper;
 import com.android.internal.annotations.VisibleForTesting;
@@ -113,7 +115,7 @@ public final class UserHalHelper {
                 try {
                     return Integer.parseInt(type);
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("invalid type: " + type);
+                    throw new IllegalArgumentException("invalid type: " + type, e);
                 }
         }
     }
@@ -250,6 +252,8 @@ public final class UserHalHelper {
             case UserIdentificationAssociationType.CUSTOM_3:
             case UserIdentificationAssociationType.CUSTOM_4:
                 return true;
+            default:
+                break;
         }
         return false;
     }
@@ -264,6 +268,8 @@ public final class UserHalHelper {
             case UserIdentificationAssociationValue.NOT_ASSOCIATED_ANY_USER:
             case UserIdentificationAssociationValue.UNKNOWN:
                 return true;
+            default:
+                break;
         }
         return false;
     }
@@ -277,6 +283,8 @@ public final class UserHalHelper {
             case UserIdentificationAssociationSetValue.DISASSOCIATE_CURRENT_USER:
             case UserIdentificationAssociationSetValue.DISASSOCIATE_ALL_USERS:
                 return true;
+            default:
+                break;
         }
         return false;
     }
@@ -737,6 +745,7 @@ public final class UserHalHelper {
                 "not enough int32Values (minimum is %d) on %s", minSize, prop);
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = PRIVATE_CONSTRUCTOR)
     private UserHalHelper() {
         throw new UnsupportedOperationException("contains only static methods");
     }

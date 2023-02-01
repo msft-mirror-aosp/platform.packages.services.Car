@@ -23,6 +23,8 @@
     <uses-permission android:name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME"/>
     <uses-permission android:name="android.car.permission.CAR_DIAGNOSTICS"/>
     <uses-permission android:name="android.car.permission.CAR_DISPLAY_IN_CLUSTER"/>
+    <!-- use for display mirroring in kitchen sink -->
+    <uses-permission android:name="android.permission.READ_FRAME_BUFFER" />
     <!-- use for CarServiceTest -->
     <uses-permission android:name="android.car.permission.CAR_DRIVING_STATE"/>
     <uses-permission android:name="android.car.permission.CAR_ENERGY"/>
@@ -40,6 +42,7 @@
     <uses-permission android:name="android.car.permission.CAR_POWER"/>
     <!-- use for CarServiceTest -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN"/>
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_POWERTRAIN"/>
     <uses-permission android:name="android.car.permission.CAR_SPEED"/>
      <!-- use for CarServiceTest -->
     <uses-permission android:name="android.car.permission.CAR_TEST_SERVICE"/>
@@ -57,6 +60,9 @@
     <!-- use for CarServiceTest -->
     <uses-permission android:name="android.car.permission.USE_CAR_TELEMETRY_SERVICE"/>
     <!-- Allow querying and writing to any property -->
+    <uses-permission android:name="android.car.permission.READ_DRIVER_MONITORING_SETTINGS"/>
+    <uses-permission android:name="android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS"/>
+    <uses-permission android:name="android.car.permission.READ_DRIVER_MONITORING_STATES"/>
     <uses-permission android:name="android.car.permission.CAR_ENERGY_PORTS" />
     <uses-permission android:name="android.car.permission.PERMISSION_CONTROL_ENERGY_PORTS" />
     <uses-permission android:name="android.car.permission.CAR_EXTERIOR_LIGHTS" />
@@ -66,10 +72,16 @@
     <uses-permission android:name="android.car.permission.CONTROL_CAR_MIRRORS" />
     <uses-permission android:name="android.car.permission.CONTROL_CAR_SEATS" />
     <uses-permission android:name="android.car.permission.CONTROL_CAR_WINDOWS" />
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_AIRBAGS"/>
     <uses-permission android:name="android.car.permission.READ_CAR_DISPLAY_UNITS" />
     <uses-permission android:name="android.car.permission.CAR_IDENTIFICATION" />
     <uses-permission android:name="android.car.permission.PERMISSION_ADJUST_RANGE_REMAINING" />
     <uses-permission android:name="android.car.permission.PERMISSION_CAR_ENGINE_DETAILED" />
+    <uses-permission android:name="android.car.permission.CONTROL_STEERING_WHEEL" />
+    <uses-permission android:name="android.car.permission.READ_ADAS_SETTINGS" />
+    <uses-permission android:name="android.car.permission.CONTROL_ADAS_SETTINGS" />
+    <uses-permission android:name="android.car.permission.READ_ADAS_STATES" />
+    <uses-permission android:name="android.car.permission.CONTROL_ADAS_STATES" />
     <!-- use for CarServiceTest -->
     <uses-permission android:name="android.car.permission.VMS_PUBLISHER"/>
     <!-- use for CarServiceTest -->
@@ -102,10 +114,16 @@
     <uses-permission android:name="android.permission.LOCATION_HARDWARE"/>
     <uses-permission android:name="android.permission.MANAGE_USB"/>
     <uses-permission android:name="android.permission.MANAGE_USERS"/>
+    <!-- use for CarPerformanceTestFragment -->
+    <uses-permission android:name="android.car.permission.MANAGE_THREAD_PRIORITY"/>
+    <!-- use for SimpleUserPickerFragment -->
+    <uses-permission android:name="android.car.permission.ACCESS_PRIVATE_DISPLAY_ID"/>
     <!-- use for CarServiceTest -->
     <uses-permission android:name="android.permission.MEDIA_CONTENT_CONTROL"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_ROUTING"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_PRIVILEGED_PHONE_STATE"/>
     <uses-permission android:name="android.permission.MODIFY_DAY_NIGHT_MODE"/>
     <uses-permission android:name="android.permission.MODIFY_PHONE_STATE"/>
     <uses-permission android:name="android.permission.OVERRIDE_WIFI_CONFIG"/>
@@ -162,6 +180,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- To enable suspend to RAM emulation via shell command in CarTelemetryTestFragment -->
     <uses-permission android:name="android.permission.DEVICE_POWER"/>
+    <!-- To allow turning on RROs in DriveModeSwitchFragment -->
+    <uses-permission android:name="android.permission.CHANGE_OVERLAY_PACKAGES"/>
 
     <!-- Allow backup is set to false for KitchenSinkApp to avoid infinite loop during backup -->
     <application android:label="@string/app_title"
@@ -172,10 +192,12 @@
         <activity android:name=".KitchenSinkActivity"
              android:theme="@style/KitchenSinkActivityTheme"
              android:label="@string/app_title"
+             android:configChanges="uiMode"
              android:launchMode="singleTask"
              android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             <intent-filter>
@@ -194,6 +216,9 @@
 
         <meta-data android:name="android.car.application"
              android:resource="@xml/automotive_app_desc"/>
+
+        <!-- Car Mainline version -->
+        <meta-data android:name="android.car.targetCarVersion" android:value="33:1"/>
 
         <activity android:name=".orientation.LandscapeActivity"
              android:label="@string/landscpae_activity"
@@ -263,6 +288,20 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".UserPickerActivity"
+            android:label="@string/user_picker_activity"
+            android:icon="@drawable/ic_user_picker"
+            android:exported="true"
+            android:launchMode="standard"
+            android:excludeFromRecents="true"
+            android:directBootAware="true"
+            android:showForAllUsers="true">
+            <intent-filter>
+              <action android:name="android.intent.action.MAIN"/>
+              <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
         <activity android:name=".NoCrashActivity"
              android:label="@string/no_crash_activity"
              android:exported="true">
@@ -320,7 +359,11 @@
             </intent-filter>
         </service>
 
-        <!-- This is a backup transport layer, the system recognizes it as a transport host. -->
+        <service android:name=".media.MediaBrowserProxyService"
+                 android:exported="false">
+        </service>
+
+    <!-- This is a backup transport layer, the system recognizes it as a transport host. -->
         <service android:name=".backup.KitchenSinkBackupTransportService"
                  android:permission="android.permission.CONFIRM_FULL_BACKUP"
                  android:exported="false">

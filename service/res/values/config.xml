@@ -178,6 +178,11 @@
     <integer name="maxExcessiveIoSamplesInWindow">11</integer>
 
     <!-- The number of days past until the current day considered by car watchdog to
+         reset the killable state of a package back to KILLABLE_STATE_YES if the package
+         was set to prioritize performance by the user. -->
+    <integer name="watchdogUserPackageSettingsResetDays">90</integer>
+
+    <!-- The number of days past until the current day considered by car watchdog to
          attribute recurring overuse to a package.  -->
     <integer name="recurringResourceOverusePeriodInDays">14</integer>
 
@@ -239,9 +244,13 @@
                startForeground - start service with Context#startForegroundService
                If service was bound it will be restarted unless it is constantly crashing.
                The default value is 'start'
-         user: all - the service will be bound/started for system and all foreground users
+         user: all - the service will be bound/started for system and all visible users
                system - the service will be started/bound only for system user (u0)
                foreground - the service will be bound/started only for foreground users
+               visible - the service will be bound/started only for visible users (as defined by
+                         `UserManager#isUserVisible()`).
+               backgroundVisible - the service will be bound/started only for background users that
+                                   are visible.
                The default value is 'all'
          trigger: indicates when the service needs to be started/bound
                asap - the service might be bound when user is not fully loaded, be careful with
@@ -259,18 +268,26 @@
     </string-array>
 
     <!-- The consent activity that must be shown for every unknown mobile device before projection
-         gets started.  The format is: com.your.package/com.your.Activity  -->
+         gets started.  The format is: com.your.package/com.your.Activity
+         NOTE: deprecated for aareceiver, see integration guide to use aareceiver specific RROs.
+    -->
     <string name="config_projectionConsentActivity" translatable="false"/>
 
     <!-- Display Id where projection rendering activity needs to be shown, Specify -1 to use system
-         defaults -->
+         defaults
+         NOTE: deprecated for aareceiver, see integration guide to use aareceiver specific RROs.
+     -->
     <integer name="config_projectionActivityDisplayId" translatable="false">-1</integer>
 
     <!-- Bounds of the projection activity on the screen. It should be in the pixels and screen
-         coordinates in the following order: left, top, right, bottom. -->
+         coordinates in the following order: left, top, right, bottom.
+         NOTE: deprecated for aareceiver, see integration guide to use aareceiver specific RROs.
+    -->
     <integer-array name="config_projectionActivityLaunchBounds" translatable="false"/>
 
-    <!-- UI mode for projection activity. See ProjectionOptions class for possible values. -->
+    <!-- UI mode for projection activity. See ProjectionOptions class for possible values.
+         NOTE: deprecated for aareceiver, see integration guide to use aareceiver specific RROs.
+    -->
     <integer name="config_projectionUiMode" translatable="false">0</integer>
 
     <!-- Configure whether access point created for wireless projection should be in tethered mode.
@@ -322,11 +339,16 @@
         occupant. DEFAULT_DISPLAY, if assigned here, should be always assigned to the DRIVER zone.
 
         Some examples are:
-        <item>displayPort=0,displayType=MAIN,occupantZoneId=0</item>
-        <item>displayPort=1,displayType=INSTRUMENT_CLUSTER,occupantZoneId=0</item>
-        <item>displayPort=2,displayType=MAIN,occupantZoneId=1</item>
-        <item>displayPort=3,displayType=MAIN,occupantZoneId=2</item>
-        <item>displayUniqueId=virtual:com.example:MainD,displayType=MAIN,occupantZoneId=3</item>
+        <item>displayPort=0,displayType=MAIN,occupantZoneId=0,inputTypes=DPAD_KEYS|
+            NAVIGATE_KEYS|ROTARY_NAVIGATION</item>
+        <item>displayPort=1,displayType=INSTRUMENT_CLUSTER,occupantZoneId=0,
+            inputTypes=DPAD_KEYS</item>
+        <item>displayPort=2,displayType=MAIN,occupantZoneId=1,
+            inputTypes=NAVIGATE_KEYS</item>
+        <item>displayPort=3,displayType=MAIN,occupantZoneId=2,
+            inputTypes=NAVIGATE_KEYS</item>
+        <item>displayUniqueId=virtual:com.example:MainD,displayType=MAIN,occupantZoneId=3,
+            inputTypes=NAVIGATE_KEYS</item>
 
         NOTE: each item should have displayPort or displayUniqueId, if it has both, displayPort
           will be used.
@@ -337,6 +359,7 @@
                        CarOccupantZoneManager.DISPLAY_TYPE_* like MAIN, INSTRUMENT_CLUSTER and
                        etc.
         occupantZoneId: occupantZoneId specified from config_occupant_zones.
+        inputTypes: supported input types for the corresponding display.
 
     -->
     <string-array translatable="false" name="config_occupant_display_mapping">
@@ -344,10 +367,10 @@
 
     <!--
         Specifies whether CarLaunchParamControl prefers source. If prefer-source is enabled,
-        CarLaunchParamControl tries to launch Activities without any desiganted display to
+        CarLaunchParamControl tries to launch Activities without any designated display to
         the display where the source is located.
 
-        This can be configured 3 ways:
+        This can be configured in 3 ways:
         A. No items - don't prefer source for any components.
         B. 1 items with "*" - prefer source for all components.
         C. enumerate items of "packageName/activityName" - prefer source for the specified ones.
@@ -363,6 +386,11 @@
          resolve permission by itself to use any higher priority window type.
          Setting this string to empty will disable the feature. -->
     <string name="config_userNoticeUiService" translatable="false">com.google.android.car.kitchensink/.UserNoticeDemoUiService</string>
+
+    <!-- Specifies the user picker to be launched on a secondary display when there is no user
+         allocation when the system boots and when a visible user stops.
+    -->
+    <string name="config_userPickerActivity" translatable="false">com.google.android.car.kitchensink/.UserPickerActivity</string>
 
     <!-- Configuration to enable media center to autoplay when the media source is changed.
          There are 3 supported configurations:
@@ -490,4 +518,47 @@
     <!-- How many milli-seconds CarService should wait before managing pre-created users after
          system start. This property only applied when config_userPreCreationStage flag is 2. -->
     <integer name="config_userPreCreationDelay">5000</integer>
+
+    <!-- This is the component name for the OEM customization service. OEM can choose to implement
+         this service to customize car service behavior for different policies. If OEMs choose to
+         implement it, they have to implement a service extending OemCarService exposed by car-lib,
+         and implement the needed component services.
+         If the component name is invalid, CarService would not connect to any OEM service.
+         Component name can not be a third party package. It should be pre-installed -->
+   <string name="config_oemCarService" translatable="false"></string>
+
+    <!-- Related to OEM customization service. How many milliseconds CarService should wait for
+         OEM service to connect. If `config_oemCarService` is set and oem service package exists,
+         then CarService would wait for this much time for OEM service to connect. If OEM service
+         doesn't connect within this time, CarService would crash itself. -->
+    <integer name="config_oemCarService_connection_timeout_ms">5000</integer>
+
+    <!-- Related to OEM customization service. How many milliseconds CarService should wait for
+         OEM service to be ready. This is the wait time after OEM service is connected to
+         CarService. CarService would poll OEM service for being ready, if OEM service not ready
+         within timeout, CarService would crash. -->
+    <integer name="config_oemCarService_serviceReady_timeout_ms">5000</integer>
+
+    <!-- Related to OEM customization service. Default timeout for calls made by CarService to
+         OEM service. After this, CarService would timeout the call. If OEM service returns the
+         results after timeout, it would be ignored. -->
+    <integer name="config_oemCarService_regularCall_timeout_ms">5000</integer>
+
+    <!-- Related to OEM customization service. Default timeout for critical calls made by CarService
+         to OEM service. After this timeout, CarService would itself and OEM Service. -->
+    <integer name="config_oemCarService_crashCall_timeout_ms">10000</integer>
+
+    <!-- Related to OEM customization service. Default thread pool size for communicating with the
+         OEM Service. The value can only be between 8 and 16. If value is higher than 16, thread
+         pool size will be 16. If value is lower than 8, thread pool size will be 8.-->
+    <integer name="config_oemCarService_thread_pool_size">8</integer>
+
+    <!-- Number of seconds to wait until all remote tasks are completed. Should be no smaller than
+         30 seconds -->
+    <integer name="config_allowedSystemUpTimeForRemoteAccess">300</integer>
+
+    <!-- Assigns passenger Activities to foreground cpuset rather than the top app cpuset.
+         This is enabled only for a system having both driver and passenger zones. If the system
+         has only driver zone or passenger zones, this configuration will be ignored. -->
+    <bool name="config_assignPassengerActivityToForegroundCpuGroup">true</bool>
 </resources>

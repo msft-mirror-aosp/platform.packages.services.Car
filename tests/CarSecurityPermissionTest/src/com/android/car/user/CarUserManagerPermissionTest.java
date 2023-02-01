@@ -29,16 +29,18 @@ import static com.android.compatibility.common.util.ShellIdentityUtils.invokeMet
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.testng.Assert.assertThrows;
-import static org.testng.Assert.expectThrows;
+import static org.junit.Assert.assertThrows;
 
 import android.app.Instrumentation;
 import android.car.Car;
 import android.car.user.CarUserManager;
+import android.car.user.CarUserManager.UserHandleSwitchUiCallback;
 import android.car.user.CarUserManager.UserLifecycleListener;
+import android.car.user.CarUserManager.UserSwitchUiCallback;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.os.Handler;
+import android.os.UserHandle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -70,14 +72,14 @@ public final class CarUserManagerPermissionTest {
 
     @Test
     public void testSwitchUserPermission() throws Exception {
-        Exception e = expectThrows(SecurityException.class, () -> mCarUserManager.switchUser(100));
+        Exception e = assertThrows(SecurityException.class, () -> mCarUserManager.switchUser(100));
         assertThat(e.getMessage()).contains(CREATE_USERS);
         assertThat(e.getMessage()).contains(MANAGE_USERS);
     }
 
     @Test
     public void testUpdatePreCreatedUserPermission() throws Exception {
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.updatePreCreatedUsers());
         assertThat(e.getMessage()).contains(CREATE_USERS);
         assertThat(e.getMessage()).contains(MANAGE_USERS);
@@ -85,7 +87,7 @@ public final class CarUserManagerPermissionTest {
 
     @Test
     public void testCreateUserPermission() throws Exception {
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.createUser(null, 0));
         assertThat(e.getMessage()).contains(CREATE_USERS);
         assertThat(e.getMessage()).contains(MANAGE_USERS);
@@ -93,7 +95,7 @@ public final class CarUserManagerPermissionTest {
 
     @Test
     public void testCannotCreateAdminUserWithoutManageUsersPermission() throws Exception {
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> invokeMethodWithShellPermissions(mCarUserManager,
                         (um) -> um.createUser("Thanos", UserInfo.FLAG_ADMIN)));
         assertThat(e.getMessage()).contains(MANAGE_USERS);
@@ -102,7 +104,7 @@ public final class CarUserManagerPermissionTest {
 
     @Test
     public void testCannotCreateAdminUserWithTypeWithoutManageUsersPermission() throws Exception {
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> invokeMethodWithShellPermissions(mCarUserManager,
                         (um) -> um.createUser("Thanos", UserInfo.FLAG_ADMIN)));
         assertThat(e.getMessage()).contains(MANAGE_USERS);
@@ -111,7 +113,7 @@ public final class CarUserManagerPermissionTest {
 
     @Test
     public void testRemoveUserPermission() throws Exception {
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.removeUser(100));
         assertThat(e.getMessage()).contains(CREATE_USERS);
         assertThat(e.getMessage()).contains(MANAGE_USERS);
@@ -121,7 +123,7 @@ public final class CarUserManagerPermissionTest {
     public void testAddListenerPermission() {
         UserLifecycleListener listener = (e) -> { };
 
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.addListener(Runnable::run, listener));
         assertThat(e.getMessage()).contains(INTERACT_ACROSS_USERS);
         assertThat(e.getMessage()).contains(INTERACT_ACROSS_USERS_FULL);
@@ -133,7 +135,7 @@ public final class CarUserManagerPermissionTest {
         invokeMethodWithShellPermissionsNoReturn(mCarUserManager,
                 (um) -> um.addListener(Runnable::run, listener));
 
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.removeListener(listener));
         assertThat(e.getMessage()).contains(INTERACT_ACROSS_USERS);
         assertThat(e.getMessage()).contains(INTERACT_ACROSS_USERS_FULL);
@@ -141,7 +143,7 @@ public final class CarUserManagerPermissionTest {
 
     @Test
     public void testGetUserIdentificationAssociationPermission() {
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.getUserIdentificationAssociation(CUSTOM_1));
         assertThat(e.getMessage()).contains(CREATE_USERS);
         assertThat(e.getMessage()).contains(MANAGE_USERS);
@@ -149,7 +151,7 @@ public final class CarUserManagerPermissionTest {
 
     @Test
     public void testSetUserIdentificationAssociationPermission() {
-        Exception e = expectThrows(SecurityException.class,
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.setUserIdentificationAssociation(
                         new int[] {CUSTOM_1}, new int[] {42}));
         assertThat(e.getMessage()).contains(CREATE_USERS);
@@ -157,16 +159,33 @@ public final class CarUserManagerPermissionTest {
     }
 
     @Test
-    public void testIsValidUserPermission() {
+    public void testIsValidUserId() {
         assertThrows(SecurityException.class, () -> mCarUserManager.isValidUser(42));
     }
 
     @Test
-    public void testSetUserSwitchUiCallback() {
-        CarUserManager.UserSwitchUiCallback callback = (u)-> { };
+    public void testIsValidUser() {
+        assertThrows(SecurityException.class,
+                () -> mCarUserManager.isValidUser(UserHandle.of(42)));
+    }
 
-        Exception e = expectThrows(SecurityException.class,
+    @Test
+    public void testSetUserIdSwitchUiCallback() {
+        UserSwitchUiCallback callback = (u)-> {};
+
+        Exception e = assertThrows(SecurityException.class,
                 () -> mCarUserManager.setUserSwitchUiCallback(callback));
+
+        assertThat(e.getMessage()).contains(MANAGE_USERS);
+    }
+
+    @Test
+    public void testSetUserSwitchUiCallback() {
+        UserHandleSwitchUiCallback callback = (u)-> {};
+
+        Exception e = assertThrows(SecurityException.class,
+                () -> mCarUserManager.setUserSwitchUiCallback(Runnable::run, callback));
+
         assertThat(e.getMessage()).contains(MANAGE_USERS);
     }
 }

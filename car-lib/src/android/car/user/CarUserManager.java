@@ -35,6 +35,7 @@ import android.car.CarManagerBase;
 import android.car.ICarResultReceiver;
 import android.car.ICarUserService;
 import android.car.annotation.AddedInOrBefore;
+import android.car.annotation.ApiRequirements;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.util.concurrent.AndroidAsyncFuture;
@@ -78,7 +79,6 @@ import java.util.stream.Collectors;
  * @hide
  */
 @SystemApi
-@TestApi
 public final class CarUserManager extends CarManagerBase {
 
     /** @hide */
@@ -98,7 +98,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_STARTING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
@@ -115,7 +114,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_SWITCHING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
@@ -132,7 +130,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
@@ -143,7 +140,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKED =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
@@ -175,7 +171,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPING =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
@@ -188,10 +183,53 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @AddedInOrBefore(majorVersion = 33)
     public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPED =
             CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+
+    /**
+     * {@link UserLifecycleEvent} called after an existing user is created.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_1)
+    public static final int USER_LIFECYCLE_EVENT_TYPE_CREATED =
+            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
+
+    /**
+     * {@link UserLifecycleEvent} called after an existing user is removed.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_1)
+    public static final int USER_LIFECYCLE_EVENT_TYPE_REMOVED =
+            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_REMOVED;
+
+    /**
+     * {@link UserLifecycleEvent} called after an existing user becomes visible.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int USER_LIFECYCLE_EVENT_TYPE_VISIBLE =
+            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
+
+    /**
+     * {@link UserLifecycleEvent} called after an existing user becomes invisible.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int USER_LIFECYCLE_EVENT_TYPE_INVISIBLE =
+            CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 
     /** @hide */
     @AddedInOrBefore(majorVersion = 33)
@@ -606,7 +644,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(anyOf = {INTERACT_ACROSS_USERS, INTERACT_ACROSS_USERS_FULL})
     @AddedInOrBefore(majorVersion = 33)
     public void addListener(@NonNull @CallbackExecutor Executor executor,
@@ -623,7 +660,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(anyOf = {INTERACT_ACROSS_USERS, INTERACT_ACROSS_USERS_FULL})
     @AddedInOrBefore(majorVersion = 33)
     public void addListener(@NonNull @CallbackExecutor Executor executor,
@@ -689,7 +725,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(anyOf = {INTERACT_ACROSS_USERS, INTERACT_ACROSS_USERS_FULL})
     @AddedInOrBefore(majorVersion = 33)
     public void removeListener(@NonNull UserLifecycleListener listener) {
@@ -778,6 +813,7 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+    @Nullable
     private Object[] convertToObjectArray(int[] input) {
         if (input == null) return null;
         Object[] output = new Object[input.length];
@@ -851,10 +887,33 @@ public final class CarUserManager extends CarManagerBase {
      * Sets a callback to be notified before user switch. It should only be used by Car System UI.
      *
      * @hide
+     * @deprecated use {@link #setUserSwitchUiCallback(UserHandleSwitchUiCallback)} instead.
      */
+    @Deprecated
     @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
     @AddedInOrBefore(majorVersion = 33)
     public void setUserSwitchUiCallback(@NonNull UserSwitchUiCallback callback) {
+        Preconditions.checkArgument(callback != null, "Null callback");
+        UserHandleSwitchUiCallback userHandleSwitchUiCallback = (userHandle) -> {
+            callback.showUserSwitchDialog(userHandle.getIdentifier());
+        };
+        setUserSwitchUiCallback(Runnable::run, userHandleSwitchUiCallback);
+    }
+
+    /**
+     * Sets a callback to be notified before user switch.
+     *
+     * <p> It should only be used by Car System UI. Setting this callback will notify the Car
+     * System UI to show the user switching dialog.
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public void setUserSwitchUiCallback(@NonNull @CallbackExecutor Executor executor,
+            @NonNull UserHandleSwitchUiCallback callback) {
         Preconditions.checkArgument(callback != null, "Null callback");
         UserSwitchUiCallbackReceiver userSwitchUiCallbackReceiver =
                 new UserSwitchUiCallbackReceiver(callback);
@@ -871,15 +930,15 @@ public final class CarUserManager extends CarManagerBase {
     // TODO(b/154958003): use mReceiver instead as now there are two binder objects
     private final class UserSwitchUiCallbackReceiver extends ICarResultReceiver.Stub {
 
-        private final UserSwitchUiCallback mUserSwitchUiCallback;
+        private final UserHandleSwitchUiCallback mUserHandleSwitchUiCallback;
 
-        UserSwitchUiCallbackReceiver(UserSwitchUiCallback callback) {
-            mUserSwitchUiCallback = callback;
+        UserSwitchUiCallbackReceiver(UserHandleSwitchUiCallback callback) {
+            mUserHandleSwitchUiCallback = callback;
         }
 
         @Override
         public void send(int userId, Bundle unused) throws RemoteException {
-            mUserSwitchUiCallback.showUserSwitchDialog(userId);
+            mUserHandleSwitchUiCallback.onUserSwitchStart(UserHandle.of(userId));
         }
     }
 
@@ -981,8 +1040,10 @@ public final class CarUserManager extends CarManagerBase {
     /**
      * @hide
      */
-    @TestApi
-    @AddedInOrBefore(majorVersion = 33)
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    @NonNull
     public static String lifecycleEventTypeToString(@UserLifecycleEventType int type) {
         switch (type) {
             case USER_LIFECYCLE_EVENT_TYPE_STARTING:
@@ -997,6 +1058,16 @@ public final class CarUserManager extends CarManagerBase {
                 return "STOPPING";
             case USER_LIFECYCLE_EVENT_TYPE_STOPPED:
                 return "STOPPED";
+            case USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED:
+                return "POST_UNLOCKED";
+            case USER_LIFECYCLE_EVENT_TYPE_CREATED:
+                return "CREATED";
+            case USER_LIFECYCLE_EVENT_TYPE_REMOVED:
+                return "REMOVED";
+            case USER_LIFECYCLE_EVENT_TYPE_VISIBLE:
+                return "VISIBLE";
+            case USER_LIFECYCLE_EVENT_TYPE_INVISIBLE:
+                return "INVISIBLE";
             default:
                 return "UNKNOWN-" + type;
         }
@@ -1011,19 +1082,43 @@ public final class CarUserManager extends CarManagerBase {
      *   <li>Must exist in the device.
      *   <li>Is not in the process of being deleted.
      *   <li>Cannot be the {@link UserHandle#isSystem() system} user on devices that use
-     *   {@link UserManager#isHeadlessSystemUserMode() headless system mode}.
+     *   {@link UserManager#isHeadlessSystemUserMode() headless system user mode}.
      * </ul>
      *
      * @hide
+     * @deprecated use {@link #isValidUser(UserHandle)} instead.
      */
+    @Deprecated
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     @AddedInOrBefore(majorVersion = 33)
     public boolean isValidUser(@UserIdInt int userId) {
+        return isValidUser(UserHandle.of(userId));
+    }
+
+    /**
+     * Checks if the given {@code userHandle} represents a valid user.
+     *
+     * <p>A "valid" user:
+     *
+     * <ul>
+     *   <li>Must exist in the device.
+     *   <li>Is not in the process of being deleted.
+     *   <li>Cannot be the {@link UserHandle#isSystem() system} user on devices that use
+     *   {@link UserManager#isHeadlessSystemUserMode() headless system user mode}.
+     * </ul>
+     *
+     */
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.CREATE_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    @SuppressWarnings("UserHandle")
+    public boolean isValidUser(@NonNull UserHandle userHandle) {
         List<UserHandle> allUsers = mUserManager.getUserHandles(/* excludeDying=*/ true);
         for (int i = 0; i < allUsers.size(); i++) {
             UserHandle user = allUsers.get(i);
-            if (user.getIdentifier() == userId && (userId != UserHandle.SYSTEM.getIdentifier()
+            if (user.equals(userHandle) && (!userHandle.equals(UserHandle.SYSTEM)
                     || !UserManager.isHeadlessSystemUserMode())) {
                 return true;
             }
@@ -1037,7 +1132,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     public static final class UserLifecycleEvent {
         private final @UserLifecycleEventType int mEventType;
         private final @UserIdInt int mUserId;
@@ -1063,8 +1157,14 @@ public final class CarUserManager extends CarManagerBase {
          * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_SWITCHING},
          * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_UNLOCKING},
          * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_UNLOCKED},
-         * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_STOPPING}, or
-         * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_STOPPED}.
+         * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_STOPPING} or
+         * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_STOPPED} for all apps;
+         * for apps {@link CarPackageManager#getTargetCarVersion() targeting car version}
+         * {@link CarVersion.VERSION_CODES#TIRAMISU_1} or higher, it could be new types
+         * added on later releases, such as
+         * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_CREATED},
+         * {@link CarUserManager#USER_LIFECYCLE_EVENT_TYPE_REMOVED} and possibly others.
+         *
          */
         @UserLifecycleEventType
         @AddedInOrBefore(majorVersion = 33)
@@ -1167,7 +1267,6 @@ public final class CarUserManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     public interface UserLifecycleListener {
 
         /**
@@ -1180,11 +1279,13 @@ public final class CarUserManager extends CarManagerBase {
     /**
      * Callback for notifying user switch before switch started.
      *
-     * <p> It should only be user by Car System UI. The purpose of this callback is notify the
+     * <p> It should only be used by Car System UI. The purpose of this callback is to notify the
      * Car System UI to display the user switch UI.
      *
      * @hide
+     * @deprecated use {@link #UserHandleSwitchUiCallback} instead.
      */
+    @Deprecated
     public interface UserSwitchUiCallback {
 
         /**
@@ -1192,5 +1293,26 @@ public final class CarUserManager extends CarManagerBase {
          */
         @AddedInOrBefore(majorVersion = 33)
         void showUserSwitchDialog(@UserIdInt int userId);
+    }
+
+    /**
+     * Callback for notifying user switch before switch started.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public interface UserHandleSwitchUiCallback {
+
+        /**
+         * Called before the user switch starts.
+         *
+         * <p> This is typically used to show the user dialog.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        @SuppressWarnings("UserHandleName")
+        void onUserSwitchStart(@NonNull UserHandle userHandle);
     }
 }

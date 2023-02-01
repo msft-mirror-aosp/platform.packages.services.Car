@@ -20,6 +20,7 @@ import static android.car.builtin.media.AudioManagerHelper.usageToString;
 import static android.car.builtin.media.AudioManagerHelper.usageToXsdString;
 import static android.car.builtin.media.AudioManagerHelper.xsdStringToUsage;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
@@ -40,20 +41,18 @@ import android.util.Log;
 import com.android.car.CarLog;
 import com.android.car.audio.CarAudioGainConfigInfo;
 import com.android.car.audio.CarDuckingInfo;
+import com.android.car.audio.CarHalAudioUtils;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.annotation.AttributeUsage;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
-/**
- * Wrapper for AIDL interface for AudioControl HAL
- */
-public final class AudioControlWrapperAidl implements AudioControlWrapper {
+/** Wrapper for AIDL interface for AudioControl HAL */
+public final class AudioControlWrapperAidl implements AudioControlWrapper, IBinder.DeathRecipient {
     static final String TAG = CarLog.tagFor(AudioControlWrapperAidl.class);
 
     private static final String AUDIO_CONTROL_SERVICE =
@@ -78,6 +77,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public void unregisterFocusListener() {
         // Focus listener will be unregistered by HAL automatically
     }
@@ -122,7 +122,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
             Slogf.d(TAG, "Registering Audio Gain Callback on AudioControl HAL");
         }
-        Objects.requireNonNull(gainCallback);
+        Objects.requireNonNull(gainCallback, "Audio Gain Callback can not be null");
         IAudioGainCallback agc = new AudioGainCallbackWrapper(gainCallback);
         try {
             mAudioControl.registerGainCallback(agc);
@@ -203,13 +203,13 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         DuckingInfo[] duckingInfos = new DuckingInfo[carDuckingInfos.size()];
         for (int i = 0; i < carDuckingInfos.size(); i++) {
             CarDuckingInfo info = Objects.requireNonNull(carDuckingInfos.get(i));
-            duckingInfos[i] = info.generateDuckingInfo();
+            duckingInfos[i] = CarHalAudioUtils.generateDuckingInfo(info);
         }
 
         try {
             mAudioControl.onDevicesToDuckChange(duckingInfos);
         } catch (RemoteException e) {
-            Slogf.e(TAG, "onDevicesToDuckChange failed", e);
+            Slogf.e(TAG, e, "onDevicesToDuckChange failed");
         }
     }
 
@@ -222,14 +222,14 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         try {
             mAudioControl.onDevicesToMuteChange(mutingInfoToHal);
         } catch (RemoteException e) {
-            Slogf.e(TAG, "onDevicesToMuteChange failed", e);
+            Slogf.e(TAG, e, "onDevicesToMuteChange failed");
         }
     }
 
     @Override
     public void linkToDeath(@Nullable AudioControlDeathRecipient deathRecipient) {
         try {
-            mBinder.linkToDeath(this::binderDied, 0);
+            mBinder.linkToDeath(this, 0);
             mDeathRecipient = deathRecipient;
         } catch (RemoteException e) {
             throw new IllegalStateException("Call to IAudioControl#linkToDeath failed", e);
@@ -238,11 +238,12 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
 
     @Override
     public void unlinkToDeath() {
-        mBinder.unlinkToDeath(this::binderDied, 0);
+        mBinder.unlinkToDeath(this, 0);
         mDeathRecipient = null;
     }
 
-    private void binderDied() {
+    @Override
+    public void binderDied() {
         Slogf.w(TAG, "AudioControl HAL died. Fetching new handle");
         mListenerRegistered = false;
         mGainCallbackRegistered = false;
@@ -262,11 +263,13 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public int getInterfaceVersion() {
             return this.VERSION;
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public String getInterfaceHash() {
             return this.HASH;
         }
@@ -274,13 +277,13 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         @Override
         public void requestAudioFocus(String usage, int zoneId, int focusGain) {
             @AttributeUsage int usageValue = xsdStringToUsage(usage);
-            mListener.requestAudioFocus(usageValue, zoneId, focusGain);
+            requestAudioFocus(usageValue, zoneId, focusGain);
         }
 
         @Override
         public void abandonAudioFocus(String usage, int zoneId) {
             @AttributeUsage int usageValue = xsdStringToUsage(usage);
-            mListener.abandonAudioFocus(usageValue, zoneId);
+            abandonAudioFocus(usageValue, zoneId);
         }
 
         @Override
@@ -290,7 +293,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
                 Slogf.d(TAG, "requestAudioFocusWithMetaData metadata=" + playbackMetaData
                         + ", zoneId=" + zoneId + ", focusGain=" + focusGain);
             }
-            // TODO(b/224885748): Add missing focus management
+            requestAudioFocus(playbackMetaData.usage, zoneId, focusGain);
         }
 
         @Override
@@ -300,9 +303,16 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
                 Slogf.d(TAG, "abandonAudioFocusWithMetaData metadata=" + playbackMetaData
                         + ", zoneId=" + zoneId);
             }
-            // TODO(b/224885748): Add missing focus management
+            abandonAudioFocus(playbackMetaData.usage, zoneId);
         }
 
+        private void abandonAudioFocus(int usage, int zoneId) {
+            mListener.abandonAudioFocus(usage, zoneId);
+        }
+
+        private void requestAudioFocus(int usage, int zoneId, int focusGain) {
+            mListener.requestAudioFocus(usage, zoneId, focusGain);
+        }
     }
 
     private static final class AudioGainCallbackWrapper extends IAudioGainCallback.Stub {
@@ -313,31 +323,55 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper {
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public int getInterfaceVersion() {
             return VERSION;
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public String getInterfaceHash() {
             return HASH;
         }
 
         @Override
         public void onAudioDeviceGainsChanged(int[] halReasons, AudioGainConfigInfo[] gains) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                final List<String> gainsLiteralList = Arrays.asList(gains).stream()
-                        .map(gain -> gain.toString())
-                        .collect(Collectors.toList());
-                Slogf.d(TAG, "onAudioDeviceGainsChanged for reasons=" + Arrays.toString(halReasons)
-                        + ", gains=[" + gainsLiteralList.stream().collect(Collectors.joining(", "))
-                        + "]");
+            List<CarAudioGainConfigInfo> carAudioGainConfigs = new ArrayList<>();
+            for (int index = 0; index < gains.length; index++) {
+                AudioGainConfigInfo gain = gains[index];
+                carAudioGainConfigs.add(new CarAudioGainConfigInfo(gain));
             }
-            final List<CarAudioGainConfigInfo> cagcis = Arrays.asList(gains).stream()
-                    .map(gain -> CarAudioGainConfigInfo.build(gain))
-                    .collect(Collectors.toList());
-            final List<Integer> reasons =
-                    Arrays.stream(halReasons).boxed().collect(Collectors.toList());
-            mCallback.onAudioDeviceGainsChanged(reasons, cagcis);
+            List<Integer> reasonsList = new ArrayList<>();
+            for (int index = 0; index < halReasons.length; index++) {
+                int halReason = halReasons[index];
+                if (!HalAudioGainCallback.isReasonValid(halReason)) {
+                    Slogf.e(
+                            TAG,
+                            "onAudioDeviceGainsChanged invalid reasons %d reported, skipped",
+                            halReason);
+                    continue;
+                }
+                reasonsList.add(halReason);
+            }
+            if (Log.isLoggable(TAG, Log.DEBUG)) {
+                List<String> gainsString = new ArrayList<>();
+                for (int i = 0; i < carAudioGainConfigs.size(); i++) {
+                    gainsString.add(carAudioGainConfigs.get(i).toString());
+                }
+                String gainsLiteral = String.join(",", gainsString);
+
+                List<String> reasonsString = new ArrayList<>();
+                for (int i = 0; i < reasonsString.size(); i++) {
+                    reasonsString.add(HalAudioGainCallback.reasonToString(reasonsList.get(i)));
+                }
+                String reasonsLiteral = String.join(",", reasonsString);
+                Slogf.d(
+                        TAG,
+                        "onAudioDeviceGainsChanged for reasons=[%s], gains=[%s]",
+                        reasonsLiteral,
+                        gainsLiteral);
+            }
+            mCallback.onAudioDeviceGainsChanged(reasonsList, carAudioGainConfigs);
         }
     }
 }

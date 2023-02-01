@@ -26,8 +26,12 @@ import android.car.VehiclePropertyType;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
+import android.car.hardware.property.CarPropertyManager;
+import android.car.hardware.property.GetPropertyServiceRequest;
+import android.car.hardware.property.GetValueResult;
 import android.car.hardware.property.ICarProperty;
 import android.car.hardware.property.ICarPropertyEventListener;
+import android.car.hardware.property.IGetAsyncPropertyResultCallback;
 import android.os.RemoteException;
 
 import com.android.car.internal.PropertyPermissionMapping;
@@ -99,6 +103,22 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
     }
 
     @Override
+    public void getPropertiesAsync(List<android.car.hardware.property.GetPropertyServiceRequest>
+            getPropertyServiceRequests, IGetAsyncPropertyResultCallback
+            getAsyncPropertyResultCallback,
+            long timeoutInMs) throws RemoteException {
+        List<GetValueResult> getValueResults = new ArrayList<>();
+        for (int i = 0; i < getPropertyServiceRequests.size(); i++) {
+            GetPropertyServiceRequest getPropertyServiceRequest = getPropertyServiceRequests.get(i);
+            getValueResults.add(new GetValueResult(
+                    getPropertyServiceRequest.getRequestId(),
+                    getProperty(getPropertyServiceRequest.getPropertyId(),
+                            getPropertyServiceRequest.getAreaId()), CarPropertyManager.STATUS_OK));
+        }
+        getAsyncPropertyResultCallback.onGetValueResult(getValueResults);
+    }
+
+    @Override
     public CarPropertyValue getProperty(int prop, int zone) throws RemoteException {
         return mValues.get(PropKey.of(prop, zone));
     }
@@ -109,6 +129,11 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
         mValues.put(PropKey.of(prop), prop);
         mValuesSet.add(prop);
         sendEvent(prop);
+    }
+
+    @Override
+    public void cancelRequests(int[] serviceRequestIds) {
+        // Do nothing.
     }
 
     @Override

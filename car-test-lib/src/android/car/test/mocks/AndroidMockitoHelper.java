@@ -15,6 +15,8 @@
  */
 package android.car.test.mocks;
 
+import static android.car.test.mocks.CarArgumentMatchers.isUserHandle;
+
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doThrow;
 
@@ -30,6 +32,9 @@ import android.annotation.UserIdInt;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
+import android.car.Car;
+import android.car.CarVersion;
+import android.car.PlatformVersion;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.test.util.UserTestingHelper;
@@ -56,11 +61,14 @@ import android.util.Log;
 import org.mockito.ArgumentMatcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Provides common Mockito calls for core Android classes.
@@ -316,6 +324,15 @@ public final class AndroidMockitoHelper {
     }
 
     /**
+     * Mocks a call to {@code UserManager#isUserUnlockingOrUnlocked()}.
+     */
+    public static void mockUmIsUserUnlockingOrUnlocked(UserManager um, @UserIdInt int userId,
+            boolean value) {
+        when(um.isUserUnlockingOrUnlocked(isUserHandle(userId))).thenReturn(value);
+        when(um.isUserUnlockingOrUnlocked(userId)).thenReturn(value);
+    }
+
+    /**
      * Mocks a successful call to {@code UserManager#removeUserWhenPossible(UserHandle, boolean)},
      * and notifies {@code listener} when it's called.
      */
@@ -368,6 +385,25 @@ public final class AndroidMockitoHelper {
     }
 
     /**
+     * Mocks a call to {@code UserManager#getVisibleUsers()} that
+     * returns {@link UserHandle UserHandles} with the given {@code userIds}.
+     */
+    public static void mockUmGetVisibleUsers(UserManager um, @UserIdInt int...userIds) {
+        Set<UserHandle> users = Arrays.stream(userIds).mapToObj(u -> UserHandle.of(u))
+                .collect(Collectors.toSet());
+        Log.v(TAG, "mockUmGetVisibleUsers(" + Arrays.toString(userIds) + ": returning "
+                + users);
+        when(um.getVisibleUsers()).thenReturn(users);
+    }
+
+    /**
+     * Mocks a call to {@code UserManager#isUserVisible()} that returns {@code isVisible}.
+     */
+    public static void mockUmIsUserVisible(UserManager um, boolean isVisible) {
+        when(um.isUserVisible()).thenReturn(isVisible);
+    }
+
+    /**
      * Mocks a call to {@link ServiceManager#getService(name)}.
      *
      * <p><b>Note: </b>it must be made inside a
@@ -413,6 +449,30 @@ public final class AndroidMockitoHelper {
     }
 
     /**
+     * Mocks a call to {@link Car#getCarVersion()
+     */
+    public static void mockCarGetCarVersion(CarVersion version) {
+        Log.d(TAG, "mockCarGetCarVersion(): " + version);
+        doReturn(version).when(() -> Car.getCarVersion());
+    }
+
+    /**
+     * Mocks a call to {@link Car#getPlatformVersion()
+     */
+    public static void mockCarGetPlatformVersion(PlatformVersion version) {
+        Log.d(TAG, "mockCarGetPlatformVersion(): " + version);
+        doReturn(version).when(() -> Car.getPlatformVersion());
+    }
+
+    /**
+     * Mocks a call to {@link Car#isApiVersionAtLeast()
+     */
+    public static void mockCarIsApiVersionAtLeast(int major, int minor, boolean isIt) {
+        Log.d(TAG, "mockCarIsApiVersionAtLeast(" + major + ", " + minor + "): " + isIt);
+        doReturn(isIt).when(() -> Car.isApiVersionAtLeast(major, minor));
+    }
+
+    /**
      * Mocks a call to {@link Context#getSystemService(Class)}.
      */
     public static <T> void mockContextGetService(Context context,
@@ -429,6 +489,15 @@ public final class AndroidMockitoHelper {
     public static void mockContextCheckCallingOrSelfPermission(Context context,
             String permission, @PermissionResult int permissionResults) {
         when(context.checkCallingOrSelfPermission(permission)).thenReturn(permissionResults);
+    }
+
+    /**
+     * Mock a call to {@link Context#createContextAsUser(UserHandle, int)}}
+     */
+    public static void mockContextCreateContextAsUser(Context context, Context userContext,
+            @UserIdInt int userId) {
+        when(context.createContextAsUser(UserHandle.of(userId), /* flags= */ 0)).thenReturn(
+                userContext);
     }
 
     // TODO(b/192307581): add unit tests
@@ -534,11 +603,8 @@ public final class AndroidMockitoHelper {
                 return false;
             }
 
-            if (!request.getUserType().equals(mUserType)) return false;
-
-            if (!Objects.equals(request.getName(), mName)) return false;
-
-            return true;
+            return request.getUserType().equals(mUserType)
+                    && Objects.equals(request.getName(), mName);
         }
     }
 }

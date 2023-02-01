@@ -20,12 +20,14 @@ package android.car {
     field public static final String ACCESS_PRIVATE_DISPLAY_ID = "android.car.permission.ACCESS_PRIVATE_DISPLAY_ID";
     field @Deprecated public static final String CABIN_SERVICE = "cabin";
     field public static final String CAR_ACTIVITY_SERVICE = "car_activity_service";
+    field public static final String CAR_BUGREPORT_SERVICE = "car_bugreport";
     field public static final String CAR_DEVICE_POLICY_SERVICE = "car_device_policy_service";
     field public static final String CAR_DRIVING_STATE_SERVICE = "drivingstate";
     field public static final String CAR_EVS_SERVICE = "car_evs_service";
     field public static final String CAR_EXTRA_CLUSTER_ACTIVITY_STATE = "android.car.cluster.ClusterActivityState";
     field public static final String CAR_INPUT_SERVICE = "android.car.input";
     field public static final String CAR_MEDIA_SERVICE = "car_media";
+    field public static final String CAR_PERFORMANCE_SERVICE = "car_performance";
     field public static final String CAR_TELEMETRY_SERVICE = "car_telemetry_service";
     field public static final String CAR_USER_SERVICE = "car_user_service";
     field public static final String DIAGNOSTIC_SERVICE = "diagnostic";
@@ -48,8 +50,12 @@ package android.car {
     field public static final String PERMISSION_CAR_PROJECTION = "android.car.permission.CAR_PROJECTION";
     field public static final String PERMISSION_CAR_PROJECTION_STATUS = "android.car.permission.ACCESS_CAR_PROJECTION_STATUS";
     field public static final String PERMISSION_CAR_TEST_SERVICE = "android.car.permission.CAR_TEST_SERVICE";
+    field public static final String PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION = "android.car.permission.CAR_UX_RESTRICTIONS_CONFIGURATION";
     field public static final String PERMISSION_COLLECT_CAR_WATCHDOG_METRICS = "android.car.permission.COLLECT_CAR_WATCHDOG_METRICS";
+    field public static final String PERMISSION_CONTROL_ADAS_SETTINGS = "android.car.permission.CONTROL_ADAS_SETTINGS";
+    field public static final String PERMISSION_CONTROL_ADAS_STATES = "android.car.permission.CONTROL_ADAS_STATES";
     field public static final String PERMISSION_CONTROL_APP_BLOCKING = "android.car.permission.CONTROL_APP_BLOCKING";
+    field public static final String PERMISSION_CONTROL_CAR_AIRBAGS = "android.car.permission.CONTROL_CAR_AIRBAGS";
     field public static final String PERMISSION_CONTROL_CAR_APP_LAUNCH = "android.car.permission.CONTROL_CAR_APP_LAUNCH";
     field public static final String PERMISSION_CONTROL_CAR_CLIMATE = "android.car.permission.CONTROL_CAR_CLIMATE";
     field public static final String PERMISSION_CONTROL_CAR_DOORS = "android.car.permission.CONTROL_CAR_DOORS";
@@ -61,18 +67,27 @@ package android.car {
     field public static final String PERMISSION_CONTROL_CAR_SEATS = "android.car.permission.CONTROL_CAR_SEATS";
     field public static final String PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG = "android.car.permission.CONTROL_CAR_WATCHDOG_CONFIG";
     field public static final String PERMISSION_CONTROL_CAR_WINDOWS = "android.car.permission.CONTROL_CAR_WINDOWS";
+    field public static final String PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS = "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS";
     field public static final String PERMISSION_CONTROL_ENERGY_PORTS = "android.car.permission.CONTROL_CAR_ENERGY_PORTS";
     field public static final String PERMISSION_CONTROL_EXTERIOR_LIGHTS = "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS";
+    field public static final String PERMISSION_CONTROL_POWERTRAIN = "android.car.permission.CONTROL_CAR_POWERTRAIN";
+    field public static final String PERMISSION_CONTROL_REMOTE_ACCESS = "android.car.permission.CONTROL_REMOTE_ACCESS";
     field public static final String PERMISSION_CONTROL_SHUTDOWN_PROCESS = "android.car.permission.CONTROL_SHUTDOWN_PROCESS";
+    field public static final String PERMISSION_CONTROL_STEERING_WHEEL = "android.car.permission.CONTROL_STEERING_WHEEL";
     field public static final String PERMISSION_EXTERIOR_LIGHTS = "android.car.permission.CAR_EXTERIOR_LIGHTS";
+    field public static final String PERMISSION_MANAGE_OCCUPANT_ZONE = "android.car.permission.MANAGE_OCCUPANT_ZONE";
+    field public static final String PERMISSION_MANAGE_THREAD_PRIORITY = "android.car.permission.MANAGE_THREAD_PRIORITY";
     field public static final String PERMISSION_MILEAGE = "android.car.permission.CAR_MILEAGE";
     field @Deprecated public static final String PERMISSION_MOCK_VEHICLE_HAL = "android.car.permission.CAR_MOCK_VEHICLE_HAL";
     field public static final String PERMISSION_MONITOR_CAR_EVS_STATUS = "android.car.permission.MONITOR_CAR_EVS_STATUS";
+    field public static final String PERMISSION_READ_ADAS_SETTINGS = "android.car.permission.READ_ADAS_SETTINGS";
+    field public static final String PERMISSION_READ_ADAS_STATES = "android.car.permission.READ_ADAS_STATES";
     field public static final String PERMISSION_READ_CAR_OCCUPANT_AWARENESS_STATE = "android.car.permission.READ_CAR_OCCUPANT_AWARENESS_STATE";
     field public static final String PERMISSION_READ_CAR_VENDOR_PERMISSION_INFO = "android.car.permission.READ_CAR_VENDOR_PERMISSION_INFO";
+    field public static final String PERMISSION_READ_DRIVER_MONITORING_SETTINGS = "android.car.permission.READ_DRIVER_MONITORING_SETTINGS";
+    field public static final String PERMISSION_READ_DRIVER_MONITORING_STATES = "android.car.permission.READ_DRIVER_MONITORING_STATES";
     field public static final String PERMISSION_RECEIVE_CAR_AUDIO_DUCKING_EVENTS = "android.car.permission.RECEIVE_CAR_AUDIO_DUCKING_EVENTS";
     field public static final String PERMISSION_REQUEST_CAR_EVS_ACTIVITY = "android.car.permission.REQUEST_CAR_EVS_ACTIVITY";
-    field public static final String PERMISSION_STORAGE_ENCRYPTION_BINDING_SEED = "android.car.permission.STORAGE_ENCRYPTION_BINDING_SEED";
     field public static final String PERMISSION_STORAGE_MONITORING = "android.car.permission.STORAGE_MONITORING";
     field public static final String PERMISSION_TEMPLATE_RENDERER = "android.car.permission.TEMPLATE_RENDERER";
     field public static final String PERMISSION_TIRES = "android.car.permission.CAR_TIRES";
@@ -90,10 +105,33 @@ package android.car {
     field @Deprecated public static final String VMS_SUBSCRIBER_SERVICE = "vehicle_map_subscriber_service";
   }
 
+  public final class CarBugreportManager {
+    method @RequiresPermission(android.Manifest.permission.DUMP) public void cancelBugreport();
+    method @RequiresPermission(android.Manifest.permission.DUMP) public void requestBugreport(@NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull android.car.CarBugreportManager.CarBugreportManagerCallback);
+  }
+
+  public abstract static class CarBugreportManager.CarBugreportManagerCallback {
+    ctor public CarBugreportManager.CarBugreportManagerCallback();
+    method public void onError(int);
+    method public void onFinished();
+    method public void onProgress(@FloatRange(from=0.0f, to=100.0f) float);
+    field public static final int CAR_BUGREPORT_DUMPSTATE_CONNECTION_FAILED = 3; // 0x3
+    field public static final int CAR_BUGREPORT_DUMPSTATE_FAILED = 1; // 0x1
+    field public static final int CAR_BUGREPORT_IN_PROGRESS = 2; // 0x2
+    field public static final int CAR_BUGREPORT_SERVICE_NOT_AVAILABLE = 4; // 0x4
+  }
+
   public class CarOccupantZoneManager {
+    method @RequiresPermission(anyOf={android.Manifest.permission.MANAGE_USERS, android.car.Car.PERMISSION_MANAGE_OCCUPANT_ZONE}) public int assignVisibleUserToOccupantZone(@NonNull android.car.CarOccupantZoneManager.OccupantZoneInfo, @NonNull android.os.UserHandle, int);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS) public int getAudioZoneIdForOccupant(@NonNull android.car.CarOccupantZoneManager.OccupantZoneInfo);
     method @RequiresPermission(android.car.Car.ACCESS_PRIVATE_DISPLAY_ID) public int getDisplayIdForDriver(int);
     method @Nullable @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS) public android.car.CarOccupantZoneManager.OccupantZoneInfo getOccupantForAudioZoneId(int);
+    method @RequiresPermission(anyOf={android.Manifest.permission.MANAGE_USERS, android.car.Car.PERMISSION_MANAGE_OCCUPANT_ZONE}) public int unassignOccupantZone(@NonNull android.car.CarOccupantZoneManager.OccupantZoneInfo);
+    field public static final int USER_ASSIGNMENT_FLAG_LAUNCH_HOME = 1; // 0x1
+    field public static final int USER_ASSIGNMENT_RESULT_FAIL_ALREADY_ASSIGNED = 1; // 0x1
+    field public static final int USER_ASSIGNMENT_RESULT_FAIL_DRIVER_ZONE = 3; // 0x3
+    field public static final int USER_ASSIGNMENT_RESULT_FAIL_NON_VISIBLE_USER = 2; // 0x2
+    field public static final int USER_ASSIGNMENT_RESULT_OK = 0; // 0x0
   }
 
   public final class CarProjectionManager {
@@ -187,6 +225,10 @@ package android.car {
     field public static final int WRITE = 2; // 0x2
   }
 
+  public final class VehiclePropertyIds {
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_ELECTRIC_DEFROSTER_ON = 320865556; // 0x13200514
+  }
+
   public final class VehicleUnit {
     field public static final int DEGREES = 128; // 0x80
     field public static final int HERTZ = 3; // 0x3
@@ -240,6 +282,7 @@ package android.car.app {
 
   public final class CarActivityManager {
     method @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_APP_LAUNCH) public int setPersistentActivity(@NonNull android.content.ComponentName, int, int);
+    method @RequiresPermission(android.Manifest.permission.INTERACT_ACROSS_USERS) public void startUserPickerOnDisplay(int);
     field public static final int RESULT_FAILURE = -1; // 0xffffffff
     field public static final int RESULT_INVALID_USER = -2; // 0xfffffffe
     field public static final int RESULT_SUCCESS = 0; // 0x0
@@ -259,6 +302,18 @@ package android.car.cluster {
 
   @Deprecated public static interface CarInstrumentClusterManager.Callback {
     method @Deprecated public void onClusterActivityStateChanged(String, android.os.Bundle);
+  }
+
+  public final class ClusterActivityState {
+    method @NonNull public static android.car.cluster.ClusterActivityState create(boolean, @NonNull android.graphics.Rect);
+    method @NonNull public static android.car.cluster.ClusterActivityState fromBundle(@NonNull android.os.Bundle);
+    method @Nullable public android.os.Bundle getExtras();
+    method @Nullable public android.graphics.Rect getUnobscuredBounds();
+    method public boolean isVisible();
+    method @NonNull public android.car.cluster.ClusterActivityState setExtras(@NonNull android.os.Bundle);
+    method @NonNull public android.car.cluster.ClusterActivityState setUnobscuredBounds(@NonNull android.graphics.Rect);
+    method @NonNull public android.car.cluster.ClusterActivityState setVisible(boolean);
+    method @NonNull public android.os.Bundle toBundle();
   }
 
 }
@@ -285,6 +340,8 @@ package android.car.cluster.renderer {
     method @MainThread public void onKeyEvent(@NonNull android.view.KeyEvent);
     method @MainThread public void onNavigationComponentLaunched();
     method @MainThread public void onNavigationComponentReleased();
+    method public void setClusterActivityLaunchOptions(@NonNull android.app.ActivityOptions);
+    method public void setClusterActivityState(@NonNull android.car.cluster.ClusterActivityState);
     method public boolean startFixedActivityModeForDisplayAndUser(@NonNull android.content.Intent, @NonNull android.app.ActivityOptions, int);
     method protected boolean startNavigationActivity(@NonNull android.content.ComponentName);
     method public void stopFixedActivityMode(int);
@@ -334,6 +391,7 @@ package android.car.content.pm {
   }
 
   public final class CarPackageManager {
+    method @NonNull @RequiresPermission(android.Manifest.permission.QUERY_ALL_PACKAGES) public android.car.CarVersion getTargetCarVersion(@NonNull String) throws android.content.pm.PackageManager.NameNotFoundException;
     method public boolean isActivityBackedBySafeActivity(android.content.ComponentName);
     method @Deprecated public void setAppBlockingPolicy(String, android.car.content.pm.CarAppBlockingPolicy, int);
     field @Deprecated public static final int FLAG_SET_POLICY_ADD = 2; // 0x2
@@ -632,12 +690,37 @@ package android.car.drivingstate {
     method public void onDrivingStateChanged(android.car.drivingstate.CarDrivingStateEvent);
   }
 
+  public final class CarUxRestrictionsConfiguration implements android.os.Parcelable {
+    method public int describeContents();
+    method public int getDisplayType();
+    method public int getOccupantZoneId();
+    method @Nullable public Integer getPhysicalPort();
+    method @NonNull public android.car.drivingstate.CarUxRestrictions getUxRestrictions(int, float);
+    method @NonNull public android.car.drivingstate.CarUxRestrictions getUxRestrictions(int, @FloatRange(from=0.0f) float, @NonNull String);
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.drivingstate.CarUxRestrictionsConfiguration> CREATOR;
+  }
+
+  public final class CarUxRestrictionsManager {
+    method @Nullable @RequiresPermission(android.car.Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION) public java.util.List<android.car.drivingstate.CarUxRestrictionsConfiguration> getConfigs();
+    method @Nullable public android.car.drivingstate.CarUxRestrictions getCurrentCarUxRestrictions(int);
+    method @NonNull @RequiresPermission(android.car.Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION) public String getRestrictionMode();
+    method @Nullable @RequiresPermission(android.car.Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION) public java.util.List<android.car.drivingstate.CarUxRestrictionsConfiguration> getStagedConfigs();
+    method public void onCarDisconnected();
+    method @RequiresPermission(android.car.Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION) public boolean saveUxRestrictionsConfigurationForNextBoot(@NonNull java.util.List<android.car.drivingstate.CarUxRestrictionsConfiguration>);
+    method @RequiresPermission(android.car.Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION) public boolean saveUxRestrictionsConfigurationForNextBoot(@NonNull android.car.drivingstate.CarUxRestrictionsConfiguration);
+    method public void setListener(int, @NonNull android.car.drivingstate.CarUxRestrictionsManager.OnUxRestrictionsChangedListener);
+    method @RequiresPermission(android.car.Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION) public boolean setRestrictionMode(@NonNull String);
+    field public static final String UX_RESTRICTION_MODE_BASELINE = "baseline";
+  }
+
 }
 
 package android.car.evs {
 
-  public final class CarEvsBufferDescriptor implements android.os.Parcelable {
+  public final class CarEvsBufferDescriptor implements java.lang.AutoCloseable android.os.Parcelable {
     ctor public CarEvsBufferDescriptor(int, @NonNull android.hardware.HardwareBuffer);
+    method public void close();
     method public int describeContents();
     method @NonNull public android.hardware.HardwareBuffer getHardwareBuffer();
     method public int getId();
@@ -712,9 +795,10 @@ package android.car.hardware {
   }
 
   public static class CarPropertyConfig.Builder<T> {
-    method public android.car.hardware.CarPropertyConfig.Builder<T> addArea(int);
-    method public android.car.hardware.CarPropertyConfig.Builder<T> addAreaConfig(int, T, T);
-    method public android.car.hardware.CarPropertyConfig.Builder<T> addAreas(int[]);
+    method @Deprecated public android.car.hardware.CarPropertyConfig.Builder<T> addArea(int);
+    method @Deprecated public android.car.hardware.CarPropertyConfig.Builder<T> addAreaConfig(int, T, T);
+    method @NonNull public android.car.hardware.CarPropertyConfig.Builder<T> addAreaIdConfig(@NonNull android.car.hardware.property.AreaIdConfig<T>);
+    method @Deprecated public android.car.hardware.CarPropertyConfig.Builder<T> addAreas(int[]);
     method public android.car.hardware.CarPropertyConfig<T> build();
     method public android.car.hardware.CarPropertyConfig.Builder<T> setAccess(int);
     method public android.car.hardware.CarPropertyConfig.Builder<T> setChangeMode(int);
@@ -854,6 +938,7 @@ package android.car.hardware.power {
     method @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_POWER_POLICY) public void applyPowerPolicy(@NonNull String);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_POWER) public void clearListener();
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_POWER) public int getPowerState();
+    method @RequiresPermission(android.car.Car.PERMISSION_CAR_POWER) public void setDisplayPowerState(int, boolean);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_POWER) public void setListener(@NonNull java.util.concurrent.Executor, @NonNull android.car.hardware.power.CarPowerManager.CarPowerStateListener);
     method @RequiresPermission(android.car.Car.PERMISSION_CONTROL_SHUTDOWN_PROCESS) public void setListenerWithCompletion(@NonNull java.util.concurrent.Executor, @NonNull android.car.hardware.power.CarPowerManager.CarPowerStateListenerWithCompletion);
     method @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_POWER_POLICY) public void setPowerPolicyGroup(@NonNull String);
@@ -889,6 +974,92 @@ package android.car.hardware.power {
 }
 
 package android.car.hardware.property {
+
+  public static final class AreaIdConfig.Builder<T> {
+    ctor public AreaIdConfig.Builder(int);
+    method @NonNull public android.car.hardware.property.AreaIdConfig<T> build();
+    method @NonNull public android.car.hardware.property.AreaIdConfig.Builder<T> setMaxValue(T);
+    method @NonNull public android.car.hardware.property.AreaIdConfig.Builder<T> setMinValue(T);
+    method @NonNull public android.car.hardware.property.AreaIdConfig.Builder<T> setSupportedEnumValues(@NonNull java.util.List<T>);
+  }
+
+  public final class AutomaticEmergencyBrakingState {
+    method @NonNull public static String toString(int);
+    field public static final int ACTIVATED = 2; // 0x2
+    field public static final int ENABLED = 1; // 0x1
+    field public static final int OTHER = 0; // 0x0
+    field public static final int USER_OVERRIDE = 3; // 0x3
+  }
+
+  public final class BlindSpotWarningState {
+    method @NonNull public static String toString(int);
+    field public static final int NO_WARNING = 1; // 0x1
+    field public static final int OTHER = 0; // 0x0
+    field public static final int WARNING = 2; // 0x2
+  }
+
+  public final class ErrorState {
+    method @NonNull public static String toString(int);
+    field public static final int NOT_AVAILABLE_DISABLED = -2; // 0xfffffffe
+    field public static final int NOT_AVAILABLE_SAFETY = -5; // 0xfffffffb
+    field public static final int NOT_AVAILABLE_SPEED_HIGH = -4; // 0xfffffffc
+    field public static final int NOT_AVAILABLE_SPEED_LOW = -3; // 0xfffffffd
+    field public static final int OTHER_ERROR_STATE = -1; // 0xffffffff
+  }
+
+  public final class EvStoppingMode {
+    method @NonNull public static String toString(int);
+    field public static final int STATE_CREEP = 1; // 0x1
+    field public static final int STATE_HOLD = 3; // 0x3
+    field public static final int STATE_OTHER = 0; // 0x0
+    field public static final int STATE_ROLL = 2; // 0x2
+  }
+
+  public final class ForwardCollisionWarningState {
+    method @NonNull public static String toString(int);
+    field public static final int NO_WARNING = 1; // 0x1
+    field public static final int OTHER = 0; // 0x0
+    field public static final int WARNING = 2; // 0x2
+  }
+
+  public final class TrailerState {
+    method @NonNull public static String toString(int);
+    field public static final int STATE_ERROR = 3; // 0x3
+    field public static final int STATE_NOT_PRESENT = 1; // 0x1
+    field public static final int STATE_PRESENT = 2; // 0x2
+    field public static final int STATE_UNKNOWN = 0; // 0x0
+  }
+
+  public final class VehicleLightState {
+    method @NonNull public static String toString(int);
+    field public static final int STATE_DAYTIME_RUNNING = 2; // 0x2
+    field public static final int STATE_OFF = 0; // 0x0
+    field public static final int STATE_ON = 1; // 0x1
+  }
+
+  public final class VehicleLightSwitch {
+    method @NonNull public static String toString(int);
+    field public static final int STATE_AUTOMATIC = 256; // 0x100
+    field public static final int STATE_DAYTIME_RUNNING = 2; // 0x2
+    field public static final int STATE_OFF = 0; // 0x0
+    field public static final int STATE_ON = 1; // 0x1
+  }
+
+  public final class VehicleOilLevel {
+    method @NonNull public static String toString(int);
+    field public static final int LEVEL_CRITICALLY_LOW = 0; // 0x0
+    field public static final int LEVEL_ERROR = 4; // 0x4
+    field public static final int LEVEL_HIGH = 3; // 0x3
+    field public static final int LEVEL_LOW = 1; // 0x1
+    field public static final int LEVEL_NORMAL = 2; // 0x2
+  }
+
+  public final class VehicleTurnSignal {
+    method @NonNull public static String toString(int);
+    field public static final int STATE_LEFT = 2; // 0x2
+    field public static final int STATE_NONE = 0; // 0x0
+    field public static final int STATE_RIGHT = 1; // 0x1
+  }
 
   public final class VehicleVendorPermission {
     field public static final String PERMISSION_GET_CAR_VENDOR_CATEGORY_1 = "android.car.permission.GET_CAR_VENDOR_CATEGORY_1";
@@ -944,12 +1115,6 @@ package android.car.input {
     field public static final int INPUT_CAPTURE_RESPONSE_FAILED = 1; // 0x1
     field public static final int INPUT_CAPTURE_RESPONSE_SUCCEEDED = 0; // 0x0
     field public static final int INPUT_TYPE_ALL_INPUTS = 1; // 0x1
-    field public static final int INPUT_TYPE_CUSTOM_INPUT_EVENT = 200; // 0xc8
-    field public static final int INPUT_TYPE_DPAD_KEYS = 100; // 0x64
-    field public static final int INPUT_TYPE_NAVIGATE_KEYS = 101; // 0x65
-    field public static final int INPUT_TYPE_ROTARY_NAVIGATION = 10; // 0xa
-    field public static final int INPUT_TYPE_ROTARY_VOLUME = 11; // 0xb
-    field public static final int INPUT_TYPE_SYSTEM_NAVIGATE_KEYS = 102; // 0x66
   }
 
   public static interface CarInputManager.CarInputCaptureCallback {
@@ -998,6 +1163,7 @@ package android.car.media {
 
   public final class CarAudioManager {
     method @Deprecated @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS) public android.car.media.CarAudioPatchHandle createAudioPatch(String, int, int);
+    method @NonNull @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public java.util.List<android.media.AudioAttributes> getAudioAttributesForVolumeGroup(@NonNull android.car.media.CarVolumeGroupInfo);
     method @NonNull @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS) public java.util.List<java.lang.Integer> getAudioZoneIds();
     method @Deprecated @NonNull @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS) public String[] getExternalSources();
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public int getGroupMaxVolume(int);
@@ -1014,6 +1180,8 @@ package android.car.media {
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public int getVolumeGroupCount(int);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public int getVolumeGroupIdForUsage(int);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public int getVolumeGroupIdForUsage(int, int);
+    method @Nullable @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public android.car.media.CarVolumeGroupInfo getVolumeGroupInfo(int, int);
+    method @NonNull @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public java.util.List<android.car.media.CarVolumeGroupInfo> getVolumeGroupInfosForZone(int);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public boolean isPlaybackOnVolumeGroupActive(int, int);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME) public boolean isVolumeGroupMuted(int, int);
     method @Deprecated @RequiresPermission(android.car.Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS) public void releaseAudioPatch(android.car.media.CarAudioPatchHandle);
@@ -1047,6 +1215,34 @@ package android.car.media {
     method public void onMediaSourceChanged(@NonNull android.content.ComponentName);
   }
 
+  public final class CarVolumeGroupInfo implements android.os.Parcelable {
+    method public int describeContents();
+    method public int getId();
+    method public int getMaxVolumeGainIndex();
+    method public int getMinVolumeGainIndex();
+    method @NonNull public String getName();
+    method public int getVolumeGainIndex();
+    method public int getZoneId();
+    method public boolean isAttenuated();
+    method public boolean isBlocked();
+    method public boolean isMuted();
+    method public boolean isSameVolumeGroup(@Nullable android.car.media.CarVolumeGroupInfo);
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.media.CarVolumeGroupInfo> CREATOR;
+  }
+
+  public static final class CarVolumeGroupInfo.Builder {
+    ctor public CarVolumeGroupInfo.Builder(@NonNull String, int, int);
+    ctor public CarVolumeGroupInfo.Builder(@NonNull android.car.media.CarVolumeGroupInfo);
+    method @NonNull public android.car.media.CarVolumeGroupInfo build();
+    method @NonNull public android.car.media.CarVolumeGroupInfo.Builder setAttenuated(boolean);
+    method @NonNull public android.car.media.CarVolumeGroupInfo.Builder setBlocked(boolean);
+    method @NonNull public android.car.media.CarVolumeGroupInfo.Builder setMaxVolumeGainIndex(int);
+    method @NonNull public android.car.media.CarVolumeGroupInfo.Builder setMinVolumeGainIndex(int);
+    method @NonNull public android.car.media.CarVolumeGroupInfo.Builder setMuted(boolean);
+    method @NonNull public android.car.media.CarVolumeGroupInfo.Builder setVolumeGainIndex(int);
+  }
+
 }
 
 package android.car.navigation {
@@ -1072,6 +1268,171 @@ package android.car.navigation {
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_NAVIGATION_MANAGER) public android.car.navigation.CarNavigationInstrumentCluster getInstrumentClusterInfo();
     method @Deprecated @RequiresPermission(android.car.Car.PERMISSION_CAR_NAVIGATION_MANAGER) public void sendEvent(int, android.os.Bundle);
     method @RequiresPermission(android.car.Car.PERMISSION_CAR_NAVIGATION_MANAGER) public void sendNavigationStateChange(android.os.Bundle);
+  }
+
+}
+
+package android.car.oem {
+
+  public final class AudioFocusEntry implements android.os.Parcelable {
+    method public int describeContents();
+    method public int getAudioContextId();
+    method @NonNull public android.media.AudioFocusInfo getAudioFocusInfo();
+    method public int getAudioFocusResult();
+    method public int getAudioVolumeGroupId();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.oem.AudioFocusEntry> CREATOR;
+  }
+
+  public static final class AudioFocusEntry.Builder {
+    ctor public AudioFocusEntry.Builder(@NonNull android.car.oem.AudioFocusEntry);
+    ctor public AudioFocusEntry.Builder(@NonNull android.media.AudioFocusInfo, int, int, int);
+    method @NonNull public android.car.oem.AudioFocusEntry build();
+    method @NonNull public android.car.oem.AudioFocusEntry.Builder setAudioContextId(int);
+    method @NonNull public android.car.oem.AudioFocusEntry.Builder setAudioFocusInfo(@NonNull android.media.AudioFocusInfo);
+    method @NonNull public android.car.oem.AudioFocusEntry.Builder setAudioFocusResult(int);
+    method @NonNull public android.car.oem.AudioFocusEntry.Builder setAudioVolumeGroupId(int);
+  }
+
+  public interface OemCarAudioDuckingService extends android.car.oem.OemCarServiceComponent {
+    method @NonNull public java.util.List<android.media.AudioAttributes> evaluateAttributesToDuck(@NonNull android.car.oem.OemCarAudioVolumeRequest);
+  }
+
+  public final class OemCarAudioFocusEvaluationRequest implements android.os.Parcelable {
+    method public int describeContents();
+    method @Nullable public android.car.oem.AudioFocusEntry getAudioFocusRequest();
+    method public int getAudioZoneId();
+    method @NonNull public java.util.List<android.car.oem.AudioFocusEntry> getFocusHolders();
+    method @NonNull public java.util.List<android.car.oem.AudioFocusEntry> getFocusLosers();
+    method @NonNull public java.util.List<android.car.media.CarVolumeGroupInfo> getMutedVolumeGroups();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.oem.OemCarAudioFocusEvaluationRequest> CREATOR;
+  }
+
+  public static final class OemCarAudioFocusEvaluationRequest.Builder {
+    ctor public OemCarAudioFocusEvaluationRequest.Builder(@NonNull java.util.List<android.car.media.CarVolumeGroupInfo>, @NonNull java.util.List<android.car.oem.AudioFocusEntry>, @NonNull java.util.List<android.car.oem.AudioFocusEntry>, int);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder addFocusHolders(@NonNull android.car.oem.AudioFocusEntry);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder addFocusLosers(@NonNull android.car.oem.AudioFocusEntry);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder addMutedVolumeGroups(@NonNull android.car.media.CarVolumeGroupInfo);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest build();
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder setAudioFocusRequest(@NonNull android.car.oem.AudioFocusEntry);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder setAudioZoneId(int);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder setFocusHolders(@NonNull java.util.List<android.car.oem.AudioFocusEntry>);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder setFocusLosers(@NonNull java.util.List<android.car.oem.AudioFocusEntry>);
+    method @NonNull public android.car.oem.OemCarAudioFocusEvaluationRequest.Builder setMutedVolumeGroups(@NonNull java.util.List<android.car.media.CarVolumeGroupInfo>);
+  }
+
+  public final class OemCarAudioFocusResult implements android.os.Parcelable {
+    method public int describeContents();
+    method @Nullable public android.car.oem.AudioFocusEntry getAudioFocusEntry();
+    method public int getAudioFocusResult();
+    method @NonNull public java.util.List<android.car.oem.AudioFocusEntry> getNewlyBlockedAudioFocusEntries();
+    method @NonNull public java.util.List<android.car.oem.AudioFocusEntry> getNewlyLostAudioFocusEntries();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.oem.OemCarAudioFocusResult> CREATOR;
+    field @NonNull public static final android.car.oem.OemCarAudioFocusResult EMPTY_OEM_CAR_AUDIO_FOCUS_RESULTS;
+  }
+
+  public static final class OemCarAudioFocusResult.Builder {
+    ctor public OemCarAudioFocusResult.Builder(@NonNull java.util.List<android.car.oem.AudioFocusEntry>, @NonNull java.util.List<android.car.oem.AudioFocusEntry>, int);
+    method @NonNull public android.car.oem.OemCarAudioFocusResult.Builder addNewlyBlockedAudioFocusEntry(@NonNull android.car.oem.AudioFocusEntry);
+    method @NonNull public android.car.oem.OemCarAudioFocusResult.Builder addNewlyLostAudioFocusEntry(@NonNull android.car.oem.AudioFocusEntry);
+    method @NonNull public android.car.oem.OemCarAudioFocusResult build();
+    method @NonNull public android.car.oem.OemCarAudioFocusResult.Builder setAudioFocusEntry(@NonNull android.car.oem.AudioFocusEntry);
+    method @NonNull public android.car.oem.OemCarAudioFocusResult.Builder setAudioFocusResult(int);
+    method @NonNull public android.car.oem.OemCarAudioFocusResult.Builder setNewlyBlockedAudioFocusEntries(@NonNull java.util.List<android.car.oem.AudioFocusEntry>);
+    method @NonNull public android.car.oem.OemCarAudioFocusResult.Builder setNewlyLostAudioFocusEntries(@NonNull java.util.List<android.car.oem.AudioFocusEntry>);
+  }
+
+  public interface OemCarAudioFocusService extends android.car.oem.OemCarServiceComponent {
+    method @NonNull public android.car.oem.OemCarAudioFocusResult evaluateAudioFocusRequest(@NonNull android.car.oem.OemCarAudioFocusEvaluationRequest);
+    method public void notifyAudioFocusChange(@NonNull java.util.List<android.media.AudioFocusInfo>, @NonNull java.util.List<android.media.AudioFocusInfo>, int);
+  }
+
+  public final class OemCarAudioVolumeRequest implements android.os.Parcelable {
+    method public int describeContents();
+    method @NonNull public java.util.List<android.media.AudioAttributes> getActivePlaybackAttributes();
+    method public int getAudioZoneId();
+    method public int getCallState();
+    method @NonNull public java.util.List<android.car.media.CarVolumeGroupInfo> getCarVolumeGroupInfos();
+    method @NonNull public java.util.List<android.media.AudioAttributes> getDuckedAudioAttributes();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.oem.OemCarAudioVolumeRequest> CREATOR;
+  }
+
+  public static final class OemCarAudioVolumeRequest.Builder {
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest.Builder addActivePlaybackAttributes(@NonNull android.media.AudioAttributes);
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest.Builder addCarVolumeGroupInfos(@NonNull android.car.media.CarVolumeGroupInfo);
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest.Builder addDuckedAudioAttributes(@NonNull android.media.AudioAttributes);
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest build();
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest.Builder setActivePlaybackAttributes(@NonNull java.util.List<android.media.AudioAttributes>);
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest.Builder setCallState(int);
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest.Builder setCarVolumeGroupInfos(@NonNull java.util.List<android.car.media.CarVolumeGroupInfo>);
+    method @NonNull public android.car.oem.OemCarAudioVolumeRequest.Builder setDuckedAudioAttributes(@NonNull java.util.List<android.media.AudioAttributes>);
+  }
+
+  public interface OemCarAudioVolumeService extends android.car.oem.OemCarServiceComponent {
+    method @NonNull public android.car.oem.OemCarVolumeChangeInfo getSuggestedGroupForVolumeChange(@NonNull android.car.oem.OemCarAudioVolumeRequest, int);
+  }
+
+  public abstract class OemCarService extends android.app.Service {
+    ctor public OemCarService();
+    method @CallSuper public void dump(@Nullable java.io.FileDescriptor, @Nullable java.io.PrintWriter, @Nullable String[]);
+    method @Nullable public android.car.oem.OemCarAudioDuckingService getOemAudioDuckingService();
+    method @Nullable public android.car.oem.OemCarAudioFocusService getOemAudioFocusService();
+    method @Nullable public android.car.oem.OemCarAudioVolumeService getOemAudioVolumeService();
+    method @NonNull public abstract android.car.CarVersion getSupportedCarVersion();
+    method @NonNull public final android.os.IBinder onBind(@Nullable android.content.Intent);
+    method public abstract void onCarServiceReady();
+    method public final int onStartCommand(@Nullable android.content.Intent, int, int);
+  }
+
+  public interface OemCarServiceComponent {
+    method public void dump(@Nullable java.io.PrintWriter, @Nullable String[]);
+    method public void init();
+    method public void onCarServiceReady();
+    method public void release();
+  }
+
+  public final class OemCarVolumeChangeInfo implements android.os.Parcelable {
+    method public int describeContents();
+    method @Nullable public android.car.media.CarVolumeGroupInfo getChangedVolumeGroup();
+    method public boolean isVolumeChanged();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.oem.OemCarVolumeChangeInfo> CREATOR;
+    field @NonNull public static final android.car.oem.OemCarVolumeChangeInfo EMPTY_OEM_VOLUME_CHANGE;
+  }
+
+  public static final class OemCarVolumeChangeInfo.Builder {
+    ctor public OemCarVolumeChangeInfo.Builder(boolean);
+    method @NonNull public android.car.oem.OemCarVolumeChangeInfo build();
+    method @NonNull public android.car.oem.OemCarVolumeChangeInfo.Builder setChangedVolumeGroup(@NonNull android.car.media.CarVolumeGroupInfo);
+  }
+
+}
+
+package android.car.os {
+
+  public final class CarPerformanceManager {
+    method @NonNull @RequiresPermission(android.car.Car.PERMISSION_MANAGE_THREAD_PRIORITY) public android.car.os.ThreadPolicyWithPriority getThreadPriority();
+    method @RequiresPermission(android.car.Car.PERMISSION_MANAGE_THREAD_PRIORITY) public void setThreadPriority(@NonNull android.car.os.ThreadPolicyWithPriority) throws android.car.os.CarPerformanceManager.SetSchedulerFailedException;
+  }
+
+  public static final class CarPerformanceManager.SetSchedulerFailedException extends java.lang.Exception {
+  }
+
+  public final class ThreadPolicyWithPriority implements android.os.Parcelable {
+    ctor public ThreadPolicyWithPriority(int, @IntRange(from=0, to=99) int);
+    method public int describeContents();
+    method public int getPolicy();
+    method @IntRange(from=0, to=99) public int getPriority();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.os.ThreadPolicyWithPriority> CREATOR;
+    field public static final int PRIORITY_MAX = 99; // 0x63
+    field public static final int PRIORITY_MIN = 1; // 0x1
+    field public static final int SCHED_DEFAULT = 0; // 0x0
+    field public static final int SCHED_FIFO = 1; // 0x1
+    field public static final int SCHED_RR = 2; // 0x2
   }
 
 }
@@ -1141,18 +1502,37 @@ package android.car.projection {
 
 }
 
+package android.car.remoteaccess {
+
+  public final class CarRemoteAccessManager {
+    method @RequiresPermission(android.car.Car.PERMISSION_CONTROL_REMOTE_ACCESS) public void setPowerStatePostTaskExecution(int, boolean);
+    field public static final int NEXT_POWER_STATE_OFF = 2; // 0x2
+    field public static final int NEXT_POWER_STATE_ON = 1; // 0x1
+    field public static final int NEXT_POWER_STATE_SUSPEND_TO_DISK = 4; // 0x4
+    field public static final int NEXT_POWER_STATE_SUSPEND_TO_RAM = 3; // 0x3
+  }
+
+}
+
 package android.car.settings {
 
   public class CarSettings {
   }
 
+  public static final class CarSettings.Global {
+    field public static final String DISPLAY_INPUT_LOCK = "android.car.DISPLAY_INPUT_LOCK";
+    field public static final String GLOBAL_VISIBLE_USER_ALLOCATION_PER_ZONE = "android.car.GLOBAL_VISIBLE_USER_ALLOCATION_PER_ZONE";
+  }
+
   public static final class CarSettings.Secure {
     field public static final String KEY_AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL = "android.car.KEY_AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL";
     field public static final String KEY_AUDIO_PERSIST_VOLUME_GROUP_MUTE_STATES = "android.car.KEY_AUDIO_PERSIST_VOLUME_GROUP_MUTE_STATES";
+    field public static final String KEY_DRIVER_ALLOWED_TO_CONTROL_MEDIA = "android.car.DRIVER_ALLOWED_TO_CONTROL_MEDIA";
     field public static final String KEY_ENABLE_INITIAL_NOTICE_SCREEN_TO_USER = "android.car.ENABLE_INITIAL_NOTICE_SCREEN_TO_USER";
     field public static final String KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE = "android.car.KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE";
     field public static final String KEY_ROTARY_KEY_EVENT_FILTER = "android.car.ROTARY_KEY_EVENT_FILTER";
     field public static final String KEY_SETUP_WIZARD_IN_PROGRESS = "android.car.SETUP_WIZARD_IN_PROGRESS";
+    field public static final String VISIBLE_USER_ALLOCATION_PER_ZONE = "android.car.VISIBLE_USER_ALLOCATION_PER_ZONE";
   }
 
 }
@@ -1226,7 +1606,7 @@ package android.car.storagemonitoring {
     ctor public LifetimeWriteInfo(android.os.Parcel);
     method public int describeContents();
     method public void writeToParcel(android.os.Parcel, int);
-    field public static final android.os.Parcelable.Creator<android.car.storagemonitoring.IoStats> CREATOR;
+    field public static final android.os.Parcelable.Creator<android.car.storagemonitoring.LifetimeWriteInfo> CREATOR;
     field public final String fstype;
     field public final String partition;
     field public final long writtenBytes;
@@ -1315,13 +1695,24 @@ package android.car.user {
   public final class CarUserManager {
     method @RequiresPermission(anyOf={android.Manifest.permission.INTERACT_ACROSS_USERS, android.Manifest.permission.INTERACT_ACROSS_USERS_FULL}) public void addListener(@NonNull java.util.concurrent.Executor, @NonNull android.car.user.CarUserManager.UserLifecycleListener);
     method @RequiresPermission(anyOf={android.Manifest.permission.INTERACT_ACROSS_USERS, android.Manifest.permission.INTERACT_ACROSS_USERS_FULL}) public void addListener(@NonNull java.util.concurrent.Executor, @NonNull android.car.user.UserLifecycleEventFilter, @NonNull android.car.user.CarUserManager.UserLifecycleListener);
+    method @RequiresPermission(anyOf={android.Manifest.permission.MANAGE_USERS, android.Manifest.permission.CREATE_USERS}) public boolean isValidUser(@NonNull android.os.UserHandle);
+    method @NonNull public static String lifecycleEventTypeToString(int);
     method @RequiresPermission(anyOf={android.Manifest.permission.INTERACT_ACROSS_USERS, android.Manifest.permission.INTERACT_ACROSS_USERS_FULL}) public void removeListener(@NonNull android.car.user.CarUserManager.UserLifecycleListener);
+    method @RequiresPermission(android.Manifest.permission.MANAGE_USERS) public void setUserSwitchUiCallback(@NonNull java.util.concurrent.Executor, @NonNull android.car.user.CarUserManager.UserHandleSwitchUiCallback);
+    field public static final int USER_LIFECYCLE_EVENT_TYPE_CREATED = 8; // 0x8
+    field public static final int USER_LIFECYCLE_EVENT_TYPE_INVISIBLE = 11; // 0xb
+    field public static final int USER_LIFECYCLE_EVENT_TYPE_REMOVED = 9; // 0x9
     field public static final int USER_LIFECYCLE_EVENT_TYPE_STARTING = 1; // 0x1
     field public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPED = 6; // 0x6
     field public static final int USER_LIFECYCLE_EVENT_TYPE_STOPPING = 5; // 0x5
     field public static final int USER_LIFECYCLE_EVENT_TYPE_SWITCHING = 2; // 0x2
     field public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKED = 4; // 0x4
     field public static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKING = 3; // 0x3
+    field public static final int USER_LIFECYCLE_EVENT_TYPE_VISIBLE = 10; // 0xa
+  }
+
+  public static interface CarUserManager.UserHandleSwitchUiCallback {
+    method public void onUserSwitchStart(@NonNull android.os.UserHandle);
   }
 
   public static final class CarUserManager.UserLifecycleEvent {
@@ -1339,6 +1730,21 @@ package android.car.user {
     method public int describeContents();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.car.user.UserLifecycleEventFilter> CREATOR;
+  }
+
+  public static final class UserLifecycleEventFilter.Builder {
+    ctor public UserLifecycleEventFilter.Builder();
+    method @NonNull public android.car.user.UserLifecycleEventFilter.Builder addEventType(int);
+    method @NonNull public android.car.user.UserLifecycleEventFilter.Builder addUser(@NonNull android.os.UserHandle);
+    method @NonNull public android.car.user.UserLifecycleEventFilter build();
+  }
+
+}
+
+package android.car.view {
+
+  public final class DisplayHelper {
+    method @Nullable public static String getUniqueId(@NonNull android.view.Display);
   }
 
 }

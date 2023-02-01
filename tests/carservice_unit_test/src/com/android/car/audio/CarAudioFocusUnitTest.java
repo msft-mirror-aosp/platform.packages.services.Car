@@ -15,15 +15,18 @@
  */
 package com.android.car.audio;
 
+import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.media.AudioAttributes.USAGE_ANNOUNCEMENT;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE;
 import static android.media.AudioAttributes.USAGE_ASSISTANT;
 import static android.media.AudioAttributes.USAGE_EMERGENCY;
 import static android.media.AudioAttributes.USAGE_MEDIA;
+import static android.media.AudioAttributes.USAGE_NOTIFICATION;
 import static android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE;
 import static android.media.AudioAttributes.USAGE_VEHICLE_STATUS;
 import static android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION;
 import static android.media.AudioManager.AUDIOFOCUS_GAIN;
+import static android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE;
 import static android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK;
 import static android.media.AudioManager.AUDIOFOCUS_LOSS;
 import static android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT;
@@ -32,7 +35,9 @@ import static android.media.AudioManager.AUDIOFOCUS_REQUEST_FAILED;
 import static android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,6 +56,10 @@ import android.os.Build;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.car.CarLocalServices;
+import com.android.car.oem.CarOemProxyService;
+
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -67,8 +76,13 @@ public class CarAudioFocusUnitTest {
     private static final String FIRST_CLIENT_ID = "first-client-id";
     private static final String SECOND_CLIENT_ID = "second-client-id";
     private static final String THIRD_CLIENT_ID = "third-client-id";
+    private static final String CALL_CLIENT_ID = "AudioFocus_For_Phone_Ring_And_Calls";
+
     private static final String PACKAGE_NAME = "com.android.car.audio";
     private static final int AUDIOFOCUS_FLAG = 0;
+
+    private static final CarAudioContext TEST_CAR_AUDIO_CONTEXT =
+            new CarAudioContext(CarAudioContext.getAllContextsInfo());
 
     @Rule
     public MockitoRule rule = MockitoJUnit.rule();
@@ -80,13 +94,86 @@ public class CarAudioFocusUnitTest {
     private AudioPolicy mAudioPolicy;
     @Mock
     private CarAudioSettings mCarAudioSettings;
+    @Mock
+    private ContentObserverFactory mMockContentObserverFactory;
+    @Mock
+    private CarVolumeInfoWrapper mMockCarVolumeInfoWrapper;
+    @Mock
+    private CarOemProxyService mMockCarOemProxyService;
 
     private FocusInteraction mFocusInteraction;
 
-
     @Before
     public void setUp() {
-        mFocusInteraction = new FocusInteraction(mCarAudioSettings);
+        mFocusInteraction = new FocusInteraction(mCarAudioSettings, mMockContentObserverFactory);
+        CarLocalServices.removeServiceForTest(CarOemProxyService.class);
+        CarLocalServices.addService(CarOemProxyService.class, mMockCarOemProxyService);
+    }
+
+    @After
+    public void tearDown() {
+        CarLocalServices.removeServiceForTest(CarOemProxyService.class);
+    }
+
+    @Test
+    public void constructor_withNullCarAudioContext_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
+            new CarAudioFocus(mMockAudioManager, mMockPackageManager,
+                    mFocusInteraction, /* carAudioContext= */ null, mMockCarVolumeInfoWrapper,
+                    PRIMARY_AUDIO_ZONE);
+        });
+
+        assertWithMessage("Constructor with null car audio context exception")
+                .that(thrown).hasMessageThat().contains("Car audio context");
+    }
+
+    @Test
+    public void constructor_withNullAudioManager_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
+            new CarAudioFocus(/* audioManager= */ null, mMockPackageManager,
+                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper,
+                    PRIMARY_AUDIO_ZONE);
+        });
+
+        assertWithMessage("Constructor with null audio manager exception")
+                .that(thrown).hasMessageThat().contains("Audio manager");
+    }
+
+    @Test
+    public void constructor_withNullPackageManager_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
+            new CarAudioFocus(mMockAudioManager, /* packageManager= */ null,
+                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper,
+                    PRIMARY_AUDIO_ZONE);
+        });
+
+        assertWithMessage("Constructor with null package manager exception")
+                .that(thrown).hasMessageThat().contains("Package manager");
+    }
+
+    @Test
+    public void constructor_withNullFocusInteractions_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
+            new CarAudioFocus(mMockAudioManager, mMockPackageManager,
+                    /* focusInteractions= */ null, TEST_CAR_AUDIO_CONTEXT,
+                    mMockCarVolumeInfoWrapper,
+                    PRIMARY_AUDIO_ZONE);
+        });
+
+        assertWithMessage("Constructor with null focus interaction exception")
+                .that(thrown).hasMessageThat().contains("Focus interactions");
+    }
+
+    @Test
+    public void constructor_withNullVolumeInfoWrapper_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class, () -> {
+            new CarAudioFocus(mMockAudioManager, mMockPackageManager,
+                    mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, /* carVolumeInfo= */ null,
+                    PRIMARY_AUDIO_ZONE);
+        });
+
+        assertWithMessage("Constructor with null focus volume info wrapper exception")
+                .that(thrown).hasMessageThat().contains("Car volume info");
     }
 
     @Test
@@ -109,6 +196,24 @@ public class CarAudioFocusUnitTest {
         carAudioFocus.onAudioFocusRequest(sameClientAndUsageFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
 
         verify(mMockAudioManager, times(2)).setFocusRequestResult(sameClientAndUsageFocusInfo,
+                AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+    }
+
+    @Test
+    public void onAudioFocusRequest_withSameCallClientIdDifferentUsage_requestGranted() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo audioFocusInfo = getInfo(USAGE_VOICE_COMMUNICATION, CALL_CLIENT_ID,
+                AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, /* acceptsDelayedFocus= */ false);
+        carAudioFocus.onAudioFocusRequest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        AudioFocusInfo sameClientAndUsageFocusInfo = getInfo(USAGE_NOTIFICATION_RINGTONE,
+                CALL_CLIENT_ID, AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
+                /* acceptsDelayedFocus= */ false);
+        carAudioFocus.onAudioFocusRequest(sameClientAndUsageFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mMockAudioManager, times(1)).setFocusRequestResult(audioFocusInfo,
+                AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+        verify(mMockAudioManager, times(1)).setFocusRequestResult(sameClientAndUsageFocusInfo,
                 AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
     }
 
@@ -295,6 +400,213 @@ public class CarAudioFocusUnitTest {
         verify(mMockAudioManager)
                 .setFocusRequestResult(delayedFocusInfo,
                         AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+    }
+
+    @Test
+    public void
+            requestAudioFocusWithDelayed_whileInCall_thenConcurrentNav_delayedFocusNotChanged() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        // Nav focus request: concurrent with call (and also with delayed music)
+        AudioFocusInfo secondConcurrentRequest =
+                getInfo(
+                        USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                        THIRD_CLIENT_ID,
+                        AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
+                        /* acceptsDelayedFocus= */ true);
+        carAudioFocus.onAudioFocusRequest(secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mMockAudioManager)
+                .setFocusRequestResult(
+                        secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(callFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+    }
+
+    @Test
+    public void requestAudioFocusWithDelayed_whileInCallAndNav_thenCallStop_delayedFocusGained() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        // Nav focus request: concurrent with call (and also with delayed music)
+        AudioFocusInfo secondConcurrentRequest =
+                getInfo(
+                        USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                        THIRD_CLIENT_ID,
+                        AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
+                        /* acceptsDelayedFocus= */ true);
+        carAudioFocus.onAudioFocusRequest(secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED);
+
+        carAudioFocus.onAudioFocusAbandon(callFocusInfo);
+
+        verify(mMockAudioManager)
+                .dispatchAudioFocusChange(secondConcurrentRequest, AUDIOFOCUS_LOSS, mAudioPolicy);
+        verify(mMockAudioManager)
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_GAIN, mAudioPolicy);
+    }
+
+    @Test
+    public void requestAudioFocusWithDelayed_whileInCall_thenRing_delayedFocusNotChanged() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        // Ring focus request: concurrent with call (BUT REJECT delayed music)
+        AudioFocusInfo secondConcurrentRequest =
+                getInfo(
+                        USAGE_NOTIFICATION_RINGTONE,
+                        THIRD_CLIENT_ID,
+                        AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
+                        true);
+        carAudioFocus.onAudioFocusRequest(secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mMockAudioManager)
+                .setFocusRequestResult(
+                        secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(callFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+    }
+
+    @Test
+    public void
+            requestAudioFocusWithDelayed_whileInCallAndRing_thenCallStop_delayedFocusNotChanged() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        // Ring focus request: concurrent with call (BUT REJECT delayed music)
+        AudioFocusInfo secondConcurrentRequest =
+                getInfo(
+                        USAGE_NOTIFICATION_RINGTONE,
+                        THIRD_CLIENT_ID,
+                        AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
+                        true);
+        carAudioFocus.onAudioFocusRequest(secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED);
+
+        carAudioFocus.onAudioFocusAbandon(callFocusInfo);
+
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(secondConcurrentRequest, AUDIOFOCUS_LOSS, mAudioPolicy);
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+    }
+
+    @Test
+    public void requestAudioFocusWithDelayed_whileInCallAndRing_thenBothStop_delayedFocusGained() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        // Yet another focus request concurrent with call (BUT REJECT delayed)
+        AudioFocusInfo secondConcurrentRequest =
+                getInfo(
+                        USAGE_NOTIFICATION_RINGTONE,
+                        THIRD_CLIENT_ID,
+                        AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
+                        true);
+        carAudioFocus.onAudioFocusRequest(secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED);
+
+        carAudioFocus.onAudioFocusAbandon(callFocusInfo);
+        carAudioFocus.onAudioFocusAbandon(secondConcurrentRequest);
+
+        verify(mMockAudioManager)
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_GAIN, mAudioPolicy);
+    }
+
+    @Test
+    public void requestAudioFocusWithDelayed_whileInCall_thenNav_delayedFocusNotChanged() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCallRing(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo =
+                getInfo(USAGE_NOTIFICATION, SECOND_CLIENT_ID, AUDIOFOCUS_GAIN,
+                        /* acceptsDelayedFocus= */ true);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        // Nav focus request concurrent with call (BUT REJECT delayed ring)
+        AudioFocusInfo secondConcurrentRequest =
+                getInfo(
+                        USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                        THIRD_CLIENT_ID,
+                        AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE,
+                        true);
+        carAudioFocus.onAudioFocusRequest(secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mMockAudioManager)
+                .setFocusRequestResult(
+                        secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(callFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+    }
+
+    @Test
+    public void requestAudioFocusWithDelayed_whileInCallAndNav_thenCallStop_delayedFocusLost() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCallRing(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo =
+                getInfo(USAGE_NOTIFICATION, SECOND_CLIENT_ID, AUDIOFOCUS_GAIN,
+                        /* acceptsDelayedFocus= */ true);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        // Nav focus request concurrent with call (BUT REJECT delayed ring)
+        AudioFocusInfo secondConcurrentRequest =
+                getInfo(
+                        USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                        THIRD_CLIENT_ID,
+                        AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE,
+                        /* acceptsDelayedFocus= */ true);
+        carAudioFocus.onAudioFocusRequest(secondConcurrentRequest, AUDIOFOCUS_REQUEST_GRANTED);
+
+        carAudioFocus.onAudioFocusAbandon(callFocusInfo);
+
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(secondConcurrentRequest, AUDIOFOCUS_LOSS, mAudioPolicy);
+        verify(mMockAudioManager)
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+    }
+
+    @Test
+    public void requestAudioFocusWithDelayed_whileInCall_thenCallFocusRequestReplaced_noChanges() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        // Same client makes the same focus request, AFI will be replaced
+        carAudioFocus.onAudioFocusRequest(callFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mMockAudioManager, times(2))
+                .setFocusRequestResult(callFocusInfo, AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+        // No focus change expected for Call, even if the replaced request was removed.
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(callFocusInfo, AUDIOFOCUS_LOSS, mAudioPolicy);
+        // No focus change expected for delayed as well.
+        verify(mMockAudioManager, never())
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_GAIN, mAudioPolicy);
+    }
+
+    @Test
+    public void requestAudioFocus_afterReplacedFocusHolderRequestAbandon_delayedFocusGained() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo callFocusInfo = setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        // Same client makes the same focus request, AFI will be replaced
+        carAudioFocus.onAudioFocusRequest(callFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        carAudioFocus.onAudioFocusAbandon(callFocusInfo);
+
+        verify(mMockAudioManager)
+                .dispatchAudioFocusChange(delayedFocusInfo, AUDIOFOCUS_GAIN, mAudioPolicy);
     }
 
     @Test
@@ -659,6 +971,61 @@ public class CarAudioFocusUnitTest {
     }
 
     @Test
+    public void getAudioFocusLosers_withNoFocusHolders_returnsEmptyList() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+
+        assertThat(carAudioFocus.getAudioFocusLosers()).isEmpty();
+    }
+
+    @Test
+    public void getAudioFocusLosers_withFocusHolders_returnsEmptyList() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        requestFocusForMediaWithFirstClient(carAudioFocus);
+        requestConcurrentFocus(carAudioFocus);
+
+        assertThat(carAudioFocus.getAudioFocusLosers()).isEmpty();
+    }
+
+    @Test
+    public void getAudioFocusLosers_doesNotMutateList() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        requestFocusForMediaWithFirstClient(carAudioFocus);
+
+        List<AudioFocusInfo> focusLosers = carAudioFocus.getAudioFocusLosers();
+
+        assertThat(focusLosers).isEmpty();
+
+        requestConcurrentFocus(carAudioFocus);
+
+        assertThat(focusLosers).isEmpty();
+    }
+
+    @Test
+    public void getAudioFocusLosers_withTransientFocusLoser_doesNotIncludeTransientLoser() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo mediaInfo = requestFocusForMediaWithFirstClient(carAudioFocus);
+        AudioFocusInfo callInfo = getInfo(USAGE_VOICE_COMMUNICATION, SECOND_CLIENT_ID,
+                AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, /* acceptsDelayedFocus= */ false);
+        carAudioFocus.onAudioFocusRequest(callInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        List<AudioFocusInfo> focusLosers = carAudioFocus.getAudioFocusLosers();
+
+        assertThat(focusLosers).containsExactly(mediaInfo);
+    }
+
+    @Test
+    public void getAudioFocusLosers_withDelayedRequest_doesNotIncludeDelayedRequest() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        setupFocusInfoAndRequestFocusForCall(carAudioFocus);
+        AudioFocusInfo delayedFocusInfo = getDelayedExclusiveInfo(AUDIOFOCUS_GAIN);
+        carAudioFocus.onAudioFocusRequest(delayedFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        List<AudioFocusInfo> focusLosers = carAudioFocus.getAudioFocusLosers();
+
+        assertThat(focusLosers).isEmpty();
+    }
+
+    @Test
     public void setRestrictFocusTrue_withNonCriticalDelayedRequest_abandonsIt() {
         CarAudioFocus carAudioFocus = getCarAudioFocus();
         setupFocusInfoAndRequestFocusForCall(carAudioFocus);
@@ -809,6 +1176,24 @@ public class CarAudioFocusUnitTest {
         return callFocusInfo;
     }
 
+    private AudioFocusInfo setupFocusInfoAndRequestFocusForCallRing(CarAudioFocus carAudioFocus) {
+        return setupFocusInfoAndRequestFocusForCallRing(carAudioFocus, FIRST_CLIENT_ID);
+    }
+
+    private AudioFocusInfo setupFocusInfoAndRequestFocusForCallRing(
+            CarAudioFocus carAudioFocus, String clientId) {
+        AudioFocusInfo callFocusInfo =
+                getInfo(
+                        USAGE_NOTIFICATION_RINGTONE,
+                        clientId,
+                        AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
+                        /* acceptsDelayedFocus= */ false);
+        carAudioFocus.onAudioFocusRequest(callFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        verify(mMockAudioManager, description("Failed get focus for call"))
+                .setFocusRequestResult(callFocusInfo, AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+        return callFocusInfo;
+    }
+
     private AudioFocusInfo requestConcurrentFocus(CarAudioFocus carAudioFocus) {
         AudioFocusInfo concurrentInfo = getConcurrentInfo(AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
         carAudioFocus.onAudioFocusRequest(concurrentInfo, AUDIOFOCUS_REQUEST_GRANTED);
@@ -893,7 +1278,8 @@ public class CarAudioFocusUnitTest {
 
     private CarAudioFocus getCarAudioFocus() {
         CarAudioFocus carAudioFocus = new CarAudioFocus(mMockAudioManager, mMockPackageManager,
-                mFocusInteraction);
+                mFocusInteraction, TEST_CAR_AUDIO_CONTEXT, mMockCarVolumeInfoWrapper,
+                PRIMARY_AUDIO_ZONE);
         carAudioFocus.setOwningPolicy(mAudioPolicy);
         return carAudioFocus;
     }

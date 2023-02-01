@@ -18,6 +18,8 @@ package android.car.app;
 
 import android.app.ActivityManager.RunningTaskInfo;
 import android.content.ComponentName;
+import java.util.List;
+
 
 /** @hide */
 interface ICarActivityService {
@@ -37,7 +39,7 @@ interface ICarActivityService {
     /**
      * Reports that a Task is created.
      */
-    void onTaskAppeared(in IBinder token, in RunningTaskInfo taskInfo) = 2;
+    void onTaskAppeared(in IBinder token, in RunningTaskInfo taskInfo, in SurfaceControl leash) = 8;
 
     /**
      * Reports that a Task is vanished.
@@ -53,5 +55,17 @@ interface ICarActivityService {
      * Unregisters the caller from TaskMonitor.
      */
     void unregisterTaskMonitor(in IBinder token) = 5;
+
+    /**
+     * Returns all the visible tasks ordered in top to bottom manner.
+     */
+    List<RunningTaskInfo> getVisibleTasks() = 6;
+
+    /** See {@link CarActivityManager#startUserPickerOnDisplay(int) */
+    void startUserPickerOnDisplay(int displayId) = 7;
+
+    IBinder createMirroringToken(int taskId) = 9;
+
+    SurfaceControl getMirroredSurface(in IBinder mirroringToken, out Rect bounds) = 10;
 }
 

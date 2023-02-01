@@ -26,6 +26,18 @@
     <item target="dimen/alert_dialog_margin" value="@dimen/alert_dialog_margin"/>
     <item target="dimen/car_ui_header_list_item_text_start_margin" value="@dimen/car_ui_header_list_item_text_start_margin"/>
     <item target="dimen/car_ui_preference_icon_size" value="@dimen/car_ui_preference_icon_size"/>
+    <item target="dimen/car_ui_list_item_height" value="@dimen/car_ui_list_item_height"/>
+    <item target="dimen/car_ui_list_item_content_icon_width" value="@dimen/car_ui_list_item_content_icon_width"/>
+    <item target="dimen/car_ui_list_item_content_icon_height" value="@dimen/car_ui_list_item_content_icon_height"/>
+    <item target="dimen/car_ui_list_item_avatar_icon_width" value="@dimen/car_ui_list_item_avatar_icon_width"/>
+    <item target="dimen/car_ui_list_item_avatar_icon_height" value="@dimen/car_ui_list_item_avatar_icon_height"/>
+
+    <item target="dimen/car_ui_dialog_edittext_height" value="@dimen/car_ui_dialog_edittext_height"/>
+    <item target="dimen/car_ui_dialog_edittext_margin_bottom" value="@dimen/car_ui_dialog_edittext_margin_bottom"/>
+    <item target="dimen/car_ui_dialog_edittext_margin_end" value="@dimen/car_ui_dialog_edittext_margin_end"/>
+    <item target="dimen/car_ui_dialog_edittext_margin_start" value="@dimen/car_ui_dialog_edittext_margin_start"/>
+    <item target="dimen/car_ui_dialog_edittext_margin_top" value="@dimen/car_ui_dialog_edittext_margin_top"/>
+    <item target="dimen/car_ui_list_item_text_no_icon_start_margin" value="@dimen/car_ui_list_item_text_no_icon_start_margin"/>
 
     <item target="drawable/car_ui_recyclerview_ic_up" value="@drawable/car_ui_recyclerview_ic_up" />
     <item target="drawable/car_ui_recyclerview_ic_down" value="@drawable/car_ui_recyclerview_ic_down" />
@@ -42,9 +54,10 @@
     <item target="drawable/car_ui_toolbar_menu_item_divider" value="@drawable/car_ui_toolbar_menu_item_divider" />
     <item target="drawable/car_ui_toolbar_menu_item_icon_ripple" value="@drawable/car_ui_toolbar_menu_item_icon_ripple" />
     <item target="bool/car_ui_scrollbar_enable" value="@bool/car_ui_scrollbar_enable" />
+    <item target="bool/car_ui_is_light_theme" value="@bool/car_ui_is_light_theme" />
 
-    <item target="style/TextAppearance_CarUi_AlertDialog_Title" value="@style/TextAppearance_CarUi_AlertDialog_Title" />
-    <item target="style/TextAppearance_CarUi_AlertDialog_Subtitle" value="@style/TextAppearance_CarUi_AlertDialog_Subtitle" />
+    <item target="style/TextAppearance.CarUi.AlertDialog.Title" value="@style/TextAppearance.CarUi.AlertDialog.Title" />
+    <item target="style/TextAppearance.CarUi.AlertDialog.Subtitle" value="@style/TextAppearance.CarUi.AlertDialog.Subtitle" />
     <item target="style/TextAppearance.CarUi.PreferenceCategoryTitle" value="@style/TextAppearance.CarUi.PreferenceCategoryTitle" />
     <item target="style/TextAppearance.CarUi.PreferenceSummary" value="@style/TextAppearance.CarUi.PreferenceSummary" />
     <item target="style/TextAppearance.CarUi.PreferenceTitle" value="@style/TextAppearance.CarUi.PreferenceTitle" />

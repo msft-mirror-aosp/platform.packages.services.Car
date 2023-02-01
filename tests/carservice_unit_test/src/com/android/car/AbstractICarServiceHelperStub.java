@@ -15,13 +15,18 @@
  */
 package com.android.car;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+
+import android.annotation.NonNull;
 import android.annotation.UserIdInt;
 import android.car.app.CarActivityManager;
 import android.content.ComponentName;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Log;
+import android.view.Display;
 
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ICarServiceHelper;
 
 import java.util.Arrays;
@@ -30,6 +35,7 @@ import java.util.List;
 /**
  * Base implementation of {@link ICarServiceHelper.Stub} providing no-ops methods.
  */
+@ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
 abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
 
     private static final String TAG = AbstractICarServiceHelperStub.class.getSimpleName();
@@ -79,5 +85,46 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
     @Override
     public void sendInitialUser(UserHandle user) {
         Log.d(TAG, "sendInitialUser " + user);
+    }
+
+    @Override
+    public void setProcessGroup(int pid, int group) {
+        Log.d(TAG, "setProcessGroup, pid=" + pid + ", group=" + group);
+    }
+
+    @Override
+    public int getProcessGroup(int pid) {
+        Log.d(TAG, "getProcessGroup, pid=" + pid);
+
+        return 0;
+    }
+
+    @Override
+    public int getDisplayAssignedToUser(int userId) {
+        Log.d(TAG, "getDisplayAssignedToUser(" + userId + ")");
+
+        return Display.INVALID_DISPLAY;
+    }
+
+    @Override
+    public int getUserAssignedToDisplay(int displayId) {
+        Log.d(TAG, "getUserAssignedToDisplay(" + displayId + ")");
+
+        return UserHandle.USER_NULL;
+    }
+
+    @Override
+    public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
+        Log.d(TAG, "startUserInBackgroundVisibleOnDisplay(" + userId + ",displaId" + displayId
+                + ")");
+
+        return false;
+    }
+
+    @Override
+    public void setProcessProfile(int pid, int uid, @NonNull String profile) {
+        Log.d(TAG, "setProcessProfile(" + pid + "," + uid + "," + profile + ")");
+
+        return;
     }
 }

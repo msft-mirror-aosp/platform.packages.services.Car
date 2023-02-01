@@ -110,7 +110,6 @@ public final class PowerComponentHandler {
                     component++) {
                 mComponentStates.put(component, false);
                 PowerComponentMediator mediator = factory.createPowerComponent(component);
-                String componentName = powerComponentToString(component);
                 if (mediator == null || !mediator.isComponentAvailable()) {
                     // We don't not associate a mediator with the component.
                     continue;
@@ -433,6 +432,11 @@ public final class PowerComponentHandler {
         }
 
         @Override
+        public boolean isUserControllable() {
+            return true;
+        }
+
+        @Override
         public boolean isEnabled() {
             return mBluetoothAdapter.isEnabled();
         }
@@ -493,12 +497,6 @@ public final class PowerComponentHandler {
                     Slogf.w(TAG, "Unknown component(%d)", component);
                     return null;
             }
-        }
-    }
-
-    static class PowerComponentException extends Exception {
-        PowerComponentException(String message) {
-            super(message);
         }
     }
 }

@@ -19,6 +19,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 
 import android.annotation.SystemApi;
 import android.car.annotation.AddedInOrBefore;
+import android.car.annotation.ApiRequirements;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.JsonWriter;
@@ -39,15 +40,15 @@ import java.util.Objects;
 @SystemApi
 public final class LifetimeWriteInfo implements Parcelable {
     @AddedInOrBefore(majorVersion = 33)
-    public static final Creator<IoStats> CREATOR = new Creator<IoStats>() {
+    public static final Creator<LifetimeWriteInfo> CREATOR = new Creator<LifetimeWriteInfo>() {
         @Override
-        public IoStats createFromParcel(Parcel in) {
-            return new IoStats(in);
+        public LifetimeWriteInfo createFromParcel(Parcel in) {
+            return new LifetimeWriteInfo(in);
         }
 
         @Override
-        public IoStats[] newArray(int size) {
-            return new IoStats[size];
+        public LifetimeWriteInfo[] newArray(int size) {
+            return new LifetimeWriteInfo[size];
         }
     };
 
@@ -122,6 +123,13 @@ public final class LifetimeWriteInfo implements Parcelable {
         }
 
         return false;
+    }
+
+    @Override
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public int hashCode() {
+        return Objects.hash(partition, fstype, writtenBytes);
     }
 
     @Override

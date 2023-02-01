@@ -15,9 +15,10 @@
  */
 package com.android.car.hal;
 
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static android.car.hardware.property.VehicleHalStatusCode.STATUS_INTERNAL_ERROR;
+import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAILABLE;
 
-import static java.lang.Integer.toHexString;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -28,25 +29,44 @@ import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.CarPropertyManager;
+import android.car.hardware.property.CarPropertyManager.CarPropertyAsyncErrorCode;
+import android.car.hardware.property.GetPropertyServiceRequest;
+import android.car.hardware.property.GetValueResult;
+import android.car.hardware.property.IGetAsyncPropertyResultCallback;
 import android.hardware.automotive.vehicle.VehiclePropError;
 import android.hardware.automotive.vehicle.VehicleProperty;
+import android.hardware.automotive.vehicle.VehiclePropertyStatus;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.IBinder;
+import android.os.IBinder.DeathRecipient;
+import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.os.SystemClock;
+import android.util.ArrayMap;
+import android.util.ArraySet;
 import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.car.CarLog;
 import com.android.car.CarServiceUtils;
+import com.android.car.VehicleStub;
+import com.android.car.VehicleStub.AsyncGetSetRequest;
+import com.android.car.VehicleStub.GetVehicleStubAsyncResult;
+import com.android.car.VehicleStub.SetVehicleStubAsyncResult;
+import com.android.car.VehicleStub.VehicleStubCallbackInterface;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.property.CarPropertyHelper;
 import com.android.internal.annotations.GuardedBy;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Common interface for HAL services that send Vehicle Properties back and forth via ICarProperty.
@@ -54,9 +74,79 @@ import java.util.Set;
  * extend this class.
  */
 public class PropertyHalService extends HalServiceBase {
-    private final boolean mDbg = true;
+    // This must be set to false for release.
+    private static final boolean DBG = false;
+    private static final int ASYNC_RETRY_SLEEP_IN_MS = 100;
+
+    private static final class AsyncGetRequestInfo {
+        private final GetPropertyServiceRequest mPropMgrRequest;
+        // The uptimeMillis when this request time out.
+        private final long mTimeoutUptimeMillis;
+        // The remaining timeout in milliseconds for this request.
+        private final long mTimeoutInMs;
+
+        AsyncGetRequestInfo(GetPropertyServiceRequest propMgrRequest,
+                long timeoutUptimeMillis, long timeoutInMs) {
+            mPropMgrRequest = propMgrRequest;
+            mTimeoutUptimeMillis = timeoutUptimeMillis;
+            mTimeoutInMs = timeoutInMs;
+        }
+
+        private int getManagerRequestId() {
+            return mPropMgrRequest.getRequestId();
+        }
+
+        public int getPropertyId() {
+            return mPropMgrRequest.getPropertyId();
+        }
+
+        public GetPropertyServiceRequest getGetPropSvcRequest() {
+            return mPropMgrRequest;
+        }
+
+        public long getTimeoutUptimeMillis() {
+            return mTimeoutUptimeMillis;
+        }
+
+        public AsyncGetSetRequest toGetVehicleStubAsyncRequest(
+                HalPropValueBuilder propValueBuilder, int serviceRequestId) {
+            int halPropertyId = managerToHalPropId(mPropMgrRequest.getPropertyId());
+            int areaId = mPropMgrRequest.getAreaId();
+            return new AsyncGetSetRequest(
+                    serviceRequestId, propValueBuilder.build(halPropertyId, areaId), mTimeoutInMs);
+        }
+
+        public GetValueResult toErrorGetValueResult(@CarPropertyAsyncErrorCode int errorCode) {
+            return new GetValueResult(getManagerRequestId(), /* carPropertyValue= */ null,
+                    errorCode);
+        }
+
+        public GetValueResult toOkayGetValueResult(CarPropertyValue value) {
+            return new GetValueResult(getManagerRequestId(), value,
+                    CarPropertyManager.STATUS_OK);
+        }
+    };
+
     private final LinkedList<CarPropertyEvent> mEventsToDispatch = new LinkedList<>();
-    // Use SparseArray to save memory.
+    // The request ID passed by CarPropertyService (ManagerRequestId) is directly passed from
+    // CarPropertyManager. Multiple CarPropertyManagers use the same car service instance, thus,
+    // the ManagerRequestId is not unique. We have to create another unique ID called
+    // ServiceRequestId and pass it to underlying layer (VehicleHal and VehicleStub).
+    // Internally, we will map ManagerRequestId to ServiceRequestId.
+    private final AtomicInteger mServiceRequestIdCounter = new AtomicInteger(0);
+    // Only contains property ID if value is different for the CarPropertyManager and the HAL.
+    private static final BidirectionalSparseIntArray MGR_PROP_ID_TO_HAL_PROP_ID =
+            BidirectionalSparseIntArray.create(
+                    new int[]{VehiclePropertyIds.VEHICLE_SPEED_DISPLAY_UNITS,
+                            VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS});
+    private static final String TAG = CarLog.tagFor(PropertyHalService.class);
+    private final VehicleHal mVehicleHal;
+    private final PropertyHalServiceIds mPropertyHalServiceIds = new PropertyHalServiceIds();
+    private final HalPropValueBuilder mPropValueBuilder;
+    private final Object mLock = new Object();
+    @GuardedBy("mLock")
+    private final Map<IBinder, VehicleStubCallbackInterface>
+            mResultBinderToVehicleStubCallback = new ArrayMap<>();
     @GuardedBy("mLock")
     private final SparseArray<CarPropertyConfig<?>> mMgrPropIdToCarPropConfig = new SparseArray<>();
     @GuardedBy("mLock")
@@ -64,45 +154,224 @@ public class PropertyHalService extends HalServiceBase {
             new SparseArray<>();
     @GuardedBy("mLock")
     private final SparseArray<Pair<String, String>> mMgrPropIdToPermissions = new SparseArray<>();
-    // Only contains propId if the property Id is different in HAL and manager
-    private static final Map<Integer, Integer> PROPERTY_ID_HAL_TO_MANAGER = Map.of(
-            VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS,
-            VehiclePropertyIds.VEHICLE_SPEED_DISPLAY_UNITS);
-    // Only contains propId if the property Id is different in HAL and manager
-    private static final Map<Integer, Integer> PROPERTY_ID_MANAGER_TO_HAL = Map.of(
-            VehiclePropertyIds.VEHICLE_SPEED_DISPLAY_UNITS,
-            VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS);
-    private static final String TAG = CarLog.tagFor(PropertyHalService.class);
-    private final VehicleHal mVehicleHal;
-    private final PropertyHalServiceIds mPropIds;
-    private final HalPropValueBuilder mPropValueBuilder;
-
     @GuardedBy("mLock")
-    private PropertyHalListener mListener;
+    private final SparseArray<AsyncGetRequestInfo> mServiceRequestIdToAsyncGetRequestInfo =
+            new SparseArray<>();
     @GuardedBy("mLock")
-    private Set<Integer> mSubscribedHalPropIds;
+    private PropertyHalListener mPropertyHalListener;
+    @GuardedBy("mLock")
+    private final Set<Integer> mSubscribedHalPropIds = new ArraySet<>();
 
-    private final Object mLock = new Object();
+    private final HandlerThread mHandlerThread =
+            CarServiceUtils.getHandlerThread(getClass().getSimpleName());
+    private final Handler mHandler = new Handler(mHandlerThread.getLooper());
+
+    private class VehicleStubCallback extends VehicleStubCallbackInterface {
+        private final IGetAsyncPropertyResultCallback mGetAsyncPropertyResultCallback;
+        private final IBinder mClientBinder;
+
+        private void sendGetValueResults(List<GetValueResult> results) {
+            if (results.isEmpty()) {
+                return;
+            }
+            try {
+                mGetAsyncPropertyResultCallback.onGetValueResult(results);
+            } catch (RemoteException e) {
+                Slogf.w(TAG, "onGetAsyncResults: Client might have died already", e);
+            }
+        }
+
+        private void retryIfNotExpired(List<AsyncGetRequestInfo> retryRequestInfo) {
+            List<AsyncGetSetRequest> getVehicleStubAsyncRequests = new ArrayList<>();
+            List<GetValueResult> timeoutResults = new ArrayList<>();
+            synchronized (mLock) {
+                // Get the current time after obtaining lock since it might take some time to get
+                // the lock.
+                long currentTimeInMillis = SystemClock.uptimeMillis();
+                for (int i = 0; i < retryRequestInfo.size(); i++) {
+                    AsyncGetRequestInfo requestInfo = retryRequestInfo.get(i);
+                    long timeoutUptimeMillis = requestInfo.getTimeoutUptimeMillis();
+                    if (timeoutUptimeMillis <= currentTimeInMillis) {
+                        // The request already expired.
+                        timeoutResults.add(requestInfo.toErrorGetValueResult(
+                                CarPropertyManager.STATUS_ERROR_TIMEOUT));
+                        continue;
+                    }
+                    long timeoutInMs = timeoutUptimeMillis - currentTimeInMillis;
+                    // Need to create a new request for the retry.
+                    AsyncGetRequestInfo asyncGetRequestInfo = new AsyncGetRequestInfo(
+                            requestInfo.getGetPropSvcRequest(), timeoutUptimeMillis, timeoutInMs);
+                    getVehicleStubAsyncRequests.add(generateGetVehicleStubAsyncRequestLocked(
+                            mPropValueBuilder, asyncGetRequestInfo));
+                }
+            }
+            sendGetValueResults(timeoutResults);
+            if (!getVehicleStubAsyncRequests.isEmpty()) {
+                mVehicleHal.getAsync(getVehicleStubAsyncRequests, this);
+            }
+        }
+
+        VehicleStubCallback(
+                IGetAsyncPropertyResultCallback getAsyncPropertyResultCallback) {
+            mGetAsyncPropertyResultCallback = getAsyncPropertyResultCallback;
+            mClientBinder = getAsyncPropertyResultCallback.asBinder();
+        }
+
+        @Override
+        public void linkToDeath(DeathRecipient recipient) throws RemoteException {
+            mClientBinder.linkToDeath(recipient, /* flags= */ 0);
+        }
+
+        @Override
+        public void onGetAsyncResults(
+                List<GetVehicleStubAsyncResult> getVehicleStubAsyncResults) {
+            List<GetValueResult> getValueResults = new ArrayList<>();
+            List<AsyncGetRequestInfo> retryRequestInfo = new ArrayList<>();
+            synchronized (mLock) {
+                for (int i = 0; i < getVehicleStubAsyncResults.size(); i++) {
+                    GetVehicleStubAsyncResult getVehicleStubAsyncResult =
+                            getVehicleStubAsyncResults.get(i);
+                    int serviceRequestId = getVehicleStubAsyncResult.getServiceRequestId();
+                    AsyncGetRequestInfo clientRequestInfo =
+                            getAndRemovePendingAsyncGetRequestInfoLocked(serviceRequestId);
+                    if (clientRequestInfo == null) {
+                        continue;
+                    }
+                    int vehicleStubErrorCode = getVehicleStubAsyncResult.getErrorCode();
+
+                    if (vehicleStubErrorCode == VehicleStub.STATUS_TRY_AGAIN) {
+                        // We have special logic requests that might need retry.
+                        retryRequestInfo.add(clientRequestInfo);
+                        continue;
+                    }
+
+                    if (vehicleStubErrorCode != CarPropertyManager.STATUS_OK) {
+                        // All other error results will be delivered back through callback.
+                        getValueResults.add(clientRequestInfo.toErrorGetValueResult(
+                                vehicleStubErrorCode));
+                        continue;
+                    }
+
+                    // For okay status, convert the property value to the type the client expects.
+                    int mgrPropId = clientRequestInfo.getPropertyId();
+                    HalPropConfig halPropConfig = mHalPropIdToPropConfig.get(
+                            managerToHalPropId(mgrPropId));
+                    HalPropValue halPropValue = getVehicleStubAsyncResult.getHalPropValue();
+                    if (halPropValue.getStatus() == VehiclePropertyStatus.UNAVAILABLE) {
+                        getValueResults.add(clientRequestInfo.toErrorGetValueResult(
+                                STATUS_NOT_AVAILABLE));
+                        continue;
+                    }
+                    if (halPropValue.getStatus() != VehiclePropertyStatus.AVAILABLE) {
+                        getValueResults.add(clientRequestInfo.toErrorGetValueResult(
+                                STATUS_INTERNAL_ERROR));
+                        continue;
+                    }
+                    CarPropertyValue carPropertyValue;
+                    try {
+                        carPropertyValue = halPropValue.toCarPropertyValue(mgrPropId,
+                                halPropConfig);
+                    } catch (IllegalStateException e) {
+                        Slogf.e(TAG, e, "Cannot convert halPropValue to carPropertyValue, property:"
+                                + " %s, areaId: %d, exception: %s",
+                                VehiclePropertyIds.toString(mgrPropId), halPropValue.getAreaId());
+                        getValueResults.add(clientRequestInfo.toErrorGetValueResult(
+                                STATUS_INTERNAL_ERROR));
+                        continue;
+                    }
+                    getValueResults.add(clientRequestInfo.toOkayGetValueResult(carPropertyValue));
+                }
+            }
+
+            sendGetValueResults(getValueResults);
+
+            if (!retryRequestInfo.isEmpty()) {
+                mHandler.postDelayed(() -> {
+                    retryIfNotExpired(retryRequestInfo);
+                }, ASYNC_RETRY_SLEEP_IN_MS);
+            }
+        }
+
+        @Override
+        public void onSetAsyncResults(
+                List<SetVehicleStubAsyncResult> setVehicleStubAsyncResults) {
+            // TODO(b/251213448): Implement this.
+        }
+
+        @Override
+        public void onRequestsTimeout(List<Integer> serviceRequestIds) {
+            List<GetValueResult> timeoutResults = new ArrayList<>();
+            synchronized (mLock) {
+                for (int i = 0; i < serviceRequestIds.size(); i++) {
+                    int serviceRequestId = serviceRequestIds.get(i);
+                    AsyncGetRequestInfo requestInfo =
+                            getAndRemovePendingAsyncGetRequestInfoLocked(serviceRequestId);
+                    if (requestInfo == null) {
+                        Slogf.w(TAG, "The request for hal svc request ID: %d timed out but no "
+                                + "pending request is found. The request may have already been "
+                                + "cancelled or finished", serviceRequestId);
+                        continue;
+                    }
+                    timeoutResults.add(requestInfo.toErrorGetValueResult(
+                            CarPropertyManager.STATUS_ERROR_TIMEOUT));
+                }
+            }
+            sendGetValueResults(timeoutResults);
+        }
+    }
 
     /**
      * Converts manager property ID to Vehicle HAL property ID.
      */
     private static int managerToHalPropId(int mgrPropId) {
-        return PROPERTY_ID_MANAGER_TO_HAL.getOrDefault(mgrPropId, mgrPropId);
+        return MGR_PROP_ID_TO_HAL_PROP_ID.getValue(mgrPropId, mgrPropId);
     }
 
     /**
      * Converts Vehicle HAL property ID to manager property ID.
      */
     private static int halToManagerPropId(int halPropId) {
-        return PROPERTY_ID_HAL_TO_MANAGER.getOrDefault(halPropId, halPropId);
+        return MGR_PROP_ID_TO_HAL_PROP_ID.getKey(halPropId, halPropId);
     }
 
-    // Checks if the property exists in this VHAL before calling methods in IVehicle.
-    private boolean isPropertySupportedInVehicle(int halPropId) {
-        synchronized (mLock) {
-            return mHalPropIdToPropConfig.contains(halPropId);
+    private static void checkHalPropValueStatus(HalPropValue halPropValue, int mgrPropId,
+            int areaId) {
+        if (halPropValue.getStatus() == VehiclePropertyStatus.UNAVAILABLE) {
+            throw new ServiceSpecificException(STATUS_NOT_AVAILABLE,
+                    "VHAL returned property status as UNAVAILABLE for property: "
+                    + VehiclePropertyIds.toString(mgrPropId) + ", areaId: " + areaId);
         }
+        if (halPropValue.getStatus() == VehiclePropertyStatus.ERROR) {
+            throw new ServiceSpecificException(STATUS_INTERNAL_ERROR,
+                    "VHAL returned property status as ERROR for property: "
+                    + VehiclePropertyIds.toString(mgrPropId) + ", areaId: " + areaId);
+        }
+    }
+
+    // Generates a {@link AsyncGetSetRequest} according to a {@link AsyncGetRequestInfo}.
+    //
+    // Generates a new PropertyHalService Request ID. Associate the ID with the request and
+    // returns a {@link AsyncGetSetRequest} that could be sent to {@link VehicleStub}.
+    @GuardedBy("mLock")
+    private AsyncGetSetRequest generateGetVehicleStubAsyncRequestLocked(
+            HalPropValueBuilder propValueBuilder, AsyncGetRequestInfo asyncGetRequestInfo) {
+        int newServiceRequestId = mServiceRequestIdCounter.getAndIncrement();
+        mServiceRequestIdToAsyncGetRequestInfo.put(newServiceRequestId, asyncGetRequestInfo);
+        return asyncGetRequestInfo.toGetVehicleStubAsyncRequest(propValueBuilder,
+                newServiceRequestId);
+    }
+
+    @GuardedBy("mLock")
+    private @Nullable AsyncGetRequestInfo getAndRemovePendingAsyncGetRequestInfoLocked(
+            int serviceRequestId) {
+        AsyncGetRequestInfo requestInfo =
+                mServiceRequestIdToAsyncGetRequestInfo.get(serviceRequestId);
+        mServiceRequestIdToAsyncGetRequestInfo.remove(serviceRequestId);
+        if (requestInfo == null) {
+            Slogf.w(TAG, "onRequestsTimeout: the request for propertyHalService request "
+                    + "ID: %d already timed out or already completed", serviceRequestId);
+        }
+        return requestInfo;
     }
 
     /**
@@ -111,13 +380,11 @@ public class PropertyHalService extends HalServiceBase {
     public interface PropertyHalListener {
         /**
          * This event is sent whenever the property value is updated
-         * @param events
          */
         void onPropertyChange(List<CarPropertyEvent> events);
+
         /**
          * This event is sent when the set property call fails
-         * @param property
-         * @param area
          */
         void onPropertySetError(int property, int area,
                 @CarPropertyManager.CarSetPropertyErrorCode int errorCode);
@@ -125,10 +392,8 @@ public class PropertyHalService extends HalServiceBase {
     }
 
     public PropertyHalService(VehicleHal vehicleHal) {
-        mPropIds = new PropertyHalServiceIds();
-        mSubscribedHalPropIds = new HashSet<Integer>();
         mVehicleHal = vehicleHal;
-        if (mDbg) {
+        if (DBG) {
             Slogf.d(TAG, "started PropertyHalService");
         }
         mPropValueBuilder = vehicleHal.getHalPropValueBuilder();
@@ -136,29 +401,28 @@ public class PropertyHalService extends HalServiceBase {
 
     /**
      * Set the listener for the HAL service
-     * @param listener
      */
-    public void setListener(PropertyHalListener listener) {
+    public void setPropertyHalListener(PropertyHalListener propertyHalListener) {
         synchronized (mLock) {
-            mListener = listener;
+            mPropertyHalListener = propertyHalListener;
         }
     }
 
     /**
-     *
      * @return SparseArray<CarPropertyConfig> List of configs available.
      */
     public SparseArray<CarPropertyConfig<?>> getPropertyList() {
-        if (mDbg) {
+        if (DBG) {
             Slogf.d(TAG, "getPropertyList");
         }
         synchronized (mLock) {
             if (mMgrPropIdToCarPropConfig.size() == 0) {
                 for (int i = 0; i < mHalPropIdToPropConfig.size(); i++) {
-                    HalPropConfig p = mHalPropIdToPropConfig.valueAt(i);
-                    int mgrPropId = halToManagerPropId(p.getPropId());
-                    CarPropertyConfig config = p.toCarPropertyConfig(mgrPropId);
-                    mMgrPropIdToCarPropConfig.put(mgrPropId, config);
+                    HalPropConfig halPropConfig = mHalPropIdToPropConfig.valueAt(i);
+                    int mgrPropId = halToManagerPropId(halPropConfig.getPropId());
+                    CarPropertyConfig<?> carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                            mgrPropId);
+                    mMgrPropIdToCarPropConfig.put(mgrPropId, carPropertyConfig);
                 }
             }
             return mMgrPropIdToCarPropConfig;
@@ -166,81 +430,61 @@ public class PropertyHalService extends HalServiceBase {
     }
 
     /**
-     * Returns property or null if property is not ready yet.
+     * Returns property value.
+     *
      * @param mgrPropId property id in {@link VehiclePropertyIds}
-     * @param areaId area id
      * @throws IllegalArgumentException if argument is not valid.
-     * @throws ServiceSpecificException if there is an exception in HAL.
+     * @throws ServiceSpecificException if there is an exception in HAL or the property status is
+     *                                  not available.
      */
-    @Nullable
     public CarPropertyValue getProperty(int mgrPropId, int areaId)
             throws IllegalArgumentException, ServiceSpecificException {
         int halPropId = managerToHalPropId(mgrPropId);
-        if (!isPropertySupportedInVehicle(halPropId)) {
-            throw new IllegalArgumentException("Invalid property Id : 0x" + toHexString(mgrPropId));
-        }
-
         // CarPropertyManager catches and rethrows exception, no need to handle here.
-        HalPropValue value = mVehicleHal.get(halPropId, areaId);
-        if (value == null) {
-            return null;
-        }
-        HalPropConfig propConfig;
+        HalPropValue halPropValue = mVehicleHal.get(halPropId, areaId);
+        HalPropConfig halPropConfig;
         synchronized (mLock) {
-            propConfig = mHalPropIdToPropConfig.get(halPropId);
+            halPropConfig = mHalPropIdToPropConfig.get(halPropId);
         }
-        return value.toCarPropertyValue(mgrPropId, propConfig);
-    }
-
-    /**
-     * Return property or null if property is not ready yet or there is an exception in HAL.
-     */
-    @Nullable
-    public CarPropertyValue getPropertySafe(int mgrPropId, int areaId) {
+        checkHalPropValueStatus(halPropValue, mgrPropId, areaId);
         try {
-            return getProperty(mgrPropId, areaId);
-        } catch (Exception e) {
-            Slogf.w(TAG, "get property value failed for property id: 0x "
-                    + toHexString(mgrPropId) + " area id: 0x" + toHexString(areaId)
-                    + " exception: " + e);
-            return null;
+            return halPropValue.toCarPropertyValue(mgrPropId, halPropConfig);
+        } catch (IllegalStateException e) {
+            throw new ServiceSpecificException(STATUS_INTERNAL_ERROR,
+                    "Cannot convert halPropValue to carPropertyValue, property: "
+                    + VehiclePropertyIds.toString(mgrPropId) + " areaId: " + areaId
+                    + ", exception: " + e);
         }
     }
 
     /**
      * Returns sample rate for the property
-     * @param mgrPropId
      */
     public float getSampleRate(int mgrPropId) {
-        int halPropId = managerToHalPropId(mgrPropId);
-        if (!isPropertySupportedInVehicle(halPropId)) {
-            throw new IllegalArgumentException("Invalid property Id : 0x" + toHexString(mgrPropId));
-        }
-        return mVehicleHal.getSampleRate(halPropId);
+        return mVehicleHal.getSampleRate(managerToHalPropId(mgrPropId));
     }
 
     /**
      * Get the read permission string for the property.
-     * @param mgrPropId
      */
     @Nullable
     public String getReadPermission(int mgrPropId) {
         int halPropId = managerToHalPropId(mgrPropId);
-        return mPropIds.getReadPermission(halPropId);
+        return mPropertyHalServiceIds.getReadPermission(halPropId);
     }
 
     /**
      * Get the write permission string for the property.
-     * @param mgrPropId
      */
     @Nullable
     public String getWritePermission(int mgrPropId) {
         int halPropId = managerToHalPropId(mgrPropId);
-        return mPropIds.getWritePermission(halPropId);
+        return mPropertyHalServiceIds.getWritePermission(halPropId);
     }
 
     /**
      * Get permissions for all properties in the vehicle.
+     *
      * @return a SparseArray. key: propertyId, value: Pair(readPermission, writePermission).
      */
     @NonNull
@@ -252,8 +496,8 @@ public class PropertyHalService extends HalServiceBase {
             for (int i = 0; i < mHalPropIdToPropConfig.size(); i++) {
                 int halPropId = mHalPropIdToPropConfig.keyAt(i);
                 mMgrPropIdToPermissions.put(halToManagerPropId(halPropId),
-                        new Pair<>(mPropIds.getReadPermission(halPropId),
-                                mPropIds.getWritePermission(halPropId)));
+                        new Pair<>(mPropertyHalServiceIds.getReadPermission(halPropId),
+                                mPropertyHalServiceIds.getWritePermission(halPropId)));
             }
             return mMgrPropIdToPermissions;
         }
@@ -261,78 +505,58 @@ public class PropertyHalService extends HalServiceBase {
 
     /**
      * Return true if property is a display_units property
-     * @param mgrPropId
      */
     public boolean isDisplayUnitsProperty(int mgrPropId) {
         int halPropId = managerToHalPropId(mgrPropId);
-        return mPropIds.isPropertyToChangeUnits(halPropId);
+        return mPropertyHalServiceIds.isPropertyToChangeUnits(halPropId);
     }
 
     /**
      * Set the property value.
-     * @param prop
      *
      * @throws IllegalArgumentException if argument is invalid.
      * @throws ServiceSpecificException if there is an exception in HAL.
      */
-    public void setProperty(CarPropertyValue prop)
+    public void setProperty(CarPropertyValue carPropertyValue)
             throws IllegalArgumentException, ServiceSpecificException {
-        int halPropId = managerToHalPropId(prop.getPropertyId());
-        if (!isPropertySupportedInVehicle(halPropId)) {
-            throw new IllegalArgumentException("Invalid property Id : 0x"
-                    + toHexString(prop.getPropertyId()));
-        }
-        HalPropConfig propConfig;
+        int halPropId = managerToHalPropId(carPropertyValue.getPropertyId());
+        HalPropConfig halPropConfig;
         synchronized (mLock) {
-            propConfig = mHalPropIdToPropConfig.get(halPropId);
+            halPropConfig = mHalPropIdToPropConfig.get(halPropId);
         }
-        HalPropValue halPropValue = mPropValueBuilder.build(prop, halPropId, propConfig);
+        HalPropValue halPropValue = mPropValueBuilder.build(carPropertyValue, halPropId,
+                halPropConfig);
         // CarPropertyManager catches and rethrows exception, no need to handle here.
         mVehicleHal.set(halPropValue);
     }
 
     /**
-     * Subscribe to this property at the specified update rate.
-     * @param mgrPropId
-     * @param rate
+     * Subscribe to this property at the specified update updateRateHz.
      *
      * @throws IllegalArgumentException thrown if property is not supported by VHAL.
      */
-    public void subscribeProperty(int mgrPropId, float rate) throws IllegalArgumentException {
-        if (mDbg) {
-            Slogf.d(TAG, "subscribeProperty propId=0x" + toHexString(mgrPropId) + ", rate=" + rate);
+    public void subscribeProperty(int mgrPropId, float updateRateHz)
+            throws IllegalArgumentException {
+        if (DBG) {
+            Slogf.d(TAG, "subscribeProperty propertyId: %s, updateRateHz=%f",
+                    VehiclePropertyIds.toString(mgrPropId), updateRateHz);
         }
         int halPropId = managerToHalPropId(mgrPropId);
-        if (!isPropertySupportedInVehicle(halPropId)) {
-            throw new IllegalArgumentException("Invalid property Id : 0x"
-                    + toHexString(mgrPropId));
-        }
         synchronized (mLock) {
-            HalPropConfig cfg = mHalPropIdToPropConfig.get(halPropId);
-            if (rate > cfg.getMaxSampleRate()) {
-                rate = cfg.getMaxSampleRate();
-            } else if (rate < cfg.getMinSampleRate()) {
-                rate = cfg.getMinSampleRate();
-            }
             mSubscribedHalPropIds.add(halPropId);
         }
-
-        mVehicleHal.subscribeProperty(this, halPropId, rate);
+        mVehicleHal.subscribeProperty(this, halPropId, updateRateHz);
     }
 
     /**
      * Unsubscribe the property and turn off update events for it.
-     * @param mgrPropId
      */
     public void unsubscribeProperty(int mgrPropId) {
-        if (mDbg) {
-            Slogf.d(TAG, "unsubscribeProperty propId=0x" + toHexString(mgrPropId));
+        if (DBG) {
+            Slogf.d(TAG, "unsubscribeProperty mgrPropId=%s",
+                    VehiclePropertyIds.toString(mgrPropId));
         }
         int halPropId = managerToHalPropId(mgrPropId);
-        if (!isPropertySupportedInVehicle(halPropId)) {
-            throw new IllegalArgumentException("Invalid property Id : 0x"
-                    + toHexString(mgrPropId));
-        }
         synchronized (mLock) {
             if (mSubscribedHalPropIds.contains(halPropId)) {
                 mSubscribedHalPropIds.remove(halPropId);
@@ -343,31 +567,32 @@ public class PropertyHalService extends HalServiceBase {
 
     @Override
     public void init() {
-        if (mDbg) {
+        if (DBG) {
             Slogf.d(TAG, "init()");
         }
     }
 
     @Override
     public void release() {
-        if (mDbg) {
+        if (DBG) {
             Slogf.d(TAG, "release()");
         }
         synchronized (mLock) {
-            for (Integer halProp : mSubscribedHalPropIds) {
-                mVehicleHal.unsubscribeProperty(this, halProp);
+            for (Integer halPropId : mSubscribedHalPropIds) {
+                mVehicleHal.unsubscribeProperty(this, halPropId);
             }
             mSubscribedHalPropIds.clear();
             mHalPropIdToPropConfig.clear();
             mMgrPropIdToCarPropConfig.clear();
             mMgrPropIdToPermissions.clear();
-            mListener = null;
+            mPropertyHalListener = null;
         }
     }
 
     @Override
-    public boolean isSupportedProperty(int propId) {
-        return mPropIds.isSupportedProperty(propId);
+    public boolean isSupportedProperty(int halPropId) {
+        return mPropertyHalServiceIds.isSupportedProperty(halPropId)
+                && CarPropertyHelper.isSupported(halToManagerPropId(halPropId));
     }
 
     @Override
@@ -377,21 +602,21 @@ public class PropertyHalService extends HalServiceBase {
 
     // The method is called in HAL init(). Avoid handling complex things in here.
     @Override
-    public void takeProperties(Collection<HalPropConfig> allProperties) {
-        for (HalPropConfig p : allProperties) {
-            int propId = p.getPropId();
-            if (mPropIds.isSupportedProperty(propId)) {
+    public void takeProperties(Collection<HalPropConfig> halPropConfigs) {
+        for (HalPropConfig halPropConfig : halPropConfigs) {
+            int halPropId = halPropConfig.getPropId();
+            if (isSupportedProperty(halPropId)) {
                 synchronized (mLock) {
-                    mHalPropIdToPropConfig.put(propId, p);
+                    mHalPropIdToPropConfig.put(halPropId, halPropConfig);
                 }
-                if (mDbg) {
-                    Slogf.d(TAG, "takeSupportedProperties: " + toHexString(propId));
+                if (DBG) {
+                    Slogf.d(TAG, "takeSupportedProperties: %s",
+                            VehiclePropertyIds.toString(halToManagerPropId(halPropId)));
                 }
             }
         }
-        if (mDbg) {
-            Slogf.d(TAG, "takeSupportedProperties() took " + allProperties.size()
-                    + " properties");
+        if (DBG) {
+            Slogf.d(TAG, "takeSupportedProperties() took %d properties", halPropConfigs.size());
         }
         // If vehicle hal support to select permission for vendor properties.
         HalPropConfig customizePermission;
@@ -400,57 +625,71 @@ public class PropertyHalService extends HalServiceBase {
                     VehicleProperty.SUPPORT_CUSTOMIZE_VENDOR_PERMISSION);
         }
         if (customizePermission != null) {
-            mPropIds.customizeVendorPermission(customizePermission.getConfigArray());
+            mPropertyHalServiceIds.customizeVendorPermission(customizePermission.getConfigArray());
         }
     }
 
     @Override
-    public void onHalEvents(List<HalPropValue> values) {
-        PropertyHalListener listener;
+    public void onHalEvents(List<HalPropValue> halPropValues) {
+        PropertyHalListener propertyHalListener;
         synchronized (mLock) {
-            listener = mListener;
+            propertyHalListener = mPropertyHalListener;
         }
-        if (listener != null) {
-            for (HalPropValue v : values) {
-                if (v == null) {
+        if (propertyHalListener != null) {
+            for (HalPropValue halPropValue : halPropValues) {
+                if (halPropValue == null) {
                     continue;
                 }
-                int propId = v.getPropId();
-                if (!isPropertySupportedInVehicle(propId)) {
-                    Slogf.w(TAG, "Property is not supported: 0x" + toHexString(propId));
-                    continue;
-                }
-                // Check payload if it is a userdebug build.
-                if (BuildHelper.isDebuggableBuild() && !mPropIds.checkPayload(v)) {
-                    Slogf.w(TAG, "Drop event for property: " + v + " because it is failed "
-                            + "in payload checking.");
-                    continue;
-                }
-                int mgrPropId = halToManagerPropId(propId);
-                HalPropConfig propConfig;
+                int halPropId = halPropValue.getPropId();
+                HalPropConfig halPropConfig;
                 synchronized (mLock) {
-                    propConfig = mHalPropIdToPropConfig.get(propId);
+                    halPropConfig = mHalPropIdToPropConfig.get(halPropId);
                 }
-                CarPropertyValue<?> propVal = v.toCarPropertyValue(mgrPropId, propConfig);
-                CarPropertyEvent event = new CarPropertyEvent(
-                        CarPropertyEvent.PROPERTY_EVENT_PROPERTY_CHANGE, propVal);
-                mEventsToDispatch.add(event);
+                if (halPropConfig == null) {
+                    Slogf.w(TAG, "onHalEvents - received HalPropValue for unsupported property: %s",
+                            VehiclePropertyIds.toString(halToManagerPropId(halPropId)));
+                    continue;
+                }
+                // Check payload if it is an userdebug build.
+                if (BuildHelper.isDebuggableBuild() && !mPropertyHalServiceIds.checkPayload(
+                        halPropValue)) {
+                    Slogf.w(TAG,
+                            "Drop event for property: %s because it is failed "
+                                    + "in payload checking.", halPropValue);
+                    continue;
+                }
+                int mgrPropId = halToManagerPropId(halPropId);
+                if (halPropValue.getStatus() != VehiclePropertyStatus.AVAILABLE) {
+                    Slogf.w(TAG, "Drop event %s with status that is not AVAILABLE", halPropValue);
+                    continue;
+                }
+                try {
+                    CarPropertyValue<?> carPropertyValue = halPropValue.toCarPropertyValue(
+                            mgrPropId, halPropConfig);
+                    CarPropertyEvent carPropertyEvent = new CarPropertyEvent(
+                            CarPropertyEvent.PROPERTY_EVENT_PROPERTY_CHANGE, carPropertyValue);
+                    mEventsToDispatch.add(carPropertyEvent);
+                } catch (IllegalStateException e) {
+                    Slogf.w(TAG, "Drop event %s that does not have valid value", halPropValue);
+                    continue;
+                }
             }
-            listener.onPropertyChange(mEventsToDispatch);
+            propertyHalListener.onPropertyChange(mEventsToDispatch);
             mEventsToDispatch.clear();
         }
     }
 
     @Override
-    public void onPropertySetError(ArrayList<VehiclePropError> errors) {
-        PropertyHalListener listener;
+    public void onPropertySetError(ArrayList<VehiclePropError> vehiclePropErrors) {
+        PropertyHalListener propertyHalListener;
         synchronized (mLock) {
-            listener = mListener;
+            propertyHalListener = mPropertyHalListener;
         }
-        if (listener != null) {
-            for (VehiclePropError error : errors) {
-                int mgrPropId = halToManagerPropId(error.propId);
-                listener.onPropertySetError(mgrPropId, error.areaId, error.errorCode);
+        if (propertyHalListener != null) {
+            for (VehiclePropError vehiclePropError : vehiclePropErrors) {
+                int mgrPropId = halToManagerPropId(vehiclePropError.propId);
+                propertyHalListener.onPropertySetError(mgrPropId, vehiclePropError.areaId,
+                        vehiclePropError.errorCode);
             }
         }
     }
@@ -462,9 +701,84 @@ public class PropertyHalService extends HalServiceBase {
         writer.println("  Properties available:");
         synchronized (mLock) {
             for (int i = 0; i < mHalPropIdToPropConfig.size(); i++) {
-                HalPropConfig p = mHalPropIdToPropConfig.valueAt(i);
-                writer.println("    " + p.toString());
+                HalPropConfig halPropConfig = mHalPropIdToPropConfig.valueAt(i);
+                writer.println("    " + halPropConfig.toString());
             }
+        }
+    }
+
+    /**
+     * Query CarPropertyValue with list of GetPropertyServiceRequest objects.
+     *
+     * <p>This method gets the CarPropertyValue using async methods. </p>
+     */
+    public void getCarPropertyValuesAsync(
+            List<GetPropertyServiceRequest> getPropertyServiceRequests,
+            IGetAsyncPropertyResultCallback getAsyncPropertyResultCallback,
+            long timeoutInMs) {
+        // TODO(b/242326085): Change local variables into memory pool to reduce memory
+        //  allocation/release cycle
+        List<AsyncGetSetRequest> getVehicleStubAsyncRequests = new ArrayList<>();
+        synchronized (mLock) {
+            for (int i = 0; i < getPropertyServiceRequests.size(); i++) {
+                GetPropertyServiceRequest getPropertyServiceRequest =
+                        getPropertyServiceRequests.get(i);
+                AsyncGetRequestInfo asyncGetRequestInfo = new AsyncGetRequestInfo(
+                        getPropertyServiceRequest, SystemClock.uptimeMillis() + timeoutInMs,
+                        timeoutInMs);
+                AsyncGetSetRequest vehicleStubRequest = generateGetVehicleStubAsyncRequestLocked(
+                        mPropValueBuilder, asyncGetRequestInfo);
+                getVehicleStubAsyncRequests.add(vehicleStubRequest);
+            }
+        }
+
+        IBinder getAsyncPropertyResultBinder = getAsyncPropertyResultCallback.asBinder();
+        VehicleStubCallbackInterface callback;
+        synchronized (mLock) {
+            if (mResultBinderToVehicleStubCallback.get(getAsyncPropertyResultBinder) == null) {
+                callback = new VehicleStubCallback(getAsyncPropertyResultCallback);
+                try {
+                    callback.linkToDeath(() -> {
+                        synchronized (mLock) {
+                            mResultBinderToVehicleStubCallback.remove(getAsyncPropertyResultBinder);
+                        }
+                    });
+                } catch (RemoteException e) {
+                    throw new IllegalStateException("Linking to binder death recipient failed, "
+                            + "the client might already died", e);
+                }
+                mResultBinderToVehicleStubCallback.put(getAsyncPropertyResultBinder, callback);
+            } else {
+                callback = mResultBinderToVehicleStubCallback.get(getAsyncPropertyResultBinder);
+            }
+        }
+        mVehicleHal.getAsync(getVehicleStubAsyncRequests, callback);
+    }
+
+    /**
+     * Map managerRequestIds to serviceRequestIds and remove them from the pending request map.
+     */
+    public void cancelRequests(int[] managerRequestIds) {
+        List<Integer> serviceRequestIdsToCancel = new ArrayList<>();
+        Set<Integer> managerRequestIdsSet = new ArraySet<>();
+        for (int i = 0; i < managerRequestIds.length; i++) {
+            managerRequestIdsSet.add(managerRequestIds[i]);
+        }
+        synchronized (mLock) {
+            for (int i = 0; i < mServiceRequestIdToAsyncGetRequestInfo.size(); i++) {
+                if (managerRequestIdsSet.contains(mServiceRequestIdToAsyncGetRequestInfo.valueAt(i)
+                        .getManagerRequestId())) {
+                    serviceRequestIdsToCancel.add(mServiceRequestIdToAsyncGetRequestInfo.keyAt(i));
+                }
+            }
+            for (int i = 0; i < serviceRequestIdsToCancel.size(); i++) {
+                Slogf.w(TAG, "the request for propertyHalService request ID: %d is cancelled",
+                        serviceRequestIdsToCancel.get(i));
+                mServiceRequestIdToAsyncGetRequestInfo.remove(serviceRequestIdsToCancel.get(i));
+            }
+        }
+        if (!serviceRequestIdsToCancel.isEmpty()) {
+            mVehicleHal.cancelRequests(serviceRequestIdsToCancel);
         }
     }
 }

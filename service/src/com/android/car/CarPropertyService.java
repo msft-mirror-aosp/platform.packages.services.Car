@@ -19,16 +19,20 @@ package com.android.car;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import static java.lang.Integer.toHexString;
+import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.Car;
+import android.car.VehiclePropertyIds;
 import android.car.builtin.util.Slogf;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
+import android.car.hardware.property.GetPropertyServiceRequest;
 import android.car.hardware.property.ICarProperty;
 import android.car.hardware.property.ICarPropertyEventListener;
+import android.car.hardware.property.IGetAsyncPropertyResultCallback;
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -41,8 +45,11 @@ import android.util.SparseArray;
 
 import com.android.car.hal.PropertyHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.property.InputSanitizationUtils;
+import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -60,7 +67,7 @@ public class CarPropertyService extends ICarProperty.Stub
     private static final boolean DBG = false;
     private static final String TAG = CarLog.tagFor(CarPropertyService.class);
     private final Context mContext;
-    private final PropertyHalService mHal;
+    private final PropertyHalService mPropertyHalService;
     private final Object mLock = new Object();
     @GuardedBy("mLock")
     private final Map<IBinder, Client> mClientMap = new ArrayMap<>();
@@ -73,26 +80,26 @@ public class CarPropertyService extends ICarProperty.Stub
     private final Handler mHandler = new Handler(mHandlerThread.getLooper());
     // Use SparseArray instead of map to save memory.
     @GuardedBy("mLock")
-    private SparseArray<CarPropertyConfig<?>> mConfigs = new SparseArray<>();
+    private SparseArray<CarPropertyConfig<?>> mPropertyIdToCarPropertyConfig = new SparseArray<>();
     @GuardedBy("mLock")
     private SparseArray<Pair<String, String>> mPropToPermission = new SparseArray<>();
 
-    public CarPropertyService(Context context, PropertyHalService hal) {
+    public CarPropertyService(Context context, PropertyHalService propertyHalService) {
         if (DBG) {
             Slogf.d(TAG, "CarPropertyService started!");
         }
-        mHal = hal;
+        mPropertyHalService = propertyHalService;
         mContext = context;
     }
 
     // Helper class to keep track of listeners to this service.
-    private class Client implements IBinder.DeathRecipient {
+    private final class Client implements IBinder.DeathRecipient {
         private final ICarPropertyEventListener mListener;
         private final IBinder mListenerBinder;
         private final Object mLock = new Object();
         // propId->rate map.
         @GuardedBy("mLock")
-        private final SparseArray<Float> mRateMap = new SparseArray<Float>();
+        private final SparseArray<Float> mRateMap = new SparseArray<>();
         @GuardedBy("mLock")
         private boolean mIsDead = false;
 
@@ -189,13 +196,13 @@ public class CarPropertyService extends ICarProperty.Stub
     public void init() {
         synchronized (mLock) {
             // Cache the configs list and permissions to avoid subsequent binder calls
-            mConfigs = mHal.getPropertyList();
-            mPropToPermission = mHal.getPermissionsForAllProperties();
+            mPropertyIdToCarPropertyConfig = mPropertyHalService.getPropertyList();
+            mPropToPermission = mPropertyHalService.getPermissionsForAllProperties();
             if (DBG) {
-                Slogf.d(TAG, "cache CarPropertyConfigs " + mConfigs.size());
+                Slogf.d(TAG, "cache CarPropertyConfigs " + mPropertyIdToCarPropertyConfig.size());
             }
         }
-        mHal.setListener(this);
+        mPropertyHalService.setPropertyHalListener(this);
     }
 
     @Override
@@ -203,7 +210,7 @@ public class CarPropertyService extends ICarProperty.Stub
         synchronized (mLock) {
             mClientMap.clear();
             mPropIdClientMap.clear();
-            mHal.setListener(null);
+            mPropertyHalService.setPropertyHalListener(null);
             mSetOperationClientMap.clear();
         }
     }
@@ -242,78 +249,80 @@ public class CarPropertyService extends ICarProperty.Stub
     }
 
     @Override
-    public void registerListener(int propId, float rate, ICarPropertyEventListener listener)
-            throws IllegalArgumentException {
+    public void registerListener(int propertyId, float updateRateHz,
+            ICarPropertyEventListener iCarPropertyEventListener) throws IllegalArgumentException {
+        requireNonNull(iCarPropertyEventListener);
+        validateRegisterParameter(propertyId);
+
+        CarPropertyConfig<?> carPropertyConfig = getCarPropertyConfig(propertyId);
+
+        float sanitizedUpdateRateHz = InputSanitizationUtils.sanitizeUpdateRateHz(carPropertyConfig,
+                updateRateHz);
+
         if (DBG) {
-            Slogf.d(TAG, "registerListener: propId=0x" + toHexString(propId) + " rate=" + rate);
-        }
-        if (listener == null) {
-            Slogf.e(TAG, "registerListener: Listener is null.");
-            throw new IllegalArgumentException("listener cannot be null.");
+            Slogf.d(TAG, "registerListener: property ID=" + VehiclePropertyIds.toString(propertyId)
+                    + " updateRateHz=" + sanitizedUpdateRateHz);
         }
 
-        IBinder listenerBinder = listener.asBinder();
-        CarPropertyConfig propertyConfig;
         Client finalClient;
         synchronized (mLock) {
-            propertyConfig = mConfigs.get(propId);
-            if (propertyConfig == null) {
-                // Do not attempt to register an invalid propId
-                Slogf.e(TAG, "registerListener:  propId is not in config list: 0x"
-                        + toHexString(propId));
-                return;
-            }
-            CarServiceUtils.assertPermission(mContext, mHal.getReadPermission(propId));
-            // Get or create the client for this listener
+            // Get or create the client for this iCarPropertyEventListener
+            IBinder listenerBinder = iCarPropertyEventListener.asBinder();
             Client client = mClientMap.get(listenerBinder);
             if (client == null) {
-                client = new Client(listener);
+                client = new Client(iCarPropertyEventListener);
                 if (client.isDead()) {
                     Slogf.w(TAG, "the ICarPropertyEventListener is already dead");
                     return;
                 }
                 mClientMap.put(listenerBinder, client);
             }
-            client.addProperty(propId, rate);
-            // Insert the client into the propId --> clients map
-            List<Client> clients = mPropIdClientMap.get(propId);
+            client.addProperty(propertyId, sanitizedUpdateRateHz);
+            // Insert the client into the propertyId --> clients map
+            List<Client> clients = mPropIdClientMap.get(propertyId);
             if (clients == null) {
-                clients = new ArrayList<Client>();
-                mPropIdClientMap.put(propId, clients);
+                clients = new ArrayList<>();
+                mPropIdClientMap.put(propertyId, clients);
             }
             if (!clients.contains(client)) {
                 clients.add(client);
             }
-            // Set the new rate
-            if (rate > mHal.getSampleRate(propId)) {
-                mHal.subscribeProperty(propId, rate);
+            // Set the new updateRateHz
+            if (sanitizedUpdateRateHz > mPropertyHalService.getSampleRate(propertyId)) {
+                mPropertyHalService.subscribeProperty(propertyId, sanitizedUpdateRateHz);
             }
             finalClient = client;
         }
 
         // propertyConfig and client are NonNull.
         mHandler.post(() ->
-                getAndDispatchPropertyInitValue(propertyConfig, finalClient));
+                getAndDispatchPropertyInitValue(carPropertyConfig, finalClient));
     }
 
-    private void getAndDispatchPropertyInitValue(CarPropertyConfig config, Client client) {
+    /**
+     * Register property listener for car service's internal usage.
+     */
+    public boolean registerListenerSafe(int propertyId, float updateRateHz,
+            ICarPropertyEventListener iCarPropertyEventListener) {
+        try {
+            registerListener(propertyId, updateRateHz, iCarPropertyEventListener);
+            return true;
+        } catch (Exception e) {
+            Slogf.e(TAG, e, "registerListenerSafe() failed for property ID: %s updateRateHz: %f",
+                    VehiclePropertyIds.toString(propertyId), updateRateHz);
+            return false;
+        }
+    }
+
+    private void getAndDispatchPropertyInitValue(CarPropertyConfig carPropertyConfig,
+            Client client) {
         List<CarPropertyEvent> events = new ArrayList<>();
-        int propId = config.getPropertyId();
-        if (config.isGlobalProperty()) {
-            CarPropertyValue value = mHal.getPropertySafe(propId, 0);
+        for (int areaId : carPropertyConfig.getAreaIds()) {
+            CarPropertyValue value = getPropertySafe(carPropertyConfig.getPropertyId(), areaId);
             if (value != null) {
                 CarPropertyEvent event = new CarPropertyEvent(
                         CarPropertyEvent.PROPERTY_EVENT_PROPERTY_CHANGE, value);
                 events.add(event);
-            }
-        } else {
-            for (int areaId : config.getAreaIds()) {
-                CarPropertyValue value = mHal.getPropertySafe(propId, areaId);
-                if (value != null) {
-                    CarPropertyEvent event = new CarPropertyEvent(
-                            CarPropertyEvent.PROPERTY_EVENT_PROPERTY_CHANGE, value);
-                    events.add(event);
-                }
             }
         }
         if (events.isEmpty()) {
@@ -322,33 +331,49 @@ public class CarPropertyService extends ICarProperty.Stub
         try {
             client.onEvent(events);
         } catch (RemoteException ex) {
-            // If we cannot send a record, its likely the connection snapped. Let the binder
+            // If we cannot send a record, it's likely the connection snapped. Let the binder
             // death handle the situation.
             Slogf.e(TAG, "onEvent calling failed", ex);
         }
     }
 
     @Override
-    public void unregisterListener(int propId, ICarPropertyEventListener listener) {
+    public void unregisterListener(int propertyId,
+            ICarPropertyEventListener iCarPropertyEventListener) {
+        requireNonNull(iCarPropertyEventListener);
+        validateRegisterParameter(propertyId);
+
         if (DBG) {
-            Slogf.d(TAG, "unregisterListener propId=0x" + toHexString(propId));
-        }
-        CarServiceUtils.assertPermission(mContext, mHal.getReadPermission(propId));
-        if (listener == null) {
-            Slogf.e(TAG, "unregisterListener: Listener is null.");
-            throw new IllegalArgumentException("Listener is null");
+            Slogf.d(TAG,
+                    "unregisterListener property ID=" + VehiclePropertyIds.toString(propertyId));
         }
 
-        IBinder listenerBinder = listener.asBinder();
-        unregisterListenerBinderForProps(List.of(propId), listenerBinder);
+        IBinder listenerBinder = iCarPropertyEventListener.asBinder();
+        unregisterListenerBinderForProps(List.of(propertyId), listenerBinder);
     }
+
+    /**
+     * Unregister property listener for car service's internal usage.
+     */
+    public boolean unregisterListenerSafe(int propertyId,
+            ICarPropertyEventListener iCarPropertyEventListener) {
+        try {
+            unregisterListener(propertyId, iCarPropertyEventListener);
+            return true;
+        } catch (Exception e) {
+            Slogf.e(TAG, e, "unregisterListenerSafe() failed for property ID: %s",
+                    VehiclePropertyIds.toString(propertyId));
+            return false;
+        }
+    }
+
 
     @GuardedBy("mLock")
     private void unregisterListenerBinderLocked(int propId, IBinder listenerBinder) {
         float updateMaxRate = 0f;
         Client client = mClientMap.get(listenerBinder);
         List<Client> propertyClients = mPropIdClientMap.get(propId);
-        if (mConfigs.get(propId) == null) {
+        if (mPropertyIdToCarPropertyConfig.get(propId) == null) {
             // Do not attempt to unregister an invalid propId
             Slogf.e(TAG, "unregisterListener: propId is not in config list:0x%s",
                     toHexString(propId));
@@ -376,7 +401,7 @@ public class CarPropertyService extends ICarProperty.Stub
             // Last listener for this property unsubscribed.  Clean up
             mPropIdClientMap.remove(propId);
             mSetOperationClientMap.remove(propId);
-            mHal.unsubscribeProperty(propId);
+            mPropertyHalService.unsubscribeProperty(propId);
             return;
         }
         // Other listeners are still subscribed.  Calculate the new rate
@@ -385,10 +410,10 @@ public class CarPropertyService extends ICarProperty.Stub
             float rate = c.getRate(propId);
             updateMaxRate = Math.max(rate, updateMaxRate);
         }
-        if (Float.compare(updateMaxRate, mHal.getSampleRate(propId)) != 0) {
+        if (Float.compare(updateMaxRate, mPropertyHalService.getSampleRate(propId)) != 0) {
             try {
                 // Only reset the sample rate if needed
-                mHal.subscribeProperty(propId, updateMaxRate);
+                mPropertyHalService.subscribeProperty(propId, updateMaxRate);
             } catch (IllegalArgumentException e) {
                 Slogf.e(TAG, "failed to subscribe to propId=0x" + toHexString(propId)
                         + ", error: " + e);
@@ -414,16 +439,15 @@ public class CarPropertyService extends ICarProperty.Stub
         int[] allPropId;
         // Avoid permission checking under lock.
         synchronized (mLock) {
-            allPropId = new int[mConfigs.size()];
-            for (int i = 0; i < mConfigs.size(); i++) {
-                allPropId[i] = mConfigs.keyAt(i);
+            allPropId = new int[mPropertyIdToCarPropertyConfig.size()];
+            for (int i = 0; i < mPropertyIdToCarPropertyConfig.size(); i++) {
+                allPropId[i] = mPropertyIdToCarPropertyConfig.keyAt(i);
             }
         }
         return getPropertyConfigList(allPropId);
     }
 
     /**
-     *
      * @param propIds Array of property Ids
      * @return the list of properties' configs that the caller may access.
      */
@@ -442,12 +466,16 @@ public class CarPropertyService extends ICarProperty.Stub
             if (readPermission == null && writePermission == null) {
                 continue;
             }
+            boolean isHvacTemperatureDisplayUnitsAvailable =
+                    (propId == VehiclePropertyIds.HVAC_TEMPERATURE_DISPLAY_UNITS
+                            && checkAndUpdateGrantedPermissionSet(mContext, grantedPermission,
+                            Car.PERMISSION_READ_DISPLAY_UNITS));
             // Check if context already granted permission first
             if (checkAndUpdateGrantedPermissionSet(mContext, grantedPermission, readPermission)
                     || checkAndUpdateGrantedPermissionSet(mContext, grantedPermission,
-                    writePermission)) {
+                    writePermission) || isHvacTemperatureDisplayUnitsAvailable) {
                 synchronized (mLock) {
-                    availableProp.add(mConfigs.get(propId));
+                    availableProp.add(mPropertyIdToCarPropertyConfig.get(propId));
                 }
             }
         }
@@ -468,42 +496,26 @@ public class CarPropertyService extends ICarProperty.Stub
     }
 
     @Override
-    public CarPropertyValue getProperty(int prop, int zone)
+    public CarPropertyValue getProperty(int propertyId, int areaId)
             throws IllegalArgumentException, ServiceSpecificException {
-        synchronized (mLock) {
-            if (mConfigs.get(prop) == null) {
-                // Do not attempt to register an invalid propId
-                Slogf.e(TAG, "getProperty: propId is not in config list:0x" + toHexString(prop));
-                return null;
-            }
-        }
-         // Checks if android has permission to read property.
-        String permission = mHal.getReadPermission(prop);
-        if (permission == null) {
-            throw new SecurityException("Platform does not have permission to read value for "
-                    + "property Id: 0x" + Integer.toHexString(prop));
-        }
-        CarServiceUtils.assertPermission(mContext, permission);
-        return mHal.getProperty(prop, zone);
+        validateGetParameters(propertyId, areaId);
+        return mPropertyHalService.getProperty(propertyId, areaId);
     }
 
     /**
      * Get property value for car service's internal usage.
-     * @param prop property id
-     * @param zone area id
+     *
      * @return null if property is not implemented or there is an exception in the vehicle.
      */
-    public CarPropertyValue getPropertySafe(int prop, int zone) {
-        synchronized (mLock) {
-            if (mConfigs.get(prop) == null) {
-                // Do not attempt to register an invalid propId
-                Slogf.e(TAG, "getPropertySafe: propId is not in config list:0x"
-                        + toHexString(prop));
-                return null;
-            }
+    @Nullable
+    public CarPropertyValue getPropertySafe(int propertyId, int areaId) {
+        try {
+            return getProperty(propertyId, areaId);
+        } catch (Exception e) {
+            Slogf.e(TAG, e, "getPropertySafe() failed for property id: %s area id: 0x%s",
+                    VehiclePropertyIds.toString(propertyId), toHexString(areaId));
+            return null;
         }
-        CarServiceUtils.assertPermission(mContext, mHal.getReadPermission(prop));
-        return mHal.getPropertySafe(prop, zone);
     }
 
     @Nullable
@@ -539,48 +551,29 @@ public class CarPropertyService extends ICarProperty.Stub
     }
 
     @Override
-    public void setProperty(CarPropertyValue prop, ICarPropertyEventListener listener)
+    public void setProperty(CarPropertyValue carPropertyValue,
+            ICarPropertyEventListener iCarPropertyEventListener)
             throws IllegalArgumentException, ServiceSpecificException {
-        int propId = prop.getPropertyId();
-        checkPropertyAccessibility(propId);
-        // need an extra permission for writing display units properties.
-        if (mHal.isDisplayUnitsProperty(propId)) {
-            CarServiceUtils.assertPermission(mContext, Car.PERMISSION_VENDOR_EXTENSION);
-        }
-        mHal.setProperty(prop);
-        IBinder listenerBinder = listener.asBinder();
+        requireNonNull(carPropertyValue);
+        requireNonNull(iCarPropertyEventListener);
+        validateSetParameters(carPropertyValue.getPropertyId(), carPropertyValue.getAreaId(),
+                carPropertyValue.getValue());
+
+        mPropertyHalService.setProperty(carPropertyValue);
+
+        IBinder listenerBinder = iCarPropertyEventListener.asBinder();
         synchronized (mLock) {
             Client client = mClientMap.get(listenerBinder);
             if (client == null) {
-                client = new Client(listener);
+                client = new Client(iCarPropertyEventListener);
             }
             if (client.isDead()) {
                 Slogf.w(TAG, "the ICarPropertyEventListener is already dead");
                 return;
             }
-            updateSetOperationRecorderLocked(propId, prop.getAreaId(), client);
+            updateSetOperationRecorderLocked(carPropertyValue.getPropertyId(),
+                    carPropertyValue.getAreaId(), client);
         }
-    }
-
-    // The helper method checks if the vehicle has implemented this property and the property
-    // is accessible or not for platform and client.
-    private void checkPropertyAccessibility(int propId) {
-        // Checks if the car implemented the property or not.
-        synchronized (mLock) {
-            if (mConfigs.get(propId) == null) {
-                throw new IllegalArgumentException("Property Id: 0x" + Integer.toHexString(propId)
-                        + " does not exist in the vehicle");
-            }
-        }
-
-        // Checks if android has permission to write property.
-        String propertyWritePermission = mHal.getWritePermission(propId);
-        if (propertyWritePermission == null) {
-            throw new SecurityException("Platform does not have permission to change value for "
-                    + "property Id: 0x" + Integer.toHexString(propId));
-        }
-        // Checks if the client has the permission.
-        CarServiceUtils.assertPermission(mContext, propertyWritePermission);
     }
 
     // Updates recorder for set operation.
@@ -647,7 +640,7 @@ public class CarPropertyService extends ICarProperty.Stub
 
         // Parse the dispatch list to send events. We must call the callback outside the
         // scoped lock since the callback might call some function in CarPropertyService
-        // which might cause dead-lock.
+        // which might cause deadlock.
         // In rare cases, if this specific client is unregistered after the lock but before
         // the callback, we would call callback on an unregistered client which should be ok because
         // 'onEvent' is an async oneway callback that might be delivered after unregistration
@@ -656,7 +649,7 @@ public class CarPropertyService extends ICarProperty.Stub
             try {
                 client.onEvent(eventsToDispatch.get(client));
             } catch (RemoteException ex) {
-                // If we cannot send a record, its likely the connection snapped. Let binder
+                // If we cannot send a record, it's likely the connection snapped. Let binder
                 // death handle the situation.
                 Slogf.e(TAG, "onEvent calling failed: " + ex);
             }
@@ -692,5 +685,137 @@ public class CarPropertyService extends ICarProperty.Stub
         } catch (RemoteException ex) {
             Slogf.e(TAG, "onEvent calling failed: " + ex);
         }
+    }
+
+    /**
+     * Query CarPropertyValue with list of GetPropertyServiceRequest objects.
+     *
+     * <p>This method gets the CarPropertyValue using async methods. </p>
+     */
+    public void getPropertiesAsync(List<GetPropertyServiceRequest> getPropertyServiceRequests,
+            IGetAsyncPropertyResultCallback getAsyncPropertyResultCallback,
+            long timeoutInMs) {
+        requireNonNull(getPropertyServiceRequests);
+        requireNonNull(getAsyncPropertyResultCallback);
+        if (timeoutInMs <= 0) {
+            throw new IllegalArgumentException("timeoutInMs must be a positive number");
+        }
+        for (int i = 0; i < getPropertyServiceRequests.size(); i++) {
+            validateGetParameters(getPropertyServiceRequests.get(i).getPropertyId(),
+                    getPropertyServiceRequests.get(i).getAreaId());
+        }
+        mPropertyHalService.getCarPropertyValuesAsync(getPropertyServiceRequests,
+                getAsyncPropertyResultCallback, timeoutInMs);
+    }
+
+    /**
+     * Cancel on-going async requests.
+     *
+     * @param serviceRequestIds A list of async get/set property request IDs.
+     */
+    public void cancelRequests(int[] serviceRequestIds) {
+        mPropertyHalService.cancelRequests(serviceRequestIds);
+    }
+
+    private static void assertPropertyIsReadable(CarPropertyConfig<?> carPropertyConfig) {
+        Preconditions.checkArgument(
+                carPropertyConfig.getAccess() == CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ
+                        || carPropertyConfig.getAccess()
+                        == CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
+                "Property is not readable: %s",
+                VehiclePropertyIds.toString(carPropertyConfig.getPropertyId()));
+    }
+
+    private static void assertConfigIsNotNull(int propertyId,
+            CarPropertyConfig<?> carPropertyConfig) {
+        Preconditions.checkArgument(carPropertyConfig != null,
+                "property ID is not in carPropertyConfig list, and so it is not supported: %s",
+                VehiclePropertyIds.toString(propertyId));
+    }
+
+    private static void assertAreaIdIsSupported(int areaId,
+            CarPropertyConfig<?> carPropertyConfig) {
+        Preconditions.checkArgument(ArrayUtils.contains(carPropertyConfig.getAreaIds(), areaId),
+                "area ID: 0x" + toHexString(areaId) + " not supported for property ID: "
+                        + VehiclePropertyIds.toString(carPropertyConfig.getPropertyId()));
+    }
+
+    @Nullable
+    private CarPropertyConfig<?> getCarPropertyConfig(int propertyId) {
+        CarPropertyConfig<?> carPropertyConfig;
+        synchronized (mLock) {
+            carPropertyConfig = mPropertyIdToCarPropertyConfig.get(propertyId);
+        }
+        return carPropertyConfig;
+    }
+
+    private void assertReadPermissionGranted(int propertyId) {
+        String readPermission = mPropertyHalService.getReadPermission(propertyId);
+        if (readPermission == null) {
+            throw new SecurityException(
+                    "Platform does not have permission to read value for property ID: "
+                            + VehiclePropertyIds.toString(propertyId));
+        }
+        if (propertyId == VehiclePropertyIds.HVAC_TEMPERATURE_DISPLAY_UNITS) {
+            CarServiceUtils.assertAnyPermission(mContext, readPermission,
+                    Car.PERMISSION_READ_DISPLAY_UNITS);
+            return;
+        }
+        CarServiceUtils.assertPermission(mContext, readPermission);
+    }
+
+    private void validateRegisterParameter(int propertyId) {
+        CarPropertyConfig<?> carPropertyConfig = getCarPropertyConfig(propertyId);
+        assertConfigIsNotNull(propertyId, carPropertyConfig);
+        assertPropertyIsReadable(carPropertyConfig);
+        assertReadPermissionGranted(propertyId);
+    }
+
+    private void validateGetParameters(int propertyId, int areaId) {
+        CarPropertyConfig<?> carPropertyConfig = getCarPropertyConfig(propertyId);
+        assertConfigIsNotNull(propertyId, carPropertyConfig);
+        assertPropertyIsReadable(carPropertyConfig);
+        assertReadPermissionGranted(propertyId);
+        assertAreaIdIsSupported(areaId, carPropertyConfig);
+    }
+
+    private <T> void validateSetParameters(int propertyId, int areaId, T valueToSet) {
+        CarPropertyConfig<?> carPropertyConfig = getCarPropertyConfig(propertyId);
+        assertConfigIsNotNull(propertyId, carPropertyConfig);
+
+        // Assert property is writable.
+        Preconditions.checkArgument(
+                carPropertyConfig.getAccess() == CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE
+                        || carPropertyConfig.getAccess()
+                        == CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
+                "Property is not writable: %s",
+                VehiclePropertyIds.toString(carPropertyConfig.getPropertyId()));
+
+        // Assert write permission is granted.
+        String writePermission = mPropertyHalService.getWritePermission(propertyId);
+        if (writePermission == null) {
+            throw new SecurityException(
+                    "Platform does not have permission to write value for property ID: "
+                            + VehiclePropertyIds.toString(propertyId));
+        }
+        CarServiceUtils.assertPermission(mContext, writePermission);
+        // need an extra permission for writing display units properties.
+        if (mPropertyHalService.isDisplayUnitsProperty(propertyId)) {
+            CarServiceUtils.assertPermission(mContext, Car.PERMISSION_VENDOR_EXTENSION);
+        }
+
+        assertAreaIdIsSupported(areaId, carPropertyConfig);
+
+        // Assert set value is valid for property.
+        Preconditions.checkArgument(valueToSet != null,
+                "setProperty: CarPropertyValue's must not be null - property ID: %s area ID: %s",
+                VehiclePropertyIds.toString(carPropertyConfig.getPropertyId()),
+                toHexString(areaId));
+        Preconditions.checkArgument(
+                valueToSet.getClass().equals(carPropertyConfig.getPropertyType()),
+                "setProperty: CarPropertyValue's value's type does not match property's type. - "
+                        + "property ID: %s area ID: %s",
+                VehiclePropertyIds.toString(carPropertyConfig.getPropertyId()),
+                toHexString(areaId));
     }
 }

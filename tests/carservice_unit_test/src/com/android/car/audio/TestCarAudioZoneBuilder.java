@@ -16,6 +16,10 @@
 
 package com.android.car.audio;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
+
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,22 +28,34 @@ public final class TestCarAudioZoneBuilder {
     private final int mAudioZoneId;
     private final List<CarVolumeGroup> mCarVolumeGroups = new ArrayList<>();
     private final String mAudioZoneName;
+    private CarAudioContext mCarAudioContext =
+            new CarAudioContext(CarAudioContext.getAllContextsInfo());
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DEBUGGING_CODE)
     public TestCarAudioZoneBuilder(String audioZoneName, int audioZoneId) {
         mAudioZoneId = audioZoneId;
         mAudioZoneName = audioZoneName;
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DEBUGGING_CODE)
     TestCarAudioZoneBuilder addVolumeGroup(CarVolumeGroup group) {
         mCarVolumeGroups.add(group);
         return this;
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DEBUGGING_CODE)
+    TestCarAudioZoneBuilder setCarAudioContexts(CarAudioContext carAudioContext) {
+        mCarAudioContext = carAudioContext;
+        return this;
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DEBUGGING_CODE)
     CarAudioZone build() {
-        return mCarVolumeGroups.stream().collect(()->new CarAudioZone(mAudioZoneId, mAudioZoneName),
-                (x, y) -> x.addVolumeGroup(y), (a, b) -> {
-                    for (CarVolumeGroup group: b.getVolumeGroups()) {
-                    a.addVolumeGroup(group);
-                }});
+        CarAudioZone carAudioZone =
+                new CarAudioZone(mCarAudioContext, mAudioZoneName, mAudioZoneId);
+        for (int i = 0; i < mCarVolumeGroups.size(); i++) {
+            carAudioZone.addVolumeGroup(mCarVolumeGroups.get(i));
+        }
+        return carAudioZone;
     }
 }

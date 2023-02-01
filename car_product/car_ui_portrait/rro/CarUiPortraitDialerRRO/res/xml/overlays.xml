@@ -69,9 +69,16 @@
     <item target="bool/config_always_show_incall_dialpad" value="@bool/config_always_show_incall_dialpad" />
 
     <item target="integer/config_dialed_number_gravity" value="@integer/config_dialed_number_gravity" />
+    <item target="integer/favorite_fragment_grid_column" value="@integer/favorite_fragment_grid_column" />
 
-    <item target="dimen/list_item_height" value="@dimen/list_item_height" />
+    <item target="dimen/avatar_icon_size" value="@dimen/avatar_icon_size" />
+    <item target="dimen/call_history_item_height" value="@dimen/call_history_item_height" />
     <item target="dimen/contact_avatar_corner_radius_percent" value="@dimen/contact_avatar_corner_radius_percent" />
+    <item target="dimen/contact_list_item_height" value="@dimen/contact_list_item_height" />
+    <item target="dimen/favorite_item_padding" value="@dimen/favorite_item_padding" />
+    <item target="dimen/favorites_avatar_margin_bottom" value="@dimen/favorites_avatar_margin_bottom" />
+    <item target="dimen/large_avatar_icon_size" value="@dimen/large_avatar_icon_size" />
+    <item target="dimen/list_item_height" value="@dimen/list_item_height" />
 
     <item target="layout/dialpad_fragment_with_type_down" value="@layout/dialpad_fragment_with_type_down"/>
     <item target="layout/dialpad_user_profile" value="@layout/dialpad_user_profile"/>
@@ -83,13 +90,18 @@
     <item target="layout/incall_dialpad_fragment" value="@layout/incall_dialpad_fragment"/>
     <item target="layout/contact_user_profile" value="@layout/contact_user_profile"/>
 
-    <item target="style/KeypadButtonStyle" value="@style/KeypadButtonStyle"/>
-    <item target="style/TextAppearance.DialNumber" value="@style/TextAppearance.DialNumber"/>
-    <item target="style/SubheaderText" value="@style/SubheaderText"/>
     <item target="style/AddFavoriteText" value="@style/AddFavoriteText"/>
+    <item target="style/KeypadButtonStyle" value="@style/KeypadButtonStyle"/>
+    <item target="style/KeypadLetter" value="@style/KeypadLetter"/>
+    <item target="style/KeypadNumber" value="@style/KeypadNumber"/>
+    <item target="style/TextAppearance.CallLogCallCountMissedCall" value="@style/TextAppearance.CallLogCallCountMissedCall"/>
+    <item target="style/TextAppearance.CallLogSubtitle" value="@style/TextAppearance.CallLogSubtitle"/>
+    <item target="style/TextAppearance.CallLogTimestampMissedCall" value="@style/TextAppearance.CallLogTimestampMissedCall"/>
     <item target="style/TextAppearance.CallLogTitleDefault" value="@style/TextAppearance.CallLogTitleDefault"/>
+    <item target="style/TextAppearance.CallLogTitleMissedCall" value="@style/TextAppearance.CallLogTitleMissedCall"/>
     <item target="style/TextAppearance.DialpadDisplayName" value="@style/TextAppearance.DialpadDisplayName"/>
-    <item target="style/TextAppearance.ContactResultTitle" value="@style/TextAppearance.ContactResultTitle"/>
+    <item target="style/TextAppearance.DialNumber" value="@style/TextAppearance.DialNumber"/>
     <item target="style/TextAppearance.TypeDownListSpan" value="@style/TextAppearance.TypeDownListSpan"/>
+    <item target="style/SubheaderText" value="@style/SubheaderText"/>
 
 </overlay>

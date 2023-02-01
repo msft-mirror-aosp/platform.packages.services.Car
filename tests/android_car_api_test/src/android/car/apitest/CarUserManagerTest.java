@@ -32,17 +32,24 @@ import android.car.Car;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserLifecycleEvent;
+import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.UserLifecycleEventFilter;
 import android.content.pm.UserInfo;
 import android.os.Process;
+import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
 
+import com.android.compatibility.common.util.ApiTest;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class CarUserManagerTest extends CarMultiUserTestBase {
@@ -77,6 +84,7 @@ public final class CarUserManagerTest extends CarMultiUserTestBase {
     }
 
     @Test
+    @ApiTest(apis = {"android.car.user.CarUserManager#createUser(String, int)"})
     public void testCreateUser() throws Exception {
         UserInfo newUser = createUser("DaNewUserInTheBlock");
         assertWithMessage("(%s).isGuest()", newUser.toFullString()).that(newUser.isGuest())
@@ -91,6 +99,7 @@ public final class CarUserManagerTest extends CarMultiUserTestBase {
     }
 
     @Test
+    @ApiTest(apis = {"android.car.user.CarUserManager#createGuest(String)"})
     public void testCreateGuest() throws Exception {
         UserInfo newGuest = createGuest("DaNewGuestInTheBlock");
         assertWithMessage("(%s).isGuest()", newGuest.toFullString()).that(newGuest.isGuest())
@@ -105,6 +114,10 @@ public final class CarUserManagerTest extends CarMultiUserTestBase {
     }
 
     @Test
+    @ApiTest(apis = {
+            "android.car.user.CarUserManager#addListener(Executor,UserLifecycleListener)",
+            "android.car.user.CarUserManager#removeListener(UserLifecycleListener)"
+    })
     public void testLifecycleMultipleListeners() throws Exception {
         int newUserId = createUser("Test").id;
         Car car2 = Car.createCar(getContext().getApplicationContext());
@@ -196,8 +209,16 @@ public final class CarUserManagerTest extends CarMultiUserTestBase {
      * Tests resume behavior when current user is ephemeral guest, a new guest user should be
      * created and switched to.
      */
+    @Ignore("b/233164303")
     @Test
+    @ApiTest(apis = {
+            "android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_UNLOCKED",
+            "android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_SWITCHING",
+    })
     public void testGuestUserResumeToNewGuestUser() throws Exception {
+        // TODO(b/241837415): Create a host-side test and move this test there.
+        if (!isDeviceEmulator()) return;
+
         // Create new guest user
         UserInfo guestUser = createGuest();
         int guestUserId = guestUser.id;
@@ -251,7 +272,13 @@ public final class CarUserManagerTest extends CarMultiUserTestBase {
      * resume to same guest user.
      */
     @Test
+    @ApiTest(apis = {
+            "android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_UNLOCKED",
+    })
     public void testSecuredGuestUserResumeToSameUser() throws Exception {
+        // TODO(b/241837415): Create a host-side test and move this test there.
+        if (!isDeviceEmulator()) return;
+
         // Create new guest user
         UserInfo guestUser = createGuest();
         int guestUserId = guestUser.id;
@@ -289,7 +316,13 @@ public final class CarUserManagerTest extends CarMultiUserTestBase {
      * Tests resume behavior when current user is persistent user.
      */
     @Test
+    @ApiTest(apis = {
+            "android.car.user.CarUserManager#USER_LIFECYCLE_EVENT_TYPE_UNLOCKED",
+    })
     public void testPersistentUserResumeToUser() throws Exception {
+        // TODO(b/241837415): Create a host-side test and move this test there.
+        if (!isDeviceEmulator()) return;
+
         int newUserId = createUser().id;
         BlockingUserLifecycleListener listener = BlockingUserLifecycleListener
                 .forSpecificEvents()
@@ -310,6 +343,55 @@ public final class CarUserManagerTest extends CarMultiUserTestBase {
                     .that(ActivityManager.getCurrentUser()).isEqualTo(newUserId);
         } finally {
             mCarUserManager.removeListener(listener);
+        }
+    }
+
+    private static boolean isDeviceEmulator() {
+        return SystemProperties.get("ro.product.system.device").equals("generic");
+    }
+
+    // TODO(b/244594590): Clean this listener up once BlockingUserLifecycleListener supports
+    // no events received.
+    private final class LifecycleListener implements UserLifecycleListener {
+        private static final int TIMEOUT_MS = 60_000;
+        private static final int WAIT_TIME_MS = 1_000;
+
+        private final List<UserLifecycleEvent> mEvents =
+                new ArrayList<CarUserManager.UserLifecycleEvent>();
+
+        private final Object mLock = new Object();
+
+        @Override
+        public void onEvent(UserLifecycleEvent event) {
+            Log.d(TAG, "Event received: " + event);
+            synchronized (mLock) {
+                mEvents.add(event);
+            }
+        }
+
+        public void assertEventNotReceived(int userId, int eventType)
+                throws InterruptedException {
+            long startTime = SystemClock.elapsedRealtime();
+            while (SystemClock.elapsedRealtime() - startTime < TIMEOUT_MS) {
+                boolean result = checkEvent(userId, eventType);
+                if (result) {
+                    fail("Event" + eventType
+                            + " was not expected but was received within timeoutMs: " + TIMEOUT_MS);
+                }
+                Thread.sleep(WAIT_TIME_MS);
+            }
+        }
+
+        private boolean checkEvent(int userId, int eventType) {
+            synchronized (mLock) {
+                for (int i = 0; i < mEvents.size(); i++) {
+                    if (mEvents.get(i).getUserHandle().getIdentifier() == userId
+                            && mEvents.get(i).getEventType() == eventType) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
     }
 }

@@ -45,9 +45,10 @@ import com.google.android.car.kitchensink.R;
 import java.util.List;
 
 public class HvacTestFragment extends Fragment {
-    private final boolean DBG = true;
-    private final String TAG = "HvacTestFragment";
+    private static final boolean DBG = true;
+    private static final String TAG = HvacTestFragment.class.getSimpleName();
     private static final float TEMP_STEP = 0.5f;
+
     private RadioButton mRbFanPositionFace;
     private RadioButton mRbFanPositionFloor;
     private RadioButton mRbFanPositionFaceAndFloor;
@@ -190,13 +191,6 @@ public class HvacTestFragment extends Fragment {
             };
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-
-        super.onCreate(savedInstanceState);
-
-    }
-
-    @Override
     public void onDestroy() {
         super.onDestroy();
         mCarHvacManager.unregisterCallback(mHvacCallback);
@@ -218,7 +212,7 @@ public class HvacTestFragment extends Fragment {
 
                 switch (propId) {
                     case CarHvacManager.ID_OUTSIDE_AIR_TEMP:
-                        configureOutsideTemp(mHvacView, prop);
+                        // Nothing is done in this case.
                         break;
                     case CarHvacManager.ID_ZONED_DUAL_ZONE_ON:
                         configureDualOn(mHvacView, prop);
@@ -284,10 +278,6 @@ public class HvacTestFragment extends Fragment {
         }
 
         return mHvacView;
-    }
-
-    private void configureOutsideTemp(View v, CarPropertyConfig prop) {
-        // Do nothing
     }
 
     private void configureDualOn(View v, CarPropertyConfig prop) {

@@ -38,9 +38,9 @@ import static com.android.car.test.power.CarPowerPolicyUtil.assertPolicyIdentica
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
-import static org.testng.Assert.assertThrows;
 
 import android.annotation.NonNull;
 import android.car.Car;
@@ -74,6 +74,7 @@ import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.test.utils.TemporaryFile;
 import com.android.car.user.CarUserService;
+import com.android.compatibility.common.util.PollingCheck;
 import com.android.internal.annotations.GuardedBy;
 
 import org.junit.After;
@@ -113,6 +114,8 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     private CarPowerManager mCarPowerManager;
     private PowerComponentHandler mPowerComponentHandler;
 
+    private static final Object sLock = new Object();
+
     @Mock
     private Resources mResources;
     @Mock
@@ -136,9 +139,9 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 /*isHibernationAllowed=*/true,
                 /*isTimedWakeupAllowed=*/true);
         mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext)
-            .withDisplayInterface(mDisplayInterface)
-            .withSystemStateInterface(mSystemStateInterface)
-            .build();
+                .withDisplayInterface(mDisplayInterface)
+                .withSystemStateInterface(mSystemStateInterface)
+                .build();
         setService();
         mCarPowerManager = new CarPowerManager(mCar, mService);
     }
@@ -253,7 +256,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
 
         // Request suspend
         setPowerState(VehicleApPowerStateReq.SHUTDOWN_PREPARE,
-                        VehicleApPowerStateShutdownParam.CAN_SLEEP);
+                VehicleApPowerStateShutdownParam.CAN_SLEEP);
         assertStateReceivedForShutdownOrSleepWithPostpone(PowerHalService.SET_DEEP_SLEEP_ENTRY, 0);
         assertThat(mCarPowerManager.getPowerState())
                 .isEqualTo(PowerHalService.SET_DEEP_SLEEP_ENTRY);
@@ -315,6 +318,11 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void testAddPowerPolicyListener() throws Exception {
         grantPowerPolicyPermission();
+
+        // Prepare for test
+        applyInitialPolicyForTest(/* policyName= */ "audio_off", /* enabledComponents= */
+                new String[]{}, /* disabledComponents= */ new String[]{"AUDIO"});
+
         String policyId = "audio_on_wifi_off";
         mService.definePowerPolicy(policyId, new String[]{"AUDIO"}, new String[]{"WIFI"});
         MockedPowerPolicyListener listenerAudio = new MockedPowerPolicyListener();
@@ -332,8 +340,10 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         mCarPowerManager.addPowerPolicyListener(mExecutor, filterLocation, listenerLocation);
         mCarPowerManager.applyPowerPolicy(policyId);
 
-        assertThat(listenerAudio.getCurrentPolicyId()).isEqualTo(policyId);
-        assertThat(listenerWifi.getCurrentPolicyId()).isEqualTo(policyId);
+        assertPowerPolicyId(listenerAudio, policyId, "Current policy ID of listenerAudio is not "
+                + policyId);
+        assertPowerPolicyId(listenerWifi, policyId, "Current policy ID of listenerWifi is not "
+                + policyId);
         assertThat(listenerLocation.getCurrentPolicyId()).isNull();
     }
 
@@ -372,6 +382,11 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void testRemovePowerPolicyListener() throws Exception {
         grantPowerPolicyPermission();
+
+        String initialPolicyId = "audio_off";
+        applyInitialPolicyForTest(initialPolicyId, /* enabledComponents= */
+                new String[]{}, /* disabledComponents= */ new String[]{"AUDIO"});
+
         String policyId = "audio_on_wifi_off";
         mService.definePowerPolicy(policyId, new String[]{"AUDIO"}, new String[]{"WIFI"});
         MockedPowerPolicyListener listenerOne = new MockedPowerPolicyListener();
@@ -384,8 +399,18 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         mCarPowerManager.removePowerPolicyListener(listenerOne);
         mCarPowerManager.applyPowerPolicy(policyId);
 
-        assertThat(listenerOne.getCurrentPolicyId()).isNull();
-        assertThat(listenerTwo.getCurrentPolicyId()).isEqualTo(policyId);
+        String receivedPolicyId = listenerOne.getCurrentPolicyId();
+        assertWithMessage("Policy ID received after removing listeners")
+                .that(receivedPolicyId == null || receivedPolicyId.equals(initialPolicyId))
+                .isTrue();
+        assertPowerPolicyId(listenerTwo, policyId, "Current policy ID of listenerTwo is not "
+                + policyId);
+    }
+
+    private void applyInitialPolicyForTest(String policyName, String[] enabledComponents,
+            String[] disabledComponents) {
+        mService.definePowerPolicy(policyName, enabledComponents, disabledComponents);
+        mCarPowerManager.applyPowerPolicy(policyName);
     }
 
     @Test
@@ -445,7 +470,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     /**
      * Helper to set the PowerHal state
      *
-     * @param stateEnum Requested state enum
+     * @param stateEnum  Requested state enum
      * @param stateParam Addition state parameter
      */
     private void setPowerState(int stateEnum, int stateParam) {
@@ -486,9 +511,30 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 referenceStates).inOrder();
     }
 
+    private static void assertPowerPolicyId(MockedPowerPolicyListener listener, String policyId,
+            String errorMsg) throws Exception {
+        PollingCheck.check(errorMsg, WAIT_TIMEOUT_MS,
+                () -> policyId.equals(listener.getCurrentPolicyId()));
+    }
+
+    private static boolean isCompletionAllowed(@CarPowerManager.CarPowerState int state) {
+        switch (state) {
+            case CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE:
+            case CarPowerManager.STATE_SHUTDOWN_PREPARE:
+            case CarPowerManager.STATE_SHUTDOWN_ENTER:
+            case CarPowerManager.STATE_SUSPEND_ENTER:
+            case CarPowerManager.STATE_HIBERNATION_ENTER:
+            case CarPowerManager.STATE_POST_SHUTDOWN_ENTER:
+            case CarPowerManager.STATE_POST_SUSPEND_ENTER:
+            case CarPowerManager.STATE_POST_HIBERNATION_ENTER:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private static final class MockDisplayInterface implements DisplayInterface {
-        private final Object mLock = new Object();
-        @GuardedBy("mLock")
+        @GuardedBy("sLock")
         private boolean mDisplayOn = true;
         private final Semaphore mDisplayStateWait = new Semaphore(0);
 
@@ -501,7 +547,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
 
         @Override
         public void setDisplayState(boolean on) {
-            synchronized (mLock) {
+            synchronized (sLock) {
                 mDisplayOn = on;
             }
             mDisplayStateWait.release();
@@ -509,7 +555,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
 
         public boolean waitForDisplayStateChange(long timeoutMs) throws Exception {
             JavaMockitoHelper.await(mDisplayStateWait, timeoutMs);
-            synchronized (mLock) {
+            synchronized (sLock) {
                 return mDisplayOn;
             }
         }
@@ -525,7 +571,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
 
         @Override
         public boolean isDisplayEnabled() {
-            synchronized (mLock) {
+            synchronized (sLock) {
                 return mDisplayOn;
             }
         }
@@ -580,7 +626,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                     (state, future) -> {
                         mReceivedStates.add(state);
                         mRemainingCount--;
-                        if (CarPowerManager.isCompletionAllowed(state)) {
+                        if (isCompletionAllowed(state)) {
                             assertThat(future).isNotNull();
                             future.complete();
                         } else {
@@ -601,6 +647,8 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         private final Semaphore mShutdownWait = new Semaphore(0);
         private final Semaphore mSleepWait = new Semaphore(0);
         private final Semaphore mSleepExitWait = new Semaphore(0);
+
+        @GuardedBy("sLock")
         private boolean mWakeupCausedByTimer = false;
 
         @Override
@@ -645,8 +693,10 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
             return mWakeupCausedByTimer;
         }
 
-        public synchronized void setWakeupCausedByTimer(boolean set) {
-            mWakeupCausedByTimer = set;
+        public void setWakeupCausedByTimer(boolean set) {
+            synchronized (sLock) {
+                mWakeupCausedByTimer = set;
+            }
         }
 
         @Override

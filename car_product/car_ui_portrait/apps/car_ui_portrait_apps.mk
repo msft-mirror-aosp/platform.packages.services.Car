@@ -21,6 +21,8 @@ PRODUCT_PACKAGES += \
     CarNotification \
     car-ui-lib-diagnostic-plugin \
     PaintBooth \
+    CarUiPortraitLauncher \
+    CarUiPortraitCommon
 
 # All apps to be excluded in car_ui_portrait builds should be specified as part of CarUiPortraitHideApps.
 PRODUCT_PACKAGES += \

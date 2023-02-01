@@ -17,10 +17,12 @@ package com.android.car.user;
 
 import static android.car.testapi.CarMockitoHelper.mockHandleRemoteExceptionFromCarServiceWithDefaultValue;
 import static android.car.testapi.CarTestingHelper.getResult;
+import static android.os.UserHandle.SYSTEM;
 import static android.os.UserHandle.USER_SYSTEM;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -33,7 +35,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.testng.Assert.assertThrows;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -43,6 +44,7 @@ import android.car.ICarUserService;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.util.UserTestingHelper;
 import android.car.user.CarUserManager;
+import android.car.user.CarUserManager.UserHandleSwitchUiCallback;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.CarUserManager.UserSwitchUiCallback;
 import android.car.user.UserCreationResult;
@@ -136,7 +138,7 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     }
 
     @Test
-    public void testIsValidUser_headlessSystemUser() {
+    public void testIsValidUserId_headlessSystemUser() {
         mockIsHeadlessSystemUserMode(true);
         setExistingUsers(USER_SYSTEM);
 
@@ -144,7 +146,15 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     }
 
     @Test
-    public void testIsValidUser_nonHeadlessSystemUser() {
+    public void testIsValidUser_headlessSystemUser() {
+        mockIsHeadlessSystemUserMode(true);
+        setExistingUsers(USER_SYSTEM);
+
+        assertThat(mMgr.isValidUser(SYSTEM)).isFalse();
+    }
+
+    @Test
+    public void testIsValidUserId_nonHeadlessSystemUser() {
         mockIsHeadlessSystemUserMode(false);
         setExistingUsers(USER_SYSTEM);
 
@@ -152,24 +162,53 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     }
 
     @Test
-    public void testIsValidUser_found() {
-        setExistingUsers(1, 2, 3);
+    public void testIsValidUser_nonHeadlessSystemUser() {
+        mockIsHeadlessSystemUserMode(false);
+        setExistingUsers(USER_SYSTEM);
 
-        assertThat(mMgr.isValidUser(1)).isTrue();
-        assertThat(mMgr.isValidUser(2)).isTrue();
-        assertThat(mMgr.isValidUser(3)).isTrue();
+        assertThat(mMgr.isValidUser(SYSTEM)).isTrue();
     }
 
     @Test
-    public void testIsValidUser_notFound() {
+    public void testIsValidUserId_found() {
+        setExistingUsers(1, 2, 3);
+
+        expectThat(mMgr.isValidUser(1)).isTrue();
+        expectThat(mMgr.isValidUser(2)).isTrue();
+        expectThat(mMgr.isValidUser(3)).isTrue();
+    }
+
+    @Test
+    public void testIsValidUser_found() {
+        setExistingUsers(1, 2, 3);
+
+        expectThat(mMgr.isValidUser(UserHandle.of(1))).isTrue();
+        expectThat(mMgr.isValidUser(UserHandle.of(2))).isTrue();
+        expectThat(mMgr.isValidUser(UserHandle.of(3))).isTrue();
+    }
+
+    @Test
+    public void testIsValidUserId_notFound() {
         setExistingUsers(1, 2, 3);
 
         assertThat(mMgr.isValidUser(4)).isFalse();
     }
 
     @Test
-    public void testIsValidUser_emptyUsers() {
+    public void testIsValidUser_notFound() {
+        setExistingUsers(1, 2, 3);
+
+        assertThat(mMgr.isValidUser(UserHandle.of(4))).isFalse();
+    }
+
+    @Test
+    public void testIsValidUserId_emptyUsers() {
         assertThat(mMgr.isValidUser(666)).isFalse();
+    }
+
+    @Test
+    public void testIsValidUser_emptyUsers() {
+        assertThat(mMgr.isValidUser(UserHandle.of(666))).isFalse();
     }
 
     @Test
@@ -343,8 +382,8 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     }
 
     @Test
-    public void testSetSwitchUserUICallback_success() throws Exception {
-        UserSwitchUiCallback callback = (u)-> { };
+    public void testSetSwitchUserIdUICallback_success() throws Exception {
+        UserSwitchUiCallback callback = (u)-> {};
 
         mMgr.setUserSwitchUiCallback(callback);
 
@@ -357,9 +396,18 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     }
 
     @Test
+    public void testSetSwitchUserUICallback_success() throws Exception {
+        UserHandleSwitchUiCallback callback = (u)-> {};
+
+        mMgr.setUserSwitchUiCallback(Runnable::run, callback);
+
+        verify(mService).setUserSwitchUiCallback(any());
+    }
+
+    @Test
     public void testCreateUser_success() throws Exception {
         expectServiceCreateUserSucceeds("dude", UserManager.USER_TYPE_FULL_SECONDARY, 42,
-                UserCreationResult.STATUS_SUCCESSFUL, 108);
+                UserCreationResult.STATUS_SUCCESSFUL);
 
         AsyncFuture<UserCreationResult> future = mMgr.createUser("dude", 42);
         assertThat(future).isNotNull();
@@ -407,7 +455,7 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     @Test
     public void testCreateGuest_success() throws Exception {
         expectServiceCreateUserSucceeds("dudeGuest", UserManager.USER_TYPE_FULL_GUEST, 0,
-                UserCreationResult.STATUS_SUCCESSFUL, 108);
+                UserCreationResult.STATUS_SUCCESSFUL);
 
         AsyncFuture<UserCreationResult> future = mMgr.createGuest("dudeGuest");
         assertThat(future).isNotNull();
@@ -655,7 +703,7 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
 
     private void expectServiceCreateUserSucceeds(@Nullable String name,
             @NonNull String userType, @UserInfoFlag int flags,
-            @UserCreationResult.Status int status, @UserIdInt int userId) throws RemoteException {
+            @UserCreationResult.Status int status) throws RemoteException {
         doAnswer((invocation) -> {
             @SuppressWarnings("unchecked")
             AndroidFuture<UserCreationResult> future =

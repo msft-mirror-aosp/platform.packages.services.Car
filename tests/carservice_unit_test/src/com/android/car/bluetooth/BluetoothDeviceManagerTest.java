@@ -68,7 +68,6 @@ import java.util.List;
 @RequiresDevice
 @RunWith(MockitoJUnitRunner.class)
 public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetoothTestCase {
-    private static final int CONNECT_LATENCY_MS = 100;
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int ADAPTER_STATE_ANY = 0;
     private static final int ADAPTER_STATE_OFF = 1;
@@ -103,8 +102,11 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
     BluetoothDeviceManager mDeviceManager;
 
     // Tests assume the auto connecting devices only support MAP
-    private final String mConnectionAction =
+    private static final String CONNECTION_STATE =
             "android.bluetooth.mapmce.profile.action.CONNECTION_STATE_CHANGED";
+
+    private ParcelUuid[] mLocalUuids = new ParcelUuid[] {
+            BluetoothUuid.MAP, BluetoothUuid.MNS};
     private ParcelUuid[] mUuids = new ParcelUuid[] {
             BluetoothUuid.MAS};
 
@@ -131,6 +133,7 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
 
         mMockContext.addMockedSystemService(BluetoothManager.class, mMockBluetoothManager);
         when(mMockBluetoothManager.getAdapter()).thenReturn(mMockBluetoothAdapter);
+        when(mMockBluetoothAdapter.getUuidsList()).thenReturn(Arrays.asList(mLocalUuids));
 
         /**
          * Mocks {@link BluetoothAdapter#getRemoteDevice(boolean)}
@@ -182,8 +185,7 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
 
     private String getSettingsDeviceList() {
         String devices = Settings.Secure.getString(mMockContext.getContentResolver(), mSettingsKey);
-        if (devices == null) devices = "";
-        return devices;
+        return devices == null ? "" : devices;
     }
 
     private ArrayList<BluetoothDevice> makeDeviceList(List<String> addresses) {
@@ -248,23 +250,15 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
         mMockContext.sendBroadcast(intent);
     }
 
-    private void sendDeviceUuids(BluetoothDevice device, ParcelUuid[] uuids) {
-        Assert.assertTrue(mMockContext != null);
-        Intent intent = new Intent(BluetoothDevice.ACTION_UUID);
-        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
-        intent.putExtra(BluetoothDevice.EXTRA_UUID, uuids);
-        mMockContext.sendBroadcast(intent);
-    }
-
     private void sendConnectionStateChanged(BluetoothDevice device, int newState) {
         Assert.assertTrue(mMockContext != null);
-        Intent intent = new Intent(mConnectionAction);
+        Intent intent = new Intent(CONNECTION_STATE);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
         intent.putExtra(BluetoothProfile.EXTRA_STATE, newState);
         mMockContext.sendBroadcast(intent);
     }
 
-    private synchronized void assertSettingsContains(String expected) {
+    private void assertSettingsContains(String expected) {
         Assert.assertTrue(expected != null);
         String settings = getSettingsDeviceList();
         if (settings == null) settings = "";
@@ -558,7 +552,6 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
     @Test
     public void testGetConnectionPriority_prioritiesReturned() {
         setPreconditionsAndStart(ADAPTER_STATE_ANY, EMPTY_SETTINGS_STRING, SMALL_DEVICE_LIST);
-        ArrayList<BluetoothDevice> devices = makeDeviceList(SMALL_DEVICE_LIST);
         for (int i = 0; i < mDeviceList.size(); i++) {
             BluetoothDevice device = mDeviceList.get(i);
             int priority = mDeviceManager.getDeviceConnectionPriority(device);

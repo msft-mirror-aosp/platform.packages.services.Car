@@ -15,6 +15,7 @@
  */
 package com.android.car.audio;
 
+import static com.android.car.audio.hal.HalAudioGainCallback.reasonToString;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
@@ -23,8 +24,11 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.car.builtin.util.Slogf;
 import android.car.media.CarAudioManager;
+import android.car.media.CarVolumeGroupInfo;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.os.UserHandle;
+import android.util.ArrayMap;
 import android.util.SparseArray;
 
 import com.android.car.CarLog;
@@ -37,9 +41,8 @@ import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 /**
  * A class encapsulates a volume group in car.
@@ -49,6 +52,8 @@ import java.util.Map;
  * supported in a car.
  */
 /* package */ final class CarVolumeGroup {
+
+    public static final int UNINITIALIZED = -1;
 
     private final boolean mUseCarVolumeGroupMute;
     private final boolean mHasCriticalAudioContexts;
@@ -60,36 +65,81 @@ import java.util.Map;
     private final int mStepSize;
     private final int mZoneId;
     private final SparseArray<String> mContextToAddress;
-    private final Map<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
+    private final ArrayMap<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
 
     private final Object mLock = new Object();
+    private final CarAudioContext mCarAudioContext;
 
     @GuardedBy("mLock")
     private int mStoredGainIndex;
+
     @GuardedBy("mLock")
-    private int mCurrentGainIndex = -1;
+    private int mCurrentGainIndex = UNINITIALIZED;
+
     @GuardedBy("mLock")
     private boolean mIsMuted;
     @GuardedBy("mLock")
     private @UserIdInt int mUserId = UserHandle.CURRENT.getIdentifier();
 
-    private CarVolumeGroup(int zoneId, int id, CarAudioSettings settingsManager, int stepSize,
-            int defaultGain, int minGain, int maxGain, SparseArray<String> contextToAddress,
-            Map<String, CarAudioDeviceInfo> addressToCarAudioDeviceInfo,
-            boolean useCarVolumeGroupMute) {
+    /**
+     * Attenuated gain is set to {@see CarAudioDeviceInfo#UNINITIALIZED} till attenuation explicitly
+     * reported by {@see HalAudioGainCallback#onAudioDeviceGainsChanged} for one or more {@see
+     * android.hardware.automotive.audiocontrol#Reasons}. When the reason is cleared, it returns
+     * back to {@see CarAudioDeviceInfo#UNINITIALIZED}.
+     */
+    @GuardedBy("mLock")
+    private int mAttenuatedGainIndex = UNINITIALIZED;
+
+    /**
+     * Limitation gain is set to max gain value till limitation explicitly reported by {@see
+     * HalAudioGainCallback#onAudioDeviceGainsChanged} for one or more {@see
+     * android.hardware.automotive.audiocontrol#Reasons}. When the reason is cleared, it returns
+     * back to max.
+     */
+    @GuardedBy("mLock")
+    private int mLimitedGainIndex;
+
+    /**
+     * Blocked gain is set to {@see CarAudioDeviceInfo#UNINITIALIZED} till blocking case explicitly
+     * reported by {@see HalAudioGainCallback#onAudioDeviceGainsChanged} for one or more {@see
+     * android.hardware.automotive.audiocontrol#Reasons}. When the reason is cleared, it returns
+     * back to {@see CarAudioDeviceInfo#UNINITIALIZED}.
+     */
+    @GuardedBy("mLock")
+    private int mBlockedGainIndex = UNINITIALIZED;
+
+    /**
+     * Reasons list currently reported for this port by {@see
+     * HalAudioGainCallback#onAudioDeviceGainsChanged}.
+     */
+    private List<Integer> mReasons = new ArrayList<>();
+
+    private CarVolumeGroup(CarAudioContext carAudioContext, CarAudioSettings settingsManager,
+            SparseArray<String> contextToAddress, ArrayMap<String,
+            CarAudioDeviceInfo> addressToCarAudioDeviceInfo, int zoneId, int id, int stepSize,
+            int defaultGain, int minGain, int maxGain, boolean useCarVolumeGroupMute) {
 
         mSettingsManager = settingsManager;
+        mContextToAddress = contextToAddress;
+        mAddressToCarAudioDeviceInfo = addressToCarAudioDeviceInfo;
+        mCarAudioContext = carAudioContext;
         mZoneId = zoneId;
         mId = id;
         mStepSize = stepSize;
         mDefaultGain = defaultGain;
         mMinGain = minGain;
         mMaxGain = maxGain;
-        mContextToAddress = contextToAddress;
-        mAddressToCarAudioDeviceInfo = addressToCarAudioDeviceInfo;
+        mLimitedGainIndex = getIndexForGain(mMaxGain);
         mUseCarVolumeGroupMute = useCarVolumeGroupMute;
+        List<AudioAttributes> volumeAttributes = new ArrayList<>();
+        for (int index = 0; index <  contextToAddress.size(); index++) {
+            int context = contextToAddress.keyAt(index);
+            List<AudioAttributes> audioAttributes =
+                    Arrays.asList(mCarAudioContext.getAudioAttributesForContext(context));
+            volumeAttributes.addAll(audioAttributes);
+        }
 
-        mHasCriticalAudioContexts = containsCriticalAudioContext(contextToAddress);
+        mHasCriticalAudioContexts = containsCriticalAttributes(volumeAttributes);
     }
 
     void init() {
@@ -97,6 +147,121 @@ import java.util.Map;
             mStoredGainIndex = mSettingsManager.getStoredVolumeGainIndexForUser(
                     mUserId, mZoneId, mId);
             updateCurrentGainIndexLocked();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void setBlockedLocked(int blockedIndex) {
+        mBlockedGainIndex = blockedIndex;
+    }
+
+    @GuardedBy("mLock")
+    private void resetBlockedLocked() {
+        setBlockedLocked(UNINITIALIZED);
+    }
+
+    @GuardedBy("mLock")
+    private boolean isBlockedLocked() {
+        return mBlockedGainIndex != UNINITIALIZED;
+    }
+
+    @GuardedBy("mLock")
+    private void setLimitLocked(int limitIndex) {
+        mLimitedGainIndex = limitIndex;
+    }
+
+    @GuardedBy("mLock")
+    private void resetLimitLocked() {
+        setLimitLocked(getIndexForGain(mMaxGain));
+    }
+
+    @GuardedBy("mLock")
+    private boolean isLimitedLocked() {
+        return mLimitedGainIndex != getIndexForGain(mMaxGain);
+    }
+
+    @GuardedBy("mLock")
+    private boolean isOverLimitLocked() {
+        return isOverLimitLocked(mCurrentGainIndex);
+    }
+
+    @GuardedBy("mLock")
+    private boolean isOverLimitLocked(int index) {
+        return isLimitedLocked() && (index > mLimitedGainIndex);
+    }
+
+    @GuardedBy("mLock")
+    private void setAttenuatedGainLocked(int attenuatedGainIndex) {
+        mAttenuatedGainIndex = attenuatedGainIndex;
+    }
+
+    @GuardedBy("mLock")
+    private void resetAttenuationLocked() {
+        setAttenuatedGainLocked(UNINITIALIZED);
+    }
+
+    @GuardedBy("mLock")
+    private boolean isAttenuatedLocked() {
+        return mAttenuatedGainIndex != UNINITIALIZED;
+    }
+
+    void setBlocked(int blockedIndex) {
+        synchronized (mLock) {
+            setBlockedLocked(blockedIndex);
+        }
+    }
+
+    void resetBlocked() {
+        synchronized (mLock) {
+            resetBlockedLocked();
+        }
+    }
+
+    boolean isBlocked() {
+        synchronized (mLock) {
+            return isBlockedLocked();
+        }
+    }
+
+    void setLimit(int limitIndex) {
+        synchronized (mLock) {
+            setLimitLocked(limitIndex);
+        }
+    }
+
+    void resetLimit() {
+        synchronized (mLock) {
+            resetLimitLocked();
+        }
+    }
+
+    boolean isLimited() {
+        synchronized (mLock) {
+            return isLimitedLocked();
+        }
+    }
+
+    boolean isOverLimit() {
+        synchronized (mLock) {
+            return isOverLimitLocked();
+        }
+    }
+
+    void setAttenuatedGain(int attenuatedGainIndex) {
+        synchronized (mLock) {
+            setAttenuatedGainLocked(attenuatedGainIndex);
+        }
+    }
+
+    void resetAttenuation() {
+        synchronized (mLock) {
+            resetAttenuationLocked();
+        }
+    }
+
+    boolean isAttenuated() {
+        synchronized (mLock) {
+            return isAttenuatedLocked();
         }
     }
 
@@ -175,6 +340,21 @@ import java.util.Map;
             if (mIsMuted) {
                 return getIndexForGain(mMinGain);
             }
+            if (isBlockedLocked()) {
+                return mBlockedGainIndex;
+            }
+            if (isAttenuatedLocked()) {
+                // Need to figure out if attenuation shall be hidden to end user
+                // as while ducked from IAudioControl
+                // Also, keep unchanged current index / use it as a cache of previous value
+                //
+                // TODO(b/) clarify in case of volume adjustment if the reference index is the
+                // ducked index or the current index. Taking current may lead to gap of index > 1.
+                return mAttenuatedGainIndex;
+            }
+            if (isOverLimitLocked()) {
+                return mLimitedGainIndex;
+            }
             return getCurrentGainIndexLocked();
         }
     }
@@ -191,24 +371,38 @@ import java.util.Map;
         Preconditions.checkArgument(isValidGainIndex(gainIndex),
                 "Gain out of range (%d:%d) index %d", mMinGain, mMaxGain, gainIndex);
         synchronized (mLock) {
+            int currentgainIndex = gainIndex;
+            if (isBlockedLocked()) {
+                // prevent any volume change while {@link IAudioGainCallback} reported block event.
+                // TODO(b/) callback mecanism to inform HMI/User of failure and reason why if needed
+                return;
+            }
+            if (isOverLimitLocked(currentgainIndex)) {
+                // TODO(b/) callback to inform if over limit index and why if needed.
+                currentgainIndex = mLimitedGainIndex;
+            }
+            if (isAttenuatedLocked()) {
+                resetAttenuationLocked();
+            }
             if (mIsMuted) {
                 setMuteLocked(false);
             }
-            setCurrentGainIndexLocked(gainIndex);
+            // In case of attenuation/Limitation, requested index is now the new reference for
+            // cached current index.
+            mCurrentGainIndex = currentgainIndex;
+
+            setCurrentGainIndexLocked(mCurrentGainIndex);
         }
     }
 
     @GuardedBy("mLock")
     private void setCurrentGainIndexLocked(int gainIndex) {
         int gainInMillibels = getGainForIndex(gainIndex);
-        for (String address : mAddressToCarAudioDeviceInfo.keySet()) {
-            CarAudioDeviceInfo info = mAddressToCarAudioDeviceInfo.get(address);
+        for (int index = 0; index < mAddressToCarAudioDeviceInfo.size(); index++) {
+            CarAudioDeviceInfo info = mAddressToCarAudioDeviceInfo.valueAt(index);
             info.setCurrentGain(gainInMillibels);
         }
-
-        mCurrentGainIndex = gainIndex;
-
-        storeGainIndexForUserLocked(mCurrentGainIndex, mUserId);
+        storeGainIndexForUserLocked(gainIndex, mUserId);
     }
 
     boolean hasCriticalAudioContexts() {
@@ -240,16 +434,40 @@ import java.util.Map;
             writer.printf("Gain values (min / max / default/ current): %d %d %d %d\n", mMinGain,
                     mMaxGain, mDefaultGain, getGainForIndex(mCurrentGainIndex));
             writer.printf("Gain indexes (min / max / default / current): %d %d %d %d\n",
-                    getMinGainIndex(), getMaxGainIndex(), getDefaultGainIndex(), mCurrentGainIndex);
+                    getMinGainIndex(), getMaxGainIndex(), getIndexForGain(mDefaultGain),
+                    mCurrentGainIndex);
             for (int i = 0; i < mContextToAddress.size(); i++) {
                 writer.printf("Context: %s -> Address: %s\n",
-                        CarAudioContext.toString(mContextToAddress.keyAt(i)),
+                        mCarAudioContext.toString(mContextToAddress.keyAt(i)),
                         mContextToAddress.valueAt(i));
             }
-            mAddressToCarAudioDeviceInfo.keySet().stream()
-                    .map(mAddressToCarAudioDeviceInfo::get)
-                    .forEach((info -> info.dump(writer)));
-
+            for (int i = 0; i < mAddressToCarAudioDeviceInfo.size(); i++) {
+                String address = mAddressToCarAudioDeviceInfo.keyAt(i);
+                CarAudioDeviceInfo info = mAddressToCarAudioDeviceInfo.get(address);
+                info.dump(writer);
+            }
+            writer.printf("Reported reasons:\n");
+            writer.increaseIndent();
+            for (int index = 0; index < mReasons.size(); index++) {
+                int reason = mReasons.get(index);
+                writer.printf("%s\n", reasonToString(reason));
+            }
+            writer.decreaseIndent();
+            writer.printf("Gain infos:\n");
+            writer.increaseIndent();
+            writer.printf(
+                    "Blocked: %b%s\n",
+                    isBlockedLocked(),
+                    (isBlockedLocked() ? " (at: " + mBlockedGainIndex + ")" : ""));
+            writer.printf(
+                    "Limited: %b%s\n",
+                    isLimitedLocked(),
+                    (isLimitedLocked() ? " (at: " + mLimitedGainIndex + ")" : ""));
+            writer.printf(
+                    "Attenuated: %b%s\n",
+                    isAttenuatedLocked(),
+                    (isAttenuatedLocked() ? " (at: " + mAttenuatedGainIndex + ")" : ""));
+            writer.decreaseIndent();
             // Empty line for comfortable reading
             writer.println();
             writer.decreaseIndent();
@@ -288,10 +506,9 @@ import java.util.Map;
         }
     }
 
-    private static boolean containsCriticalAudioContext(SparseArray<String> contextToAddress) {
-        for (int i = 0; i < contextToAddress.size(); i++) {
-            int audioContext = contextToAddress.keyAt(i);
-            if (CarAudioContext.isCriticalAudioContext(audioContext)) {
+    private static boolean containsCriticalAttributes(List<AudioAttributes> volumeAttributes) {
+        for (int index = 0; index < volumeAttributes.size(); index++) {
+            if (CarAudioContext.isCriticalAudioAudioAttribute(volumeAttributes.get(index))) {
                 return true;
             }
         }
@@ -330,12 +547,6 @@ import java.util.Map;
                 && gainIndex <= getIndexForGain(mMaxGain);
     }
 
-    private int getDefaultGainIndex() {
-        synchronized (mLock) {
-            return getIndexForGain(mDefaultGain);
-        }
-    }
-
     @GuardedBy("mLock")
     private void storeGainIndexForUserLocked(int gainIndex, @UserIdInt int userId) {
         mSettingsManager.storeVolumeGainIndexForUser(userId,
@@ -362,6 +573,82 @@ import java.util.Map;
         mIsMuted = mSettingsManager.getVolumeGroupMuteForUser(mUserId, mZoneId, mId);
     }
 
+    void onAudioGainChanged(List<Integer> halReasons, CarAudioGainConfigInfo gain) {
+        if (getCarAudioDeviceInfoForAddress(gain.getDeviceAddress()) == null) {
+            Slogf.e(CarLog.TAG_AUDIO,
+                    "onAudioGainChanged no port found for address %s on group %d",
+                    gain.getDeviceAddress(),
+                    mId);
+            return;
+        }
+        synchronized (mLock) {
+            mReasons = new ArrayList<>(halReasons);
+            int halIndex = gain.getVolumeIndex();
+            if (CarAudioGainMonitor.shouldBlockVolumeRequest(halReasons)) {
+                setBlockedLocked(halIndex);
+            } else {
+                resetBlockedLocked();
+            }
+            if (CarAudioGainMonitor.shouldLimitVolume(halReasons)) {
+                setLimitLocked(halIndex);
+            } else {
+                resetLimitLocked();
+            }
+            if (CarAudioGainMonitor.shouldDuckGain(halReasons)) {
+                setAttenuatedGainLocked(halIndex);
+            } else {
+                resetAttenuationLocked();
+            }
+            int indexToBroadCast = mCurrentGainIndex;
+            if (isBlockedLocked()) {
+                indexToBroadCast = mBlockedGainIndex;
+            } else if (isAttenuatedLocked()) {
+                indexToBroadCast = mAttenuatedGainIndex;
+            } else if (isOverLimitLocked()) {
+                // TODO(b/) callback to inform if over limit index and why if needed.
+                indexToBroadCast = mLimitedGainIndex;
+            }
+            // Blocked/Attenuated index shall have been already apply by Audio HAL on HW.
+            // However, keep in sync & broadcast to all ports this volume group deals with.
+            //
+            // Do not update current gain cache, keep it for restoring rather using reported index
+            // when the event is cleared.
+            setCurrentGainIndexLocked(indexToBroadCast);
+        }
+    }
+
+    CarVolumeGroupInfo getCarVolumeGroupInfo() {
+        int gainIndex;
+        boolean isMuted;
+        boolean isBlocked;
+        boolean isAttenuated;
+        synchronized (mLock) {
+            gainIndex = mCurrentGainIndex;
+            isMuted = mIsMuted;
+            isBlocked = isBlockedLocked();
+            isAttenuated = isAttenuatedLocked();
+        }
+
+        return new CarVolumeGroupInfo.Builder("group id " + mId, mZoneId, mId)
+                .setVolumeGainIndex(gainIndex).setMaxVolumeGainIndex(getMaxGainIndex())
+                .setMinVolumeGainIndex(getMinGainIndex()).setMuted(isMuted).setBlocked(isBlocked)
+                .setAttenuated(isAttenuated).build();
+    }
+
+    List<AudioAttributes> getAudioAttributes() {
+        List<AudioAttributes> audioAttributes = new ArrayList<>();
+        for (int index = 0; index < mContextToAddress.size(); index++) {
+            int context = mContextToAddress.keyAt(index);
+            AudioAttributes[] contextAttributes =
+                    mCarAudioContext.getAudioAttributesForContext(context);
+            for (int attrIndex = 0; attrIndex < contextAttributes.length; attrIndex++) {
+                audioAttributes.add(contextAttributes[attrIndex]);
+            }
+        }
+
+        return audioAttributes;
+    }
+
     static final class Builder {
         private static final int UNSET_STEP_SIZE = -1;
 
@@ -370,8 +657,9 @@ import java.util.Map;
         private final boolean mUseCarVolumeGroupMute;
         private final CarAudioSettings mCarAudioSettings;
         private final SparseArray<String> mContextToAddress = new SparseArray<>();
-        private final Map<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo =
-                new HashMap<>();
+        private final CarAudioContext mCarAudioContext;
+        private final ArrayMap<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo =
+                new ArrayMap<>();
 
         @VisibleForTesting
         int mStepSize = UNSET_STEP_SIZE;
@@ -382,19 +670,22 @@ import java.util.Map;
         @VisibleForTesting
         int mMinGain = Integer.MAX_VALUE;
 
-        Builder(int zoneId, int id, CarAudioSettings carAudioSettings,
-                boolean useCarVolumeGroupMute) {
+        Builder(CarAudioSettings carAudioSettings, CarAudioContext carAudioContext,
+                int zoneId, int id, boolean useCarVolumeGroupMute) {
+            mCarAudioSettings = Objects.requireNonNull(carAudioSettings,
+                    "Car audio settings can not be null");
+            mCarAudioContext = Objects.requireNonNull(carAudioContext,
+                    "Car audio context can not be null");
             mZoneId = zoneId;
             mId = id;
-            mCarAudioSettings = carAudioSettings;
             mUseCarVolumeGroupMute = useCarVolumeGroupMute;
         }
 
-        Builder setDeviceInfoForContext(int carAudioContext, CarAudioDeviceInfo info) {
-            Preconditions.checkArgument(mContextToAddress.get(carAudioContext) == null,
+        Builder setDeviceInfoForContext(int carAudioContextId, CarAudioDeviceInfo info) {
+            Preconditions.checkArgument(mContextToAddress.get(carAudioContextId) == null,
                     "Context %s has already been set to %s",
-                    CarAudioContext.toString(carAudioContext),
-                    mContextToAddress.get(carAudioContext));
+                    mCarAudioContext.toString(carAudioContextId),
+                    mContextToAddress.get(carAudioContextId));
 
             if (mAddressToCarAudioDeviceInfo.isEmpty()) {
                 mStepSize = info.getStepValue();
@@ -405,7 +696,7 @@ import java.util.Map;
             }
 
             mAddressToCarAudioDeviceInfo.put(info.getAddress(), info);
-            mContextToAddress.put(carAudioContext, info.getAddress());
+            mContextToAddress.put(carAudioContextId, info.getAddress());
 
             if (info.getDefaultGain() > mDefaultGain) {
                 // We're arbitrarily selecting the highest
@@ -425,9 +716,9 @@ import java.util.Map;
         CarVolumeGroup build() {
             Preconditions.checkArgument(mStepSize != UNSET_STEP_SIZE,
                     "setDeviceInfoForContext has to be called at least once before building");
-            CarVolumeGroup group = new CarVolumeGroup(mZoneId, mId, mCarAudioSettings, mStepSize,
-                    mDefaultGain, mMinGain, mMaxGain, mContextToAddress,
-                    mAddressToCarAudioDeviceInfo, mUseCarVolumeGroupMute);
+            CarVolumeGroup group = new CarVolumeGroup(mCarAudioContext, mCarAudioSettings,
+                    mContextToAddress, mAddressToCarAudioDeviceInfo, mZoneId, mId, mStepSize,
+                    mDefaultGain, mMinGain, mMaxGain, mUseCarVolumeGroupMute);
             group.init();
             return group;
         }

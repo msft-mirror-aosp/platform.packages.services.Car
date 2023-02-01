@@ -11,15 +11,29 @@ package android.car.builtin {
 
 }
 
+package android.car.builtin.annotation {
+
+  public enum PlatformVersion {
+    enum_constant public static final android.car.builtin.annotation.PlatformVersion TIRAMISU_0;
+    enum_constant public static final android.car.builtin.annotation.PlatformVersion TIRAMISU_1;
+    enum_constant public static final android.car.builtin.annotation.PlatformVersion TIRAMISU_2;
+    enum_constant public static final android.car.builtin.annotation.PlatformVersion TIRAMISU_3;
+    enum_constant public static final android.car.builtin.annotation.PlatformVersion UPSIDE_DOWN_CAKE_0;
+  }
+
+}
+
 package android.car.builtin.app {
 
   public final class ActivityManagerHelper {
     method public static int checkComponentPermission(@NonNull String, int, int, boolean);
     method @NonNull public static android.app.ActivityOptions createActivityOptions(@NonNull android.os.Bundle);
+    method public static java.util.List<android.app.ActivityManager.RunningTaskInfo> getTasks(int, boolean, boolean, int);
     method public static void registerProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
     method public static boolean removeTask(int);
     method public static void setFocusedRootTask(int);
     method public static boolean startUserInBackground(int);
+    method public static boolean startUserInBackgroundVisibleOnDisplay(int, int);
     method public static boolean startUserInForeground(int);
     method public static void stopAllTasksForUser(int);
     method public static int stopUserWithDelayedLocking(int, boolean);
@@ -39,6 +53,7 @@ package android.car.builtin.app {
   }
 
   public class TaskInfoHelper {
+    method @NonNull public static android.graphics.Rect getBounds(@NonNull android.app.TaskInfo);
     method public static int getDisplayId(@NonNull android.app.TaskInfo);
     method public static int getUserId(@NonNull android.app.TaskInfo);
     method public static boolean isVisible(@NonNull android.app.TaskInfo);
@@ -62,6 +77,32 @@ package android.car.builtin.bluetooth {
 
 }
 
+package android.car.builtin.bluetooth.le {
+
+  public final class AdvertisingSetCallbackHelper {
+    method public static android.bluetooth.le.AdvertisingSetCallback createRealCallbackFromProxy(@NonNull android.car.builtin.bluetooth.le.AdvertisingSetCallbackHelper.Callback);
+  }
+
+  public abstract static class AdvertisingSetCallbackHelper.Callback {
+    ctor public AdvertisingSetCallbackHelper.Callback();
+    method public void onAdvertisingDataSet(android.bluetooth.le.AdvertisingSet, int);
+    method public void onAdvertisingEnabled(android.bluetooth.le.AdvertisingSet, boolean, int);
+    method public void onAdvertisingParametersUpdated(android.bluetooth.le.AdvertisingSet, int, int);
+    method public void onAdvertisingSetStarted(android.bluetooth.le.AdvertisingSet, int, int);
+    method public void onAdvertisingSetStopped(android.bluetooth.le.AdvertisingSet);
+    method public void onOwnAddressRead(android.bluetooth.le.AdvertisingSet, int, String);
+    method public void onPeriodicAdvertisingDataSet(android.bluetooth.le.AdvertisingSet, int);
+    method public void onPeriodicAdvertisingEnabled(android.bluetooth.le.AdvertisingSet, boolean, int);
+    method public void onPeriodicAdvertisingParametersUpdated(android.bluetooth.le.AdvertisingSet, int);
+    method public void onScanResponseDataSet(android.bluetooth.le.AdvertisingSet, int);
+  }
+
+  public final class AdvertisingSetHelper {
+    method @RequiresPermission(allOf={android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_PRIVILEGED}) public static void getOwnAddress(@NonNull android.bluetooth.le.AdvertisingSet);
+  }
+
+}
+
 package android.car.builtin.content {
 
   public final class ContextHelper {
@@ -74,12 +115,14 @@ package android.car.builtin.content {
 package android.car.builtin.content.pm {
 
   public final class PackageManagerHelper {
+    method public static void forceStopPackageAsUser(@NonNull android.content.Context, @NonNull String, int);
     method public static int getApplicationEnabledSettingForUser(@NonNull String, int) throws android.os.RemoteException;
     method public static android.content.ComponentName getComponentName(android.content.pm.ComponentInfo);
     method @Nullable public static String[] getNamesForUids(@NonNull android.content.pm.PackageManager, int[]);
     method public static android.content.pm.PackageInfo getPackageInfoAsUser(@NonNull android.content.pm.PackageManager, @NonNull String, int, int) throws android.content.pm.PackageManager.NameNotFoundException;
     method public static int getPackageUidAsUser(@NonNull android.content.pm.PackageManager, @NonNull String, int) throws android.content.pm.PackageManager.NameNotFoundException;
     method @NonNull public static String getSystemUiPackageName(@NonNull android.content.Context);
+    method @NonNull public static android.content.ComponentName getSystemUiServiceComponent(@NonNull android.content.Context);
     method public static boolean isOdmApp(@NonNull android.content.pm.ApplicationInfo);
     method public static boolean isOemApp(@NonNull android.content.pm.ApplicationInfo);
     method public static boolean isProductApp(@NonNull android.content.pm.ApplicationInfo);
@@ -179,9 +222,16 @@ package android.car.builtin.os {
     method public static void writeBlob(@NonNull android.os.Parcel, @Nullable byte[]);
   }
 
+  public final class ProcessHelper {
+    field public static final int THREAD_GROUP_DEFAULT = -1; // 0xffffffff
+    field public static final int THREAD_GROUP_FOREGROUND = 1; // 0x1
+    field public static final int THREAD_GROUP_TOP_APP = 5; // 0x5
+  }
+
   public final class ServiceManagerHelper {
     method public static void addService(@NonNull String, @NonNull android.os.IBinder);
     method @Nullable public static android.os.IBinder checkService(@NonNull String);
+    method @Nullable public static String[] getDeclaredInstances(@NonNull String);
     method @Nullable public static android.os.IBinder getService(@NonNull String);
     method @Nullable public static android.os.IBinder waitForDeclaredService(@NonNull String);
   }
@@ -202,12 +252,16 @@ package android.car.builtin.os {
     method @NonNull public static String getDefaultUserName(@NonNull android.content.Context);
     method public static String getDefaultUserTypeForUserInfoFlags(int);
     method public static int getMaxRunningUsers(@NonNull android.content.Context);
+    method public static int getMaxSupportedUsers(@NonNull android.content.Context);
     method @NonNull public static java.util.List<android.os.UserHandle> getUserHandles(@NonNull android.os.UserManager, boolean, boolean, boolean);
     method public static int getUserId(int);
     method public static boolean isEnabledUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method public static boolean isEphemeralUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
+    method public static boolean isFullUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
+    method public static boolean isGuestUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method public static boolean isInitializedUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method public static boolean isPreCreatedUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
+    method public static boolean isVisibleBackgroundUsersSupported(@NonNull android.os.UserManager);
     method public static boolean markGuestForDeletion(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method @Nullable public static android.os.UserHandle preCreateUser(@NonNull android.os.UserManager, @NonNull String);
     field public static final int FLAG_ADMIN = 2; // 0x2
@@ -289,6 +343,13 @@ package android.car.builtin.util {
     method public static void writeCarHelperUserSwitching(int, int);
     method public static void writeCarHelperUserUnlocked(int);
     method public static void writeCarHelperUserUnlocking(int);
+    method public static void writeCarInitialUserFallbackDefaultBehavior(@Nullable String);
+    method public static void writeCarInitialUserInfo(int, boolean, int, @Nullable String, int, boolean, @Nullable String);
+    method public static void writeCarInitialUserReplaceGuest(int);
+    method public static void writeCarInitialUserResetGlobalProperty(@Nullable String);
+    method public static void writeCarInitialUserSetLastActive(int);
+    method public static void writeCarInitialUserStartFgUser(int);
+    method public static void writeCarInitialUserUnlockSystemUser();
     method public static void writeCarPowerManagerStateChange(int);
     method public static void writeCarPowerManagerStateRequest(int, int);
     method public static void writeCarServiceConnected(@Nullable String);
@@ -357,6 +418,8 @@ package android.car.builtin.util {
     method public static void writeCarUserServiceSetUserAuthResp(int, @Nullable String);
     method public static void writeCarUserServiceStartUserInBackgroundReq(int);
     method public static void writeCarUserServiceStartUserInBackgroundResp(int, int);
+    method public static void writeCarUserServiceStartUserVisibeOnDisplayReq(int, int);
+    method public static void writeCarUserServiceStartUserVisibleOnDisplayResp(int, int, int);
     method public static void writeCarUserServiceStopUserReq(int);
     method public static void writeCarUserServiceStopUserResp(int, int);
     method public static void writeCarUserServiceSwitchUserFromHalReq(int, int);
@@ -426,8 +489,23 @@ package android.car.builtin.view {
     field public static final int TYPE_VIRTUAL = 5; // 0x5
   }
 
+  public final class InputEventHelper {
+    method public static void setDisplayId(@NonNull android.view.InputEvent, int);
+  }
+
   public final class KeyEventHelper {
-    method public static void setDisplayId(@NonNull android.view.KeyEvent, int);
+    method @Deprecated public static void setDisplayId(@NonNull android.view.KeyEvent, int);
+  }
+
+  public final class SurfaceControlHelper {
+    method @NonNull public static android.view.SurfaceControl mirrorSurface(@NonNull android.view.SurfaceControl);
+  }
+
+  @UiThread public final class TouchableInsetsProvider {
+    ctor public TouchableInsetsProvider(@NonNull android.view.View);
+    method public void addToViewTreeObserver();
+    method public void removeFromViewTreeObserver();
+    method public void setObscuredTouchRegion(@Nullable android.graphics.Region);
   }
 
 }

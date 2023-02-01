@@ -16,19 +16,24 @@
 
 package com.android.car;
 
+import android.annotation.IntDef;
 import android.annotation.Nullable;
+import android.car.builtin.os.BuildHelper;
 import android.car.builtin.util.Slogf;
+import android.car.hardware.property.CarPropertyManager;
 import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 
-import com.android.car.hal.HalClientCallback;
 import com.android.car.hal.HalPropConfig;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
+import com.android.car.hal.VehicleHalCallback;
+import com.android.car.hal.fakevhal.FakeVehicleStub;
 
 import java.io.FileDescriptor;
-import java.util.ArrayList;
+import java.util.List;
 
 /**
  * VehicleStub represents an IVehicle service interface in either AIDL or legacy HIDL version. It
@@ -59,6 +64,171 @@ public abstract class VehicleStub {
         void unsubscribe(int prop) throws RemoteException, ServiceSpecificException;
     }
 
+    public static final int STATUS_TRY_AGAIN = -1;
+
+    // This is same as
+    // {@link CarPropertyAsyncErrorCode} except that it contains
+    // {@code STATUS_TRY_AGAIN}.
+    @IntDef(prefix = {"STATUS_"}, value = {
+            CarPropertyManager.STATUS_OK,
+            CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR,
+            CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE,
+            CarPropertyManager.STATUS_ERROR_TIMEOUT,
+            STATUS_TRY_AGAIN
+    })
+    public @interface VehicleStubErrorCode {}
+
+    /**
+     * A request for {@link VehicleStub#getAsync} or {@link VehicleStub#setAsync}.
+     */
+    public static class AsyncGetSetRequest {
+        private final int mServiceRequestId;
+        private final HalPropValue mHalPropValue;
+        private final long mTimeoutInMs;
+
+        public int getServiceRequestId() {
+            return mServiceRequestId;
+        }
+
+        public HalPropValue getHalPropValue() {
+            return mHalPropValue;
+        }
+
+        public long getTimeoutInMs() {
+            return mTimeoutInMs;
+        }
+
+        /**
+         * Get an instance for AsyncGetSetRequest.
+         */
+        public AsyncGetSetRequest(int serviceRequestId, HalPropValue halPropValue,
+                long timeoutInMs) {
+            mServiceRequestId = serviceRequestId;
+            mHalPropValue = halPropValue;
+            mTimeoutInMs = timeoutInMs;
+        }
+    }
+
+    /**
+     * A result for {@link VehicleStub#getAsync}.
+     */
+    public static final class GetVehicleStubAsyncResult {
+        private final int mServiceRequestId;
+        @Nullable
+        private final HalPropValue mHalPropValue;
+        @VehicleStubErrorCode
+        private final int mErrorCode;
+
+        public int getServiceRequestId() {
+            return mServiceRequestId;
+        }
+
+        @Nullable
+        public HalPropValue getHalPropValue() {
+            return mHalPropValue;
+        }
+
+        @VehicleStubErrorCode
+        public int getErrorCode() {
+            return mErrorCode;
+        }
+
+        /**
+         * Constructs an instance for GetVehicleStubAsyncResult when result returned successfully.
+         */
+        public GetVehicleStubAsyncResult(int serviceRequestId, HalPropValue halPropValue) {
+            mServiceRequestId = serviceRequestId;
+            mHalPropValue = halPropValue;
+            mErrorCode = CarPropertyManager.STATUS_OK;
+        }
+
+        /**
+         * Constructs an instance for GetVehicleStubAsyncResult when error.
+         */
+        public GetVehicleStubAsyncResult(int serviceRequestId,
+                @VehicleStubErrorCode int errorCode) {
+            mServiceRequestId = serviceRequestId;
+            mHalPropValue = null;
+            mErrorCode = errorCode;
+        }
+    }
+
+    /**
+     * A result for {@link VehicleStub#setAsync}.
+     */
+    public static final class SetVehicleStubAsyncResult {
+        private final int mServiceRequestId;
+        @VehicleStubErrorCode
+        private final int mErrorCode;
+
+        public int getServiceRequestId() {
+            return mServiceRequestId;
+        }
+
+        @VehicleStubErrorCode
+        public int getErrorCode() {
+            return mErrorCode;
+        }
+
+        /**
+         * Constructs an success result.
+         */
+        public SetVehicleStubAsyncResult(int serviceRequestId) {
+            mServiceRequestId = serviceRequestId;
+            mErrorCode = CarPropertyManager.STATUS_OK;
+        }
+
+        /**
+         * Constructs an error result.
+         */
+        public SetVehicleStubAsyncResult(int serviceRequestId,
+                @VehicleStubErrorCode int errorCode) {
+            mServiceRequestId = serviceRequestId;
+            mErrorCode = errorCode;
+        }
+    }
+
+    /**
+     * A callback for asynchronous operations.
+     */
+    public abstract static class VehicleStubCallbackInterface {
+        /**
+         * Method called when {@link getAsync} returns results.
+         */
+        public abstract void onGetAsyncResults(
+                List<GetVehicleStubAsyncResult> getVehicleStubAsyncResults);
+
+        /**
+         * Method called when {@link setAsync} returns results.
+         */
+        public abstract void onSetAsyncResults(
+                List<SetVehicleStubAsyncResult> setVehicleStubAsyncResults);
+
+        /**
+         * Register a callback that will be called when the callback binder died.
+         */
+        public abstract void linkToDeath(DeathRecipient recipient) throws RemoteException;
+
+        /**
+         * Method called when async requests timed-out.
+         *
+         * If the callback's binder is already dead, this function will not be called.
+         */
+        public abstract void onRequestsTimeout(List<Integer> serviceRequestIds);
+    }
+
+    /**
+     * Gets a property asynchronously.
+     */
+    public abstract void getAsync(List<AsyncGetSetRequest> getVehicleStubAsyncRequests,
+            VehicleStubCallbackInterface getVehicleStubAsyncCallback);
+
+    /**
+     * Sets a property asynchronously.
+     */
+    public abstract void setAsync(List<AsyncGetSetRequest> setVehicleStubAsyncRequests,
+            VehicleStubCallbackInterface setVehicleStubAsyncCallback);
+
     /**
      * Checks whether we are connected to AIDL VHAL: {@code true} or HIDL VHAL: {@code false}.
      */
@@ -76,6 +246,15 @@ public abstract class VehicleStub {
     public static VehicleStub newVehicleStub() throws IllegalStateException {
         VehicleStub stub = new AidlVehicleStub();
         if (stub.isValid()) {
+            if ((BuildHelper.isUserDebugBuild() || BuildHelper.isEngBuild())
+                    && FakeVehicleStub.doesEnableFileExist()) {
+                try {
+                    return new FakeVehicleStub(stub);
+                } catch (Exception e) {
+                    Slogf.e(CarLog.TAG_SERVICE, e, "Failed to create FakeVehicleStub. "
+                            + "Fallback to using real VehicleStub.");
+                }
+            }
             return stub;
         }
 
@@ -140,10 +319,13 @@ public abstract class VehicleStub {
     /**
      * Gets a new {@code SubscriptionClient} that could be used to subscribe/unsubscribe.
      *
+     * Caller MUST unsubscribe all subscribed properties before discarding the client to prevent
+     * resource leak.
+     *
      * @param callback A callback that could be used to receive events.
      * @return a {@code SubscriptionClient} that could be used to subscribe/unsubscribe.
      */
-    public abstract SubscriptionClient newSubscriptionClient(HalClientCallback callback);
+    public abstract SubscriptionClient newSubscriptionClient(VehicleHalCallback callback);
 
     /**
      * Gets a property.
@@ -177,6 +359,22 @@ public abstract class VehicleStub {
      * @throws RemoteException if the remote operation fails.
      * @throws ServiceSpecificException if VHAL returns service specific error.
      */
-    public abstract void dump(FileDescriptor fd, ArrayList<String> args)
+    public abstract void dump(FileDescriptor fd, List<String> args)
             throws RemoteException, ServiceSpecificException;
+
+    /**
+     * Checks if fake VHAL is enabled.
+     *
+     * @return {@code true} if a FakeVehicleStub instance is created.
+     */
+    public boolean isFakeModeEnabled() {
+        return false;
+    }
+
+    /**
+     * Cancel all the on-going async requests with the given request IDs.
+     *
+     * @param requestIds a list of async get/set request IDs.
+     */
+    public void cancelRequests(List<Integer> requestIds) {}
 }

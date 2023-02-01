@@ -18,6 +18,7 @@ package android.car.settings;
 
 import android.annotation.SystemApi;
 import android.car.annotation.AddedInOrBefore;
+import android.car.annotation.ApiRequirements;
 
 /**
  * System-level, car-related settings.
@@ -42,6 +43,8 @@ public class CarSettings {
      *
      * @hide
      */
+    @SystemApi
+    @AddedInOrBefore(majorVersion = 33)
     public static final class Global {
 
         private Global() {
@@ -105,6 +108,43 @@ public class CarSettings {
         @AddedInOrBefore(majorVersion = 33)
         public static final String SYSTEM_BAR_VISIBILITY_OVERRIDE =
                 "android.car.SYSTEM_BAR_VISIBILITY_OVERRIDE";
+
+        /**
+         * Defines non-current visible users to assign per each occupant zone.
+         *
+         * <p>The value of this will be a ',' separated list of zoneId:userId. zoneId and userId
+         * should be a string of decimal integer. Example can be "1:10,2:11" where zone 1 has
+         * user 10 and zone 2 has user 11 allocated.
+         *
+         * <p>When system boots up, car service will allocate those users to the specified zones.
+         * If any entry in the value is invalid or if there are duplicate entries, the value will be
+         * ignored and no user will be assigned.
+         *
+         * @hide
+         */
+        @SystemApi
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+        public static final String GLOBAL_VISIBLE_USER_ALLOCATION_PER_ZONE =
+                "android.car.GLOBAL_VISIBLE_USER_ALLOCATION_PER_ZONE";
+
+        /**
+         * Defines passenger displays to lock their touch input.
+         *
+         * <p> The value of this will be a ',' separated list of display's unique id. For example,
+         * "local:4630946674560563248,local:4630946674560563349" with input lock enabled for both
+         * displays.
+         *
+         * <p> Input lock will be applied to those passenger displays. If any entry in the value
+         * is invalid, then the invalid entry is ignored. If there are duplicate entries, then
+         * only one entry is valid and the other duplicates are ignored.
+         * @hide
+         */
+        @SystemApi
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+        public static final String DISPLAY_INPUT_LOCK =
+                        "android.car.DISPLAY_INPUT_LOCK";
     }
 
     /**
@@ -238,5 +278,40 @@ public class CarSettings {
         @AddedInOrBefore(majorVersion = 33)
         public static final String KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE =
                 "android.car.KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE";
+
+        /**
+         * Defines non-current visible users to assign per each occupant zone.
+         *
+         * <p>For the format of the value, check {@link Global#VISIBLE_USER_ALLOCATION_PER_ZONE}.
+         * This is per user setting and system will apply this when this user is the
+         * current user during the boot up.
+         *
+         * <p>If both {@link Global#VISIBLE_USER_ALLOCATION_PER_ZONE} and this value is
+         * set, this value will be used and {@link Global#VISIBLE_USER_ALLOCATION_PER_ZONE} will
+         * be ignored.
+         *
+         * @hide
+         */
+        @SystemApi
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+        public static final String VISIBLE_USER_ALLOCATION_PER_ZONE =
+                "android.car.VISIBLE_USER_ALLOCATION_PER_ZONE";
+
+        /**
+         * Key to indicate whether to allow the driver user to allow controlling media sessions of
+         * a passenger user.
+         *
+         * <p>This is per user setting and the drvier's Media Control Center app will query this
+         * to check whether it can connect/control other user's media session.
+         * The value type is boolean (1 for true, or 0 for false. false by default).
+         *
+         * @hide
+         */
+        @SystemApi
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+        public static final String KEY_DRIVER_ALLOWED_TO_CONTROL_MEDIA =
+                "android.car.DRIVER_ALLOWED_TO_CONTROL_MEDIA";
     }
 }

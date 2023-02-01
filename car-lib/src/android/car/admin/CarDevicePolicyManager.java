@@ -56,13 +56,12 @@ import java.util.concurrent.TimeoutException;
  *
  * <ol>
  *   <li>Its methods take in consideration driver-safety restrictions.
- *   <li>Callers doesn't need to be a {@code DPC}, but rather have the proper permissions.
+ *   <li>Callers don't need to be a {@code DPC}, but rather have the proper permissions.
  * </ol>
  *
  * @hide
  */
 @SystemApi
-@TestApi
 public final class CarDevicePolicyManager extends CarManagerBase {
 
     /**
@@ -143,7 +142,6 @@ public final class CarDevicePolicyManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     @NonNull
@@ -189,7 +187,6 @@ public final class CarDevicePolicyManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     @NonNull

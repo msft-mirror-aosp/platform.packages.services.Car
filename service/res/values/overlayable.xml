@@ -60,6 +60,7 @@
           <item type="integer" name="acceptableWrittenKBytesPerSample"/>
           <item type="integer" name="acceptableFsyncCallsPerSample"/>
           <item type="integer" name="maxExcessiveIoSamplesInWindow"/>
+          <item type="integer" name="watchdogUserPackageSettingsResetDays" />
           <item type="integer" name="recurringResourceOverusePeriodInDays"/>
           <item type="integer" name="recurringResourceOveruseTimes"/>
           <item type="integer" name="uidIoUsageSummaryTopCount"/>
@@ -84,6 +85,7 @@
           <item type="array" name="config_occupant_display_mapping" translatable="false"/>
           <item type="array" name="config_sourcePreferredComponents" translatable="false"/>
           <item type="string" name="config_userNoticeUiService" translatable="false"/>
+          <item type="string" name="config_userPickerActivity" translatable="false"/>
           <item type="integer" name="config_mediaSourceChangedAutoplay"/>
           <item type="integer" name="config_mediaBootAutoplay"/>
           <item type="bool" name="config_mediaSourceIndependentPlayback"/>
@@ -108,6 +110,15 @@
           <item type="bool" name="config_enableExternalCarTimeToExternalTimeSuggestion"/>
           <item type="integer" name="config_userPreCreationStage"/>
           <item type="integer" name="config_userPreCreationDelay"/>
+          <item type="string" name="config_oemCarService" translatable="false"/>
+          <item type="integer" name="config_oemCarService_connection_timeout_ms"/>
+          <item type="integer" name="config_oemCarService_serviceReady_timeout_ms"/>
+          <item type="integer" name="config_oemCarService_regularCall_timeout_ms"/>
+          <item type="integer" name="config_oemCarService_crashCall_timeout_ms"/>
+          <item type="integer" name="config_oemCarService_thread_pool_size"/>
+          <item type="integer" name="config_allowedSystemUpTimeForRemoteAccess"/>
+          <item type="bool" name="config_assignPassengerActivityToForegroundCpuGroup"/>
+
           <!-- Params from config.xml that can be overlaid -->
 
           <!-- XML files that can be overlaid -->

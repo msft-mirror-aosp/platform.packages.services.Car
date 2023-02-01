@@ -18,11 +18,15 @@ package android.car.apitest;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.car.VehiclePropertyIds;
+import android.car.annotation.ApiRequirements;
 import android.hardware.automotive.vehicle.VehicleProperty;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 
 import androidx.test.runner.AndroidJUnit4;
+
+import com.android.compatibility.common.util.ApiTest;
+import com.android.compatibility.common.util.NonApiTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,7 +39,7 @@ import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
 @SmallTest
-public class VehiclePropertyIdsTest {
+public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
     // IDs that only exist in CarPropertyManager, not VHAL.
     private static final List<String> MISSING_VHAL_IDS = List.of();
 
@@ -44,12 +48,19 @@ public class VehiclePropertyIdsTest {
                     "EXTERNAL_CAR_TIME",
                     "DISABLED_OPTIONAL_FEATURES",
                     "EVS_SERVICE_REQUEST",
+                    "HW_KEY_INPUT_V2",
+                    "HW_MOTION_INPUT",
                     "HW_CUSTOM_INPUT",
                     "HW_ROTARY_INPUT",
-                    "SUPPORT_CUSTOMIZE_VENDOR_PERMISSION");
-
+                    "SUPPORT_CUSTOMIZE_VENDOR_PERMISSION",
+                    "SUPPORTED_PROPERTY_IDS",
+                    "STORAGE_ENCRYPTION_BINDING_SEED",
+                    "SHUTDOWN_REQUEST");
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Large number of constant fields")
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void testMatchingVehiclePropertyNamesInVehicleHal() {
         List<String> carServiceNames = getListOfConstantNames(VehiclePropertyIds.class);
         List<String> vhalNames = getListOfConstantNames(VehicleProperty.class);
@@ -66,6 +77,11 @@ public class VehiclePropertyIdsTest {
                 expectedCarServiceNames.add("EPOCH_TIME");
                 continue;
             }
+            if (vhalName.equals("GENERAL_SAFETY_REGULATION_COMPLIANCE_REQUIREMENT")) {
+                // We renamed this property in Car Service.
+                expectedCarServiceNames.add("GENERAL_SAFETY_REGULATION_COMPLIANCE");
+                continue;
+            }
             expectedCarServiceNames.add(vhalName);
         }
 
@@ -76,6 +92,9 @@ public class VehiclePropertyIdsTest {
     }
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Large number of constant fields")
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void testMatchingVehiclePropertyValuesInVehicleHal() {
         List<String> carServiceNames = getListOfConstantNames(VehiclePropertyIds.class);
         List<String> vhalNames = getListOfConstantNames(VehicleProperty.class);
@@ -99,6 +118,11 @@ public class VehiclePropertyIdsTest {
                 // This is renamed in AIDL VHAL.
                 carServiceName = "EPOCH_TIME";
             }
+            if (carServiceName.equals("GENERAL_SAFETY_REGULATION_COMPLIANCE_REQUIREMENT")) {
+                // We renamed this property in Car Service.
+                carServiceName = "GENERAL_SAFETY_REGULATION_COMPLIANCE";
+                continue;
+            }
             int carServicePropId = getValue(VehiclePropertyIds.class, carServiceName);
 
             if (vhalPropId != carServicePropId) {
@@ -110,6 +134,7 @@ public class VehiclePropertyIdsTest {
     }
 
     @Test
+    @ApiTest(apis = {"android.car.VehiclePropertyIds#toString"})
     public void testToString() {
         SparseArray<String> propsToString = new SparseArray<>();
 
@@ -290,8 +315,6 @@ public class VehiclePropertyIdsTest {
         propsToString.put(VehiclePropertyIds.CLUSTER_REQUEST_DISPLAY, "CLUSTER_REQUEST_DISPLAY");
         propsToString.put(VehiclePropertyIds.CLUSTER_NAVIGATION_STATE, "CLUSTER_NAVIGATION_STATE");
         propsToString.put(VehiclePropertyIds.EPOCH_TIME, "EPOCH_TIME");
-        propsToString.put(VehiclePropertyIds.STORAGE_ENCRYPTION_BINDING_SEED,
-                "STORAGE_ENCRYPTION_BINDING_SEED");
         propsToString.put(VehiclePropertyIds.ELECTRONIC_TOLL_COLLECTION_CARD_STATUS,
                 "ELECTRONIC_TOLL_COLLECTION_CARD_STATUS");
         propsToString.put(VehiclePropertyIds.ELECTRONIC_TOLL_COLLECTION_CARD_TYPE,
