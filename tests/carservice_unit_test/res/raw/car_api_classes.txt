@@ -41,6 +41,8 @@ android.car.VehicleAreaWindow
 android.car.VehicleGear
 android.car.VehicleHvacFanDirection
 android.car.VehicleIgnitionState
+android.car.VehicleLightState
+android.car.VehicleLightSwitch
 android.car.VehicleOilLevel
 android.car.VehiclePropertyAccess
 android.car.VehiclePropertyIds
@@ -98,6 +100,7 @@ android.car.evs.CarEvsManager$CarEvsStreamCallback
 android.car.evs.CarEvsStatus
 android.car.hardware.CarHvacFanDirection
 android.car.hardware.CarPropertyConfig
+android.car.hardware.CarPropertyConfig$AreaConfig
 android.car.hardware.CarPropertyConfig$Builder
 android.car.hardware.CarPropertyValue
 android.car.hardware.CarSensorConfig
@@ -153,6 +156,10 @@ android.car.hardware.property.CarPropertyManager$SetPropertyRequest
 android.car.hardware.property.CarPropertyManager$PropertyAsyncError
 android.car.hardware.property.CarPropertyManager$GetPropertyResult
 android.car.hardware.property.CarPropertyManager$SetPropertyResult
+android.car.hardware.property.CruiseControlCommand
+android.car.hardware.property.CruiseControlState
+android.car.hardware.property.CruiseControlType
+android.car.hardware.property.EmergencyLaneKeepAssistState
 android.car.hardware.property.ErrorState
 android.car.hardware.property.EvChargeState
 android.car.hardware.property.EvChargingConnectorType
@@ -161,6 +168,10 @@ android.car.hardware.property.EvStoppingMode
 android.car.hardware.property.ForwardCollisionWarningState
 android.car.hardware.property.GetPropertyServiceRequest
 android.car.hardware.property.GetValueResult
+android.car.hardware.property.LaneCenteringAssistCommand
+android.car.hardware.property.LaneCenteringAssistState
+android.car.hardware.property.LaneDepartureWarningState
+android.car.hardware.property.LaneKeepAssistState
 android.car.hardware.property.PropertyAccessDeniedSecurityException
 android.car.hardware.property.PropertyNotAvailableAndRetryException
 android.car.hardware.property.PropertyNotAvailableErrorCode
@@ -174,6 +185,7 @@ android.car.hardware.property.VehicleLightSwitch
 android.car.hardware.property.VehicleOilLevel
 android.car.hardware.property.VehicleTurnSignal
 android.car.hardware.property.VehicleVendorPermission
+android.car.hardware.property.WindshieldWipersState
 android.car.input.CarInputHandlingService
 android.car.input.CarInputHandlingService$InputFilter
 android.car.input.CarInputManager
@@ -183,13 +195,18 @@ android.car.input.RotaryEvent
 android.car.media.CarAudioManager
 android.car.media.CarAudioManager$CarVolumeCallback
 android.car.media.CarAudioPatchHandle
+android.car.media.CarAudioZoneConfigInfo
 android.car.media.CarMediaIntents
 android.car.media.CarMediaManager
 android.car.media.CarMediaManager$MediaSourceChangedListener
+android.car.media.CarVolumeGroupEvent
+android.car.media.CarVolumeGroupEvent$Builder
+android.car.media.CarVolumeGroupEventCallback
 android.car.media.CarVolumeGroupInfo
 android.car.media.CarVolumeGroupInfo$Builder
 android.car.media.MediaAudioRequestStatusCallback
 android.car.media.PrimaryZoneMediaAudioRequestCallback
+android.car.media.SwitchAudioZoneConfigCallback
 android.car.navigation.CarNavigationInstrumentCluster
 android.car.navigation.CarNavigationStatusManager
 android.car.occupantawareness.DriverMonitoringDetection
@@ -275,6 +292,7 @@ android.car.util.concurrent.AndroidAsyncFuture
 android.car.util.concurrent.AndroidFuture
 android.car.util.concurrent.AsyncFuture
 android.car.view.DisplayHelper
+android.car.view.MirroredSurfaceView
 android.car.vms.VmsAssociatedLayer
 android.car.vms.VmsAvailableLayers
 android.car.vms.VmsClient

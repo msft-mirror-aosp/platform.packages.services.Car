@@ -21,6 +21,7 @@ import android.car.builtin.annotation.AddedIn;
 import android.car.builtin.annotation.PlatformVersion;
 import android.content.Context;
 import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
 
 /**
  * Helper for PowerManager related operations.
@@ -64,8 +65,8 @@ public final class PowerManagerHelper {
      *
      * @param context Context to use.
      * @param on Whether to turn the display on or off.
-     * @param upTime The time when the request was issued, in the
-     * {@link SystemClock#uptimeMillis()} time base.
+     * @param upTime The time when the request was issued, in the {@link SystemClock#uptimeMillis}
+     *               time base.
      */
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public static void setDisplayState(Context context, boolean on, long upTime) {
@@ -73,14 +74,63 @@ public final class PowerManagerHelper {
         if (on) {
             powerManager.wakeUp(upTime, PowerManager.WAKE_REASON_UNKNOWN, "wake up by CarService");
         } else {
-            powerManager.goToSleep(upTime, PowerManager.GO_TO_SLEEP_REASON_APPLICATION,
-                    /* flag= */ 0);
+            powerManager.goToSleep(upTime,
+                    PowerManager.GO_TO_SLEEP_REASON_DISPLAY_GROUPS_TURNED_OFF, /* flags= */ 0);
         }
     }
 
-    /** Turns off the device. */
+    /**
+     * Turns off the display of {@code displayId}.
+     *
+     * @param context Context to use.
+     * @param displayId The display ID to turn off. If {@code displayId} is
+     *                  {@link Display#INVALID_DISPLAY}, then all displays are turned off.
+     * @param upTime The time when the request was issued, in the {@link SystemClock#uptimeMillis}
+     *               time base.
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static void goToSleep(Context context, int displayId, long upTime) {
+        context.getSystemService(PowerManager.class).goToSleep(displayId, upTime,
+                PowerManager.GO_TO_SLEEP_REASON_DISPLAY_GROUPS_TURNED_OFF, /* flags= */ 0);
+    }
+
+    /**
+     * Turns off the device.
+     *
+     * @param context Context to use.
+     * @param confirm If {@code true}, shows a shutdown confirmation dialog.
+     * @param reason Code to pass to android_reboot() (e.g. "userrequested"), or {@code null}.
+     * @param wait If {@code true}, this call waits for the shutdown to complete and does not
+     *             return.
+     */
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public static void shutdown(Context context, boolean confirm, String reason, boolean wait) {
         context.getSystemService(PowerManager.class).shutdown(confirm, reason, wait);
+    }
+
+    /**
+     * Acquires a wake lock for the givien display.
+     *
+     * <p>This wraps {@link PowerManager#newWakeLock(int, String, int)}.
+     *
+     * @param context Context to use.
+     * @param levelAndFlags Combination of wake lock level and flag values defining the requested
+     *                      behavior of the WakeLock.
+     * @param tag Your class name (or other tag) for debugging purposes.
+     * @param displayId The display id to which this wake lock is tied.
+     *
+     * @see PowerManager#PARTIAL_WAKE_LOCK
+     * @see PowerManager#FULL_WAKE_LOCK
+     * @see PowerManager#SCREEN_DIM_WAKE_LOCK
+     * @see PowerManager#SCREEN_BRIGHT_WAKE_LOCK
+     * @see PowerManager#PROXIMITY_SCREEN_OFF_WAKE_LOCK
+     * @see PowerManager#ACQUIRE_CAUSES_WAKEUP
+     * @see PowerManager#ON_AFTER_RELEASE
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static WakeLock newWakeLock(Context context, int levelAndFlags, String tag,
+            int displayId) {
+        PowerManager powerManager = context.getSystemService(PowerManager.class);
+        return powerManager.newWakeLock(levelAndFlags, tag, displayId);
     }
 }

@@ -84,6 +84,13 @@ android.car VehicleAreaSeat int fromRowAndSide(int rowNumber, int side)
 android.car VehicleHvacFanDirection int FACE
 android.car VehicleHvacFanDirection int FLOOR
 android.car VehicleHvacFanDirection int DEFROST
+android.car VehicleLightState int OFF
+android.car VehicleLightState int ON
+android.car VehicleLightState int DAYTIME_RUNNING
+android.car VehicleLightSwitch int OFF
+android.car VehicleLightSwitch int ON
+android.car VehicleLightSwitch int DAYTIME_RUNNING
+android.car VehicleLightSwitch int AUTOMATIC
 android.car VehicleOilLevel int CRITICALLY_LOW
 android.car VehicleOilLevel int LOW
 android.car VehicleOilLevel int NORMAL
@@ -152,8 +159,7 @@ android.car.app CarActivityManager void onTaskAppeared(ActivityManager.RunningTa
 android.car.app CarActivityManager void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo)
 android.car.app CarActivityManager void onTaskInfoChanged(ActivityManager.RunningTaskInfo taskInfo)
 android.car.app CarActivityManager void unregisterTaskMonitor()
-android.car.app CarActivityManager List<ActivityManager.RunningTaskInfo> getVisibleTasks()
-android.car.app CarActivityManager IBinder createMirroringToken(int taskId)
+android.car.app CarActivityManager Pair<SurfaceControl,Rect> getMirroredSurface(IBinder token)
 android.car.cluster CarInstrumentClusterManager void onCarDisconnected()
 android.car.cluster ClusterHomeManager int UI_TYPE_CLUSTER_NONE
 android.car.cluster ClusterHomeManager int UI_TYPE_CLUSTER_HOME
@@ -267,6 +273,12 @@ android.car.hardware CarPropertyConfig int getFirstAndOnlyAreaId()
 android.car.hardware CarPropertyConfig boolean hasArea(int areaId)
 android.car.hardware CarPropertyConfig String toString()
 android.car.hardware CarPropertyConfig Builder<T> newBuilder(Class<T> type, int propertyId, int areaType)
+android.car.hardware CarPropertyConfig.AreaConfig Parcelable.Creator<AreaConfig<Object>> CREATOR
+android.car.hardware CarPropertyConfig.AreaConfig T getMinValue()
+android.car.hardware CarPropertyConfig.AreaConfig T getMaxValue()
+android.car.hardware CarPropertyConfig.AreaConfig int describeContents()
+android.car.hardware CarPropertyConfig.AreaConfig void writeToParcel(Parcel dest, int flags)
+android.car.hardware CarPropertyConfig.AreaConfig String toString()
 android.car.hardware CarPropertyValue String toString()
 android.car.hardware CarSensorConfig String WHEEL_TICK_DISTANCE_SUPPORTED_WHEELS
 android.car.hardware CarSensorConfig String WHEEL_TICK_DISTANCE_FRONT_LEFT_UM_PER_TICK
@@ -499,6 +511,7 @@ android.car.occupantconnection CarOccupantConnectionManager void onCarDisconnect
 android.car.os CarPerformanceManager void onCarDisconnected()
 android.car.os CarPerformanceManager void addCpuAvailabilityChangeListener(Executor executor, CpuAvailabilityMonitoringConfig config, CpuAvailabilityChangeListener listener)
 android.car.os CarPerformanceManager void removeCpuAvailabilityChangeListener(Executor executor, CpuAvailabilityChangeListener listener)
+android.car.os CarPerformanceManager.CpuAvailabilityChangeListener void onCpuAvailabilityChange(CpuAvailabilityInfo info)
 android.car.os CpuAvailabilityInfo Parcelable.Creator<CpuAvailabilityInfo> CREATOR
 android.car.os CpuAvailabilityInfo int getCpuset()
 android.car.os CpuAvailabilityInfo int getAverageAvailabilityPercent()
@@ -599,6 +612,7 @@ android.car.user CarUserManager void onCarDisconnected()
 android.car.user CarUserManager boolean isValidUser(int userId)
 android.car.user CarUserManager.UserLifecycleEvent int getUserId()
 android.car.user CarUserManager.UserLifecycleEvent int getPreviousUserId()
+android.car.user CarUserManager.UserSwitchUiCallback void showUserSwitchDialog(int userId)
 android.car.user ExperimentalCarUserManager String TAG
 android.car.user ExperimentalCarUserManager AndroidFuture<UserCreationResult> createDriver(String name, boolean admin)
 android.car.user ExperimentalCarUserManager int createPassenger(String name, int driverId)
@@ -608,6 +622,7 @@ android.car.user ExperimentalCarUserManager List<Integer> getPassengers(int driv
 android.car.user ExperimentalCarUserManager boolean startPassenger(int passengerId, int zoneId)
 android.car.user ExperimentalCarUserManager boolean stopPassenger(int passengerId)
 android.car.user ExperimentalCarUserManager void onCarDisconnected()
+android.car.user OperationResult boolean isSuccess()
 android.car.user UserCreationResult int STATUS_SUCCESSFUL
 android.car.user UserCreationResult int STATUS_ANDROID_FAILURE
 android.car.user UserCreationResult int STATUS_HAL_FAILURE
@@ -637,9 +652,6 @@ android.car.user UserIdentificationAssociationResponse void writeToParcel(androi
 android.car.user UserIdentificationAssociationResponse int describeContents()
 android.car.user UserLifecycleEventFilter int[] getEventTypes()
 android.car.user UserLifecycleEventFilter int[] getUserIds()
-android.car.user UserLifecycleEventFilter.Builder Builder addEventType(int eventType)
-android.car.user UserLifecycleEventFilter.Builder Builder addUser(UserHandle userHandle)
-android.car.user UserLifecycleEventFilter.Builder UserLifecycleEventFilter build()
 android.car.user UserRemovalResult int STATUS_SUCCESSFUL
 android.car.user UserRemovalResult int STATUS_ANDROID_FAILURE
 android.car.user UserRemovalResult int STATUS_INVALID_REQUEST
@@ -656,8 +668,14 @@ android.car.user UserRemovalResult void writeToParcel(android.os.Parcel dest, in
 android.car.user UserRemovalResult int describeContents()
 android.car.user UserStartResult int STATUS_SUCCESSFUL
 android.car.user UserStartResult int STATUS_ANDROID_FAILURE
+android.car.user UserStartResult int STATUS_UNSUPPORTED_PLATFORM_FAILURE
 android.car.user UserStartResult int STATUS_SUCCESSFUL_USER_IS_CURRENT_USER
 android.car.user UserStartResult int STATUS_USER_DOES_NOT_EXIST
+android.car.user UserStartResult int STATUS_SUCCESSFUL_USER_ALREADY_VISIBLE_ON_DISPLAY
+android.car.user UserStartResult int STATUS_DISPLAY_INVALID
+android.car.user UserStartResult int STATUS_DISPLAY_UNAVAILABLE
+android.car.user UserStartResult int STATUS_USER_INVALID
+android.car.user UserStartResult int STATUS_USER_ASSIGNED_TO_ANOTHER_DISPLAY
 android.car.user UserStartResult Parcelable.Creator<UserStartResult> CREATOR
 android.car.user UserStartResult boolean isSuccess()
 android.car.user UserStartResult String statusToString(int value)
@@ -722,6 +740,9 @@ android.car.util.concurrent AndroidFuture AndroidFuture<T> supply(Supplier<T> su
 android.car.util.concurrent AndroidFuture AndroidFuture<T> supplyAsync(Supplier<T> supplier, Executor executor)
 android.car.util.concurrent AndroidFuture void writeToParcel(Parcel dest, int flags)
 android.car.util.concurrent AndroidFuture int describeContents()
+android.car.util.concurrent AsyncFuture T get()
+android.car.util.concurrent AsyncFuture T get(long timeout, TimeUnit unit)
+android.car.util.concurrent AsyncFuture AsyncFuture<T> whenCompleteAsync(BiConsumer<? super T,? super Throwable> action, Executor executor)
 android.car.vms VmsClient void register()
 android.car.vms VmsClient void unregister()
 android.car.vms VmsClientManager void onCarDisconnected()
