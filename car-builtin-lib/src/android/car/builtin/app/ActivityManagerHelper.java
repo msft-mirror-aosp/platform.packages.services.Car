@@ -16,9 +16,12 @@
 
 package android.car.builtin.app;
 
+import android.Manifest;
 import android.annotation.NonNull;
+import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
@@ -29,6 +32,7 @@ import android.car.builtin.annotation.AddedIn;
 import android.car.builtin.annotation.PlatformVersion;
 import android.car.builtin.util.Slogf;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.os.RemoteException;
 
 import java.util.List;
@@ -271,5 +275,61 @@ public final class ActivityManagerHelper {
             boolean filterOnlyVisibleRecents, boolean keepIntentExtra, int displayId) {
         return ActivityTaskManager.getInstance().getTasks(maxNum, filterOnlyVisibleRecents,
                 keepIntentExtra, displayId);
+    }
+
+    /**
+     * Same as {@link ActivityManager#killAllBackgroundProcesses()}
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static void killAllBackgroundProcesses() {
+        try {
+            getActivityManager().killAllBackgroundProcesses();
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "Failed to kill background apps", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Same as {@link ActivityManager#killUid()}
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static void killUid(int appId, int userId, String reason) {
+        try {
+            getActivityManager().killUid(appId, userId, reason);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "Failed to call app : %d , userId: %d, kill reason: %s", appId, userId,
+                    reason);
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** See {@link Activity#getActivityToken()} */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static IBinder getActivityToken(Activity activity) {
+        return activity.getActivityToken();
+    }
+
+    /** See {@link Activity#isVisibleForAutofill()} */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static boolean isVisible(Activity activity) {
+        return activity.isVisibleForAutofill();
+    }
+
+    /**
+     * Moves the given {@code RootTask} to the specified {@code Display}.
+     *
+     * @param taskId    the id of the target {@code RootTask} to move
+     * @param displayId the displayId to move the {@code RootTask} to
+     */
+    @RequiresPermission(Manifest.permission.INTERNAL_SYSTEM_WINDOW)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static void moveRootTaskToDisplay(int taskId, int displayId) {
+        try {
+            ActivityTaskManager.getService().moveRootTaskToDisplay(taskId, displayId);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "Error moving task %d to display %d", e, taskId, displayId);
+            throw new RuntimeException(e);
+        }
     }
 }
