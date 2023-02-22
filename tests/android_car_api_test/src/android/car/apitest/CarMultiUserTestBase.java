@@ -16,11 +16,13 @@
 
 package android.car.apitest;
 
+import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 import static android.car.test.util.UserTestingHelper.setMaxSupportedUsers;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeast;
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -39,6 +41,10 @@ import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
 import android.car.user.UserCreationResult;
 import android.car.user.UserRemovalResult;
+import android.car.user.UserStartRequest;
+import android.car.user.UserStartResponse;
+import android.car.user.UserStopRequest;
+import android.car.user.UserStopResponse;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AsyncFuture;
 import android.content.BroadcastReceiver;
@@ -343,15 +349,24 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
     protected void startUserInBackgroundOnSecondaryDisplay(@UserIdInt int userId, int displayId)
             throws Exception {
         Log.i(TAG, "Starting background user " + userId + " on display " + displayId);
-        // TODO(b/257335554): Call CarUserManager method when ready.
-        getContext().getSystemService(ActivityManager.class)
-                .startUserInBackgroundVisibleOnDisplay(userId, displayId);
+
+        UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(userId))
+                .setDisplayId(displayId).build();
+        UserStartResponse result = mCarUserManager.startUser(request);
+
+        assertWithMessage("startUserVisibleOnDisplay success for user %s on display %s",
+                        userId, displayId)
+                .that(result.isSuccess()).isTrue();
     }
 
-    protected static void forceStopUser(@UserIdInt int userId) throws Exception {
+    protected void forceStopUser(@UserIdInt int userId) throws Exception {
         Log.i(TAG, "Force-stopping user " + userId);
-        // TODO(b/257335554): Call CarUserManager method when ready.
-        ActivityManager.getService().stopUser(userId, /* force=*/ true, /* listener= */ null);
+
+        UserStopRequest request =
+                new UserStopRequest.Builder(UserHandle.of(userId)).setForce().build();
+        UserStopResponse result = mCarUserManager.stopUser(request);
+
+        assertWithMessage("stopUser success for user %s", userId).that(result.isSuccess()).isTrue();
     }
 
     @Nullable
@@ -406,7 +421,8 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
     protected static void requireMumd() {
         assumeTrue(
                 "The device does not support multiple users on multiple displays",
-                getTargetContext().getSystemService(UserManager.class)
+                isPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0)
+                        && getTargetContext().getSystemService(UserManager.class)
                         .isVisibleBackgroundUsersSupported());
     }
 

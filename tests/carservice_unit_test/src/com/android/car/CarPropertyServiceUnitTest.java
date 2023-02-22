@@ -18,6 +18,8 @@ package com.android.car;
 
 import static android.car.hardware.property.CarPropertyManager.SENSOR_RATE_ONCHANGE;
 
+import static com.android.car.internal.property.CarPropertyHelper.SYNC_OP_LIMIT_TRY_AGAIN;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
@@ -26,6 +28,7 @@ import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
@@ -34,24 +37,24 @@ import static org.mockito.Mockito.when;
 
 import android.car.Car;
 import android.car.VehicleAreaType;
-import android.car.VehicleGear;
 import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.AreaIdConfig;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.CarPropertyManager;
-import android.car.hardware.property.GetPropertyServiceRequest;
 import android.car.hardware.property.ICarPropertyEventListener;
-import android.car.hardware.property.IGetAsyncPropertyResultCallback;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.ServiceSpecificException;
 import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.car.hal.PropertyHalService;
+import com.android.car.internal.property.AsyncPropertyServiceRequest;
+import com.android.car.internal.property.IAsyncPropertyResultCallback;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -62,6 +65,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -76,7 +81,7 @@ public final class CarPropertyServiceUnitTest {
     @Mock
     private IBinder mIBinder;
     @Mock
-    private IGetAsyncPropertyResultCallback mGetAsyncPropertyResultCallback;
+    private IAsyncPropertyResultCallback mGetAsyncPropertyResultCallback;
 
     private CarPropertyService mService;
 
@@ -92,8 +97,6 @@ public final class CarPropertyServiceUnitTest {
     private static final int NO_PERMISSION_PROPERTY_ID = 13292;
     private static final String GRANTED_PERMISSION = "GRANTED_PERMISSION";
     private static final String DENIED_PERMISSION = "DENIED_PERMISSION";
-    private static final CarPropertyValue<Integer> GEAR_CAR_PROPERTY_VALUE = new CarPropertyValue<>(
-            VehiclePropertyIds.GEAR_SELECTION, 0, VehicleGear.GEAR_DRIVE);
     private static final int GLOBAL_AREA_ID = 0;
     private static final int NOT_SUPPORTED_AREA_ID = -1;
     private static final float MIN_SAMPLE_RATE = 2;
@@ -209,13 +212,13 @@ public final class CarPropertyServiceUnitTest {
 
     @Test
     public void testGetPropertiesAsync() {
-        GetPropertyServiceRequest getPropertyServiceRequest = new GetPropertyServiceRequest(0,
+        AsyncPropertyServiceRequest getPropertyServiceRequest = new AsyncPropertyServiceRequest(0,
                 SPEED_ID, 0);
 
         mService.getPropertiesAsync(List.of(getPropertyServiceRequest),
                 mGetAsyncPropertyResultCallback, ASYNC_TIMEOUT_MS);
 
-        ArgumentCaptor<List<GetPropertyServiceRequest>> captor = ArgumentCaptor.forClass(
+        ArgumentCaptor<List<AsyncPropertyServiceRequest>> captor = ArgumentCaptor.forClass(
                 List.class);
         verify(mHalService).getCarPropertyValuesAsync(captor.capture(), any(), eq(1000L));
         assertThat(captor.getValue().get(0).getRequestId()).isEqualTo(0);
@@ -225,7 +228,7 @@ public final class CarPropertyServiceUnitTest {
     @Test(expected = IllegalArgumentException.class)
     public void testGetPropertiesAsync_propertyIdNotSupported() {
         int invalidPropertyID = -1;
-        GetPropertyServiceRequest getPropertyServiceRequest = new GetPropertyServiceRequest(0,
+        AsyncPropertyServiceRequest getPropertyServiceRequest = new AsyncPropertyServiceRequest(0,
                 invalidPropertyID, 0);
 
         mService.getPropertiesAsync(List.of(getPropertyServiceRequest),
@@ -234,7 +237,7 @@ public final class CarPropertyServiceUnitTest {
 
     @Test(expected = SecurityException.class)
     public void testGetPropertiesAsync_noReadPermission() {
-        GetPropertyServiceRequest getPropertyServiceRequest = new GetPropertyServiceRequest(0,
+        AsyncPropertyServiceRequest getPropertyServiceRequest = new AsyncPropertyServiceRequest(0,
                 SPEED_ID, 0);
         when(mHalService.getReadPermission(SPEED_ID)).thenReturn(DENIED_PERMISSION);
 
@@ -244,7 +247,7 @@ public final class CarPropertyServiceUnitTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testGetPropertiesAsync_propertyNotReadable() {
-        GetPropertyServiceRequest getPropertyServiceRequest = new GetPropertyServiceRequest(0,
+        AsyncPropertyServiceRequest getPropertyServiceRequest = new AsyncPropertyServiceRequest(0,
                 HVAC_CURRENT_TEMP, 0);
 
 
@@ -254,7 +257,7 @@ public final class CarPropertyServiceUnitTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testGetPropertiesAsync_areaIdNotSupported() {
-        GetPropertyServiceRequest getPropertyServiceRequest = new GetPropertyServiceRequest(0,
+        AsyncPropertyServiceRequest getPropertyServiceRequest = new AsyncPropertyServiceRequest(0,
                 HVAC_TEMP, NOT_SUPPORTED_AREA_ID);
 
         mService.getPropertiesAsync(List.of(getPropertyServiceRequest),
@@ -263,7 +266,7 @@ public final class CarPropertyServiceUnitTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testGetPropertiesAsync_timeoutNotPositiveNumber() {
-        GetPropertyServiceRequest getPropertyServiceRequest = new GetPropertyServiceRequest(0,
+        AsyncPropertyServiceRequest getPropertyServiceRequest = new AsyncPropertyServiceRequest(0,
                 SPEED_ID, 0);
 
         mService.getPropertiesAsync(List.of(getPropertyServiceRequest),
@@ -750,5 +753,49 @@ public final class CarPropertyServiceUnitTest {
         mService.cancelRequests(requestIds);
 
         verify(mHalService).cancelRequests(requestIds);
+    }
+
+    // Test that limited number of sync operations are allowed at once.
+    @Test
+    public void testSyncOperationLimit() throws Exception {
+        CountDownLatch startCd = new CountDownLatch(16);
+        CountDownLatch finishCd = new CountDownLatch(16);
+        CountDownLatch returnCd = new CountDownLatch(1);
+        when(mHalService.getProperty(CONTINUOUS_READ_ONLY_PROPERTY_ID, 0))
+                .thenAnswer((invocation) -> {
+                    return new CarPropertyValue(CONTINUOUS_READ_ONLY_PROPERTY_ID, GLOBAL_AREA_ID,
+                            Integer.valueOf(11));
+                });
+        doAnswer((invocation) -> {
+            // Notify the operation has started.
+            startCd.countDown();
+
+            // Wait for the signal before finishing the operation.
+            returnCd.await(10, TimeUnit.SECONDS);
+            return null;
+        }).when(mHalService).setProperty(any());
+
+        Executor executor = Executors.newFixedThreadPool(16);
+        for (int i = 0; i < 16; i++) {
+            executor.execute(() -> {
+                mService.setProperty(
+                        new CarPropertyValue(WRITE_ONLY_INT_PROPERTY_ID, GLOBAL_AREA_ID,
+                                Integer.valueOf(11)),
+                        mICarPropertyEventListener);
+                finishCd.countDown();
+            });
+        }
+
+        // Wait until 16 requests are ongoing.
+        startCd.await(10, TimeUnit.SECONDS);
+
+        // The 17th request must throw exception.
+        Exception e = assertThrows(ServiceSpecificException.class, () -> mService.getProperty(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, /* areaId= */ 0));
+        assertThat(((ServiceSpecificException) e).errorCode).isEqualTo(SYNC_OP_LIMIT_TRY_AGAIN);
+
+        // Unblock the operations.
+        returnCd.countDown();
+        finishCd.await(10, TimeUnit.SECONDS);
     }
 }

@@ -28,7 +28,12 @@ package android.car.builtin.app {
   public final class ActivityManagerHelper {
     method public static int checkComponentPermission(@NonNull String, int, int, boolean);
     method @NonNull public static android.app.ActivityOptions createActivityOptions(@NonNull android.os.Bundle);
+    method public static android.os.IBinder getActivityToken(android.app.Activity);
     method public static java.util.List<android.app.ActivityManager.RunningTaskInfo> getTasks(int, boolean, boolean, int);
+    method public static boolean isVisible(android.app.Activity);
+    method public static void killAllBackgroundProcesses();
+    method public static void killUid(int, int, String);
+    method @RequiresPermission(android.Manifest.permission.INTERNAL_SYSTEM_WINDOW) public static void moveRootTaskToDisplay(int, int);
     method public static void registerProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
     method public static boolean removeTask(int);
     method public static void setFocusedRootTask(int);
@@ -46,6 +51,10 @@ package android.car.builtin.app {
     ctor public ActivityManagerHelper.ProcessObserverCallback();
     method public void onForegroundActivitiesChanged(int, int, boolean);
     method public void onProcessDied(int, int);
+  }
+
+  public final class AppOpsManagerHelper {
+    method public static void setTurnScreenOnAllowed(android.content.Context, int, String, boolean);
   }
 
   public final class KeyguardManagerHelper {
@@ -106,6 +115,7 @@ package android.car.builtin.bluetooth.le {
 package android.car.builtin.content {
 
   public final class ContextHelper {
+    method public static int getAssociatedDisplayId(@NonNull android.content.Context);
     method public static int getDisplayId(@NonNull android.content.Context);
     method @RequiresPermission(android.Manifest.permission.INTERACT_ACROSS_USERS) public static void startActivityAsUser(@NonNull android.content.Context, @NonNull android.content.Intent, @Nullable android.os.Bundle, @NonNull android.os.UserHandle);
   }
@@ -259,6 +269,7 @@ package android.car.builtin.os {
   public final class UserManagerHelper {
     method @NonNull public static String getDefaultUserName(@NonNull android.content.Context);
     method public static String getDefaultUserTypeForUserInfoFlags(int);
+    method public static int getDisplayIdAssignedToUser(@NonNull android.os.UserManager);
     method public static int getMaxRunningUsers(@NonNull android.content.Context);
     method public static int getMaxSupportedUsers(@NonNull android.content.Context);
     method @NonNull public static java.util.List<android.os.UserHandle> getUserHandles(@NonNull android.os.UserManager, boolean, boolean, boolean);
@@ -297,6 +308,7 @@ package android.car.builtin.power {
     method public static int getMaximumScreenBrightnessSetting(android.content.Context);
     method public static int getMinimumScreenBrightnessSetting(android.content.Context);
     method public static void goToSleep(android.content.Context, int, long);
+    method public static android.os.PowerManager.WakeLock newWakeLock(android.content.Context, int, String, int);
     method public static void setDisplayState(android.content.Context, boolean, long);
     method public static void shutdown(android.content.Context, boolean, String, boolean);
   }
@@ -507,6 +519,7 @@ package android.car.builtin.view {
   }
 
   public final class SurfaceControlHelper {
+    method public static android.view.SurfaceControl copy(android.view.SurfaceControl);
     method @Nullable public static android.view.SurfaceControl mirrorDisplay(int);
     method @NonNull public static android.view.SurfaceControl mirrorSurface(@NonNull android.view.SurfaceControl);
   }
@@ -516,6 +529,11 @@ package android.car.builtin.view {
     method public void addToViewTreeObserver();
     method public void removeFromViewTreeObserver();
     method public void setObscuredTouchRegion(@Nullable android.graphics.Region);
+  }
+
+  public final class ViewHelper {
+    method public static void getBoundsOnScreen(@NonNull android.view.View, @NonNull android.graphics.Rect);
+    method public static void seResizeBackgroundColor(@NonNull android.view.SurfaceView, int);
   }
 
 }

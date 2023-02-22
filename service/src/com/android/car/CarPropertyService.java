@@ -17,6 +17,7 @@
 package com.android.car;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.internal.property.CarPropertyHelper.SYNC_OP_LIMIT_TRY_AGAIN;
 
 import static java.lang.Integer.toHexString;
 import static java.util.Objects.requireNonNull;
@@ -30,10 +31,8 @@ import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.AreaIdConfig;
 import android.car.hardware.property.CarPropertyEvent;
-import android.car.hardware.property.GetPropertyServiceRequest;
 import android.car.hardware.property.ICarProperty;
 import android.car.hardware.property.ICarPropertyEventListener;
-import android.car.hardware.property.IGetAsyncPropertyResultCallback;
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -46,6 +45,8 @@ import android.util.SparseArray;
 
 import com.android.car.hal.PropertyHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.property.AsyncPropertyServiceRequest;
+import com.android.car.internal.property.IAsyncPropertyResultCallback;
 import com.android.car.internal.property.InputSanitizationUtils;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -57,6 +58,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 /**
  * This class implements the binder interface for ICarProperty.aidl to make it easier to create
@@ -67,6 +69,11 @@ public class CarPropertyService extends ICarProperty.Stub
         implements CarServiceBase, PropertyHalService.PropertyHalListener {
     private static final boolean DBG = false;
     private static final String TAG = CarLog.tagFor(CarPropertyService.class);
+    // Maximum count of sync get/set property operation allowed at once. The reason we limit this
+    // is because each sync get/set property operation takes up one binder thread. If they take
+    // all the binder thread, we do not have thread left for the result callback from VHAL. This
+    // will cause all the pending sync operation to timeout because result cannot be delivered.
+    private static final int SYNC_GET_SET_PROPERTY_OP_LIMIT = 16;
     private final Context mContext;
     private final PropertyHalService mPropertyHalService;
     private final Object mLock = new Object();
@@ -84,6 +91,8 @@ public class CarPropertyService extends ICarProperty.Stub
     private SparseArray<CarPropertyConfig<?>> mPropertyIdToCarPropertyConfig = new SparseArray<>();
     @GuardedBy("mLock")
     private SparseArray<Pair<String, String>> mPropToPermission = new SparseArray<>();
+    @GuardedBy("mLock")
+    private int mSyncGetSetPropertyOpCount;
 
     public CarPropertyService(Context context, PropertyHalService propertyHalService) {
         if (DBG) {
@@ -499,11 +508,36 @@ public class CarPropertyService extends ICarProperty.Stub
         return false;
     }
 
+    private <V> V runSyncOperationCheckLimit(Callable<V> c) {
+        synchronized (mLock) {
+            if (mSyncGetSetPropertyOpCount >= SYNC_GET_SET_PROPERTY_OP_LIMIT) {
+                throw new ServiceSpecificException(SYNC_OP_LIMIT_TRY_AGAIN);
+            }
+            mSyncGetSetPropertyOpCount += 1;
+            Slogf.d(TAG, "mSyncGetSetPropertyOpCount: " + mSyncGetSetPropertyOpCount);
+        }
+        try {
+            return c.call();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            Slogf.e(TAG, e, "catching unexpected exception for getProperty/setProperty");
+            return null;
+        } finally {
+            synchronized (mLock) {
+                mSyncGetSetPropertyOpCount -= 1;
+                Slogf.d(TAG, "mSyncGetSetPropertyOpCount: " + mSyncGetSetPropertyOpCount);
+            }
+        }
+    }
+
     @Override
     public CarPropertyValue getProperty(int propertyId, int areaId)
             throws IllegalArgumentException, ServiceSpecificException {
         validateGetParameters(propertyId, areaId);
-        return mPropertyHalService.getProperty(propertyId, areaId);
+        return runSyncOperationCheckLimit(() -> {
+            return mPropertyHalService.getProperty(propertyId, areaId);
+        });
     }
 
     /**
@@ -563,7 +597,10 @@ public class CarPropertyService extends ICarProperty.Stub
         validateSetParameters(carPropertyValue.getPropertyId(), carPropertyValue.getAreaId(),
                 carPropertyValue.getValue());
 
-        mPropertyHalService.setProperty(carPropertyValue);
+        runSyncOperationCheckLimit(() -> {
+            mPropertyHalService.setProperty(carPropertyValue);
+            return null;
+        });
 
         IBinder listenerBinder = iCarPropertyEventListener.asBinder();
         synchronized (mLock) {
@@ -693,15 +730,13 @@ public class CarPropertyService extends ICarProperty.Stub
     }
 
     /**
-     * Query CarPropertyValue with list of GetPropertyServiceRequest objects.
-     *
-     * <p>This method gets the CarPropertyValue using async methods. </p>
+     * Gets CarPropertyValues asynchronously.
      */
-    public void getPropertiesAsync(List<GetPropertyServiceRequest> getPropertyServiceRequests,
-            IGetAsyncPropertyResultCallback getAsyncPropertyResultCallback,
+    public void getPropertiesAsync(List<AsyncPropertyServiceRequest> getPropertyServiceRequests,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback,
             long timeoutInMs) {
         requireNonNull(getPropertyServiceRequests);
-        requireNonNull(getAsyncPropertyResultCallback);
+        requireNonNull(asyncPropertyResultCallback);
         if (timeoutInMs <= 0) {
             throw new IllegalArgumentException("timeoutInMs must be a positive number");
         }
@@ -710,7 +745,16 @@ public class CarPropertyService extends ICarProperty.Stub
                     getPropertyServiceRequests.get(i).getAreaId());
         }
         mPropertyHalService.getCarPropertyValuesAsync(getPropertyServiceRequests,
-                getAsyncPropertyResultCallback, timeoutInMs);
+                asyncPropertyResultCallback, timeoutInMs);
+    }
+
+    /**
+     * Sets CarPropertyValues asynchronously.
+     */
+    public void setPropertiesAsync(List<AsyncPropertyServiceRequest> setPropertyServiceRequests,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback,
+            long timeoutInMs) {
+       // TODO(b/264719384): Implement this.
     }
 
     /**
