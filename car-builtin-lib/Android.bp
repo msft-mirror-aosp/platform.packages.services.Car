@@ -63,6 +63,7 @@ java_sdk_library {
 
     // Only allowed car modules only. Allowed to add tests here.
     visibility: [
+        "//external/robolectric-shadows",
         "//packages/services/Car/car-lib",
         "//packages/services/Car/car-lib-module",
         "//packages/services/Car/car-test-lib",
@@ -76,6 +77,10 @@ java_sdk_library {
         "//frameworks/opt/car/services/builtInServices",
         "//frameworks/opt/car/services/updatableServices",
         "//frameworks/opt/car/services/updatableServices/tests",
+    ],
+
+    permitted_packages: [
+        "android.car.builtin",
     ],
 
     compile_dex: true,
