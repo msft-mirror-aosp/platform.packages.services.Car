@@ -20,11 +20,11 @@ import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC;
 
 import android.media.AudioDeviceAttributes;
-import android.util.ArraySet;
 import android.util.SparseArray;
 
 import com.android.internal.util.Preconditions;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -34,7 +34,7 @@ final class CarAudioZonesValidator {
 
     static void validate(SparseArray<CarAudioZone> carAudioZones, boolean useCoreAudioRouting) {
         validateAtLeastOneZoneDefined(carAudioZones);
-        validateZoneConfigsForEachZone(carAudioZones, useCoreAudioRouting);
+        validateVolumeGroupsForEachZone(carAudioZones, useCoreAudioRouting);
         if (!useCoreAudioRouting) {
             validateEachAddressAppearsAtMostOnce(carAudioZones);
         }
@@ -60,13 +60,13 @@ final class CarAudioZonesValidator {
         }
     }
 
-    private static void validateZoneConfigsForEachZone(SparseArray<CarAudioZone> carAudioZones,
+    private static void validateVolumeGroupsForEachZone(SparseArray<CarAudioZone> carAudioZones,
             boolean useCoreAudioRouting) {
         for (int i = 0; i < carAudioZones.size(); i++) {
             CarAudioZone zone = carAudioZones.valueAt(i);
-            if (!zone.validateZoneConfigs(useCoreAudioRouting)) {
+            if (!zone.validateVolumeGroups(useCoreAudioRouting)) {
                 throw new RuntimeException(
-                        "Invalid zone configurations for zone " + zone.getId());
+                        "Invalid volume groups configuration for zone " + zone.getId());
             }
             if (!zone.validateCanUseDynamicMixRouting(useCoreAudioRouting)) {
                 throw new RuntimeException(
@@ -77,18 +77,14 @@ final class CarAudioZonesValidator {
 
     private static void validateEachAddressAppearsAtMostOnce(
             SparseArray<CarAudioZone> carAudioZones) {
-        Set<String> addresses = new ArraySet<>();
+        Set<String> addresses = new HashSet<>();
         for (int i = 0; i < carAudioZones.size(); i++) {
-            List<CarAudioZoneConfig> zoneConfigs =
-                    carAudioZones.valueAt(i).getAllCarAudioZoneConfigs();
-            for (int configIndex = 0; configIndex < zoneConfigs.size(); configIndex++) {
-                for (CarVolumeGroup carVolumeGroup :
-                        zoneConfigs.get(configIndex).getVolumeGroups()) {
-                    for (String address : carVolumeGroup.getAddresses()) {
-                        if (!addresses.add(address)) {
-                            throw new RuntimeException("Device with address " + address
-                                    + " appears in multiple volume groups or audio zones");
-                        }
+            CarAudioZone zone = carAudioZones.valueAt(i);
+            for (CarVolumeGroup carVolumeGroup : zone.getVolumeGroups()) {
+                for (String address : carVolumeGroup.getAddresses()) {
+                    if (!addresses.add(address)) {
+                        throw new RuntimeException("Device with address "
+                                + address + " appears in multiple volume groups or audio zones");
                     }
                 }
             }

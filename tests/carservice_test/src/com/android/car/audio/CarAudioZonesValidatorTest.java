@@ -94,10 +94,10 @@ public class CarAudioZonesValidatorTest {
     }
 
     @Test
-    public void validate_zoneConfigsForEachZone() {
+    public void validate_volumeGroupsForEachZone() {
         SparseArray<CarAudioZone> zones = generateAudioZonesWithPrimary();
         CarAudioZone zoneOne = new MockBuilder()
-                .withInvalidZoneConfigs()
+                .withInvalidVolumeGroups()
                 .withZoneId(1)
                 .build();
         zones.put(zoneOne.getId(), zoneOne);
@@ -106,29 +106,23 @@ public class CarAudioZonesValidatorTest {
                 () -> CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false));
 
         assertThat(exception).hasMessageThat()
-                .contains("Invalid zone configurations for zone " + 1);
+                .contains("Invalid volume groups configuration for zone " + 1);
     }
 
     @Test
     public void validate_eachAddressAppearsInOnlyOneZone() {
         CarVolumeGroup mockVolumeGroup = generateVolumeGroup(List.of("one", "two", "three"));
 
-        CarAudioZoneConfig primaryZoneConfig = new MockConfigBuilder()
-                .withVolumeGroups(new CarVolumeGroup[]{mockVolumeGroup})
-                .build();
         CarAudioZone primaryZone = new MockBuilder()
-                .withZoneConfigs(List.of(primaryZoneConfig))
+                .withVolumeGroups(new CarVolumeGroup[]{mockVolumeGroup})
                 .build();
 
         CarVolumeGroup mockSecondaryVolumeGroup = generateVolumeGroup(
                 List.of("three", "four", "five"));
 
-        CarAudioZoneConfig secondaryZoneConfig = new MockConfigBuilder()
-                .withVolumeGroups(new CarVolumeGroup[]{mockSecondaryVolumeGroup})
-                .build();
         CarAudioZone secondaryZone = new MockBuilder()
                 .withZoneId(1)
-                .withZoneConfigs(List.of(secondaryZoneConfig))
+                .withVolumeGroups(new CarVolumeGroup[]{mockSecondaryVolumeGroup})
                 .build();
         SparseArray<CarAudioZone> zones = new SparseArray<>();
         zones.put(primaryZone.getId(), primaryZone);
@@ -167,27 +161,26 @@ public class CarAudioZonesValidatorTest {
                 generateInputAudioDeviceAttributeInfo("bus", TYPE_BUS));
     }
     private static class MockBuilder {
-        private boolean mHasValidZoneConfigs = true;
+        private boolean mHasValidVolumeGroups = true;
         private int mZoneId = PRIMARY_AUDIO_ZONE;
-
-        private List<CarAudioZoneConfig> mZoneConfigs = new ArrayList<>();
+        private CarVolumeGroup[] mVolumeGroups = new CarVolumeGroup[0];
         private List<AudioDeviceAttributes> mInputDevices = new ArrayList<>();
 
         CarAudioZone build() {
             CarAudioZone zoneMock = Mockito.mock(CarAudioZone.class);
             when(zoneMock.getId()).thenReturn(mZoneId);
-            when(zoneMock.validateZoneConfigs(/* useCoreAudioRouting= */ false))
-                    .thenReturn(mHasValidZoneConfigs);
+            when(zoneMock.validateVolumeGroups(/* useCoreAudioRouting= */ false))
+                    .thenReturn(mHasValidVolumeGroups);
             when(zoneMock
                     .validateCanUseDynamicMixRouting(/* useCoreAudioRouting= */ false))
-                    .thenReturn(mHasValidZoneConfigs);
-            when(zoneMock.getAllCarAudioZoneConfigs()).thenReturn(mZoneConfigs);
+                    .thenReturn(mHasValidVolumeGroups);
+            when(zoneMock.getVolumeGroups()).thenReturn(mVolumeGroups);
             when(zoneMock.getInputAudioDevices()).thenReturn(mInputDevices);
             return zoneMock;
         }
 
-        MockBuilder withInvalidZoneConfigs() {
-            mHasValidZoneConfigs = false;
+        MockBuilder withInvalidVolumeGroups() {
+            mHasValidVolumeGroups = false;
             return this;
         }
 
@@ -196,27 +189,13 @@ public class CarAudioZonesValidatorTest {
             return this;
         }
 
-        MockBuilder withZoneConfigs(List<CarAudioZoneConfig> zoneConfigs) {
-            mZoneConfigs = zoneConfigs;
+        MockBuilder withVolumeGroups(CarVolumeGroup[] volumeGroups) {
+            mVolumeGroups = volumeGroups;
             return this;
         }
 
         MockBuilder withInputDevices(List<AudioDeviceAttributes> inputDevices) {
             mInputDevices = inputDevices;
-            return this;
-        }
-    }
-    private static class MockConfigBuilder {
-        private CarVolumeGroup[] mVolumeGroups = new CarVolumeGroup[0];
-
-        CarAudioZoneConfig build() {
-            CarAudioZoneConfig zoneConfigMock = Mockito.mock(CarAudioZoneConfig.class);
-            when(zoneConfigMock.getVolumeGroups()).thenReturn(mVolumeGroups);
-            return zoneConfigMock;
-        }
-
-        MockConfigBuilder withVolumeGroups(CarVolumeGroup[] volumeGroups) {
-            mVolumeGroups = volumeGroups;
             return this;
         }
     }

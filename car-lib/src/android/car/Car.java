@@ -310,10 +310,7 @@ public final class Car {
      * Service name for {@link ExperimentalCarUserManager}
      *
      * @hide
-     * @deprecated {@link ExperimentalCarUserManager} was an experimental feature and is no longer
-     * supported. It will be marked @Removed in VIC and hard removed in X.
      */
-    @Deprecated
     @OptionalFeature
     @AddedInOrBefore(majorVersion = 33)
     public static final String EXPERIMENTAL_CAR_USER_SERVICE = "experimental_car_user_service";
@@ -2263,14 +2260,8 @@ public final class Car {
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SuppressWarnings("GenericException")
     protected void finalize() throws Throwable {
-        if (mLock == null) {
-            // There's no point of trying anything - even logging - when the object state is already
-            // cleared
-            super.finalize();
-            return;
-        }
         try {
-            Log.v(TAG_CAR, "Calling disconnect() on finalize()");
+            Log.i(TAG_CAR, "Calling finalize on Car Object.");
             disconnect();
         } finally {
             super.finalize();

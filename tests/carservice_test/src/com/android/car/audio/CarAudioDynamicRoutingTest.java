@@ -106,18 +106,11 @@ public final class CarAudioDynamicRoutingTest {
                 .addCarAudioDeviceInfoMock(navCarAudioDeviceInfo)
                 .build();
 
-        CarAudioZoneConfig carAudioZoneConfig =
-                new CarAudioZoneConfig.Builder("Primary zone config 0",
-                        CarAudioManager.PRIMARY_AUDIO_ZONE, /* zoneConfigId= */ 0,
-                        /* isDefault= */ true)
-                        .addVolumeGroup(mockMusicGroup)
-                        .addVolumeGroup(mockNavGroupRoutingOnMusic)
-                        .build();
-
         CarAudioZone carAudioZone = new CarAudioZone(TEST_CAR_AUDIO_CONTEXT, "Primary zone",
                 CarAudioManager.PRIMARY_AUDIO_ZONE);
 
-        carAudioZone.addZoneConfig(carAudioZoneConfig);
+        carAudioZone.addVolumeGroup(mockMusicGroup);
+        carAudioZone.addVolumeGroup(mockNavGroupRoutingOnMusic);
         SparseArray<CarAudioZone> zones = new SparseArray<>();
         zones.put(CarAudioManager.PRIMARY_AUDIO_ZONE, carAudioZone);
         CarAudioDynamicRouting.setupAudioDynamicRouting(mockBuilder, zones, TEST_CAR_AUDIO_CONTEXT);

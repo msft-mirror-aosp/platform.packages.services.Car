@@ -854,13 +854,13 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
 
     @GuardedBy("mImplLock")
     private CarVolumeGroup getCarVolumeGroupLocked(int zoneId, int groupId) {
-        return getCarAudioZoneLocked(zoneId).getCurrentVolumeGroup(groupId);
+        return getCarAudioZoneLocked(zoneId).getVolumeGroup(groupId);
     }
 
     @GuardedBy("mImplLock")
     @Nullable
     private CarVolumeGroup getCarVolumeGroupLocked(int zoneId, String groupName) {
-        return getCarAudioZoneLocked(zoneId).getCurrentVolumeGroup(groupName);
+        return getCarAudioZoneLocked(zoneId).getVolumeGroup(groupName);
     }
 
     private void setupLegacyVolumeChangedListener() {
@@ -953,7 +953,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
         for (int i = 0; i < mCarAudioZones.size(); i++) {
             CarAudioZone zone = mCarAudioZones.valueAt(i);
             // Ensure HAL gets our initial value
-            zone.init();
+            zone.synchronizeCurrentGainIndex();
             Slogf.v(TAG, "Processed audio zone: %s", zone);
         }
 
@@ -1232,7 +1232,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
         }
 
         synchronized (mImplLock) {
-            return getCarAudioZoneLocked(zoneId).getCurrentVolumeGroupCount();
+            return getCarAudioZoneLocked(zoneId).getVolumeGroupCount();
         }
     }
 
@@ -1267,7 +1267,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
             return Collections.EMPTY_LIST;
         }
         synchronized (mImplLock) {
-            return getCarAudioZoneLocked(zoneId).getCurrentVolumeGroupInfos();
+            return getCarAudioZoneLocked(zoneId).getVolumeGroupInfos();
         }
     }
 
@@ -1281,7 +1281,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
 
         synchronized (mImplLock) {
             return getCarAudioZoneLocked(groupInfo.getZoneId())
-                    .getCurrentVolumeGroup(groupInfo.getId()).getAudioAttributes();
+                    .getVolumeGroup(groupInfo.getId()).getAudioAttributes();
         }
     }
 
@@ -1310,7 +1310,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
 
     @GuardedBy("mImplLock")
     private int getVolumeGroupIdForAudioContextLocked(int zoneId, @AudioContext int audioContext) {
-        CarVolumeGroup[] groups = getCarAudioZoneLocked(zoneId).getCurrentVolumeGroups();
+        CarVolumeGroup[] groups = getCarAudioZoneLocked(zoneId).getVolumeGroups();
         for (int i = 0; i < groups.length; i++) {
             int[] groupAudioContexts = groups[i].getContexts();
             for (int groupAudioContext : groupAudioContexts) {
@@ -1556,7 +1556,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
 
     @GuardedBy("mImplLock")
     private boolean shareUserIdMediaInMainZoneLocked(int userId, CarAudioZone audioZone) {
-        List<AudioDeviceInfo> devices = audioZone.getCurrentAudioDeviceInfos();
+        List<AudioDeviceInfo> devices = audioZone.getAudioDeviceInfos();
         CarAudioZone primaryAudioZone = getCarAudioZoneLocked(PRIMARY_AUDIO_ZONE);
         devices.add(primaryAudioZone.getAudioDeviceForContext(CarAudioContext.MUSIC));
 
@@ -1618,7 +1618,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
 
     @GuardedBy("mImplLock")
     private boolean resetUserIdMediaInMainZoneLocked(int userId, CarAudioZone audioZone) {
-        List<AudioDeviceInfo> devices = audioZone.getCurrentAudioDeviceInfos();
+        List<AudioDeviceInfo> devices = audioZone.getAudioDeviceInfos();
         return setUserIdDeviceAffinityLocked(devices, userId, audioZone.getId());
     }
 
@@ -1693,8 +1693,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
     private boolean setZoneIdForUidNoCheckLocked(int zoneId, int uid) {
         Slogf.d(TAG, "setZoneIdForUidNoCheck Calling uid %d mapped to %d", uid, zoneId);
         //Request to add uid device affinity
-        List<AudioDeviceInfo> deviceInfos =
-                getCarAudioZoneLocked(zoneId).getCurrentAudioDeviceInfos();
+        List<AudioDeviceInfo> deviceInfos = getCarAudioZoneLocked(zoneId).getAudioDeviceInfos();
         if (mAudioPolicy.setUidDeviceAffinity(uid, deviceInfos)) {
             // TODO do not store uid mapping here instead use the uid
             //  device affinity in audio policy when available
@@ -2028,7 +2027,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
     @GuardedBy("mImplLock")
     private void setUserIdDeviceAffinitiesLocked(CarAudioZone zone, @UserIdInt int userId,
             int audioZoneId) {
-        List<AudioDeviceInfo> infos = zone.getCurrentAudioDeviceInfosSupportingDynamicMix();
+        List<AudioDeviceInfo> infos = zone.getAudioDeviceInfosSupportingDynamicMix();
         if (!infos.isEmpty() && !mAudioPolicy.setUserIdDeviceAffinity(userId, infos)) {
             throw new IllegalStateException(String.format(
                     "setUserIdDeviceAffinity for userId %d in zone %d Failed,"
@@ -2197,7 +2196,7 @@ public class CarAudioService extends ICarAudio.Stub implements CarServiceBase {
         }
 
         synchronized (mImplLock) {
-            int groupCount = getCarAudioZoneLocked(zoneId).getCurrentVolumeGroupCount();
+            int groupCount = getCarAudioZoneLocked(zoneId).getVolumeGroupCount();
             for (int groupId = 0; groupId < groupCount; groupId++) {
                 CarVolumeGroup group = getCarVolumeGroupLocked(zoneId, groupId);
                 if (!group.isMuted()) {

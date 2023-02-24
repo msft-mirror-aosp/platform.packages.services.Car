@@ -510,25 +510,19 @@ public final class ZoneAudioPlaybackCallbackTest {
     }
 
     private CarAudioZone generatePrimaryZone() {
-        CarAudioZoneConfig carAudioZoneConfig =
-                new CarAudioZoneConfig.Builder("Primary zone config 0", PRIMARY_ZONE_ID,
-                        /* zoneConfigId= */ 0, /* isDefault= */ true)
-                        .addVolumeGroup(new VolumeGroupBuilder()
+        return new TestCarAudioZoneBuilder("Primary zone", PRIMARY_ZONE_ID)
+                .addVolumeGroup(new VolumeGroupBuilder()
                                 .addDeviceAddressAndContexts(TEST_MEDIA_AUDIO_CONTEXT,
                                         PRIMARY_MEDIA_ADDRESS)
                                 .build())
-                        .addVolumeGroup(new VolumeGroupBuilder()
-                                .addDeviceAddressAndContexts(TEST_NAVIGATION_AUDIO_CONTEXT,
-                                        PRIMARY_NAVIGATION_ADDRESS)
-                                .build())
-                        .addVolumeGroup(new VolumeGroupBuilder()
-                                .addDeviceAddressAndContexts(TEST_ASSISTANT_CONTEXT,
-                                        PRIMARY_VOICE_ADDRESS)
-                                .build())
-                        .build();
-        return new TestCarAudioZoneBuilder("Primary zone", PRIMARY_ZONE_ID)
-                .addCarAudioZoneConfig(carAudioZoneConfig)
+                .addVolumeGroup(new VolumeGroupBuilder()
+                        .addDeviceAddressAndContexts(TEST_NAVIGATION_AUDIO_CONTEXT,
+                                PRIMARY_NAVIGATION_ADDRESS)
+                        .build())
+                .addVolumeGroup(new VolumeGroupBuilder()
+                        .addDeviceAddressAndContexts(TEST_ASSISTANT_CONTEXT,
+                                PRIMARY_VOICE_ADDRESS)
+                        .build())
                 .build();
-
     }
 }
