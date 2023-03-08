@@ -25,8 +25,6 @@ import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assume.assumeTrue;
-
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -35,10 +33,13 @@ import android.car.Car;
 import android.car.CarOccupantZoneManager;
 import android.car.test.ApiCheckerRule.Builder;
 import android.car.test.util.AndroidHelper;
+import android.car.test.util.UserTestingHelper;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
 import android.car.user.UserCreationResult;
 import android.car.user.UserRemovalResult;
+import android.car.user.UserStartRequest;
+import android.car.user.UserStopRequest;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AsyncFuture;
 import android.content.BroadcastReceiver;
@@ -57,7 +58,6 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -343,15 +343,24 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
     protected void startUserInBackgroundOnSecondaryDisplay(@UserIdInt int userId, int displayId)
             throws Exception {
         Log.i(TAG, "Starting background user " + userId + " on display " + displayId);
-        // TODO(b/257335554): Call CarUserManager method when ready.
-        getContext().getSystemService(ActivityManager.class)
-                .startUserInBackgroundVisibleOnDisplay(userId, displayId);
+
+        UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(userId))
+                .setDisplayId(displayId).build();
+        mCarUserManager.startUser(request, Runnable::run,
+                response ->
+                    assertWithMessage("startUser success for user %s on display %s",
+                            userId, displayId).that(response.isSuccess()).isTrue());
     }
 
-    protected static void forceStopUser(@UserIdInt int userId) throws Exception {
+    protected void forceStopUser(@UserIdInt int userId) throws Exception {
         Log.i(TAG, "Force-stopping user " + userId);
-        // TODO(b/257335554): Call CarUserManager method when ready.
-        ActivityManager.getService().stopUser(userId, /* force=*/ true, /* listener= */ null);
+
+        UserStopRequest request =
+                new UserStopRequest.Builder(UserHandle.of(userId)).setForce().build();
+        mCarUserManager.stopUser(request, Runnable::run,
+                response ->
+                    assertWithMessage("stopUser success for user %s", userId)
+                            .that(response.isSuccess()).isTrue());
     }
 
     @Nullable
@@ -400,14 +409,8 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
      * Checks if the target device supports MUMD (multi-user multi-display).
      * @throws AssumptionViolatedException if the device does not support MUMD.
      */
-    // TODO(b/250108245): Currently doing this because using DeviceState rule is very heavy. We
-    //  may want to use PermissionsCheckerRule as a light-weight feature check
-    //  (and probably rename it to something like DeviceStateLite).
     protected static void requireMumd() {
-        assumeTrue(
-                "The device does not support multiple users on multiple displays",
-                getTargetContext().getSystemService(UserManager.class)
-                        .isVisibleBackgroundUsersSupported());
+        UserTestingHelper.requireMumd(getTargetContext());
     }
 
     /**
@@ -417,25 +420,8 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
      * @throws IllegalStateException when there is no secondary display available.
      */
     protected int getDisplayForStartingBackgroundUser() {
-        int[] displayIds = getTargetContext().getSystemService(ActivityManager.class)
-                .getDisplayIdsForStartingVisibleBackgroundUsers();
-        Log.d(TAG, "getSecondaryDisplayIdsForStartingBackgroundUsers() display IDs"
-                + " returned by AM: " + Arrays.toString(displayIds));
-        if (displayIds == null || displayIds.length == 0) {
-            throw new IllegalStateException("No secondary display is available to start a user.");
-        }
-
-        for (int displayId : displayIds) {
-            int userId = mCarOccupantZoneManager.getUserForDisplayId(displayId);
-            if (userId == CarOccupantZoneManager.INVALID_USER_ID) {
-                Log.d(TAG, "Returning first available display: " + displayId);
-                return displayId;
-            }
-            Log.d(TAG, "Display " + displayId + "is curretnly assigned to user " + userId);
-        }
-
-        throw new IllegalStateException(
-                "All secondary displays are assigned. No secondary display is available.");
+        return UserTestingHelper.getDisplayForStartingBackgroundUser(
+                getTargetContext(), mCarOccupantZoneManager);
     }
 
     private static Context getTargetContext() {

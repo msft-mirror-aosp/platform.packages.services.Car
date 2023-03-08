@@ -34,10 +34,12 @@ import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.ICarResultReceiver;
 import android.car.ICarUserService;
+import android.car.ResultCallback;
 import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.ApiRequirements;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
+import android.car.builtin.util.Slogf;
 import android.car.util.concurrent.AndroidAsyncFuture;
 import android.car.util.concurrent.AndroidFuture;
 import android.car.util.concurrent.AsyncFuture;
@@ -51,6 +53,7 @@ import android.util.Dumpable;
 import android.util.Log;
 import android.util.Pair;
 
+import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.common.CommonConstants;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
@@ -441,10 +444,89 @@ public final class CarUserManager extends CarManagerBase {
     }
 
     /**
+     * Starts the specified user.
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.INTERACT_ACROSS_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void startUser(@NonNull UserStartRequest request,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserStartResponse> callback) {
+        try {
+            // TODO(b/271293309) Also update the service call to be async.
+            UserStartResponse response = mService.startUser(request);
+            executor.execute(() -> callback.onResult(response));
+        } catch (SecurityException e) {
+            throw e;
+        } catch (RemoteException | RuntimeException e) {
+            handleExceptionFromCarService(e, /* returnValue= */ null);
+        }
+    }
+
+    /**
+     * Stops the specified user.
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.INTERACT_ACROSS_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void stopUser(@NonNull UserStopRequest request,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserStopResponse> callback) {
+        try {
+            // TODO(b/271293309) Also update the service call to be async.
+            UserStopResponse response = mService.stopUser(request);
+            executor.execute(() -> callback.onResult(response));
+        } catch (SecurityException e) {
+            throw e;
+        } catch (RemoteException | RuntimeException e) {
+            handleExceptionFromCarService(e, /* returnValue= */ null);
+        }
+    }
+
+    /**
+     * Switches the foreground user to the given user.
+     *
+     * @param userSwitchRequest contains target user.
+     * @param executor to execute the callback.
+     * @param callback called with the {code UserSwitchResult}
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.CREATE_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    // TODO(b/235991826): Add CTS test.
+    public void switchUser(@NonNull UserSwitchRequest userSwitchRequest,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserSwitchResult> callback) {
+        int targetUserId = userSwitchRequest.getUserHandle().getIdentifier();
+        // TODO(b/235991826): replace this call. Call CarUserService directly with callback
+        AsyncFuture<UserSwitchResult> result = switchUser(targetUserId);
+        try {
+            UserSwitchResult userSwitchResult = result.get();
+            executor.execute(() -> callback.onResult(userSwitchResult));
+        } catch (InterruptedException | ExecutionException e) {
+            Thread.currentThread().interrupt();
+            Slogf.w(TAG, e, "switchUser: targetId %d failed.", targetUserId);
+        }
+    }
+
+    /**
      * Switches the foreground user to the given target user.
      *
      * @hide
      */
+    // TODO(b/235991826): Deprecate this call.
     @TestApi
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
@@ -548,6 +630,7 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+    // TODO(b/235992856): Deprecate this call.
     /**
      * Creates a new guest Android user.
      *
@@ -560,6 +643,7 @@ public final class CarUserManager extends CarManagerBase {
         return createUser(name, UserManager.USER_TYPE_FULL_GUEST, /* flags= */ 0);
     }
 
+    // TODO(b/235994008): Deprecate this call.
     /**
      * Creates a new Android user.
      *
@@ -571,6 +655,63 @@ public final class CarUserManager extends CarManagerBase {
     public AsyncFuture<UserCreationResult> createUser(@Nullable String name,
             int flags) {
         return createUser(name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
+    }
+
+    /**
+     * Creates a new Android user.
+     *
+     * @param userCreationRequest contains new user information
+     * @param executor to execute the callback.
+     * @param callback called with the {code UserCreationResult}
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.CREATE_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    // TODO(b/235994008): Add CTS test.
+    public void createUser(@NonNull UserCreationRequest userCreationRequest,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserCreationResult> callback) {
+        Objects.requireNonNull(userCreationRequest, "userCreationRequest cannot be null");
+        Objects.requireNonNull(executor, "executor cannot be null");
+        Objects.requireNonNull(callback, "callback cannot be null");
+        int uid = myUid();
+        try {
+            ResultCallbackImpl<UserCreationResult> resultCallbackImpl =
+                    new ResultCallbackImpl<UserCreationResult>(
+                    executor, callback) {
+                @Override
+                protected void onCompleted(UserCreationResult result) {
+                    if (result != null) {
+                        EventLogHelper.writeCarUserManagerCreateUserResp(uid,
+                                result.getStatus(), result.getErrorMessage());
+                    } else {
+                        Log.w(TAG, "createUser(" + userCreationRequest + ") failed.");
+                    }
+                    super.onCompleted(result);
+                }
+            };
+            String name = userCreationRequest.getName();
+            String userType = userCreationRequest.isGuest() ? UserManager.USER_TYPE_FULL_GUEST
+                    : UserManager.USER_TYPE_FULL_SECONDARY;
+            int flags = 0;
+            flags |= userCreationRequest.isAdmin() ? UserManagerHelper.FLAG_ADMIN : 0;
+            flags |= userCreationRequest.isEphemeral() ? UserManagerHelper.FLAG_EPHEMERAL : 0;
+
+            EventLogHelper.writeCarUserManagerCreateUserReq(uid,
+                    UserHelperLite.safeName(name), userType, flags);
+            // TODO(b/235994008): update this call once other CreateUser call is removed.
+            mService.createUser2(userCreationRequest, HAL_TIMEOUT_MS, resultCallbackImpl);
+            System.out.println("manager test API replied");
+        } catch (SecurityException e) {
+            throw e;
+        } catch (RemoteException | RuntimeException e) {
+            callback.onResult(
+                    new UserCreationResult(UserCreationResult.STATUS_HAL_INTERNAL_FAILURE));
+            handleExceptionFromCarService(e, null);
+        }
     }
 
     /**
@@ -597,6 +738,32 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+
+    /**
+     * Removes the given user.
+     *
+     * @param userRemovalRequest contains user to be removed.
+     * @param executor to execute the callback.
+     * @param callback called with the {code UserRemovalResult}
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.CREATE_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    // TODO(b/235994391): Add CTS test.
+    public void removeUser(@NonNull UserRemovalRequest userRemovalRequest,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserRemovalResult> callback) {
+        // TODO(b/235994391): Call directly to CarUserService with callback
+        UserRemovalResult userRemovalResult = removeUser(
+                userRemovalRequest.getUserHandle().getIdentifier());
+        executor.execute(() -> callback.onResult(userRemovalResult));
+    }
+
+    // TODO(b/235994391): Deprecate this method.
     /**
      * Removes the given user.
      *
@@ -1220,7 +1387,6 @@ public final class CarUserManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             StringBuilder builder = new StringBuilder("Event[type=")
                     .append(lifecycleEventTypeToString(mEventType));
@@ -1236,7 +1402,6 @@ public final class CarUserManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public boolean equals(@Nullable Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -1247,7 +1412,6 @@ public final class CarUserManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public int hashCode() {
             int hash = 23;
             hash = 17 * hash + mEventType;

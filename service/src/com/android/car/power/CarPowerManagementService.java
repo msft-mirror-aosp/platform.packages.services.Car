@@ -26,7 +26,10 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityManager;
 import android.car.Car;
+import android.car.CarOccupantZoneManager;
 import android.car.ICarResultReceiver;
+import android.car.PlatformVersion;
+import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.ServiceManagerHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -47,9 +50,11 @@ import android.frameworks.automotive.powerpolicy.internal.PolicyState;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReport;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
 import android.hardware.automotive.vehicle.VehicleApPowerStateShutdownParam;
+import android.hardware.display.DisplayManager;
 import android.net.TetheringManager;
 import android.net.TetheringManager.TetheringRequest;
 import android.net.wifi.WifiManager;
+import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -57,6 +62,7 @@ import android.os.IInterface;
 import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
@@ -66,9 +72,11 @@ import android.os.UserManager;
 import android.util.ArraySet;
 import android.util.AtomicFile;
 import android.util.SparseArray;
+import android.view.Display;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
+import com.android.car.CarOccupantZoneService;
 import com.android.car.CarServiceBase;
 import com.android.car.CarServiceUtils;
 import com.android.car.CarStatsLogHelper;
@@ -104,6 +112,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * Power Management service class for cars. Controls the power states and interacts with other
@@ -272,6 +281,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private final PowerComponentHandler mPowerComponentHandler;
     private final PolicyReader mPolicyReader = new PolicyReader();
     private final SilentModeHandler mSilentModeHandler;
+    private final ScreenOffHandler mScreenOffHandler;
 
     interface ActionOnDeath<T extends IInterface> {
         void take(T listener);
@@ -346,6 +356,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 silentModeKernelStatePath, bootReason);
         mMaxSuspendWaitDurationMs = Math.max(MIN_SUSPEND_WAIT_DURATION_MS,
                 Math.min(getMaxSuspendWaitDurationConfig(), MAX_SUSPEND_WAIT_DURATION_MS));
+        mScreenOffHandler = new ScreenOffHandler(mContext, mSystemInterface, mHandler.getLooper());
     }
 
     /**
@@ -373,6 +384,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         mPolicyReader.init();
         mPowerComponentHandler.init();
         mHal.setListener(this);
+        mSystemInterface.init(this, mUserService);
+        mScreenOffHandler.init();
         if (mHal.isPowerStateSupported()) {
             // Initialize CPMS in WAIT_FOR_VHAL state
             onApPowerStateChange(CpmsState.WAIT_FOR_VHAL, CarPowerManager.STATE_WAIT_FOR_VHAL);
@@ -380,7 +393,6 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             Slogf.w(TAG, "Vehicle hal does not support power state yet.");
             onApPowerStateChange(CpmsState.ON, CarPowerManager.STATE_ON);
         }
-        mSystemInterface.init(this, mUserService);
         mSystemInterface.startDisplayStateMonitoring();
         connectToPowerPolicyDaemon();
     }
@@ -400,7 +412,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         mSystemInterface.stopDisplayStateMonitoring();
         mPowerManagerListeners.kill();
         mPowerPolicyListeners.kill();
-        mSystemInterface.releaseAllWakeLocks();
+        forEachDisplay(mContext, mSystemInterface::releaseAllWakeLocks);
     }
 
     @Override
@@ -440,6 +452,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         mPolicyReader.dump(writer);
         mPowerComponentHandler.dump(writer);
         mSilentModeHandler.dump(writer);
+        mScreenOffHandler.dump(writer);
     }
 
     @Override
@@ -1254,7 +1267,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         // Keeps holding partial wakelock to prevent entering sleep before enterDeepSleep/
         // enterHibernation call. enterDeepSleep/enterHibernation should force sleep entry even if
         // wake lock is kept.
-        mSystemInterface.switchToPartialWakeLock();
+        forEachDisplay(mContext, mSystemInterface::switchToPartialWakeLock);
         mHandler.cancelProcessingComplete();
         synchronized (mLock) {
             mLastSleepEntryTime = SystemClock.elapsedRealtime();
@@ -1369,8 +1382,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         mSystemInterface.setDisplayBrightness(brightness);
     }
 
-    private void doHandleMainDisplayStateChange(boolean on) {
-        Slogf.w(TAG, "Unimplemented: doHandleMainDisplayStateChange() - on = %b", on);
+    private void doHandleDisplayStateChange(int displayId, boolean on) {
+        mScreenOffHandler.handleDisplayStateChange(displayId, on);
     }
 
     private void doHandlePowerPolicyNotification(String policyId) {
@@ -1379,17 +1392,32 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     /**
-     * Handles when a main display changes.
+     * Handles when display changes.
      */
-    public void handleMainDisplayChanged(boolean on) {
-        mHandler.handleMainDisplayStateChange(on);
+    public void handleDisplayChanged(int displayId, boolean on) {
+        mHandler.handleDisplayStateChange(displayId, on);
+    }
+
+    /**
+     * Gets display display power mode to turn on display.
+     *
+     * @return {@code false}, if the display power mode is OFF. Otherwise, {@code true}.
+     */
+    public boolean canTurnOnDisplay(int displayId) {
+        return mScreenOffHandler.canTurnOnDisplay(displayId);
     }
 
     /**
      * Notifies that user activity has happened.
      */
     public void notifyUserActivity(int displayId, long eventTime) {
-        // TODO(b/260103061): Implement this method.
+        mScreenOffHandler.updateUserActivity(displayId, eventTime);
+    }
+
+    @Override
+    public void notifyUserActivity(int displayId) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CAR_POWER);
+        notifyUserActivity(displayId, SystemClock.uptimeMillis());
     }
 
     /**
@@ -1578,8 +1606,17 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     /**
      * @see android.car.hardware.power.CarPowerManager#setDisplayPowerState
      */
+    @Override
     public void setDisplayPowerState(int displayId, boolean enable) {
-        // TODO(b/260103061): Implement this method.
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CAR_POWER);
+        CarOccupantZoneService occupantZoneService =
+                CarLocalServices.getService(CarOccupantZoneService.class);
+        if (displayId == occupantZoneService.getDisplayIdForDriver(
+                    CarOccupantZoneManager.DISPLAY_TYPE_MAIN)
+                    && Binder.getCallingUid() != Process.myUid()) {
+            throw new UnsupportedOperationException("Driver display control is not supported");
+        }
+        mSystemInterface.setDisplayState(displayId, enable);
     }
 
     void notifySilentModeChange(boolean silent) {
@@ -1966,7 +2003,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         private static final String TAG = PowerHandler.class.getSimpleName();
         private static final int MSG_POWER_STATE_CHANGE = 0;
         private static final int MSG_DISPLAY_BRIGHTNESS_CHANGE = 1;
-        private static final int MSG_MAIN_DISPLAY_STATE_CHANGE = 2;
+        private static final int MSG_DISPLAY_STATE_CHANGE = 2;
         private static final int MSG_PROCESSING_COMPLETE = 3;
         private static final int MSG_POWER_POLICY_NOTIFICATION = 4;
 
@@ -1991,9 +2028,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             sendMessage(msg);
         }
 
-        private void handleMainDisplayStateChange(boolean on) {
-            removeMessages(MSG_MAIN_DISPLAY_STATE_CHANGE);
-            Message msg = obtainMessage(MSG_MAIN_DISPLAY_STATE_CHANGE, Boolean.valueOf(on));
+        private void handleDisplayStateChange(int displayId, boolean on) {
+            removeMessages(MSG_DISPLAY_STATE_CHANGE, displayId);
+            Message msg = obtainMessage(MSG_DISPLAY_STATE_CHANGE, displayId);
+            msg.arg1 = on ? Display.STATE_ON : Display.STATE_OFF;
             sendMessageDelayed(msg, MAIN_DISPLAY_EVENT_DELAY_MS);
         }
 
@@ -2015,7 +2053,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         private void cancelAll() {
             removeMessages(MSG_POWER_STATE_CHANGE);
             removeMessages(MSG_DISPLAY_BRIGHTNESS_CHANGE);
-            removeMessages(MSG_MAIN_DISPLAY_STATE_CHANGE);
+            removeMessages(MSG_DISPLAY_STATE_CHANGE);
             removeMessages(MSG_PROCESSING_COMPLETE);
             removeMessages(MSG_POWER_POLICY_NOTIFICATION);
         }
@@ -2034,8 +2072,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 case MSG_DISPLAY_BRIGHTNESS_CHANGE:
                     service.doHandleDisplayBrightnessChange(msg.arg1);
                     break;
-                case MSG_MAIN_DISPLAY_STATE_CHANGE:
-                    service.doHandleMainDisplayStateChange((Boolean) msg.obj);
+                case MSG_DISPLAY_STATE_CHANGE:
+                    int displayId = (Integer) msg.obj;
+                    boolean on = msg.arg1 == Display.STATE_ON;
+                    service.doHandleDisplayStateChange(displayId, on);
                     break;
                 case MSG_PROCESSING_COMPLETE:
                     service.doHandleProcessingComplete();
@@ -2053,18 +2093,21 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     // If we decide to go to a different power state, abort this retry mechanism.
     // Returns true if we successfully suspended.
     private boolean suspendWithRetries() {
-        boolean isDeepSleep;
+        boolean isSuspendToDisk;
         synchronized (mLock) {
-            isDeepSleep = (mActionOnFinish == ACTION_ON_FINISH_DEEP_SLEEP);
+            isSuspendToDisk = mActionOnFinish == ACTION_ON_FINISH_HIBERNATION;
         }
 
-        String suspendTarget = isDeepSleep ? "Suspend-to-RAM" : "Suspend-to-Disk";
+        String suspendTarget = isSuspendToDisk ? "Suspend-to-Disk" : "Suspend-to-RAM";
         long retryIntervalMs = INITIAL_SUSPEND_RETRY_INTERVAL_MS;
         long totalWaitDurationMs = 0;
         while (true) {
             Slogf.i(TAG, "Entering %s", suspendTarget);
-            boolean suspendSucceeded = isDeepSleep ? mSystemInterface.enterDeepSleep()
-                    : mSystemInterface.enterHibernation();
+            if (isSuspendToDisk) {
+                freeMemory();
+            }
+            boolean suspendSucceeded = isSuspendToDisk ? mSystemInterface.enterHibernation()
+                    : mSystemInterface.enterDeepSleep();
 
             if (suspendSucceeded) {
                 return true;
@@ -2570,6 +2613,40 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     /**
+     * Requests VHAL to shutdown the head unit.
+     *
+     * @throws UnsupportedOperationException If the system doesn't not support
+     *         {@code nextPowerState}.
+     */
+    public void requestShutdownAp(int nextPowerState, boolean runGarageMode) {
+        int shutdownParam = PowerState.SHUTDOWN_TYPE_POWER_OFF;
+        switch (nextPowerState) {
+            case CarRemoteAccessManager.NEXT_POWER_STATE_ON:
+                // Do nothing.
+                return;
+            case CarRemoteAccessManager.NEXT_POWER_STATE_OFF:
+                shutdownParam = PowerState.SHUTDOWN_TYPE_POWER_OFF;
+                break;
+            case CarRemoteAccessManager.NEXT_POWER_STATE_SUSPEND_TO_RAM:
+                if (!isDeepSleepAvailable()) {
+                    throw new UnsupportedOperationException("Suspend-to-RAM is not supported");
+                }
+                shutdownParam = PowerState.SHUTDOWN_TYPE_DEEP_SLEEP;
+                break;
+            case CarRemoteAccessManager.NEXT_POWER_STATE_SUSPEND_TO_DISK:
+                if (!isHibernationAvailable()) {
+                    throw new UnsupportedOperationException("Suspend-to-disk is not supported");
+                }
+                shutdownParam = PowerState.SHUTDOWN_TYPE_HIBERNATION;
+                break;
+            default:
+                Slogf.w(TAG, "Unknown power state(%d)", nextPowerState);
+                return;
+        }
+        mHal.requestShutdownAp(shutdownParam, runGarageMode);
+    }
+
+    /**
      * Returns whether suspend (deep sleep or hibernation) is available on the device.
      */
     public boolean isSuspendAvailable(boolean isHibernation) {
@@ -2660,5 +2737,34 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 powerStateToString(carPowerStateListenerState));
 
         waitForCompletion(taskAtCompletion, taskAtInterval, timeoutMs, intervalMs);
+    }
+
+    /**
+     * Utility method to help with memory freeing before entering Suspend-To-Disk
+     */
+    static void freeMemory() {
+        PlatformVersion platformVersion = Car.getPlatformVersion();
+        if (!platformVersion.isAtLeast(PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0)) {
+            Slogf.w(TAG,
+                    "MemoryCleanup is not available on this version of platform : current  %d.%d "
+                            + "required %d.%d",
+                    platformVersion.getMajorVersion(), platformVersion.getMinorVersion(),
+                    PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0.getMajorVersion(),
+                    PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0.getMinorVersion());
+        } else {
+            ActivityManagerHelper.killAllBackgroundProcesses();
+        }
+    }
+
+    /**
+     * Helper method to accept function with one displayId argument to run on all displays.
+     */
+    private static void forEachDisplay(@NonNull Context context,
+            @NonNull Consumer<Integer> consumer) {
+        DisplayManager displayManager = context.getSystemService(DisplayManager.class);
+        for (Display display : displayManager.getDisplays()) {
+            int displayId = display.getDisplayId();
+            consumer.accept(displayId);
+        }
     }
 }

@@ -37,6 +37,9 @@ using ::aidl::android::automotive::watchdog::internal::ComponentType;
 using ::aidl::android::automotive::watchdog::internal::ICarWatchdogServiceForSystem;
 using ::aidl::android::automotive::watchdog::internal::PackageInfo;
 using ::aidl::android::automotive::watchdog::internal::PackageIoOveruseStats;
+using ::aidl::android::automotive::watchdog::internal::ResourceOveruseStats;
+using ::aidl::android::automotive::watchdog::internal::ResourceStats;
+using ::aidl::android::automotive::watchdog::internal::ResourceUsageStats;
 using ::aidl::android::automotive::watchdog::internal::UidType;
 using ::aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats;
 using ::android::RefBase;
@@ -105,8 +108,6 @@ protected:
                 sp<internal::WatchdogServiceHelperPeer>::make(mWatchdogServiceHelper);
         mMockCarWatchdogServiceForSystem = SharedRefBase::make<MockCarWatchdogServiceForSystem>();
 
-        EXPECT_CALL(*mMockWatchdogProcessService, registerWatchdogServiceHelper(_))
-                .WillOnce(Return(Result<void>()));
         auto result = mWatchdogServiceHelperPeer->init(mMockWatchdogProcessService,
                                                        mMockDeathRegistrationWrapper);
         ASSERT_RESULT_OK(result);
@@ -131,7 +132,7 @@ protected:
     void registerCarWatchdogService() {
         expectLinkToDeath(mMockCarWatchdogServiceForSystem->asBinder().get(),
                           std::move(ScopedAStatus::ok()));
-        EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(_))
+        EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(_, _))
                 .WillOnce(Return(ByMove(ScopedAStatus::ok())));
 
         auto status = mWatchdogServiceHelper->registerService(mMockCarWatchdogServiceForSystem);
@@ -180,26 +181,7 @@ TEST_F(WatchdogServiceHelperTest, TestInit) {
     sp<MockWatchdogProcessService> mockWatchdogProcessService =
             sp<MockWatchdogProcessService>::make();
 
-    EXPECT_CALL(*mockWatchdogProcessService, registerWatchdogServiceHelper(_))
-            .WillOnce(Return(Result<void>()));
-
     ASSERT_RESULT_OK(helper->init(mockWatchdogProcessService));
-}
-
-TEST_F(WatchdogServiceHelperTest, TestErrorOnInitWithErrorFromWatchdogProcessServiceRegistration) {
-    sp<WatchdogServiceHelper> helper = sp<WatchdogServiceHelper>::make();
-    sp<MockWatchdogProcessService> mockWatchdogProcessService =
-            sp<MockWatchdogProcessService>::make();
-
-    EXPECT_CALL(*mockWatchdogProcessService, registerWatchdogServiceHelper(_))
-            .WillOnce([](const sp<WatchdogServiceHelperInterface>&) -> Result<void> {
-                return Error() << "Failed to register";
-            });
-
-    auto result = helper->init(mockWatchdogProcessService);
-
-    ASSERT_FALSE(result.ok()) << "Watchdog service helper init should fail on error from "
-                              << "watchdog process service registration error";
 }
 
 TEST_F(WatchdogServiceHelperTest, TestErrorOnInitWithNullWatchdogProcessServiceInstance) {
@@ -223,9 +205,11 @@ TEST_F(WatchdogServiceHelperTest, TestTerminate) {
 
 TEST_F(WatchdogServiceHelperTest, TestRegisterService) {
     auto binder = mMockCarWatchdogServiceForSystem->asBinder();
+    auto serviceHelperInterface = sp<WatchdogServiceHelperInterface>(mWatchdogServiceHelper);
 
     expectLinkToDeath(binder.get(), std::move(ScopedAStatus::ok()));
-    EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(binder))
+    EXPECT_CALL(*mMockWatchdogProcessService,
+                registerCarWatchdogService(binder, serviceHelperInterface))
             .WillOnce(Return(ByMove(ScopedAStatus::ok())));
 
     auto status = mWatchdogServiceHelper->registerService(mMockCarWatchdogServiceForSystem);
@@ -233,7 +217,7 @@ TEST_F(WatchdogServiceHelperTest, TestRegisterService) {
     ASSERT_TRUE(mWatchdogServiceHelper->isServiceConnected());
 
     expectNoLinkToDeath(binder.get());
-    EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(_)).Times(0);
+    EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(_, _)).Times(0);
 
     status = mWatchdogServiceHelper->registerService(mMockCarWatchdogServiceForSystem);
     ASSERT_TRUE(status.isOk()) << status.getMessage();
@@ -242,9 +226,11 @@ TEST_F(WatchdogServiceHelperTest, TestRegisterService) {
 
 TEST_F(WatchdogServiceHelperTest, TestErrorOnRegisterServiceWithBinderDied) {
     auto binder = mMockCarWatchdogServiceForSystem->asBinder();
+    auto serviceHelperInterface = sp<WatchdogServiceHelperInterface>(mWatchdogServiceHelper);
     expectLinkToDeath(binder.get(),
                       std::move(ScopedAStatus::fromExceptionCode(EX_TRANSACTION_FAILED)));
-    EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(binder))
+    EXPECT_CALL(*mMockWatchdogProcessService,
+                registerCarWatchdogService(binder, serviceHelperInterface))
             .WillOnce(Return(ByMove(ScopedAStatus::ok())));
     EXPECT_CALL(*mMockWatchdogProcessService, unregisterCarWatchdogService(binder)).Times(1);
 
@@ -255,9 +241,11 @@ TEST_F(WatchdogServiceHelperTest, TestErrorOnRegisterServiceWithBinderDied) {
 
 TEST_F(WatchdogServiceHelperTest, TestErrorOnRegisterServiceWithWatchdogProcessServiceError) {
     auto binder = mMockCarWatchdogServiceForSystem->asBinder();
+    auto serviceHelperInterface = sp<WatchdogServiceHelperInterface>(mWatchdogServiceHelper);
     expectNoLinkToDeath(binder.get());
     expectNoUnlinkToDeath(binder.get());
-    EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(binder))
+    EXPECT_CALL(*mMockWatchdogProcessService,
+                registerCarWatchdogService(binder, serviceHelperInterface))
             .WillOnce(Return(ByMove(ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE))));
 
     ASSERT_FALSE(mWatchdogServiceHelper->registerService(mMockCarWatchdogServiceForSystem).isOk())
@@ -267,9 +255,11 @@ TEST_F(WatchdogServiceHelperTest, TestErrorOnRegisterServiceWithWatchdogProcessS
 
 TEST_F(WatchdogServiceHelperTest, TestErrorOnRegisterServiceWithDeadBinder) {
     auto binder = mMockCarWatchdogServiceForSystem->asBinder();
+    auto serviceHelperInterface = sp<WatchdogServiceHelperInterface>(mWatchdogServiceHelper);
     expectLinkToDeath(binder.get(),
                       std::move(ScopedAStatus::fromExceptionCode(EX_TRANSACTION_FAILED)));
-    EXPECT_CALL(*mMockWatchdogProcessService, registerCarWatchdogService(binder))
+    EXPECT_CALL(*mMockWatchdogProcessService,
+                registerCarWatchdogService(binder, serviceHelperInterface))
             .WillOnce(Return(ByMove(ScopedAStatus::ok())));
     EXPECT_CALL(*mMockWatchdogProcessService, unregisterCarWatchdogService(binder)).Times(1);
 
@@ -372,6 +362,8 @@ TEST_F(WatchdogServiceHelperTest, TestPrepareProcessTermination) {
     EXPECT_CALL(*mMockCarWatchdogServiceForSystem, prepareProcessTermination())
             .WillOnce(Return(ByMove(ScopedAStatus::ok())));
 
+    EXPECT_CALL(*mMockWatchdogProcessService, unregisterCarWatchdogService(_)).Times(0);
+
     auto status = mWatchdogServiceHelper->prepareProcessTermination(
             mMockCarWatchdogServiceForSystem->asBinder());
 
@@ -386,6 +378,8 @@ TEST_F(WatchdogServiceHelperTest,
 
     EXPECT_CALL(*mMockCarWatchdogServiceForSystem, prepareProcessTermination()).Times(0);
 
+    EXPECT_CALL(*mMockWatchdogProcessService, unregisterCarWatchdogService(_)).Times(0);
+
     auto notRegisteredService = SharedRefBase::make<MockCarWatchdogServiceForSystem>();
     auto status =
             mWatchdogServiceHelper->prepareProcessTermination(notRegisteredService->asBinder());
@@ -397,6 +391,8 @@ TEST_F(WatchdogServiceHelperTest,
 TEST_F(WatchdogServiceHelperTest,
        TestErrorOnPrepareProcessTerminationWithNoCarWatchdogServiceRegistered) {
     EXPECT_CALL(*mMockCarWatchdogServiceForSystem, prepareProcessTermination()).Times(0);
+
+    EXPECT_CALL(*mMockWatchdogProcessService, unregisterCarWatchdogService(_)).Times(0);
 
     auto status = mWatchdogServiceHelper->prepareProcessTermination(
             mMockCarWatchdogServiceForSystem->asBinder());
@@ -412,6 +408,8 @@ TEST_F(WatchdogServiceHelperTest,
     EXPECT_CALL(*mMockCarWatchdogServiceForSystem, prepareProcessTermination())
             .WillOnce(Return(ByMove(ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
                                                                                 "Illegal state"))));
+
+    EXPECT_CALL(*mMockWatchdogProcessService, unregisterCarWatchdogService(_)).Times(0);
 
     auto status = mWatchdogServiceHelper->prepareProcessTermination(
             mMockCarWatchdogServiceForSystem->asBinder());
@@ -601,6 +599,56 @@ TEST_F(WatchdogServiceHelperTest,
     ASSERT_FALSE(status.isOk()) << "getTodayIoUsageStats should fail when car watchdog "
                                    "service API returns error";
     ASSERT_TRUE(actualStats.empty());
+}
+
+TEST_F(WatchdogServiceHelperTest, TestOnLatestResourceStats) {
+    ASSERT_NO_FATAL_FAILURE(registerCarWatchdogService());
+
+    PackageIoOveruseStats stats;
+    stats.uid = 101000;
+    stats.ioOveruseStats.killableOnOveruse = true;
+    stats.ioOveruseStats.startTime = 99898;
+    stats.ioOveruseStats.durationInSeconds = 12345;
+    stats.ioOveruseStats.totalOveruses = 10;
+    stats.shouldNotify = true;
+    std::vector<PackageIoOveruseStats> expectedIoOveruseStats = {stats};
+
+    ResourceStats expectedResourceStats = {
+            .resourceOveruseStats = std::make_optional<ResourceOveruseStats>({
+                    .packageIoOveruseStats = expectedIoOveruseStats,
+            }),
+    };
+
+    EXPECT_CALL(*mMockCarWatchdogServiceForSystem, onLatestResourceStats(expectedResourceStats))
+            .WillOnce(Return(ByMove(ScopedAStatus::ok())));
+
+    auto status = mWatchdogServiceHelper->onLatestResourceStats(expectedResourceStats);
+
+    ASSERT_TRUE(status.isOk()) << status.getMessage();
+}
+
+TEST_F(WatchdogServiceHelperTest,
+       TestErrorsOnLatestResourceStatsWithNoCarWatchdogServiceRegistered) {
+    EXPECT_CALL(*mMockCarWatchdogServiceForSystem, onLatestResourceStats(_)).Times(0);
+
+    auto status = mWatchdogServiceHelper->onLatestResourceStats({});
+
+    ASSERT_FALSE(status.isOk()) << "onLatestResourceStats should fail when no "
+                                   "car watchdog service registered with the helper";
+}
+
+TEST_F(WatchdogServiceHelperTest,
+       TestErrorsOnLatestResourceStatsWithErrorStatusFromCarWatchdogService) {
+    ASSERT_NO_FATAL_FAILURE(registerCarWatchdogService());
+
+    EXPECT_CALL(*mMockCarWatchdogServiceForSystem, onLatestResourceStats(_))
+            .WillOnce(Return(ByMove(ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
+                                                                                "Illegal state"))));
+
+    auto status = mWatchdogServiceHelper->onLatestResourceStats({});
+
+    ASSERT_FALSE(status.isOk()) << "onLatestResourceStats should fail when car watchdog "
+                                   "service API returns error";
 }
 
 }  // namespace watchdog

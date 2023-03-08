@@ -85,31 +85,12 @@ public abstract class ApiVersion<T extends ApiVersion<?>> {
                     + " against " + requiredVersion.getClass().getName());
         }
 
-        // special case for the current development platform
-        Boolean isLatest = isAtLeastLatestPlatform(requiredVersion);
-        if (isLatest != null) {
-            return isLatest;
-        }
-
-
         int requiredApiVersionMajor = requiredVersion.getMajorVersion();
         int requiredApiVersionMinor = requiredVersion.getMinorVersion();
 
         return (mMajorVersion > requiredApiVersionMajor)
                 || (mMajorVersion == requiredApiVersionMajor
                         && mMinorVersion >= requiredApiVersionMinor);
-    }
-
-    /**
-     * Checks if the required version is latest platform version.
-     *
-     * @return null if the required version is not latest development platform. Return true if the
-     * required version is latest development platform and platform version is also same, returns
-     * false otherwise.
-     */
-    @Nullable
-    Boolean isAtLeastLatestPlatform(T requiredVersion) {
-        return null;
     }
 
     /**
@@ -141,8 +122,6 @@ public abstract class ApiVersion<T extends ApiVersion<?>> {
      * @hide
      */
     @Override
-    @ApiRequirements(minCarVersion = CarVersion.TIRAMISU_1,
-            minPlatformVersion = PlatformVersion.TIRAMISU_0)
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null) return false;
@@ -156,8 +135,6 @@ public abstract class ApiVersion<T extends ApiVersion<?>> {
      * @hide
      */
     @Override
-    @ApiRequirements(minCarVersion = CarVersion.TIRAMISU_1,
-            minPlatformVersion = PlatformVersion.TIRAMISU_0)
     public int hashCode() {
         int prime = 31;
         int result = 1;
@@ -171,8 +148,6 @@ public abstract class ApiVersion<T extends ApiVersion<?>> {
      */
     @Override
     @NonNull
-    @ApiRequirements(minCarVersion = CarVersion.TIRAMISU_1,
-            minPlatformVersion = PlatformVersion.TIRAMISU_0)
     public final String toString() {
         StringBuilder builder = new StringBuilder(getClass().getSimpleName()).append('[');
         if (!TextUtils.isEmpty(mVersionName)) {

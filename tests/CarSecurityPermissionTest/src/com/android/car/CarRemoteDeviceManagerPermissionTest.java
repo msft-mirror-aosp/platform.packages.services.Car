@@ -31,6 +31,7 @@ import android.car.CarRemoteDeviceManager;
 import android.content.Context;
 import android.os.Handler;
 
+import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -69,10 +70,26 @@ public final class CarRemoteDeviceManagerPermissionTest {
     @Test
     public void testRegisterOccupantZoneStateCallback() {
         Exception e = assertThrows(SecurityException.class,
-                () -> mCarRemoteDeviceManager.registerOccupantZoneStateCallback(Runnable::run,
-                        (occupantZone, occupantZoneStates) -> {}));
+                () -> mCarRemoteDeviceManager.registerStateCallback(Runnable::run,
+                        new CarRemoteDeviceManager.StateCallback() {
+                            @Override
+                            public void onOccupantZoneStateChanged(
+                                    @NonNull OccupantZoneInfo occupantZone,
+                                    int occupantZoneStates) {
+                            }
+
+                            @Override
+                            public void onAppStateChanged(@NonNull OccupantZoneInfo occupantZone,
+                                    int appStates) {
+                            }
+                        }));
 
         assertThat(e).hasMessageThat().contains(PERMISSION_MANAGE_REMOTE_DEVICE);
+    }
+
+    @Test
+    public void testUnregisterOccupantZoneStateCallback() {
+        // TODO(b/257118072): add this test.
     }
 
     @Test
@@ -86,7 +103,7 @@ public final class CarRemoteDeviceManagerPermissionTest {
     @Test
     public void testControlOccupantZonePower() {
         Exception e = assertThrows(SecurityException.class,
-                () -> mCarRemoteDeviceManager.controlOccupantZonePower(mReceiverZone,
+                () -> mCarRemoteDeviceManager.setOccupantZonePower(mReceiverZone,
                         /* powerOn= */ true));
 
         assertThat(e).hasMessageThat().contains(PERMISSION_MANAGE_REMOTE_DEVICE);

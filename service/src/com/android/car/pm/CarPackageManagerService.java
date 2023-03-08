@@ -789,11 +789,11 @@ public final class CarPackageManagerService extends ICarPackageManager.Stub
                         for (int i = 0; i < mUxRestrictionsListeners.size(); i++) {
                             int displayId = mUxRestrictionsListeners.keyAt(i);
                             if (!updatedDisplayIds.contains(displayId)) {
-                                mUxRestrictionsListeners.removeAt(displayId);
                                 UxRestrictionsListener listener =
                                         mUxRestrictionsListeners.valueAt(i);
                                 mCarUxRestrictionsService.unregisterUxRestrictionsChangeListener(
                                         listener);
+                                mUxRestrictionsListeners.remove(displayId);
                             }
                         }
                     }
@@ -1372,7 +1372,7 @@ public final class CarPackageManagerService extends ICarPackageManager.Stub
      * Blocks top activities on all displays if necessary.
      */
     private void blockTopActivitiesOnAllDisplaysIfNecessary() {
-        List<? extends TaskInfo> visibleTasks = mActivityService.getVisibleTasks();
+        List<? extends TaskInfo> visibleTasks = mActivityService.getVisibleTasksInternal();
         ArrayList<Integer> restrictedDisplayIds = new ArrayList<>();
         synchronized (mLock) {
             for (int i = 0; i < mUxRestrictionsListeners.size(); i++) {
@@ -1946,7 +1946,7 @@ public final class CarPackageManagerService extends ICarPackageManager.Stub
             if (shouldCheck) {
                 // Each UxRestrictionsListener is only responsible for blocking activities on their
                 // own display.
-                blockTopActivitiesOnDisplayIfNecessary(mActivityService.getVisibleTasks(),
+                blockTopActivitiesOnDisplayIfNecessary(mActivityService.getVisibleTasksInternal(),
                         mDisplayId);
             }
         }
@@ -1993,7 +1993,7 @@ public final class CarPackageManagerService extends ICarPackageManager.Stub
                 // activity blocking.
                 mHandler.post(() ->
                         blockTopActivitiesOnDisplayIfNecessary(
-                            mActivityService.getVisibleTasks(), displayId));
+                            mActivityService.getVisibleTasksInternal(), displayId));
             }
         } else {
             Slogf.d(TAG, "Discarded onWindowChangeEvent received from "

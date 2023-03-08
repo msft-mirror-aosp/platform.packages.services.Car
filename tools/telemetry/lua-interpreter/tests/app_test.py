@@ -24,10 +24,11 @@ class TestWebApp(unittest.TestCase):
         'activity_foreground_state_changed', 'anr_occurred',
         'app_start_memory_state_captured', 'app_crash_occurred',
         'connectivity_publisher', 'memory_publisher', 'process_cpu_time',
-        'process_memory_state', 'wtf_occurred'
+        'process_memory_snapshot', 'process_memory_state',
+        'vehicle_property_publisher', 'wtf_occurred'
     ], data)
     data = response.get_json()['memory_publisher']
-    self.assertIn('"timestamp_millis": 1664995933733', data)
+    self.assertIn('"mem.timestamp_millis": 1664995933733', data)
 
   def test_execute_script_output(self):
     response = self.client.post(
@@ -73,6 +74,22 @@ class TestWebApp(unittest.TestCase):
     rendered_html = BeautifulSoup(response.data.decode('UTF-8'), 'html.parser')
     span = rendered_html.find(id='script-output').find('span')
     self.assertIn('Error encountered while running the script.', str(span))
+
+  def test_execute_script_running_error_with_stacktrace(self):
+    response = self.client.post(
+        '/execute_script',
+        data={
+            'script': 'function func_1(data, state) func_2() end function func_2() func_3() end',
+            'function-name': 'func_1',
+            'published-data': "{}",
+            'saved-state': "{}"
+        })
+    rendered_html = BeautifulSoup(response.data.decode('UTF-8'), 'html.parser')
+    span = rendered_html.find(id='script-output').find('span')
+    self.assertIn('Error encountered while running the script.', str(span))
+    self.assertIn('func_3', str(span))
+    self.assertIn('func_2', str(span))
+    self.assertIn('func_1', str(span))
 
   def test_execute_script_saved_state_unchanged(self):
     response = self.client.post(

@@ -16,6 +16,9 @@
 
 package android.car.hardware.property;
 
+import static com.android.car.internal.property.CarPropertyHelper.STATUS_OK;
+import static com.android.car.internal.property.CarPropertyHelper.SYNC_OP_LIMIT_TRY_AGAIN;
+
 import static java.lang.Integer.toHexString;
 import static java.util.Objects.requireNonNull;
 
@@ -23,7 +26,7 @@ import android.annotation.FloatRange;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.SuppressLint;
+import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.VehicleAreaType;
@@ -38,6 +41,8 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.os.SystemClock;
+import android.os.Trace;
 import android.util.ArraySet;
 import android.util.Log;
 import android.util.SparseArray;
@@ -45,7 +50,10 @@ import android.util.SparseArray;
 import com.android.car.internal.CarPropertyEventCallbackController;
 import com.android.car.internal.SingleMessageHandler;
 import com.android.car.internal.os.HandlerExecutor;
+import com.android.car.internal.property.AsyncPropertyServiceRequest;
 import com.android.car.internal.property.CarPropertyHelper;
+import com.android.car.internal.property.GetSetValueResult;
+import com.android.car.internal.property.IAsyncPropertyResultCallback;
 import com.android.car.internal.property.InputSanitizationUtils;
 import com.android.internal.annotations.GuardedBy;
 
@@ -54,7 +62,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -67,6 +74,10 @@ public class CarPropertyManager extends CarManagerBase {
     private static final boolean DBG = false;
     private static final String TAG = "CarPropertyManager";
     private static final int MSG_GENERIC_EVENT = 0;
+    private static final int SYSTEM_ERROR_CODE_MASK = 0Xffff;
+    private static final int VENDOR_ERROR_CODE_SHIFT = 16;
+    private static final int SYNC_OP_RETRY_SLEEP_IN_MS = 10;
+    private static final int SYNC_OP_RETRY_MAX_COUNT = 10;
     /**
      * The default timeout in MS for {@link CarPropertyManager#getPropertiesAsync}.
      */
@@ -79,10 +90,10 @@ public class CarPropertyManager extends CarManagerBase {
     private final int mAppTargetSdk;
     private final AtomicInteger mRequestIdCounter = new AtomicInteger(0);
     @GuardedBy("mLock")
-    private final SparseArray<GetAsyncPropertyClientInfo> mRequestIdToClientInfo =
+    private final SparseArray<AsyncPropertyRequestInfo<?, ?>> mRequestIdToAsyncRequestInfo =
             new SparseArray<>();
-    private final GetAsyncPropertyResultCallback mGetAsyncPropertyResultCallback =
-            new GetAsyncPropertyResultCallback();
+    private final AsyncPropertyResultCallback mAsyncPropertyResultCallback =
+            new AsyncPropertyResultCallback();
 
     private final CarPropertyEventListenerToService mCarPropertyEventToService =
             new CarPropertyEventListenerToService(this);
@@ -146,7 +157,7 @@ public class CarPropertyManager extends CarManagerBase {
          * Called when an error is detected when setting a property.
          *
          * <p>Clients which changed the property value in the areaId most recently will receive
-         * this callback. If multiple clients set a property for the same area id simultaneously,
+         * this callback. If multiple clients set a property for the same area ID simultaneously,
          * which one takes precedence is undefined. Typically, the last set operation
          * (in the order that they are issued to car's ECU) overrides the previous set operations.
          * The delivered error reflects the error happened in the last set operation.
@@ -166,12 +177,10 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * A callback {@link CarPropertyManager#getPropertiesAsync} when successful or failure.
+     * A callback {@link CarPropertyManager#getPropertiesAsync} when succeeded or failed.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    // TODO(b/243057322): Remove this if/once lint is fixed.
-    @SuppressLint("CallbackInterface")
     public interface GetPropertyCallback {
         /**
          * Method called when {@link GetPropertyRequest} successfully gets a result.
@@ -185,7 +194,83 @@ public class CarPropertyManager extends CarManagerBase {
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-        void onFailure(@NonNull GetPropertyError getPropertyError);
+        void onFailure(@NonNull PropertyAsyncError propertyAsyncError);
+    }
+
+    /**
+     * A callback {@link CarPropertyManager#setPropertiesAsync} when succeeded or failed.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public interface SetPropertyCallback {
+        /**
+         * Method called when the {@link SetPropertyRequest} successfully set the value.
+         *
+         * <p>This means: the set value request is successfully sent to vehicle
+         *
+         * <p>and
+         *
+         * <p>either the current property value is already the target value, or we have received a
+         * property update event indicating the value is updated to the target value.
+         *
+         * <p>If multiple clients set a property for the same area ID simultaneously with different
+         * values, the order is undefined. One possible case is that both requests are sent to the
+         * vehicle bus, which causes two property update events. As a result, the success callback
+         * would be called for both clients, but in an undefined order. This means that even if
+         * the success callback is called, it doesn't necessarily mean getting the property would
+         * return the same value you just set. Another client might have changed the value after you
+         * set it.
+         *
+         * <p>If only one requests is successfully processed by the vehicle bus, overwriting the
+         * other request, then only one success callback would be called for one client. The other
+         * client would get the failure callback with
+         * {@link CarPropertyManager#STATUS_ERROR_TIMEOUT) error code.
+         *
+         * <p>If multiple clients set a property for the same area ID simultaneously with the same
+         * value. The success callback for both clients would be called in an undefined order.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        void onSuccess(@NonNull SetPropertyResult setPropertyResult);
+
+        /**
+         * Method called when {@link SetPropertyRequest} returns an error.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        void onFailure(@NonNull PropertyAsyncError propertyAsyncError);
+    }
+
+    /**
+     * An async get/set property request.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                     minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public interface AsyncPropertyRequest {
+        /**
+         * Returns the unique ID for this request.
+         *
+         * <p>Each request must have a unique request ID so the responses can be differentiated.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        int getRequestId();
+
+        /**
+         * Returns the ID for the property of this request.
+         *
+         * <p>The ID must be one of the {@link VehiclePropertyIds} or vendor property IDs.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        int getPropertyId();
+
+        /**
+         * Returns the area ID for the property of this request.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        int getAreaId();
     }
 
     /**
@@ -193,37 +278,36 @@ public class CarPropertyManager extends CarManagerBase {
      * Executor, GetPropertyCallback)}.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    public static final class GetPropertyRequest {
-        /**
-         * The requestId to uniquely identify the request.
-         *
-         * <p>Each request must have a unique request ID so the responses can be differentiated.
-         */
+                     minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final class GetPropertyRequest implements AsyncPropertyRequest {
         private final int mRequestId;
-        /**
-         * The ID for the property.
-         *
-         * <p>Must be one of the {@link VehiclePropertyIds} or vendor property IDs.
-         */
         private final int mPropertyId;
-        /**
-         * Optional ID for the area, default to 0. Ignored for global property.
-         */
         private final int mAreaId;
 
+        /**
+         * @see AsyncPropertyRequest#getRequestId
+         */
+        @Override
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         public int getRequestId() {
             return mRequestId;
         }
 
+        /**
+         * @see AsyncPropertyRequest#getPropertyId
+         */
+        @Override
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         public int getPropertyId() {
             return mPropertyId;
         }
 
+        /**
+         * @see AsyncPropertyRequest#getAreaId
+         */
+        @Override
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         public int getAreaId() {
@@ -241,15 +325,111 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * An error result for {@link GetPropertyCallback}.
+     * A request for {@link CarPropertyManager#setPropertiesAsync(List, long, CancellationSignal,
+     * Executor, SetPropertyCallback)}.
+     *
+     * @param <T> The type for the property value, must be one of Object, Boolean, Float, Integer,
+     *      Long, Float[], Integer[], Long[], String, byte[], Object[].
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    public static final class GetPropertyError {
+    public static final class SetPropertyRequest<T> implements AsyncPropertyRequest {
+        private final int mRequestId;
+        private final int mPropertyId;
+        private final int mAreaId;
+        private float mUpdateRateHz = 0.f;
+
+        /**
+         * The value to set.
+         */
+        private final T mValue;
+
+        /**
+         * @see AsyncPropertyRequest#getRequestId
+         */
+        @Override
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public int getRequestId() {
+            return mRequestId;
+        }
+
+        /**
+         * @see AsyncPropertyRequest#getPropertyId
+         */
+        @Override
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public int getPropertyId() {
+            return mPropertyId;
+        }
+
+        /**
+         * @see AsyncPropertyRequest#getAreaId
+         */
+        @Override
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public int getAreaId() {
+            return mAreaId;
+        }
+
+        /**
+         * Get the property value to set.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public T getValue() {
+            return mValue;
+        }
+
+        /**
+         * Sets the update rate for listening for property updates for continuous property.
+         *
+         * <p>For continuous property, if the property is set to a different value, the success
+         * callback will be called when a property update event for the new value arrived. This
+         * option controls how frequent the property update event should be reported. This is
+         * similar to {@code updateRateHz} in {@link CarPropertyManager#registerCallback}.
+         *
+         * <p>This is ignored for non-continuous properties.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public void setUpdateRateHz(float updateRateHz) {
+            mUpdateRateHz = updateRateHz;
+        }
+
+        /**
+         * Gets the update rate for listening for property updates.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public float getUpdateRateHz() {
+            return mUpdateRateHz;
+        }
+
+        /**
+         * Internal use only. Users should use {@link generateSetPropertyRequest} instead.
+         */
+        private SetPropertyRequest(int requestId, int propertyId, int areaId, T value) {
+            mRequestId = requestId;
+            mPropertyId = propertyId;
+            mAreaId = areaId;
+            mValue = value;
+        }
+    }
+
+    /**
+     * An error result for {@link GetPropertyCallback} or {@link SetPropertyCallback}.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final class PropertyAsyncError {
         private final int mRequestId;
         private final int mPropertyId;
         private final int mAreaId;
         private final @CarPropertyAsyncErrorCode int mErrorCode;
+        private final int mVendorErrorCode;
 
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -276,19 +456,34 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         /**
-         * Creates a new error result for async GetProperty request.
+         * Gets the vendor error codes to allow for more detailed error codes.
+         *
+         * @return Vendor error code if it is set, otherwise 0. A vendor error code will have a
+         * range from 0x0000 to 0xffff.
+         *
+         * @hide
+         */
+        @SystemApi
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+        public int getVendorErrorCode() {
+            return mVendorErrorCode;
+        }
+
+        /**
+         * Creates a new error result for async property request.
          *
          * @param requestId the request ID.
          * @param propertyId the property ID in the request.
          * @param areaId the area ID for the property in the request.
          * @param errorCode the code indicating the error.
          */
-        GetPropertyError(int requestId, int propertyId, int areaId,
-                @CarPropertyAsyncErrorCode int errorCode) {
+        PropertyAsyncError(int requestId, int propertyId, int areaId, int errorCode) {
             mRequestId = requestId;
             mPropertyId = propertyId;
             mAreaId = areaId;
-            mErrorCode = errorCode;
+            mErrorCode = errorCode & SYSTEM_ERROR_CODE_MASK;
+            mVendorErrorCode = errorCode >>> VENDOR_ERROR_CODE_SHIFT;
         }
     }
 
@@ -367,10 +562,72 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * A class for delivering {@link GetPropertyCallback} client callback when
-     * {@link IGetAsyncPropertyResultCallback} returns a result.
+     * A successful result for {@link SetPropertyCallback}.
      */
-    private class GetAsyncPropertyResultCallback extends IGetAsyncPropertyResultCallback.Stub {
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final class SetPropertyResult {
+        private final int mRequestId;
+        private final int mPropertyId;
+        private final int mAreaId;
+        private final long mUpdateTimestampNanos;
+
+        /**
+         * Gets the ID for the request this result is for.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public int getRequestId() {
+            return mRequestId;
+        }
+
+        /**
+         * Gets the property ID this result is for.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public int getPropertyId() {
+            return mPropertyId;
+        }
+
+        /**
+         * Gets the area ID this result is for.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public int getAreaId() {
+            return mAreaId;
+        }
+
+        /**
+         * Gets the timestamp in nanoseconds at which the property was updated to the desired value.
+         *
+         * <p>The timestamp will use the same time base as
+         * {@link SystemClock#elapsedRealtimeNanos()}.
+         *
+         * <p>NOTE: Timestamp should be synchronized with other signals from the platform (e.g.
+         * {@link Location} and {@link SensorEvent} instances). Ideally, timestamp synchronization
+         * error should be below 1 millisecond.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public long getUpdateTimestampNanos() {
+            return mUpdateTimestampNanos;
+        }
+
+        SetPropertyResult(int requestId, int propertyId, int areaId, int updateTimestampNanos) {
+            mRequestId = requestId;
+            mPropertyId = propertyId;
+            mAreaId = areaId;
+            mUpdateTimestampNanos = updateTimestampNanos;
+        }
+    }
+
+    /**
+     * A class for delivering {@link GetPropertyCallback} client callback when
+     * {@link IAsyncPropertyResultCallback} returns a result.
+     */
+    private class AsyncPropertyResultCallback extends IAsyncPropertyResultCallback.Stub {
 
         @Override
         public IBinder asBinder() {
@@ -378,27 +635,29 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         @Override
-        public void onGetValueResult(List<GetValueResult> getValueResults) {
+        public void onGetValueResults(List<GetSetValueResult> getValueResults) {
             for (int i = 0; i < getValueResults.size(); i++) {
-                GetValueResult getValueResult = getValueResults.get(i);
+                GetSetValueResult getValueResult = getValueResults.get(i);
                 int requestId = getValueResult.getRequestId();
-                GetAsyncPropertyClientInfo getAsyncPropertyClientInfo;
+                AsyncPropertyRequestInfo<GetPropertyRequest, GetPropertyCallback> requestInfo;
                 synchronized (mLock) {
-                    getAsyncPropertyClientInfo = mRequestIdToClientInfo.get(requestId);
-                    mRequestIdToClientInfo.remove(requestId);
+                    requestInfo =
+                            (AsyncPropertyRequestInfo<GetPropertyRequest, GetPropertyCallback>)
+                            mRequestIdToAsyncRequestInfo.get(requestId);
+                    mRequestIdToAsyncRequestInfo.remove(requestId);
                 }
-                if (getAsyncPropertyClientInfo == null) {
+                if (requestInfo == null) {
                     Log.w(TAG, "onGetValueResult: Request ID: " + requestId
                             + " might have been completed, cancelled or an exception might have "
                             + "been thrown");
                     continue;
                 }
-                Executor callbackExecutor = getAsyncPropertyClientInfo.getCallbackExecutor();
-                GetPropertyCallback getPropertyCallback =
-                        getAsyncPropertyClientInfo.getGetPropertyCallback();
-                @CarPropertyAsyncErrorCode
+                Executor callbackExecutor = requestInfo.getCallbackExecutor();
+                GetPropertyCallback getPropertyCallback = requestInfo.getCallback();
                 int errorCode = getValueResult.getErrorCode();
-                if (errorCode == STATUS_OK) {
+                @CarPropertyAsyncErrorCode
+                int asyncErrorCode = errorCode & SYSTEM_ERROR_CODE_MASK;
+                if (asyncErrorCode == STATUS_OK) {
                     CarPropertyValue<?> carPropertyValue = getValueResult.getCarPropertyValue();
                     int propertyId = carPropertyValue.getPropertyId();
                     int areaId = carPropertyValue.getAreaId();
@@ -410,44 +669,46 @@ public class CarPropertyManager extends CarManagerBase {
                 } else {
                     // We are not receiving property Id and areaId from the result, so we use
                     // the ones from the request.
-                    int propertyId = getAsyncPropertyClientInfo.getGetPropertyRequest()
+                    int propertyId = requestInfo.getRequest()
                             .getPropertyId();
-                    int areaId = getAsyncPropertyClientInfo.getGetPropertyRequest().getAreaId();
+                    int areaId = requestInfo.getRequest().getAreaId();
                     callbackExecutor.execute(() -> getPropertyCallback.onFailure(
-                            new GetPropertyError(requestId, propertyId, areaId, errorCode)));
+                            new PropertyAsyncError(requestId, propertyId, areaId, errorCode)));
                 }
             }
+        }
+
+        @Override
+        public void onSetValueResults(List<GetSetValueResult> getValueResults) {
+            // TODO(b/264719384): Implement this.
         }
     }
 
     /**
-     * A class to store client info when {@link CarPropertyManager#getPropertiesAsync} is called.
+     * A class to store async get/set property request info.
      */
-    private static final class GetAsyncPropertyClientInfo {
-        private final GetPropertyRequest mGetPropertyRequest;
+    private static final class AsyncPropertyRequestInfo<RequestType, CallbackType> {
+        private final RequestType mRequest;
         private final Executor mCallbackExecutor;
-        private final GetPropertyCallback mGetPropertyCallback;
+        private final CallbackType mCallback;
 
-        public GetPropertyRequest getGetPropertyRequest() {
-            return mGetPropertyRequest;
+        public RequestType getRequest() {
+            return mRequest;
         }
 
         public Executor getCallbackExecutor() {
             return mCallbackExecutor;
         }
 
-        public GetPropertyCallback getGetPropertyCallback() {
-            return mGetPropertyCallback;
+        public CallbackType getCallback() {
+            return mCallback;
         }
 
-        /**
-         * Get an instance of GetAsyncPropertyClientInfo.
-         */
-        private GetAsyncPropertyClientInfo(GetPropertyRequest getPropertyRequest,
-                Executor callbackExecutor, GetPropertyCallback getPropertyCallback) {
-            mGetPropertyRequest = getPropertyRequest;
+        private AsyncPropertyRequestInfo(RequestType request, Executor callbackExecutor,
+                CallbackType callback) {
+            mRequest = request;
             mCallbackExecutor = callbackExecutor;
-            mGetPropertyCallback = getPropertyCallback;
+            mCallback = callback;
         }
     }
 
@@ -510,17 +771,6 @@ public class CarPropertyManager extends CarManagerBase {
     @Retention(RetentionPolicy.SOURCE)
     public @interface CarSetPropertyErrorCode {}
 
-    /**
-     * Status indicating no error.
-     *
-     * <p>This is not exposed to the client as this will be used only for deciding
-     * {@link GetPropertyCallback#onSuccess} or {@link GetPropertyCallback#onFailure} is called.
-     *
-     * @hide
-     */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    public static final int STATUS_OK = 0;
     /**
      * Error indicating that there is an error detected in cars.
      */
@@ -900,7 +1150,9 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         try {
-            CarPropertyValue propValue = mService.getProperty(propId, area);
+            CarPropertyValue propValue = runSyncOperation(() -> {
+                return mService.getProperty(propId, area);
+            });
             return propValue != null;
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, false);
@@ -1058,6 +1310,37 @@ public class CarPropertyManager extends CarManagerBase {
         return arr;
     }
 
+    @FunctionalInterface
+    private interface RemoteCallable<V> {
+        V call() throws RemoteException;
+    }
+
+    @Nullable
+    private static <V> V runSyncOperation(RemoteCallable<V> c)
+            throws RemoteException, ServiceSpecificException {
+        int retryCount = 0;
+        while (retryCount < SYNC_OP_RETRY_MAX_COUNT) {
+            retryCount++;
+            try {
+                return c.call();
+            } catch (ServiceSpecificException e) {
+                if (e.errorCode != SYNC_OP_LIMIT_TRY_AGAIN) {
+                    throw e;
+                }
+                // If car service don't have enough binder thread to handle this request. Sleep for
+                // 10ms and try again.
+                Log.d(TAG, "too many sync request, sleeping for " + SYNC_OP_RETRY_SLEEP_IN_MS
+                        + " ms before retry");
+                SystemClock.sleep(SYNC_OP_RETRY_SLEEP_IN_MS);
+                continue;
+            } catch (RemoteException e) {
+                throw e;
+            }
+        }
+        throw new ServiceSpecificException(VehicleHalStatusCode.STATUS_INTERNAL_ERROR,
+                "failed to call car service sync operations after " + retryCount + " retries");
+    }
+
     /**
      * Return CarPropertyValue
      *
@@ -1158,11 +1441,11 @@ public class CarPropertyManager extends CarManagerBase {
      * @param areaId areaId
      * @param <E> Value type of the property
      *
-     * @throws CarInternalErrorException when there is an unexpected error detected in cars
+     * @throws CarInternalErrorException when there is an unexpected error detected in cars.
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
-     * property
+     * property.
      * @throws PropertyNotAvailableAndRetryException when the property is temporarily
-     * not available and likely that retrying will be successful
+     * not available and likely that retrying will be successful.
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
      * @throws IllegalArgumentException when the [propId, areaId] is not supported.
@@ -1179,8 +1462,11 @@ public class CarPropertyManager extends CarManagerBase {
 
         assertPropertyIdIsSupported(propId);
 
+        Trace.beginSection("getProperty-" + propId + "/" + areaId);
         try {
-            return (CarPropertyValue<E>) mService.getProperty(propId, areaId);
+            return (CarPropertyValue<E>) (runSyncOperation(() -> {
+                return mService.getProperty(propId, areaId);
+            }));
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, null);
         } catch (ServiceSpecificException e) {
@@ -1188,7 +1474,8 @@ public class CarPropertyManager extends CarManagerBase {
                 if (e.errorCode == VehicleHalStatusCode.STATUS_TRY_AGAIN) {
                     return null;
                 } else {
-                    throw new IllegalStateException(String.format("Failed to get property: 0x%x, "
+                    throw new IllegalStateException(String.format(
+                            "Failed to get property: 0x%x, "
                             + "areaId: 0x%x", propId, areaId), e);
                 }
             }
@@ -1196,13 +1483,15 @@ public class CarPropertyManager extends CarManagerBase {
 
             // Never reaches here.
             return null;
+        } finally {
+            Trace.endSection();
         }
     }
 
     /**
      * Set value of car property by areaId.
      *
-     * <p>If multiple clients set a property for the same area id simultaneously, which one takes
+     * <p>If multiple clients set a property for the same area ID simultaneously, which one takes
      * precedence is undefined. Typically, the last set operation (in the order that they are issued
      * to the car's ECU) overrides the previous set operations.
      *
@@ -1238,12 +1527,12 @@ public class CarPropertyManager extends CarManagerBase {
      * defined as {@code VEHICLE_VALUE_TYPE_INT32} in vehicle HAL could be accessed using
      * {@code Integer.class}.
      *
-     * @throws CarInternalErrorException when there is an unexpected error detected in cars
-     * @throws PropertyAccessDeniedSecurityException when cars denied the access of the property
+     * @throws CarInternalErrorException when there is an unexpected error detected in cars.
+     * @throws PropertyAccessDeniedSecurityException when cars denied the access of the property.
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
      * @throws PropertyNotAvailableAndRetryException when the property is temporarily not available
-     * and likely that retrying will be successful
+     * and likely that retrying will be successful.
      * @throws IllegalArgumentException when the [propId, areaId] is not supported.
      */
     @AddedInOrBefore(majorVersion = 33)
@@ -1255,22 +1544,31 @@ public class CarPropertyManager extends CarManagerBase {
 
         assertPropertyIdIsSupported(propId);
 
+        Trace.beginSection("setProperty-" + propId + "/" + areaId);
         try {
-            mService.setProperty(new CarPropertyValue<>(propId, areaId, val),
-                    mCarPropertyEventToService);
+            runSyncOperation(() -> {
+                mService.setProperty(new CarPropertyValue<>(propId, areaId, val),
+                        mCarPropertyEventToService);
+                return null;
+            });
         } catch (RemoteException e) {
             handleRemoteExceptionFromCarService(e);
+            return;
         } catch (ServiceSpecificException e) {
             if (mAppTargetSdk < Build.VERSION_CODES.R) {
                 if (e.errorCode == VehicleHalStatusCode.STATUS_TRY_AGAIN) {
                     throw new RuntimeException(String.format("Failed to set property: 0x%x, "
                             + "areaId: 0x%x", propId, areaId), e);
                 } else {
-                    throw new IllegalStateException(String.format("Failed to set property: 0x%x, "
-                            + "areaId: 0x%x", propId, areaId), e);
+                    throw new IllegalStateException(String.format(
+                            "Failed to set property: 0x%x, " + "areaId: 0x%x", propId, areaId),
+                            e);
                 }
             }
             handleCarServiceSpecificException(e, propId, areaId);
+            return;
+        } finally {
+            Trace.endSection();
         }
     }
 
@@ -1327,27 +1625,64 @@ public class CarPropertyManager extends CarManagerBase {
             ServiceSpecificException e, int propId, int areaId) {
         // We are not passing the error message down, so log it here.
         Log.w(TAG, "received ServiceSpecificException: " + e);
-        int errorCode = e.errorCode;
+        int errorCode = e.errorCode & SYSTEM_ERROR_CODE_MASK;
+        int vendorErrorCode = e.errorCode >>> VENDOR_ERROR_CODE_SHIFT;
+
         switch (errorCode) {
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE:
-                throw new PropertyNotAvailableException(propId, areaId);
+                throw new PropertyNotAvailableException(propId, areaId, vendorErrorCode);
             case VehicleHalStatusCode.STATUS_TRY_AGAIN:
+                // Vendor error code is ignored for STATUS_TRY_AGAIN error
                 throw new PropertyNotAvailableAndRetryException(propId, areaId);
             case VehicleHalStatusCode.STATUS_ACCESS_DENIED:
+                // Vendor error code is ignored for STATUS_ACCESS_DENIED error
                 throw new PropertyAccessDeniedSecurityException(propId, areaId);
             case VehicleHalStatusCode.STATUS_INTERNAL_ERROR:
-                throw new CarInternalErrorException(propId, areaId);
+                throw new CarInternalErrorException(propId, areaId, vendorErrorCode);
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED:
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW:
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_HIGH:
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_POOR_VISIBILITY:
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SAFETY:
+                throw new PropertyNotAvailableException(propId, areaId,
+                        getPropertyNotAvailableErrorCodeFromStatusCode(errorCode), vendorErrorCode);
             default:
                 Log.e(TAG, "Invalid errorCode: " + errorCode + " in CarService");
                 throw new CarInternalErrorException(propId, areaId);
         }
     }
 
-    private void clearRequestIdToClientInfo(
-            List<GetPropertyRequest> getPropertyRequests) {
+    /**
+     * Convert {@link VehicleHalStatusCode} into public {@link PropertyNotAvailableErrorCode}
+     * equivalents.
+     *
+     * @throws IllegalArgumentException if an invalid status code is passed in.
+     * @hide
+     */
+    private static int getPropertyNotAvailableErrorCodeFromStatusCode(int statusCode) {
+        switch (statusCode) {
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE:
+                return PropertyNotAvailableErrorCode.NOT_AVAILABLE;
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED:
+                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_DISABLED;
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW:
+                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_SPEED_LOW;
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_HIGH:
+                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_SPEED_HIGH;
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_POOR_VISIBILITY:
+                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_POOR_VISIBILITY;
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SAFETY:
+                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_SAFETY;
+            default:
+                throw new IllegalArgumentException("Invalid status code: " + statusCode);
+        }
+    }
+
+    private void clearRequestIdToAsyncRequestInfo(
+            List<? extends AsyncPropertyRequest> asyncPropertyRequests) {
         synchronized (mLock) {
-            for (int i = 0; i < getPropertyRequests.size(); i++) {
-                mRequestIdToClientInfo.remove(getPropertyRequests.get(i).getRequestId());
+            for (int i = 0; i < asyncPropertyRequests.size(); i++) {
+                mRequestIdToAsyncRequestInfo.remove(asyncPropertyRequests.get(i).getRequestId());
             }
         }
     }
@@ -1366,7 +1701,7 @@ public class CarPropertyManager extends CarManagerBase {
                 for (int i = 0; i < requestIds.size(); i++) {
                     int requestId = requestIds.get(i);
                     requestIdsArray[i] = requestId;
-                    mRequestIdToClientInfo.remove(requestId);
+                    mRequestIdToAsyncRequestInfo.remove(requestId);
                 }
             }
             try {
@@ -1387,7 +1722,7 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * Generate unique request ID and return to the client.
+     * Generate unique get request ID and return to the client.
      *
      * @param propertyId Property ID
      * @param areaId area ID
@@ -1401,22 +1736,32 @@ public class CarPropertyManager extends CarManagerBase {
         return new GetPropertyRequest(requestIdCounter, propertyId, areaId);
     }
 
-    private void checkGetAsyncRequirements(List<GetPropertyRequest> getPropertyRequests,
-            GetPropertyCallback getPropertyCallback, long timeoutInMs) {
-        Objects.requireNonNull(getPropertyRequests);
-        Objects.requireNonNull(getPropertyCallback);
-        if (timeoutInMs <= 0) {
-            throw new IllegalArgumentException("timeoutInMs must be a positive number");
-        }
+    /**
+     * Generate unique set request ID and return to the client.
+     *
+     * @param <T> The type for the property value, must be one of Object, Boolean, Float, Integer,
+     *      Long, Float[], Integer[], Long[], String, byte[], Object[].
+     * @param propertyId Property ID
+     * @param areaId area ID
+     * @param value the value to set.
+     * @return SetPropertyRequest object
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    @NonNull
+    public <T> SetPropertyRequest<T> generateSetPropertyRequest(int propertyId, int areaId,
+            @NonNull T value) {
+        requireNonNull(value);
+        int requestIdCounter = mRequestIdCounter.getAndIncrement();
+        return new SetPropertyRequest(requestIdCounter, propertyId, areaId, value);
     }
 
-    private void updateRequestIdToClientInfo(
-            SparseArray<GetAsyncPropertyClientInfo> currentRequestIdToClientInfo) {
-        synchronized (mLock) {
-            for (int i = 0; i < currentRequestIdToClientInfo.size(); i++) {
-                mRequestIdToClientInfo.put(currentRequestIdToClientInfo.keyAt(i),
-                        currentRequestIdToClientInfo.valueAt(i));
-            }
+
+    private void checkAsyncArguments(Object requests, Object callback, long timeoutInMs) {
+        requireNonNull(requests);
+        requireNonNull(callback);
+        if (timeoutInMs <= 0) {
+            throw new IllegalArgumentException("timeoutInMs must be a positive number");
         }
     }
 
@@ -1446,8 +1791,8 @@ public class CarPropertyManager extends CarManagerBase {
      * @param cancellationSignal A signal that could be used to cancel the on-going operation
      * @param callbackExecutor The executor to execute the callback with
      * @param getPropertyCallback The callback function to deliver the result
-     * @throws SecurityException if missing permission to read the specific property
-     * @throws IllegalArgumentException if one of the get property request is not supported.
+     * @throws SecurityException if missing permission to read one of the specific properties.
+     * @throws IllegalArgumentException if one of the properties to read is not supported.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -1457,15 +1802,13 @@ public class CarPropertyManager extends CarManagerBase {
             @Nullable CancellationSignal cancellationSignal,
             @Nullable Executor callbackExecutor,
             @NonNull GetPropertyCallback getPropertyCallback) {
-        checkGetAsyncRequirements(getPropertyRequests, getPropertyCallback, timeoutInMs);
-        List<GetPropertyServiceRequest> getPropertyServiceRequests = new ArrayList<>(
-                getPropertyRequests.size());
-        SparseArray<GetAsyncPropertyClientInfo> currentRequestIdToClientInfo =
-                new SparseArray<>();
+        checkAsyncArguments(getPropertyRequests, getPropertyCallback, timeoutInMs);
         if (callbackExecutor == null) {
             callbackExecutor = new HandlerExecutor(getEventHandler());
         }
-        List<Integer> requestIds = new ArrayList<>();
+
+        List<AsyncPropertyServiceRequest> getPropertyServiceRequests = new ArrayList<>(
+                getPropertyRequests.size());
         for (int i = 0; i < getPropertyRequests.size(); i++) {
             GetPropertyRequest getPropertyRequest = getPropertyRequests.get(i);
             int propertyId = getPropertyRequest.getPropertyId();
@@ -1474,33 +1817,23 @@ public class CarPropertyManager extends CarManagerBase {
                 Log.d(TAG, "getPropertiesAsync, propId: " + VehiclePropertyIds.toString(propertyId)
                         + ", areaId: 0x" + toHexString(areaId));
             }
-
             assertPropertyIdIsSupported(propertyId);
 
-            GetAsyncPropertyClientInfo getAsyncPropertyClientInfo = new GetAsyncPropertyClientInfo(
-                    getPropertyRequest, callbackExecutor, getPropertyCallback);
-            int requestId = getPropertyRequest.getRequestId();
-            requestIds.add(requestId);
-            synchronized (mLock) {
-                if (mRequestIdToClientInfo.contains(requestId)
-                        || currentRequestIdToClientInfo.contains(requestId)) {
-                    throw new IllegalArgumentException(
-                            "Request ID: " + requestId + " already exists");
-                }
-                currentRequestIdToClientInfo.put(requestId, getAsyncPropertyClientInfo);
-            }
-            getPropertyServiceRequests.add(
-                    new GetPropertyServiceRequest(requestId, propertyId, areaId));
+            getPropertyServiceRequests.add(new AsyncPropertyServiceRequest(
+                    getPropertyRequest.getRequestId(), propertyId, areaId));
         }
-        updateRequestIdToClientInfo(currentRequestIdToClientInfo);
+
+        List<Integer> requestIds = storePendingRequestInfo(getPropertyRequests, callbackExecutor,
+                getPropertyCallback);
+
         try {
-            mService.getPropertiesAsync(getPropertyServiceRequests, mGetAsyncPropertyResultCallback,
+            mService.getPropertiesAsync(getPropertyServiceRequests, mAsyncPropertyResultCallback,
                     timeoutInMs);
         } catch (RemoteException e) {
-            clearRequestIdToClientInfo(getPropertyRequests);
+            clearRequestIdToAsyncRequestInfo(getPropertyRequests);
             handleRemoteExceptionFromCarService(e);
         } catch (IllegalArgumentException | SecurityException e) {
-            clearRequestIdToClientInfo(getPropertyRequests);
+            clearRequestIdToAsyncRequestInfo(getPropertyRequests);
             throw e;
         }
         if (cancellationSignal != null) {
@@ -1525,10 +1858,130 @@ public class CarPropertyManager extends CarManagerBase {
                 callbackExecutor, getPropertyCallback);
     }
 
+    /**
+     * Sets a list of car property values asynchronously.
+     *
+     * <p>This function would return immediately before the results are ready. For each request,
+     * the corresponding result would either be delivered through one
+     * {@code resultCallback.onSuccess} call if the request succeeded or through one
+     * {@code errorCallback.onFailure} call if failed. It is guaranteed that the total times the
+     * callback functions are called is equal to the number of requests if this function does not
+     * throw an exception. It is guaranteed that none of the callback functions are called if an
+     * exception is thrown. If the {@code callbackExecutor} is {@code null}, the callback will be
+     * executed on the default event handler thread. If the callback is doing heavy work, it is
+     * recommended that the {@code callbackExecutor} is provided.
+     *
+     * <p>If the operation is cancelled, it is guaranteed that no more callbacks will be called.
+     *
+     * <p>If multiple clients set a property for the same area ID simultaneously, which one takes
+     * precedence is undefined. Typically, the last set operation (in the order that they are issued
+     * to the car's ECU) overrides the previous set operations.
+     *
+     * @param setPropertyRequests The property values to set.
+     * @param timeoutInMs The timeout for the operation, in milliseconds.
+     * @param cancellationSignal A signal that could be used to cancel the on-going operation.
+     * @param callbackExecutor The executor to execute the callback with.
+     * @param setPropertyCallback The callback function to deliver the result.
+     * @throws SecurityException if missing permission to write one of the specific properties.
+     * @throws IllegalArgumentException if one of the properties to set is not supported.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public void setPropertiesAsync(
+            @NonNull List<SetPropertyRequest<?>> setPropertyRequests,
+            long timeoutInMs,
+            @Nullable CancellationSignal cancellationSignal,
+            @Nullable Executor callbackExecutor,
+            @NonNull SetPropertyCallback setPropertyCallback) {
+        checkAsyncArguments(setPropertyRequests, setPropertyCallback, timeoutInMs);
+        if (callbackExecutor == null) {
+            callbackExecutor = new HandlerExecutor(getEventHandler());
+        }
+
+        List<AsyncPropertyServiceRequest> setPropertyServiceRequests = new ArrayList<>(
+                setPropertyRequests.size());
+        for (int i = 0; i < setPropertyRequests.size(); i++) {
+            SetPropertyRequest setPropertyRequest = setPropertyRequests.get(i);
+            int propertyId = setPropertyRequest.getPropertyId();
+            int areaId = setPropertyRequest.getAreaId();
+            requireNonNull(setPropertyRequest.getValue());
+            if (DBG) {
+                Log.d(TAG, "setPropertiesAsync, propId: " + VehiclePropertyIds.toString(propertyId)
+                        + ", areaId: 0x" + toHexString(areaId));
+            }
+            assertPropertyIdIsSupported(propertyId);
+
+            setPropertyServiceRequests.add(new AsyncPropertyServiceRequest(
+                    setPropertyRequest.getRequestId(), propertyId, areaId,
+                    new CarPropertyValue(propertyId, areaId, setPropertyRequest.getValue())));
+        }
+
+        List<Integer> requestIds = storePendingRequestInfo(setPropertyRequests, callbackExecutor,
+                setPropertyCallback);
+
+        try {
+            mService.setPropertiesAsync(setPropertyServiceRequests, mAsyncPropertyResultCallback,
+                    timeoutInMs);
+        } catch (RemoteException e) {
+            clearRequestIdToAsyncRequestInfo(setPropertyRequests);
+            handleRemoteExceptionFromCarService(e);
+        } catch (IllegalArgumentException | SecurityException e) {
+            clearRequestIdToAsyncRequestInfo(setPropertyRequests);
+            throw e;
+        }
+        if (cancellationSignal != null) {
+            setOnCancelListener(cancellationSignal, requestIds);
+        }
+    }
+
+    /**
+     * Sets a list of car property values asynchronously.
+     *
+     * Same as {@link CarPropertyManager#setPropertiesAsync(List, long, CancellationSignal,
+     * Executor, SetPropertyCallback)} with default timeout 10s.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public void setPropertiesAsync(
+            @NonNull List<SetPropertyRequest<?>> setPropertyRequests,
+            @Nullable CancellationSignal cancellationSignal,
+            @Nullable Executor callbackExecutor,
+            @NonNull SetPropertyCallback setPropertyCallback) {
+        setPropertiesAsync(setPropertyRequests, ASYNC_GET_DEFAULT_TIMEOUT_MS, cancellationSignal,
+                callbackExecutor, setPropertyCallback);
+    }
+
     private void assertPropertyIdIsSupported(int propId) {
         if (!CarPropertyHelper.isSupported(propId)) {
             throw new IllegalArgumentException("The property: "
                     + VehiclePropertyIds.toString(propId) + " is unsupported");
         }
+    }
+
+    private <RequestType extends AsyncPropertyRequest, CallbackType> List<Integer>
+            storePendingRequestInfo(
+                    List<RequestType> requests, Executor callbackExecutor, CallbackType callback) {
+        List<Integer> requestIds = new ArrayList<>();
+        SparseArray<AsyncPropertyRequestInfo<?, ?>> requestInfoToAdd = new SparseArray<>();
+        synchronized (mLock) {
+            for (int i = 0; i < requests.size(); i++) {
+                RequestType request = requests.get(i);
+                AsyncPropertyRequestInfo<RequestType, CallbackType> requestInfo =
+                        new AsyncPropertyRequestInfo(request, callbackExecutor, callback);
+                int requestId = request.getRequestId();
+                requestIds.add(requestId);
+                if (mRequestIdToAsyncRequestInfo.contains(requestId)
+                        || requestInfoToAdd.contains(requestId)) {
+                    throw new IllegalArgumentException(
+                            "Request ID: " + requestId + " already exists");
+                }
+                requestInfoToAdd.put(requestId, requestInfo);
+            }
+            for (int i = 0; i < requestInfoToAdd.size(); i++) {
+                mRequestIdToAsyncRequestInfo.put(requestInfoToAdd.keyAt(i),
+                        requestInfoToAdd.valueAt(i));
+            }
+        }
+        return requestIds;
     }
 }

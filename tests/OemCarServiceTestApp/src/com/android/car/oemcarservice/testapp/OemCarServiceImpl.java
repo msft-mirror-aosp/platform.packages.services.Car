@@ -23,9 +23,13 @@ import android.car.oem.OemCarAudioVolumeService;
 import android.car.oem.OemCarService;
 import android.util.Slog;
 
+import com.android.car.oem.utils.OemCarServiceHelper;
 import com.android.internal.annotations.GuardedBy;
 
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.FileDescriptor;
+import java.io.IOException;
 import java.io.PrintWriter;
 
 public final class OemCarServiceImpl extends OemCarService {
@@ -34,26 +38,24 @@ public final class OemCarServiceImpl extends OemCarService {
     private static final boolean DEBUG = true;
     private static final CarVersion SUPPORTED_CAR_VERSION =
             CarVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
-
-
-    private final OemCarAudioFocusServiceImpl mOemCarAudioFocusServiceImpl =
-            new OemCarAudioFocusServiceImpl();
-    private final OemCarAudioDuckingServiceImpl mOemCarAudioDuckingService =
-            new OemCarAudioDuckingServiceImpl();
+    private OemCarServiceHelper mOemCarServiceHelper;
 
     private final Object mLock = new Object();
     @GuardedBy("mLock")
     private OemCarAudioVolumeServiceImp mOemCarAudioVolumeService;
+    @GuardedBy("mLock")
+    private OemCarAudioFocusServiceImpl mOemCarAudioFocusServiceImpl;
+    @GuardedBy("mLock")
+    private OemCarAudioDuckingServiceImpl mOemCarAudioDuckingService;
 
     @Override
     public void onCreate() {
         if (DEBUG) {
             Slog.d(TAG, "onCreate");
         }
-
+        parseOemConfigFile();
         super.onCreate();
     }
-
 
     @Override
     public void onDestroy() {
@@ -70,7 +72,7 @@ public final class OemCarServiceImpl extends OemCarService {
             Slog.d(TAG, "dump");
         }
         writer.println("Dump OemCarServiceImpl");
-        writer.printf("\tSUPPORTED_CAR_VERSION: %s", SUPPORTED_CAR_VERSION);
+        writer.printf("\tSUPPORTED_CAR_VERSION: %s\n", SUPPORTED_CAR_VERSION);
         super.dump(fd, writer, args);
     }
 
@@ -79,7 +81,13 @@ public final class OemCarServiceImpl extends OemCarService {
         if (DEBUG) {
             Slog.d(TAG, "getOemAudioFocusService returning car audio focus service");
         }
-        return mOemCarAudioFocusServiceImpl;
+        synchronized (mLock) {
+            if (mOemCarAudioFocusServiceImpl == null) {
+                mOemCarAudioFocusServiceImpl = new OemCarAudioFocusServiceImpl(
+                        mOemCarServiceHelper.getCurrentFocusToIncomingFocusInteractions());
+            }
+            return mOemCarAudioFocusServiceImpl;
+        }
     }
 
     @Override
@@ -87,7 +95,13 @@ public final class OemCarServiceImpl extends OemCarService {
         if (DEBUG) {
             Slog.d(TAG, "getOemAudioDuckingService returning car ducking service");
         }
-        return mOemCarAudioDuckingService;
+        synchronized (mLock) {
+            if (mOemCarAudioDuckingService == null) {
+                mOemCarAudioDuckingService = new OemCarAudioDuckingServiceImpl(
+                        mOemCarServiceHelper.getDuckingInteractions());
+            }
+            return mOemCarAudioDuckingService;
+        }
     }
 
     @Override
@@ -98,7 +112,8 @@ public final class OemCarServiceImpl extends OemCarService {
 
         synchronized (mLock) {
             if (mOemCarAudioVolumeService == null) {
-                mOemCarAudioVolumeService = new OemCarAudioVolumeServiceImp(this);
+                mOemCarAudioVolumeService = new OemCarAudioVolumeServiceImp(this,
+                        mOemCarServiceHelper.getVolumePriorityList());
             }
             return mOemCarAudioVolumeService;
         }
@@ -119,4 +134,14 @@ public final class OemCarServiceImpl extends OemCarService {
         return SUPPORTED_CAR_VERSION;
     }
 
+    private void parseOemConfigFile() {
+        mOemCarServiceHelper = new OemCarServiceHelper();
+        try {
+            mOemCarServiceHelper.parseAudioManagementConfiguration(getAssets().open(
+                    "oem_config.xml"));
+        } catch (XmlPullParserException | IOException e) {
+            Slog.w(TAG, "Oem car service helper was not able to be created", e);
+            return;
+        }
+    }
 }

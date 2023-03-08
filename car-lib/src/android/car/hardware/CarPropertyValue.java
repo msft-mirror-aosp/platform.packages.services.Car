@@ -24,7 +24,6 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.car.VehiclePropertyIds;
 import android.car.annotation.AddedInOrBefore;
-import android.car.annotation.ApiRequirements;
 import android.car.builtin.os.ParcelHelper;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -255,11 +254,12 @@ public final class CarPropertyValue<T> implements Parcelable {
     /**
      * Returns the timestamp in nanoseconds at which the CarPropertyValue happened. For a given car
      * property, each new CarPropertyValue should be monotonically increasing using the same time
-     * base as {@link SystemClock#elapsedRealtimeNanos()}.
+     * base as {@link android.os.SystemClock#elapsedRealtimeNanos()}.
      *
      * <p>NOTE: Timestamp should be synchronized with other signals from the platform (e.g.
-     * {@link Location} and {@link SensorEvent} instances). Ideally, timestamp synchronization
-     * error should be below 1 millisecond.
+     * {@link android.location.Location Location} and
+     * {@link android.hardware.SensorEvent SensorEvent} instances).
+     * Ideally, timestamp synchronization error should be below 1 millisecond.
      */
     @AddedInOrBefore(majorVersion = 33)
     public long getTimestamp() {
@@ -277,7 +277,6 @@ public final class CarPropertyValue<T> implements Parcelable {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return "CarPropertyValue{"
                 + "mPropertyId=0x" + toHexString(mPropertyId)
@@ -289,16 +288,12 @@ public final class CarPropertyValue<T> implements Parcelable {
     }
 
     /** Generates hash code for this instance. */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @Override
     public int hashCode() {
         return Objects.hash(mPropertyId, mAreaId, mTimestampNanos, mValue);
     }
 
     /** Checks equality with passed {@code object}. */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @Override
     public boolean equals(Object object) {
         if (this == object) {

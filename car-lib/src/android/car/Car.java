@@ -60,6 +60,7 @@ import android.car.navigation.CarNavigationStatusManager;
 import android.car.occupantawareness.OccupantAwarenessManager;
 import android.car.occupantconnection.CarOccupantConnectionManager;
 import android.car.os.CarPerformanceManager;
+import android.car.remoteaccess.CarRemoteAccessManager;
 import android.car.storagemonitoring.CarStorageMonitoringManager;
 import android.car.telemetry.CarTelemetryManager;
 import android.car.test.CarTestManager;
@@ -221,7 +222,7 @@ public final class Car {
      * not usable in a specific car. This meta-data is not necessary for mandatory features.
      *
      * <p>For this meta-data, android:value should contain the feature name string defined by
-     * (@link android.car.annotation.OptionalFeature} or
+     * {@link android.car.annotation.OptionalFeature} or
      * {@link android.car.annotation.ExperimentalFeature} annotations.
      *
      * <p>Example usage:
@@ -272,8 +273,7 @@ public final class Car {
      * @hide
      */
     @OptionalFeature
-    // TODO(b/257117236): Change it to system API once it's ready to release.
-    // @SystemApi
+    @SystemApi
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static final String CAR_OCCUPANT_CONNECTION_SERVICE = "car_occupant_connection_service";
@@ -284,8 +284,7 @@ public final class Car {
      * @hide
      */
     @OptionalFeature
-    // TODO(b/257117236): Change it to system API once it's ready to release.
-    // @SystemApi
+    @SystemApi
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static final String CAR_REMOTE_DEVICE_SERVICE = "car_remote_device_service";
@@ -549,6 +548,18 @@ public final class Car {
     @SystemApi
     @AddedInOrBefore(majorVersion = 33)
     public static final String CAR_ACTIVITY_SERVICE = "car_activity_service";
+
+    /**
+     * Service name for {@link android.car.remoteaccess.CarRemoteAccessManager}
+     *
+     * @hide
+     */
+    @OptionalFeature
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final String CAR_REMOTE_ACCESS_SERVICE = "car_remote_access_service";
+
     /**
      * Permission necessary to read driver monitoring systems settings information.
      *
@@ -561,6 +572,7 @@ public final class Car {
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final String PERMISSION_READ_DRIVER_MONITORING_SETTINGS =
             "android.car.permission.READ_DRIVER_MONITORING_SETTINGS";
+
     /**
      * Permission necessary to control driver monitoring systems settings information.
      *
@@ -573,6 +585,7 @@ public final class Car {
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final String PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS =
             "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS";
+
     /**
      * Permission necessary to read driver monitoring systems states information.
      *
@@ -858,6 +871,15 @@ public final class Car {
     public static final String PERMISSION_CONTROL_CAR_WINDOWS =
             "android.car.permission.CONTROL_CAR_WINDOWS";
 
+    /**
+     * Permission necessary to control car glove box.
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final String PERMISSION_CONTROL_GLOVE_BOX =
+            "android.car.permission.CONTROL_GLOVE_BOX";
     /**
      * Permission necessary to control car's seats.
      * @hide
@@ -1325,8 +1347,7 @@ public final class Car {
      *
      * @hide
      */
-    // STOPSHIP(b/257117236): Change it to system API once it's ready to release.
-    // @SystemApi
+    @SystemApi
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static final String PERMISSION_MANAGE_REMOTE_DEVICE =
@@ -1338,12 +1359,80 @@ public final class Car {
      *
      * @hide
      */
-    // STOPSHIP(b/257117236): Change it to system API once it's ready to release.
-    // @SystemApi
+    @SystemApi
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static final String PERMISSION_MANAGE_OCCUPANT_CONNECTION =
             "android.car.permission.MANAGE_OCCUPANT_CONNECTION";
+
+    /**
+     * Permission to access the mirrored Surface using the Token generated by
+     * {@link CarActivityManager#createTaskMirroringToken(int)}.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final String PERMISSION_ACCESS_MIRRORRED_SURFACE =
+            "android.car.permission.ACCESS_MIRRORED_SURFACE";
+
+    /**
+     * Permission to create the mirroring token for the Display.
+     * See {@link CarActivityManager#createDisplayMirroringToken(int)} (int)}.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final String PERMISSION_MIRROR_DISPLAY =
+            "android.car.permission.MIRROR_DISPLAY";
+
+    /**
+     * Permission necessary to read car's windshield wipers.
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final String PERMISSION_READ_WINDSHIELD_WIPERS =
+            "android.car.permission.READ_WINDSHIELD_WIPERS";
+
+    /**
+     * Permission necessary to control car's windshield wipers.
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final String PERMISSION_CONTROL_WINDSHIELD_WIPERS =
+            "android.car.permission.CONTROL_WINDSHIELD_WIPERS";
+
+    /**
+     * Permission necessary to register a {@link SystemUIProxy} that can be used by other apps to
+     * manage the system ui and create task views.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(
+            minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final String PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY =
+            "android.car.permission.REGISTER_CAR_SYSTEM_UI_PROXY";
+
+    /**
+     * Permission necessary to communicate with the car system ui for creating task views or
+     * getting notified about system ui changes.
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(
+            minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final String PERMISSION_MANAGE_CAR_SYSTEM_UI =
+            "android.car.permission.MANAGE_CAR_SYSTEM_UI";
 
     /**
      * Intent for connecting to the template renderer. Services that handle this intent must also
@@ -1398,6 +1487,31 @@ public final class Car {
     @AddedInOrBefore(majorVersion = 33)
     public static final String CAR_EXTRA_BROWSE_SERVICE_FOR_SESSION =
             "android.media.session.BROWSE_SERVICE";
+
+    /**
+     * Intent for being recognized as a remote task client service.
+     *
+     * <p>Services that use this intent must have a {@code PERMISSION_CONTROL_REMOTE_ACCESS}.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final String CAR_REMOTEACCESS_REMOTE_TASK_CLIENT_SERVICE =
+            "android.car.remoteaccess.RemoteTaskClientService";
+
+    /*
+     * Intent for binding the implementation of {@link
+     * android.car.occupantconnection.AbstractReceiverService} in the app.
+     *
+     * @hide
+     */
+    @SdkConstant(SdkConstantType.SERVICE_ACTION)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final String CAR_INTENT_ACTION_RECEIVER_SERVICE =
+            "android.car.intent.action.RECEIVER_SERVICE";
 
     /** @hide */
     @VisibleForHiddenApiCheck
@@ -1667,6 +1781,7 @@ public final class Car {
         CAR_SERVICE_NAMES.put(CarEvsManager.class, CAR_EVS_SERVICE);
         CAR_SERVICE_NAMES.put(CarTelemetryManager.class, CAR_TELEMETRY_SERVICE);
         CAR_SERVICE_NAMES.put(CarActivityManager.class, CAR_ACTIVITY_SERVICE);
+        CAR_SERVICE_NAMES.put(CarRemoteAccessManager.class, CAR_REMOTE_ACCESS_SERVICE);
         CAR_SERVICE_NAMES.put(CarOccupantConnectionManager.class, CAR_OCCUPANT_CONNECTION_SERVICE);
         CAR_SERVICE_NAMES.put(CarRemoteDeviceManager.class, CAR_REMOTE_DEVICE_SERVICE);
         // Note: if a new entry is added here, the capacity of CAR_SERVICE_NAMES should be increased
@@ -2147,12 +2262,16 @@ public final class Car {
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SuppressWarnings("GenericException")
     protected void finalize() throws Throwable {
+        if (mLock == null) {
+            // There's no point of trying anything - even logging - when the object state is already
+            // cleared
+            super.finalize();
+            return;
+        }
         try {
-            Log.i(TAG_CAR, "Calling finalize on Car Object.");
+            Log.v(TAG_CAR, "Calling disconnect() on finalize()");
             disconnect();
         } finally {
             super.finalize();
@@ -2609,6 +2728,9 @@ public final class Car {
                 break;
             case CAR_PERFORMANCE_SERVICE:
                 manager = new CarPerformanceManager(this, binder);
+                break;
+            case CAR_REMOTE_ACCESS_SERVICE:
+                manager = new CarRemoteAccessManager(this, binder);
                 break;
             case CAR_OCCUPANT_CONNECTION_SERVICE:
                 manager = new CarOccupantConnectionManager(this, binder);

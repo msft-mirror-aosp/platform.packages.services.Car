@@ -111,6 +111,19 @@ public final class AndroidMockitoHelper {
     }
 
     /**
+     * Mocks a call to {@link ActivityManagerHelper#startUserInBackgroundVisibleOnDisplay(int, int)}
+     *
+     * * <p><b>Note: </b>it must be made inside a
+     *      * {@link com.android.dx.mockito.inline.extended.StaticMockitoSession} built with
+     *      * {@code spyStatic(ActivityManagerHelper.class)}.
+     */
+    public static void mockAmStartUserInBackgroundVisibleOnDisplay(
+            @UserIdInt int userId, int displayId, boolean result) throws Exception {
+        doReturn(result).when(()
+                -> ActivityManagerHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId));
+    }
+
+    /**
      * Mocks a call to {@link ActivityManagerHelper#stopUserWithDelayedLocking(int, boolean)}.
      *
      * * <p><b>Note: </b>it must be made inside a
@@ -401,6 +414,16 @@ public final class AndroidMockitoHelper {
      */
     public static void mockUmIsUserVisible(UserManager um, boolean isVisible) {
         when(um.isUserVisible()).thenReturn(isVisible);
+    }
+
+    /**
+     * Mocks a call to {@code UserManager#isVisibleBackgroundUsersSupported()} that returns
+     * {@code isVisibleBackgroundUsersSupported}.
+     */
+    public static void mockUmIsVisibleBackgroundUsersSupported(UserManager um,
+            boolean isVisibleBackgroundUsersSupported) {
+        when(um.isVisibleBackgroundUsersSupported()).thenReturn(
+                isVisibleBackgroundUsersSupported);
     }
 
     /**

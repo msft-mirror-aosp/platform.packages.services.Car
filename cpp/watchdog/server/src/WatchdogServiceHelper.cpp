@@ -31,6 +31,7 @@ using ::aidl::android::automotive::watchdog::TimeoutLength;
 using ::aidl::android::automotive::watchdog::internal::ICarWatchdogServiceForSystem;
 using ::aidl::android::automotive::watchdog::internal::PackageInfo;
 using ::aidl::android::automotive::watchdog::internal::PackageIoOveruseStats;
+using ::aidl::android::automotive::watchdog::internal::ResourceStats;
 using ::aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats;
 using ::android::sp;
 using ::android::wp;
@@ -71,8 +72,7 @@ Result<void> WatchdogServiceHelper::init(
         return Error() << "Must provide a non-null watchdog process service instance";
     }
     mWatchdogProcessService = watchdogProcessService;
-    return mWatchdogProcessService->registerWatchdogServiceHelper(
-            sp<WatchdogServiceHelper>::fromExisting(this));
+    return {};
 }
 
 ScopedAStatus WatchdogServiceHelper::registerService(
@@ -92,8 +92,11 @@ ScopedAStatus WatchdogServiceHelper::registerService(
         if (mService != nullptr && mService->asBinder() == binder) {
             return ScopedAStatus::ok();
         }
-        unregisterServiceLocked();
-        if (auto status = mWatchdogProcessService->registerCarWatchdogService(binder);
+        unregisterServiceLocked(/*doUnregisterFromProcessService=*/true);
+        if (auto status = mWatchdogProcessService
+                                  ->registerCarWatchdogService(binder,
+                                                               sp<WatchdogServiceHelperInterface>::
+                                                                       fromExisting(this));
             !status.isOk()) {
             return status;
         }
@@ -130,7 +133,7 @@ ScopedAStatus WatchdogServiceHelper::unregisterService(
                                             "Failed to unregister car watchdog service as it is "
                                             "not registered");
     }
-    unregisterServiceLocked();
+    unregisterServiceLocked(/*doUnregisterFromProcessService=*/true);
 
     if (DEBUG) {
         ALOGW("CarWatchdogService is unregistered");
@@ -154,7 +157,7 @@ void WatchdogServiceHelper::handleBinderDeath(void* cookie) {
 
 void WatchdogServiceHelper::terminate() {
     std::unique_lock writeLock(mRWMutex);
-    unregisterServiceLocked();
+    unregisterServiceLocked(/*doUnregisterFromProcessService=*/true);
     mWatchdogProcessService.clear();
 }
 
@@ -205,19 +208,23 @@ ScopedAStatus WatchdogServiceHelper::prepareProcessTermination(const SpAIBinder&
          * CarWatchdogService.
          */
         if (mService == service) {
-            unregisterServiceLocked();
+            // WatchdogProcessService unregisters the watchdog service before calling
+            // prepareProcessTermination. So skip unregistering from WatchdogProcessService.
+            unregisterServiceLocked(/*doUnregisterFromProcessService=*/false);
         }
     }
     return status;
 }
 
-void WatchdogServiceHelper::unregisterServiceLocked() {
+void WatchdogServiceHelper::unregisterServiceLocked(bool doUnregisterFromProcessService) {
     if (mService == nullptr) return;
     const auto binder = mService->asBinder();
     AIBinder* aiBinder = binder.get();
     mDeathRegistrationWrapper->unlinkToDeath(aiBinder, mWatchdogServiceDeathRecipient.get(),
                                              static_cast<void*>(aiBinder));
-    mWatchdogProcessService->unregisterCarWatchdogService(binder);
+    if (doUnregisterFromProcessService) {
+        mWatchdogProcessService->unregisterCarWatchdogService(binder);
+    }
     mService.reset();
 }
 
@@ -272,6 +279,18 @@ ScopedAStatus WatchdogServiceHelper::getTodayIoUsageStats(
         service = mService;
     }
     return service->getTodayIoUsageStats(userPackageIoUsageStats);
+}
+
+ScopedAStatus WatchdogServiceHelper::onLatestResourceStats(
+        const ResourceStats& resourceStats) const {
+    std::shared_ptr<ICarWatchdogServiceForSystem> service;
+    if (std::shared_lock readLock(mRWMutex); mService == nullptr) {
+        return fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
+                                            "Watchdog service is not initialized");
+    } else {
+        service = mService;
+    }
+    return service->onLatestResourceStats(resourceStats);
 }
 
 }  // namespace watchdog

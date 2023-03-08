@@ -18,6 +18,8 @@ package com.android.car.am;
 
 import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.Manifest.permission.MANAGE_ACTIVITY_TASKS;
+import static android.car.Car.PERMISSION_MANAGE_CAR_SYSTEM_UI;
+import static android.car.Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY;
 import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_DISPLAY_ID;
 
@@ -30,6 +32,8 @@ import android.app.TaskInfo;
 import android.car.Car;
 import android.car.app.CarActivityManager;
 import android.car.app.ICarActivityService;
+import android.car.app.ICarSystemUIProxy;
+import android.car.app.ICarSystemUIProxyCallback;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.app.TaskInfoHelper;
 import android.car.builtin.content.ContextHelper;
@@ -40,11 +44,14 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Point;
 import android.graphics.Rect;
+import android.hardware.display.DisplayManager;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
@@ -85,6 +92,7 @@ public final class CarActivityService extends ICarActivityService.Stub
     private static final int MIRRORING_TOKEN_TIMEOUT_MS = 10 * 60 * 1000;  // 10 mins
 
     private final Context mContext;
+    private final DisplayManager mDisplayManager;
 
     private final Object mLock = new Object();
 
@@ -99,7 +107,13 @@ public final class CarActivityService extends ICarActivityService.Stub
 
     @GuardedBy("mLock")
     private final ArrayMap<IBinder, IBinder.DeathRecipient> mTokens = new ArrayMap<>();
+
     @GuardedBy("mLock")
+    private ICarSystemUIProxy mCarSystemUIProxy;
+    @GuardedBy("mLock")
+    private final RemoteCallbackList<ICarSystemUIProxyCallback> mCarSystemUIProxyCallbacks =
+            new RemoteCallbackList<ICarSystemUIProxyCallback>();
+
     private IBinder mCurrentMonitor;
 
     public interface ActivityLaunchListener {
@@ -119,6 +133,7 @@ public final class CarActivityService extends ICarActivityService.Stub
 
     public CarActivityService(Context context) {
         mContext = context;
+        mDisplayManager = context.getSystemService(DisplayManager.class);
     }
 
     @Override
@@ -130,10 +145,7 @@ public final class CarActivityService extends ICarActivityService.Stub
     @Override
     public int setPersistentActivity(ComponentName activity, int displayId, int featureId) throws
             RemoteException {
-        if (PackageManager.PERMISSION_GRANTED != mContext.checkCallingOrSelfPermission(
-                Car.PERMISSION_CONTROL_CAR_APP_LAUNCH)) {
-            throw new SecurityException("Requires " + Car.PERMISSION_CONTROL_CAR_APP_LAUNCH);
-        }
+        ensurePermission(Car.PERMISSION_CONTROL_CAR_APP_LAUNCH);
         int caller = getCaller();
         if (caller != UserManagerHelper.USER_SYSTEM && caller != ActivityManager.getCurrentUser()) {
             return CarActivityManager.RESULT_INVALID_USER;
@@ -181,11 +193,15 @@ public final class CarActivityService extends ICarActivityService.Stub
         }
     }
 
-    private void ensureManageActivityTasksPermission() {
-        if (mContext.checkCallingOrSelfPermission(MANAGE_ACTIVITY_TASKS)
+    private void ensurePermission(String permission) {
+        if (mContext.checkCallingOrSelfPermission(permission)
                 != PackageManager.PERMISSION_GRANTED) {
-            throw new SecurityException("requires permission " + MANAGE_ACTIVITY_TASKS);
+            throw new SecurityException("requires permission " + permission);
         }
+    }
+
+    private void ensureManageActivityTasksPermission() {
+        ensurePermission(MANAGE_ACTIVITY_TASKS);
     }
 
     private void cleanUpToken(IBinder token) {
@@ -289,16 +305,28 @@ public final class CarActivityService extends ICarActivityService.Stub
     }
 
     /**
-     * Returns all the visible tasks. The order is not guaranteed.
+     * Returns all the visible tasks in the given display. The order is not guaranteed.
      */
     @Override
-    public List<ActivityManager.RunningTaskInfo> getVisibleTasks() {
+    public List<ActivityManager.RunningTaskInfo> getVisibleTasks(int displayId) {
+        ensureManageActivityTasksPermission();
+        return getVisibleTasksInternal(displayId);
+    }
+
+    public List<ActivityManager.RunningTaskInfo> getVisibleTasksInternal() {
+        return getVisibleTasksInternal(Display.INVALID_DISPLAY);
+    }
+
+    /** Car service internal version without the permission enforcement. */
+    public List<ActivityManager.RunningTaskInfo> getVisibleTasksInternal(int displayId) {
         ArrayList<ActivityManager.RunningTaskInfo> tasksToReturn = new ArrayList<>();
         synchronized (mLock) {
             for (ActivityManager.RunningTaskInfo taskInfo : mTasks.values()) {
                 // Activities launched in the private display or non-focusable display can't be
                 // focusable. So we just monitor all visible Activities/Tasks.
-                if (TaskInfoHelper.isVisible(taskInfo)) {
+                if (TaskInfoHelper.isVisible(taskInfo)
+                        && (displayId == Display.INVALID_DISPLAY
+                                || displayId == TaskInfoHelper.getDisplayId(taskInfo))) {
                     tasksToReturn.add(taskInfo);
                 }
             }
@@ -335,58 +363,191 @@ public final class CarActivityService extends ICarActivityService.Stub
         CarServiceUtils.startUserPickerOnDisplay(mContext, displayId, userPickerName);
     }
 
-    private static final class MirroringToken extends Binder {
-        final int mTaskId;
-        final long mCreationTimeMs;
-        MirroringToken(int id) {
-            mTaskId = id;
+    private abstract static class MirroringToken extends Binder {
+        private final long mCreationTimeMs;
+        private MirroringToken() {
             // Uses elapsedRealtime() because the token should be expired during sleep.
             mCreationTimeMs = SystemClock.elapsedRealtime();
+        }
+
+        protected void checkValidity(long tokenTimeoutMs) {
+            if (SystemClock.elapsedRealtime() - mCreationTimeMs > tokenTimeoutMs) {
+                throw new IllegalArgumentException("Expired token: created=" + mCreationTimeMs);
+            }
+        }
+
+        protected abstract SurfaceControl getMirroredSurface(long tokenTimeoutMs, Rect outBounds);
+    };
+
+    private final class TaskMirroringToken extends MirroringToken {
+        private final int mTaskId;
+        private TaskMirroringToken(int taskId) {
+            super();
+            mTaskId = taskId;
+        }
+
+        @Override
+        protected SurfaceControl getMirroredSurface(long tokenTimeousMs, Rect outBounds) {
+            checkValidity(tokenTimeousMs);
+
+            SurfaceControl taskSurface;
+            TaskInfo taskInfo;
+            synchronized (mLock) {
+                taskInfo = mTasks.get(mTaskId);
+                taskSurface = mTaskToSurfaceMap.get(mTaskId);
+            }
+            if (taskInfo == null || taskSurface == null || !taskInfo.isVisible()) {
+                Slogf.e(TAG, "TaskMirroringToken#getMirroredSurface: no task=%s", taskInfo);
+                return null;
+            }
+            outBounds.set(TaskInfoHelper.getBounds(taskInfo));
+            return SurfaceControlHelper.mirrorSurface(taskSurface);
+        }
+
+        @Override
+        public String toString() {
+            return TaskMirroringToken.class.getSimpleName() + "[taskid=" + mTaskId + "]";
+        }
+    };
+
+    private final class DisplayMirroringToken extends MirroringToken {
+        private final int mDisplayId;
+        private DisplayMirroringToken(int displayId) {
+            super();
+            mDisplayId = displayId;
+        }
+
+        @Override
+        protected SurfaceControl getMirroredSurface(long tokenTimeousMs, Rect outBounds) {
+            checkValidity(tokenTimeousMs);
+
+            Display display = mDisplayManager.getDisplay(mDisplayId);
+            Point point = new Point();
+            display.getRealSize(point);
+            outBounds.set(0, 0, point.x, point.y);
+            return SurfaceControlHelper.mirrorDisplay(mDisplayId);
+        }
+
+        @Override
+        public String toString() {
+            return DisplayMirroringToken.class.getSimpleName() + "[displayId=" + mDisplayId + "]";
         }
     };
 
     @Override
-    public IBinder createMirroringToken(int taskId) {
+    public IBinder createTaskMirroringToken(int taskId) {
         ensureManageActivityTasksPermission();
         synchronized (mLock) {
             if (!mTaskToSurfaceMap.contains(taskId)) {
                 throw new IllegalArgumentException("Non-existent Task#" + taskId);
             }
         }
-        return new MirroringToken(taskId);
+        return new TaskMirroringToken(taskId);
     }
 
     @Override
-    public SurfaceControl getMirroredSurface(IBinder token, Rect bounds) {
-        return getMirroredSurfaceInternal(token, bounds, MIRRORING_TOKEN_TIMEOUT_MS);
+    public IBinder createDisplayMirroringToken(int displayId) {
+        ensurePermission(Car.PERMISSION_MIRROR_DISPLAY);
+        return new DisplayMirroringToken(displayId);
+    }
+
+    @Override
+    public SurfaceControl getMirroredSurface(IBinder token, Rect outBounds) {
+        return getMirroredSurfaceInternal(token, outBounds, MIRRORING_TOKEN_TIMEOUT_MS);
+    }
+
+    @Override
+    public void registerCarSystemUIProxy(ICarSystemUIProxy carSystemUIProxy) {
+        ensurePermission(PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY);
+        synchronized (mLock) {
+            if (mCarSystemUIProxy != null) {
+                throw new UnsupportedOperationException("Car system UI proxy is already "
+                        + "registered");
+            }
+
+            mCarSystemUIProxy = carSystemUIProxy;
+            try {
+                mCarSystemUIProxy.asBinder().linkToDeath(new IBinder.DeathRecipient(){
+                    @Override
+                    public void binderDied() {
+                        synchronized (mLock) {
+                            mCarSystemUIProxy.asBinder().unlinkToDeath(this, /* flags= */ 0);
+                            mCarSystemUIProxy = null;
+                        }
+                    }
+                }, /* flags= */0);
+            } catch (RemoteException remoteException) {
+                mCarSystemUIProxy = null;
+                throw new IllegalStateException("Linking to binder death failed for "
+                        + "ICarSystemUIProxy, the System UI might already died", remoteException);
+            }
+
+            if (DBG) {
+                Slogf.d(TAG, "CarSystemUIProxy registered.");
+            }
+
+            int numCallbacks = mCarSystemUIProxyCallbacks.beginBroadcast();
+            for (int i = 0; i < numCallbacks; i++) {
+                try {
+                    mCarSystemUIProxyCallbacks.getBroadcastItem(i).onConnected(
+                            mCarSystemUIProxy);
+                } catch (RemoteException remoteException) {
+                    Slogf.e(TAG, "Error dispatching onConnected", remoteException);
+                }
+            }
+            mCarSystemUIProxyCallbacks.finishBroadcast();
+        }
+    }
+
+    @Override
+    public void addCarSystemUIProxyCallback(ICarSystemUIProxyCallback callback) {
+        ensurePermission(PERMISSION_MANAGE_CAR_SYSTEM_UI);
+        synchronized (mLock) {
+            boolean alreadyExists = mCarSystemUIProxyCallbacks.unregister(callback);
+            mCarSystemUIProxyCallbacks.register(callback);
+
+            if (alreadyExists) {
+                // Do not trigger onConnected() if the callback already exists because it is either
+                // already called or will be called when the mCarSystemUIProxy is registered.
+                Slogf.d(TAG, "Callback exists already, skip calling onConnected()");
+                return;
+            }
+
+            // Trigger onConnected() on the callback.
+            if (mCarSystemUIProxy == null) {
+                if (DBG) {
+                    Slogf.d(TAG, "Callback stored locally, car system ui proxy not "
+                            + "registered.");
+                }
+                return;
+            }
+            try {
+                callback.onConnected(mCarSystemUIProxy);
+            } catch (RemoteException remoteException) {
+                Slogf.e(TAG, "Error when dispatching onConnected", remoteException);
+            }
+        }
+    }
+
+    @Override
+    public void removeCarSystemUIProxyCallback(ICarSystemUIProxyCallback callback) {
+        ensurePermission(PERMISSION_MANAGE_CAR_SYSTEM_UI);
+        synchronized (mLock) {
+            mCarSystemUIProxyCallbacks.unregister(callback);
+        }
     }
 
     @VisibleForTesting
-    SurfaceControl getMirroredSurfaceInternal(IBinder token, Rect bounds, long tokenTimeoutMs) {
+    SurfaceControl getMirroredSurfaceInternal(IBinder token, Rect outBounds, long tokenTimeoutMs) {
         assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-        // TODO(b/254333504): Check permission.
+        ensurePermission(Car.PERMISSION_ACCESS_MIRRORRED_SURFACE);
         MirroringToken mirroringToken;
         try {
             mirroringToken = (MirroringToken) token;
         } catch (ClassCastException e) {
             throw new IllegalArgumentException("Bad token");
         }
-        if (SystemClock.elapsedRealtime() - mirroringToken.mCreationTimeMs > tokenTimeoutMs) {
-            throw new IllegalArgumentException(
-                    "Expired token: created=" + mirroringToken.mCreationTimeMs);
-        }
-
-        SurfaceControl taskSurface;
-        TaskInfo taskInfo;
-        synchronized (mLock) {
-            taskInfo = mTasks.get(mirroringToken.mTaskId);
-            taskSurface = mTaskToSurfaceMap.get(mirroringToken.mTaskId);
-        }
-        if (taskInfo == null || taskSurface == null || !taskInfo.isVisible()) {
-            throw new IllegalStateException("Given Task is invisible: taskInfo=" + taskInfo);
-        }
-        bounds.set(TaskInfoHelper.getBounds(taskInfo));
-        return SurfaceControlHelper.mirrorSurface(taskSurface);
+        return mirroringToken.getMirroredSurface(tokenTimeoutMs, outBounds);
     }
 
     /**
@@ -467,6 +628,19 @@ public final class CarActivityService extends ICarActivityService.Stub
             return;
         }
         Slogf.i(CarLog.TAG_AM, "cannot give focus, cannot find Activity:" + activity);
+    }
+
+    @Override
+    public void moveRootTaskToDisplay(int taskId, int displayId) {
+        ensurePermission(Car.PERMISSION_CONTROL_CAR_APP_LAUNCH);
+
+        // Calls moveRootTaskToDisplay() with the system uid.
+        long identity = Binder.clearCallingIdentity();
+        try {
+            ActivityManagerHelper.moveRootTaskToDisplay(taskId, displayId);
+        } finally {
+            Binder.restoreCallingIdentity(identity);
+        }
     }
 
     @Override

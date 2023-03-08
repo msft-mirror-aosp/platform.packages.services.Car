@@ -20,14 +20,16 @@ import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.RequiresPermission;
+import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
+import android.car.CarRemoteDeviceManager.AppState;
 import android.car.CarRemoteDeviceManager.OccupantZoneState;
 import android.car.annotation.ApiRequirements;
 import android.os.IBinder;
-import android.os.Process;
 import android.os.RemoteException;
+import android.util.ArrayMap;
 import android.util.Pair;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -41,11 +43,11 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
- * API for communication between different endpoints on the occupant zones in the car.
+ * API for communication between different endpoints in the occupant zones in the car.
  * <p>
  * Unless specified explicitly, a client means an app that uses this API and runs as a
- * foreground user on an occupant zone, while a peer client means an app that has the same package
- * name as the caller app and runs as another foreground user (on another occupant zone or even
+ * foreground user in an occupant zone, while a peer client means an app that has the same package
+ * name as the caller app and runs as another foreground user (in another occupant zone or even
  * another Android system).
  * An endpoint means a component (such as a Fragment or an Activity) that has an instance of
  * {@link CarOccupantConnectionManager}.
@@ -69,10 +71,17 @@ import java.util.concurrent.Executor;
  *     =    * receiver1A *    * receiver1B *    =        =    * receiver2A *   * receiver2B *    =
  *     =    **************    **************    =        =    **************   **************    =
  *     ==========================================        =========================================
+ *
+ *                 ****** Payload *****
+ *                 * ID: "receiver2A" *
+ *                 * value: "123"     *
+ *                 ********************                        Payload     |---> receiver2A
+ *     sender1A -------------------------->ReceiverService2--------------->|
+ *                                                                         |.... receiver2B
  * </pre>
  * <ul>
- *   <li> Client1 and client2 must have the same package name. Client1 runs on occupantZone1
- *        while client2 runs on occupantZone2. Sender1A (an endpoint in client1) wants to
+ *   <li> Client1 and client2 must have the same package name. Client1 runs in occupantZone1
+ *        while client2 runs in occupantZone2. Sender1A (an endpoint in client1) wants to
  *        send a {@link Payload} to receiver2A (an endpoint in client2).
  *   <li> Pre-connection:
  *     <ul>
@@ -82,13 +91,15 @@ import java.util.concurrent.Executor;
  *   <li> Establish connection:
  *     <ul>
  *       <li> Sender1A monitors occupantZone2 by calling {@link
- *            android.car.CarRemoteDeviceManager#registerOccupantZoneStateCallback}.
+ *            android.car.CarRemoteDeviceManager#registerStateCallback}.
  *       <li> Sender1A waits until the {@link OccupantZoneState} of occupantZone2 becomes
- *            {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_CONNECTION_READY} (and {@link
- *            android.car.CarRemoteDeviceManager#FLAG_SCREEN_UNLOCKED} and {@link
- *            android.car.CarRemoteDeviceManager#FLAG_CLIENT_IN_FOREGROUND} if UI is needed to
- *            establish the connection), then requests a connection to occupantZone2 by calling
- *            {@link #requestConnection}.
+ *            {@link android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_CONNECTION_READY} and
+ *            the {@link AppState} of client2 becomes {@link
+ *            android.car.CarRemoteDeviceManager#FLAG_CLIENT_INSTALLED}, then requests a connection
+ *            to occupantZone2 by calling {@link #requestConnection}. If UI is needed to establish
+ *            the connection, sender1A must wait until {@link
+ *            android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_SCREEN_UNLOCKED} and {@link
+ *            android.car.CarRemoteDeviceManager#FLAG_CLIENT_IN_FOREGROUND}).
  *       <li> ReceiverService2 is started and bound by car service ({@link
  *            com.android.car.occupantconnection.CarOccupantConnectionService} automatically.
  *            ReceiverService2 is notified via {@link
@@ -101,7 +112,9 @@ import java.util.concurrent.Executor;
  *     </ul>
  *   <li> Send Payload:
  *     <ul>
- *       <li> Sender1A sends a Payload to occupantZone2 by calling {@link #sendPayload}.
+ *       <li> Sender1A sends a Payload to occupantZone2 by calling {@link #sendPayload}. To indicate
+ *            that the Payload is sent to receiver2A, Sender1A puts receiver2A's ID ("receiver2A")
+ *            into the Payload.
  *       <li> ReceiverService2 is notified for the Payload via {@link
  *            AbstractReceiverService#onPayloadReceived}.
  *            In this method, ReceiverService2 can forward the Payload to client2's receiver
@@ -110,10 +123,11 @@ import java.util.concurrent.Executor;
  *     </ul>
  *   <li> Register receiver:
  *     <ul>
- *       <li> Receiver2A calls {@link #registerReceiver}. Then ReceiverService2 is notified
- *            via {@link AbstractReceiverService#onReceiverRegistered}. In that method,
- *            ReceiverService2 forwards the cached Payload to Receiver2A via {@link
- *            AbstractReceiverService#forwardPayload}.
+ *       <li> Receiver2A calls {@link #registerReceiver} with ID "receiver2A". Then
+ *            ReceiverService2 is notified via {@link AbstractReceiverService#onReceiverRegistered}.
+ *            In that method, ReceiverService2 parses the Payload and finds that the Payload should
+ *            be sent to the endpoint with ID "receiver2A", then invokes {@link
+ *            AbstractReceiverService#forwardPayload} to forward the cached Payload to receiver2A.
  *            <p>
  *            Note: this step can be done before "Establish connection". In this case,
  *            ReceiverService2 will be started and bound by car service early.
@@ -134,11 +148,11 @@ import java.util.concurrent.Executor;
  *          it calls {@link #unregisterReceiver}.
  *    <li> Unbound and destroy ReceiverService2:
  *         Since all the senders have disconnected from occupantZone2 and there is no receiver
- *         registered on occupantZone2, ReceiverService2 will be unbound and destroyed
+ *         registered in occupantZone2, ReceiverService2 will be unbound and destroyed
  *         automatically.
  *   </ul>
  *   <li> Sender1A stops monitoring other occupant zones by calling {@link
- *        android.car.CarRemoteDeviceManager#unregisterOccupantZoneStateCallback}. This step can
+ *        android.car.CarRemoteDeviceManager#unregisterStateCallback}. This step can
  *        be done before or after "Terminate the connection".
  * </ul>
  * <p>
@@ -151,20 +165,16 @@ import java.util.concurrent.Executor;
  *        creates a different CarOccupantConnectionManager instance (managerB). Then sender1A uses
  *        managerA to request a connection to occupantZone2. Once connected, sender1B can use
  *        managerB to send Payload to occupantZone2 without requesting a new connection.
- *        To know whether it is connected to occupantZone2, sender1B can call {@link #isConnected},
- *        or register a {@link ConnectionStateCallback} via {@link
- *        #registerConnectionStateCallback}.
+ *        To know whether it is connected to occupantZone2, sender1B can call {@link #isConnected}.
  *   <li> Besides, sender1B can terminate the connection by calling managerB#disconnect(), despite
  *        that the connection was requested by sender1A. Once the connection is terminated, sender1A
  *        will be notified via {@link ConnectionRequestCallback#onDisconnected}, and sender1B will
- *        be notified via {@link ConnectionStateCallback#onConnectionChanged} if it has a {@link
- *        ConnectionStateCallback} registered for occupantZone2.
+ *        not be notified since it didn't register register the {@link ConnectionRequestCallback}.
  * </ul>
  *
  * @hide
  */
-// TODO(b/257117236): Change it to system API once it's ready to release.
-// @SystemApi
+@SystemApi
 public final class CarOccupantConnectionManager extends CarManagerBase {
 
     private static final String TAG = CarOccupantConnectionManager.class.getSimpleName();
@@ -175,15 +185,24 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     public static final int CONNECTION_ERROR_UNKNOWN = 0;
 
     /**
-     * The connection request failed because the {@link OccupantZoneState} of the peer occupant zone
-     * was not {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_CONNECTION_READY}. To avoid
-     * this error, the caller endpoint should ensure its state is {@link
-     * android.car.CarRemoteDeviceManager#FLAG_CLIENT_CONNECTION_READY} before requesting a
-     * connection to it.
+     * The connection request failed because the peer occupant zone was not ready for connection.
+     * To avoid this error, the caller endpoint should ensure that the state of the peer occupant
+     * zone is {@link android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_CONNECTION_READY} before
+     * requesting a connection to it.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static final int CONNECTION_ERROR_NOT_READY = 1;
+
+    /**
+     * The connection request failed because the peer app was not installed. To avoid this error,
+     * the caller endpoint should ensure that the state of the peer app is {@link
+     * android.car.CarRemoteDeviceManager#FLAG_CLIENT_INSTALLED} before requesting a connection to
+     * it.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int CONNECTION_ERROR_PEER_APP_NOT_INSTALLED = 2;
 
     /**
      * Flags for the error type of connection request.
@@ -192,7 +211,8 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      */
     @IntDef(flag = false, prefix = {"CONNECTION_ERROR_"}, value = {
             CONNECTION_ERROR_UNKNOWN,
-            CONNECTION_ERROR_NOT_READY
+            CONNECTION_ERROR_NOT_READY,
+            CONNECTION_ERROR_PEER_APP_NOT_INSTALLED
     })
     @Retention(RetentionPolicy.SOURCE)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -252,17 +272,6 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
         void onDisconnected(@NonNull OccupantZoneInfo receiverZone);
     }
 
-    /** A callback to listen to connection state changes. */
-    public interface ConnectionStateCallback {
-        /**
-         * Invoked when the callback is registered, or when the connection to the occupant zone
-         * is established or terminated.
-         */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-        void onConnectionChanged(@NonNull OccupantZoneInfo receiverZone, boolean isConnected);
-    }
-
     /** A callback to receive a {@link Payload}. */
     public interface PayloadCallback {
         /**
@@ -278,23 +287,18 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     /** An exception to indicate that it failed to send the {@link Payload}. */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public final class PayloadTransferException extends Exception {
+    public static final class PayloadTransferException extends Exception {
     }
-
-    private static final int ICONNECTION_REQUEST_CALLBACK_ON_CONNECTED = 1;
-    private static final int ICONNECTION_REQUEST_CALLBACK_ON_REJECTED = 2;
-    private static final int ICONNECTION_REQUEST_CALLBACK_ON_FAILED = 3;
-    private static final int ICONNECTION_REQUEST_CALLBACK_ON_DISCONNECTED = 4;
-
-    private static final int UNUSED_INT_PARAMETER = 0;
 
     private final ICarOccupantConnection mService;
 
     private final Object mLock = new Object();
 
+    private final String mPackageName;
+
     /**
-     * A map of connection requests. The key is the ID of the request, and the value is the callback
-     * and executor.
+     * A map of connection requests. The key is the zone ID of the receiver occupant zone, and
+     * the value is the callback and associated executor.
      */
     @GuardedBy("mLock")
     private final SparseArray<Pair<ConnectionRequestCallback, Executor>>
@@ -303,59 +307,111 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     private final IConnectionRequestCallback mBinderConnectionRequestCallback =
             new IConnectionRequestCallback.Stub() {
                 @Override
-                public void onConnected(int requestId, OccupantZoneInfo receiverZone) {
-                    onConnectionRequestCallbackInvoked(ICONNECTION_REQUEST_CALLBACK_ON_CONNECTED,
-                            requestId,
-                            receiverZone,
-                            /* rejectionReason= */ UNUSED_INT_PARAMETER,
-                            /* connectionError= */ UNUSED_INT_PARAMETER);
+                public void onConnected(OccupantZoneInfo receiverZone) {
+                    synchronized (mLock) {
+                        Pair<ConnectionRequestCallback, Executor> pair =
+                                mConnectionRequestMap.get(receiverZone.zoneId);
+                        if (pair == null) {
+                            Slog.e(TAG, "onConnected: no pending connection request");
+                            return;
+                        }
+                        // Notify the sender of success.
+                        ConnectionRequestCallback callback = pair.first;
+                        Executor executor = pair.second;
+                        executor.execute(() -> callback.onConnected(receiverZone));
+
+                        // Unlike other onFoo() methods, we shouldn't remove the callback here
+                        // because we need to invoke it once it is disconnected.
+                    }
                 }
 
                 @Override
-                public void onRejected(int requestId, OccupantZoneInfo receiverZone,
-                        int rejectionReason) {
-                    onConnectionRequestCallbackInvoked(ICONNECTION_REQUEST_CALLBACK_ON_REJECTED,
-                            requestId,
-                            receiverZone,
-                            rejectionReason,
-                            /* connectionError= */ UNUSED_INT_PARAMETER);
+                public void onRejected(OccupantZoneInfo receiverZone, int rejectionReason) {
+                    synchronized (mLock) {
+                        Pair<ConnectionRequestCallback, Executor> pair =
+                                mConnectionRequestMap.get(receiverZone.zoneId);
+                        if (pair == null) {
+                            Slog.e(TAG, "onRejected: no pending connection request");
+                            return;
+                        }
+                        // Notify the sender of rejection.
+                        ConnectionRequestCallback callback = pair.first;
+                        Executor executor = pair.second;
+                        executor.execute(() -> callback.onRejected(receiverZone, rejectionReason));
+
+                        mConnectionRequestMap.remove(receiverZone.zoneId);
+                    }
                 }
 
                 @Override
-                public void onFailed(int requestId, OccupantZoneInfo receiverZone,
-                        int connectionError) {
-                    onConnectionRequestCallbackInvoked(ICONNECTION_REQUEST_CALLBACK_ON_FAILED,
-                            requestId,
-                            receiverZone,
-                            /* rejectionReason= */ UNUSED_INT_PARAMETER,
-                            connectionError);
+                public void onFailed(OccupantZoneInfo receiverZone, int connectionError) {
+                    synchronized (mLock) {
+                        Pair<ConnectionRequestCallback, Executor> pair =
+                                mConnectionRequestMap.get(receiverZone.zoneId);
+                        if (pair == null) {
+                            Slog.e(TAG, "onFailed: no pending connection request");
+                            return;
+                        }
+                        // Notify the sender of failure.
+                        ConnectionRequestCallback callback = pair.first;
+                        Executor executor = pair.second;
+                        executor.execute(() -> callback.onFailed(receiverZone, connectionError));
+
+                        mConnectionRequestMap.remove(receiverZone.zoneId);
+                    }
                 }
 
                 @Override
-                public void onDisconnected(int requestId, OccupantZoneInfo receiverZone) {
-                    onConnectionRequestCallbackInvoked(ICONNECTION_REQUEST_CALLBACK_ON_DISCONNECTED,
-                            requestId,
-                            receiverZone,
-                            /* rejectionReason= */ UNUSED_INT_PARAMETER,
-                            /* connectionError= */ UNUSED_INT_PARAMETER);
+                public void onDisconnected(OccupantZoneInfo receiverZone) {
+                    synchronized (mLock) {
+                        Pair<ConnectionRequestCallback, Executor> pair =
+                                mConnectionRequestMap.get(receiverZone.zoneId);
+                        if (pair == null) {
+                            Slog.e(TAG, "onDisconnected: no pending connection request");
+                            return;
+                        }
+                        // Notify the sender of disconnection.
+                        ConnectionRequestCallback callback = pair.first;
+                        Executor executor = pair.second;
+                        executor.execute(() -> callback.onDisconnected(receiverZone));
+
+                        mConnectionRequestMap.remove(receiverZone.zoneId);
+                    }
                 }
             };
 
     /**
-     * The ID for the current connection request. It will increase by one each time {@link
-     * #requestConnection} is called.
+     * A map of registered receivers. The key is the endpointId of the receiver, the value is
+     * the associated callback and the Executor of the callback.
      */
     @GuardedBy("mLock")
-    private int mCurrentRequestId;
+    private final ArrayMap<String, Pair<PayloadCallback, Executor>> mReceiverPayloadCallbackMap =
+            new ArrayMap<>();
+
+    private final IPayloadCallback mBinderPayloadCallback = new IPayloadCallback.Stub() {
+        @Override
+        public void onPayloadReceived(OccupantZoneInfo senderZone, String receiverEndpointId,
+                Payload payload) {
+            Pair<PayloadCallback, Executor> pair;
+            synchronized (mLock) {
+                pair = mReceiverPayloadCallbackMap.get(receiverEndpointId);
+                if (pair == null) {
+                    // This should never happen, but let's be cautious.
+                    Slog.e(TAG, "Couldn't find receiver " + receiverEndpointId);
+                    return;
+                }
+            }
+            PayloadCallback callback = pair.first;
+            Executor executor = pair.second;
+            executor.execute(() -> callback.onPayloadReceived(senderZone, payload));
+        }
+    };
 
     /** @hide */
     public CarOccupantConnectionManager(Car car, IBinder service) {
         super(car);
         mService = ICarOccupantConnection.Stub.asInterface(service);
-        // mCurrentRequestId can start with any value, such as 0. The non-zero starting value here
-        // is mainly for debugging.
-        int userId = Process.myUserHandle().getIdentifier();
-        mCurrentRequestId = userId * 10000;
+        mPackageName = mCar.getContext().getPackageName();
     }
 
     /** @hide */
@@ -365,6 +421,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     public void onCarDisconnected() {
         synchronized (mLock) {
             mConnectionRequestMap.clear();
+            mReceiverPayloadCallbackMap.clear();
         }
     }
 
@@ -376,15 +433,15 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * The caller endpoint must call {@link #unregisterReceiver} before it is destroyed.
      *
      * @param receiverEndpointId the ID of this receiver endpoint. Since there might be multiple
-     *                           receiver endpoints in the client app, the ID can be used by
-     *                           {@link AbstractReceiverService#onPayloadReceived} to decide which
-     *                           endpoint(s) to dispatch the Payload to.
+     *                           receiver endpoints in the client app, the ID can be used by the
+     *                           client app ({@link AbstractReceiverService}) to decide which
+     *                           endpoint(s) to dispatch the Payload to. The client app can use any
+     *                           String as the ID, as long as it is unique among the client app.
      * @param executor           the Executor to run the callback
      * @param callback           the callback notified when this endpoint receives a Payload
      * @throws IllegalStateException if the {@code receiverEndpointId} had a {@link PayloadCallback}
      *                               registered
      */
-    // TODO(b/257118072): this method should save the callback like in CarRemoteDeviceManager.
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
@@ -394,7 +451,17 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
         Objects.requireNonNull(receiverEndpointId, "receiverEndpointId cannot be null");
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
-        // TODO(b/257117236): implement this method.
+        synchronized (mLock) {
+            try {
+                mService.registerReceiver(mPackageName, receiverEndpointId, mBinderPayloadCallback);
+                // Save the callback only after the remote call succeeded.
+                mReceiverPayloadCallbackMap.put(
+                        receiverEndpointId, new Pair<>(callback, executor));
+            } catch (RemoteException e) {
+                Slog.e(TAG, "Failed to register receiver: " + receiverEndpointId);
+                handleRemoteExceptionFromCarService(e);
+            }
+        }
     }
 
     /**
@@ -417,13 +484,13 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     }
 
     /**
-     * Sends a request to connect to the peer client on {@code receiverZone}. The {@link
+     * Sends a request to connect to the peer client in {@code receiverZone}. The {@link
      * AbstractReceiverService} in the peer client will be started and bound automatically if it
      * was not started yet.
      * <p>
      * This method should only be called when the state of the {@code receiverZone} is
-     * {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_CONNECTION_READY} (and
-     * {@link android.car.CarRemoteDeviceManager#FLAG_SCREEN_UNLOCKED} and {@link
+     * {@link android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_CONNECTION_READY} (and
+     * {@link android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_SCREEN_UNLOCKED} and {@link
      * android.car.CarRemoteDeviceManager#FLAG_CLIENT_IN_FOREGROUND} if UI is needed to
      * establish the connection). Otherwise, errors may occur.
      * <p>
@@ -433,12 +500,16 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * sender. If the receiver wants to send {@link Payload}, it must call this method to become
      * a sender.
      * <p>
-     * The caller endpoint must call {@link #disconnect} before it is destroyed.
+     * The caller must not request another connection to the same {@code receiverZone} if there
+     * is an established connection or pending connection (a connection request that has not been
+     * responded yet) to {@code receiverZone}.
+     * The caller must call {@link #disconnect} before it is destroyed.
      *
      * @param receiverZone the occupant zone to connect to
      * @param executor     the Executor to run the callback
      * @param callback     the callback notified for the request result
-     * @throws IllegalStateException if the {@code callback} was registered already
+     * @throws IllegalStateException if there is an established connection or pending connection to
+     *                               {@code receiverZone}
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
@@ -449,14 +520,13 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
-        Preconditions.checkState(!hasConnectionRequestCallback(callback),
-                "The ConnectionRequestCallback was registered already");
         synchronized (mLock) {
+            Preconditions.checkState(!mConnectionRequestMap.contains(receiverZone.zoneId),
+                    "Already requested a connection to " + receiverZone);
             try {
-                mService.requestConnection(mCurrentRequestId, receiverZone,
+                mService.requestConnection(mPackageName, receiverZone,
                         mBinderConnectionRequestCallback);
-                mConnectionRequestMap.put(mCurrentRequestId, new Pair<>(callback, executor));
-                mCurrentRequestId++;
+                mConnectionRequestMap.put(receiverZone.zoneId, new Pair<>(callback, executor));
             } catch (RemoteException e) {
                 Slog.e(TAG, "Failed to request connection");
                 handleRemoteExceptionFromCarService(e);
@@ -465,7 +535,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     }
 
     /**
-     * Cancels the pending connection request to the peer client on {@code receiverZone}.
+     * Cancels the pending connection request to the peer client in {@code receiverZone}.
      * <p>
      * The caller endpoint may call this method when it has requested a connection, but hasn't
      * received any response for a long time, or the user wants to cancel the request explicitly.
@@ -489,7 +559,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     }
 
     /**
-     * Sends the {@code payload} to the peer client on {@code receiverZone}.
+     * Sends the {@code payload} to the peer client in {@code receiverZone}.
      * <p>
      * Different sender endpoints in the same client app are treated as the same sender. If the
      * sender endpoints need to differentiate themselves, they can put the identity info into the
@@ -515,7 +585,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     }
 
     /**
-     * Disconnects from the peer client on {@code receiverZone}. No operation if it was not
+     * Disconnects from the peer client in {@code receiverZone}. No operation if it was not
      * connected to the peer client.
      * <p>
      * This method can be called as soon as the caller app no longer needs to send {@link Payload}
@@ -543,7 +613,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     }
 
     /**
-     * @return whether it is connected to its peer client on {@code receiverZone}.
+     * @return whether it is connected to its peer client in {@code receiverZone}.
      */
     @SuppressWarnings("[NotCloseable]")
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -557,93 +627,5 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
             Slog.e(TAG, "Failed to get connection state");
             return handleRemoteExceptionFromCarService(e, false);
         }
-    }
-
-    /**
-     * Registers the {@code callback} to listen to connection state changes of the given occupant
-     * zone. Multiple {@link ConnectionStateCallback}s can be registered.
-     * <p>
-     * This method is useful when there are multiple sender endpoints in the client app. Once a
-     * sender has established a connection to the given occupant zone, other senders can get the
-     * connection state via this method, and reuse the connection to send {@link Payload}.
-     *
-     * @param receiverZone the occupant zone to connect to
-     * @param executor     the Executor to run the callback
-     * @param callback     the callback notified for the connection state
-     * @throws IllegalStateException if the {@code callback} was registered already
-     */
-    // TODO(b/257118072): this method should save the callback like in CarRemoteDeviceManager.
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
-    public void registerConnectionStateCallback(@NonNull OccupantZoneInfo receiverZone,
-            @NonNull @CallbackExecutor Executor executor,
-            @NonNull ConnectionStateCallback callback) {
-        Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
-        Objects.requireNonNull(executor, "executor cannot be null");
-        Objects.requireNonNull(callback, "callback cannot be null");
-        // TODO(b/257117236): implement this method.
-    }
-
-    /**
-     * Unregister the existing {@code callback}.
-     * <p>
-     * This method can be called after calling {@link #registerConnectionStateCallback}, as soon
-     * as this caller no longer needs to reuse the connection to send {@link Payload}, or becomes
-     * inactive.
-     *
-     * @throws IllegalStateException if the {@code callback} was not registered before
-     */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
-    public void unregisterConnectionStateCallback(@NonNull OccupantZoneInfo receiverZone) {
-        Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
-        // TODO(b/257117236): implement this method.
-    }
-
-    private void onConnectionRequestCallbackInvoked(int callbackId, int requestId,
-            OccupantZoneInfo receiverZone, int rejectionReason, int connectionError) {
-        Pair<ConnectionRequestCallback, Executor> pair;
-        synchronized (mLock) {
-            pair = mConnectionRequestMap.get(requestId);
-        }
-        if (pair == null) {
-            // This should never happen, but let's be cautious.
-            Slog.e(TAG, "Failed to find the request " + requestId);
-            return;
-        }
-        ConnectionRequestCallback callback = pair.first;
-        Executor executor = pair.second;
-        switch (callbackId) {
-            case ICONNECTION_REQUEST_CALLBACK_ON_CONNECTED:
-                executor.execute(() -> callback.onConnected(receiverZone));
-                break;
-            case ICONNECTION_REQUEST_CALLBACK_ON_REJECTED:
-                executor.execute(() -> callback.onRejected(receiverZone, rejectionReason));
-                break;
-            case ICONNECTION_REQUEST_CALLBACK_ON_FAILED:
-                executor.execute(() -> callback.onFailed(receiverZone, connectionError));
-                break;
-            case ICONNECTION_REQUEST_CALLBACK_ON_DISCONNECTED:
-                executor.execute(() -> callback.onDisconnected(receiverZone));
-                break;
-            default:
-                // Failing into this case means a bug in this class.
-                throw new IllegalArgumentException("Invalid ConnectionRequestCallback ID");
-        }
-    }
-
-    private boolean hasConnectionRequestCallback(@NonNull ConnectionRequestCallback callback) {
-        synchronized (mLock) {
-            for (int i = 0; i < mConnectionRequestMap.size(); i++) {
-                ConnectionRequestCallback registeredCallback =
-                        mConnectionRequestMap.valueAt(i).first;
-                if (registeredCallback == callback) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 }

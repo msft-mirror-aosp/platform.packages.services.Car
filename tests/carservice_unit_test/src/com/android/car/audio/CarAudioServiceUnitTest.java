@@ -22,6 +22,7 @@ import static android.car.media.CarAudioManager.AUDIO_FEATURE_DYNAMIC_ROUTING;
 import static android.car.media.CarAudioManager.AUDIO_FEATURE_OEM_AUDIO_SERVICE;
 import static android.car.media.CarAudioManager.AUDIO_FEATURE_VOLUME_GROUP_MUTING;
 import static android.car.media.CarAudioManager.INVALID_AUDIO_ZONE;
+import static android.car.media.CarAudioManager.INVALID_REQUEST_ID;
 import static android.car.media.CarAudioManager.INVALID_VOLUME_GROUP_ID;
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.car.test.mocks.AndroidMockitoHelper.mockContextCheckCallingOrSelfPermission;
@@ -48,7 +49,10 @@ import static android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING
 import static android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC;
 import static android.media.AudioDeviceInfo.TYPE_FM_TUNER;
 import static android.media.AudioManager.AUDIOFOCUS_GAIN;
+import static android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK;
 import static android.media.AudioManager.AUDIOFOCUS_LOSS;
+import static android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT;
+import static android.media.AudioManager.AUDIOFOCUS_NONE;
 import static android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
 import static android.media.AudioManager.EXTRA_VOLUME_STREAM_TYPE;
 import static android.media.AudioManager.FLAG_FROM_KEY;
@@ -67,6 +71,8 @@ import static android.view.KeyEvent.KEYCODE_VOLUME_UP;
 
 import static com.android.car.R.bool.audioPersistMasterMuteState;
 import static com.android.car.R.bool.audioUseCarVolumeGroupMuting;
+import static com.android.car.R.bool.audioUseCoreRouting;
+import static com.android.car.R.bool.audioUseCoreVolume;
 import static com.android.car.R.bool.audioUseDynamicRouting;
 import static com.android.car.R.bool.audioUseHalDuckingSignals;
 import static com.android.car.R.integer.audioVolumeAdjustmentContextsVersion;
@@ -85,21 +91,31 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
+import android.annotation.NonNull;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
 import android.car.ICarOccupantZoneCallback;
+import android.car.VehicleAreaSeat;
 import android.car.builtin.media.AudioManagerHelper;
 import android.car.builtin.media.AudioManagerHelper.AudioPatchInfo;
 import android.car.builtin.os.UserManagerHelper;
+import android.car.media.CarAudioManager;
 import android.car.media.CarAudioPatchHandle;
+import android.car.media.CarAudioZoneConfigInfo;
 import android.car.media.CarVolumeGroupInfo;
+import android.car.media.IAudioZonesMirrorStatusCallback;
+import android.car.media.IMediaAudioRequestStatusCallback;
+import android.car.media.IPrimaryZoneMediaAudioRequestCallback;
+import android.car.media.ISwitchAudioZoneConfigCallback;
 import android.car.settings.CarSettings;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
+import android.car.test.mocks.MockSettings;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -120,9 +136,12 @@ import android.media.AudioPlaybackConfiguration;
 import android.media.IAudioService;
 import android.media.audiopolicy.AudioPolicy;
 import android.net.Uri;
+import android.os.Build;
 import android.os.IBinder;
+import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.util.Log;
@@ -149,22 +168,25 @@ import com.android.car.test.utils.TemporaryFile;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCase {
     private static final String TAG = CarAudioServiceUnitTest.class.getSimpleName();
+    private static final long TEST_CALLBACK_TIMEOUT_MS = 100;
     private static final int VOLUME_KEY_EVENT_TIMEOUT_MS = 3000;
     private static final int AUDIO_CONTEXT_PRIORITY_LIST_VERSION_ONE = 1;
     private static final int AUDIO_CONTEXT_PRIORITY_LIST_VERSION_TWO = 2;
     private static final String MEDIA_TEST_DEVICE = "media_bus_device";
+    private static final String OEM_TEST_DEVICE = "oem_bus_device";
+    private static final String MIRROR_TEST_DEVICE = "mirror_bus_device";
     private static final String NAVIGATION_TEST_DEVICE = "navigation_bus_device";
     private static final String CALL_TEST_DEVICE = "call_bus_device";
     private static final String NOTIFICATION_TEST_DEVICE = "notification_bus_device";
@@ -172,12 +194,20 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     private static final String RING_TEST_DEVICE = "ring_bus_device";
     private static final String ALARM_TEST_DEVICE = "alarm_bus_device";
     private static final String SYSTEM_BUS_DEVICE = "system_bus_device";
-    private static final String SECONDARY_TEST_DEVICE = "secondary_zone_bus";
+    private static final String SECONDARY_TEST_DEVICE_1 = "secondary_zone_bus_1";
+    private static final String SECONDARY_TEST_DEVICE_2 = "secondary_zone_bus_2";
+    private static final String TERTIARY_TEST_DEVICE_1 = "tertiary_zone_bus_1";
+    private static final String TERTIARY_TEST_DEVICE_2 = "tertiary_zone_bus_2";
     private static final String PRIMARY_ZONE_MICROPHONE_ADDRESS = "Built-In Mic";
     private static final String PRIMARY_ZONE_FM_TUNER_ADDRESS = "FM Tuner";
+    private static final String SECONDARY_ZONE_CONFIG_NAME_1 = "secondary zone config 1";
+    private static final String SECONDARY_ZONE_CONFIG_NAME_2 = "secondary zone config 2";
     // From the car audio configuration file in /res/raw/car_audio_configuration.xml
-    private static final int SECONDARY_ZONE_ID = 1;
-    private static final int OUT_OF_RANGE_ZONE = SECONDARY_ZONE_ID + 1;
+    private static final int TEST_REAR_LEFT_ZONE_ID = 1;
+    private static final int TEST_REAR_RIGHT_ZONE_ID = 2;
+    public static final int[] TEST_AUDIO_ZONES = new int[]{TEST_REAR_LEFT_ZONE_ID,
+            TEST_REAR_RIGHT_ZONE_ID};
+    private static final int OUT_OF_RANGE_ZONE = TEST_REAR_RIGHT_ZONE_ID + 1;
     private static final int PRIMARY_ZONE_VOLUME_GROUP_COUNT = 4;
     private static final int SECONDARY_ZONE_VOLUME_GROUP_COUNT = 1;
     private static final int SECONDARY_ZONE_VOLUME_GROUP_ID = SECONDARY_ZONE_VOLUME_GROUP_COUNT - 1;
@@ -191,12 +221,33 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     private static final int TEST_DISPLAY_TYPE = 2;
     private static final int TEST_SEAT = 2;
     private static final int PRIMARY_OCCUPANT_ZONE = 0;
-    private static final int SECONDARY_OCCUPANT_ZONE = 1;
+    private static final int INVALID_STATUS = 0;
+
+    private static final int TEST_DRIVER_OCCUPANT_ZONE_ID = 1;
+    private static final int TEST_REAR_LEFT_OCCUPANT_ZONE_ID = 2;
+    private static final int TEST_REAR_RIGHT_OCCUPANT_ZONE_ID = 3;
+    private static final int TEST_UNASSIGNED_OCCUPANT_ZONE_ID = 4;
+
+    private static final CarOccupantZoneManager.OccupantZoneInfo TEST_DRIVER_OCCUPANT =
+            getOccupantInfo(TEST_DRIVER_OCCUPANT_ZONE_ID,
+                    CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER,
+                    VehicleAreaSeat.SEAT_ROW_1_LEFT);
+    private static final CarOccupantZoneManager.OccupantZoneInfo
+            TEST_REAR_RIGHT_PASSENGER_OCCUPANT =
+            getOccupantInfo(TEST_REAR_RIGHT_OCCUPANT_ZONE_ID,
+                    CarOccupantZoneManager.OCCUPANT_TYPE_REAR_PASSENGER,
+                    VehicleAreaSeat.SEAT_ROW_2_RIGHT);
+    private static final CarOccupantZoneManager.OccupantZoneInfo
+            TEST_REAR_LEFT_PASSENGER_OCCUPANT =
+            getOccupantInfo(TEST_REAR_LEFT_OCCUPANT_ZONE_ID,
+                    CarOccupantZoneManager.OCCUPANT_TYPE_REAR_PASSENGER,
+                    VehicleAreaSeat.SEAT_ROW_2_LEFT);
 
     private static final String PROPERTY_RO_ENABLE_AUDIO_PATCH =
             "ro.android.car.audio.enableaudiopatch";
 
     private static final int MEDIA_APP_UID = 1086753;
+    private static final int TEST_REAR_RIGHT_UID = 1286753;
     private static final String MEDIA_CLIENT_ID = "media-client-id";
     private static final String MEDIA_PACKAGE_NAME = "com.android.car.audio";
     private static final int MEDIA_EMPTY_FLAG = 0;
@@ -206,8 +257,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     private static final int INVALID_USAGE = -1;
     private static final int INVALID_AUDIO_FEATURE = -1;
     private static final int TEST_DRIVER_USER_ID = 10;
-    private static final int TEST_USER_ID = 11;
-    private static final int TEST_USER_ID_SECONDARY = 12;
+    private static final int TEST_REAR_LEFT_USER_ID = 11;
+    private static final int TEST_REAR_RIGHT_USER_ID = 12;
     private static final int TEST_GAIN_INDEX = 4;
 
     private static final CarVolumeGroupInfo TEST_PRIMARY_VOLUME_INFO =
@@ -221,6 +272,31 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                     TEST_SECONDARY_GROUP).setMuted(true).setMinVolumeGainIndex(0)
                     .setMaxVolumeGainIndex(MAX_GAIN / STEP_SIZE)
                     .setVolumeGainIndex(DEFAULT_GAIN / STEP_SIZE).build();
+
+    private static final AudioDeviceInfo MICROPHONE_TEST_DEVICE =
+            new AudioDeviceInfoBuilder().setAddressName(PRIMARY_ZONE_MICROPHONE_ADDRESS)
+            .setType(TYPE_BUILTIN_MIC)
+            .setIsSource(true)
+            .build();
+    private static final AudioDeviceInfo FM_TUNER_TEST_DEVICE =
+            new AudioDeviceInfoBuilder().setAddressName(PRIMARY_ZONE_FM_TUNER_ADDRESS)
+            .setType(TYPE_FM_TUNER)
+            .setIsSource(true)
+            .build();
+
+    private static final AudioFocusInfo TEST_AUDIO_FOCUS_INFO =
+            new AudioFocusInfo(CarAudioContext
+                    .getAudioAttributeFromUsage(USAGE_VOICE_COMMUNICATION), MEDIA_APP_UID,
+            MEDIA_CLIENT_ID, "com.android.car.audio",
+            AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, AUDIOFOCUS_NONE, /* loss= */ 0,
+            Build.VERSION.SDK_INT);
+
+    private static final AudioFocusInfo TEST_REAR_RIGHT_AUDIO_FOCUS_INFO =
+            new AudioFocusInfo(CarAudioContext
+            .getAudioAttributeFromUsage(USAGE_MEDIA), TEST_REAR_RIGHT_UID,
+            MEDIA_CLIENT_ID, "com.android.car.audio",
+            AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, AUDIOFOCUS_NONE, /* loss= */ 0,
+            Build.VERSION.SDK_INT);
 
     private CarAudioService mCarAudioService;
     @Mock
@@ -256,11 +332,16 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Mock
     private CarInputService mMockCarInputService;
 
+    // Not used directly, but sets proper mockStatic() expectations on Settings
+    @SuppressWarnings("UnusedVariable")
+    private MockSettings mMockSettings;
+
     private boolean mPersistMasterMute = true;
     private boolean mUseDynamicRouting = true;
     private boolean mUseHalAudioDucking = true;
     private boolean mUseCarVolumeGroupMuting = true;
 
+    private TemporaryFile mTemporaryAudioConfigurationUsingCoreAudioFile;
     private TemporaryFile mTemporaryAudioConfigurationFile;
     private TemporaryFile mTemporaryAudioConfigurationWithoutZoneMappingFile;
     private Context mContext;
@@ -277,7 +358,9 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
+        mMockSettings = new MockSettings(session);
         session
+                .spyStatic(AudioManager.class)
                 .spyStatic(AudioManagerHelper.class)
                 .spyStatic(AudioControlWrapperAidl.class)
                 .spyStatic(AudioControlFactory.class)
@@ -306,6 +389,16 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                     + mTemporaryAudioConfigurationWithoutZoneMappingFile.getPath());
         }
 
+        try (InputStream configurationStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_using_core_audio_routing_and_volume)) {
+            mTemporaryAudioConfigurationUsingCoreAudioFile = new TemporaryFile("xml");
+            mTemporaryAudioConfigurationUsingCoreAudioFile
+                    .write(new String(configurationStream.readAllBytes()));
+            Log.i(TAG, "Temporary Car Audio Configuration using Core Audio File Location: "
+                    + mTemporaryAudioConfigurationUsingCoreAudioFile.getPath());
+        }
+
+        mockCoreAudioRoutingAndVolume();
         mockGrantCarControlAudioSettingsPermission();
 
         setupAudioControlHAL();
@@ -342,12 +435,41 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     private void setupService() throws Exception {
         when(mMockContext.getSystemService(Context.TELEPHONY_SERVICE))
                 .thenReturn(mMockTelephonyManager);
+        when(mMockContext.getSystemService(Context.AUDIO_SERVICE))
+                .thenReturn(mAudioManager);
         when(mMockContext.getPackageManager()).thenReturn(mMockPackageManager);
         doReturn(true)
                 .when(() -> AudioManagerHelper
                         .setAudioDeviceGain(any(), any(), anyInt(), anyBoolean()));
         doReturn(true)
                 .when(() -> SystemProperties.getBoolean(PROPERTY_RO_ENABLE_AUDIO_PATCH, false));
+
+        when(mMockOccupantZoneService.getUserForOccupant(TEST_DRIVER_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_DRIVER_USER_ID);
+        when(mMockOccupantZoneService.getDriverUserId()).thenReturn(TEST_DRIVER_USER_ID);
+        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(TEST_DRIVER_OCCUPANT_ZONE_ID))
+                .thenReturn(PRIMARY_AUDIO_ZONE);
+        when(mMockOccupantZoneService.getOccupantZoneForUser(UserHandle.of(TEST_DRIVER_USER_ID)))
+                .thenReturn(TEST_DRIVER_OCCUPANT);
+
+        when(mMockOccupantZoneService.getUserForOccupant(TEST_REAR_LEFT_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_REAR_LEFT_USER_ID);
+        when(mMockOccupantZoneService.getUserForOccupant(TEST_REAR_RIGHT_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_REAR_RIGHT_USER_ID);
+        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(TEST_REAR_LEFT_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_REAR_LEFT_ZONE_ID);
+        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(TEST_REAR_RIGHT_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_REAR_RIGHT_ZONE_ID);
+        when(mMockOccupantZoneService.getOccupantZoneForUser(
+                UserHandle.of(TEST_REAR_RIGHT_USER_ID))).thenReturn(
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        when(mMockOccupantZoneService.getOccupantZoneForUser(
+                UserHandle.of(TEST_REAR_LEFT_USER_ID))).thenReturn(
+                TEST_REAR_LEFT_PASSENGER_OCCUPANT);
+        when(mMockOccupantZoneService.getOccupantForAudioZoneId(TEST_REAR_LEFT_ZONE_ID))
+                .thenReturn(TEST_REAR_LEFT_PASSENGER_OCCUPANT);
+        when(mMockOccupantZoneService.getOccupantForAudioZoneId(TEST_REAR_RIGHT_ZONE_ID))
+                .thenReturn(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
 
         CarLocalServices.removeServiceForTest(CarOccupantZoneService.class);
         CarLocalServices.addService(CarOccupantZoneService.class, mMockOccupantZoneService);
@@ -441,8 +563,9 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         mCarAudioService.init();
 
         expectWithMessage("Car Audio Service Zones")
-                .that(mCarAudioService.getAudioZoneIds())
-                .asList().containsExactly(PRIMARY_AUDIO_ZONE, SECONDARY_ZONE_ID);
+                .that(mCarAudioService.getAudioZoneIds()).asList()
+                .containsExactly(PRIMARY_AUDIO_ZONE, TEST_REAR_LEFT_ZONE_ID,
+                        TEST_REAR_RIGHT_ZONE_ID);
     }
 
     @Test
@@ -564,7 +687,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         mCarAudioService.init();
 
         expectWithMessage("Secondary Zone car volume group count")
-                .that(mCarAudioService.getVolumeGroupCount(SECONDARY_ZONE_ID))
+                .that(mCarAudioService.getVolumeGroupCount(TEST_REAR_LEFT_ZONE_ID))
                 .isEqualTo(SECONDARY_ZONE_VOLUME_GROUP_COUNT);
     }
 
@@ -597,7 +720,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         mCarAudioService.init();
 
         expectWithMessage("Secondary Zone's car volume group id usages")
-                .that(mCarAudioService.getUsagesForVolumeGroupId(SECONDARY_ZONE_ID,
+                .that(mCarAudioService.getUsagesForVolumeGroupId(TEST_REAR_LEFT_ZONE_ID,
                         SECONDARY_ZONE_VOLUME_GROUP_ID))
                 .asList().containsExactly(USAGE_UNKNOWN, USAGE_MEDIA,
                         USAGE_VOICE_COMMUNICATION, USAGE_VOICE_COMMUNICATION_SIGNALLING,
@@ -812,7 +935,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         noZoneMappingAudioService.init();
 
         boolean results = noZoneMappingAudioService
-                .setZoneIdForUid(SECONDARY_ZONE_ID, MEDIA_APP_UID);
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
 
         expectWithMessage("Set Zone for UID Status").that(results).isTrue();
     }
@@ -827,7 +950,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         noZoneMappingAudioService.init();
 
         noZoneMappingAudioService
-                .setZoneIdForUid(SECONDARY_ZONE_ID, MEDIA_APP_UID);
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
 
         boolean results = noZoneMappingAudioService
                 .setZoneIdForUid(PRIMARY_AUDIO_ZONE, MEDIA_APP_UID);
@@ -847,7 +970,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia();
 
         noZoneMappingAudioService
-                .setZoneIdForUid(SECONDARY_ZONE_ID, MEDIA_APP_UID);
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
 
         noZoneMappingAudioService
                 .requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
@@ -885,13 +1008,13 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         noZoneMappingAudioService.init();
 
         noZoneMappingAudioService
-                .setZoneIdForUid(SECONDARY_ZONE_ID, MEDIA_APP_UID);
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
 
         int zoneId = noZoneMappingAudioService
                 .getZoneIdForUid(MEDIA_APP_UID);
 
         expectWithMessage("Get Zone for UID Zone Id")
-                .that(zoneId).isEqualTo(SECONDARY_ZONE_ID);
+                .that(zoneId).isEqualTo(TEST_REAR_LEFT_ZONE_ID);
     }
 
     @Test
@@ -904,7 +1027,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         noZoneMappingAudioService.init();
 
         noZoneMappingAudioService
-                .setZoneIdForUid(SECONDARY_ZONE_ID, MEDIA_APP_UID);
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
 
         noZoneMappingAudioService
                 .setZoneIdForUid(PRIMARY_AUDIO_ZONE, MEDIA_APP_UID);
@@ -983,7 +1106,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         noZoneMappingAudioService.init();
 
         noZoneMappingAudioService
-                .setZoneIdForUid(SECONDARY_ZONE_ID, MEDIA_APP_UID);
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
 
         boolean status = noZoneMappingAudioService.clearZoneIdForUid(MEDIA_APP_UID);
 
@@ -1001,13 +1124,68 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         noZoneMappingAudioService.init();
 
         noZoneMappingAudioService
-                .setZoneIdForUid(SECONDARY_ZONE_ID, MEDIA_APP_UID);
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
 
         noZoneMappingAudioService.clearZoneIdForUid(MEDIA_APP_UID);
 
         int zoneId = noZoneMappingAudioService.getZoneIdForUid(MEDIA_APP_UID);
 
         expectWithMessage("Get Zone for UID Audio Zone with Cleared Mapping")
+                .that(zoneId).isEqualTo(PRIMARY_AUDIO_ZONE);
+    }
+
+    @Test
+    public void getZoneIdForAudioFocusInfo_withoutMappedUid_succeeds() throws Exception {
+        when(mMockAudioService.setUidDeviceAffinity(any(), anyInt(), any(), any()))
+                .thenReturn(SUCCESS);
+        CarAudioService noZoneMappingAudioService = new CarAudioService(mMockContext,
+                mTemporaryAudioConfigurationWithoutZoneMappingFile.getFile().getAbsolutePath(),
+                mCarVolumeCallbackHandler);
+        noZoneMappingAudioService.init();
+
+        int zoneId = noZoneMappingAudioService
+                .getZoneIdForAudioFocusInfo(TEST_AUDIO_FOCUS_INFO);
+
+        expectWithMessage("Mapped audio focus info's zone")
+                .that(zoneId).isEqualTo(PRIMARY_AUDIO_ZONE);
+    }
+
+    @Test
+    public void getZoneIdForAudioFocusInfo_succeeds() throws Exception {
+        when(mMockAudioService.setUidDeviceAffinity(any(), anyInt(), any(), any()))
+                .thenReturn(SUCCESS);
+        CarAudioService noZoneMappingAudioService = new CarAudioService(mMockContext,
+                mTemporaryAudioConfigurationWithoutZoneMappingFile.getFile().getAbsolutePath(),
+                mCarVolumeCallbackHandler);
+        noZoneMappingAudioService.init();
+
+        noZoneMappingAudioService
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
+
+        int zoneId = noZoneMappingAudioService
+                .getZoneIdForAudioFocusInfo(TEST_AUDIO_FOCUS_INFO);
+
+        expectWithMessage("Mapped audio focus info's zone")
+                .that(zoneId).isEqualTo(TEST_REAR_LEFT_ZONE_ID);
+    }
+
+    @Test
+    public void getZoneIdForAudioFocusInfo_afterSwitchingZones_succeeds() throws Exception {
+        when(mMockAudioService.setUidDeviceAffinity(any(), anyInt(), any(), any()))
+                .thenReturn(SUCCESS);
+        CarAudioService noZoneMappingAudioService = new CarAudioService(mMockContext,
+                mTemporaryAudioConfigurationWithoutZoneMappingFile.getFile().getAbsolutePath(),
+                mCarVolumeCallbackHandler);
+        noZoneMappingAudioService.init();
+        noZoneMappingAudioService
+                .setZoneIdForUid(TEST_REAR_LEFT_ZONE_ID, MEDIA_APP_UID);
+        noZoneMappingAudioService
+                .setZoneIdForUid(PRIMARY_AUDIO_ZONE, MEDIA_APP_UID);
+
+        int zoneId = noZoneMappingAudioService
+                .getZoneIdForAudioFocusInfo(TEST_AUDIO_FOCUS_INFO);
+
+        expectWithMessage("Remapped audio focus info's zone")
                 .that(zoneId).isEqualTo(PRIMARY_AUDIO_ZONE);
     }
 
@@ -1140,11 +1318,11 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     public void getOutputDeviceAddressForUsage_onSecondaryZone_forMusicUsage() {
         mCarAudioService.init();
 
-        String mediaDeviceAddress =
-                mCarAudioService.getOutputDeviceAddressForUsage(SECONDARY_ZONE_ID, USAGE_MEDIA);
+        String mediaDeviceAddress = mCarAudioService.getOutputDeviceAddressForUsage(
+                TEST_REAR_LEFT_ZONE_ID, USAGE_MEDIA);
 
         expectWithMessage("Media usage audio device address for secondary zone")
-                .that(mediaDeviceAddress).isEqualTo(SECONDARY_TEST_DEVICE);
+                .that(mediaDeviceAddress).isEqualTo(SECONDARY_TEST_DEVICE_1);
     }
 
     @Test
@@ -1165,7 +1343,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 .getContextForAudioAttribute(CAR_DEFAULT_AUDIO_ATTRIBUTE);
 
         expectWithMessage("Suggested audio context for secondary zone")
-                .that(mCarAudioService.getSuggestedAudioContextForZone(SECONDARY_ZONE_ID))
+                .that(mCarAudioService.getSuggestedAudioContextForZone(TEST_REAR_LEFT_ZONE_ID))
                 .isEqualTo(defaultAudioContext);
     }
 
@@ -1473,14 +1651,14 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         mCarAudioService.init();
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(TEST_DRIVER_USER_ID);
         when(mMockOccupantZoneService.getUserForOccupant(anyInt()))
-                .thenReturn(TEST_USER_ID);
+                .thenReturn(TEST_REAR_LEFT_USER_ID);
         ICarOccupantZoneCallback callback = getOccupantZoneCallback();
 
         callback.onOccupantZoneConfigChanged(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
 
         expectWithMessage("User ID after config changed")
                 .that(mCarAudioService.getUserIdForZone(PRIMARY_AUDIO_ZONE))
-                .isEqualTo(TEST_USER_ID);
+                .isEqualTo(TEST_REAR_LEFT_USER_ID);
     }
 
     @Test
@@ -1488,7 +1666,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         mCarAudioService.init();
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(TEST_DRIVER_USER_ID);
         when(mMockOccupantZoneService.getUserForOccupant(anyInt()))
-                .thenReturn(TEST_USER_ID);
+                .thenReturn(TEST_REAR_LEFT_USER_ID);
         ICarOccupantZoneCallback callback = getOccupantZoneCallback();
         callback.onOccupantZoneConfigChanged(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
         when(mMockOccupantZoneService.getUserForOccupant(anyInt()))
@@ -1523,7 +1701,6 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(TEST_DRIVER_USER_ID);
         noZoneMappingAudioService.init();
         ICarOccupantZoneCallback callback = getOccupantZoneCallback();
-
         callback.onOccupantZoneConfigChanged(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
         callback.onOccupantZoneConfigChanged(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
 
@@ -1538,17 +1715,17 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         mCarAudioService.init();
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(TEST_DRIVER_USER_ID);
         when(mMockOccupantZoneService.getUserForOccupant(anyInt()))
-                .thenReturn(TEST_USER_ID, TEST_USER_ID_SECONDARY);
+                .thenReturn(TEST_REAR_LEFT_USER_ID, TEST_REAR_RIGHT_USER_ID);
         ICarOccupantZoneCallback callback = getOccupantZoneCallback();
 
         callback.onOccupantZoneConfigChanged(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
 
         expectWithMessage("User ID for primary and secondary zone after config changed")
                 .that(mCarAudioService.getUserIdForZone(PRIMARY_AUDIO_ZONE))
-                .isNotEqualTo(mCarAudioService.getUserIdForZone(SECONDARY_ZONE_ID));
+                .isNotEqualTo(mCarAudioService.getUserIdForZone(TEST_REAR_LEFT_ZONE_ID));
         expectWithMessage("Secondary user ID config changed")
-                .that(mCarAudioService.getUserIdForZone(SECONDARY_ZONE_ID))
-                .isEqualTo(TEST_USER_ID_SECONDARY);
+                .that(mCarAudioService.getUserIdForZone(TEST_REAR_LEFT_ZONE_ID))
+                .isEqualTo(TEST_REAR_RIGHT_USER_ID);
     }
 
     @Test
@@ -1714,7 +1891,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 /* muted= */ true, TEST_FLAGS);
 
         expectWithMessage("Muted volume groups for secondary zone")
-                .that(mCarAudioService.getMutedVolumeGroups(SECONDARY_ZONE_ID)).isEmpty();
+                .that(mCarAudioService.getMutedVolumeGroups(TEST_REAR_LEFT_ZONE_ID)).isEmpty();
     }
 
     @Test
@@ -1881,6 +2058,481 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         expectWithMessage("Exception for volume groups info size for out of range group")
                 .that(thrown).hasMessageThat().contains("audio zone Id");
+    }
+
+    @Test
+    public void registerPrimaryZoneMediaAudioRequestCallbackListener_withNullCallback_fails() {
+        mCarAudioService.init();
+
+        NullPointerException thrown = assertThrows(NullPointerException.class, ()
+                -> mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(
+                        /* callback= */ null));
+
+        expectWithMessage("Register audio media request callback exception")
+                .that(thrown).hasMessageThat()
+                .contains("Media request callback");
+    }
+
+    @Test
+    public void unregisterPrimaryZoneMediaAudioRequestCallback_withNullCallback_fails() {
+        mCarAudioService.init();
+
+        NullPointerException thrown = assertThrows(NullPointerException.class, ()
+                -> mCarAudioService.unregisterPrimaryZoneMediaAudioRequestCallback(
+                        /* callback= */ null));
+
+        expectWithMessage("Unregister audio media request callback exception")
+                .that(thrown).hasMessageThat()
+                .contains("Media request callback");
+    }
+
+    @Test
+    public void requestMediaAudioOnPrimaryZone_withPassengerOccupant_succeeds()
+            throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+
+        expectWithMessage("Audio media request id")
+                .that(mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                        TEST_REAR_RIGHT_PASSENGER_OCCUPANT))
+                .isNotEqualTo(INVALID_REQUEST_ID);
+    }
+
+    @Test
+    public void requestMediaAudioOnPrimaryZone_withDriverOccupant_fails()
+            throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, ()
+                -> mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_DRIVER_OCCUPANT));
+
+        expectWithMessage("Request media audio exception")
+                .that(thrown).hasMessageThat().contains("already owns the primary audio zone");
+    }
+
+    @Test
+    public void requestMediaAudioOnPrimaryZone_withNonAssignedOccupant_fails()
+            throws Exception {
+        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(TEST_UNASSIGNED_OCCUPANT_ZONE_ID))
+                .thenReturn(/* audioZoneId= */ 4);
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        CarOccupantZoneManager.OccupantZoneInfo info =
+                getOccupantInfo(TEST_UNASSIGNED_OCCUPANT_ZONE_ID,
+                CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER,
+                VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+
+        expectWithMessage("Invalid audio media request id")
+                .that(mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback, info))
+                .isEqualTo(INVALID_REQUEST_ID);
+    }
+
+    @Test
+    public void requestMediaAudioOnPrimaryZone_withPassengerOccupant_callsApprover()
+            throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+
+        requestToken.waitForCallback();
+        expectWithMessage("Called audio media request id")
+                .that(requestToken.mRequestId).isEqualTo(requestId);
+        expectWithMessage("Called audio media request info")
+                .that(requestToken.mInfo).isEqualTo(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+    }
+
+    @Test
+    public void allowMediaAudioOnPrimaryZone_withAllowedRequest() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+
+        boolean results = mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ true);
+
+        expectWithMessage("Allowed audio playback").that(results).isTrue();
+    }
+
+    @Test
+    public void allowMediaAudioOnPrimaryZone_withUnallowedRequest() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+
+        boolean results = mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ false);
+
+        expectWithMessage("Unallowed audio playback").that(results).isTrue();
+    }
+
+    @Test
+    public void allowMediaAudioOnPrimaryZone_withAllowedRequest_callsRequester() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ true);
+
+        requestCallback.waitForCallback();
+        expectWithMessage("Media request called audio media request id")
+                .that(requestCallback.mRequestId).isEqualTo(requestId);
+        expectWithMessage("Media request called audio media request info")
+                .that(requestCallback.mInfo).isEqualTo(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        expectWithMessage("Media request called audio media request status")
+                .that(requestCallback.mStatus)
+                .isEqualTo(CarAudioManager.AUDIO_REQUEST_STATUS_APPROVED);
+    }
+
+    @Test
+    public void allowMediaAudioOnPrimaryZone_withAllowedRequest_callsApprover() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestApprover = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestApprover);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestApprover.waitForCallback();
+        requestApprover.reset();
+
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestApprover, requestId,
+                /* allowed= */ true);
+
+        requestApprover.waitForCallback();
+        expectWithMessage("Media approver called audio media request id")
+                .that(requestApprover.mRequestId).isEqualTo(requestId);
+        expectWithMessage("Media approver called audio media request info")
+                .that(requestApprover.mInfo).isEqualTo(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        expectWithMessage("Media approver called audio media request status")
+                .that(requestApprover.mStatus)
+                .isEqualTo(CarAudioManager.AUDIO_REQUEST_STATUS_APPROVED);
+    }
+
+    @Test
+    public void allowMediaAudioOnPrimaryZone_withUnallowedRequest_callsRequester()
+            throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ false);
+
+        requestCallback.waitForCallback();
+        expectWithMessage("Unallowed media request called audio media request id")
+                .that(requestCallback.mRequestId).isEqualTo(requestId);
+        expectWithMessage("Unallowed media request called audio media request info")
+                .that(requestCallback.mInfo).isEqualTo(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        expectWithMessage("Unallowed media request called audio media request status")
+                .that(requestCallback.mStatus)
+                .isEqualTo(CarAudioManager.AUDIO_REQUEST_STATUS_REJECTED);
+    }
+
+    @Test
+    public void allowMediaAudioOnPrimaryZone_withUnallowedRequest_callsApprover() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestApprover = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestApprover);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestApprover.waitForCallback();
+        requestApprover.reset();
+
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestApprover, requestId,
+                /* allowed= */ false);
+
+        requestApprover.waitForCallback();
+        expectWithMessage("Unallowed media approver called audio media request id")
+                .that(requestApprover.mRequestId).isEqualTo(requestId);
+        expectWithMessage("Unallowed approver token called audio media request info")
+                .that(requestApprover.mInfo).isEqualTo(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        expectWithMessage("Unallowed approver token called audio media request status")
+                .that(requestApprover.mStatus)
+                .isEqualTo(CarAudioManager.AUDIO_REQUEST_STATUS_REJECTED);
+    }
+
+    @Test
+    public void isMediaAudioAllowedInPrimaryZone_witNullOccupant_fails() throws Exception {
+        mCarAudioService.init();
+        NullPointerException thrown = assertThrows(NullPointerException.class, ()
+                -> mCarAudioService.isMediaAudioAllowedInPrimaryZone(/* occupantZoneInfo= */ null));
+
+        expectWithMessage("Media status exception").that(thrown)
+                .hasMessageThat().contains("Occupant zone info");
+    }
+
+    @Test
+    public void isMediaAudioAllowedInPrimaryZone_byDefault() throws Exception {
+        mCarAudioService.init();
+
+        expectWithMessage("Media default status")
+                .that(mCarAudioService.isMediaAudioAllowedInPrimaryZone(
+                        TEST_REAR_RIGHT_PASSENGER_OCCUPANT))
+                .isFalse();
+    }
+
+    @Test
+    public void isMediaAudioAllowedInPrimaryZone_afterAllowed() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ true);
+        requestToken.waitForCallback();
+
+        expectWithMessage("Media allowed status")
+                .that(mCarAudioService.isMediaAudioAllowedInPrimaryZone(
+                        TEST_REAR_RIGHT_PASSENGER_OCCUPANT))
+                .isTrue();
+    }
+
+    @Test
+    public void isMediaAudioAllowedInPrimaryZone_afterDisallowed() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ false);
+        requestToken.waitForCallback();
+
+        expectWithMessage("Media after disallowed status")
+                .that(mCarAudioService.isMediaAudioAllowedInPrimaryZone(
+                        TEST_REAR_RIGHT_PASSENGER_OCCUPANT))
+                .isFalse();
+    }
+
+    @Test
+    public void resetMediaAudioOnPrimaryZone_afterAllowed() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ true);
+        requestToken.waitForCallback();
+        requestToken.reset();
+
+        boolean reset = mCarAudioService.resetMediaAudioOnPrimaryZone(
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+
+        requestToken.waitForCallback();
+        expectWithMessage("Reset status").that(reset).isTrue();
+        expectWithMessage("Media reset status")
+                .that(mCarAudioService.isMediaAudioAllowedInPrimaryZone(
+                        TEST_REAR_RIGHT_PASSENGER_OCCUPANT))
+                .isFalse();
+    }
+
+    @Test
+    public void cancelMediaAudioOnPrimaryZone_beforeAllowed() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+
+        boolean cancel = mCarAudioService.cancelMediaAudioOnPrimaryZone(requestId);
+
+        requestToken.waitForCallback();
+        expectWithMessage("Cancel status").that(cancel).isTrue();
+        expectWithMessage("Canceled media token called audio media request id")
+                .that(requestToken.mRequestId).isEqualTo(requestId);
+        expectWithMessage("Canceled media token called audio media request info")
+                .that(requestToken.mInfo).isEqualTo(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        expectWithMessage("Canceled media token called audio media request status")
+                .that(requestToken.mStatus)
+                .isEqualTo(CarAudioManager.AUDIO_REQUEST_STATUS_CANCELLED);
+    }
+
+    @Test
+    public void cancelMediaAudioOnPrimaryZone_afterAllowed() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ true);
+        requestToken.waitForCallback();
+        requestToken.reset();
+
+        boolean cancel = mCarAudioService.cancelMediaAudioOnPrimaryZone(requestId);
+
+        requestToken.waitForCallback();
+        expectWithMessage("Cancel status after allowed").that(cancel).isTrue();
+        expectWithMessage("Media allowed status after canceled")
+                .that(mCarAudioService.isMediaAudioAllowedInPrimaryZone(
+                        TEST_REAR_RIGHT_PASSENGER_OCCUPANT))
+                .isFalse();
+    }
+
+    @Test
+    public void getZoneIdForAudioFocusInfo_beforeAllowedSharedAudio() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+
+        expectWithMessage("Not yet shared media user zone")
+                .that(mCarAudioService.getZoneIdForAudioFocusInfo(TEST_REAR_RIGHT_AUDIO_FOCUS_INFO))
+                .isEqualTo(TEST_REAR_RIGHT_ZONE_ID);
+    }
+
+    @Test
+    public void getZoneIdForAudioFocusInfo_afterAllowedShareAudio() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId, /* allowed= */ true);
+        requestToken.waitForCallback();
+
+        expectWithMessage("Shared media user zone")
+                .that(mCarAudioService.getZoneIdForAudioFocusInfo(TEST_REAR_RIGHT_AUDIO_FOCUS_INFO))
+                .isEqualTo(PRIMARY_AUDIO_ZONE);
+    }
+
+    @Test
+    public void getZoneIdForAudioFocusInfo_afterCanceled() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ true);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.cancelMediaAudioOnPrimaryZone(requestId);
+        requestToken.waitForCallback();
+
+        expectWithMessage("Canceled shared media user zone")
+                .that(mCarAudioService.getZoneIdForAudioFocusInfo(TEST_REAR_RIGHT_AUDIO_FOCUS_INFO))
+                .isEqualTo(TEST_REAR_RIGHT_ZONE_ID);
+    }
+
+    @Test
+    public void getZoneIdForAudioFocusInfo_afterReset() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId,
+                /* allowed= */ true);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.resetMediaAudioOnPrimaryZone(TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+
+        expectWithMessage("Reset shared media user zone")
+                .that(mCarAudioService.getZoneIdForAudioFocusInfo(TEST_REAR_RIGHT_AUDIO_FOCUS_INFO))
+                .isEqualTo(TEST_REAR_RIGHT_ZONE_ID);
+    }
+
+    private static CarOccupantZoneManager.OccupantZoneInfo getOccupantInfo(int occupantZoneId,
+            int occupantType, int seat) {
+        return new CarOccupantZoneManager.OccupantZoneInfo(occupantZoneId, occupantType, seat);
     }
 
     @Test
@@ -2125,19 +2777,19 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void onKeyEvent_forVolumeUpEvent_inSecondaryZone() {
         mCarAudioService.init();
-        int volumeBefore = mCarAudioService.getGroupVolume(SECONDARY_ZONE_ID,
+        int volumeBefore = mCarAudioService.getGroupVolume(TEST_REAR_LEFT_ZONE_ID,
                 SECONDARY_ZONE_VOLUME_GROUP_ID);
         CarInputService.KeyEventListener listener = getAudioKeyEventListener();
         when(mMockOccupantZoneService.getOccupantZoneIdForSeat(TEST_SEAT))
-                .thenReturn(SECONDARY_OCCUPANT_ZONE);
-        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(SECONDARY_OCCUPANT_ZONE))
-                .thenReturn(SECONDARY_ZONE_ID);
+                .thenReturn(TEST_DRIVER_OCCUPANT_ZONE_ID);
+        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(TEST_DRIVER_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_REAR_LEFT_ZONE_ID);
         KeyEvent keyEvent = new KeyEvent(ACTION_DOWN, KEYCODE_VOLUME_UP);
 
         listener.onKeyEvent(keyEvent, TEST_DISPLAY_TYPE, TEST_SEAT);
 
         expectWithMessage("Secondary zone volume group after volume up")
-                .that(mCarAudioService.getGroupVolume(SECONDARY_ZONE_ID,
+                .that(mCarAudioService.getGroupVolume(TEST_REAR_LEFT_ZONE_ID,
                         SECONDARY_ZONE_VOLUME_GROUP_ID))
                 .isGreaterThan(volumeBefore);
     }
@@ -2145,19 +2797,19 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void onKeyEvent_forVolumeDownEvent_inSecondaryZone() {
         mCarAudioService.init();
-        int volumeBefore = mCarAudioService.getGroupVolume(SECONDARY_ZONE_ID,
+        int volumeBefore = mCarAudioService.getGroupVolume(TEST_REAR_LEFT_ZONE_ID,
                 SECONDARY_ZONE_VOLUME_GROUP_ID);
         CarInputService.KeyEventListener listener = getAudioKeyEventListener();
         when(mMockOccupantZoneService.getOccupantZoneIdForSeat(TEST_SEAT))
-                .thenReturn(SECONDARY_OCCUPANT_ZONE);
-        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(SECONDARY_OCCUPANT_ZONE))
-                .thenReturn(SECONDARY_ZONE_ID);
+                .thenReturn(TEST_DRIVER_OCCUPANT_ZONE_ID);
+        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(TEST_DRIVER_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_REAR_LEFT_ZONE_ID);
         KeyEvent keyEvent = new KeyEvent(ACTION_DOWN, KEYCODE_VOLUME_DOWN);
 
         listener.onKeyEvent(keyEvent, TEST_DISPLAY_TYPE, TEST_SEAT);
 
         expectWithMessage("Secondary zone volume group after volume down")
-                .that(mCarAudioService.getGroupVolume(SECONDARY_ZONE_ID,
+                .that(mCarAudioService.getGroupVolume(TEST_REAR_LEFT_ZONE_ID,
                         SECONDARY_ZONE_VOLUME_GROUP_ID))
                 .isLessThan(volumeBefore);
     }
@@ -2165,19 +2817,19 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void onKeyEvent_forVolumeMuteEvent_inSecondaryZone() {
         mCarAudioService.init();
-        boolean muteBefore = mCarAudioService.isVolumeGroupMuted(SECONDARY_ZONE_ID,
+        boolean muteBefore = mCarAudioService.isVolumeGroupMuted(TEST_REAR_LEFT_ZONE_ID,
                 SECONDARY_ZONE_VOLUME_GROUP_ID);
         CarInputService.KeyEventListener listener = getAudioKeyEventListener();
         when(mMockOccupantZoneService.getOccupantZoneIdForSeat(TEST_SEAT))
-                .thenReturn(SECONDARY_OCCUPANT_ZONE);
-        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(SECONDARY_OCCUPANT_ZONE))
-                .thenReturn(SECONDARY_ZONE_ID);
+                .thenReturn(TEST_DRIVER_OCCUPANT_ZONE_ID);
+        when(mMockOccupantZoneService.getAudioZoneIdForOccupant(TEST_DRIVER_OCCUPANT_ZONE_ID))
+                .thenReturn(TEST_REAR_LEFT_ZONE_ID);
         KeyEvent keyEvent = new KeyEvent(ACTION_DOWN, KEYCODE_VOLUME_MUTE);
 
         listener.onKeyEvent(keyEvent, TEST_DISPLAY_TYPE, TEST_SEAT);
 
         expectWithMessage("Secondary zone volume group after volume mute")
-                .that(mCarAudioService.isVolumeGroupMuted(SECONDARY_ZONE_ID,
+                .that(mCarAudioService.isVolumeGroupMuted(TEST_REAR_LEFT_ZONE_ID,
                         SECONDARY_ZONE_VOLUME_GROUP_ID))
                 .isNotEqualTo(muteBefore);
     }
@@ -2200,13 +2852,13 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     public void onAudioDeviceGainsChanged_forSecondaryZone_changesVolume() {
         mCarAudioService.init();
         HalAudioGainCallback callback = getHalAudioGainCallback();
-        CarAudioGainConfigInfo carGain = createCarAudioGainConfigInfo(SECONDARY_ZONE_ID,
-                SECONDARY_TEST_DEVICE, TEST_GAIN_INDEX);
+        CarAudioGainConfigInfo carGain = createCarAudioGainConfigInfo(TEST_REAR_LEFT_ZONE_ID,
+                SECONDARY_TEST_DEVICE_1, TEST_GAIN_INDEX);
 
         callback.onAudioDeviceGainsChanged(List.of(Reasons.REMOTE_MUTE), List.of(carGain));
 
         expectWithMessage("New audio gains for secondary zone")
-                .that(mCarAudioService.getGroupVolume(SECONDARY_ZONE_ID, TEST_PRIMARY_GROUP))
+                .that(mCarAudioService.getGroupVolume(TEST_REAR_LEFT_ZONE_ID, TEST_PRIMARY_GROUP))
                 .isEqualTo(TEST_GAIN_INDEX);
     }
 
@@ -2216,7 +2868,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         HalAudioGainCallback callback = getHalAudioGainCallback();
         int volumeBefore = mCarAudioService.getGroupVolume(PRIMARY_AUDIO_ZONE, TEST_PRIMARY_GROUP);
         CarAudioGainConfigInfo carGain = createCarAudioGainConfigInfo(PRIMARY_AUDIO_ZONE,
-                SECONDARY_TEST_DEVICE, TEST_GAIN_INDEX);
+                SECONDARY_TEST_DEVICE_1, TEST_GAIN_INDEX);
 
         callback.onAudioDeviceGainsChanged(List.of(Reasons.REMOTE_MUTE), List.of(carGain));
 
@@ -2232,7 +2884,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         CarAudioGainConfigInfo primaryAudioZoneCarGain = createCarAudioGainConfigInfo(
                 PRIMARY_AUDIO_ZONE, MEDIA_TEST_DEVICE, TEST_GAIN_INDEX);
         CarAudioGainConfigInfo secondaryAudioZoneCarGain = createCarAudioGainConfigInfo(
-                SECONDARY_ZONE_ID, SECONDARY_TEST_DEVICE, TEST_GAIN_INDEX);
+                TEST_REAR_LEFT_ZONE_ID, SECONDARY_TEST_DEVICE_1, TEST_GAIN_INDEX);
 
         callback.onAudioDeviceGainsChanged(List.of(Reasons.THERMAL_LIMITATION),
                 List.of(primaryAudioZoneCarGain, secondaryAudioZoneCarGain));
@@ -2241,7 +2893,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 .that(mCarAudioService.getGroupVolume(PRIMARY_AUDIO_ZONE, TEST_PRIMARY_GROUP))
                 .isEqualTo(TEST_GAIN_INDEX);
         expectWithMessage("New audio gains for secondary zone")
-                .that(mCarAudioService.getGroupVolume(SECONDARY_ZONE_ID, TEST_PRIMARY_GROUP))
+                .that(mCarAudioService.getGroupVolume(TEST_REAR_LEFT_ZONE_ID, TEST_PRIMARY_GROUP))
                 .isEqualTo(TEST_GAIN_INDEX);
     }
 
@@ -2295,9 +2947,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(TEST_DRIVER_USER_ID);
         mCarAudioService.init();
         when(mMockOccupantZoneService.getUserForOccupant(anyInt()))
-                .thenReturn(TEST_DRIVER_USER_ID, TEST_USER_ID_SECONDARY);
-        ICarOccupantZoneCallback callback = getOccupantZoneCallback();
-        callback.onOccupantZoneConfigChanged(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
+                .thenReturn(TEST_DRIVER_USER_ID, TEST_REAR_RIGHT_USER_ID);
+        assignOccupantToAudioZones();
 
         expectWithMessage("Primary zone call state").that(
                 mCarAudioService.getCallStateForZone(PRIMARY_AUDIO_ZONE))
@@ -2310,13 +2961,390 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(TEST_DRIVER_USER_ID);
         mCarAudioService.init();
         when(mMockOccupantZoneService.getUserForOccupant(anyInt()))
-                .thenReturn(TEST_USER_ID, TEST_USER_ID_SECONDARY);
-        ICarOccupantZoneCallback callback = getOccupantZoneCallback();
-        callback.onOccupantZoneConfigChanged(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
+                .thenReturn(TEST_REAR_LEFT_USER_ID, TEST_REAR_RIGHT_USER_ID);
+        assignOccupantToAudioZones();
 
         expectWithMessage("Secondary zone call state").that(
-                        mCarAudioService.getCallStateForZone(SECONDARY_ZONE_ID))
+                        mCarAudioService.getCallStateForZone(TEST_REAR_LEFT_ZONE_ID))
                 .isEqualTo(TelephonyManager.CALL_STATE_IDLE);
+    }
+
+    @Test
+    public void getVolumeGroupAndContextCount() {
+        CarAudioService useCoreAudioCarAudioService =
+                getCarAudioServiceUsingCoreAudioRoutingAndVolume();
+
+        verify(mAudioManager).registerVolumeGroupCallback(any(), any());
+        expectWithMessage("Primary zone car volume group count")
+                .that(useCoreAudioCarAudioService.getVolumeGroupCount(PRIMARY_AUDIO_ZONE))
+                .isEqualTo(CoreAudioRoutingUtils.getVolumeGroups().size());
+        expectWithMessage("Number of contexts")
+                .that(useCoreAudioCarAudioService.getCarAudioContext().getAllContextsIds().size())
+                .isEqualTo(CoreAudioRoutingUtils.getProductStrategies().size());
+        expectWithMessage("Car Audio Contexts")
+                .that(useCoreAudioCarAudioService.getCarAudioContext().getAllContextsIds())
+                .containsExactly(CoreAudioRoutingUtils.NAV_STRATEGY_ID,
+                        CoreAudioRoutingUtils.MUSIC_STRATEGY_ID,
+                        CoreAudioRoutingUtils.OEM_STRATEGY_ID);
+    }
+
+    @Test
+    public void registerAudioZonesMirrorStatusCallback() {
+        mCarAudioService.init();
+        TestAudioZonesMirrorStatusCallbackCallback callback =
+                new TestAudioZonesMirrorStatusCallbackCallback(/* count= */ 1);
+
+        boolean registered = mCarAudioService.registerAudioZonesMirrorStatusCallback(callback);
+
+        expectWithMessage("Audio zones mirror status callback registered status")
+                .that(registered).isTrue();
+    }
+
+    @Test
+    public void registerAudioZonesMirrorStatusCallback_withoutMirroringEnabled() {
+        CarAudioService carAudioService = getCarAudioServiceWithoutMirroring();
+        carAudioService.init();
+        TestAudioZonesMirrorStatusCallbackCallback callback =
+                new TestAudioZonesMirrorStatusCallbackCallback(/* count= */ 1);
+
+        IllegalStateException thrown =
+                assertThrows(IllegalStateException.class, () ->
+                        carAudioService.registerAudioZonesMirrorStatusCallback(callback));
+
+        expectWithMessage("Disabled audio zones mirror register exception").that(thrown)
+                .hasMessageThat().contains("Audio zones mirroring is required");
+    }
+
+    @Test
+    public void registerAudioZonesMirrorStatusCallback_withNullCallback() {
+        mCarAudioService.init();
+
+        NullPointerException thrown =
+                assertThrows(NullPointerException.class, () ->
+                    mCarAudioService.registerAudioZonesMirrorStatusCallback(/* callback= */ null));
+
+        expectWithMessage("Null audio zones mirror register exception").that(thrown)
+                .hasMessageThat().contains("Audio zones mirror status callback");
+    }
+
+    @Test
+    public void unregisterAudioZonesMirrorStatusCallback_withNullCallback() {
+        mCarAudioService.init();
+
+        NullPointerException thrown =
+                assertThrows(NullPointerException.class, () -> mCarAudioService
+                        .unregisterAudioZonesMirrorStatusCallback(/* callback= */ null));
+
+        expectWithMessage("Null audio zones mirror unregister exception").that(thrown)
+                .hasMessageThat().contains("Audio zones mirror status callback");
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_withNullAudioZones() {
+        mCarAudioService.init();
+
+        NullPointerException thrown =
+                assertThrows(NullPointerException.class, () ->
+                        mCarAudioService.enableMirrorForAudioZones(/* audioZones= */ null));
+
+        expectWithMessage("Null mirror audio zones exception").that(thrown)
+                .hasMessageThat().contains("Mirror audio zones");
+    }
+
+    @Test
+    public void enableMirrorForAudioZones() throws Exception {
+        mCarAudioService.init();
+        TestAudioZonesMirrorStatusCallbackCallback callback =
+                getAudioZonesMirrorStatusCallback();
+        assignOccupantToAudioZones();
+
+        mCarAudioService.enableMirrorForAudioZones(TEST_AUDIO_ZONES);
+
+        callback.waitForCallback();
+        expectWithMessage("Audio mirror approved status").that(callback.getLastStatus())
+                .isEqualTo(CarAudioManager.AUDIO_REQUEST_STATUS_APPROVED);
+        expectWithMessage("Audio mirror approved zones").that(callback.getLastZoneIds())
+                .asList().containsExactly(TEST_REAR_LEFT_ZONE_ID, TEST_REAR_RIGHT_ZONE_ID);
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_forPrimaryZone_fails() throws Exception {
+        mCarAudioService.init();
+        assignOccupantToAudioZones();
+        int[] audioZones = new int[]{TEST_REAR_LEFT_ZONE_ID, PRIMARY_AUDIO_ZONE};
+
+        IllegalArgumentException thrown =
+                assertThrows(IllegalArgumentException.class, () ->
+                        mCarAudioService.enableMirrorForAudioZones(audioZones));
+
+        expectWithMessage("Mirror audio zones with primary zone exception").that(thrown)
+                .hasMessageThat().contains("not allowed for primary audio zone");
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_forNonAssignedZone_fails() throws Exception {
+        when(mMockOccupantZoneService.getUserForOccupant(TEST_REAR_RIGHT_OCCUPANT_ZONE_ID))
+                .thenReturn(UserManagerHelper.USER_NULL);
+        mCarAudioService.init();
+        getAudioZonesMirrorStatusCallback();
+        assignOccupantToAudioZones();
+
+        IllegalStateException thrown =
+                assertThrows(IllegalStateException.class, () ->
+                        mCarAudioService.enableMirrorForAudioZones(TEST_AUDIO_ZONES));
+
+        expectWithMessage("Mirror audio zones for unoccupied audio zone exception")
+                .that(thrown).hasMessageThat().contains("must have an active user");
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_forRepeatingZones_fails() throws Exception {
+        mCarAudioService.init();
+        assignOccupantToAudioZones();
+        int[] audioZones = new int[]{TEST_REAR_LEFT_ZONE_ID,
+                TEST_REAR_LEFT_ZONE_ID};
+
+        IllegalArgumentException thrown =
+                assertThrows(IllegalArgumentException.class, () ->
+                        mCarAudioService.enableMirrorForAudioZones(audioZones));
+
+        expectWithMessage("Repeated mirror audio zones exception").that(thrown)
+                .hasMessageThat().contains("must be unique");
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_forAlreadyMirroredZones() throws Exception {
+        mCarAudioService.init();
+        TestAudioZonesMirrorStatusCallbackCallback callback =
+                getAudioZonesMirrorStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.enableMirrorForAudioZones(TEST_AUDIO_ZONES);
+        callback.waitForCallback();
+        callback.reset(/* count= */ 1);
+
+        mCarAudioService.enableMirrorForAudioZones(TEST_AUDIO_ZONES);
+
+        callback.waitForCallback();
+        expectWithMessage("Audio mirror for repeating request called count")
+                .that(callback.mNumberOfCalls).isEqualTo(2);
+        expectWithMessage("Audio mirror for repeating request approved status")
+                .that(callback.getLastStatus()).isEqualTo(
+                        CarAudioManager.AUDIO_REQUEST_STATUS_APPROVED);
+        expectWithMessage("Audio mirror for repeating request approved zones")
+                .that(callback.getLastZoneIds()).asList()
+                .containsExactly(TEST_REAR_LEFT_ZONE_ID, TEST_REAR_RIGHT_ZONE_ID);
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_afterSharedInPrimaryZone() throws Exception {
+        mCarAudioService.init();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId, /* allowed= */ true);
+        requestToken.waitForCallback();
+        requestToken.reset();
+
+        IllegalStateException thrown =
+                assertThrows(IllegalStateException.class, () ->
+                        mCarAudioService.enableMirrorForAudioZones(TEST_AUDIO_ZONES));
+
+        expectWithMessage("Mirror audio zones while sharing in primary zone exception")
+                .that(thrown).hasMessageThat().contains("currently sharing to primary zone");
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_forInvertedMirrorConfiguration()
+            throws Exception {
+        mCarAudioService.init();
+        TestAudioZonesMirrorStatusCallbackCallback callback =
+                getAudioZonesMirrorStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.enableMirrorForAudioZones(new int[] {TEST_REAR_RIGHT_ZONE_ID,
+                TEST_REAR_LEFT_ZONE_ID});
+        callback.waitForCallback();
+        callback.reset(/* count= */ 1);
+
+        mCarAudioService.enableMirrorForAudioZones(TEST_AUDIO_ZONES);
+
+        callback.waitForCallback();
+        expectWithMessage("Audio mirror for inverted mirror request called count")
+                .that(callback.mNumberOfCalls).isEqualTo(2);
+        expectWithMessage("Audio mirror for inverted mirror request updated status")
+                .that(callback.getStatus(/* index= */ 1)).isEqualTo(
+                        CarAudioManager.AUDIO_REQUEST_STATUS_APPROVED);
+        expectWithMessage("Audio mirror for inverted mirror request updated zones")
+                .that(callback.getZoneIds(/* index= */ 1)).asList()
+                .containsExactly(TEST_REAR_LEFT_ZONE_ID, TEST_REAR_RIGHT_ZONE_ID);
+    }
+
+    @Test
+    public void enableMirrorForAudioZones_forDifferentMirrorConfiguration_andPendingFocus()
+            throws Exception {
+        mCarAudioService.init();
+        TestAudioZonesMirrorStatusCallbackCallback callback =
+                getAudioZonesMirrorStatusCallback();
+        assignOccupantToAudioZones();
+        mCarAudioService.enableMirrorForAudioZones(new int[] {TEST_REAR_RIGHT_ZONE_ID,
+                TEST_REAR_LEFT_ZONE_ID});
+        callback.waitForCallback();
+        callback.reset(/* count= */ 2);
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        mCarAudioService.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        mCarAudioService.enableMirrorForAudioZones(TEST_AUDIO_ZONES);
+
+        callback.waitForCallback();
+        List<Integer> focusChanges = getFocusChanges(audioFocusInfo);
+        expectWithMessage("Media audio focus changes after enabled mirror")
+                .that(focusChanges).containsExactly(AUDIOFOCUS_LOSS_TRANSIENT, AUDIOFOCUS_GAIN);
+    }
+
+    @Test
+    public void getAudioZoneConfigInfos() {
+        mCarAudioService.init();
+
+        List<CarAudioZoneConfigInfo> zoneConfigInfos =
+                mCarAudioService.getAudioZoneConfigInfos(TEST_REAR_LEFT_ZONE_ID);
+
+        List<String> zoneConfigNames = new ArrayList(zoneConfigInfos.size());
+        for (int index = 0; index < zoneConfigInfos.size(); index++) {
+            zoneConfigNames.add(zoneConfigInfos.get(index).getName());
+        }
+        expectWithMessage("Zone configurations for secondary zone").that(zoneConfigNames)
+                .containsExactly(SECONDARY_ZONE_CONFIG_NAME_1, SECONDARY_ZONE_CONFIG_NAME_2);
+    }
+
+    @Test
+    public void getCurrentAudioZoneConfigInfo() {
+        mCarAudioService.init();
+
+        CarAudioZoneConfigInfo currentZoneConfigInfo =
+                mCarAudioService.getCurrentAudioZoneConfigInfo(TEST_REAR_LEFT_ZONE_ID);
+
+        expectWithMessage("Name of current zone configuration for secondary zone")
+                .that(currentZoneConfigInfo.getName()).isEqualTo(SECONDARY_ZONE_CONFIG_NAME_1);
+    }
+
+    @Test
+    public void switchZoneToConfig() throws Exception {
+        mCarAudioService.init();
+        SwitchAudioZoneConfigCallbackImpl callback = new SwitchAudioZoneConfigCallbackImpl();
+        assignOccupantToAudioZones();
+        CarAudioZoneConfigInfo zoneConfigSwitchTo = getZoneConfigToSwitch(TEST_REAR_LEFT_ZONE_ID);
+
+        mCarAudioService.switchZoneToConfig(zoneConfigSwitchTo, callback);
+
+        callback.waitForCallback();
+        expectWithMessage("Updated zone configuration")
+                .that(callback.getZoneConfig()).isEqualTo(zoneConfigSwitchTo);
+        expectWithMessage("Zone configuration switching status")
+                .that(callback.getSwitchStatus()).isTrue();
+    }
+
+    @Test
+    public void switchZoneToConfig_forNonAssignedZone_fails() throws Exception {
+        when(mMockOccupantZoneService.getUserForOccupant(TEST_REAR_LEFT_OCCUPANT_ZONE_ID))
+                .thenReturn(UserManagerHelper.USER_NULL);
+        mCarAudioService.init();
+        SwitchAudioZoneConfigCallbackImpl callback = new SwitchAudioZoneConfigCallbackImpl();
+        assignOccupantToAudioZones();
+        CarAudioZoneConfigInfo  zoneConfigSwitchTo = getZoneConfigToSwitch(TEST_REAR_LEFT_ZONE_ID);
+
+        IllegalStateException thrown =
+                assertThrows(IllegalStateException.class, () ->
+                        mCarAudioService.switchZoneToConfig(zoneConfigSwitchTo, callback));
+
+        expectWithMessage("Switching zone configuration for unoccupied audio zone exception")
+                .that(thrown).hasMessageThat().contains("must have an active user");
+    }
+
+    @Test
+    public void switchZoneToConfig_afterSharedInPrimaryZone_fails() throws Exception {
+        mCarAudioService.init();
+        SwitchAudioZoneConfigCallbackImpl callback = new SwitchAudioZoneConfigCallbackImpl();
+        TestPrimaryZoneMediaAudioRequestCallback
+                requestToken = new TestPrimaryZoneMediaAudioRequestCallback();
+        mCarAudioService.registerPrimaryZoneMediaAudioRequestCallback(requestToken);
+        TestMediaRequestStatusCallback requestCallback = new TestMediaRequestStatusCallback();
+        assignOccupantToAudioZones();
+        long requestId = mCarAudioService.requestMediaAudioOnPrimaryZone(requestCallback,
+                TEST_REAR_LEFT_PASSENGER_OCCUPANT);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        mCarAudioService.allowMediaAudioOnPrimaryZone(requestToken, requestId, /* allowed= */ true);
+        requestToken.waitForCallback();
+        requestToken.reset();
+        CarAudioZoneConfigInfo zoneConfigSwitchTo = getZoneConfigToSwitch(TEST_REAR_LEFT_ZONE_ID);
+
+        IllegalStateException thrown =
+                assertThrows(IllegalStateException.class, () ->
+                        mCarAudioService.switchZoneToConfig(zoneConfigSwitchTo, callback));
+
+        expectWithMessage("Switching zone configuration while sharing in primary zone exception")
+                .that(thrown).hasMessageThat().contains("currently sharing to primary zone");
+    }
+
+    @Test
+    public void switchZoneToConfig_withPendingFocus() throws Exception {
+        mCarAudioService.init();
+        SwitchAudioZoneConfigCallbackImpl callback = new SwitchAudioZoneConfigCallbackImpl();
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        mCarAudioService.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        CarAudioZoneConfigInfo zoneConfigSwitchTo = getZoneConfigToSwitch(TEST_REAR_RIGHT_ZONE_ID);
+
+        mCarAudioService.switchZoneToConfig(zoneConfigSwitchTo, callback);
+
+        callback.waitForCallback();
+        expectWithMessage("Updated zone configuration with pending focus")
+                .that(callback.getZoneConfig()).isEqualTo(zoneConfigSwitchTo);
+        expectWithMessage("Zone configuration switching status with pending focus")
+                .that(callback.getSwitchStatus()).isTrue();
+        List<Integer> focusChanges = getFocusChanges(audioFocusInfo);
+        expectWithMessage("Media audio focus changes after switching zone")
+                .that(focusChanges).containsExactly(AUDIOFOCUS_LOSS_TRANSIENT, AUDIOFOCUS_GAIN);
+    }
+
+    @Test
+    public void switchZoneToConfig_withCurrentZoneConfigAndPendingFocus_notLoseAndRegainFocus()
+            throws Exception {
+        mCarAudioService.init();
+        SwitchAudioZoneConfigCallbackImpl callback = new SwitchAudioZoneConfigCallbackImpl();
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        mCarAudioService.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        CarAudioZoneConfigInfo currentZoneConfig =
+                mCarAudioService.getCurrentAudioZoneConfigInfo(TEST_REAR_RIGHT_ZONE_ID);
+
+        mCarAudioService.switchZoneToConfig(currentZoneConfig, callback);
+
+        callback.waitForCallback();
+        expectWithMessage("Updated zone configuration with current configuration")
+                .that(callback.getZoneConfig()).isEqualTo(currentZoneConfig);
+        expectWithMessage("Zone configuration switching status with current configuration")
+                .that(callback.getSwitchStatus()).isTrue();
+        verify(mAudioManager, never()).dispatchAudioFocusChange(eq(audioFocusInfo), anyInt(),
+                any(AudioPolicy.class));
+    }
+
+    private TestAudioZonesMirrorStatusCallbackCallback getAudioZonesMirrorStatusCallback() {
+        TestAudioZonesMirrorStatusCallbackCallback callback =
+                new TestAudioZonesMirrorStatusCallbackCallback(/* count= */ 1);
+        mCarAudioService.registerAudioZonesMirrorStatusCallback(callback);
+        return callback;
+    }
+
+    private void assignOccupantToAudioZones() throws RemoteException {
+        ICarOccupantZoneCallback occupantZoneCallback = getOccupantZoneCallback();
+        occupantZoneCallback.onOccupantZoneConfigChanged(
+                CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
     }
 
     private CarAudioGainConfigInfo createCarAudioGainConfigInfo(int zoneId,
@@ -2374,6 +3402,29 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         return config;
     }
 
+    private CarAudioService getCarAudioServiceWithoutMirroring() {
+        AudioDeviceInfo[] outputDevices = getOutputDevicesWithNoMirrorDevice();
+        when(mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)).thenReturn(outputDevices);
+        CarAudioService carAudioService =
+                new CarAudioService(mMockContext, mTemporaryAudioConfigurationFile.getFile()
+                        .getAbsolutePath(), mCarVolumeCallbackHandler);
+        carAudioService.init();
+        return carAudioService;
+    }
+
+    private CarAudioService getCarAudioServiceUsingCoreAudioRoutingAndVolume() {
+        when(mMockResources.getBoolean(audioUseCoreVolume))
+                .thenReturn(/* audioUseCoreVolume= */ true);
+        when(mMockResources.getBoolean(audioUseCoreRouting))
+                .thenReturn(/* audioUseCoreRouting= */ true);
+        CarAudioService useCoreAudioCarAudioService =
+                new CarAudioService(mMockContext,
+                        mTemporaryAudioConfigurationUsingCoreAudioFile.getFile().getAbsolutePath(),
+                        mCarVolumeCallbackHandler);
+        useCoreAudioCarAudioService.init();
+        return useCoreAudioCarAudioService;
+    }
+
     private void mockGrantCarControlAudioSettingsPermission() {
         mockContextCheckCallingOrSelfPermission(mMockContext,
                 PERMISSION_CAR_CONTROL_AUDIO_SETTINGS, PERMISSION_GRANTED);
@@ -2401,6 +3452,63 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 .setIsSource(true)
                 .build();
         return new AudioDeviceInfo[]{mMicrophoneInputDevice, mFmTunerInputDevice};
+    }
+
+    private AudioDeviceInfo[] getOutputDevicesWithNoMirrorDevice() {
+        return new AudioDeviceInfo[] {
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(MEDIA_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(NAVIGATION_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(CALL_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(SYSTEM_BUS_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(NOTIFICATION_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(VOICE_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(RING_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(ALARM_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(SECONDARY_TEST_DEVICE_1)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(SECONDARY_TEST_DEVICE_2)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(TERTIARY_TEST_DEVICE_1)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(TERTIARY_TEST_DEVICE_2)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(OEM_TEST_DEVICE)
+                        .build(),
+        };
     }
 
     private AudioDeviceInfo[] generateOutputDeviceInfos() {
@@ -2440,16 +3548,234 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                         .build(),
                 new AudioDeviceInfoBuilder()
                         .setAudioGains(new AudioGain[] {new GainBuilder().build()})
-                        .setAddressName(SECONDARY_TEST_DEVICE)
+                        .setAddressName(SECONDARY_TEST_DEVICE_1)
                         .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(SECONDARY_TEST_DEVICE_2)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(TERTIARY_TEST_DEVICE_1)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(TERTIARY_TEST_DEVICE_2)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(OEM_TEST_DEVICE)
+                        .build(),
+                new AudioDeviceInfoBuilder()
+                        .setAudioGains(new AudioGain[] {new GainBuilder().build()})
+                        .setAddressName(MIRROR_TEST_DEVICE).build(),
         };
     }
 
+    private void mockCoreAudioRoutingAndVolume() {
+        doReturn(CoreAudioRoutingUtils.getProductStrategies())
+                .when(() -> AudioManager.getAudioProductStrategies());
+        doReturn(CoreAudioRoutingUtils.getVolumeGroups())
+                .when(() -> AudioManager.getAudioVolumeGroups());
+
+        when(mAudioManager.getVolumeGroupIdForAttributes(CoreAudioRoutingUtils.MUSIC_ATTRIBUTES))
+                .thenReturn(CoreAudioRoutingUtils.MUSIC_GROUP_ID);
+        when(mAudioManager.getMinVolumeIndexForAttributes(
+                eq(CoreAudioRoutingUtils.MUSIC_ATTRIBUTES)))
+                .thenReturn(CoreAudioRoutingUtils.MUSIC_MIN_INDEX);
+        when(mAudioManager.getMaxVolumeIndexForAttributes(
+                eq(CoreAudioRoutingUtils.MUSIC_ATTRIBUTES)))
+                .thenReturn(CoreAudioRoutingUtils.MUSIC_MAX_INDEX);
+        when(mAudioManager.getVolumeIndexForAttributes(eq(CoreAudioRoutingUtils.MUSIC_ATTRIBUTES)))
+                .thenReturn(CoreAudioRoutingUtils.MUSIC_AM_INIT_INDEX);
+        when(mAudioManager.getLastAudibleVolumeForVolumeGroup(CoreAudioRoutingUtils.MUSIC_GROUP_ID))
+                .thenReturn(CoreAudioRoutingUtils.MUSIC_AM_INIT_INDEX);
+        when(mAudioManager.isVolumeGroupMuted(CoreAudioRoutingUtils.MUSIC_GROUP_ID))
+                .thenReturn(false);
+
+        when(mAudioManager.getVolumeGroupIdForAttributes(CoreAudioRoutingUtils.NAV_ATTRIBUTES))
+                .thenReturn(CoreAudioRoutingUtils.NAV_GROUP_ID);
+        when(mAudioManager.getMinVolumeIndexForAttributes(eq(CoreAudioRoutingUtils.NAV_ATTRIBUTES)))
+                .thenReturn(CoreAudioRoutingUtils.NAV_MIN_INDEX);
+        when(mAudioManager.getMaxVolumeIndexForAttributes(eq(CoreAudioRoutingUtils.NAV_ATTRIBUTES)))
+                .thenReturn(CoreAudioRoutingUtils.NAV_MAX_INDEX);
+        when(mAudioManager.isVolumeGroupMuted(CoreAudioRoutingUtils.NAV_GROUP_ID))
+                .thenReturn(false);
+
+        when(mAudioManager.getVolumeGroupIdForAttributes(CoreAudioRoutingUtils.OEM_ATTRIBUTES))
+                .thenReturn(CoreAudioRoutingUtils.OEM_GROUP_ID);
+        when(mAudioManager.getMinVolumeIndexForAttributes(eq(CoreAudioRoutingUtils.OEM_ATTRIBUTES)))
+                .thenReturn(CoreAudioRoutingUtils.OEM_MIN_INDEX);
+        when(mAudioManager.getMaxVolumeIndexForAttributes(eq(CoreAudioRoutingUtils.OEM_ATTRIBUTES)))
+                .thenReturn(CoreAudioRoutingUtils.OEM_MAX_INDEX);
+        when(mAudioManager.isVolumeGroupMuted(CoreAudioRoutingUtils.OEM_GROUP_ID))
+                .thenReturn(false);
+    }
+
     private static AudioFocusInfo createAudioFocusInfoForMedia() {
+        return createAudioFocusInfoForMedia(MEDIA_APP_UID);
+    }
+
+    private static AudioFocusInfo createAudioFocusInfoForMedia(int uid) {
         AudioAttributes.Builder builder = new AudioAttributes.Builder();
         builder.setUsage(USAGE_MEDIA);
 
-        return new AudioFocusInfo(builder.build(), MEDIA_APP_UID, MEDIA_CLIENT_ID,
+        return new AudioFocusInfo(builder.build(), uid, MEDIA_CLIENT_ID,
                 MEDIA_PACKAGE_NAME, AUDIOFOCUS_GAIN, AUDIOFOCUS_LOSS, MEDIA_EMPTY_FLAG, SDK_INT);
+    }
+
+    private List<Integer> getFocusChanges(AudioFocusInfo info) {
+        ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+        verify(mAudioManager, atLeastOnce()).dispatchAudioFocusChange(eq(info), captor.capture(),
+                any());
+        return captor.getAllValues();
+    }
+
+    private CarAudioZoneConfigInfo getZoneConfigToSwitch(int zoneId) {
+        CarAudioZoneConfigInfo currentZoneConfigInfo =
+                mCarAudioService.getCurrentAudioZoneConfigInfo(zoneId);
+        List<CarAudioZoneConfigInfo> zoneConfigInfos =
+                mCarAudioService.getAudioZoneConfigInfos(zoneId);
+
+        for (int index = 0; index < zoneConfigInfos.size(); index++) {
+            if (!currentZoneConfigInfo.equals(zoneConfigInfos.get(index))) {
+                return zoneConfigInfos.get(index);
+            }
+        }
+        return null;
+    }
+
+    private static final class TestPrimaryZoneMediaAudioRequestCallback extends
+            IPrimaryZoneMediaAudioRequestCallback.Stub {
+        private long mRequestId = INVALID_REQUEST_ID;
+        private CarOccupantZoneManager.OccupantZoneInfo mInfo;
+        private CountDownLatch mStatusLatch = new CountDownLatch(1);
+        private int mStatus;
+
+        @Override
+        public void onRequestMediaOnPrimaryZone(CarOccupantZoneManager.OccupantZoneInfo info,
+                long requestId) {
+            mInfo = info;
+            mRequestId = requestId;
+            mStatusLatch.countDown();
+        }
+
+        @Override
+        public void onMediaAudioRequestStatusChanged(
+                @NonNull CarOccupantZoneManager.OccupantZoneInfo info,
+                long requestId, int status) {
+            mInfo = info;
+            mRequestId = requestId;
+            mStatus = status;
+            mStatusLatch.countDown();
+        }
+
+        private void waitForCallback() throws Exception {
+            mStatusLatch.await(TEST_CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+
+        public void reset() {
+            mInfo = null;
+            mRequestId = INVALID_REQUEST_ID;
+            mStatus = INVALID_STATUS;
+            mStatusLatch = new CountDownLatch(1);
+        }
+    }
+
+    private static final class TestMediaRequestStatusCallback extends
+            IMediaAudioRequestStatusCallback.Stub {
+        private long mRequestId = INVALID_REQUEST_ID;
+        private CarOccupantZoneManager.OccupantZoneInfo mInfo;
+        private int mStatus;
+        private final CountDownLatch mStatusLatch = new CountDownLatch(1);
+
+        @Override
+        public void onMediaAudioRequestStatusChanged(
+                @NonNull CarOccupantZoneManager.OccupantZoneInfo info,
+                long requestId, @CarAudioManager.MediaAudioRequestStatus int status)
+                throws RemoteException {
+            mInfo = info;
+            mRequestId = requestId;
+            mStatus = status;
+            mStatusLatch.countDown();
+        }
+
+        private void waitForCallback() throws Exception {
+            mStatusLatch.await(TEST_CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private static final class TestAudioZonesMirrorStatusCallbackCallback extends
+            IAudioZonesMirrorStatusCallback.Stub {
+
+        private static final long TEST_CALLBACK_TIMEOUT_MS = 300;
+
+        private List<int[]> mZoneIds = new ArrayList<>();
+        private List<Integer> mStatus = new ArrayList<>();
+        private int mNumberOfCalls = 0;
+        private CountDownLatch mStatusLatch;
+
+        private TestAudioZonesMirrorStatusCallbackCallback(int count) {
+            mStatusLatch = new CountDownLatch(count);
+        }
+
+        @Override
+        public void onAudioZonesMirrorStatusChanged(int[] zoneIds, int status) {
+            mZoneIds.add(zoneIds);
+            mStatus.add(status);
+            mNumberOfCalls++;
+            mStatusLatch.countDown();
+        }
+
+        private void waitForCallback() throws Exception {
+            mStatusLatch.await(TEST_CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+
+        public void reset(int count) {
+            mStatusLatch = new CountDownLatch(count);
+        }
+
+        private int[] getLastZoneIds() {
+            return mZoneIds.get(mZoneIds.size() - 1);
+        }
+
+        private int[] getZoneIds(int index) {
+            return mZoneIds.get(index);
+        }
+
+        public int getLastStatus() {
+            return mStatus.get(mStatus.size() - 1);
+        }
+
+        public int getStatus(int index) {
+            return mStatus.get(index);
+        }
+    }
+
+    private static final class SwitchAudioZoneConfigCallbackImpl extends
+            ISwitchAudioZoneConfigCallback.Stub {
+        private CountDownLatch mStatusLatch = new CountDownLatch(1);
+        private CarAudioZoneConfigInfo mZoneConfig;
+        private boolean mIsSuccessful;
+
+        @Override
+        public void onAudioZoneConfigSwitched(CarAudioZoneConfigInfo zoneConfig,
+                boolean isSuccessful) throws RemoteException {
+            mZoneConfig = zoneConfig;
+            mIsSuccessful = isSuccessful;
+            mStatusLatch.countDown();
+        }
+
+        private void waitForCallback() throws Exception {
+            mStatusLatch.await(TEST_CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+
+        CarAudioZoneConfigInfo getZoneConfig() {
+            return mZoneConfig;
+        }
+
+        boolean getSwitchStatus() {
+            return mIsSuccessful;
+        }
     }
 }

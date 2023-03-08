@@ -54,6 +54,7 @@ import com.google.android.car.kitchensink.admin.DevicePolicyFragment;
 import com.google.android.car.kitchensink.alertdialog.AlertDialogTestFragment;
 import com.google.android.car.kitchensink.assistant.CarAssistantFragment;
 import com.google.android.car.kitchensink.audio.AudioTestFragment;
+import com.google.android.car.kitchensink.audio.AudioUserAssignmentFragment;
 import com.google.android.car.kitchensink.audio.CarAudioInputTestFragment;
 import com.google.android.car.kitchensink.audiorecorder.AudioRecorderTestFragment;
 import com.google.android.car.kitchensink.backup.BackupAndRestoreFragment;
@@ -82,6 +83,7 @@ import com.google.android.car.kitchensink.orientation.OrientationTestFragment;
 import com.google.android.car.kitchensink.os.CarPerformanceTestFragment;
 import com.google.android.car.kitchensink.packageinfo.PackageInfoFragment;
 import com.google.android.car.kitchensink.power.PowerTestFragment;
+import com.google.android.car.kitchensink.privacy.PrivacyIndicatorFragment;
 import com.google.android.car.kitchensink.projection.ProjectionFragment;
 import com.google.android.car.kitchensink.property.PropertyTestFragment;
 import com.google.android.car.kitchensink.qc.QCViewerFragment;
@@ -230,6 +232,8 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("alert window", AlertDialogTestFragment.class),
             new FragmentMenuEntry("assistant", CarAssistantFragment.class),
             new FragmentMenuEntry(AudioTestFragment.FRAGMENT_NAME, AudioTestFragment.class),
+            new FragmentMenuEntry(AudioUserAssignmentFragment.FRAGMENT_NAME,
+                    AudioUserAssignmentFragment.class),
             new FragmentMenuEntry(AudioRecorderTestFragment.FRAGMENT_NAME,
                     AudioRecorderTestFragment.class),
             new FragmentMenuEntry(CarAudioInputTestFragment.FRAGMENT_NAME,
@@ -259,6 +263,8 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("package info", PackageInfoFragment.class),
             new FragmentMenuEntry("performance", CarPerformanceTestFragment.class),
             new FragmentMenuEntry("power test", PowerTestFragment.class),
+            new FragmentMenuEntry(PrivacyIndicatorFragment.FRAGMENT_NAME,
+                    PrivacyIndicatorFragment.class),
             new FragmentMenuEntry("profile_user", ProfileUserFragment.class),
             new FragmentMenuEntry("projection", ProjectionFragment.class),
             new FragmentMenuEntry("property test", PropertyTestFragment.class),

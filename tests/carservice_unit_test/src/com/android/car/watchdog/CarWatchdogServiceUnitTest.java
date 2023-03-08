@@ -106,6 +106,7 @@ import android.automotive.watchdog.internal.PerStateIoOveruseThreshold;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.automotive.watchdog.internal.ResourceSpecificConfiguration;
+import android.automotive.watchdog.internal.ResourceStats;
 import android.automotive.watchdog.internal.StateType;
 import android.automotive.watchdog.internal.UidType;
 import android.automotive.watchdog.internal.UserPackageIoUsageStats;
@@ -118,6 +119,7 @@ import android.car.hardware.power.ICarPowerPolicyListener;
 import android.car.hardware.power.ICarPowerStateListener;
 import android.car.hardware.power.PowerComponent;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
+import android.car.test.mocks.MockSettings;
 import android.car.user.CarUserManager;
 import android.car.watchdog.CarWatchdogManager;
 import android.car.watchdog.ICarWatchdogServiceCallback;
@@ -269,6 +271,9 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     private ICarUxRestrictionsChangeListener mCarUxRestrictionsChangeListener;
     private StatsPullAtomCallback mStatsPullAtomCallback;
     private File mTempSystemCarDir;
+    // Not used directly, but sets proper mockStatic() expectations on Settings
+    @SuppressWarnings("UnusedVariable")
+    private MockSettings mMockSettings;
 
     private final TestTimeSource mTimeSource = new TestTimeSource();
     private final SparseArray<String> mGenericPackageNameByUid = new SparseArray<>();
@@ -292,6 +297,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder builder) {
+        mMockSettings = new MockSettings(builder);
         builder
             .spyStatic(ServiceManager.class)
             .spyStatic(Binder.class)
@@ -3463,6 +3469,11 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
         mWatchdogServiceForSystemImpl.resetResourceOveruseStats(
                 Collections.singletonList(packageName));
 
+        // Resetting resource overuse stats is done on the CarWatchdogService service handler
+        // thread. Wait until the below message is processed before returning, so the resource
+        // overuse stats resetting is completed.
+        CarServiceUtils.runEmptyRunnableOnLooperSync(CarWatchdogService.class.getSimpleName());
+
         ResourceOveruseStats actualStats =
                 mCarWatchdogService.getResourceOveruseStatsForUserPackage(
                         packageName, user,
@@ -3505,6 +3516,11 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
                 Arrays.asList("third_party_package.A", "shared:vendor_shared_package.A",
                         "shared:system_shared_package.A", "third_party_package.B"));
 
+        // Resetting resource overuse stats is done on the CarWatchdogService service handler
+        // thread. Wait until the below message is processed before returning, so the resource
+        // overuse stats resetting is completed.
+        CarServiceUtils.runEmptyRunnableOnLooperSync(CarWatchdogService.class.getSimpleName());
+
         verify(mSpiedPackageManager, times(2))
                 .getApplicationEnabledSetting("third_party_package.A", 100);
         verify(mSpiedPackageManager, times(2))
@@ -3543,6 +3559,11 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
         mWatchdogServiceForSystemImpl.resetResourceOveruseStats(
                 Collections.singletonList("third_party_package.A"));
+
+        // Resetting resource overuse stats is done on the CarWatchdogService service handler
+        // thread. Wait until the below message is processed before returning, so the resource
+        // overuse stats resetting is completed.
+        CarServiceUtils.runEmptyRunnableOnLooperSync(CarWatchdogService.class.getSimpleName());
 
         PackageKillableStateSubject.assertThat(
                 mCarWatchdogService.getPackageKillableStatesAsUser(UserHandle.ALL)).containsExactly(
@@ -4269,8 +4290,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
          * Database read is posted on a separate handler thread. Wait until the handler thread has
          * processed the database read request before verifying.
          */
-        CarServiceUtils.runOnLooperSync(CarServiceUtils.getHandlerThread(CarWatchdogService.class
-                .getSimpleName()).getLooper(), () -> {});
+        CarServiceUtils.runEmptyRunnableOnLooperSync(CarWatchdogService.class.getSimpleName());
         verify(mSpiedWatchdogStorage, times(wantedInvocations)).syncUsers(any());
         verify(mSpiedWatchdogStorage, times(wantedInvocations)).getUserPackageSettings();
         verify(mSpiedWatchdogStorage, times(wantedInvocations)).getTodayIoUsageStats();
@@ -4547,7 +4567,17 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
 
     private void pushLatestIoOveruseStatsAndWait(List<PackageIoOveruseStats> packageIoOveruseStats)
             throws Exception {
-        mWatchdogServiceForSystemImpl.latestIoOveruseStats(packageIoOveruseStats);
+        ResourceStats resourceStats = new ResourceStats();
+        resourceStats.resourceOveruseStats =
+                new android.automotive.watchdog.internal.ResourceOveruseStats();
+        resourceStats.resourceOveruseStats.packageIoOveruseStats = packageIoOveruseStats;
+
+        mWatchdogServiceForSystemImpl.onLatestResourceStats(resourceStats);
+
+        // Handling latest I/O overuse stats is done on the CarWatchdogService service handler
+        // thread. Wait until the below message is processed before returning, so the
+        // latestIoOveruseStats call is completed.
+        CarServiceUtils.runEmptyRunnableOnLooperSync(CarWatchdogService.class.getSimpleName());
 
         // Resource overuse handling is done on the main thread by posting a new message with
         // OVERUSE_HANDLING_DELAY_MILLS delay. Wait until the below message is processed before
@@ -4662,7 +4692,6 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     private void disableUserPackage(String packageName, int... userIds) throws Exception {
         for (int i = 0; i < userIds.length; i++) {
             int userId = userIds[i];
-            UserHandle userHandle = UserHandle.of(userId);
 
             mCarWatchdogService.performResourceOveruseKill(packageName, userId);
 
@@ -4725,8 +4754,7 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
             List<UserNotificationReflectionCall> expectedNotifications) {
         // Recurring overuse notification handling task is posted on a separate handler thread and
         // this task sends the user notifications. Wait for this task to complete.
-        CarServiceUtils.runOnLooperSync(CarServiceUtils.getHandlerThread(CarWatchdogService.class
-                .getSimpleName()).getLooper(), () -> {});
+        CarServiceUtils.runEmptyRunnableOnLooperSync(CarWatchdogService.class.getSimpleName());
 
         verify(mMockNotificationHelper, times(expectedNotifications.size()))
                 .showResourceOveruseNotificationsAsUser(mUserHandle.capture(),

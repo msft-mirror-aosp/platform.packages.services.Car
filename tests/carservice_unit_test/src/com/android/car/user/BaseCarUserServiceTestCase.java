@@ -26,7 +26,6 @@ import static com.android.car.user.MockedUserHandleBuilder.expectRegularUserExis
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doThrow;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -140,6 +139,8 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
 
     private static final String TAG = BaseCarUserServiceTestCase.class.getSimpleName();
     private static final String FAKE_USER_PICKER_PACKAGE = "fake-user-picker-package";
+    private static final String FAKE_SYSTEM_UI_SERVICE_PACKAGE =
+            "com.android.systemui/com.android.systemui.SystemUIService";
 
     protected static final int NO_USER_INFO_FLAGS = 0;
     protected static final int NON_EXISTING_USER = 55; // must not be on mExistingUsers
@@ -260,25 +261,6 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
         CarLocalServices.addService(CarOccupantZoneService.class, mCarOccupantZoneService);
 
         mCarUserService = newCarUserService(/* switchGuestUserBeforeGoingSleep= */ false);
-        // TODO (b/246365046) Replace when we get Injector pattern to replace them.
-        spyOn(mCarUserService);
-        doAnswer(
-                inv -> {
-                    return mNumberOfAutoPopulatedUsers;
-                }).when(mCarUserService).getNumberOfAutoPopulatedUsers();
-        doAnswer(
-                inv -> {
-                    return mGlobalVisibleUserAllocationSetting;
-                }).when(mCarUserService).getGlobalVisibleUserAllocationSetting(any());
-        doAnswer(
-                inv -> {
-                    return mPerUserVisibleUserAllocationSetting;
-                }).when(mCarUserService).getPerUserVisibleUserAllocationSetting(any());
-        doAnswer(
-                inv -> {
-                    mPerUserVisibleUserAllocationSetting = inv.getArgument(/* index= */ 1);
-                    return null;
-                }).when(mCarUserService).writePerUserVisibleUserAllocationSetting(any(), any());
 
         CarServiceHelperWrapper wrapper = CarServiceHelperWrapper.create();
         wrapper.setCarServiceHelper(mICarServiceHelper);
@@ -538,6 +520,10 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
         when(mMockedResources
                 .getString(com.android.car.R.string.config_userPickerActivity))
                 .thenReturn(FAKE_USER_PICKER_PACKAGE);
+
+        when(mMockedResources
+                .getString(com.android.internal.R.string.config_systemUIServiceComponent))
+                .thenReturn(FAKE_SYSTEM_UI_SERVICE_PACKAGE);
 
         return new CarUserService(
                 mMockContext,
@@ -819,6 +805,16 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
                 anyInt(), anyInt(), eq(true)));
     }
 
+    protected void mockCarOccupantZoneServiceGetUserForDisplay(int displayId,
+            @UserIdInt int userId) {
+        when(mCarOccupantZoneService.getUserForDisplayId(displayId)).thenReturn(userId);
+    }
+
+    protected void mockCarServiceHelperGetDisplayAssignedToUser(@UserIdInt int userId,
+            int displayId) throws Exception {
+        when(mICarServiceHelper.getDisplayAssignedToUser(userId)).thenReturn(displayId);
+    }
+
     protected void mockUserHalSupported(boolean result) {
         when(mUserHal.isSupported()).thenReturn(result);
     }
@@ -1011,8 +1007,13 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
     }
 
     protected void sendUserUnlockedEvent(@UserIdInt int userId) {
-        sendUserLifecycleEvent(/* fromUser */ 0, userId,
+        sendUserLifecycleEvent(/* fromUserId= */ 0, userId,
                 CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+    }
+
+    protected void sendUserInvisibleEvent(@UserIdInt int userId) {
+        sendUserLifecycleEvent(/* fromUserId= */ 0, userId,
+                CarUserManager.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE);
     }
 
     protected void sendUserSwitchingEvent(@UserIdInt int fromUserId, @UserIdInt int toUserId) {

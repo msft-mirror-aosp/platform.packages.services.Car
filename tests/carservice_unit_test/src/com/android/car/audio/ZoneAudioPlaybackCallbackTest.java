@@ -65,7 +65,8 @@ public final class ZoneAudioPlaybackCallbackTest {
             new AudioAttributes.Builder().setUsage(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE).build();
 
     private static final CarAudioContext TEST_CAR_AUDIO_CONTEXT =
-            new CarAudioContext(CarAudioContext.getAllContextsInfo());
+            new CarAudioContext(CarAudioContext.getAllContextsInfo(),
+                    /* useCoreAudioRouting= */ false);
 
     private static final @CarAudioContext.AudioContext int TEST_MEDIA_AUDIO_CONTEXT =
             TEST_CAR_AUDIO_CONTEXT.getContextForAudioAttribute(TEST_MEDIA_AUDIO_ATTRIBUTE);
@@ -509,19 +510,25 @@ public final class ZoneAudioPlaybackCallbackTest {
     }
 
     private CarAudioZone generatePrimaryZone() {
-        return new TestCarAudioZoneBuilder("Primary zone", PRIMARY_ZONE_ID)
-                .addVolumeGroup(new VolumeGroupBuilder()
+        CarAudioZoneConfig carAudioZoneConfig =
+                new CarAudioZoneConfig.Builder("Primary zone config 0", PRIMARY_ZONE_ID,
+                        /* zoneConfigId= */ 0, /* isDefault= */ true)
+                        .addVolumeGroup(new VolumeGroupBuilder()
                                 .addDeviceAddressAndContexts(TEST_MEDIA_AUDIO_CONTEXT,
                                         PRIMARY_MEDIA_ADDRESS)
                                 .build())
-                .addVolumeGroup(new VolumeGroupBuilder()
-                        .addDeviceAddressAndContexts(TEST_NAVIGATION_AUDIO_CONTEXT,
-                                PRIMARY_NAVIGATION_ADDRESS)
-                        .build())
-                .addVolumeGroup(new VolumeGroupBuilder()
-                        .addDeviceAddressAndContexts(TEST_ASSISTANT_CONTEXT,
-                                PRIMARY_VOICE_ADDRESS)
-                        .build())
+                        .addVolumeGroup(new VolumeGroupBuilder()
+                                .addDeviceAddressAndContexts(TEST_NAVIGATION_AUDIO_CONTEXT,
+                                        PRIMARY_NAVIGATION_ADDRESS)
+                                .build())
+                        .addVolumeGroup(new VolumeGroupBuilder()
+                                .addDeviceAddressAndContexts(TEST_ASSISTANT_CONTEXT,
+                                        PRIMARY_VOICE_ADDRESS)
+                                .build())
+                        .build();
+        return new TestCarAudioZoneBuilder("Primary zone", PRIMARY_ZONE_ID)
+                .addCarAudioZoneConfig(carAudioZoneConfig)
                 .build();
+
     }
 }

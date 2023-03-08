@@ -19,6 +19,7 @@ package com.android.car;
 import static android.car.builtin.view.DisplayHelper.INVALID_PORT;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static android.view.Display.STATE_ON;
 
 import static com.android.car.CarServiceUtils.getHandlerThread;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
@@ -488,6 +489,7 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
                 }
             }
             writer.println(']');
+            writer.println("hasDriverZone: " + hasDriverZone());
         }
     }
 
@@ -516,6 +518,28 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
                 displayIds[i] = config.displayInfos.get(i).display.getDisplayId();
             }
             return displayIds;
+        }
+    }
+
+    /**
+     * Checks if all displays for a given OccupantZone are on.
+     *
+     * @param occupantZoneId indicates which OccupantZone's displays to check
+     * @return whether all displays for a given OccupantZone are on
+     */
+    public boolean areDisplaysOnForOccupantZone(int occupantZoneId) {
+        synchronized (mLock) {
+            OccupantConfig config = mActiveOccupantConfigs.get(occupantZoneId);
+            if (config == null) {
+                return false;
+            }
+            for (int i = 0; i < config.displayInfos.size(); i++) {
+                if (config.displayInfos.get(i).display.getState() != STATE_ON) {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
@@ -804,8 +828,8 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
                 return unassignOccupantZoneUnchecked(occupantZoneId)
                         == CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK;
             } else {
-                return assignVisibleUserToOccupantZoneUnchecked(occupantZoneId, user,
-                        /* flags= */ 0) == CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK;
+                return assignVisibleUserToOccupantZoneUnchecked(occupantZoneId, user)
+                        == CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK;
             }
         } finally {
             Binder.restoreCallingIdentity(token);
@@ -813,13 +837,13 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
     }
 
     @Override
-    public int assignVisibleUserToOccupantZone(int occupantZoneId, UserHandle user, int flags) {
+    public int assignVisibleUserToOccupantZone(int occupantZoneId, UserHandle user) {
         CarServiceUtils.assertAnyPermission(mContext, android.Manifest.permission.MANAGE_USERS,
                 Car.PERMISSION_MANAGE_OCCUPANT_ZONE);
         Preconditions.checkNotNull(user);
         long token = Binder.clearCallingIdentity();
         try {
-            return assignVisibleUserToOccupantZoneUnchecked(occupantZoneId, user, flags);
+            return assignVisibleUserToOccupantZoneUnchecked(occupantZoneId, user);
         } finally {
             Binder.restoreCallingIdentity(token);
         }
@@ -829,7 +853,7 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
      * Precondition: permission check should be done and binder caller identity should be cleared.
      */
     private int assignVisibleUserToOccupantZoneUnchecked(int occupantZoneId,
-            @NonNull UserHandle user, int flags) {
+            @NonNull UserHandle user) {
         int userId;
         if (user.equals(UserHandle.CURRENT)) {
             userId = getCurrentUser();
@@ -867,24 +891,6 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
         }
 
         sendConfigChangeEvent(CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER);
-
-        // TODO(b/243967195): Remove this functionality from assignVisibleUserToZone since this
-        // is already done when the user starts in CarUserService.
-        if ((flags & CarOccupantZoneManager.USER_ASSIGNMENT_FLAG_LAUNCH_HOME) != 0) {
-            int targetDisplayId = getDisplayForOccupant(occupantZoneId,
-                    CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
-            // TODO(b/243967195) Add other error code so that the client can know the partial
-            //  failure.
-            if (targetDisplayId == Display.INVALID_DISPLAY) {
-                Slogf.w(TAG,
-                        "USER_ASSIGN_FLAG_LAUNCH_HOME ignored as there is no valid main display"
-                                + " in the zone:%d", occupantZoneId);
-                return CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK;
-            }
-            // TODO(b/243967195) check failure
-            CarServiceUtils.startHomeForUserAndDisplay(mContext, userId, targetDisplayId);
-        }
-
         return CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK;
     }
 
@@ -1488,6 +1494,7 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
         }
 
         boolean hasDefaultDisplayConfig = false;
+        boolean hasDriverZone = hasDriverZone();
         for (Display display : mDisplayManager.getDisplays()) {
             DisplayConfig displayConfig = findDisplayConfigForDisplayLocked(display);
             if (displayConfig == null) {
@@ -1495,7 +1502,7 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
                         display.getDisplayId());
                 continue;
             }
-            if (display.getDisplayId() == Display.DEFAULT_DISPLAY) {
+            if (hasDriverZone && display.getDisplayId() == Display.DEFAULT_DISPLAY) {
                 if (displayConfig.occupantZoneId != mDriverZoneId) {
                     throw new IllegalStateException(
                             "Default display should be only assigned to driver zone");
@@ -1516,7 +1523,7 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
             }
         }
 
-        if (!hasDefaultDisplayConfig) {
+        if (hasDriverZone && !hasDefaultDisplayConfig) {
             // This shouldn't happen, since we added the default display config in
             // parseDisplayConfigsLocked().
             throw new IllegalStateException("Default display not assigned");

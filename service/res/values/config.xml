@@ -26,6 +26,16 @@
           during initial development where audio hal does not support bus based addressing yet. -->
     <bool name="audioUseDynamicRouting">false</bool>
 
+    <!--  Configuration to enable usage of core audio volume API, aka using AudioManager's
+          AudioAttributes based volume API.
+          Volume application is delegated to AudioPolicyManager. -->
+    <bool name="audioUseCoreVolume">false</bool>
+
+    <!--  Configuration to enable usage of core audio routing API.
+          It may also be enabled with Dynamic Routing enabled, thus, overriding policy routing rules
+          when Dynamic rules can be effectively established. -->
+    <bool name="audioUseCoreRouting">false</bool>
+
     <!--  Configuration to enable muting of individual volume groups. If this is set to
           false, muting of individual volume groups is disabled, instead muting will toggle master
           mute. If this is set to true, car volume group muting is enabled and each individual
@@ -390,7 +400,7 @@
     <!-- Specifies the user picker to be launched on a secondary display when there is no user
          allocation when the system boots and when a visible user stops.
     -->
-    <string name="config_userPickerActivity" translatable="false">com.google.android.car.kitchensink/.UserPickerActivity</string>
+    <string name="config_userPickerActivity" translatable="false">com.android.systemui/.car.userpicker.UserPickerActivity</string>
 
     <!-- Configuration to enable media center to autoplay when the media source is changed.
          There are 3 supported configurations:
@@ -474,6 +484,16 @@
     <!-- Number of milliseconds to wait until all listeners complete when POST_SHUTDOWN_ENTER is
          notified -->
     <integer name="config_postShutdownEnterTimeout">5000</integer>
+
+    <!-- A configuration flag to enable auto power saving for passenger displays.
+         When it's true, the driver display is not affected and always on. When it's false, auto
+         power saving is not applied. OEMs can implement their own auto power saving logic.
+         -->
+    <bool name="config_enablePassengerDisplayPowerSaving">true</bool>
+
+    <!-- Number of milliseconds to wait until screen is automatically turned off.
+         The default duration is 1 min (= 1 * 60 * 1000). -->
+    <integer name="config_noUserScreenOffTimeout">60000</integer>
 
     <!-- A name of a camera device that provides the rearview through EVS service -->
     <string name="config_evsRearviewCameraId" translatable="false">/dev/video10</string>

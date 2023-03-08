@@ -16,6 +16,8 @@
 
 package android.car;
 
+import static android.Manifest.permission.ACCESS_FINE_LOCATION;
+
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.RequiresPermission;
@@ -384,7 +386,10 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -804,7 +809,7 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Normal permission {@link Car#PERMISSION_POWERTRAIN} to read property.
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_POWERTRAIN} to write
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_POWERTRAIN} to write
      *  property.
      * </ul>
      */
@@ -832,7 +837,7 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Normal permission {@link Car#PERMISSION_POWERTRAIN} to read property.
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_POWERTRAIN} to write
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_POWERTRAIN} to write
      *  property.
      * </ul>
      */
@@ -1451,14 +1456,40 @@ public final class VehiclePropertyIds {
     @AddedInOrBefore(majorVersion = 33)
     public static final int AP_POWER_BOOTUP_REASON = 289409538;
     /**
-     * Property to represent brightness of the display. Some cars have single
-     * control for the brightness of all displays and this property is to share
-     * change in that control.
+     * Property to represent brightness of the display.
+     *
+     * Some cars have single control for the brightness of all displays and this
+     * property is to share change in that control. In cars which have displays
+     * whose brightness is controlled separately, they must use
+     * PER_DISPLAY_BRIGHTNESS.
+     *
+     * Only one of DISPLAY_BRIGHTNESS and PER_DISPLAY_BRIGHTNESS should be
+     * implemented. If both are available, PER_DISPLAY_BRIGHTNESS is used by
+     * AAOS.
+     *
      * The property is protected by the signature permission: android.car.permission.CAR_POWER.
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
     @AddedInOrBefore(majorVersion = 33)
     public static final int DISPLAY_BRIGHTNESS = 289409539;
+    /**
+     * Property to represent brightness of the displays which are controlled separately.
+     *
+     * Some cars have one or more displays whose brightness is controlled
+     * separately and this property is to inform the brightness of each
+     * passenger display. In cars where all displays' brightness is controlled
+     * together, they must use DISPLAY_BRIGHTNESS.
+     *
+     * Only one of DISPLAY_BRIGHTNESS and PER_DISPLAY_BRIGHTNESS should be
+     * implemented. If both are available, PER_DISPLAY_BRIGHTNESS is used by
+     * AAOS.
+     *
+     * The property is protected by the signature permission: android.car.permission.CAR_POWER.
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_POWER)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int PER_DISPLAY_BRIGHTNESS = 289475076;
     /**
      * Property to feed H/W input events to android
      */
@@ -1507,13 +1538,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_CAR_DOORS} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_DOORS} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_DOORS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int DOOR_CHILD_LOCK_ENABLED = 371198723;
     /**
      * Mirror Z Position
@@ -1582,8 +1616,10 @@ public final class VehiclePropertyIds {
      * <ul>
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_MIRRORS} to read and
      *  write property.
-     * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -1608,11 +1644,80 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_MIRRORS} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int MIRROR_AUTO_TILT_ENABLED = 337644359;
+    /**
+     * Property that represents the current position of the glove box door.
+     *
+     * {@link CarPropertyConfig#getMinValue(int)} indicates that the glove box is closed.
+     * {@link CarPropertyConfig#getMaxValue(int)} indicates that the glove box is fully open.
+     *
+     * All integers between the min and max values are supported and indicate a transition state
+     * between the closed and fully open positions.
+     *
+     * The supported area IDs match the seat(s) by which the glove box is intended to be used (e.g.
+     * if the front right dashboard has a glove box embedded in it, then the area ID should be
+     * ROW_1_RIGHT).
+     *
+     * <p>Property Config:
+     * <ul>
+     *     <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE}
+     *     <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_SEAT}
+     *     <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *     <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *     <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_GLOVE_BOX} to read and
+     *     write property.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(Car.PERMISSION_CONTROL_GLOVE_BOX)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int GLOVE_BOX_DOOR_POS = 356518896;
+
+    /**
+     * Lock or unlock the glove box.
+     *
+     * <p>If {@code true}, the glove box is locked. If {@code false}, the glove box is unlocked.
+     *
+     * <p>The supported area IDs match the seat(s) by which the glove box is intended to be used
+     * (e.g. if the front right dashboard has a glove box embedded in it, then the area ID will be
+     * {@link android.car.VehicleAreaSeat#SEAT_ROW_1_RIGHT}).
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_SEAT}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Boolean} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_GLOVE_BOX} to read and
+     *  write property.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(Car.PERMISSION_CONTROL_GLOVE_BOX)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int GLOVE_BOX_LOCKED = 354421745;
+
     /**
      * Seat memory select
      *
@@ -1978,7 +2083,10 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -2002,9 +2110,13 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permissions:
      * <ul>
-     *  <li>{@link Car#PERMISSION_CONTROL_CAR_AIRBAGS} to read and write property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_AIRBAGS} to read and
+     *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_AIRBAGS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -2031,7 +2143,10 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -2059,7 +2174,10 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -2085,7 +2203,10 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -2113,7 +2234,10 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -2142,7 +2266,10 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -2179,6 +2306,126 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WINDOWS)
     @AddedInOrBefore(majorVersion = 33)
     public static final int WINDOW_LOCK = 320867268;
+
+    /**
+     * Windshield wipers period (milliseconds).
+     *
+     * <p>Returns the instantaneous time period for 1 full cycle of the windshield wipers in {@link
+     * android.car.VehicleUnit#MILLI_SECS}. A full cycle is defined as a wiper moving from and
+     * returning to its rest position. The {@link
+     * android.car.hardware.property.AreaIdConfig#getMaxValue()} specifies the longest wiper period.
+     * The {@link android.car.hardware.property.AreaIdConfig#getMinValue()} is always 0. When an
+     * intermittent wiper setting is selected, this property value will be set to 0 during the
+     * "pause" phase of the intermittent wiping.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WINDOW}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int WINDSHIELD_WIPERS_PERIOD = 322964421;
+
+    /**
+     * Windshield wipers state.
+     *
+     * <p>Returns the current state of the windshield wipers. The value of {@code
+     * WINDSHIELD_WIPERS_STATE} may not match the value of {@link #WINDSHIELD_WIPERS_SWITCH}. (e.g.
+     * {@code #WINDSHIELD_WIPERS_STATE} = {@link
+     * android.car.hardware.property.WindshieldWipersState#ON} and {@link
+     * #WINDSHIELD_WIPERS_SWITCH} = {@link
+     * android.car.hardware.property.WindshieldWipersSwitch#AUTO}).
+     *
+     * <p>If {@code #WINDSHIELD_WIPERS_STATE} = {@link
+     * android.car.hardware.property.WindshieldWipersState#ON} and {@link #WINDSHIELD_WIPERS_PERIOD}
+     * is implemented, then {@link #WINDSHIELD_WIPERS_PERIOD} will reflect the time period of 1
+     * full cycle of the wipers.
+     *
+     * <p>For each supported area ID, the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.WindshieldWipersState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WINDOW}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int WINDSHIELD_WIPERS_STATE = 322964422;
+
+    /**
+     * Windshield wipers switch.
+     *
+     * <p>Represents the position of the switch controlling the windshield wipers. The value of
+     * {@code WINDSHIELD_WIPERS_SWITCH} may not match the value of {@link #WINDSHIELD_WIPERS_STATE}
+     * (e.g. {@code WINDSHIELD_WIPERS_SWITCH} = {@link
+     * android.car.hardware.property.WindshieldWipersSwitch#AUTO} and {@link
+     * #WINDSHIELD_WIPERS_STATE} = WindshieldWipersState#ON).
+     *
+     * <p>For each supported area ID, the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which values
+     * from {@link android.car.hardware.property.WindshieldWipersSwitch} are supported.
+     *
+     * <p>This property is defined as read_write, but OEMs have the option to implement it as read
+     * only.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WINDOW}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS} to read
+     *  property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_WINDSHIELD_WIPERS} to
+     *  write property.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_WINDSHIELD_WIPERS))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int WINDSHIELD_WIPERS_SWITCH = 322964423;
+
     /**
      * Steering wheel depth position
      *
@@ -2197,13 +2444,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_DEPTH_POS = 289410016;
     /**
      * Steering wheel depth movement
@@ -2226,13 +2476,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_DEPTH_MOVE = 289410017;
     /**
      * Steering wheel height position
@@ -2252,13 +2505,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_HEIGHT_POS = 289410018;
     /**
      * Steering wheel height movement
@@ -2281,13 +2537,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_HEIGHT_MOVE = 289410019;
     /**
      * Steering wheel theft lock feature enabled
@@ -2306,13 +2565,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_THEFT_LOCK_ENABLED = 287312868;
     /**
      * Steering wheel locked
@@ -2330,13 +2592,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_LOCKED = 287312869;
     /**
      * Steering wheel easy access feature enabled
@@ -2355,13 +2620,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_EASY_ACCESS_ENABLED = 287312870;
     /**
      * Vehicle Maps Service (VMS) message
@@ -2371,6 +2639,34 @@ public final class VehiclePropertyIds {
     @RequiresPermission(anyOf = {Car.PERMISSION_VMS_PUBLISHER, Car.PERMISSION_VMS_SUBSCRIBER})
     @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_MAP_SERVICE = 299895808;
+    /**
+     * Characterization of inputs used for computing location.
+     *
+     * <p>This property indicates what (if any) data and sensor inputs are considered by the system
+     * when computing the vehicle's location that is shared with Android through {@link
+     * android.location.LocationManager#GPS_PROVIDER}.
+     *
+     * <p>The value returned is a collection of bit flags. The bit flags are defined in {@link
+     * android.car.hardware.property.LocationCharacterization}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li> Dangerous permission {@link ACCESS_FINE_LOCATION} to read property.
+     *  <li> Property is not writable.
+     * </ul>
+     */
+    @RequiresPermission(ACCESS_FINE_LOCATION)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int LOCATION_CHARACTERIZATION = 289410064;
     /**
      * OBD2 Live Sensor Data
      *
@@ -2445,7 +2741,7 @@ public final class VehiclePropertyIds {
      * Only one of FOG_LIGHTS_STATE or REAR_FOG_LIGHTS_STATE will be implemented in the car. The
      * implemented property provides the state of the rear fog lights.
      *
-     * The property is protected by the privileged|signature permission:
+     * The property is protected by the Signature|Privileged permission:
      * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
@@ -2494,7 +2790,7 @@ public final class VehiclePropertyIds {
      * Only one of FOG_LIGHTS_SWITCH or REAR_FOG_LIGHTS_SWITCH will be implemented in the car. The
      * implemented property should be used to change the rear fog lights state.
      *
-     * The property is protected by the privileged|signature permission:
+     * The property is protected by the Signature|Privileged permission:
      * android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS)
@@ -2570,7 +2866,7 @@ public final class VehiclePropertyIds {
      */
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_INTERIOR_LIGHTS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_LIGHTS_STATE = 289410828;
 
     /**
@@ -2605,7 +2901,7 @@ public final class VehiclePropertyIds {
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_INTERIOR_LIGHTS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int STEERING_WHEEL_LIGHTS_SWITCH = 289410829;
 
     /**
@@ -2840,7 +3136,7 @@ public final class VehiclePropertyIds {
      *
      * Please refer to the documentation on FOG_LIGHTS_STATE for more information.
      *
-     * The property is protected by the privileged|signature permission:
+     * The property is protected by the Signature|Privileged permission:
      * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
@@ -2852,7 +3148,7 @@ public final class VehiclePropertyIds {
      *
      * Please refer to the documentation on FOG_LIGHTS_SWITCH for more information.
      *
-     * The property is protected by the privileged|signature permission:
+     * The property is protected by the Signature|Privileged permission:
      * android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS)
@@ -2864,7 +3160,7 @@ public final class VehiclePropertyIds {
      *
      * Please refer to the documentation on FOG_LIGHTS_STATE for more information.
      *
-     * The property is protected by the privileged|signature permission:
+     * The property is protected by the Signature|Privileged permission:
      * android.car.permission.CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
@@ -2876,7 +3172,7 @@ public final class VehiclePropertyIds {
      *
      * Please refer to the documentation on FOG_LIGHTS_SWITCH for more information.
      *
-     * The property is protected by the privileged|signature permission:
+     * The property is protected by the Signature|Privileged permission:
      * android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS)
@@ -2900,7 +3196,7 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Dangerous permission {@link Car#PERMISSION_ENERGY} to read property.
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to write
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to write
      *  property.
      * </ul>
      */
@@ -2935,7 +3231,7 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Dangerous permission {@link Car#PERMISSION_ENERGY} to read property.
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to write
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to write
      *  property.
      * </ul>
      */
@@ -2978,7 +3274,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permissions:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to read/write
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to read/write
      *  property.
      */
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_ENERGY)
@@ -3042,7 +3338,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permissions:
      * <ul>
-     *  <li>Privileged|Signature permission {@link Car#PERMISSION_PRIVILEGED_CAR_INFO} to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_PRIVILEGED_CAR_INFO} to read
      *  property.
      * </ul>
      */
@@ -3113,11 +3409,14 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int AUTOMATIC_EMERGENCY_BRAKING_ENABLED = 287313920;
 
     /**
@@ -3150,10 +3449,13 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int AUTOMATIC_EMERGENCY_BRAKING_STATE = 289411073;
 
     /**
@@ -3181,11 +3483,14 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int FORWARD_COLLISION_WARNING_ENABLED = 287313922;
 
     /**
@@ -3215,10 +3520,13 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int FORWARD_COLLISION_WARNING_STATE = 289411075;
 
     /**
@@ -3247,11 +3555,14 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int BLIND_SPOT_WARNING_ENABLED = 287313924;
 
     /**
@@ -3281,10 +3592,13 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int BLIND_SPOT_WARNING_STATE = 339742725;
 
     /**
@@ -3313,12 +3627,51 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int LANE_DEPARTURE_WARNING_ENABLED = 287313926;
+
+    /**
+     * Lane Departure Warning (LDW) state.
+     *
+     * <p>Returns the current state of LDW. This property will always return a valid state defined
+     * in {@link android.car.hardware.property.LaneDepartureWarningState} or {@link
+     * android.car.hardware.property.ErrorState}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.LaneDepartureWarningState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int LANE_DEPARTURE_WARNING_STATE = 289411079;
 
     /**
      * Enable or disable Lane Keep Assist (LKA).
@@ -3350,12 +3703,54 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int LANE_KEEP_ASSIST_ENABLED = 287313928;
+
+    /**
+     * Lane Keep Assist (LKA) state.
+     *
+     * <p>Returns the current state of LKA. This property will always return a valid state defined
+     * in {@link android.car.hardware.property.LaneKeepAssistState} or {@link
+     * android.car.hardware.property.ErrorState}.
+     *
+     * <p>If LKA includes lane departure warnings before applying steering corrections, those
+     * warnings will be surfaced through {@link #LANE_DEPARTURE_WARNING_STATE}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.LaneKeepAssistState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int LANE_KEEP_ASSIST_STATE = 289411081;
 
     /**
      * Enable or disable lane centering assist (LCA).
@@ -3388,12 +3783,99 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int LANE_CENTERING_ASSIST_ENABLED = 287313930;
+
+    /**
+     * Lane Centering Assist (LCA) commands.
+     *
+     * <p>Commands to activate and suspend LCA. They are only valid when {@link
+     * #LANE_CENTERING_ASSIST_ENABLED} = {@code true}. Otherwise, these commands will throw a {@link
+     * android.car.hardware.property.PropertyNotAvailableException}.
+     *
+     * <p>When the command {@link android.car.hardware.property.LaneCenteringAssistCommand#ACTIVATE}
+     * is sent, {@link #LANE_CENTERING_ASSIST_STATE} will be set to {@link
+     * android.car.hardware.property.LaneCenteringAssistState#ACTIVATION_REQUESTED}. When the
+     * command {@link android.car.hardware.property.LaneCenteringAssistCommand#ACTIVATE} succeeds,
+     * {@link #LANE_CENTERING_ASSIST_STATE} will be set to {@link
+     * android.car.hardware.property.LaneCenteringAssistState#ACTIVATED}. When the command {@link
+     * android.car.hardware.property.LaneCenteringAssistCommand#DEACTIVATE} succeeds, {@link
+     * #LANE_CENTERING_ASSIST_STATE} will be set to {@link
+     * android.car.hardware.property.LaneCenteringAssistState#ENABLED}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which enum
+     * values from {@link android.car.hardware.property.LaneCenteringAssistCommand} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_WRITE}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Property is not readable.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_STATES} to write
+     *  property.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int LANE_CENTERING_ASSIST_COMMAND = 289411083;
+
+    /**
+     * Lane Centering Assist (LCA) state.
+     *
+     * <p>Returns the current state of LCA. This property will always return a valid state defined
+     * in {@link android.car.hardware.property.LaneCenteringAssistState} or {@link
+     * android.car.hardware.property.ErrorState}.
+     *
+     * <p>If LCA includes lane departure warnings, those warnings will be surfaced through the Lane
+     * Departure Warning (LDW) properties.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.LaneCenteringAssistState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int LANE_CENTERING_ASSIST_STATE = 289411084;
 
     /**
      * Enable or disable emergency lane keep assist (ELKA).
@@ -3422,7 +3904,10 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -3430,13 +3915,50 @@ public final class VehiclePropertyIds {
     public static final int EMERGENCY_LANE_KEEP_ASSIST_ENABLED = 287313933;
 
     /**
-     * Enable or disable adaptive cruise control (ACC).
+     * Emergency Lane Keep Assist (ELKA) state.
      *
-     * <p>Return true if ACC is enabled and false if ACC is disabled. When ACC is enabled, the ADAS
-     * system in the vehicle should be turned on and waiting for an activation signal from the
-     * driver. Once the feature is activated, the ADAS system in the car should be accelerating and
-     * braking in a way that allows the vehicle to maintain a set speed and to maintain a set
-     * distance gap from a leading vehicle.
+     * <p>Returns the current state of ELKA. Generally, this property should return a valid state
+     * defined in the {@link android.car.hardware.property.EmergencyLaneKeepAssistState} or {@link
+     * android.car.hardware.property.ErrorState}. For example, if the feature is not available due
+     * to some temporary state, that information should be conveyed through ErrorState.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.EmergencyLaneKeepAssistState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int EMERGENCY_LANE_KEEP_ASSIST_STATE = 289411086;
+
+    /**
+     * Enable or disable cruise control (CC).
+     *
+     * <p>Return true if CC is enabled and false if CC is disabled. This property is shared by all
+     * forms of {@link android.car.hardware.property.CruiseControlType}).
+     *
+     * <p>When CC is enabled, the ADAS system in the vehicle should be turned on and responding to
+     * commands.
      *
      * <p>This property is defined as read_write, but OEMs have the option to implement it as read
      * only.
@@ -3457,12 +3979,250 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    public static final int ADAPTIVE_CRUISE_CONTROL_ENABLED = 287313935;
+    public static final int CRUISE_CONTROL_ENABLED = 287313935;
+
+    /**
+     * Current type of Cruise Control (CC).
+     *
+     * <p>When {@link CRUISE_CONTROL_ENABLED} is true, this property returns the type of CC that is
+     * currently enabled (for example, standard CC, adaptive CC, etc.). Generally, this property
+     * should return a valid state defined in the {@link
+     * android.car.hardware.property.CruiseControlType} or {@link
+     * android.car.hardware.property.ErrorState}. For example, if the feature is not available due
+     * to some temporary state, that information should be conveyed through {@link
+     * android.car.hardware.property.ErrorState}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.CruiseControlType} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * Trying to write {@link android.car.hardware.property.CruiseControlType#OTHER} or an
+     * ErrorState to this property will throw an {@code IllegalArgumentException}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_STATES} to write
+     *  property.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int CRUISE_CONTROL_TYPE = 289411088;
+
+    /**
+     * Current state of Cruise Control (CC).
+     *
+     * <p>This property returns the state of CC. Generally, this property should return a valid
+     * state defined in the {@link android.car.hardware.property.CruiseControlState} or {@link
+     * android.car.hardware.property.ErrorState}. For example, if the feature is not available due
+     * to some temporary state, that information should be conveyed through {@link
+     * android.car.hardware.property.ErrorState}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.CruiseControlState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int CRUISE_CONTROL_STATE = 289411089;
+
+    /**
+     * Write Cruise Control (CC) commands.
+     *
+     * <p>See {@link android.car.hardware.property.CruiseControlCommand} for the details about
+     * each supported command.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.CruiseControlCommand} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_WRITE}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Property is not readable.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_STATES} to write
+     *  property.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int CRUISE_CONTROL_COMMAND = 289411090;
+
+    /**
+     * Current target speed for Cruise Control (CC) in meters per second.
+     *
+     * <p>{@link android.car.hardware.property.AreaIdConfig#getMinValue(int)} and {@link
+     * android.car.hardware.property.AreaIdConfig#getMaxValue(int)} return the min and max target
+     * speed values respectively. These values will be non-negative.
+     *
+     * <p>{@link android.car.hardware.property.AreaIdConfig#getMinValue(int)} represents the lower
+     * bound of the target speed.
+     * <p>{@link android.car.hardware.property.AreaIdConfig#getMaxValue(int)} represents the upper
+     * bound of the target speed.
+     *
+     * <p>Reading when this property is unavailable (for example when {@link CRUISE_CONTROL_ENABLED}
+     * is false) will throw a {@link android.car.hardware.property.PropertyNotAvailableException}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int CRUISE_CONTROL_TARGET_SPEED = 291508243;
+
+    /**
+     * Current target time gap for Adaptive Cruise Control (ACC) or Predictive Cruise Control in
+     * milliseconds.
+     *
+     * <p>This property should specify the target time gap to a leading vehicle. This gap is defined
+     * as the time to travel the distance between the leading vehicle's rear-most point to the ACC
+     * vehicle's front-most point. The actual time gap from a leading vehicle can be above or below
+     * this value.
+     *
+     * <p>The possible values to set for the target time gap should be specified in {@code
+     * configArray} in ascending order. All values must be positive. If the property is writable,
+     * all values must be writable.
+     *
+     * <p>Writing when this property is unavailable will throw a {@link
+     * android.car.hardware.property.PropertyNotAvailableException}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_STATES} to write
+     *  property.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP = 289411092;
+
+    /**
+     * Measured distance from leading vehicle when using Adaptive Cruise Control (ACC) or Predictive
+     * Cruise Control in millimeters.
+     *
+     * <p>Returns the measured distance in meters from the lead vehicle for ACC between the
+     * rear-most point of the leading vehicle and the front-most point of the ACC vehicle.
+     *
+     * <p>{@link CarPropertyConfig#getMinValue(int)} returns 0.
+     * <p>{@link CarPropertyConfig#getMaxValue(int)} returns the maximum range the distance sensor
+     * can support. This value will be non-negative.
+     *
+     * <p>When no lead vehicle is detected (that is, when there is no leading vehicle or the leading
+     * vehicle is too far away for the sensor to detect), this property will throw a {@link
+     * android.car.hardware.property.PropertyNotAvailableException}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE = 289411093;
+
     /**
      * Enable or disable hands on detection (HOD).
      *
@@ -3490,7 +4250,10 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link
      *  Car#PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS} to write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(
             Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS))
@@ -3498,6 +4261,86 @@ public final class VehiclePropertyIds {
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int HANDS_ON_DETECTION_ENABLED = 287313942;
 
+    /**
+     * Hands on detection (HOD) driver state.
+     *
+     * <p>Returns whether the driver's hands are on the steering wheel. Generally, this property
+     * should return a valid state defined in the {@link
+     * android.car.hardware.property.HandsOnDetectionDriverState} or {@link
+     * android.car.hardware.property.ErrorState}. For example, if the feature is not available due
+     * to some temporary state, that information should be conveyed through ErrorState.
+     *
+     * <p>If the vehicle is sending a warning to the user because the driver's hands have been off
+     * the steering wheel for too long, the warning should be surfaced through
+     * {@link HANDS_ON_DETECTION_WARNING}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.HandsOnDetectionDriverState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li> Signature|Privileged permission {@link Car#PERMISSION_READ_DRIVER_MONITORING_STATES} to
+     *  read property.
+     *  <li> Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int HANDS_ON_DETECTION_DRIVER_STATE = 289411095;
+    /**
+     * Hands on detection (HOD) warning.
+     *
+     * <p>Returns whether a warning is being sent to the driver for having their hands off the wheel
+     * for too long a duration.
+     *
+     * <p>Generally, this property should return a valid state defined in the {@link
+     * android.car.hardware.property.HandsOnDetectionWarning} or {@link
+     * android.car.hardware.property.ErrorState}. For example, if the feature is not available due
+     * to some temporary state, that information should be conveyed through an ErrorState.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.HandsOnDetectionWarning} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li> Signature|Privileged permission {@link Car#PERMISSION_READ_DRIVER_MONITORING_STATES} to
+     *  read property.
+     *  <li> Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int HANDS_ON_DETECTION_WARNING = 289411096;
     /**
      * Enable or disable driver attention monitoring.
      *
@@ -3525,13 +4368,95 @@ public final class VehiclePropertyIds {
      *  <li> Signature|Privileged permission {@link
      *  Car#PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS} to write property.
      * </ul>
+     *
+     * @hide
      */
+    @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS))
     @RequiresPermission.Write(@RequiresPermission(
             Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS))
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final int DRIVER_ATTENTION_MONITORING_ENABLED = 287313945;
+
+    /**
+     * Driver Attention Monitoring state.
+     *
+     * <p>Returns whether the driver is currently attentive or distracted. Generally, this property
+     * should return a valid state defined in the {@link
+     * android.car.hardware.property.DriverAttentionMonitoringState} or {@link
+     * android.car.hardware.property.ErrorState}. For example, if the feature is not available due
+     * to some temporary state, that information should be conveyed through an ErrorState.
+     *
+     * <p>If the vehicle wants to send a warning to the user because the driver has been distracted
+     * for too long, the warning should be surfaced through {@link
+     * DRIVER_ATTENTION_MONITORING_WARNING}.
+     *
+     * <p>The {@link android.car.hardware.CarPropertyConfig#getConfigArray()} array specifies which
+     * states from {@link android.car.hardware.property.DriverAttentionMonitoringState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li> Signature|Privileged permission {@link Car#PERMISSION_READ_DRIVER_MONITORING_STATES} to
+     *  read property.
+     *  <li> Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int DRIVER_ATTENTION_MONITORING_STATE = 289411098;
+    /**
+     * Driver attention monitoring warning.
+     *
+     * <p>Returns whether a warning is being sent to the driver for being distracted for too long a
+     * duration.
+     *
+     * <p>Generally, this property should return a valid state defined in the {@link
+     * android.car.hardware.property.DriverAttentionMonitoringWarning} or {@link
+     * android.car.hardware.property.ErrorState}. For example, if the feature is not available due
+     * to some temporary state, that information should be conveyed through an ErrorState.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.DriverAttentionMonitoringWarning} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li> Signature|Privileged permission {@link Car#PERMISSION_READ_DRIVER_MONITORING_STATES} to
+     *  read property.
+     *  <li> Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public static final int DRIVER_ATTENTION_MONITORING_WARNING = 289411099;
 
     /**
      * @deprecated to prevent others from instantiating this class
