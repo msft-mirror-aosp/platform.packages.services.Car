@@ -230,7 +230,7 @@ void WatchdogServiceHelper::unregisterServiceLocked(bool doUnregisterFromProcess
 
 ScopedAStatus WatchdogServiceHelper::getPackageInfosForUids(
         const std::vector<int32_t>& uids, const std::vector<std::string>& vendorPackagePrefixes,
-        std::vector<PackageInfo>* packageInfos) {
+        std::vector<PackageInfo>* packageInfos) const {
     std::shared_ptr<ICarWatchdogServiceForSystem> service;
     if (std::shared_lock readLock(mRWMutex); mService == nullptr) {
         return fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
@@ -246,7 +246,7 @@ ScopedAStatus WatchdogServiceHelper::getPackageInfosForUids(
 }
 
 ScopedAStatus WatchdogServiceHelper::resetResourceOveruseStats(
-        const std::vector<std::string>& packageNames) {
+        const std::vector<std::string>& packageNames) const {
     std::shared_ptr<ICarWatchdogServiceForSystem> service;
     if (std::shared_lock readLock(mRWMutex); mService == nullptr) {
         return fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
@@ -257,8 +257,12 @@ ScopedAStatus WatchdogServiceHelper::resetResourceOveruseStats(
     return service->resetResourceOveruseStats(packageNames);
 }
 
+// TODO(b/273354756): This method was replaced by an async request/response pattern Android U.
+// Requests for the I/O stats are made through the requestTodayIoUsageStats method. And responses
+// are received by the carwatchdog daemon via ICarWatchdog#onTodayIoUsageStats. Delete method once
+// implementation of request/response pattern is complete.
 ScopedAStatus WatchdogServiceHelper::getTodayIoUsageStats(
-        std::vector<UserPackageIoUsageStats>* userPackageIoUsageStats) {
+        std::vector<UserPackageIoUsageStats>* userPackageIoUsageStats) const {
     std::shared_ptr<ICarWatchdogServiceForSystem> service;
     if (std::shared_lock readLock(mRWMutex); mService == nullptr) {
         return fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
@@ -279,6 +283,17 @@ ScopedAStatus WatchdogServiceHelper::onLatestResourceStats(
         service = mService;
     }
     return service->onLatestResourceStats(resourceStats);
+}
+
+ScopedAStatus WatchdogServiceHelper::requestAidlVhalPid() const {
+    std::shared_ptr<ICarWatchdogServiceForSystem> service;
+    if (std::shared_lock readLock(mRWMutex); mService == nullptr) {
+        return fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
+                                            "Watchdog service is not initialized");
+    } else {
+        service = mService;
+    }
+    return service->requestAidlVhalPid();
 }
 
 }  // namespace watchdog

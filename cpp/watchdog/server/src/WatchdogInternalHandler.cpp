@@ -40,6 +40,7 @@ using ::aidl::android::automotive::watchdog::internal::ProcessIdentifier;
 using ::aidl::android::automotive::watchdog::internal::ResourceOveruseConfiguration;
 using ::aidl::android::automotive::watchdog::internal::StateType;
 using ::aidl::android::automotive::watchdog::internal::ThreadPolicyWithPriority;
+using ::aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats;
 using ::aidl::android::automotive::watchdog::internal::UserState;
 using ::android::sp;
 using ::android::String16;
@@ -422,9 +423,23 @@ ScopedAStatus WatchdogInternalHandler::getThreadPriority(
     return ScopedAStatus::ok();
 }
 
+ScopedAStatus WatchdogInternalHandler::onAidlVhalPidFetched(int pid) {
+    if (auto status = checkSystemUser(/*methodName=*/"onAidlVhalPidFetched"); !status.isOk()) {
+        return status;
+    }
+    mWatchdogProcessService->onAidlVhalPidFetched(pid);
+    return ScopedAStatus::ok();
+}
+
 void WatchdogInternalHandler::setThreadPriorityController(
         std::unique_ptr<ThreadPriorityControllerInterface> threadPriorityController) {
     mThreadPriorityController = std::move(threadPriorityController);
+}
+
+ScopedAStatus WatchdogInternalHandler::onTodayIoUsageStatsFetched(
+        [[maybe_unused]] const std::vector<UserPackageIoUsageStats>& userPackageIoUsageStats) {
+    // TODO(b/262605181): Send the I/O stats to the IoOveruseMonitor
+    return ScopedAStatus::ok();
 }
 
 }  // namespace watchdog

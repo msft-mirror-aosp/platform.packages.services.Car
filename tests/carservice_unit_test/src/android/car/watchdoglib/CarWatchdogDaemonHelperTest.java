@@ -80,7 +80,6 @@ public class CarWatchdogDaemonHelperTest {
                 .spyStatic(ServiceManager.class)
                 .startMocking();
         mockQueryService(CAR_WATCHDOG_DAEMON_INTERFACE, mBinder, mFakeCarWatchdog);
-        when(mFakeCarWatchdog.getInterfaceVersion()).thenReturn(2);
         mCarWatchdogDaemonHelper = new CarWatchdogDaemonHelper();
         mCarWatchdogDaemonHelper.connect();
     }
@@ -293,9 +292,44 @@ public class CarWatchdogDaemonHelperTest {
                 () -> mCarWatchdogDaemonHelper.getThreadPriority(testPid, testTid, testUid));
     }
 
+    @Test
+    public void testOnAidlVhalPidFetched() throws Exception {
+        int vhalPid = 12846;
+
+        mCarWatchdogDaemonHelper.onAidlVhalPidFetched(vhalPid);
+
+        verify(mFakeCarWatchdog).onAidlVhalPidFetched(vhalPid);
+    }
+
+    @Test
+    public void testOnAidlVhalPidFetched_DaemonVersionTooLow() throws Exception {
+        when(mFakeCarWatchdog.getInterfaceVersion()).thenReturn(1);
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> mCarWatchdogDaemonHelper.onAidlVhalPidFetched(12846));
+    }
+
+
+    @Test
+    public void testOnTodayIoUsageStatsFetched() throws Exception {
+        List<UserPackageIoUsageStats> testUserPackageIoUsageStats = Collections.emptyList();
+
+        mCarWatchdogDaemonHelper.onTodayIoUsageStatsFetched(testUserPackageIoUsageStats);
+
+        verify(mFakeCarWatchdog).onTodayIoUsageStatsFetched(testUserPackageIoUsageStats);
+    }
+
+    @Test
+    public void testOnTodayIoUsageStatsFetched_DaemonVersionTooLow() throws Exception {
+        when(mFakeCarWatchdog.getInterfaceVersion()).thenReturn(2);
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> mCarWatchdogDaemonHelper.onTodayIoUsageStatsFetched(Collections.emptyList()));
+    }
 
     // FakeCarWatchdog mimics ICarWatchdog daemon in local process.
     private final class FakeCarWatchdog extends ICarWatchdog.Default {
+        private static final int UDC_INTERFACE_VERSION = 3;
 
         private final ArrayList<ICarWatchdogServiceForSystem> mServices = new ArrayList<>();
 
@@ -320,6 +354,11 @@ public class CarWatchdogDaemonHelperTest {
                 }
             }
             throw new IllegalArgumentException("Not registered service");
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return UDC_INTERFACE_VERSION;
         }
     }
 
@@ -349,6 +388,12 @@ public class CarWatchdogDaemonHelperTest {
 
         @Override
         public void onLatestResourceStats(ResourceStats resourceStats) {}
+
+        @Override
+        public void requestAidlVhalPid() {}
+
+        @Override
+        public void requestTodayIoUsageStats() {}
 
         @Override
         public String getInterfaceHash() {
