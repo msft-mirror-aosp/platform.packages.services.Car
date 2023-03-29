@@ -34,7 +34,7 @@ import static com.android.car.CarServiceUtils.toIntArray;
 import static com.android.car.PermissionHelper.checkHasAtLeastOnePermissionGranted;
 import static com.android.car.PermissionHelper.checkHasDumpPermissionGranted;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeast;
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -415,7 +415,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      */
     public void priorityInit() {
         // If platform is above U, then use new boot user flow and set the boot user ASAP.
-        if (isPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0)) {
+        if (isPlatformVersionAtLeastU()) {
             mHandler.post(() -> initBootUser(getInitialUserInfoRequestType()));
         }
     }
@@ -777,7 +777,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         // This check is to make sure that initBootUser is called only once during boot.
         // For U and above, different boot user flow is used and initBootUser is called in
         // priorityInit
-        if (!isPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0)) {
+        if (!isPlatformVersionAtLeastU()) {
             mHandler.post(() -> initBootUser(getInitialUserInfoRequestType()));
         }
 
@@ -794,7 +794,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 requestType == InitialUserInfoRequestType.RESUME && !mSwitchGuestUserBeforeSleep;
         checkManageUsersPermission("startInitialUser");
 
-        if (!isUserHalSupported()) {
+        boolean isVisibleBackgroundUsersOnDefaultDisplaySupported =
+                UserManagerHelper.isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager);
+        // TODO(b/266473227): Fix isUserHalSupported() for Multi User No driver.
+        if (!isUserHalSupported() || isVisibleBackgroundUsersOnDefaultDisplaySupported) {
             fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
                     /* supportsOverrideUserIdProperty= */ true, requestType);
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
@@ -1313,7 +1316,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      * Same as {@link UserManager#isUserVisible()}, but passing the user id.
      */
     public boolean isUserVisible(@UserIdInt int userId) {
-        if (isPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0)) {
+        if (isPlatformVersionAtLeastU()) {
             UserManager currentUserManager = mContext.createContextAsUser(
                     UserHandle.of(userId), /* flags= */ 0).getSystemService(UserManager.class);
             return currentUserManager.isUserVisible();
@@ -2128,11 +2131,18 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_USER_DOES_NOT_EXIST;
         }
 
-        // If the specified display is invalid.
-        // TODO(b/261606752) In MUPAND (multiple passenger no driver), a background user can be
-        // visible on the default display, so we should add the check for: !isPassengerOnlyMode().
+        // If the specified display is not a valid display for assigning user to.
+        // Note: In passenger only system, users will be allowed on the DEFAULT_DISPLAY.
         if (displayId == Display.DEFAULT_DISPLAY) {
-            return UserStartResponse.STATUS_DISPLAY_INVALID;
+            if (!UserManagerHelper.isVisibleBackgroundUsersOnDefaultDisplaySupported(
+                    mUserManager)) {
+                return UserStartResponse.STATUS_DISPLAY_INVALID;
+            } else {
+                if (DBG) {
+                    Slogf.d(TAG, "startUserVisibleOnDisplayInternal: allow starting user on the "
+                            + "default display under Multi User No Driver mode");
+                }
+            }
         }
         CarOccupantZoneService occupantZoneService =
                 CarLocalServices.getService(CarOccupantZoneService.class);
@@ -2502,7 +2512,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)) {
             return;
         }
-        if (isSystemUserInHeadlessSystemUserMode(currentUserId)) {
+
+        if (isSystemUserInHeadlessSystemUserMode(currentUserId)
+                && !UserManagerHelper.isVisibleBackgroundUsersOnDefaultDisplaySupported(
+                        mUserManager)) {
             return;
         }
 

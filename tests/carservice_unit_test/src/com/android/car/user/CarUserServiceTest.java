@@ -31,6 +31,7 @@ import static android.car.test.mocks.AndroidMockitoHelper.mockUmCreateUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserSwitchability;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmHasUserRestrictionForUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserVisible;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsVisibleBackgroundUsersSupported;
 import static android.car.test.mocks.JavaMockitoHelper.getResult;
 
@@ -946,7 +947,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL_SET_EPHEMERAL);
         assertNoHalUserRemoval();
     }
@@ -962,7 +963,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL);
         assertHalRemove(currentUser, removeUser);
     }
@@ -979,7 +980,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(mAdminUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL_LAST_ADMIN_SET_EPHEMERAL);
         assertNoHalUserRemoval();
     }
@@ -990,7 +991,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         int removedUserId = 15;
         removeUser(removedUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_USER_DOES_NOT_EXIST);
     }
 
@@ -1006,7 +1007,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(mAdminUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(mAdminUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL_LAST_ADMIN_REMOVED);
         assertHalRemove(currentUser, removeUser);
     }
@@ -1024,7 +1025,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL);
         assertHalRemove(currentUser, removeUser);
     }
@@ -1039,7 +1040,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         mockRemoveUser(removeUser);
 
         removeUser(removedUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
-        UserRemovalResult result = getUserRemovalResult(removedUserId);
+        UserRemovalResult result = getUserRemovalResult();
 
         assertUserRemovalResultStatus(result, UserRemovalResult.STATUS_SUCCESSFUL);
         assertHalRemove(currentUser, removeUser);
@@ -1056,7 +1057,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL);
         assertNoHalUserRemoval();
     }
@@ -1070,7 +1071,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(targetUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(targetUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_ANDROID_FAILURE);
     }
 
@@ -1117,7 +1118,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, HAS_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL_SET_EPHEMERAL);
         assertNoHalUserRemoval();
     }
@@ -1134,7 +1135,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, HAS_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL);
         assertHalRemove(currentUser, removeUser, /* overrideDevicePolicy= */ true);
     }
@@ -1151,7 +1152,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, HAS_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL);
         assertHalRemove(currentUser, removeUser, /* overrideDevicePolicy= */ true);
     }
@@ -1169,7 +1170,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
         removeUser(removedUserId, HAS_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
 
-        assertUserRemovalResultStatus(getUserRemovalResult(removedUserId),
+        assertUserRemovalResultStatus(getUserRemovalResult(),
                 UserRemovalResult.STATUS_SUCCESSFUL_SET_EPHEMERAL);
         assertNoHalUserRemoval();
     }
@@ -2341,7 +2342,25 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     }
 
     @Test
-    public void testStartUser_withInvalidDisplayId_startsUserInBackground() throws Exception {
+    public void testStartUser_onDefaultDisplay_notPassengerOnly()
+            throws Exception {
+        mockCurrentUser(mRegularUser);
+        expectRegularUserExists(mMockedUserHandleHelper, TEST_USER_ID);
+        mockAmStartUserInBackground(TEST_USER_ID, true);
+        mockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported(mMockedUserManager, false);
+
+        UserStartRequest request =
+                new UserStartRequest.Builder(UserHandle.of(TEST_USER_ID))
+                    .setDisplayId(Display.DEFAULT_DISPLAY)
+                    .build();
+        UserStartResponse result = mCarUserService.startUser(request);
+
+        assertThat(result.getStatus()).isEqualTo(UserStartResponse.STATUS_DISPLAY_INVALID);
+        assertThat(result.isSuccess()).isFalse();
+    }
+
+    @Test
+    public void testStartUser_withoutDisplayId_startsUserInBackground() throws Exception {
         mockCurrentUser(mRegularUser);
         expectRegularUserExists(mMockedUserHandleHelper, TEST_USER_ID);
         mockAmStartUserInBackground(TEST_USER_ID, true);
