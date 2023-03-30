@@ -42,7 +42,6 @@ import com.android.server.utils.Slogf;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.google.auto.value.AutoValue;
-import com.google.common.collect.ImmutableList;
 
 import java.util.function.Supplier;
 
@@ -178,7 +177,7 @@ abstract class CarProvisioningActivityBridgeImpl implements ProvisioningActivity
     private ProvisioningModeWrapper getProvisioningModeWrapperForFullyManaged(Context context) {
         int provisioningSummaryId;
         TransitionScreenWrapper.Builder secondScreenBuilder =
-                new TransitionScreenWrapper.Builder()
+                new TransitionScreenWrapper.Builder(context)
                         .setHeader(R.string.fully_managed_device_provisioning_step_2_header);
 
         if (!getParams().deviceOwnerPermissionGrantOptOut) {
@@ -204,12 +203,11 @@ abstract class CarProvisioningActivityBridgeImpl implements ProvisioningActivity
 
         TransitionScreenWrapper firstScreen = new TransitionScreenWrapper(
                 R.string.fully_managed_device_provisioning_step_1_header,
-                R.string.fully_managed_device_provisioning_step_1_description,
-                /* drawable= */ 0,
-                /* shouldLoop= */ false);
-        return new ProvisioningModeWrapper(
-                ImmutableList.of(firstScreen, secondScreenBuilder.build()),
-                provisioningSummaryId);
+                context.getString(R.string.fully_managed_device_provisioning_step_1_description),
+                /* drawable= */ 0, /* shouldLoop= */ false, context);
+        return new ProvisioningModeWrapper(new TransitionScreenWrapper[] {
+                firstScreen, secondScreenBuilder.build()},
+                context.getString(provisioningSummaryId));
     }
 
     @Override

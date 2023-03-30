@@ -1141,8 +1141,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     @Override
-    public void removeUser(@UserIdInt int userId, ResultCallbackImpl<UserRemovalResult> callback) {
-        removeUser(userId, /* hasCallerRestrictions= */ false, callback);
+    public void removeUser(@UserIdInt int userId, AndroidFuture<UserRemovalResult> receiver) {
+        removeUser(userId, /* hasCallerRestrictions= */ false, receiver);
     }
 
     /**
@@ -1152,10 +1152,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      * @param userId user to be removed
      * @param hasCallerRestrictions when {@code true}, if the caller user is not an admin, it can
      * only remove itself.
-     * @param callback to post results
+     * @param receiver to post results
      */
     public void removeUser(@UserIdInt int userId, boolean hasCallerRestrictions,
-            ResultCallbackImpl<UserRemovalResult> callback) {
+            AndroidFuture<UserRemovalResult> receiver) {
         checkManageOrCreateUsersPermission("removeUser");
         EventLogHelper.writeCarUserServiceRemoveUserReq(userId,
                 hasCallerRestrictions ? 1 : 0);
@@ -1169,14 +1169,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         + " can only remove itself");
             }
         }
-        mHandler.post(() -> handleRemoveUser(userId, hasCallerRestrictions, callback));
+        mHandler.post(() -> handleRemoveUser(userId, hasCallerRestrictions, receiver));
     }
 
     private void handleRemoveUser(@UserIdInt int userId, boolean hasCallerRestrictions,
-            ResultCallbackImpl<UserRemovalResult> callback) {
+            AndroidFuture<UserRemovalResult> receiver) {
         UserHandle user = mUserHandleHelper.getExistingUserHandle(userId);
         if (user == null) {
-            sendUserRemovalResult(userId, UserRemovalResult.STATUS_USER_DOES_NOT_EXIST, callback);
+            sendUserRemovalResult(userId, UserRemovalResult.STATUS_USER_DOES_NOT_EXIST, receiver);
             return;
         }
         UserInfo halUser = new UserInfo();
@@ -1208,7 +1208,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         boolean overrideDevicePolicy = hasCallerRestrictions;
         int result = mUserManager.removeUserWhenPossible(user, overrideDevicePolicy);
         if (!UserManager.isRemoveResultSuccessful(result)) {
-            sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, callback);
+            sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, receiver);
             return;
         }
 
@@ -1222,15 +1222,15 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             case UserManager.REMOVE_RESULT_ALREADY_BEING_REMOVED:
                 sendUserRemovalResult(userId,
                         isLastAdmin ? UserRemovalResult.STATUS_SUCCESSFUL_LAST_ADMIN_REMOVED
-                                : UserRemovalResult.STATUS_SUCCESSFUL, callback);
+                                : UserRemovalResult.STATUS_SUCCESSFUL, receiver);
                 break;
             case UserManager.REMOVE_RESULT_DEFERRED:
                 sendUserRemovalResult(userId,
                         isLastAdmin ? UserRemovalResult.STATUS_SUCCESSFUL_LAST_ADMIN_SET_EPHEMERAL
-                                : UserRemovalResult.STATUS_SUCCESSFUL_SET_EPHEMERAL, callback);
+                                : UserRemovalResult.STATUS_SUCCESSFUL_SET_EPHEMERAL, receiver);
                 break;
             default:
-                sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, callback);
+                sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, receiver);
         }
     }
 
@@ -1280,9 +1280,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void sendUserRemovalResult(@UserIdInt int userId, @UserRemovalResult.Status int result,
-            ResultCallbackImpl<UserRemovalResult> callback) {
+            AndroidFuture<UserRemovalResult> receiver) {
         EventLogHelper.writeCarUserServiceRemoveUserResp(userId, result);
-        callback.complete(new UserRemovalResult(result));
+        receiver.complete(new UserRemovalResult(result));
     }
 
     private void sendUserSwitchUiCallback(@UserIdInt int targetUserId) {

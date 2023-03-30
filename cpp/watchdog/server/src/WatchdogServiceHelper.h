@@ -75,8 +75,8 @@ public:
             std::vector<aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>*
                     userPackageIoUsageStats) const = 0;
     virtual ndk::ScopedAStatus onLatestResourceStats(
-            const std::vector<aidl::android::automotive::watchdog::internal::ResourceStats>&
-                    resourceStats) const = 0;
+            const aidl::android::automotive::watchdog::internal::ResourceStats& resourceStats)
+            const = 0;
     virtual ndk::ScopedAStatus requestAidlVhalPid() const = 0;
 
 protected:
@@ -124,8 +124,8 @@ public:
             std::vector<aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>*
                     userPackageIoUsageStats) const override;
     ndk::ScopedAStatus onLatestResourceStats(
-            const std::vector<aidl::android::automotive::watchdog::internal::ResourceStats>&
-                    resourceStats) const override;
+            const aidl::android::automotive::watchdog::internal::ResourceStats& resourceStats)
+            const override;
     ndk::ScopedAStatus requestAidlVhalPid() const override;
 
 protected:

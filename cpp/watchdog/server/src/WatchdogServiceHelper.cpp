@@ -274,7 +274,7 @@ ScopedAStatus WatchdogServiceHelper::getTodayIoUsageStats(
 }
 
 ScopedAStatus WatchdogServiceHelper::onLatestResourceStats(
-        const std::vector<ResourceStats>& resourceStats) const {
+        const ResourceStats& resourceStats) const {
     std::shared_ptr<ICarWatchdogServiceForSystem> service;
     if (std::shared_lock readLock(mRWMutex); mService == nullptr) {
         return fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,

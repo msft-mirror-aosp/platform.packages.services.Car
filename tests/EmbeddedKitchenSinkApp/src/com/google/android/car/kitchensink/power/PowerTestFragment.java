@@ -29,7 +29,6 @@ import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
-import android.view.DisplayAddress;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,8 +57,8 @@ public class PowerTestFragment extends Fragment {
     private ViewGroup mPowerModeViewGroup;
     private SparseArray<RadioGroup> mRadioGroupList;
 
-    private static final int MODE_OFF = 0;
-    private static final int MODE_ON = 1;
+    private static final int MODE_ON = 0;
+    private static final int MODE_OFF = 1;
     private static final int MODE_ALWAYS_ON = 2;
 
     private final CarPowerManager.CarPowerStateListener mPowerListener =
@@ -178,16 +177,16 @@ public class PowerTestFragment extends Fragment {
             if (!getDisplays().contains(displayId)) {
                 continue;
             }
-            RadioButton butnOff = new RadioButton(getContext());
-            butnOff.setText("OFF");
             RadioButton btnOn = new RadioButton(getContext());
             btnOn.setText("ON");
+            RadioButton butnOff = new RadioButton(getContext());
+            butnOff.setText("OFF");
             RadioButton btnAlwaysOn = new RadioButton(getContext());
             btnAlwaysOn.setText("ALWAYS ON");
 
             RadioGroup group = new RadioGroup(getContext());
-            group.addView(butnOff, MODE_OFF);
             group.addView(btnOn, MODE_ON);
+            group.addView(butnOff, MODE_OFF);
             group.addView(btnAlwaysOn, MODE_ALWAYS_ON);
             group.check(btnOn.getId());
             group.setOnCheckedChangeListener(mListener);
@@ -202,8 +201,7 @@ public class PowerTestFragment extends Fragment {
 
     private void updateDisplayModeSetting() {
         StringBuilder sb = new StringBuilder();
-        int displayPort = getDisplayPort(Display.DEFAULT_DISPLAY);
-        sb.append(displayPort).append(":").append(MODE_ALWAYS_ON);
+        sb.append(Display.DEFAULT_DISPLAY).append(":").append(MODE_ALWAYS_ON);
         for (int i = 0; i < mRadioGroupList.size(); i++) {
             if (sb.length() != 0) {
                 sb.append(",");
@@ -213,8 +211,7 @@ public class PowerTestFragment extends Fragment {
             RadioButton btnMode = group.findViewById(group.getCheckedRadioButtonId());
             int mode = textToValue(btnMode.getText().toString());
 
-            displayPort = getDisplayPort(displayId);
-            sb.append(displayPort).append(":").append(mode);
+            sb.append(displayId).append(":").append(mode);
         }
         String value = sb.toString();
         if (DBG) {
@@ -222,18 +219,6 @@ public class PowerTestFragment extends Fragment {
         }
         Settings.Global.putString(getContext().getContentResolver(),
                 CarSettings.Global.DISPLAY_POWER_MODE, value);
-    }
-
-    private int getDisplayPort(int displayId) {
-        Display display = mDisplayManager.getDisplay(displayId);
-        if (display != null) {
-            DisplayAddress address = display.getAddress();
-            if (address instanceof DisplayAddress.Physical) {
-                DisplayAddress.Physical physicalAddress = (DisplayAddress.Physical) address;
-                return physicalAddress.getPort();
-            }
-        }
-        return Display.INVALID_DISPLAY;
     }
 
     private OnCheckedChangeListener mListener = new OnCheckedChangeListener() {
@@ -262,10 +247,10 @@ public class PowerTestFragment extends Fragment {
 
     private static int textToValue(String mode) {
         switch (mode) {
-            case "OFF":
-                return MODE_OFF;
             case "ON":
                 return MODE_ON;
+            case "OFF":
+                return MODE_OFF;
             case "ALWAYS ON":
             default:
                 return MODE_ALWAYS_ON;

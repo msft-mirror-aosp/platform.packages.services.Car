@@ -24,11 +24,9 @@ import android.car.CarOccupantZoneManager;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.ICarOccupantZoneCallback;
 import android.car.builtin.util.Slogf;
-import android.car.builtin.view.DisplayHelper;
 import android.car.settings.CarSettings;
 import android.content.Context;
 import android.database.ContentObserver;
-import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -463,12 +461,7 @@ final class ScreenOffHandler {
                 if (pair.length != 2) {
                     return null;
                 }
-                int displayPort = Integer.parseInt(pair[0], /* radix= */ 10);
-                int displayId = getDisplayId(displayPort);
-                if (displayId == Display.INVALID_DISPLAY) {
-                    Slogf.w(TAG, "Invalid display port: %d", displayPort);
-                    return null;
-                }
+                int displayId = Integer.parseInt(pair[0], /* radix= */ 10);
                 @DisplayPowerMode int mode = Integer.parseInt(pair[1], /* radix= */ 10);
                 if (mapping.indexOfKey(displayId) >= 0) {
                     Slogf.w(TAG, "Multiple use of display id: %d", displayId);
@@ -487,16 +480,6 @@ final class ScreenOffHandler {
             return null;
         }
         return mapping;
-    }
-
-    private int getDisplayId(int displayPort) {
-        DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
-        for (Display display : displayManager.getDisplays()) {
-            if (DisplayHelper.getPhysicalPort(display) == displayPort) {
-                return display.getDisplayId();
-            }
-        }
-        return Display.INVALID_DISPLAY;
     }
 
     private static final class EventHandler extends Handler {

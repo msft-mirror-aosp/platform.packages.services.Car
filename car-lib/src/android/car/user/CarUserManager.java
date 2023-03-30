@@ -35,7 +35,6 @@ import android.car.CarManagerBase;
 import android.car.ICarResultReceiver;
 import android.car.ICarUserService;
 import android.car.ResultCallback;
-import android.car.SyncResultCallback;
 import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.ApiRequirements;
 import android.car.builtin.os.UserManagerHelper;
@@ -758,24 +757,13 @@ public final class CarUserManager extends CarManagerBase {
     public void removeUser(@NonNull UserRemovalRequest userRemovalRequest,
             @NonNull @CallbackExecutor Executor executor,
             @NonNull ResultCallback<UserRemovalResult> callback) {
-        int uid = myUid();
-        EventLogHelper.writeCarUserManagerRemoveUserReq(uid,
+        // TODO(b/235994391): Call directly to CarUserService with callback
+        UserRemovalResult userRemovalResult = removeUser(
                 userRemovalRequest.getUserHandle().getIdentifier());
-        try {
-            ResultCallbackImpl<UserRemovalResult> resultCallbackImpl = new ResultCallbackImpl<>(
-                    executor, callback);
-            mService.removeUser(userRemovalRequest.getUserHandle().getIdentifier(),
-                    resultCallbackImpl);
-        } catch (RemoteException e) {
-            UserRemovalResult result = handleRemoteExceptionFromCarService(e,
-                    new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE));
-            callback.onResult(result);
-        } finally {
-            EventLogHelper.writeCarUserManagerRemoveUserResp(uid,
-                    UserRemovalResult.STATUS_ANDROID_FAILURE);
-        }
+        executor.execute(() -> callback.onResult(userRemovalResult));
     }
 
+    // TODO(b/235994391): Deprecate this method.
     /**
      * Removes the given user.
      *
@@ -784,37 +772,35 @@ public final class CarUserManager extends CarManagerBase {
      * @return whether the user was successfully removed.
      *
      * @hide
-     *
-     * @deprecated use {@link #removeUser(UserRemovalRequest, Executor, ResultCallback)} instead.
-     * It will be marked removed in {@code V} and hard removed in {@code X}.
      */
-    @Deprecated
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     @NonNull
     @AddedInOrBefore(majorVersion = 33)
     public UserRemovalResult removeUser(@UserIdInt int userId) {
-        UserRemovalRequest userRemovalRequest = new UserRemovalRequest.Builder(
-                UserHandle.of(userId)).build();
-        SyncResultCallback<UserRemovalResult> userRemovalResultCallback =
-                new SyncResultCallback<>();
-
-        removeUser(userRemovalRequest, Runnable::run, userRemovalResultCallback);
-
-        UserRemovalResult userRemovalResult = new UserRemovalResult(
-                UserRemovalResult.STATUS_ANDROID_FAILURE);
-
+        int uid = myUid();
+        EventLogHelper.writeCarUserManagerRemoveUserReq(uid, userId);
+        int status = UserRemovalResult.STATUS_ANDROID_FAILURE;
         try {
-            userRemovalResult = userRemovalResultCallback.get(REMOVE_USER_CALL_TIMEOUT_MS,
+            AndroidFuture<UserRemovalResult> future = new AndroidFuture<UserRemovalResult>();
+            mService.removeUser(userId, future);
+            UserRemovalResult result = future.get(REMOVE_USER_CALL_TIMEOUT_MS,
                     TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            Log.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
+            status = result.getStatus();
+            return result;
+        } catch (SecurityException e) {
+            throw e;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            Log.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
+            return new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE);
+        } catch (ExecutionException | TimeoutException e) {
+            return new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE);
+        } catch (RemoteException | RuntimeException e) {
+            return handleExceptionFromCarService(e,
+                    new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE));
+        } finally {
+            EventLogHelper.writeCarUserManagerRemoveUserResp(uid, status);
         }
-
-        return userRemovalResult;
     }
 
     /**

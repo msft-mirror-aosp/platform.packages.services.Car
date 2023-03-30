@@ -59,6 +59,6 @@ public class FullScreenPanelAnimator extends PanelAnimator {
         Animation animation = new BoundsAnimation(mPanel, mBounds, endAction);
         animation.setInterpolator(INTERPOLATOR);
         animation.setDuration(DURATION);
-        mPanel.post(() -> mPanel.startAnimation(animation));
+        mPanel.startAnimation(animation);
     }
 }

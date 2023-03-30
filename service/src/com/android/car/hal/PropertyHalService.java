@@ -258,7 +258,6 @@ public class PropertyHalService extends HalServiceBase {
         }
 
         @Override
-        @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
         public String toString() {
             return new StringBuilder()
                     .append("AsyncPropRequestInfo{type: ")
