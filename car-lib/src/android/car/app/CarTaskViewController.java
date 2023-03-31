@@ -16,12 +16,15 @@
 
 package android.car.app;
 
+
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+import android.Manifest;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.app.Activity;
-import android.car.Car;
 import android.car.annotation.ApiRequirements;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.util.Slogf;
@@ -49,6 +52,7 @@ public final class CarTaskViewController {
     private final List<ControlledRemoteCarTaskView> mControlledRemoteCarTaskViews =
             new ArrayList<>();
     private final CarTaskViewInputInterceptor mTaskViewInputInterceptor;
+    private boolean mReleased = false;
 
     /**
      * @param service the binder interface to communicate with the car system UI.
@@ -72,13 +76,17 @@ public final class CarTaskViewController {
      *                                             {@link ControlledRemoteCarTaskView} related
      *                                             events.
      */
-    @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @RequiresPermission(allOf = {Manifest.permission.INJECT_EVENTS,
+            Manifest.permission.INTERNAL_SYSTEM_WINDOW}, conditional = true)
     public void createControlledRemoteCarTaskView(
             @NonNull ControlledRemoteCarTaskViewConfig controlledRemoteCarTaskViewConfig,
             @NonNull Executor callbackExecutor,
             @NonNull ControlledRemoteCarTaskViewCallback controlledRemoteCarTaskViewCallback) {
+        if (mReleased) {
+            throw new IllegalStateException("CarTaskViewController is already released");
+        }
         ControlledRemoteCarTaskView taskViewClient =
                 new ControlledRemoteCarTaskView(
                         mHostActivity,
@@ -95,6 +103,8 @@ public final class CarTaskViewController {
 
             if (controlledRemoteCarTaskViewConfig.mShouldCaptureGestures
                     || controlledRemoteCarTaskViewConfig.mShouldCaptureLongPress) {
+                assertPermission(Manifest.permission.INJECT_EVENTS);
+                assertPermission(Manifest.permission.INTERNAL_SYSTEM_WINDOW);
                 mTaskViewInputInterceptor.init();
             }
         } catch (RemoteException e) {
@@ -102,27 +112,49 @@ public final class CarTaskViewController {
         }
     }
 
+    private void assertPermission(String permission) {
+        if (mHostActivity.getApplicationContext().checkCallingOrSelfPermission(permission)
+                != PERMISSION_GRANTED) {
+            throw new SecurityException("requires " + permission);
+        }
+    }
+
     /**
      * Releases all the resources held by the taskviews associated with this controller.
+     *
+     * <p> Once {@link #release()} is called, the current instance of {@link CarTaskViewController}
+     * cannot be used further. A new instance should be requested using
+     * {@link CarActivityManager#getCarTaskViewController(Activity, Executor,
+     * CarTaskViewControllerCallback)}.
      */
-    @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void release() {
+        if (mReleased) {
+            Slogf.w(TAG, "CarTaskViewController is already released");
+            return;
+        }
+        releaseTaskViews();
+        mTaskViewInputInterceptor.release();
+        mReleased = true;
+    }
+
+    void releaseTaskViews() {
         for (RemoteCarTaskView carTaskView : mControlledRemoteCarTaskViews) {
             carTaskView.release();
         }
         mControlledRemoteCarTaskViews.clear();
-        mTaskViewInputInterceptor.release();
     }
 
     /**
      * Brings all the embedded tasks to the front.
      */
-    @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void showEmbeddedTasks() {
+        if (mReleased) {
+            throw new IllegalStateException("CarTaskViewController is already released");
+        }
         for (RemoteCarTaskView carTaskView : mControlledRemoteCarTaskViews) {
             // TODO(b/267314188): Add a new method in ICarSystemUI to call
             // showEmbeddedTask in a single WCT for multiple tasks.
