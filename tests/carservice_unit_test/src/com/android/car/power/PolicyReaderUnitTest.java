@@ -66,7 +66,7 @@ public final class PolicyReaderUnitTest {
     private static final String POLICY_GROUP_ID_MIXED = "mixed_policy_group";
     private static final String NO_USER_INTERACTION_POLICY_ID =
             "system_power_policy_no_user_interaction";
-    private static final String SUSPEND_PREP_POLICY_ID = "system_power_policy_suspend_prep";
+    private static final String SUSPEND_TO_RAM_POLICY_ID = "system_power_policy_suspend_to_ram";
     private static final String ALL_ON_POLICY_ID = "system_power_policy_all_on";
     private static final String INITIAL_ON_POLICY_ID = "system_power_policy_initial_on";
 
@@ -215,7 +215,7 @@ public final class PolicyReaderUnitTest {
         assertThat(mPolicyReader.getPreemptivePowerPolicy(NO_USER_INTERACTION_POLICY_ID))
                 .isNotNull();
         assertThat(mPolicyReader.getPowerPolicy(INITIAL_ON_POLICY_ID)).isNotNull();
-        assertThat(mPolicyReader.getPreemptivePowerPolicy(SUSPEND_PREP_POLICY_ID)).isNotNull();
+        assertThat(mPolicyReader.getPreemptivePowerPolicy(SUSPEND_TO_RAM_POLICY_ID)).isNotNull();
     }
 
     private void assertValidPolicyPart() throws Exception {

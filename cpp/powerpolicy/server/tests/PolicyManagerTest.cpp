@@ -66,7 +66,7 @@ constexpr const char* kInvalidPowerPolicyGroupId = "invalid_policy_group";
 constexpr const char* kSystemPolicyIdNoUserInteraction = "system_power_policy_no_user_interaction";
 constexpr const char* kSystemPolicyIdInitialOn = "system_power_policy_initial_on";
 constexpr const char* kSystemPolicyIdInitialAllOn = "system_power_policy_all_on";
-constexpr const char* kSystemPolicyIdSuspendPrep = "system_power_policy_suspend_prep";
+constexpr const char* kSystemPolicyIdSuspendToRam = "system_power_policy_suspend_to_ram";
 
 const VehicleApPowerStateReport kExistingTransition = VehicleApPowerStateReport::WAIT_FOR_VHAL;
 const VehicleApPowerStateReport kNonExistingTransition = static_cast<VehicleApPowerStateReport>(-1);
@@ -219,7 +219,7 @@ void checkInvalidPolicies(const PolicyManager& policyManager) {
 }
 
 void assertDefaultPolicies(const PolicyManager& policyManager) {
-    ASSERT_TRUE(policyManager.getPowerPolicy(kSystemPolicyIdSuspendPrep).ok());
+    ASSERT_TRUE(policyManager.getPowerPolicy(kSystemPolicyIdSuspendToRam).ok());
     ASSERT_TRUE(policyManager.getPowerPolicy(kSystemPolicyIdNoUserInteraction).ok());
     ASSERT_TRUE(policyManager.getPowerPolicy(kSystemPolicyIdInitialOn).ok());
     ASSERT_TRUE(policyManager.getPowerPolicy(kSystemPolicyIdInitialAllOn).ok());
