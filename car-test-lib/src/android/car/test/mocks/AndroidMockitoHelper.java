@@ -111,6 +111,43 @@ public final class AndroidMockitoHelper {
     }
 
     /**
+     * Mocks a call to {@link ActivityManagerHelper#startUserInBackgroundVisibleOnDisplay(int, int)}
+     *
+     * * <p><b>Note: </b>it must be made inside a
+     *      * {@link com.android.dx.mockito.inline.extended.StaticMockitoSession} built with
+     *      * {@code spyStatic(ActivityManagerHelper.class)}.
+     */
+    public static void mockAmStartUserInBackgroundVisibleOnDisplay(
+            @UserIdInt int userId, int displayId, boolean result) throws Exception {
+        doReturn(result).when(()
+                -> ActivityManagerHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId));
+    }
+
+    /**
+     * Mocks a call to {@link ActivityManagerHelper#stopUser(int, boolean)}.
+     *
+     * * <p><b>Note: </b>it must be made inside a
+     *      * {@link com.android.dx.mockito.inline.extended.StaticMockitoSession} built with
+     *      * {@code spyStatic(ActivityManagerHelper.class)}.
+     */
+    public static void mockForceStopUser(@UserIdInt int userId, int result) throws Exception {
+        doReturn(result)
+                .when(() -> ActivityManagerHelper.stopUser(userId, /* force= */ true));
+    }
+
+    /**
+     * Mocks a throwing call to {@link ActivityManagerHelper#stopUser(int, boolean)}.
+     *
+     * * <p><b>Note: </b>it must be made inside a
+     *      * {@link com.android.dx.mockito.inline.extended.StaticMockitoSession} built with
+     *      * {@code spyStatic(ActivityManagerHelper.class)}.
+     */
+    public static void mockForceStopUserThrows(@UserIdInt int userId, Throwable throwable)
+            throws Exception {
+        doThrow(throwable).when(() -> ActivityManagerHelper.stopUser(userId, /* force= */ true));
+    }
+
+    /**
      * Mocks a call to {@link ActivityManagerHelper#stopUserWithDelayedLocking(int, boolean)}.
      *
      * * <p><b>Note: </b>it must be made inside a
@@ -394,6 +431,32 @@ public final class AndroidMockitoHelper {
         Log.v(TAG, "mockUmGetVisibleUsers(" + Arrays.toString(userIds) + ": returning "
                 + users);
         when(um.getVisibleUsers()).thenReturn(users);
+    }
+
+    /**
+     * Mocks a call to {@code UserManager#isUserVisible()} that returns {@code isVisible}.
+     */
+    public static void mockUmIsUserVisible(UserManager um, boolean isVisible) {
+        when(um.isUserVisible()).thenReturn(isVisible);
+    }
+
+    /**
+     * Mocks a call to {@code UserManager#isVisibleBackgroundUsersSupported()} that returns
+     * {@code isVisibleBackgroundUsersSupported}.
+     */
+    public static void mockUmIsVisibleBackgroundUsersSupported(UserManager um,
+            boolean isVisibleBackgroundUsersSupported) {
+        when(um.isVisibleBackgroundUsersSupported()).thenReturn(
+                isVisibleBackgroundUsersSupported);
+    }
+
+    /**
+     * Mocks a call to {@code UserManager#isVisibleBackgroundUsersOnDefaultDisplaySupported()} that
+     * returns {@code isVisibleBackgroundUsersOnDefaultDisplaySupported}.
+     */
+    public static void mockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported(UserManager um,
+            boolean supported) {
+        when(um.isVisibleBackgroundUsersOnDefaultDisplaySupported()).thenReturn(supported);
     }
 
     /**

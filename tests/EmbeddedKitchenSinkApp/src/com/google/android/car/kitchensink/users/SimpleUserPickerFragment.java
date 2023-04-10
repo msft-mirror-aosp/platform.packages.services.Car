@@ -19,13 +19,14 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.app.IActivityManager;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.user.CarUserManager;
 import android.car.user.UserCreationResult;
 import android.car.user.UserLifecycleEventFilter;
+import android.car.user.UserStartRequest;
+import android.car.user.UserStopRequest;
 import android.car.util.concurrent.AsyncFuture;
 import android.content.Context;
 import android.content.pm.UserInfo;
@@ -33,7 +34,6 @@ import android.graphics.Color;
 import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.os.Process;
-import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.text.TextUtils;
@@ -85,7 +85,6 @@ public final class SimpleUserPickerFragment extends Fragment {
     private TextView mStatusMessageText;
     private EditText mNewUserNameText;
 
-    private ActivityManager mActivityManager;
     private UserManager mUserManager;
     private DisplayManager mDisplayManager;
     private CarOccupantZoneManager mZoneManager;
@@ -101,7 +100,6 @@ public final class SimpleUserPickerFragment extends Fragment {
     }
 
     public void onViewCreated(View view, Bundle savedInstanceState) {
-        mActivityManager = getContext().getSystemService(ActivityManager.class);
         mUserManager = getContext().getSystemService(UserManager.class);
         mDisplayManager = getContext().getSystemService(DisplayManager.class);
 
@@ -217,8 +215,17 @@ public final class SimpleUserPickerFragment extends Fragment {
     private void updateTextInfo() {
         int displayId = mDisplayAttached.getDisplayId();
         OccupantZoneInfo zoneInfo = getOccupantZoneForDisplayId(displayId);
-        int userId = mZoneManager.getUserForOccupant(zoneInfo);
-        mDisplayIdText.setText("DisplayId: " + displayId + " ZoneId: " + zoneInfo.zoneId);
+        int userId = CarOccupantZoneManager.INVALID_USER_ID;
+        try {
+            if (zoneInfo != null) {
+                userId = mZoneManager.getUserForOccupant(zoneInfo);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "updateTextInfo: encountered exception in getting user for occupant", e);
+        }
+        int zoneId = zoneInfo == null ? CarOccupantZoneManager.OccupantZoneInfo.INVALID_ZONE_ID
+                : zoneInfo.zoneId;
+        mDisplayIdText.setText("DisplayId: " + displayId + " ZoneId: " + zoneId);
         String userString = userId == CarOccupantZoneManager.INVALID_USER_ID
                 ? "unassigned" : Integer.toString(userId);
         mUserOnDisplayText.setText("User on display: " + userString);
@@ -262,11 +269,7 @@ public final class SimpleUserPickerFragment extends Fragment {
         }
 
         // Start the user on display.
-        if (!startUserVisibleOnDisplay(userId, displayId)) {
-            return;
-        }
-        mUsersSpinner.updateEntries(getUnassignedUsers());
-        updateTextInfo();
+        startUserVisibleOnDisplay(userId, displayId);
     }
 
     // stopUser stops the visible user on this secondary display.
@@ -298,26 +301,17 @@ public final class SimpleUserPickerFragment extends Fragment {
             return;
         }
 
-        // Unassign the user from the occupant zone.
-        // TODO(b/253264316): See if we can move it to CarUserService.
-        int result = mZoneManager.unassignOccupantZone(zoneInfo);
-        if (result != CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK) {
-            setMessage(ERROR_MESSAGE, "failed to unassign user " + userId + " from occupant zone "
-                            + zoneInfo.zoneId);
-            return;
-        }
-
-        IActivityManager am = ActivityManager.getService();
         Log.i(TAG, "stop user:" + userId);
-        try {
-            // Use stopUserWithDelayedLocking instead of stopUser to make the call more efficient.
-            am.stopUserWithDelayedLocking(userId, /* force= */ false, /* callback= */ null);
-        } catch (RemoteException e) {
-            setMessage(ERROR_MESSAGE, "Cannot stop user " + userId, e);
-            return;
-        }
-
-        getActivity().recreate();
+        UserStopRequest request = new UserStopRequest.Builder(UserHandle.of(userId)).build();
+        mCarUserManager.stopUser(request, Runnable::run,
+                response -> {
+                    if (!response.isSuccess()) {
+                        setMessage(ERROR_MESSAGE,
+                                "Cannot stop user " + userId + ", Response: " + response);
+                        return;
+                    }
+                    getActivity().recreate();
+                });
     }
 
     private void switchUser() {
@@ -329,22 +323,27 @@ public final class SimpleUserPickerFragment extends Fragment {
         }
 
         int displayId = mDisplayAttached.getDisplayId();
-        if (!startUserVisibleOnDisplay(userId, displayId)) {
-            return;
-        }
-        mUsersSpinner.updateEntries(getUnassignedUsers());
-        updateTextInfo();
+        startUserVisibleOnDisplay(userId, displayId);
     }
 
-    private boolean startUserVisibleOnDisplay(@UserIdInt int userId, int displayId) {
+    private void startUserVisibleOnDisplay(@UserIdInt int userId, int displayId) {
         Log.i(TAG, "start user: " + userId + " in background on display: " + displayId);
-        boolean started = mActivityManager.startUserInBackgroundVisibleOnDisplay(userId, displayId);
-        if (!started) {
-            setMessage(ERROR_MESSAGE, "Cannot start user " + userId + " on display " + displayId);
-        } else {
-            setMessage(INFO_MESSAGE, "Started user " + userId + " on display " + displayId);
-        }
-        return started;
+        UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(userId))
+                .setDisplayId(displayId).build();
+        mCarUserManager.startUser(request, Runnable::run,
+                response -> {
+                    boolean isSuccess = response.isSuccess();
+                    if (!isSuccess) {
+                        setMessage(ERROR_MESSAGE,
+                                "Cannot start user " + userId + " on display " + displayId
+                                        + ", response: " + response);
+                    } else {
+                        setMessage(INFO_MESSAGE,
+                                "Started user " + userId + " on display " + displayId);
+                        mUsersSpinner.updateEntries(getUnassignedUsers());
+                        updateTextInfo();
+                    }
+                });
     }
 
     private void createUser() {

@@ -26,6 +26,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.util.Log;
 
 import java.util.ArrayList;
 
@@ -44,6 +45,9 @@ public class CarUiPortraitService extends Service {
     public static final String INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED =
             "INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED";
 
+    public static final String INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE =
+            "INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE";
+
     // action name for the intent when requested from CarUiPortraitLauncher
     public static final String REQUEST_FROM_LAUNCHER = "REQUEST_FROM_LAUNCHER";
 
@@ -51,9 +55,9 @@ public class CarUiPortraitService extends Service {
     public static final String INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE =
             "INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE";
 
-    // key name for the intent's extra that tells the root task view visibility status
-    public static final String INTENT_EXTRA_ROOT_TASK_VIEW_VISIBILITY_CHANGE =
-            "INTENT_EXTRA_ROOT_TASK_VIEW_VISIBILITY_CHANGE";
+    // key name for the intent's extra that tells the app grid's visibility status
+    public static final String INTENT_EXTRA_APP_GRID_VISIBILITY_CHANGE =
+            "INTENT_EXTRA_APP_GRID_VISIBILITY_CHANGE";
 
     // key name for the intent's extra that tells if suw is in progress
     public static final String INTENT_EXTRA_SUW_IN_PROGRESS =
@@ -83,9 +87,9 @@ public class CarUiPortraitService extends Service {
     public static final int MSG_UNREGISTER_CLIENT = 2;
 
     /**
-     * Command to service to set a new value for root task visibility.
+     * Command to service to set a new value for app grid visibility.
      */
-    public static final int MSG_ROOT_TASK_VIEW_VISIBILITY_CHANGE = 3;
+    public static final int MSG_APP_GRID_VISIBILITY_CHANGE = 3;
 
     /**
      * Command to service to set a new value when immersive mode is requested or exited.
@@ -107,6 +111,11 @@ public class CarUiPortraitService extends Service {
      */
     public static final int MSG_FG_TASK_VIEW_READY = 7;
 
+    /**
+     * Command to service to notify when immersive mode changes
+     */
+    public static final int MSG_IMMERSIVE_MODE_CHANGE = 8;
+
     private boolean mIsSystemInImmersiveMode;
     private boolean mIsSuwInProgress;
 
@@ -116,6 +125,7 @@ public class CarUiPortraitService extends Service {
     class IncomingHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
+            Log.d(TAG, "Received message: " + msg.what);
             switch (msg.what) {
                 case MSG_REGISTER_CLIENT:
                     mClients.add(msg.replyTo);
@@ -123,9 +133,9 @@ public class CarUiPortraitService extends Service {
                 case MSG_UNREGISTER_CLIENT:
                     mClients.remove(msg.replyTo);
                     break;
-                case MSG_ROOT_TASK_VIEW_VISIBILITY_CHANGE:
+                case MSG_APP_GRID_VISIBILITY_CHANGE:
                     Intent intent = new Intent(REQUEST_FROM_LAUNCHER);
-                    intent.putExtra(INTENT_EXTRA_ROOT_TASK_VIEW_VISIBILITY_CHANGE,
+                    intent.putExtra(INTENT_EXTRA_APP_GRID_VISIBILITY_CHANGE,
                             intToBoolean(msg.arg1));
                     CarUiPortraitService.this.sendBroadcast(intent);
                     break;
@@ -161,6 +171,12 @@ public class CarUiPortraitService extends Service {
                     notifyClients(MSG_IMMERSIVE_MODE_REQUESTED, boolToInt(isImmersive));
                 }
 
+                boolean isImmersiveState = intent.getBooleanExtra(
+                        INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE, false);
+                if (intent.hasExtra(INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE)) {
+                    notifyClients(MSG_IMMERSIVE_MODE_CHANGE, boolToInt(isImmersiveState));
+                }
+
                 boolean isSuwInProgress = intent.getBooleanExtra(
                         INTENT_EXTRA_SUW_IN_PROGRESS, false);
                 if (intent.hasExtra(INTENT_EXTRA_SUW_IN_PROGRESS)
@@ -173,6 +189,7 @@ public class CarUiPortraitService extends Service {
         IntentFilter filter = new IntentFilter();
         filter.addAction(REQUEST_FROM_SYSTEM_UI);
         registerReceiver(immersiveModeChangeReceiver, filter);
+        Log.d(TAG, "Portrait service is created");
     }
 
     @Override

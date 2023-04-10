@@ -18,6 +18,8 @@ package com.android.car;
 
 import static android.car.VehiclePropertyIds.HVAC_TEMPERATURE_SET;
 
+import static com.android.car.internal.property.CarPropertyHelper.STATUS_OK;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -60,6 +62,7 @@ import android.os.IBinder;
 import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.os.SystemClock;
 
 import com.android.car.VehicleStub.AsyncGetSetRequest;
 import com.android.car.hal.HalPropConfig;
@@ -126,7 +129,8 @@ public final class AidlVehicleStubUnitTest {
     }
 
     private AsyncGetSetRequest defaultVehicleStubAsyncRequest(HalPropValue value) {
-        return new AsyncGetSetRequest(/* serviceRequestId=*/ 0, value, /* timeoutInMs= */ 1000);
+        return new AsyncGetSetRequest(/* serviceRequestId=*/ 0, value,
+                /* timeoutUptimeMs= */ SystemClock.uptimeMillis() + 1000);
     }
 
     @Before
@@ -522,6 +526,72 @@ public final class AidlVehicleStubUnitTest {
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
+    @Test
+    public void testGetAsyncAidlServiceSpecificExceptionNotAvailableDisabled() throws Exception {
+        createGetAsyncAidlException(StatusCode.NOT_AVAILABLE_DISABLED);
+
+        ArgumentCaptor<List<VehicleStub.GetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
+                argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testGetAsyncAidlServiceSpecificExceptionNotAvailableSpeedLow() throws Exception {
+        createGetAsyncAidlException(StatusCode.NOT_AVAILABLE_SPEED_LOW);
+
+        ArgumentCaptor<List<VehicleStub.GetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
+                argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testGetAsyncAidlServiceSpecificExceptionNotAvailableSpeedHigh() throws Exception {
+        createGetAsyncAidlException(StatusCode.NOT_AVAILABLE_SPEED_HIGH);
+
+        ArgumentCaptor<List<VehicleStub.GetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
+                argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testGetAsyncAidlServiceSpecificExceptionNotAvailablePoorVisibility()
+            throws Exception {
+        createGetAsyncAidlException(StatusCode.NOT_AVAILABLE_POOR_VISIBILITY);
+
+        ArgumentCaptor<List<VehicleStub.GetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
+                argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testGetAsyncAidlServiceSpecificExceptionNotAvailableSafety() throws Exception {
+        createGetAsyncAidlException(StatusCode.NOT_AVAILABLE_SAFETY);
+
+        ArgumentCaptor<List<VehicleStub.GetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
+                argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
     private void postOnBinderDied(CountDownLatch latch, DeathRecipient deathRecipient) {
         mHandler.post(() -> {
             deathRecipient.binderDied();
@@ -641,10 +711,11 @@ public final class AidlVehicleStubUnitTest {
 
         HalPropValue value = HVAC_PROP_VALUE;
 
+        long now = SystemClock.uptimeMillis();
         AsyncGetSetRequest getVehicleStubAsyncRequest1 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 0, value, /* timeoutInMs= */ 10);
+                /* serviceRequestId= */ 0, value, /* timeoutUptimeMs= */ now);
         AsyncGetSetRequest getVehicleStubAsyncRequest2 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 1, value, /* timeoutInMs= */ 10);
+                /* serviceRequestId= */ 1, value, /* timeoutUptimeMs= */ now);
 
         // Send the getAsync request.
         mAidlVehicleStub.getAsync(List.of(getVehicleStubAsyncRequest1, getVehicleStubAsyncRequest2),
@@ -679,10 +750,11 @@ public final class AidlVehicleStubUnitTest {
 
         HalPropValue value = HVAC_PROP_VALUE;
 
+        long timeoutUptimeMs = SystemClock.uptimeMillis() + 100;
         AsyncGetSetRequest getVehicleStubAsyncRequest1 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 0, value, /* timeoutInMs= */ 100);
+                /* serviceRequestId= */ 0, value, timeoutUptimeMs);
         AsyncGetSetRequest getVehicleStubAsyncRequest2 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 1, value, /* timeoutInMs= */ 100);
+                /* serviceRequestId= */ 1, value, timeoutUptimeMs);
 
         mAidlVehicleStub.getAsync(List.of(getVehicleStubAsyncRequest1, getVehicleStubAsyncRequest2),
                 mAsyncCallback);
@@ -712,10 +784,11 @@ public final class AidlVehicleStubUnitTest {
 
         HalPropValue value = HVAC_PROP_VALUE;
 
+        long timeoutUptimeMs = SystemClock.uptimeMillis() + 10;
         AsyncGetSetRequest getVehicleStubAsyncRequest1 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 0, value, /* timeoutInMs= */ 10);
+                /* serviceRequestId= */ 0, value, timeoutUptimeMs);
         AsyncGetSetRequest getVehicleStubAsyncRequest2 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 1, value, /* timeoutInMs= */ 10);
+                /* serviceRequestId= */ 1, value, timeoutUptimeMs);
 
         // Send the getAsync request.
         mAidlVehicleStub.getAsync(List.of(getVehicleStubAsyncRequest1, getVehicleStubAsyncRequest2),
@@ -740,10 +813,11 @@ public final class AidlVehicleStubUnitTest {
 
         HalPropValue value = HVAC_PROP_VALUE;
 
+        long timeoutUptimeMs = SystemClock.uptimeMillis() + 1000;
         AsyncGetSetRequest getVehicleStubAsyncRequest1 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 0, value, /* timeoutInMs= */ 1000);
+                /* serviceRequestId= */ 0, value, timeoutUptimeMs);
         AsyncGetSetRequest getVehicleStubAsyncRequest2 = new AsyncGetSetRequest(
-                /* serviceRequestId= */ 1, value, /* timeoutInMs= */ 1000);
+                /* serviceRequestId= */ 1, value, timeoutUptimeMs);
 
         // Send the getAsync request.
         mAidlVehicleStub.getAsync(List.of(getVehicleStubAsyncRequest1, getVehicleStubAsyncRequest2),
@@ -1019,8 +1093,7 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
-                CarPropertyManager.STATUS_OK);
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(STATUS_OK);
     }
 
     @Test
@@ -1059,6 +1132,93 @@ public final class AidlVehicleStubUnitTest {
     @Test
     public void testSetAsyncServiceSpecificExceptionNotAvailable() throws Exception {
         doThrow(new ServiceSpecificException(StatusCode.NOT_AVAILABLE)).when(mAidlVehicle)
+                .setValues(any(), any());
+        AsyncGetSetRequest request = defaultVehicleStubAsyncRequest(HVAC_PROP_VALUE);
+
+        mAidlVehicleStub.setAsync(List.of(request), mAsyncCallback);
+
+        ArgumentCaptor<List<VehicleStub.SetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue()).hasSize(1);
+        assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testSetAsyncServiceSpecificExceptionNotAvailableDisabled() throws Exception {
+        doThrow(new ServiceSpecificException(StatusCode.NOT_AVAILABLE_DISABLED)).when(mAidlVehicle)
+                .setValues(any(), any());
+        AsyncGetSetRequest request = defaultVehicleStubAsyncRequest(HVAC_PROP_VALUE);
+
+        mAidlVehicleStub.setAsync(List.of(request), mAsyncCallback);
+
+        ArgumentCaptor<List<VehicleStub.SetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue()).hasSize(1);
+        assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testSetAsyncServiceSpecificExceptionNotAvailableSpeedLow() throws Exception {
+        doThrow(new ServiceSpecificException(StatusCode.NOT_AVAILABLE_SPEED_LOW)).when(mAidlVehicle)
+                .setValues(any(), any());
+        AsyncGetSetRequest request = defaultVehicleStubAsyncRequest(HVAC_PROP_VALUE);
+
+        mAidlVehicleStub.setAsync(List.of(request), mAsyncCallback);
+
+        ArgumentCaptor<List<VehicleStub.SetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue()).hasSize(1);
+        assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testSetAsyncServiceSpecificExceptionNotAvailableSpeedHigh() throws Exception {
+        doThrow(new ServiceSpecificException(StatusCode.NOT_AVAILABLE_SPEED_HIGH))
+                .when(mAidlVehicle)
+                .setValues(any(), any());
+        AsyncGetSetRequest request = defaultVehicleStubAsyncRequest(HVAC_PROP_VALUE);
+
+        mAidlVehicleStub.setAsync(List.of(request), mAsyncCallback);
+
+        ArgumentCaptor<List<VehicleStub.SetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue()).hasSize(1);
+        assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testSetAsyncServiceSpecificExceptionNotAvailablePoorVisibility() throws Exception {
+        doThrow(new ServiceSpecificException(StatusCode.NOT_AVAILABLE_POOR_VISIBILITY))
+                .when(mAidlVehicle)
+                .setValues(any(), any());
+        AsyncGetSetRequest request = defaultVehicleStubAsyncRequest(HVAC_PROP_VALUE);
+
+        mAidlVehicleStub.setAsync(List.of(request), mAsyncCallback);
+
+        ArgumentCaptor<List<VehicleStub.SetVehicleStubAsyncResult>> argumentCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue()).hasSize(1);
+        assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
+        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+                CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
+    }
+
+    @Test
+    public void testSetAsyncServiceSpecificExceptionNotAvailableSafety() throws Exception {
+        doThrow(new ServiceSpecificException(StatusCode.NOT_AVAILABLE_SAFETY)).when(mAidlVehicle)
                 .setValues(any(), any());
         AsyncGetSetRequest request = defaultVehicleStubAsyncRequest(HVAC_PROP_VALUE);
 

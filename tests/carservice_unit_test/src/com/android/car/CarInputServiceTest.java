@@ -54,13 +54,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.view.Display;
@@ -73,6 +73,7 @@ import com.android.car.audio.CarAudioService;
 import com.android.car.bluetooth.CarBluetoothService;
 import com.android.car.hal.InputHalService;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.systeminterface.SystemInterface;
 import com.android.car.user.CarUserService;
 
 import com.google.common.collect.Range;
@@ -95,7 +96,6 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Mock InputHalService mInputHalService;
     @Mock TelecomManager mTelecomManager;
-    @Mock DisplayManager mDisplayManager;
     @Mock CarInputService.KeyEventListener mDefaultKeyEventMainListener;
     @Mock CarInputService.MotionEventListener mDefaultMotionEventMainListener;
     @Mock CarInputService.KeyEventListener mInstrumentClusterKeyListener;
@@ -106,8 +106,10 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
     @Mock CarOccupantZoneService mCarOccupantZoneService;
     @Mock CarBluetoothService mCarBluetoothService;
     @Mock CarPowerManagementService mCarPowerManagementService;
+    @Mock SystemInterface mSystemInterface;
     @Mock CarAudioService mCarAudioService;
     @Mock CarMediaService mCarMediaService;
+    @Mock UserManager mUserManager;
 
     @Spy Context mContext = ApplicationProvider.getApplicationContext();
     @Mock private Resources mMockResources;
@@ -136,10 +138,10 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
     @Before
     public void setUp() {
         mCarInputService = new CarInputService(mContext, mInputHalService, mCarUserService,
-                mCarOccupantZoneService, mCarBluetoothService, mCarPowerManagementService, mHandler,
-                mTelecomManager, mDisplayManager, mDefaultKeyEventMainListener,
+                mCarOccupantZoneService, mCarBluetoothService, mCarPowerManagementService,
+                mSystemInterface, mHandler, mTelecomManager, mDefaultKeyEventMainListener,
                 mDefaultMotionEventMainListener, mLastCallSupplier, mLongPressDelaySupplier,
-                mShouldCallButtonEndOngoingCallSupplier, mCaptureController);
+                mShouldCallButtonEndOngoingCallSupplier, mCaptureController, mUserManager);
 
         mCarInputService.setInstrumentClusterKeyListener(mInstrumentClusterKeyListener);
 
@@ -1007,14 +1009,30 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void onKeyEvent_homeKeyUpToPassengerSeat_triggersStartHome() {
+    public void onKeyEvent_homeKeyUpToPassengerSeat_triggersStartSecondaryHome() {
         doAnswer((invocation) -> null).when(() -> CarServiceUtils.startHomeForUserAndDisplay(
                 any(Context.class), anyInt(), anyInt()));
 
+        // TODO(b/266473227): add to AbstractExtendedMockitoTestCase.
+        when(mUserManager.isVisibleBackgroundUsersOnDefaultDisplaySupported()).thenReturn(false);
+
         send(Key.UP, KeyEvent.KEYCODE_HOME, Display.MAIN, PASSENGER_SEAT);
 
-        verify(() -> CarServiceUtils.startHomeForUserAndDisplay(eq(mContext), eq(PASSENGER_USER_ID),
-                eq(PASSENGER_DISPLAY_ID)));
+        verify(() -> CarServiceUtils.startHomeForUserAndDisplay(mContext, PASSENGER_USER_ID,
+                PASSENGER_DISPLAY_ID));
+    }
+
+    @Test
+    public void onKeyEvent_homeKeyUpToPassengerSeat_triggersStartSecondaryHome_noDriver() {
+        doAnswer((invocation) -> null).when(
+                () -> CarServiceUtils.startSecondaryHomeForUserAndDisplay(
+                        any(Context.class), anyInt(), anyInt()));
+        when(mUserManager.isVisibleBackgroundUsersOnDefaultDisplaySupported()).thenReturn(true);
+
+        send(Key.UP, KeyEvent.KEYCODE_HOME, Display.MAIN, PASSENGER_SEAT);
+
+        verify(() -> CarServiceUtils.startSecondaryHomeForUserAndDisplay(
+                mContext, PASSENGER_USER_ID, PASSENGER_DISPLAY_ID));
     }
 
     @Test
@@ -1030,15 +1048,14 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void onKeyEvent_powerKeyDownToPassengerSeatWhenDisplayOn_doesNothing() {
-        injectPowerKeyEventToSeat(Key.DOWN, android.view.Display.STATE_ON, PASSENGER_DISPLAY_ID,
-                PASSENGER_SEAT);
+        injectPowerKeyEventToSeat(Key.DOWN, /* isOn= */ true, PASSENGER_DISPLAY_ID, PASSENGER_SEAT);
 
         verify(mCarPowerManagementService, never()).setDisplayPowerState(anyInt(), anyBoolean());
     }
 
     @Test
     public void onKeyEvent_powerKeyDownToPassengerSeatWhenDisplayOff_setsDisplayPowerOn() {
-        injectPowerKeyEventToSeat(Key.DOWN, android.view.Display.STATE_OFF, PASSENGER_DISPLAY_ID,
+        injectPowerKeyEventToSeat(Key.DOWN, /* isOn= */ false, PASSENGER_DISPLAY_ID,
                 PASSENGER_SEAT);
 
         boolean expectedDisplaySetStatus = true;
@@ -1048,8 +1065,7 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void onKeyEvent_powerKeyUpToPassengerSeatWhenDisplayOn_setsDisplayPowerOff() {
-        injectPowerKeyEventToSeat(Key.UP, android.view.Display.STATE_ON, PASSENGER_DISPLAY_ID,
-                PASSENGER_SEAT);
+        injectPowerKeyEventToSeat(Key.UP, /* isOn= */ true, PASSENGER_DISPLAY_ID, PASSENGER_SEAT);
 
         boolean expectedDisplaySetStatus = false;
         verify(mCarPowerManagementService).setDisplayPowerState(eq(PASSENGER_DISPLAY_ID),
@@ -1058,8 +1074,7 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void onKeyEvent_powerKeyUpToPassengerSeatWhenDisplayOff_doesNothing() {
-        injectPowerKeyEventToSeat(Key.UP, android.view.Display.STATE_OFF, PASSENGER_DISPLAY_ID,
-                PASSENGER_SEAT);
+        injectPowerKeyEventToSeat(Key.UP, /* isOn= */ false, PASSENGER_DISPLAY_ID, PASSENGER_SEAT);
 
         verify(mCarPowerManagementService, never()).setDisplayPowerState(anyInt(), anyBoolean());
     }
@@ -1075,11 +1090,8 @@ public class CarInputServiceTest extends AbstractExtendedMockitoTestCase {
         verify(mCarPowerManagementService, never()).setDisplayPowerState(anyInt(), anyBoolean());
     }
 
-    private KeyEvent injectPowerKeyEventToSeat(Key action, int displayStatus, int displayId,
-            int seat) {
-        android.view.Display mockDisplay = mock(android.view.Display.class);
-        when(mDisplayManager.getDisplay(eq(displayId))).thenReturn(mockDisplay);
-        when(mockDisplay.getState()).thenReturn(displayStatus);
+    private KeyEvent injectPowerKeyEventToSeat(Key action, boolean isOn, int displayId, int seat) {
+        when(mSystemInterface.isDisplayEnabled(eq(displayId))).thenReturn(isOn);
 
         KeyEvent event = send(action, KeyEvent.KEYCODE_POWER, Display.MAIN, seat);
         return event;

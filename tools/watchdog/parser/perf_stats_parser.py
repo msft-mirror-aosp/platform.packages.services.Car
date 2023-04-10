@@ -16,6 +16,15 @@
 #
 """
 Tool to parse CarWatchdog's performance stats dump.
+
+To build the parser script run:
+  m perf_stats_parser
+
+To parse a carwatchdog dump text file run:
+  perf_stats_parser -f <cw-dump>.txt -o cw_proto_out.pb
+
+To read a carwatchdog proto file as a json run:
+  pers_stats_parser -r <cw-proto-out>.pb -j
 """
 import argparse
 import json
@@ -28,14 +37,15 @@ from parser import deviceperformancestats_pb2
 from datetime import datetime
 
 BOOT_TIME_REPORT_HEADER = "Boot-time performance report:"
+CUSTOM_COLLECTION_REPORT_HEADER = "Custom performance data report:"
 TOP_N_CPU_TIME_HEADER = "Top N CPU Times:"
 
 DUMP_DATETIME_FORMAT = "%a %b %d %H:%M:%S %Y %Z"
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 STATS_COLLECTION_PATTERN = "Collection (\d+): <(.+)>"
-PACKAGE_CPU_STATS_PATTERN = "(\d+), (.+), (\d+), (\d+).(\d+)%"
-PROCESS_CPU_STATS_PATTERN = "\s+(.+), (\d+), (\d+).(\d+)%"
+PACKAGE_CPU_STATS_PATTERN = "(\d+), (.+), (\d+), (\d+).(\d+)%, (\d+)"
+PROCESS_CPU_STATS_PATTERN = "\s+(.+), (\d+), (\d+).(\d+)%, (\d+)"
 TOTAL_CPU_TIME_PATTERN = "Total CPU time \\(ms\\): (\d+)"
 TOTAL_IDLE_CPU_TIME_PATTERN = "Total idle CPU time \\(ms\\)/percent: (\d+) / .+"
 CPU_IO_WAIT_TIME_PATTERN = "CPU I/O wait time \\(ms\\)/percent: (\d+) / .+"
@@ -68,24 +78,27 @@ class BuildInformation:
 
 
 class ProcessCpuStats:
-  def __init__(self, command, cpu_time_ms, package_cpu_time_percent):
+  def __init__(self, command, cpu_time_ms, package_cpu_time_percent, cpu_cycles):
     self.command = command
     self.cpu_time_ms = cpu_time_ms
     self.package_cpu_time_percent = package_cpu_time_percent
+    self.cpu_cycles = cpu_cycles
 
   def __repr__(self):
     return "ProcessCpuStats (command={}, CPU time={}ms, percent of " \
-           "package's CPU time={}%)".format(self.command, self.cpu_time_ms,
-                                           self.package_cpu_time_percent)
+           "package's CPU time={}%, CPU cycles={})"\
+      .format(self.command, self.cpu_time_ms, self.package_cpu_time_percent,
+              self.cpu_cycles)
 
 
 class PackageCpuStats:
   def __init__(self, user_id, package_name, cpu_time_ms,
-      total_cpu_time_percent):
+      total_cpu_time_percent, cpu_cycles):
     self.user_id = user_id
     self.package_name = package_name
     self.cpu_time_ms = cpu_time_ms
     self.total_cpu_time_percent = total_cpu_time_percent
+    self.cpu_cycles = cpu_cycles
     self.process_cpu_stats = []
 
   def to_dict(self):
@@ -94,6 +107,7 @@ class PackageCpuStats:
         "package_name": self.package_name,
         "cpu_time_ms": self.cpu_time_ms,
         "total_cpu_time_percent": self.total_cpu_time_percent,
+        "cpu_cycles": self.cpu_cycles,
         "process_cpu_stats": [vars(p) for p in self.process_cpu_stats]
     }
 
@@ -103,9 +117,9 @@ class PackageCpuStats:
       process_list_str = "\n      ".join(list(map(repr, self.process_cpu_stats)))
       process_cpu_stats_str = "\n      {}\n    )".format(process_list_str)
     return "PackageCpuStats (user id={}, package name={}, CPU time={}ms, " \
-           "percent of total CPU time={}%, process CPU stats={}" \
+           "percent of total CPU time={}%, CPU cycles={}, process CPU stats={}" \
       .format(self.user_id, self.package_name, self.cpu_time_ms,
-              self.total_cpu_time_percent, process_cpu_stats_str)
+              self.total_cpu_time_percent, self.cpu_cycles, process_cpu_stats_str)
 
 
 class StatsCollection:
@@ -163,32 +177,40 @@ class SystemEventStats:
   def __repr__(self):
     collections_str = "\n  ".join(list(map(repr, self.collections)))
     return "SystemEventStats (\n" \
-           "  {}".format(collections_str)
+           "  {}\n)".format(collections_str)
 
 
 class PerformanceStats:
   def __init__(self):
     self.boot_time_stats = None
     self.user_switch_stats = []
+    self.custom_collection_stats = None
 
   def has_boot_time(self):
     return self.boot_time_stats and not self.boot_time_stats.is_empty()
 
+  def has_custom_collection(self):
+    return self.custom_collection_stats \
+           and not self.custom_collection_stats.is_empty()
+
   def is_empty(self):
-    return not self.has_boot_time() \
+    return not self.has_boot_time() and not self.has_custom_collection() \
            and not any(map(lambda u: not u.is_empty(), self.user_switch_stats))
 
   def to_dict(self):
     return {
         "boot_time_stats": self.boot_time_stats.to_list() if self.boot_time_stats else None,
-        "user_switch_stats": [u.to_list() for u in self.user_switch_stats]
+        "user_switch_stats": [u.to_list() for u in self.user_switch_stats],
+        "custom_collection_stats": self.custom_collection_stats.to_list() if self.custom_collection_stats else None,
     }
 
   def __repr__(self):
     return "PerformanceStats (\n" \
           "boot-time stats={}\n" \
-          "\nuser-switch stats={}\n)" \
-      .format(self.boot_time_stats, self.user_switch_stats)
+          "\nuser-switch stats={}\n" \
+          "\ncustom-collection stats={}\n)" \
+      .format(self.boot_time_stats, self.user_switch_stats,
+              self.custom_collection_stats)
 
 class DevicePerformanceStats:
   def __init__(self):
@@ -258,19 +280,22 @@ def parse_cpu_times(lines, idx):
       cpu_time_ms = int(match.group(3))
       total_cpu_time_percent = float("{}.{}".format(match.group(4),
                                                     match.group(5)))
+      cpu_cycles = int(match.group(6))
 
       package_cpu_stat = PackageCpuStats(user_id, package_name,
                                          cpu_time_ms,
-                                         total_cpu_time_percent)
+                                         total_cpu_time_percent,
+                                         cpu_cycles)
       package_cpu_stats.append(package_cpu_stat)
     elif match := re.match(PROCESS_CPU_STATS_PATTERN, line):
       command = match.group(1)
       cpu_time_ms = int(match.group(2))
       package_cpu_time_percent = float("{}.{}".format(match.group(3),
                                                       match.group(4)))
+      cpu_cycles = int(match.group(5))
       if package_cpu_stat:
         package_cpu_stat.process_cpu_stats.append(
-          ProcessCpuStats(command, cpu_time_ms, package_cpu_time_percent))
+          ProcessCpuStats(command, cpu_time_ms, package_cpu_time_percent, cpu_cycles))
       else:
         print("No package CPU stats parsed for process:", command, file=sys.stderr)
 
@@ -330,6 +355,11 @@ def parse_dump(dump):
       boot_time_stats, idx = parse_stats_collections(lines, idx)
       if not boot_time_stats.is_empty():
         performance_stats.boot_time_stats = boot_time_stats
+    if line == CUSTOM_COLLECTION_REPORT_HEADER:
+      idx += 2  # Skip the dashed-line after the custom collection header
+      custom_collection_stats, idx = parse_stats_collections(lines, idx)
+      if not custom_collection_stats.is_empty():
+        performance_stats.custom_collection_stats = custom_collection_stats
     else:
       idx += 1
 
@@ -369,13 +399,14 @@ def add_system_event_pb(system_event_stats, system_event_pb):
       package_cpu_stats_pb.package_name = package_cpu_stats.package_name
       package_cpu_stats_pb.cpu_time_ms = package_cpu_stats.cpu_time_ms
       package_cpu_stats_pb.total_cpu_time_percent = package_cpu_stats.total_cpu_time_percent
+      package_cpu_stats_pb.cpu_cycles = package_cpu_stats.cpu_cycles
 
       for process_cpu_stats in package_cpu_stats.process_cpu_stats:
         process_cpu_stats_pb = package_cpu_stats_pb.process_cpu_stats.add()
         process_cpu_stats_pb.command = process_cpu_stats.command
         process_cpu_stats_pb.cpu_time_ms = process_cpu_stats.cpu_time_ms
         process_cpu_stats_pb.package_cpu_time_percent = process_cpu_stats.package_cpu_time_percent
-
+        process_cpu_stats_pb.cpu_cycles = process_cpu_stats.cpu_cycles
 
 def get_system_event(system_event_pb):
   system_event_stats = SystemEventStats()
@@ -397,14 +428,16 @@ def get_system_event(system_event_pb):
         PackageCpuStats(package_cpu_stats_pb.user_id,
                         package_cpu_stats_pb.package_name,
                         package_cpu_stats_pb.cpu_time_ms,
-                        round(package_cpu_stats_pb.total_cpu_time_percent, 2))
+                        round(package_cpu_stats_pb.total_cpu_time_percent, 2),
+                        package_cpu_stats_pb.cpu_cycles)
 
       for process_cpu_stats_pb in package_cpu_stats_pb.process_cpu_stats:
         process_cpu_stats = \
           ProcessCpuStats(process_cpu_stats_pb.command,
                           process_cpu_stats_pb.cpu_time_ms,
                           round(process_cpu_stats_pb.package_cpu_time_percent,
-                                2))
+                                2),
+                          process_cpu_stats_pb.cpu_cycles)
 
         package_cpu_stats.process_cpu_stats.append(process_cpu_stats)
       stats_collection.package_cpu_stats.append(package_cpu_stats)
@@ -415,6 +448,7 @@ def get_system_event(system_event_pb):
 def get_perf_stats(perf_stats_pb):
   perf_stats = PerformanceStats()
   perf_stats.boot_time_stats = get_system_event(perf_stats_pb.boot_time_stats)
+  perf_stats.custom_collection_stats = get_system_event(perf_stats_pb.custom_collection_stats)
   return perf_stats
 
 def get_build_info(build_info_pb):
@@ -447,6 +481,13 @@ def write_pb(perf_stats, out_file, build_info=None, out_build_file=None):
     perf_stats_pb.boot_time_stats.CopyFrom(boot_time_stats_pb)
 
   # TODO(b/256654082): Add user switch events to proto
+
+  # Custom collection proto
+  if perf_stats.has_custom_collection():
+    custom_collection_stats_pb = performancestats_pb2.SystemEventStats()
+    add_system_event_pb(perf_stats.custom_collection_stats,
+                        custom_collection_stats_pb)
+    perf_stats_pb.custom_collection_stats.CopyFrom(custom_collection_stats_pb)
 
   # Write pb binary to disk
   if out_file:
@@ -483,11 +524,17 @@ def read_pb(pb_file, is_device_run=False):
     is_device_run else performancestats_pb2.PerformanceStats()
 
   with open(pb_file, "rb") as f:
-    perf_stats_pb.ParseFromString(f.read())
-    perf_stats_pb.DiscardUnknownFields()
+    try:
+      perf_stats_pb.ParseFromString(f.read())
+      perf_stats_pb.DiscardUnknownFields()
+    except UnicodeDecodeError:
+      proto_type = "DevicePerformanceStats" if is_device_run else "PerformanceStats"
+      print(f"Error: Proto in {pb_file} probably is not '{proto_type}'")
+      return None
 
   if not perf_stats_pb:
-    raise IOError("Proto stored in", pb_file, "has incorrect format.")
+    print(f"Error: Proto stored in {pb_file} has incorrect format.")
+    return None
 
   if not is_device_run:
     return get_perf_stats(perf_stats_pb)
@@ -534,9 +581,12 @@ if __name__ == "__main__":
 
   if args.read_proto:
     if not os.path.isfile(args.read_proto):
-      print("Proto binary '%s' does not exist" % args.read_proto)
+      print("Error: Proto binary '%s' does not exist" % args.read_proto)
       sys.exit(1)
     performance_stats = read_pb(args.read_proto, args.device_run)
+    if performance_stats is None:
+      print(f"Error: Could not read '{args.read_proto}'")
+      sys.exit(1)
     if args.json:
       print(json.dumps(performance_stats.to_dict()))
     else:
@@ -546,10 +596,10 @@ if __name__ == "__main__":
 
   print("Parsing CarWatchdog performance stats")
   if not os.path.isfile(args.file):
-    print("File '%s' does not exist" % args.file)
+    print("Error: File '%s' does not exist" % args.file)
     sys.exit(1)
 
-  with open(args.file, 'r') as f:
+  with open(args.file, 'r', encoding="UTF-8", errors="ignore") as f:
     performance_stats = parse_dump(f.read())
 
     build_info = None
@@ -558,8 +608,8 @@ if __name__ == "__main__":
       print(build_info)
 
     if performance_stats.is_empty():
-      print("No performance stats were parsed. Make sure dump file contains carwatchdog's dump "
-            "text.")
+      print("Error: No performance stats were parsed. Make sure dump file contains carwatchdog's "
+            "dump text.")
       sys.exit(1)
 
     if (args.out or args.build) and write_pb(performance_stats, args.out,

@@ -34,10 +34,13 @@ import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.ICarResultReceiver;
 import android.car.ICarUserService;
+import android.car.ResultCallback;
+import android.car.SyncResultCallback;
 import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.ApiRequirements;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
+import android.car.builtin.util.Slogf;
 import android.car.util.concurrent.AndroidAsyncFuture;
 import android.car.util.concurrent.AndroidFuture;
 import android.car.util.concurrent.AsyncFuture;
@@ -51,6 +54,7 @@ import android.util.Dumpable;
 import android.util.Log;
 import android.util.Pair;
 
+import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.common.CommonConstants;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
@@ -441,6 +445,85 @@ public final class CarUserManager extends CarManagerBase {
     }
 
     /**
+     * Starts the specified user.
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.INTERACT_ACROSS_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void startUser(@NonNull UserStartRequest request,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserStartResponse> callback) {
+        try {
+            // TODO(b/271293309) Also update the service call to be async.
+            UserStartResponse response = mService.startUser(request);
+            executor.execute(() -> callback.onResult(response));
+        } catch (SecurityException e) {
+            throw e;
+        } catch (RemoteException | RuntimeException e) {
+            handleExceptionFromCarService(e, /* returnValue= */ null);
+        }
+    }
+
+    /**
+     * Stops the specified user.
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.INTERACT_ACROSS_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void stopUser(@NonNull UserStopRequest request,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserStopResponse> callback) {
+        try {
+            // TODO(b/271293309) Also update the service call to be async.
+            UserStopResponse response = mService.stopUser(request);
+            executor.execute(() -> callback.onResult(response));
+        } catch (SecurityException e) {
+            throw e;
+        } catch (RemoteException | RuntimeException e) {
+            handleExceptionFromCarService(e, /* returnValue= */ null);
+        }
+    }
+
+    // TODO(b/235991826): Add CTS test.
+    /**
+     * Switches the foreground user to the given user.
+     *
+     * @param userSwitchRequest contains target user.
+     * @param executor to execute the callback.
+     * @param callback called with the {code UserSwitchResult}
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.CREATE_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public void switchUser(@NonNull UserSwitchRequest userSwitchRequest,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserSwitchResult> callback) {
+        int targetUserId = userSwitchRequest.getUserHandle().getIdentifier();
+        // TODO(b/235991826): replace this call. Call CarUserService directly with callback
+        AsyncFuture<UserSwitchResult> result = switchUser(targetUserId);
+        try {
+            UserSwitchResult userSwitchResult = result.get();
+            executor.execute(() -> callback.onResult(userSwitchResult));
+        } catch (InterruptedException | ExecutionException e) {
+            Thread.currentThread().interrupt();
+            Slogf.w(TAG, e, "switchUser: targetId %d failed.", targetUserId);
+        }
+    }
+
+    // TODO(b/235991826): Deprecate this call.
+    /**
      * Switches the foreground user to the given target user.
      *
      * @hide
@@ -471,7 +554,7 @@ public final class CarUserManager extends CarManagerBase {
             throw e;
         } catch (RemoteException | RuntimeException e) {
             AsyncFuture<UserSwitchResult> future =
-                    newSwitchResuiltForFailure(UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE);
+                    newSwitchResultForFailure(UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE);
             return handleExceptionFromCarService(e, future);
         }
     }
@@ -506,12 +589,12 @@ public final class CarUserManager extends CarManagerBase {
             throw e;
         } catch (RemoteException | RuntimeException e) {
             AsyncFuture<UserSwitchResult> future =
-                    newSwitchResuiltForFailure(UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE);
+                    newSwitchResultForFailure(UserSwitchResult.STATUS_HAL_INTERNAL_FAILURE);
             return handleExceptionFromCarService(e, future);
         }
     }
 
-    private AndroidAsyncFuture<UserSwitchResult> newSwitchResuiltForFailure(
+    private AndroidAsyncFuture<UserSwitchResult> newSwitchResultForFailure(
             @UserSwitchResult.Status int status) {
         AndroidFuture<UserSwitchResult> future = new AndroidFuture<>();
         future.complete(new UserSwitchResult(status, null));
@@ -548,6 +631,7 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+    // TODO(b/235992856): Deprecate this call.
     /**
      * Creates a new guest Android user.
      *
@@ -560,6 +644,7 @@ public final class CarUserManager extends CarManagerBase {
         return createUser(name, UserManager.USER_TYPE_FULL_GUEST, /* flags= */ 0);
     }
 
+    // TODO(b/235994008): Deprecate this call.
     /**
      * Creates a new Android user.
      *
@@ -573,6 +658,63 @@ public final class CarUserManager extends CarManagerBase {
         return createUser(name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
     }
 
+    // TODO(b/235994008): Add CTS test.
+    /**
+     * Creates a new Android user.
+     *
+     * @param userCreationRequest contains new user information
+     * @param executor to execute the callback.
+     * @param callback called with the {code UserCreationResult}
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.CREATE_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public void createUser(@NonNull UserCreationRequest userCreationRequest,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserCreationResult> callback) {
+        Objects.requireNonNull(userCreationRequest, "userCreationRequest cannot be null");
+        Objects.requireNonNull(executor, "executor cannot be null");
+        Objects.requireNonNull(callback, "callback cannot be null");
+        int uid = myUid();
+        try {
+            ResultCallbackImpl<UserCreationResult> resultCallbackImpl =
+                    new ResultCallbackImpl<UserCreationResult>(
+                    executor, callback) {
+                @Override
+                protected void onCompleted(UserCreationResult result) {
+                    if (result != null) {
+                        EventLogHelper.writeCarUserManagerCreateUserResp(uid,
+                                result.getStatus(), result.getErrorMessage());
+                    } else {
+                        Log.w(TAG, "createUser(" + userCreationRequest + ") failed.");
+                    }
+                    super.onCompleted(result);
+                }
+            };
+            String name = userCreationRequest.getName();
+            String userType = userCreationRequest.isGuest() ? UserManager.USER_TYPE_FULL_GUEST
+                    : UserManager.USER_TYPE_FULL_SECONDARY;
+            int flags = 0;
+            flags |= userCreationRequest.isAdmin() ? UserManagerHelper.FLAG_ADMIN : 0;
+            flags |= userCreationRequest.isEphemeral() ? UserManagerHelper.FLAG_EPHEMERAL : 0;
+
+            EventLogHelper.writeCarUserManagerCreateUserReq(uid,
+                    UserHelperLite.safeName(name), userType, flags);
+            // TODO(b/235994008): update this call once other CreateUser call is removed.
+            mService.createUser2(userCreationRequest, HAL_TIMEOUT_MS, resultCallbackImpl);
+            System.out.println("manager test API replied");
+        } catch (SecurityException e) {
+            throw e;
+        } catch (RemoteException | RuntimeException e) {
+            callback.onResult(
+                    new UserCreationResult(UserCreationResult.STATUS_HAL_INTERNAL_FAILURE));
+            handleExceptionFromCarService(e, null);
+        }
+    }
+
     /**
      * Updates pre-created users.
      * <p>
@@ -580,20 +722,57 @@ public final class CarUserManager extends CarManagerBase {
      * {@code CarProperties.number_pre_created_guests} and (@code
      * CarProperties.number_pre_created_users}.
      *
+     * @deprecated Pre-created users are no longer supported.
+     *             This method is no-op and will be removed soon.
+     *
      * @hide
      */
+    @Deprecated
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     @AddedInOrBefore(majorVersion = 33)
     public void updatePreCreatedUsers() {
+        Log.w(TAG, "updatePreCreatedUsers(): This method should not be called."
+                + " Pre-created users are no longer supported.");
+    }
+
+
+    // TODO(b/235994391): Add CTS test.
+    /**
+     * Removes the given user.
+     *
+     * @param userRemovalRequest contains user to be removed.
+     * @param executor to execute the callback.
+     * @param callback called with the {code UserRemovalResult}
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
+            android.Manifest.permission.CREATE_USERS})
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public void removeUser(@NonNull UserRemovalRequest userRemovalRequest,
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull ResultCallback<UserRemovalResult> callback) {
         int uid = myUid();
-        EventLogHelper.writeCarUserManagerPreCreateUserReq(uid);
+        EventLogHelper.writeCarUserManagerRemoveUserReq(uid,
+                userRemovalRequest.getUserHandle().getIdentifier());
         try {
-            mService.updatePreCreatedUsers();
+            ResultCallbackImpl<UserRemovalResult> resultCallbackImpl = new ResultCallbackImpl<>(
+                    executor, callback);
+            mService.removeUser(userRemovalRequest.getUserHandle().getIdentifier(),
+                    resultCallbackImpl);
         } catch (SecurityException e) {
+            Log.e(TAG, "CarUserManager removeUser", e);
             throw e;
         } catch (RemoteException | RuntimeException e) {
-            handleExceptionFromCarService(e, null);
+            UserRemovalResult result = handleExceptionFromCarService(e,
+                    new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE));
+            callback.onResult(result);
+        } finally {
+            EventLogHelper.writeCarUserManagerRemoveUserResp(uid,
+                    UserRemovalResult.STATUS_ANDROID_FAILURE);
         }
     }
 
@@ -605,35 +784,37 @@ public final class CarUserManager extends CarManagerBase {
      * @return whether the user was successfully removed.
      *
      * @hide
+     *
+     * @deprecated use {@link #removeUser(UserRemovalRequest, Executor, ResultCallback)} instead.
+     * It will be marked removed in {@code V} and hard removed in {@code X}.
      */
+    @Deprecated
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     @NonNull
     @AddedInOrBefore(majorVersion = 33)
     public UserRemovalResult removeUser(@UserIdInt int userId) {
-        int uid = myUid();
-        EventLogHelper.writeCarUserManagerRemoveUserReq(uid, userId);
-        int status = UserRemovalResult.STATUS_ANDROID_FAILURE;
+        UserRemovalRequest userRemovalRequest = new UserRemovalRequest.Builder(
+                UserHandle.of(userId)).build();
+        SyncResultCallback<UserRemovalResult> userRemovalResultCallback =
+                new SyncResultCallback<>();
+
+        removeUser(userRemovalRequest, Runnable::run, userRemovalResultCallback);
+
+        UserRemovalResult userRemovalResult = new UserRemovalResult(
+                UserRemovalResult.STATUS_ANDROID_FAILURE);
+
         try {
-            AndroidFuture<UserRemovalResult> future = new AndroidFuture<UserRemovalResult>();
-            mService.removeUser(userId, future);
-            UserRemovalResult result = future.get(REMOVE_USER_CALL_TIMEOUT_MS,
+            userRemovalResult = userRemovalResultCallback.get(REMOVE_USER_CALL_TIMEOUT_MS,
                     TimeUnit.MILLISECONDS);
-            status = result.getStatus();
-            return result;
-        } catch (SecurityException e) {
-            throw e;
+        } catch (TimeoutException e) {
+            Log.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE);
-        } catch (ExecutionException | TimeoutException e) {
-            return new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE);
-        } catch (RemoteException | RuntimeException e) {
-            return handleExceptionFromCarService(e,
-                    new UserRemovalResult(UserRemovalResult.STATUS_ANDROID_FAILURE));
-        } finally {
-            EventLogHelper.writeCarUserManagerRemoveUserResp(uid, status);
+            Log.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
         }
+
+        return userRemovalResult;
     }
 
     /**
@@ -883,14 +1064,39 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+    // TODO(b/272817932): Update notation to reflect removal timeline.
     /**
      * Sets a callback to be notified before user switch. It should only be used by Car System UI.
      *
      * @hide
+     * @deprecated use {@link #setUserSwitchUiCallback(Executor, UserHandleSwitchUiCallback)}
+     * instead. It will be marked removed in {@code V} and hard removed in {@code X}.
      */
+    @Deprecated
     @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
     @AddedInOrBefore(majorVersion = 33)
     public void setUserSwitchUiCallback(@NonNull UserSwitchUiCallback callback) {
+        Preconditions.checkArgument(callback != null, "Null callback");
+        UserHandleSwitchUiCallback userHandleSwitchUiCallback = (userHandle) -> {
+            callback.showUserSwitchDialog(userHandle.getIdentifier());
+        };
+        setUserSwitchUiCallback(Runnable::run, userHandleSwitchUiCallback);
+    }
+
+    /**
+     * Sets a callback to be notified before user switch.
+     *
+     * <p> It should only be used by Car System UI. Setting this callback will notify the Car
+     * System UI to show the user switching dialog.
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(android.Manifest.permission.MANAGE_USERS)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public void setUserSwitchUiCallback(@NonNull @CallbackExecutor Executor executor,
+            @NonNull UserHandleSwitchUiCallback callback) {
         Preconditions.checkArgument(callback != null, "Null callback");
         UserSwitchUiCallbackReceiver userSwitchUiCallbackReceiver =
                 new UserSwitchUiCallbackReceiver(callback);
@@ -901,21 +1107,21 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+    // TODO(b/154958003): use mReceiver instead as now there are two binder objects
     /**
      * {@code ICarResultReceiver} used to receive user switch UI Callback.
      */
-    // TODO(b/154958003): use mReceiver instead as now there are two binder objects
     private final class UserSwitchUiCallbackReceiver extends ICarResultReceiver.Stub {
 
-        private final UserSwitchUiCallback mUserSwitchUiCallback;
+        private final UserHandleSwitchUiCallback mUserHandleSwitchUiCallback;
 
-        UserSwitchUiCallbackReceiver(UserSwitchUiCallback callback) {
-            mUserSwitchUiCallback = callback;
+        UserSwitchUiCallbackReceiver(UserHandleSwitchUiCallback callback) {
+            mUserHandleSwitchUiCallback = callback;
         }
 
         @Override
         public void send(int userId, Bundle unused) throws RemoteException {
-            mUserSwitchUiCallback.showUserSwitchDialog(userId);
+            mUserHandleSwitchUiCallback.onUserSwitchStart(UserHandle.of(userId));
         }
     }
 
@@ -1050,6 +1256,7 @@ public final class CarUserManager extends CarManagerBase {
         }
     }
 
+    // TODO(b/272817932): Update notation to reflect removal timeline.
     /**
      * Checks if the given {@code userId} represents a valid user.
      *
@@ -1063,7 +1270,8 @@ public final class CarUserManager extends CarManagerBase {
      * </ul>
      *
      * @hide
-     * @deprecated use {@link #isValidUser(UserHandle)} instead.
+     * @deprecated use {@link #isValidUser(UserHandle)} instead. It
+     * will be marked removed in {@code V} and hard removed in {@code X}.
      */
     @Deprecated
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
@@ -1197,7 +1405,6 @@ public final class CarUserManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             StringBuilder builder = new StringBuilder("Event[type=")
                     .append(lifecycleEventTypeToString(mEventType));
@@ -1213,7 +1420,6 @@ public final class CarUserManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public boolean equals(@Nullable Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -1224,7 +1430,6 @@ public final class CarUserManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public int hashCode() {
             int hash = 23;
             hash = 17 * hash + mEventType;
@@ -1256,11 +1461,13 @@ public final class CarUserManager extends CarManagerBase {
     /**
      * Callback for notifying user switch before switch started.
      *
-     * <p> It should only be user by Car System UI. The purpose of this callback is notify the
+     * <p> It should only be used by Car System UI. The purpose of this callback is to notify the
      * Car System UI to display the user switch UI.
      *
      * @hide
+     * @deprecated use {@link #UserHandleSwitchUiCallback} instead.
      */
+    @Deprecated
     public interface UserSwitchUiCallback {
 
         /**
@@ -1268,5 +1475,26 @@ public final class CarUserManager extends CarManagerBase {
          */
         @AddedInOrBefore(majorVersion = 33)
         void showUserSwitchDialog(@UserIdInt int userId);
+    }
+
+    /**
+     * Callback for notifying user switch before switch started.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    public interface UserHandleSwitchUiCallback {
+
+        /**
+         * Called before the user switch starts.
+         *
+         * <p> This is typically used to show the user dialog.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        @SuppressWarnings("UserHandleName")
+        void onUserSwitchStart(@NonNull UserHandle userHandle);
     }
 }

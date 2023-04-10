@@ -67,7 +67,7 @@ PRODUCT_PACKAGES += \
     android.hardware.radio.config@1.0 \
     android.hardware.radio.deprecated@1.0 \
     android.hardware.secure_element@1.0 \
-    android.hardware.wifi@1.0 \
+    android.hardware.wifi \
     libaudio-resampler \
     libaudiohal \
     libdrm \
@@ -113,7 +113,7 @@ PRODUCT_PACKAGES += \
     screenrecord
 
 # Set default Bluetooth profiles
-TARGET_SYSTEM_PROP += \
+TARGET_SYSTEM_PROP := \
     packages/services/Car/car_product/properties/bluetooth.prop
 
 PRODUCT_SYSTEM_PROPERTIES += \
@@ -126,11 +126,6 @@ PRODUCT_SYSTEM_PROPERTIES += \
 # Enable headless system user mode
 PRODUCT_SYSTEM_PROPERTIES += \
     ro.fw.mu.headless_system_user?=true
-
-# Enable user pre-creation
-PRODUCT_SYSTEM_PROPERTIES += \
-    android.car.number_pre_created_users?=1 \
-    android.car.number_pre_created_guests?=1
 
 # Enable User HAL integration
 # NOTE: when set to true, VHAL must also implement the user-related properties,
@@ -236,7 +231,6 @@ PRODUCT_PACKAGES += \
 
 # CAN bus
 PRODUCT_PACKAGES += \
-    canhalconfigurator \
     canhalctrl \
     canhaldump \
     canhalsend
@@ -259,6 +253,8 @@ ifeq ($(USE_CAR_FRAMEWORK_APEX),true)
 
     PRODUCT_APEX_BOOT_JARS += com.android.car.framework:android.car-module
     PRODUCT_APEX_SYSTEM_SERVER_JARS += com.android.car.framework:car-frameworks-service-module
+
+    $(call soong_config_set,AUTO,car_bootclasspath_fragment,true)
 
     PRODUCT_HIDDENAPI_STUBS := android.car-module.stubs
     PRODUCT_HIDDENAPI_STUBS_SYSTEM := android.car-module.stubs.system

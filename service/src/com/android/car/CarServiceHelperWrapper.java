@@ -16,6 +16,9 @@
 
 package com.android.car;
 
+import static com.android.car.internal.common.CommonConstants.INVALID_PID;
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -231,9 +234,9 @@ public final class CarServiceHelperWrapper {
     /**
      * See {@code ICarServiceHelper}.
      */
-    public int getDisplayAssignedToUser(int userId) {
+    public int getMainDisplayAssignedToUser(int userId) {
         try {
-            return waitForCarServiceHelper().getDisplayAssignedToUser(userId);
+            return waitForCarServiceHelper().getMainDisplayAssignedToUser(userId);
         } catch (RemoteException e) {
             Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
         }
@@ -274,6 +277,21 @@ public final class CarServiceHelperWrapper {
         } catch (RemoteException e) {
             Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
         }
+    }
+
+    /**
+     * See {@code ICarServiceHelper}.
+     */
+    public int fetchAidlVhalPid() {
+        if (!isPlatformVersionAtLeastU()) {
+            return INVALID_PID;
+        }
+        try {
+            return waitForCarServiceHelper().fetchAidlVhalPid();
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+        return INVALID_PID;
     }
 
     private CarServiceHelperWrapper(long carServiceHelperWaitTimeoutMs) {

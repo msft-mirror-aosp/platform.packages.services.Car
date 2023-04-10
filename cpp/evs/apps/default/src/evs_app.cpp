@@ -46,8 +46,8 @@ using android::base::EqualsIgnoreCase;
 using android::frameworks::automotive::vhal::ISubscriptionClient;
 using android::frameworks::automotive::vhal::IVhalClient;
 
-const char CONFIG_DEFAULT_PATH[] = "/system/etc/automotive/evs/config.json";
-const char CONFIG_OVERRIDE_PATH[] = "/system/etc/automotive/evs/config_override.json";
+const char CONFIG_DEFAULT_PATH[] = "/system_ext/etc/automotive/evs/config.json";
+const char CONFIG_OVERRIDE_PATH[] = "/vendor/etc/automotive/evs/config_override.json";
 
 std::shared_ptr<IEvsEnumerator> pEvsService;
 std::shared_ptr<IEvsDisplay> pDisplay;

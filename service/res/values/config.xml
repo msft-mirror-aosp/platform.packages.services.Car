@@ -26,6 +26,16 @@
           during initial development where audio hal does not support bus based addressing yet. -->
     <bool name="audioUseDynamicRouting">false</bool>
 
+    <!--  Configuration to enable usage of core audio volume API, aka using AudioManager's
+          AudioAttributes based volume API.
+          Volume application is delegated to AudioPolicyManager. -->
+    <bool name="audioUseCoreVolume">false</bool>
+
+    <!--  Configuration to enable usage of core audio routing API.
+          It may also be enabled with Dynamic Routing enabled, thus, overriding policy routing rules
+          when Dynamic rules can be effectively established. -->
+    <bool name="audioUseCoreRouting">false</bool>
+
     <!--  Configuration to enable muting of individual volume groups. If this is set to
           false, muting of individual volume groups is disabled, instead muting will toggle master
           mute. If this is set to true, car volume group muting is enabled and each individual
@@ -64,6 +74,18 @@
           - The timeout will also be used as the pause duration required in between automatic volume
             adjustments to change what user is adjusting. -->
     <integer name="audioVolumeKeyEventTimeoutMs">3000</integer>
+
+    <!--  Configuration to enable callback events to volume groups. If this is set to true, clients
+          will receive callback through ICarVolumeGroupEvent to events impacting volume groups.
+          When enabled:
+          - It is strongly recommended that the vendors also support
+            IAudioControl#setModuleChangeCallback, IAudioControl#registerGainCallback for events
+            and changes to audio hardware.
+          - If both CarVolumeCallback and CarVolumeGroupEventCallback are registered by the same
+            application, then the volume group index and volume group mute callbacks shall be
+            through CarVolumeGroupEventCallback ONLY. Therefore, it is strongly recommended that
+            all the applications migrate to the new callback interface for consistent behavior. -->
+    <bool name="audioUseCarVolumeGroupEvent">false</bool>
 
     <!-- Whether to block other audio while media audio is muted with display off. When set to true,
          other sounds cannot be played either while display is off. If false, only media is muted
@@ -232,12 +254,13 @@
          duration and this should not be made shorter. -->
     <integer name="maxGarageModeRunningDurationInSecs">900</integer>
 
-    <!-- The services that needs to be started earlier in the boot sequence and in particular order.
+    <!-- The services that need to be started earlier in the boot sequence and in particular order.
          Every item in this array contains a flatten component name of a service that needs to be
          started and a list of parameters after hashtag symbol. Here's the format:
 
-         <item>com.bar.foo/.Service#bind={bind|start|startForeground},user={all|system|foreground},
-         trigger={asap,userUnlocked}</item>
+         <item>com.bar.foo/.Service#bind={bind|start|startForeground},
+         user={all|system|foreground|visible|backgroundVisible},
+         trigger={asap|resume|userUnlocked|userPostUnlocked}</item>
 
          bind: bind - start service with Context#bindService
                start - start service with Context#startService
@@ -255,6 +278,8 @@
          trigger: indicates when the service needs to be started/bound
                asap - the service might be bound when user is not fully loaded, be careful with
                       this value, the service also needs to have directBootAware flag set to true
+               resume - start service when the device resumes from suspend (suspend-to-RAM, or
+                        suspend-to-disk).
                userUnlocked - start service when user unlocked the device
                userPostUnlocked - start service later after user unlocked. This is used when the
                                   service is not urgent and can wait to start.
@@ -301,7 +326,7 @@
          whether Wi-Fi configuration will persist reboots. By default new Wi-Fi credentials are
          created for every local-only hotspot (LOHS) instantiation, changing this flag to true
          will make LOHS credentials persistent. -->
-    <bool name="config_stableLocalOnlyHotspotConfig" translatable="false">false</bool>
+    <bool name="config_stableLocalOnlyHotspotConfig" translatable="false">true</bool>
 
     <!-- The package name of a service to be launched by CarService to bind to an active media
          service on the current  user.
@@ -376,7 +401,6 @@
         C. enumerate items of "packageName/activityName" - prefer source for the specified ones.
     -->
     <string-array translatable="false" name="config_sourcePreferredComponents">
-        <item>com.google.android.apps.maps/com.google.android.maps.MapsActivity</item>
     </string-array>
 
     <!-- Specifies notice UI that will be launched when user starts a car or do user
@@ -390,7 +414,7 @@
     <!-- Specifies the user picker to be launched on a secondary display when there is no user
          allocation when the system boots and when a visible user stops.
     -->
-    <string name="config_userPickerActivity" translatable="false">com.google.android.car.kitchensink/.UserPickerActivity</string>
+    <string name="config_userPickerActivity" translatable="false">com.android.systemui/.car.userpicker.UserPickerActivity</string>
 
     <!-- Configuration to enable media center to autoplay when the media source is changed.
          There are 3 supported configurations:
@@ -475,6 +499,16 @@
          notified -->
     <integer name="config_postShutdownEnterTimeout">5000</integer>
 
+    <!-- A configuration flag to enable auto power saving for passenger displays.
+         When it's true, the driver display is not affected and always on. When it's false, auto
+         power saving is not applied. OEMs can implement their own auto power saving logic.
+         -->
+    <bool name="config_enablePassengerDisplayPowerSaving">true</bool>
+
+    <!-- Number of milliseconds to wait until screen is automatically turned off.
+         The default duration is 1 min (= 1 * 60 * 1000). -->
+    <integer name="config_noUserScreenOffTimeout">60000</integer>
+
     <!-- A name of a camera device that provides the rearview through EVS service -->
     <string name="config_evsRearviewCameraId" translatable="false">/dev/video10</string>
 
@@ -503,21 +537,6 @@
     <!-- A flag to configure whether the ExternalCarTime VHAL property should be used to send
          ExternalTimeSuggestions to the Android TimeManager service. -->
     <bool name="config_enableExternalCarTimeToExternalTimeSuggestion">false</bool>
-
-    <!-- Configuration to set when pre-created users should be managed by CarService. Car Service
-         will make sure it has the number of pre-created users defined by the system properties
-         android.car.number_pre_created_users and android.car.number_pre_created_guests.
-         Supported flags:
-         1 - Before suspend
-         2 - After system start
-         Flags can be combined. In this case, 3 means manage pre-created users after system start
-         and before suspend. If pre-created users are managed after system start then
-         config_userPreCreationDelay will be used to wait before managing pre-created users. -->
-    <integer name="config_userPreCreationStage">3</integer>
-
-    <!-- How many milli-seconds CarService should wait before managing pre-created users after
-         system start. This property only applied when config_userPreCreationStage flag is 2. -->
-    <integer name="config_userPreCreationDelay">5000</integer>
 
     <!-- This is the component name for the OEM customization service. OEM can choose to implement
          this service to customize car service behavior for different policies. If OEMs choose to
@@ -555,7 +574,7 @@
 
     <!-- Number of seconds to wait until all remote tasks are completed. Should be no smaller than
          30 seconds -->
-    <integer name="config_allowedSystemUpTimeForRemoteAccess">300</integer>
+    <integer name="config_allowedSystemUptimeForRemoteAccess">300</integer>
 
     <!-- Assigns passenger Activities to foreground cpuset rather than the top app cpuset.
          This is enabled only for a system having both driver and passenger zones. If the system

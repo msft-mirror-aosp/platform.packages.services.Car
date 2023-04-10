@@ -21,49 +21,48 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
+import android.annotation.SystemApi;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.annotation.ApiRequirements;
+import android.car.builtin.util.Slogf;
 import android.car.occupantconnection.ICarOccupantConnection;
-import android.car.occupantconnection.IOccupantZoneStateCallback;
+import android.car.occupantconnection.IStateCallback;
 import android.content.pm.PackageInfo;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArrayMap;
-import android.util.Log;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
  * API for monitoring the states of occupant zones in the car, managing their power, and monitoring
- * peer clients on them.
+ * peer clients in those occupant zones.
  * <p>
  * Unless specified explicitly, a client means an app that uses this API and runs as a
- * foreground user on an occupant zone, while a peer client means an app that has the same package
- * name as the caller app and runs as another foreground user (on another occupant zone or even
+ * foreground user in an occupant zone, while a peer client means an app that has the same package
+ * name as the caller app and runs as another foreground user (in another occupant zone or even
  * another Android system).
  *
  * @hide
  */
-// TODO(b/257117236): Change it to system API once it's ready to release.
-// @SystemApi
+@SystemApi
 public final class CarRemoteDeviceManager extends CarManagerBase {
 
     private static final String TAG = CarRemoteDeviceManager.class.getSimpleName();
 
     /**
      * Flag to indicate whether the occupant zone is powered on. If it is not powered on, the caller
-     * can power it on by {@link #controlOccupantZonePower}.
+     * can power it on by {@link #setOccupantZonePower}.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_POWER_ON = 1 << 0;
+    public static final int FLAG_OCCUPANT_ZONE_POWER_ON = 1 << 0;
 
     /**
      * Flag to indicate whether the main display of the occupant zone is unlocked. When it is
@@ -73,80 +72,74 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_SCREEN_UNLOCKED = 1 << 1;
+    public static final int FLAG_OCCUPANT_ZONE_SCREEN_UNLOCKED = 1 << 1;
 
     /**
-     * Flag to indicate whether the client app is installed on the occupant zone. If it's not
-     * installed, the caller may show a Dialog to promote the user to install the app.
-     */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_CLIENT_INSTALLED = 1 << 2;
-
-    /**
-     * Flag to indicate whether the client app with the same long version code ({@link
-     * PackageInfo#getLongVersionCode} is installed on the occupant zone. If it's not installed,
-     * the caller may show a Dialog to promote the user to install or update the app. To get
-     * detailed package info of the client app, the caller can call {@link #getEndpointPackageInfo}.
-     */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_CLIENT_SAME_VERSION = 1 << 3;
-
-    /**
-     * Flag to indicate whether the client app with the same signing info ({@link
-     * PackageInfo#signingInfo} is installed on the occupant zone. If it's not installed, the caller
-     * may show a Dialog to promote the user to install or update the app. To get detailed
-     * package info of the client app, the caller can call {@link #getEndpointPackageInfo}.
-     */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_CLIENT_SAME_SIGNATURE = 1 << 4;
-
-    /**
-     * Flag to indicate whether the client app on the occupant zone is running. If it's not running,
-     * the caller may show a Dialog to promote the user to start the app.
-     */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_CLIENT_RUNNING = 1 << 5;
-
-    /**
-     * Flag to indicate whether the client app on the occupant zone is running in the foreground
-     * (vs background). If UI is needed, the caller shouldn't request a connection to the client app
-     * when the client app is running in the background.
-     */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_CLIENT_IN_FOREGROUND = 1 << 6;
-
-    /**
-     * Flag to indicate whether the client app on the occupant zone is ready for connection.
-     * If it is ready, the caller can call {@link
+     * Flag to indicate whether the occupant zone is ready for connection.
+     * If it is ready and the peer app is installed in it, the caller can call {@link
      * android.car.occupantconnection.CarOccupantConnectionManager#requestConnection} to connect to
-     * the client app on the occupant zone. Note: if UI is needed, the caller should make sure the
+     * the client app in the occupant zone. Note: if UI is needed, the caller should make sure the
      * main display of the occupant zone is unlocked and the client app is running in the foreground
      * before requesting a connection to it.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_CLIENT_CONNECTION_READY = 1 << 7;
+    public static final int FLAG_OCCUPANT_ZONE_CONNECTION_READY = 1 << 2;
 
     /**
-     * Flags for the state of the occupant zone and the state of the client app on the occupant
-     * zone.
+     * Flag to indicate whether the client app is installed in the occupant zone. If it's not
+     * installed, the caller may show a Dialog to promote the user to install the app.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int FLAG_CLIENT_INSTALLED = 1 << 0;
+
+    /**
+     * Flag to indicate whether the client app with the same long version code ({@link
+     * PackageInfo#getLongVersionCode} is installed in the occupant zone. If it's not installed,
+     * the caller may show a Dialog to promote the user to install or update the app. To get
+     * detailed package info of the client app, the caller can call {@link #getEndpointPackageInfo}.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int FLAG_CLIENT_SAME_VERSION = 1 << 1;
+
+    /**
+     * Flag to indicate whether the client app with the same signing info ({@link
+     * PackageInfo#signingInfo} is installed in the occupant zone. If it's not installed, the caller
+     * may show a Dialog to promote the user to install or update the app. To get detailed
+     * package info of the client app, the caller can call {@link #getEndpointPackageInfo}.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int FLAG_CLIENT_SAME_SIGNATURE = 1 << 2;
+
+    /**
+     * Flag to indicate whether the client app in the occupant zone is running. If it's not running,
+     * the caller may show a Dialog to promote the user to start the app.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int FLAG_CLIENT_RUNNING = 1 << 3;
+
+    /**
+     * Flag to indicate whether the client app in the occupant zone is running in the foreground
+     * (vs background). If UI is needed, the caller shouldn't request a connection to the client app
+     * when the client app is running in the background.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int FLAG_CLIENT_IN_FOREGROUND = 1 << 4;
+
+    /**
+     * Flags for the state of the occupant zone.
      *
      * @hide
      */
-    @IntDef(flag = true, prefix = {"FLAG_"}, value = {
-            FLAG_POWER_ON,
-            FLAG_SCREEN_UNLOCKED,
-            FLAG_CLIENT_INSTALLED,
-            FLAG_CLIENT_SAME_VERSION,
-            FLAG_CLIENT_SAME_SIGNATURE,
-            FLAG_CLIENT_RUNNING,
-            FLAG_CLIENT_IN_FOREGROUND,
-            FLAG_CLIENT_CONNECTION_READY
+    @IntDef(flag = true, prefix = {"FLAG_OCCUPANT_ZONE_"}, value = {
+            FLAG_OCCUPANT_ZONE_POWER_ON,
+            FLAG_OCCUPANT_ZONE_SCREEN_UNLOCKED,
+            FLAG_OCCUPANT_ZONE_CONNECTION_READY,
     })
     @Retention(RetentionPolicy.SOURCE)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -155,16 +148,38 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     }
 
     /**
+     * Flags for the state of client app in the occupant zone.
+     *
+     * @hide
+     */
+    @IntDef(flag = true, prefix = {"FLAG_CLIENT_"}, value = {
+            FLAG_CLIENT_INSTALLED,
+            FLAG_CLIENT_SAME_VERSION,
+            FLAG_CLIENT_SAME_SIGNATURE,
+            FLAG_CLIENT_RUNNING,
+            FLAG_CLIENT_IN_FOREGROUND
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public @interface AppState {
+    }
+
+    /**
      * A callback to allow the client to monitor other occupant zones in the car and peer clients
-     * on them.
+     * in those occupant zones.
      * <p>
      * The caller can call {@link
      * android.car.occupantconnection.CarOccupantConnectionManager#requestConnection} to connect to
      * its peer client once the state of the peer occupant zone is {@link
-     * #FLAG_CLIENT_CONNECTION_READY} (and {@link #FLAG_SCREEN_UNLOCKED} and {@link
-     * #FLAG_CLIENT_IN_FOREGROUND} if UI is needed).
+     * #FLAG_OCCUPANT_ZONE_CONNECTION_READY}  and the state of the peer client becomes {@link
+     * android.car.CarRemoteDeviceManager#FLAG_CLIENT_INSTALLED}. If UI is needed to establish
+     * the connection, the caller must wait until {@link
+     * android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_SCREEN_UNLOCKED} and {@link
+     * android.car.CarRemoteDeviceManager#FLAG_CLIENT_IN_FOREGROUND}) before requesting a
+     * connection.
      */
-    public interface OccupantZoneStateCallback {
+    public interface StateCallback {
         /**
          * Invoked when the callback is registered, or when the {@link OccupantZoneState} of the
          * occupant zone has changed.
@@ -174,45 +189,76 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-        void onStateChanged(@NonNull OccupantZoneInfo occupantZone,
+        void onOccupantZoneStateChanged(@NonNull OccupantZoneInfo occupantZone,
                 @OccupantZoneState int occupantZoneStates);
+
+        /**
+         * Invoked when the callback is registered, or when the {@link AppState} of the peer app in
+         * the given occupant zone has changed.
+         *
+         * @param appStates the state of the peer app. Multiple flags can be set in the state.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+        void onAppStateChanged(@NonNull OccupantZoneInfo occupantZone,
+                @AppState int appStates);
     }
 
     private final Object mLock = new Object();
-
-    @GuardedBy("mLock")
-    private final ArrayMap<OccupantZoneStateCallback, Executor> mCallbackToExecutorMap =
-            new ArrayMap<>();
-
-    @GuardedBy("mLock")
-    private final ArrayMap<OccupantZoneInfo, Integer> mOccupantZoneStates = new ArrayMap<>();
-
-    private final IOccupantZoneStateCallback mBinderCallback =
-            new IOccupantZoneStateCallback.Stub() {
-                @Override
-                public void onStateChanged(OccupantZoneInfo occupantZone,
-                        int occupantZoneState) {
-                    ArrayMap<OccupantZoneStateCallback, Executor> callbacks;
-                    synchronized (mLock) {
-                        callbacks = new ArrayMap<>(mCallbackToExecutorMap);
-                        mOccupantZoneStates.put(occupantZone, occupantZoneState);
-                    }
-                    for (Map.Entry<OccupantZoneStateCallback, Executor> entry :
-                            callbacks.entrySet()) {
-                        OccupantZoneStateCallback callback = entry.getKey();
-                        Executor executor = entry.getValue();
-                        executor.execute(
-                                () -> callback.onStateChanged(occupantZone, occupantZoneState));
-                    }
-                }
-            };
-
     private final ICarOccupantConnection mService;
+    private final String mPackageName;
+
+    @GuardedBy("mLock")
+    private StateCallback mCallback;
+    @GuardedBy("mLock")
+    private Executor mCallbackExecutor;
+
+    private final IStateCallback mBinderCallback = new IStateCallback.Stub() {
+        @Override
+        public void onOccupantZoneStateChanged(OccupantZoneInfo occupantZone,
+                int occupantZoneStates) {
+            StateCallback callback;
+            Executor callbackExecutor;
+            synchronized (CarRemoteDeviceManager.this.mLock) {
+                callback = mCallback;
+                callbackExecutor = mCallbackExecutor;
+            }
+            if (callback == null || callbackExecutor == null) {
+                // This should never happen, but let's be cautious.
+                Slogf.e(TAG, "Failed to notify occupant zone state change because "
+                        + "the callback was unregistered! callback: " + callback
+                        + ", callbackExecutor: " + callbackExecutor);
+                return;
+            }
+            callbackExecutor.execute(() -> callback.onOccupantZoneStateChanged(
+                    occupantZone, occupantZoneStates));
+        }
+
+        @Override
+        public void onAppStateChanged(OccupantZoneInfo occupantZone, int appStates) {
+            StateCallback callback;
+            Executor callbackExecutor;
+            synchronized (CarRemoteDeviceManager.this.mLock) {
+                callback = mCallback;
+                callbackExecutor = mCallbackExecutor;
+            }
+            if (callback == null || callbackExecutor == null) {
+                // This should never happen, but let's be cautious.
+                Slogf.e(TAG, "Failed to notify app state change because the "
+                        + "callback was unregistered! callback: " + callback
+                        + ", callbackExecutor: " + callbackExecutor);
+                return;
+            }
+            callbackExecutor.execute(() ->
+                    callback.onAppStateChanged(occupantZone, appStates));
+        }
+    };
 
     /** @hide */
     public CarRemoteDeviceManager(Car car, IBinder service) {
         super(car);
         mService = ICarOccupantConnection.Stub.asInterface(service);
+        mPackageName = mCar.getContext().getPackageName();
     }
 
     /** @hide */
@@ -221,90 +267,75 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void onCarDisconnected() {
         synchronized (mLock) {
-            mCallbackToExecutorMap.clear();
-            mOccupantZoneStates.clear();
+            mCallback = null;
+            mCallbackExecutor = null;
         }
     }
 
     /**
-     * Registers the {@code callback} to monitor the states of other occupant zones and peer clients
-     * in the car. Multiple {@link OccupantZoneStateCallback}s can be registered.
+     * Registers the {@code callback} to monitor the states of other occupant zones in the car and
+     * the peer clients in those occupant zones.
      * <p>
-     * The client app should call this method before requesting connection to its peer clients on
+     * The client app can only register one {@link StateCallback}.
+     * The client app should call this method before requesting connection to its peer clients in
      * other occupant zones.
      *
      * @param executor the Executor to run the callback
-     * @throws IllegalStateException if the {@code callback} was registered already
+     * @throws IllegalStateException if this client already registered a {@link StateCallback}
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_REMOTE_DEVICE)
-    public void registerOccupantZoneStateCallback(@NonNull @CallbackExecutor Executor executor,
-            @NonNull OccupantZoneStateCallback callback) {
+    public void registerStateCallback(@NonNull @CallbackExecutor Executor executor,
+            @NonNull StateCallback callback) {
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
         ArrayMap<OccupantZoneInfo, Integer> occupantZoneStates;
         synchronized (mLock) {
-            Preconditions.checkState(!mCallbackToExecutorMap.containsKey(callback),
-                    "The OccupantZoneStateCallback was registered already");
-            mCallbackToExecutorMap.put(callback, executor);
-            if (mCallbackToExecutorMap.size() == 1) {
-                // This is the first client callback, so register the mBinderCallback.
-                // The client callback will be invoked when mBinderCallback is invoked.
-                try {
-                    mService.registerOccupantZoneStateCallback(mBinderCallback);
-                } catch (RemoteException e) {
-                    mCallbackToExecutorMap.clear();
-                    Log.e(TAG, "Failed to register OccupantZoneStateCallback");
-                    handleRemoteExceptionFromCarService(e);
-                }
-                return;
+            Preconditions.checkState(mCallback == null,
+                    "A StateCallback was registered already");
+            try {
+                mService.registerStateCallback(mPackageName, mBinderCallback);
+                mCallback = callback;
+                mCallbackExecutor = executor;
+            } catch (RemoteException e) {
+                Slogf.e(TAG, "Failed to register StateCallback");
+                handleRemoteExceptionFromCarService(e);
             }
-            occupantZoneStates = new ArrayMap<>(mOccupantZoneStates);
-        }
-        // This is not the first client callback, so mBinderCallback was already registered,
-        // thus it won't invoke the client callback unless there is a state change.
-        // So invoked the client callback with the cached states now.
-        for (Map.Entry<OccupantZoneInfo, Integer> entry : occupantZoneStates.entrySet()) {
-            OccupantZoneInfo occupantZone = entry.getKey();
-            Integer occupantZoneState = entry.getValue();
-            executor.execute(
-                    () -> callback.onStateChanged(occupantZone, occupantZoneState));
         }
     }
 
     /**
-     * Unregisters the existing {@code callback}.
+     * Unregisters the existing {@link StateCallback}.
      * <p>
-     * This method can be called after calling {@link #registerOccupantZoneStateCallback}, as soon
+     * This method can be called after calling {@link #registerStateCallback}, as soon
      * as this caller no longer needs to monitor other occupant zones or becomes inactive.
      * After monitoring ends, established connections won't be affected. In other words, {@link
      * android.car.occupantconnection.Payload} can still be sent.
      *
-     * @throws IllegalStateException if the {@code callback} was not registered before
+     * @throws IllegalStateException if no {@link StateCallback} was registered by
+     *                               this {@link CarRemoteDeviceManager} before
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_REMOTE_DEVICE)
-    public void unregisterOccupantZoneStateCallback(@NonNull OccupantZoneStateCallback callback) {
-        Objects.requireNonNull(callback, "callback cannot be null");
+    public void unregisterStateCallback() {
         synchronized (mLock) {
-            Preconditions.checkState(mCallbackToExecutorMap.containsKey(callback),
-                    "The OccupantZoneStateCallback was not registered before");
-            mCallbackToExecutorMap.remove(callback);
-            if (mCallbackToExecutorMap.isEmpty()) {
-                try {
-                    mService.unregisterOccupantZoneStateCallback();
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Failed to unregister OccupantZoneStateCallback");
-                    handleRemoteExceptionFromCarService(e);
-                }
+            Preconditions.checkState(mCallback != null, "There is no StateCallback "
+                    + "registered by this CarRemoteDeviceManager");
+            mCallback = null;
+            mCallbackExecutor = null;
+            try {
+                mService.unregisterStateCallback(mPackageName);
+            } catch (RemoteException e) {
+                Slogf.e(TAG, "Failed to unregister StateCallback");
+                handleRemoteExceptionFromCarService(e);
             }
         }
     }
 
     /**
-     * Returns the {@link PackageInfo} of the client on {@code occupantZone}, or
+     * Returns the {@link PackageInfo} of the client in {@code occupantZone}, or
      * {@code null} if there is no such client or an error occurred.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -314,9 +345,9 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     public PackageInfo getEndpointPackageInfo(@NonNull OccupantZoneInfo occupantZone) {
         Objects.requireNonNull(occupantZone, "occupantZone cannot be null");
         try {
-            return mService.getEndpointPackageInfo(occupantZone);
+            return mService.getEndpointPackageInfo(occupantZone.zoneId, mPackageName);
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to get peer endpoint PackageInfo in " + occupantZone);
+            Slogf.e(TAG, "Failed to get peer endpoint PackageInfo in " + occupantZone);
             return handleRemoteExceptionFromCarService(e, null);
         }
     }
@@ -327,20 +358,20 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
      * {@code false}, powers off all the displays of given {@code occupantZone}, but doesn't
      * power off the associated Android system.
      * <p>
-     * Passenger occupant zones are not allowed to control the power of the driver occupant zone.
+     * It is not allowed to control the power of the driver occupant zone.
      *
-     * @throws SecurityException if the caller runs on a passenger occupant zone and {@code
-     *                           occupantZone} represents the driver occupant zone
+     * @throws UnsupportedOperationException if {@code occupantZone} represents the driver occupant
+     *                                       zone
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    @RequiresPermission(Car.PERMISSION_MANAGE_REMOTE_DEVICE)
-    public void controlOccupantZonePower(@NonNull OccupantZoneInfo occupantZone, boolean powerOn) {
+    @RequiresPermission(allOf = {Car.PERMISSION_CAR_POWER, Car.PERMISSION_MANAGE_REMOTE_DEVICE})
+    public void setOccupantZonePower(@NonNull OccupantZoneInfo occupantZone, boolean powerOn) {
         Objects.requireNonNull(occupantZone, "occupantZone cannot be null");
         try {
-            mService.controlOccupantZonePower(occupantZone, powerOn);
+            mService.setOccupantZonePower(occupantZone, powerOn);
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to control the power of " + occupantZone);
+            Slogf.e(TAG, "Failed to control the power of " + occupantZone);
             handleRemoteExceptionFromCarService(e);
         }
     }
@@ -357,7 +388,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
         try {
             return mService.isOccupantZonePowerOn(occupantZone);
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to get power state of " + occupantZone);
+            Slogf.e(TAG, "Failed to get power state of " + occupantZone);
             return handleRemoteExceptionFromCarService(e, false);
         }
     }

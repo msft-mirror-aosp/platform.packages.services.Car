@@ -69,7 +69,12 @@ PRODUCT_COPY_FILES += \
     frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf
 
 PRODUCT_PROPERTY_OVERRIDES += \
-    ro.carrier=unknown
+    ro.carrier=unknown \
+    ro.hardware.type=automotive \
+
+# Disable developer options activity embedding
+PRODUCT_SYSTEM_PROPERTIES += \
+    persist.sys.fflag.override.settings_support_large_screen=false
 
 # Set default Bluetooth profiles
 TARGET_SYSTEM_PROP += \
@@ -85,11 +90,6 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 # Enable headless system user mode
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.fw.mu.headless_system_user?=true
-
-# Enable user pre-creation
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    android.car.number_pre_created_users?=1 \
-    android.car.number_pre_created_guests?=1
 
 # Enable User HAL integration
 # NOTE: when set to true, VHAL must also implement the user-related properties,
@@ -165,6 +165,12 @@ PRODUCT_PACKAGES += \
 # RROs
 PRODUCT_PACKAGES += \
     CarPermissionControllerRRO \
+
+# CarSystemUIPassengerOverlay is an RRO package required for enabling unique look
+# and feel for Passenger(Secondary) User.
+ifeq ($(ENABLE_PASSENGER_SYSTEMUI_RRO), true)
+PRODUCT_PACKAGES += CarSystemUIPassengerOverlay
+endif  # ENABLE_PASSENGER_SYSTEMUI_RRO
 
 # System Server components
 # Order is important: if X depends on Y, then Y should precede X on the list.

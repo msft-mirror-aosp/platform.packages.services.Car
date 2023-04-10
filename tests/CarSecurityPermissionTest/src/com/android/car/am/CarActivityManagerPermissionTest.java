@@ -19,10 +19,16 @@ package com.android.car.am;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.mock;
 
+import android.app.Activity;
 import android.car.Car;
 import android.car.app.CarActivityManager;
+import android.car.app.CarSystemUIProxy;
+import android.car.app.CarTaskViewControllerCallback;
 import android.content.ComponentName;
+import android.os.Binder;
+import android.os.IBinder;
 import android.view.Display;
 import android.window.DisplayAreaOrganizer;
 
@@ -33,6 +39,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.util.concurrent.Executor;
 
 /**
  * This class contains security permission tests for {@link CarActivityManager}.
@@ -57,18 +65,80 @@ public class CarActivityManagerPermissionTest {
     @Test
     public void testSetPersistentActivity_requiresPermission() {
         ComponentName activity = new ComponentName("testPkg", "testActivity");
-        SecurityException thrown = assertThrows(SecurityException.class,
+        SecurityException e = assertThrows(SecurityException.class,
                 () -> mCarActivityManager.setPersistentActivity(activity, Display.DEFAULT_DISPLAY,
                         DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER));
 
-        assertThat(thrown.getMessage()).contains(Car.PERMISSION_CONTROL_CAR_APP_LAUNCH);
+        assertThat(e).hasMessageThat().contains(Car.PERMISSION_CONTROL_CAR_APP_LAUNCH);
     }
 
     @Test
     public void testRegisterTaskMonitor_requiresPermission() {
-        SecurityException thrown = assertThrows(SecurityException.class,
+        SecurityException e = assertThrows(SecurityException.class,
                 () -> mCarActivityManager.registerTaskMonitor());
 
-        assertThat(thrown.getMessage()).contains(android.Manifest.permission.MANAGE_ACTIVITY_TASKS);
+        assertThat(e).hasMessageThat().contains(android.Manifest.permission.MANAGE_ACTIVITY_TASKS);
+    }
+
+    @Test
+    public void testGetVisibleTasks_requiresPermission() {
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mCarActivityManager.getVisibleTasks());
+
+        assertThat(e).hasMessageThat().contains(android.Manifest.permission.MANAGE_ACTIVITY_TASKS);
+    }
+
+    @Test
+    public void testCreateTaskMirroringToken_requiresPermission() {
+        int taskId = 9999;
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mCarActivityManager.createTaskMirroringToken(taskId));
+
+        assertThat(e).hasMessageThat().contains(android.Manifest.permission.MANAGE_ACTIVITY_TASKS);
+    }
+
+    @Test
+    public void testCreateDisplayMirroringToken_requiresPermission() {
+        int taskId = 9999;
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mCarActivityManager.createDisplayMirroringToken(taskId));
+
+        assertThat(e).hasMessageThat().contains(Car.PERMISSION_MIRROR_DISPLAY);
+    }
+
+    @Test
+    public void testGetMirroredSurface_requiresPermission() {
+        IBinder token = new Binder();
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mCarActivityManager.getMirroredSurface(token));
+
+        assertThat(e).hasMessageThat().contains(Car.PERMISSION_ACCESS_MIRRORRED_SURFACE);
+    }
+
+    @Test
+    public void testMoveRootTaskToDisplay_requiresPermission() {
+        int taskId = 9999;
+        int displayId = 999;
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mCarActivityManager.moveRootTaskToDisplay(taskId, displayId));
+
+        assertThat(e).hasMessageThat().contains(Car.PERMISSION_CONTROL_CAR_APP_LAUNCH);
+    }
+
+    @Test
+    public void registerCarSystemUIProxy_requiresPermission() {
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mCarActivityManager.registerCarSystemUIProxy(mock(CarSystemUIProxy.class)));
+
+        assertThat(e).hasMessageThat().contains(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY);
+    }
+
+    @Test
+    public void getCarTaskViewController_requiresPermission() {
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mCarActivityManager.getCarTaskViewController(mock(Activity.class),
+                        mock(Executor.class), mock(CarTaskViewControllerCallback.class)));
+
+        assertThat(e).hasMessageThat().contains(Car.PERMISSION_MANAGE_CAR_SYSTEM_UI);
     }
 }

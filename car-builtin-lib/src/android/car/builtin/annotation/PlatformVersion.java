@@ -29,5 +29,8 @@ import android.annotation.SystemApi;
 public enum PlatformVersion {
     TIRAMISU_0,
     TIRAMISU_1,
+    TIRAMISU_2,
+    TIRAMISU_3,
     UPSIDE_DOWN_CAKE_0,
+    // DO NOT ADD minor UPSIDE_DOWN_CAKE version until lint tool is working. (b/275125924)
 }

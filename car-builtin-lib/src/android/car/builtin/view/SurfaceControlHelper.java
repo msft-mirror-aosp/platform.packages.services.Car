@@ -17,10 +17,16 @@
 package android.car.builtin.view;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.car.builtin.annotation.AddedIn;
 import android.car.builtin.annotation.PlatformVersion;
+import android.os.Build;
+import android.os.RemoteException;
+import android.util.Log;
 import android.view.SurfaceControl;
+import android.view.WindowManagerGlobal;
 
 /**
  * Provides access to {@code android.view.SurfaceControl} calls.
@@ -28,6 +34,7 @@ import android.view.SurfaceControl;
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public final class SurfaceControlHelper {
+    private static final String TAG = SurfaceControlHelper.class.getSimpleName();
     private SurfaceControlHelper() {
         throw new UnsupportedOperationException();
     }
@@ -37,9 +44,36 @@ public final class SurfaceControlHelper {
      *
      * <p>For the detail, see {@link SurfaceControl#mirrorSurface(SurfaceControl)}
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     public static SurfaceControl mirrorSurface(@NonNull SurfaceControl mirrorOf) {
         return SurfaceControl.mirrorSurface(mirrorOf);
+    }
+
+    /**
+     * Creates a mirrored Surface for the given Display.
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @Nullable
+    public static SurfaceControl mirrorDisplay(int displayId) {
+        try {
+            SurfaceControl outSurfaceControl = new SurfaceControl();
+            boolean success = WindowManagerGlobal.getWindowManagerService().mirrorDisplay(displayId,
+                    outSurfaceControl);
+            return success ? outSurfaceControl : null;
+        } catch (RemoteException e) {
+            Log.e(TAG, "Unable to reach window manager", e);
+        }
+        return null;
+    }
+
+    /**
+     * See {@link SurfaceControl(SurfaceControl)}}.
+     */
+    @AddedIn(PlatformVersion.TIRAMISU_0)
+    public static SurfaceControl copy(SurfaceControl source) {
+        return new SurfaceControl(source, SurfaceControlHelper.class.getSimpleName());
     }
 }

@@ -26,6 +26,7 @@
 #include <aidl/android/automotive/watchdog/internal/BootPhase.h>
 #include <aidl/android/automotive/watchdog/internal/GarageMode.h>
 #include <aidl/android/automotive/watchdog/internal/PowerCycle.h>
+#include <aidl/android/automotive/watchdog/internal/UserPackageIoUsageStats.h>
 #include <aidl/android/automotive/watchdog/internal/UserState.h>
 #include <android-base/result.h>
 #include <binder/IPCThreadState.h>
@@ -53,6 +54,7 @@ using ::aidl::android::automotive::watchdog::internal::ProcessIdentifier;
 using ::aidl::android::automotive::watchdog::internal::ResourceOveruseConfiguration;
 using ::aidl::android::automotive::watchdog::internal::StateType;
 using ::aidl::android::automotive::watchdog::internal::ThreadPolicyWithPriority;
+using ::aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats;
 using ::aidl::android::automotive::watchdog::internal::UserState;
 using ::android::sp;
 using ::android::String16;
@@ -69,6 +71,11 @@ using ::testing::Return;
 using ::testing::SaveArg;
 
 namespace {
+
+constexpr const char kFailOnNonSystemCallingUidMessage[] =
+        "should fail with non-system calling uid";
+constexpr const char kFailOnWatchdogServiceHelperErrMessage[] =
+        "should fail on watchdog service helper error";
 
 class ScopedChangeCallingUid final : public RefBase {
 public:
@@ -197,6 +204,7 @@ TEST_F(WatchdogInternalHandlerTest, TestRegisterCarWatchdogService) {
             SharedRefBase::make<ICarWatchdogServiceForSystemDefault>();
     EXPECT_CALL(*mMockWatchdogServiceHelper, registerService(service))
             .WillOnce(Return(ByMove(ScopedAStatus::ok())));
+    EXPECT_CALL(*mMockIoOveruseMonitor, onCarWatchdogServiceRegistered()).Times(1);
 
     auto status = mWatchdogInternalHandler->registerCarWatchdogService(service);
 
@@ -208,9 +216,8 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnRegisterCarWatchdogServiceWithNon
 
     std::shared_ptr<ICarWatchdogServiceForSystem> service =
             SharedRefBase::make<ICarWatchdogServiceForSystemDefault>();
-    auto status = mWatchdogInternalHandler->registerCarWatchdogService(service);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->registerCarWatchdogService(service).isOk())
+            << "registerCarWatchdogService " << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest,
@@ -223,9 +230,8 @@ TEST_F(WatchdogInternalHandlerTest,
             .WillOnce(Return(ByMove(ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
                                                                                 "Illegal state"))));
 
-    auto status = mWatchdogInternalHandler->registerCarWatchdogService(service);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->registerCarWatchdogService(service).isOk())
+            << "registerCarWatchdogService " << kFailOnWatchdogServiceHelperErrMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestUnregisterCarWatchdogService) {
@@ -247,9 +253,8 @@ TEST_F(WatchdogInternalHandlerTest,
             SharedRefBase::make<ICarWatchdogServiceForSystemDefault>();
     EXPECT_CALL(*mMockWatchdogServiceHelper, unregisterService(service)).Times(0);
 
-    auto status = mWatchdogInternalHandler->unregisterCarWatchdogService(service);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->unregisterCarWatchdogService(service).isOk())
+            << "unregisterCarWatchdogService " << kFailOnNonSystemCallingUidMessage;
 }
 TEST_F(WatchdogInternalHandlerTest,
        TestErrorOnUnregisterCarWatchdogServiceWithWatchdogServiceHelperError) {
@@ -262,9 +267,8 @@ TEST_F(WatchdogInternalHandlerTest,
                     ByMove(ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_ARGUMENT,
                                                                        "Illegal argument"))));
 
-    auto status = mWatchdogInternalHandler->unregisterCarWatchdogService(service);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->unregisterCarWatchdogService(service).isOk())
+            << "unregisterCarWatchdogService " << kFailOnWatchdogServiceHelperErrMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestRegisterMonitor) {
@@ -285,9 +289,8 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnRegisterMonitorWithNonSystemCalli
             SharedRefBase::make<ICarWatchdogMonitorDefault>();
     EXPECT_CALL(*mMockWatchdogProcessService, registerMonitor(monitor)).Times(0);
 
-    auto status = mWatchdogInternalHandler->registerMonitor(monitor);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->registerMonitor(monitor).isOk())
+            << "registerMonitor " << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestUnregisterMonitor) {
@@ -308,9 +311,8 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnUnregisterMonitorWithNonSystemCal
             SharedRefBase::make<ICarWatchdogMonitorDefault>();
     EXPECT_CALL(*mMockWatchdogProcessService, unregisterMonitor(monitor)).Times(0);
 
-    auto status = mWatchdogInternalHandler->unregisterMonitor(monitor);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->unregisterMonitor(monitor).isOk())
+            << "unregisterMonitor " << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestCarWatchdogServiceAlive) {
@@ -344,7 +346,8 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnCarWatchdogServiceWithNonSystemCa
     auto status = mWatchdogInternalHandler->tellCarWatchdogServiceAlive(service,
                                                                         clientsNotResponding, 456);
 
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(status.isOk()) << "tellCarWatchdogServiceAlive "
+                                << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestTellDumpFinished) {
@@ -369,9 +372,9 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnTellDumpFinishedWithNonSystemCall
     processIdentifier.pid = 456;
     std::shared_ptr<ICarWatchdogMonitor> monitor =
             SharedRefBase::make<ICarWatchdogMonitorDefault>();
-    auto status = mWatchdogInternalHandler->tellDumpFinished(monitor, processIdentifier);
 
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->tellDumpFinished(monitor, processIdentifier).isOk())
+            << "tellDumpFinished " << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestNotifyPowerCycleChangeToShutdownPrepare) {
@@ -435,13 +438,12 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnNotifyPowerCycleChangeWithInvalid
     EXPECT_CALL(*mMockWatchdogPerfService, setSystemState(_)).Times(0);
 
     StateType type = StateType::POWER_CYCLE;
-    auto status = mWatchdogInternalHandler->notifySystemStateChange(type, -1, -1);
 
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->notifySystemStateChange(type, -1, -1).isOk())
+            << "notifySystemStateChange should fail with negative power cycle";
 
-    status = mWatchdogInternalHandler->notifySystemStateChange(type, 3000, -1);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->notifySystemStateChange(type, 3000, -1).isOk())
+            << "notifySystemStateChange should fail with invalid power cycle";
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestNotifyGarageModeOn) {
@@ -563,13 +565,12 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnOnUserStateChangeWithInvalidArgs)
     EXPECT_CALL(*mMockWatchdogProcessService, onUserStateChange(_, _)).Times(0);
 
     StateType type = StateType::USER_STATE;
-    auto status = mWatchdogInternalHandler->notifySystemStateChange(type, 234567, -1);
 
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->notifySystemStateChange(type, 234567, -1).isOk())
+            << "notifySystemStateChange should fail with negative user state";
 
-    status = mWatchdogInternalHandler->notifySystemStateChange(type, 234567, 3000);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->notifySystemStateChange(type, 234567, 3000).isOk())
+            << "notifySystemStateChange should fail with invalid user state";
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestNotifyBootPhaseChange) {
@@ -610,7 +611,7 @@ TEST_F(WatchdogInternalHandlerTest, TestErrorOnNotifySystemStateChangeWithNonSys
                                                       PowerCycle::POWER_CYCLE_SHUTDOWN_PREPARE),
                                               -1);
 
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(status.isOk()) << "notifySystemStateChange " << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestUpdateResourceOveruseConfigurations) {
@@ -632,7 +633,8 @@ TEST_F(WatchdogInternalHandlerTest,
     auto status = mWatchdogInternalHandler->updateResourceOveruseConfigurations(
             std::vector<ResourceOveruseConfiguration>{});
 
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(status.isOk()) << "updateResourceOveruseConfigurations "
+                                << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestGetResourceOveruseConfigurations) {
@@ -652,9 +654,9 @@ TEST_F(WatchdogInternalHandlerTest,
     EXPECT_CALL(*mMockIoOveruseMonitor, getResourceOveruseConfigurations(_)).Times(0);
 
     std::vector<ResourceOveruseConfiguration> configs;
-    auto status = mWatchdogInternalHandler->getResourceOveruseConfigurations(&configs);
 
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->getResourceOveruseConfigurations(&configs).isOk())
+            << "getResourceOveruseConfigurations " << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestControlProcessHealthCheck) {
@@ -670,9 +672,8 @@ TEST_F(WatchdogInternalHandlerTest, TestControlProcessHealthCheck) {
 TEST_F(WatchdogInternalHandlerTest, TestErrorOnControlProcessHealthCheckWithNonSystemCallingUid) {
     EXPECT_CALL(*mMockWatchdogProcessService, setEnabled(_)).Times(0);
 
-    auto status = mWatchdogInternalHandler->controlProcessHealthCheck(/*enable=*/true);
-
-    ASSERT_FALSE(status.isOk()) << status.getMessage();
+    ASSERT_FALSE(mWatchdogInternalHandler->controlProcessHealthCheck(/*enable=*/true).isOk())
+            << "controlProcessHealthCheck " << kFailOnNonSystemCallingUidMessage;
 }
 
 TEST_F(WatchdogInternalHandlerTest, TestSetThreadPriority) {
@@ -713,6 +714,43 @@ TEST_F(WatchdogInternalHandlerTest, TestGetThreadPriority) {
     ASSERT_TRUE(status.isOk()) << status.getMessage();
     EXPECT_EQ(actual.policy, expectedPolicy);
     EXPECT_EQ(actual.priority, expectedPriority);
+}
+
+TEST_F(WatchdogInternalHandlerTest, TestOnAidlVhalPidFetched) {
+    setSystemCallingUid();
+
+    int vhalPid = 56423;
+    EXPECT_CALL(*mMockWatchdogProcessService, onAidlVhalPidFetched(vhalPid)).Times(1);
+
+    auto status = mWatchdogInternalHandler->onAidlVhalPidFetched(vhalPid);
+
+    ASSERT_TRUE(status.isOk()) << status.getMessage();
+}
+
+TEST_F(WatchdogInternalHandlerTest, TestErrorOnOnAidlVhalPidFetchedWithNonSystemCallingUid) {
+    EXPECT_CALL(*mMockWatchdogProcessService, onAidlVhalPidFetched(_)).Times(0);
+
+    ASSERT_FALSE(mWatchdogInternalHandler->onAidlVhalPidFetched(56423).isOk())
+            << "onAidlVhalPidFetched " << kFailOnNonSystemCallingUidMessage;
+}
+
+TEST_F(WatchdogInternalHandlerTest, TestOnTodayIoUsageStatsFetched) {
+    setSystemCallingUid();
+
+    std::vector<UserPackageIoUsageStats> userPackageIoUsageStats = {};
+    EXPECT_CALL(*mMockIoOveruseMonitor, onTodayIoUsageStatsFetched(userPackageIoUsageStats))
+            .Times(1);
+
+    auto status = mWatchdogInternalHandler->onTodayIoUsageStatsFetched(userPackageIoUsageStats);
+
+    ASSERT_TRUE(status.isOk()) << status.getMessage();
+}
+
+TEST_F(WatchdogInternalHandlerTest, TestErrorOnOnTodayIoUsageStatsFetchedWithNonSystemCallingUid) {
+    EXPECT_CALL(*mMockIoOveruseMonitor, onTodayIoUsageStatsFetched(_)).Times(0);
+
+    ASSERT_FALSE(mWatchdogInternalHandler->onTodayIoUsageStatsFetched({}).isOk())
+            << "onTodayIoUsageStatsFetched " << kFailOnNonSystemCallingUidMessage;
 }
 
 }  // namespace watchdog

@@ -122,7 +122,7 @@ public final class OccupantZoneHelper {
                     return Display.INVALID_DISPLAY;
                 }
         );
-        when(service.assignVisibleUserToOccupantZone(anyInt(), any(), anyInt())).thenAnswer(
+        when(service.assignVisibleUserToOccupantZone(anyInt(), any())).thenAnswer(
                 inv -> {
                     int zoneId = (int) inv.getArgument(0);
                     UserHandle user = (UserHandle) inv.getArgument(1);
@@ -143,6 +143,22 @@ public final class OccupantZoneHelper {
                         }
                     }
                     mZoneToUser.append(zoneId, userId);
+                    return USER_ASSIGNMENT_RESULT_OK;
+                }
+        );
+        when(service.unassignOccupantZone(anyInt())).thenAnswer(
+                inv -> {
+                    int zoneId = (int) inv.getArgument(0);
+                    if (!hasZone(zoneId)) {
+                        return USER_ASSIGNMENT_RESULT_FAIL_ALREADY_ASSIGNED;
+                    }
+                    if (mZones.contains(zoneDriverLHD) && zoneDriverLHD.zoneId == zoneId) {
+                        return USER_ASSIGNMENT_RESULT_FAIL_DRIVER_ZONE;
+                    }
+                    int existingIndex = mZoneToUser.indexOfKey(zoneId);
+                    if (existingIndex >= 0) {
+                        mZoneToUser.delete(zoneId);
+                    }
                     return USER_ASSIGNMENT_RESULT_OK;
                 }
         );

@@ -48,9 +48,9 @@ import java.util.concurrent.Executor;
  * events. At {@link RemoteTaskClientCallback#onClientRegistered} it is required to share
  * {@code serviceId}, {@code deviceId} and {@code clientId} with the cloud service which will use
  * the IDs to wake the vehicle. At {@link RemoteTaskClientCallback#onRemoteTaskRequested}, it starts
- * executing the given task. It is supposed to call {@link reportRemoteTaskDone} when it finishes
- * the given task. Once the task completion is reported or the timeout expires, Android System goes
- * back to either the previous power state or the specified power state.
+ * executing the given task. It is supposed to call {@link #reportRemoteTaskDone(String)} when it
+ * finishes the given task. Once the task completion is reported or the timeout expires, Android
+ * System goes back to either the previous power state or the specified power state.
  */
 public final class CarRemoteAccessManager extends CarManagerBase {
 
@@ -113,8 +113,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
     private final ICarRemoteAccessCallback mCarRemoteAccessCallback =
             new ICarRemoteAccessCallback.Stub() {
         @Override
-        public void onClientRegistrationUpdated(String serviceId, String deviceId,
-                String clientId) {
+        public void onClientRegistrationUpdated(RemoteTaskClientRegistrationInfo registrationInfo) {
             RemoteTaskClientCallback callback;
             Executor executor;
             synchronized (mLock) {
@@ -123,11 +122,11 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                             + "is registered");
                     return;
                 }
-                mCurrentClientId = clientId;
+                mCurrentClientId = registrationInfo.getClientId();
                 callback = mRemoteTaskClientCallback;
                 executor = mExecutor;
             }
-            executor.execute(() -> callback.onRegistrationUpdated(serviceId, deviceId, clientId));
+            executor.execute(() -> callback.onRegistrationUpdated(registrationInfo));
         }
 
         @Override
@@ -206,14 +205,12 @@ public final class CarRemoteAccessManager extends CarManagerBase {
          * This is called when the remote task client is successfully registered or the client ID is
          * updated by AAOS.
          *
-         * @param serviceId Globally unique identifier to specify the wake-up service.
-         * @param deviceId Globally unique identifier to specify the vehicle.
-         * @param clientId Locally unique identifier to specify the remote task client.
+         * @param info {@link RemoteTaskClientRegistrationIfno} which contains wake-up service ID,
+         *             vehicle ID, processor ID and client ID.
          */
         @ApiRequirements(minCarVersion = CarVersion.UPSIDE_DOWN_CAKE_0,
                 minPlatformVersion = PlatformVersion.UPSIDE_DOWN_CAKE_0)
-        void onRegistrationUpdated(@NonNull String serviceId, @NonNull String deviceId,
-                @NonNull String clientId);
+        void onRegistrationUpdated(@NonNull RemoteTaskClientRegistrationInfo info);
 
         /**
          * This is called when registering the remote task client fails.
@@ -300,7 +297,8 @@ public final class CarRemoteAccessManager extends CarManagerBase {
     }
 
     /**
-     * Clears the remote task client previously set via {@link setRemoteTaskClient}.
+     * Clears the remote task client previously set via {@link #setRemoteTaskClient(Executor,
+     * RemoteTaskClientCallback)}.
      *
      * <p>After the remote task client is cleared, all tasks associated with the previous client
      * will not be delivered and the client must not call {@code reportRemoteTaskDone} with the

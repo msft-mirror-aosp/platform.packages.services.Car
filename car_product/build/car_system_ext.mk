@@ -36,6 +36,14 @@ PRODUCT_SYSTEM_EXT_PROPERTIES += \
 
 # More configurations for AOSP cars
 PRODUCT_SYSTEM_EXT_PROPERTIES += \
+    keyguard.no_require_sim=true \
     ro.carrier=unknown \
     ro.com.android.dataroaming?=true \
-    keyguard.no_require_sim=true \
+    ro.hardware.type=automotive \
+
+ifeq ($(ENABLE_EVS_SAMPLE), true)
+# ENABLE_EVS_SAMPLE should set be true or their vendor specific equivalents should be included in
+# the device.mk with the corresponding selinux policies
+PRODUCT_PACKAGES += evs_app cardisplayproxyd
+include packages/services/Car/cpp/evs/apps/sepolicy/evsapp.mk
+endif  # ENABLE_EVS_SAMPLE

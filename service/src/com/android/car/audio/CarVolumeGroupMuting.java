@@ -167,7 +167,7 @@ final class CarVolumeGroupMuting {
 
         List<String> mutedDevices = new ArrayList<>();
         List<String> unMutedDevices = new ArrayList<>();
-        CarVolumeGroup[] groups = audioZone.getVolumeGroups();
+        CarVolumeGroup[] groups = audioZone.getCurrentVolumeGroups();
 
         for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
             CarVolumeGroup group = groups[groupIndex];

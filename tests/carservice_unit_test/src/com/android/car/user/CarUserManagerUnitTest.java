@@ -44,11 +44,13 @@ import android.car.ICarUserService;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.util.UserTestingHelper;
 import android.car.user.CarUserManager;
+import android.car.user.CarUserManager.UserHandleSwitchUiCallback;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.CarUserManager.UserSwitchUiCallback;
 import android.car.user.UserCreationResult;
 import android.car.user.UserIdentificationAssociationResponse;
 import android.car.user.UserLifecycleEventFilter;
+import android.car.user.UserRemovalRequest;
 import android.car.user.UserRemovalResult;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AndroidFuture;
@@ -62,6 +64,8 @@ import android.hardware.automotive.vehicle.UserIdentificationAssociationValue;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+
+import com.android.car.internal.ResultCallbackImpl;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -356,6 +360,16 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     public void testRemoveUser_success() throws Exception {
         expectServiceRemoveUserSucceeds(100);
 
+        mMgr.removeUser(new UserRemovalRequest.Builder(
+                UserHandle.of(100)).build(), Runnable::run, response ->
+                assertThat(response.getStatus()).isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL)
+        );
+    }
+
+    @Test
+    public void testRemoveUserId_success() throws Exception {
+        expectServiceRemoveUserSucceeds(100);
+
         UserRemovalResult result = mMgr.removeUser(100);
 
         assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_SUCCESSFUL);
@@ -363,6 +377,17 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
 
     @Test
     public void testRemoveUser_remoteException() throws Exception {
+        doThrow(new RemoteException("D'OH!")).when(mService).removeUser(eq(100), any());
+        mockHandleRemoteExceptionFromCarServiceWithDefaultValue(mCar);
+
+        mMgr.removeUser(new UserRemovalRequest.Builder(
+                UserHandle.of(100)).build(), Runnable::run, response ->
+                assertThat(response.getStatus()).isEqualTo(UserRemovalResult.STATUS_ANDROID_FAILURE)
+        );
+    }
+
+    @Test
+    public void testRemoveUserId_remoteException() throws Exception {
         doThrow(new RemoteException("D'OH!")).when(mService).removeUser(eq(100), any());
         mockHandleRemoteExceptionFromCarServiceWithDefaultValue(mCar);
 
@@ -375,14 +400,24 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     public void testRemoveUser_runtimeException() throws Exception {
         doThrow(new RuntimeException("D'OH!")).when(mService).removeUser(eq(100), any());
 
+        mMgr.removeUser(new UserRemovalRequest.Builder(
+                UserHandle.of(100)).build(), Runnable::run, response ->
+                assertThat(response.getStatus()).isEqualTo(UserRemovalResult.STATUS_ANDROID_FAILURE)
+        );
+    }
+
+    @Test
+    public void testRemoveUserId_runtimeException() throws Exception {
+        doThrow(new RuntimeException("D'OH!")).when(mService).removeUser(eq(100), any());
+
         UserRemovalResult result = mMgr.removeUser(100);
 
         assertThat(result.getStatus()).isEqualTo(UserRemovalResult.STATUS_ANDROID_FAILURE);
     }
 
     @Test
-    public void testSetSwitchUserUICallback_success() throws Exception {
-        UserSwitchUiCallback callback = (u)-> { };
+    public void testSetSwitchUserIdUICallback_success() throws Exception {
+        UserSwitchUiCallback callback = (u)-> {};
 
         mMgr.setUserSwitchUiCallback(callback);
 
@@ -392,6 +427,15 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     @Test
     public void testSetSwitchUserUICallback_nullCallback() throws Exception {
         assertThrows(IllegalArgumentException.class, () -> mMgr.setUserSwitchUiCallback(null));
+    }
+
+    @Test
+    public void testSetSwitchUserUICallback_success() throws Exception {
+        UserHandleSwitchUiCallback callback = (u)-> {};
+
+        mMgr.setUserSwitchUiCallback(Runnable::run, callback);
+
+        verify(mService).setUserSwitchUiCallback(any());
     }
 
     @Test
@@ -473,13 +517,6 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getErrorMessage()).isNull();
         assertThat(result.getUser()).isNull();
-    }
-
-    @Test
-    public void testUpdatedPreCreatedUser_success() throws Exception {
-        mMgr.updatePreCreatedUsers();
-
-        verify(mService).updatePreCreatedUsers();
     }
 
     @Test
@@ -684,9 +721,10 @@ public final class CarUserManagerUnitTest extends AbstractExtendedMockitoTestCas
     private void expectServiceRemoveUserSucceeds(@UserIdInt int userId) throws RemoteException {
         doAnswer((invocation) -> {
             @SuppressWarnings("unchecked")
-            AndroidFuture<UserRemovalResult> future =
-                    (AndroidFuture<UserRemovalResult>) invocation.getArguments()[1];
-            future.complete(new UserRemovalResult(UserRemovalResult.STATUS_SUCCESSFUL));
+            ResultCallbackImpl<UserRemovalResult> resultResultCallbackImpl =
+                    (ResultCallbackImpl<UserRemovalResult>) invocation.getArguments()[1];
+            resultResultCallbackImpl.complete(
+                    new UserRemovalResult(UserRemovalResult.STATUS_SUCCESSFUL));
             return null;
         }).when(mService).removeUser(eq(userId), notNull());
     }

@@ -29,7 +29,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * User remove result.
+ * User stop result.
  *
  * @hide
  */
@@ -203,7 +203,6 @@ public final class UserStopResult implements Parcelable, OperationResult {
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }

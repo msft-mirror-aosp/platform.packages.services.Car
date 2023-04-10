@@ -80,6 +80,7 @@ import com.android.car.oem.CarOemProxyService;
 import com.android.car.os.CarPerformanceService;
 import com.android.car.pm.CarPackageManagerService;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.remoteaccess.CarRemoteAccessService;
 import com.android.car.stats.CarStatsService;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.telemetry.CarTelemetryService;
@@ -161,6 +162,7 @@ public class ICarImpl extends ICar.Stub {
     private final CarTelemetryService mCarTelemetryService;
     private final CarActivityService mCarActivityService;
     private final CarOccupantConnectionService mCarOccupantConnectionService;
+    private final CarRemoteAccessService mCarRemoteAccessService;
 
     private final CarSystemService[] mAllServices;
 
@@ -223,8 +225,11 @@ public class ICarImpl extends ICar.Stub {
                 () -> new VehicleHal(serviceContext, vehicle), allServices);
 
         t.traceBegin("VHAL.earlyInit");
-        // Do this before any other service components to allow feature check. It should work
-        // even without init. For that, vhal get is retried as it can be too early.
+        if (false) {
+            // TODO(b/273370593): Disabled to stablize tests
+            mHal.priorityInit();
+        }
+
         HalPropValue disabledOptionalFeatureValue = mHal.getIfSupportedOrFailForEarlyStage(
                 VehicleProperty.DISABLED_OPTIONAL_FEATURES, INITIAL_VHAL_GET_RETRY);
         t.traceEnd();
@@ -263,22 +268,28 @@ public class ICarImpl extends ICar.Stub {
         mCarPackageManagerService = constructWithTrace(t, CarPackageManagerService.class,
                 () -> new CarPackageManagerService(serviceContext, mCarUXRestrictionsService,
                         mCarActivityService, mCarOccupantZoneService), allServices);
+        UserManager userManager = serviceContext.getSystemService(UserManager.class);
         if (carUserService != null) {
             mCarUserService = carUserService;
             CarLocalServices.addService(CarUserService.class, carUserService);
             allServices.add(mCarUserService);
         } else {
-            UserManager userManager = serviceContext.getSystemService(UserManager.class);
             int maxRunningUsers = UserManagerHelper.getMaxRunningUsers(serviceContext);
             mCarUserService = constructWithTrace(t, CarUserService.class,
                     () -> new CarUserService(serviceContext, mHal.getUserHal(), userManager,
                             maxRunningUsers, mCarUXRestrictionsService, mCarPackageManagerService),
                     allServices);
         }
+
+        if (false) {
+            // TODO(b/273370593): Disabled to stablize tests
+            mCarUserService.priorityInit();
+        }
+
         if (mFeatureController.isFeatureEnabled(Car.EXPERIMENTAL_CAR_USER_SERVICE)) {
             mExperimentalCarUserService = constructWithTrace(t, ExperimentalCarUserService.class,
                     () -> new ExperimentalCarUserService(serviceContext, mCarUserService,
-                            serviceContext.getSystemService(UserManager.class)), allServices);
+                            userManager), allServices);
         } else {
             mExperimentalCarUserService = null;
         }
@@ -310,8 +321,8 @@ public class ICarImpl extends ICar.Stub {
                 allServices);
         mCarInputService = constructWithTrace(t, CarInputService.class,
                 () -> new CarInputService(serviceContext, mHal.getInputHal(), mCarUserService,
-                        mCarOccupantZoneService, mCarBluetoothService, mCarPowerManagementService),
-                        allServices);
+                        mCarOccupantZoneService, mCarBluetoothService, mCarPowerManagementService,
+                        mSystemInterface, userManager), allServices);
         mCarProjectionService = constructWithTrace(t, CarProjectionService.class,
                 () -> new CarProjectionService(serviceContext, null /* handler */, mCarInputService,
                         mCarBluetoothService), allServices);
@@ -430,6 +441,14 @@ public class ICarImpl extends ICar.Stub {
             mCarTelemetryService = null;
         }
 
+        if (mFeatureController.isFeatureEnabled((Car.CAR_REMOTE_ACCESS_SERVICE))) {
+            mCarRemoteAccessService = constructWithTrace(t, CarRemoteAccessService.class,
+                    () -> new CarRemoteAccessService(
+                            serviceContext, systemInterface, mHal.getPowerHal()), allServices);
+        } else {
+            mCarRemoteAccessService = null;
+        }
+
         // Always put mCarExperimentalFeatureServiceController in last.
         if (!BuildHelper.isUserBuild()) {
             mCarExperimentalFeatureServiceController = constructWithTrace(
@@ -444,7 +463,8 @@ public class ICarImpl extends ICar.Stub {
                 || mFeatureController.isFeatureEnabled(Car.CAR_REMOTE_DEVICE_SERVICE)) {
             mCarOccupantConnectionService = constructWithTrace(
                     t, CarOccupantConnectionService.class,
-                    () -> new CarOccupantConnectionService(serviceContext),
+                    () -> new CarOccupantConnectionService(serviceContext, mCarOccupantZoneService,
+                            mCarPowerManagementService),
                     allServices);
         } else {
             mCarOccupantConnectionService = null;
@@ -651,6 +671,8 @@ public class ICarImpl extends ICar.Stub {
                 return mCarOccupantConnectionService;
             case Car.CAR_REMOTE_DEVICE_SERVICE:
                 return mCarOccupantConnectionService;
+            case Car.CAR_REMOTE_ACCESS_SERVICE:
+                return mCarRemoteAccessService;
             default:
                 IBinder service = null;
                 if (mCarExperimentalFeatureServiceController != null) {

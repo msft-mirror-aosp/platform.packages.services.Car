@@ -21,15 +21,19 @@ import static android.car.test.mocks.AndroidMockitoHelper.mockContextCreateConte
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static android.os.Process.INVALID_UID;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.ActivityManager;
+import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.content.ComponentName;
@@ -60,6 +64,8 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
     private static final int CURRENT_USER_ID = 1000;
     private static final int NON_CURRENT_USER_ID = 1001;
     private static final String TAG = CarServiceUtilsTest.class.getSimpleName();
+    private static final String KEY_ALIAS_CAR_SERVICE_UTILS_TEST =
+            "KEY_ALIAS_CAR_SERVICE_UTILS_TEST";
 
     private static final UserLifecycleEvent USER_STARTING_EVENT =
             new UserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, 111);
@@ -78,7 +84,7 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        session.spyStatic(ActivityManager.class);
+        session.spyStatic(ActivityManager.class).spyStatic(PackageManagerHelper.class);
     }
 
     @Before
@@ -281,10 +287,10 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testCheckCalledByPackage_nullPackages() {
+    public void testCheckCalledByPackage_isNotOwner() throws Exception {
         String packageName = "Bond.James.Bond";
         int myUid = Process.myUid();
-        // Don't need to mock pm call, it will return null
+        when(mPm.getPackageUidAsUser(eq(packageName), anyInt())).thenReturn(INVALID_UID);
 
         SecurityException e = assertThrows(SecurityException.class,
                 () -> CarServiceUtils.checkCalledByPackage(mContext, packageName));
@@ -295,45 +301,120 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testCheckCalledByPackage_emptyPackages() {
+    public void testCheckCalledByPackage_isOwner() throws Exception {
         String packageName = "Bond.James.Bond";
         int myUid = Process.myUid();
-        when(mPm.getPackagesForUid(myUid)).thenReturn(new String[] {});
-
-        // Don't need to mock pm call, it will return null
-
-        SecurityException e = assertThrows(SecurityException.class,
-                () -> CarServiceUtils.checkCalledByPackage(mContext, packageName));
-
-        String msg = e.getMessage();
-        expectWithMessage("exception message (pkg)").that(msg).contains(packageName);
-        expectWithMessage("exception message (uid)").that(msg).contains(String.valueOf(myUid));
-    }
-
-    @Test
-    public void testCheckCalledByPackage_wrongPackages() {
-        String packageName = "Bond.James.Bond";
-        int myUid = Process.myUid();
-        when(mPm.getPackagesForUid(myUid)).thenReturn(new String[] {"Bond, James Bond"});
-
-        SecurityException e = assertThrows(SecurityException.class,
-                () -> CarServiceUtils.checkCalledByPackage(mContext, packageName));
-
-        String msg = e.getMessage();
-        expectWithMessage("exception message (pkg)").that(msg).contains(packageName);
-        expectWithMessage("exception message (uid)").that(msg).contains(String.valueOf(myUid));
-    }
-
-    @Test
-    public void testCheckCalledByPackage_ok() {
-        String packageName = "Bond.James.Bond";
-        int myUid = Process.myUid();
-        when(mPm.getPackagesForUid(myUid)).thenReturn(new String[] {
-                "Bond, James Bond", packageName, "gold.finger"
-        });
+        when(mPm.getPackageUidAsUser(eq(packageName), anyInt())).thenReturn(myUid);
 
         CarServiceUtils.checkCalledByPackage(mContext, packageName);
 
         // No need to assert, test would fail if it threw
+    }
+
+    @Test
+    public void toIntArraySet() {
+        int[] values = {1, 2, 3};
+
+        expectWithMessage("Converted int array set").that(CarServiceUtils.toIntArraySet(values))
+                .containsExactly(1, 2, 3);
+    }
+
+    @Test
+    public void toIntArraySet_withNullValues_fails() {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+                CarServiceUtils.toIntArraySet(/* values= */ null)
+        );
+
+        expectWithMessage("Null values exception").that(thrown).hasMessageThat()
+                .contains("Values to convert to array set");
+    }
+
+    @Test
+    public void asList() {
+        int[] values = {1, 2, 3};
+
+        expectWithMessage("Converted int array list").that(CarServiceUtils.asList(values))
+                .containsExactly(1, 2, 3).inOrder();
+    }
+
+    @Test
+    public void asList_withNullValues_fails() {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+                CarServiceUtils.asList(/* array= */ null)
+        );
+
+        expectWithMessage("Null array exception").that(thrown).hasMessageThat()
+                .contains("Array to convert to list");
+    }
+
+    @Test
+    public void testEncryptDecryptData() {
+        String input = "test string";
+        byte[] inputBytes = input.getBytes();
+        CarServiceUtils.EncryptedData data = CarServiceUtils.encryptData(inputBytes,
+                KEY_ALIAS_CAR_SERVICE_UTILS_TEST);
+
+        expectWithMessage("Expected data").that(data).isNotNull();
+        expectWithMessage("Encrypted text").that(data.getEncryptedData()).isNotEqualTo(inputBytes);
+
+        byte[] decryptedData = CarServiceUtils.decryptData(data, KEY_ALIAS_CAR_SERVICE_UTILS_TEST);
+
+        expectWithMessage("Expected decrypted data").that(decryptedData).isNotNull();
+        expectWithMessage("Decrypted text").that(decryptedData).isEqualTo(inputBytes);
+    }
+
+    @Test
+    public void testEncryptData_sameDataDifferentIv() {
+        String input = "test string";
+        byte[] inputBytes = input.getBytes();
+
+        CarServiceUtils.EncryptedData dataOne = CarServiceUtils.encryptData(inputBytes,
+                KEY_ALIAS_CAR_SERVICE_UTILS_TEST);
+        CarServiceUtils.EncryptedData dataTwo = CarServiceUtils.encryptData(inputBytes,
+                KEY_ALIAS_CAR_SERVICE_UTILS_TEST);
+
+        expectWithMessage("Encrypted text").that(dataOne.getEncryptedData())
+                .isNotEqualTo(dataTwo.getEncryptedData());
+        expectWithMessage("Initialization vendor").that(dataOne.getIv())
+                .isNotEqualTo(dataTwo.getIv());
+    }
+
+    @Test
+    public void testEncryptedDataEquals() {
+        byte[] dataOne = new byte[]{'1', '2', '3', '4'};
+        byte[] dataTwo = new byte[]{'1', '2', '3', '4'};
+        byte[] ivOne = new byte[]{'9', '8', '7'};
+        byte[] ivTwo = new byte[]{'9', '8', '7'};
+
+        CarServiceUtils.EncryptedData one = new CarServiceUtils.EncryptedData(dataOne, ivOne);
+        CarServiceUtils.EncryptedData two = new CarServiceUtils.EncryptedData(dataTwo, ivTwo);
+
+        expectWithMessage("The same encrypted data").that(one).isEqualTo(two);
+    }
+
+    @Test
+    public void testEncryptedDataEquals_notEqualData() {
+        byte[] dataOne = new byte[]{'1', '2', '3', '4'};
+        byte[] dataTwo = new byte[]{'5', '6', '7', '8'};
+        byte[] ivOne = new byte[]{'9', '8', '7'};
+        byte[] ivTwo = new byte[]{'9', '8', '7'};
+
+        CarServiceUtils.EncryptedData one = new CarServiceUtils.EncryptedData(dataOne, ivOne);
+        CarServiceUtils.EncryptedData two = new CarServiceUtils.EncryptedData(dataTwo, ivTwo);
+
+        expectWithMessage("The same encrypted data").that(one).isNotEqualTo(two);
+    }
+
+    @Test
+    public void testEncryptedDataEquals_notEqualIv() {
+        byte[] dataOne = new byte[]{'1', '2', '3', '4'};
+        byte[] dataTwo = new byte[]{'1', '2', '3', '4'};
+        byte[] ivOne = new byte[]{'9', '8', '7'};
+        byte[] ivTwo = new byte[]{'0', 'A', 'V'};
+
+        CarServiceUtils.EncryptedData one = new CarServiceUtils.EncryptedData(dataOne, ivOne);
+        CarServiceUtils.EncryptedData two = new CarServiceUtils.EncryptedData(dataTwo, ivTwo);
+
+        expectWithMessage("The same encrypted data").that(one).isNotEqualTo(two);
     }
 }

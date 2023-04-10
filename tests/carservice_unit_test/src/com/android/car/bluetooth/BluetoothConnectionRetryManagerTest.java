@@ -37,15 +37,12 @@ import android.os.RemoteException;
 import android.os.SystemClock;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.filters.FlakyTest;
 import androidx.test.filters.RequiresDevice;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Arrays;
 import java.util.List;
@@ -56,11 +53,7 @@ import java.util.List;
  * Run:
  * atest BluetoothConnectionRetryManagerTest
  */
-// TODO(b/261724684): Remove the {@link FlakyTest} annotation once the test is fixed to safely
-//  remove the looper messages before exiting the test.
-@FlakyTest
 @RequiresDevice
-@RunWith(MockitoJUnitRunner.class)
 public class BluetoothConnectionRetryManagerTest
         extends AbstractExtendedMockitoBluetoothTestCase {
     private static final String TAG = BluetoothConnectionRetryManagerTest.class.getSimpleName();

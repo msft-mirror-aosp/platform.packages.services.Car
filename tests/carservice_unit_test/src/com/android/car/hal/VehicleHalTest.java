@@ -25,6 +25,7 @@ import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -104,6 +105,7 @@ public class VehicleHalTest {
     @Mock private TimeHalService mTimeHalService;
     @Mock private VehicleStub mVehicle;
     @Mock private VehicleStub.VehicleStubCallbackInterface mGetVehicleStubAsyncCallback;
+    @Mock private VehicleStub.VehicleStubCallbackInterface mSetVehicleStubAsyncCallback;
     @Mock private VehicleStub.SubscriptionClient mSubscriptionClient;
 
     private final HandlerThread mHandlerThread = CarServiceUtils.getHandlerThread(
@@ -117,6 +119,8 @@ public class VehicleHalTest {
             new AsyncGetSetRequest(REQUEST_ID_1, mHalPropValue, /* timeoutInMs= */ 0);
     private final AsyncGetSetRequest mGetVehicleRequest2 =
             new AsyncGetSetRequest(REQUEST_ID_2, mHalPropValue, /* timeoutInMs= */ 0);
+    private final AsyncGetSetRequest mSetVehicleRequest =
+            new AsyncGetSetRequest(REQUEST_ID_1, mHalPropValue, /* timeoutInMs= */ 0);
 
     @Rule public final TestName mTestName = new TestName();
 
@@ -233,6 +237,17 @@ public class VehicleHalTest {
         assertThat(captor.getValue().get(0).getHalPropValue()).isEqualTo(mHalPropValue);
         assertThat(captor.getValue().get(1).getServiceRequestId()).isEqualTo(REQUEST_ID_2);
         assertThat(captor.getValue().get(1).getHalPropValue()).isEqualTo(mHalPropValue);
+    }
+
+    @Test
+    public void testSetAsync() {
+        mVehicleHal.setAsync(List.of(mSetVehicleRequest), mSetVehicleStubAsyncCallback);
+
+        ArgumentCaptor<List<AsyncGetSetRequest>> captor = ArgumentCaptor.forClass(List.class);
+        verify(mVehicle).setAsync(captor.capture(),
+                any(VehicleStub.VehicleStubCallbackInterface.class));
+        assertThat(captor.getValue().get(0).getServiceRequestId()).isEqualTo(REQUEST_ID_1);
+        assertThat(captor.getValue().get(0).getHalPropValue()).isEqualTo(mHalPropValue);
     }
 
     @Test
@@ -581,6 +596,21 @@ public class VehicleHalTest {
                 mPowerHalService, SOME_READ_WRITE_STATIC_PROPERTY, ANY_SAMPLING_RATE);
 
         // Assert
+        verify(mSubscriptionClient, never()).subscribe(any());
+    }
+
+    @Test
+    public void testSubscribeProperty_subscribeSameSampleRate_ignored() throws Exception {
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE);
+
+        verify(mSubscriptionClient).subscribe(any());
+        clearInvocations(mSubscriptionClient);
+
+        // Subscribe the same property with same sample rate must be ignored.
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE);
+
         verify(mSubscriptionClient, never()).subscribe(any());
     }
 

@@ -18,6 +18,7 @@ package com.android.car.hal;
 import static android.hardware.automotive.vehicle.VehicleProperty.AP_POWER_STATE_REPORT;
 import static android.hardware.automotive.vehicle.VehicleProperty.AP_POWER_STATE_REQ;
 import static android.hardware.automotive.vehicle.VehicleProperty.DISPLAY_BRIGHTNESS;
+import static android.hardware.automotive.vehicle.VehicleProperty.VEHICLE_IN_USE;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
@@ -30,6 +31,7 @@ import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReqIndex;
 import android.hardware.automotive.vehicle.VehicleApPowerStateShutdownParam;
 import android.hardware.automotive.vehicle.VehicleProperty;
+import android.hardware.automotive.vehicle.VehiclePropertyStatus;
 import android.os.ServiceSpecificException;
 import android.util.SparseArray;
 
@@ -57,7 +59,8 @@ public class PowerHalService extends HalServiceBase {
     private static final int[] SUPPORTED_PROPERTIES = new int[]{
             AP_POWER_STATE_REQ,
             AP_POWER_STATE_REPORT,
-            DISPLAY_BRIGHTNESS
+            DISPLAY_BRIGHTNESS,
+            VEHICLE_IN_USE,
     };
 
     @VisibleForTesting
@@ -387,6 +390,38 @@ public class PowerHalService extends HalServiceBase {
         }
     }
 
+    /**
+     * Sends {@code SHUTDOWN_REQUEST} to the VHAL.
+     */
+    public void requestShutdownAp(@PowerState.ShutdownType int powerState, boolean runGarageMode) {
+        int shutdownParam = VehicleApPowerStateShutdownParam.SHUTDOWN_IMMEDIATELY;
+        switch (powerState) {
+            case PowerState.SHUTDOWN_TYPE_POWER_OFF:
+                shutdownParam = runGarageMode ? VehicleApPowerStateShutdownParam.SHUTDOWN_ONLY
+                        : VehicleApPowerStateShutdownParam.SHUTDOWN_IMMEDIATELY;
+                break;
+            case PowerState.SHUTDOWN_TYPE_DEEP_SLEEP:
+                shutdownParam = runGarageMode ? VehicleApPowerStateShutdownParam.CAN_SLEEP
+                        : VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY;
+                break;
+            case PowerState.SHUTDOWN_TYPE_HIBERNATION:
+                shutdownParam = runGarageMode ? VehicleApPowerStateShutdownParam.CAN_HIBERNATE
+                        : VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY;
+                break;
+            case PowerState.SHUTDOWN_TYPE_UNDEFINED:
+            default:
+                Slogf.w(CarLog.TAG_POWER, "Unknown power state(%d) for requestShutdownAp",
+                        powerState);
+                return;
+        }
+
+        try {
+            mHal.set(VehicleProperty.SHUTDOWN_REQUEST, /* areaId= */ 0).to(shutdownParam);
+        } catch (ServiceSpecificException | IllegalArgumentException e) {
+            Slogf.e(CarLog.TAG_POWER, "cannot send SHUTDOWN_REQUEST to VHAL", e);
+        }
+    }
+
     private void setPowerState(int state, int additionalParam) {
         if (isPowerStateSupported()) {
             int[] values = { state, additionalParam };
@@ -424,6 +459,23 @@ public class PowerHalService extends HalServiceBase {
         synchronized (mLock) {
             return (mProperties.get(VehicleProperty.AP_POWER_STATE_REQ) != null)
                     && (mProperties.get(VehicleProperty.AP_POWER_STATE_REPORT) != null);
+        }
+    }
+
+    /**
+     * Returns if the vehicle is currently in use.
+     *
+     * In use means a human user is present in the vehicle and is currently using the vehicle or
+     * will use the vehicle soon.
+     */
+    public boolean isVehicleInUse() {
+        try {
+            HalPropValue value = mHal.get(VEHICLE_IN_USE);
+            return (value.getStatus() == VehiclePropertyStatus.AVAILABLE
+                    && value.getInt32ValuesSize() >= 1 && value.getInt32Value(0) != 0);
+        } catch (ServiceSpecificException | IllegalArgumentException e) {
+            Slogf.w(CarLog.TAG_POWER, "Failed to get VEHICLE_IN_USE value", e);
+            return false;
         }
     }
 

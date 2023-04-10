@@ -26,15 +26,15 @@ import android.car.VehiclePropertyType;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
-import android.car.hardware.property.CarPropertyManager;
-import android.car.hardware.property.GetPropertyServiceRequest;
-import android.car.hardware.property.GetValueResult;
 import android.car.hardware.property.ICarProperty;
 import android.car.hardware.property.ICarPropertyEventListener;
-import android.car.hardware.property.IGetAsyncPropertyResultCallback;
 import android.os.RemoteException;
 
 import com.android.car.internal.PropertyPermissionMapping;
+import com.android.car.internal.property.AsyncPropertyServiceRequest;
+import com.android.car.internal.property.CarPropertyConfigList;
+import com.android.car.internal.property.GetSetValueResult;
+import com.android.car.internal.property.IAsyncPropertyResultCallback;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -86,12 +86,12 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
     }
 
     @Override
-    public List<CarPropertyConfig> getPropertyList() throws RemoteException {
-        return new ArrayList<>(mConfigs.values());
+    public CarPropertyConfigList getPropertyList() throws RemoteException {
+        return new CarPropertyConfigList(new ArrayList<>(mConfigs.values()));
     }
 
     @Override
-    public List<CarPropertyConfig> getPropertyConfigList(int[] propIds) {
+    public CarPropertyConfigList getPropertyConfigList(int[] propIds) {
         List<CarPropertyConfig> configs = new ArrayList<>(propIds.length);
         for (int prop : propIds) {
             CarPropertyConfig cfg = mConfigs.get(prop);
@@ -99,23 +99,38 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
                 configs.add(cfg);
             }
         }
-        return configs;
+        return new CarPropertyConfigList(configs);
     }
 
     @Override
-    public void getPropertiesAsync(List<android.car.hardware.property.GetPropertyServiceRequest>
-            getPropertyServiceRequests, IGetAsyncPropertyResultCallback
-            getAsyncPropertyResultCallback,
-            long timeoutInMs) throws RemoteException {
-        List<GetValueResult> getValueResults = new ArrayList<>();
-        for (int i = 0; i < getPropertyServiceRequests.size(); i++) {
-            GetPropertyServiceRequest getPropertyServiceRequest = getPropertyServiceRequests.get(i);
-            getValueResults.add(new GetValueResult(
-                    getPropertyServiceRequest.getRequestId(),
-                    getProperty(getPropertyServiceRequest.getPropertyId(),
-                            getPropertyServiceRequest.getAreaId()), CarPropertyManager.STATUS_OK));
+    public void getPropertiesAsync(List<AsyncPropertyServiceRequest> asyncPropertyServiceRequests,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback, long timeoutInMs)
+            throws RemoteException {
+        List<GetSetValueResult> getValueResults = new ArrayList<>();
+        for (int i = 0; i < asyncPropertyServiceRequests.size(); i++) {
+            AsyncPropertyServiceRequest asyncPropertyServiceRequest =
+                    asyncPropertyServiceRequests.get(i);
+            getValueResults.add(GetSetValueResult.newGetValueResult(
+                    asyncPropertyServiceRequest.getRequestId(),
+                    getProperty(asyncPropertyServiceRequest.getPropertyId(),
+                            asyncPropertyServiceRequest.getAreaId())));
         }
-        getAsyncPropertyResultCallback.onGetValueResult(getValueResults);
+        asyncPropertyResultCallback.onGetValueResults(getValueResults);
+    }
+
+    @Override
+    public void setPropertiesAsync(List<AsyncPropertyServiceRequest> asyncPropertyServiceRequests,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback, long timeoutInMs)
+            throws RemoteException {
+        List<GetSetValueResult> setValueResults = new ArrayList<>();
+        for (int i = 0; i < asyncPropertyServiceRequests.size(); i++) {
+            AsyncPropertyServiceRequest asyncPropertyServiceRequest =
+                    asyncPropertyServiceRequests.get(i);
+            setProperty(asyncPropertyServiceRequest.getCarPropertyValue(), /* listener= */ null);
+            setValueResults.add(GetSetValueResult.newSetValueResult(
+                    asyncPropertyServiceRequest.getRequestId(), /* updateTimestampNanos= */ 0));
+        }
+        asyncPropertyResultCallback.onSetValueResults(setValueResults);
     }
 
     @Override

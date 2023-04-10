@@ -75,6 +75,9 @@ public:
     // Dumps the help text.
     virtual bool dumpHelpText(int fd) const = 0;
 
+    // Notifies that CarWatchdogService was registered
+    virtual void onCarWatchdogServiceRegistered() = 0;
+
     // Below API is from internal/ICarWatchdog.aidl. Please refer to the AIDL for description.
     virtual android::base::Result<void> updateResourceOveruseConfigurations(
             const std::vector<
@@ -84,6 +87,10 @@ public:
             std::vector<
                     aidl::android::automotive::watchdog::internal::ResourceOveruseConfiguration>*
                     configs) const = 0;
+    virtual android::base::Result<void> onTodayIoUsageStatsFetched(
+            const std::vector<
+                    aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>&
+                    userPackageIoUsageStats) = 0;
 
     // Below methods support APIs from ICarWatchdog.aidl. Please refer to the AIDL for description.
     virtual android::base::Result<void> addIoOveruseListener(
@@ -118,6 +125,8 @@ public:
         return isInitializedLocked();
     }
 
+    void onCarWatchdogServiceRegistered() override;
+
     // Below methods implement DataProcessorInterface.
     std::string name() const override { return "IoOveruseMonitor"; }
     friend std::ostream& operator<<(std::ostream& os, const IoOveruseMonitor& monitor);
@@ -130,8 +139,9 @@ public:
     android::base::Result<void> onBoottimeCollection(
             [[maybe_unused]] time_t time,
             [[maybe_unused]] const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            [[maybe_unused]] const android::wp<ProcStatCollectorInterface>& procStatCollector)
-            override {
+            [[maybe_unused]] const android::wp<ProcStatCollectorInterface>& procStatCollector,
+            [[maybe_unused]] aidl::android::automotive::watchdog::internal::ResourceStats*
+                    resourceStats) override {
         // No I/O overuse monitoring during boot-time.
         return {};
     }
@@ -158,17 +168,21 @@ public:
     android::base::Result<void> onPeriodicCollection(
             time_t time, SystemState systemState,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStatCollectorInterface>& procStatCollector) override;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector,
+            aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onCustomCollection(
             time_t time, SystemState systemState,
             const std::unordered_set<std::string>& filterPackages,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStatCollectorInterface>& procStatCollector) override;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector,
+            aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onPeriodicMonitor(
             time_t time, const android::wp<ProcDiskStatsCollectorInterface>& procDiskStatsCollector,
             const std::function<void()>& alertHandler) override;
+
+    android::base::Result<void> onResourceStatsSent(bool successful) override;
 
     android::base::Result<void> onDump(int fd) const override;
 
@@ -189,6 +203,11 @@ public:
             std::vector<
                     aidl::android::automotive::watchdog::internal::ResourceOveruseConfiguration>*
                     configs) const override;
+
+    android::base::Result<void> onTodayIoUsageStatsFetched(
+            const std::vector<
+                    aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>&
+                    userPackageIoUsageStats) override;
 
     android::base::Result<void> addIoOveruseListener(
             const std::shared_ptr<aidl::android::automotive::watchdog::IResourceOveruseListener>&
@@ -241,7 +260,7 @@ private:
 private:
     bool isInitializedLocked() const { return mIoOveruseConfigs != nullptr; }
 
-    void syncTodayIoUsageStatsLocked();
+    void requestTodayIoUsageStatsLocked();
 
     void notifyNativePackagesLocked(
             const std::unordered_map<uid_t, aidl::android::automotive::watchdog::IoOveruseStats>&

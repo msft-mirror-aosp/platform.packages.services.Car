@@ -47,6 +47,7 @@ java_sdk_library {
 
     stub_only_libs: [
         "framework-bluetooth",
+        "framework-annotations-lib",
     ],
 
     test: {
@@ -78,6 +79,14 @@ java_sdk_library {
         "//frameworks/opt/car/services/builtInServices/tests",
         "//frameworks/opt/car/services/updatableServices",
         "//frameworks/opt/car/services/updatableServices/tests",
+    ],
+
+    permitted_packages: [
+        "android.car.builtin",
+    ],
+
+    droiddoc_options: [
+       "--include-annotations --pass-through-annotation android.annotation.RequiresApi"
     ],
 
     compile_dex: true,

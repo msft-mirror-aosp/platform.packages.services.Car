@@ -16,11 +16,14 @@
 
 package com.android.car;
 
+import static com.android.car.internal.property.CarPropertyHelper.STATUS_OK;
+
 import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.util.Slogf;
 import android.car.hardware.property.CarPropertyManager;
+import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
@@ -41,6 +44,9 @@ import java.util.List;
  * underlying IVehicle service is in.
  */
 public abstract class VehicleStub {
+    private static final int SYSTEM_ERROR_CODE_MASK = 0Xffff;
+    private static final int VENDOR_ERROR_CODE_SHIFT = 16;
+
     /**
      * SubscriptionClient represents a client that could subscribe/unsubscribe to properties.
      */
@@ -70,7 +76,7 @@ public abstract class VehicleStub {
     // {@link CarPropertyAsyncErrorCode} except that it contains
     // {@code STATUS_TRY_AGAIN}.
     @IntDef(prefix = {"STATUS_"}, value = {
-            CarPropertyManager.STATUS_OK,
+            STATUS_OK,
             CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR,
             CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE,
             CarPropertyManager.STATUS_ERROR_TIMEOUT,
@@ -84,7 +90,7 @@ public abstract class VehicleStub {
     public static class AsyncGetSetRequest {
         private final int mServiceRequestId;
         private final HalPropValue mHalPropValue;
-        private final long mTimeoutInMs;
+        private final long mTimeoutUptimeMs;
 
         public int getServiceRequestId() {
             return mServiceRequestId;
@@ -94,18 +100,18 @@ public abstract class VehicleStub {
             return mHalPropValue;
         }
 
-        public long getTimeoutInMs() {
-            return mTimeoutInMs;
+        public long getTimeoutUptimeMs() {
+            return mTimeoutUptimeMs;
         }
 
         /**
          * Get an instance for AsyncGetSetRequest.
          */
         public AsyncGetSetRequest(int serviceRequestId, HalPropValue halPropValue,
-                long timeoutInMs) {
+                long timeoutUptimeMs) {
             mServiceRequestId = serviceRequestId;
             mHalPropValue = halPropValue;
-            mTimeoutInMs = timeoutInMs;
+            mTimeoutUptimeMs = timeoutUptimeMs;
         }
     }
 
@@ -139,7 +145,7 @@ public abstract class VehicleStub {
         public GetVehicleStubAsyncResult(int serviceRequestId, HalPropValue halPropValue) {
             mServiceRequestId = serviceRequestId;
             mHalPropValue = halPropValue;
-            mErrorCode = CarPropertyManager.STATUS_OK;
+            mErrorCode = STATUS_OK;
         }
 
         /**
@@ -175,7 +181,7 @@ public abstract class VehicleStub {
          */
         public SetVehicleStubAsyncResult(int serviceRequestId) {
             mServiceRequestId = serviceRequestId;
-            mErrorCode = CarPropertyManager.STATUS_OK;
+            mErrorCode = STATUS_OK;
         }
 
         /**
@@ -377,4 +383,29 @@ public abstract class VehicleStub {
      * @param requestIds a list of async get/set request IDs.
      */
     public void cancelRequests(List<Integer> requestIds) {}
+
+    protected static int convertHalToCarPropertyManagerError(int errorCode) {
+        int systemErrorCode = errorCode & SYSTEM_ERROR_CODE_MASK;
+        int vendorErrorCode = errorCode >>> VENDOR_ERROR_CODE_SHIFT;
+        int carPropMgrErrorCode = 0;
+        switch (systemErrorCode) {
+            case StatusCode.OK:
+                return STATUS_OK;
+            case StatusCode.NOT_AVAILABLE: // Fallthrough
+            case StatusCode.NOT_AVAILABLE_DISABLED: // Fallthrough
+            case StatusCode.NOT_AVAILABLE_SPEED_LOW: // Fallthrough
+            case StatusCode.NOT_AVAILABLE_SPEED_HIGH: // Fallthrough
+            case StatusCode.NOT_AVAILABLE_POOR_VISIBILITY: // Fallthrough
+            case StatusCode.NOT_AVAILABLE_SAFETY:
+                carPropMgrErrorCode = CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE;
+                break;
+            case StatusCode.TRY_AGAIN:
+                carPropMgrErrorCode = STATUS_TRY_AGAIN;
+                break;
+            default:
+                carPropMgrErrorCode = CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR;
+                break;
+        }
+        return carPropMgrErrorCode | (vendorErrorCode << VENDOR_ERROR_CODE_SHIFT);
+    }
 }

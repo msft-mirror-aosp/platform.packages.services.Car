@@ -40,6 +40,7 @@ using ::aidl::android::automotive::watchdog::internal::ProcessIdentifier;
 using ::aidl::android::automotive::watchdog::internal::ResourceOveruseConfiguration;
 using ::aidl::android::automotive::watchdog::internal::StateType;
 using ::aidl::android::automotive::watchdog::internal::ThreadPolicyWithPriority;
+using ::aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats;
 using ::aidl::android::automotive::watchdog::internal::UserState;
 using ::android::sp;
 using ::android::String16;
@@ -198,7 +199,11 @@ ScopedAStatus WatchdogInternalHandler::registerCarWatchdogService(
      * overuse monitor on processing the request to register CarService.
      */
     checkAndRegisterIoOveruseMonitor();
-    return mWatchdogServiceHelper->registerService(service);
+    auto status = mWatchdogServiceHelper->registerService(service);
+    if (status.isOk()) {
+        mIoOveruseMonitor->onCarWatchdogServiceRegistered();
+    }
+    return status;
 }
 
 ScopedAStatus WatchdogInternalHandler::unregisterCarWatchdogService(
@@ -422,9 +427,30 @@ ScopedAStatus WatchdogInternalHandler::getThreadPriority(
     return ScopedAStatus::ok();
 }
 
+ScopedAStatus WatchdogInternalHandler::onAidlVhalPidFetched(int pid) {
+    if (auto status = checkSystemUser(/*methodName=*/"onAidlVhalPidFetched"); !status.isOk()) {
+        return status;
+    }
+    mWatchdogProcessService->onAidlVhalPidFetched(pid);
+    return ScopedAStatus::ok();
+}
+
 void WatchdogInternalHandler::setThreadPriorityController(
         std::unique_ptr<ThreadPriorityControllerInterface> threadPriorityController) {
     mThreadPriorityController = std::move(threadPriorityController);
+}
+
+ScopedAStatus WatchdogInternalHandler::onTodayIoUsageStatsFetched(
+        const std::vector<UserPackageIoUsageStats>& userPackageIoUsageStats) {
+    if (auto status = checkSystemUser(/*methodName=*/"onTodayIoUsageStatsFetched");
+        !status.isOk()) {
+        return status;
+    }
+    if (auto result = mIoOveruseMonitor->onTodayIoUsageStatsFetched(userPackageIoUsageStats);
+        !result.ok()) {
+        return toScopedAStatus(result);
+    }
+    return ScopedAStatus::ok();
 }
 
 }  // namespace watchdog

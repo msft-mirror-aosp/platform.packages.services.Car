@@ -2,6 +2,7 @@ android.car.builtin.CarBuiltin
 android.car.builtin.PermissionHelper
 android.car.builtin.app.ActivityManagerHelper
 android.car.builtin.app.ActivityManagerHelper$ProcessObserverCallback
+android.car.builtin.app.AppOpsManagerHelper
 android.car.builtin.app.KeyguardManagerHelper
 android.car.builtin.app.TaskInfoHelper
 android.car.builtin.app.VoiceInteractionHelper
@@ -37,10 +38,14 @@ android.car.builtin.util.EventLogHelper
 android.car.builtin.util.Slogf
 android.car.builtin.util.TimeUtils
 android.car.builtin.util.TimingsTraceLog
+android.car.builtin.util.UsageStatsManagerHelper
 android.car.builtin.util.ValidationHelper
 android.car.builtin.view.DisplayHelper
 android.car.builtin.view.InputEventHelper
 android.car.builtin.view.KeyEventHelper
 android.car.builtin.view.SurfaceControlHelper
+android.car.builtin.view.TouchableInsetsProvider
+android.car.builtin.view.ViewHelper
 android.car.builtin.widget.LockPatternHelper
 android.car.builtin.window.DisplayAreaOrganizerHelper
+android.car.builtin.window.WindowManagerHelper
