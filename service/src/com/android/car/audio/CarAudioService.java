@@ -124,6 +124,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.annotation.AttributeUsage;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.internal.util.VersionUtils;
 import com.android.car.oem.CarOemProxyService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -573,7 +574,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             case AUDIO_FEATURE_VOLUME_GROUP_MUTING:
                 return mUseCarVolumeGroupMuting;
             case AUDIO_FEATURE_OEM_AUDIO_SERVICE:
-                return isAnyOemFeatureEnabled();
+                return VersionUtils.isPlatformVersionAtLeastU()
+                        ? isAnyOemFeatureEnabled() : false;
             case AUDIO_FEATURE_VOLUME_GROUP_EVENTS:
                 return mUseCarVolumeGroupEvents;
             case AUDIO_FEATURE_AUDIO_MIRRORING:
@@ -1168,14 +1170,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         synchronized (mImplLock) {
             List<AudioFocusStackRequest> mediaFocusStacks = new ArrayList<>();
             t.traceBegin("audio-mirror-focus-loss-" + Arrays.toString(audioZoneIdsToAdd));
-            for (int index = 0; index < audioZoneIdsToAdd.length; index++) {
-                int zoneId = audioZoneIdsToAdd[index];
-                int userId = getUserIdForZone(zoneId);
-                t.traceBegin("audio-mirror-focus-loss-zone-" + zoneId);
-                mediaFocusStacks.add(new AudioFocusStackRequest(mFocusHandler
-                        .transientlyLoseMediaAudioFocusForUser(userId, zoneId), zoneId));
-                t.traceEnd();
-            }
+            transientlyLoseFocusForMirrorLocked(audioZoneIdsToAdd, t, mediaFocusStacks);
             t.traceEnd();
 
             t.traceBegin("audio-mirror-routing-" + Arrays.toString(audioZoneIdsToAdd));
@@ -1231,6 +1226,18 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         int contextForUsage = getCarAudioContext()
                 .getContextForAudioAttribute(CarAudioContext.getAudioAttributeFromUsage(usage));
         return getCarAudioZone(zoneId).getAddressForContext(contextForUsage);
+    }
+
+    @GuardedBy("mImplLock")
+    private void transientlyLoseFocusForMirrorLocked(int[] audioZoneIdsToAdd,
+            TimingsTraceLog traceLog, List<AudioFocusStackRequest> mediaFocusStacks) {
+        for (int index = 0; index < audioZoneIdsToAdd.length; index++) {
+            int zoneId = audioZoneIdsToAdd[index];
+            traceLog.traceBegin("audio-mirror-focus-loss-zone-" + zoneId);
+            mediaFocusStacks.add(new AudioFocusStackRequest(mFocusHandler
+                    .transientlyLoseAudioFocusForZone(zoneId), zoneId));
+            traceLog.traceEnd();
+        }
     }
 
     private void handleDisableAudioMirrorForZonesInConfig(int[] audioZoneIds, long requestId) {
@@ -1300,10 +1307,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                     newFocusZoneId = zoneId;
                     zonesToUndoRouting.add(zoneId);
                 }
-                int userId = getUserIdForZone(zoneId);
                 t.traceBegin("audio-remove-mirror-focus-loss-zone-" + zoneId);
                 mediaFocusStacks.add(new AudioFocusStackRequest(mFocusHandler
-                        .transientlyLoseMediaAudioFocusForUser(userId, focusZoneId),
+                        .transientlyLoseAudioFocusForZone(focusZoneId),
                         newFocusZoneId));
                 t.traceEnd();
             }
@@ -1584,7 +1590,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             Slogf.d(CarLog.TAG_AUDIO, "HalAudioGainCallback is not supported on this device");
             return;
         }
-        mCarAudioGainMonitor = new CarAudioGainMonitor(mAudioControlWrapper, mCarAudioZones);
+        mCarAudioGainMonitor = new CarAudioGainMonitor(mAudioControlWrapper,
+                new CarVolumeInfoWrapper(this), mCarAudioZones);
         mCarAudioGainMonitor.registerAudioGainListener(mHalAudioGainCallback);
     }
 
@@ -1801,7 +1808,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return Collections.EMPTY_LIST;
         }
         synchronized (mImplLock) {
-            return getCarAudioZoneLocked(zoneId).getCurrentVolumeGroupInfos();
+            return getVolumeGroupInfosForZoneLocked(zoneId);
         }
     }
 
@@ -1918,12 +1925,16 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                         .getActivePlaybackConfigurations());
     }
 
-
     private @NonNull @AudioContext int[] getContextsForVolumeGroupId(int zoneId, int groupId) {
         synchronized (mImplLock) {
             CarVolumeGroup group = getCarVolumeGroupLocked(zoneId, groupId);
             return group.getContexts();
         }
+    }
+
+    @GuardedBy("mImplLock")
+    private List<CarVolumeGroupInfo> getVolumeGroupInfosForZoneLocked(int zoneId) {
+        return getCarAudioZoneLocked(zoneId).getCurrentVolumeGroupInfos();
     }
 
     /**
@@ -1947,7 +1958,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     /**
      * Gets the audio zone id currently mapped to uid,
      *
-     * <p><b>Note:</b> Will use uid mapping first, followed by uid's {@userId} mapping.
+     * <p><b>Note:</b> Will use uid mapping first, followed by uid's user id mapping.
      * defaults to PRIMARY_AUDIO_ZONE if no mapping exist
      *
      * @param uid The uid
@@ -2456,6 +2467,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return false;
         }
 
+        boolean succeeded = true;
+        List<CarVolumeGroupInfo> carVolumeGroupInfoList = null;
         synchronized (mImplLock) {
             int userId = getUserIdForZoneLocked(zoneId);
             if (userId == UserManagerHelper.USER_NULL) {
@@ -2464,20 +2477,32 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 return false;
             }
             List<AudioFocusInfo> pendingFocusInfos =
-                    mFocusHandler.transientlyLoseAllFocusInZone(zoneId);
+                    mFocusHandler.transientlyLoseAllFocusHoldersInZone(zoneId);
 
-            boolean succeeded = true;
             CarAudioZoneConfig prevZoneConfig = zone.getCurrentCarAudioZoneConfig();
             try {
                 zone.setCurrentCarZoneConfig(zoneConfig);
                 setUserIdDeviceAffinitiesLocked(zone, userId, zoneId);
+                zone.updateVolumeGroupsSettingsForUser(userId);
+                carVolumeGroupInfoList = getVolumeGroupInfosForZoneLocked(zoneId);
             } catch (IllegalStateException e) {
                 zone.setCurrentCarZoneConfig(prevZoneConfig.getCarAudioZoneConfigInfo());
                 succeeded = false;
             }
             mFocusHandler.reevaluateAndRegainAudioFocusList(pendingFocusInfos);
-            return succeeded;
         }
+        if (succeeded) {
+            callbackVolumeGroupEvent(getVolumeGroupEventsForSwitchZoneConfig(
+                    carVolumeGroupInfoList));
+        }
+        return succeeded;
+    }
+
+    private List<CarVolumeGroupEvent> getVolumeGroupEventsForSwitchZoneConfig(
+            List<CarVolumeGroupInfo> volumeGroupInfos) {
+        CarVolumeGroupEvent.Builder builder = new CarVolumeGroupEvent.Builder(volumeGroupInfos,
+                CarVolumeGroupEvent.EVENT_TYPE_ZONE_CONFIGURATION_CHANGED);
+        return List.of(builder.build());
     }
 
     void setAudioEnabled(boolean isAudioEnabled) {
@@ -2846,7 +2871,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             audioZoneId = getZoneIdForUidLocked(focusInfo.getClientUid());
         }
 
-        if (isAudioZoneMirroringEnabledForMedia(focusInfo, audioZoneId)) {
+        if (isAudioZoneMirroringEnabledForZone(audioZoneId)) {
             long requestId = mCarAudioMirrorRequestHandler.getRequestIdForAudioZone(audioZoneId);
             int[] mirrorZones = mCarAudioMirrorRequestHandler.getMirrorAudioZonesForRequest(
                     requestId);
@@ -2867,12 +2892,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                                 .getUserHandleForUid(focusInfo.getClientUid())));
     }
 
-    private boolean isAudioZoneMirroringEnabledForMedia(AudioFocusInfo focusInfo, int zoneId) {
-        boolean isMedia = CarAudioContext.AudioAttributesWrapper.audioAttributeMatches(
-                CarAudioContext.getAudioAttributeFromUsage(USAGE_MEDIA),
-                focusInfo.getAttributes());
-
-        return isMedia && mCarAudioMirrorRequestHandler.isMirrorEnabledForZone(zoneId);
+    private boolean isAudioZoneMirroringEnabledForZone(int zoneId) {
+        return mCarAudioMirrorRequestHandler.isMirrorEnabledForZone(zoneId);
     }
 
     private List<AudioAttributes> getAllActiveAttributesForZone(int zoneId) {

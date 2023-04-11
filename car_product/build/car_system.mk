@@ -67,7 +67,7 @@ PRODUCT_PACKAGES += \
     android.hardware.radio.config@1.0 \
     android.hardware.radio.deprecated@1.0 \
     android.hardware.secure_element@1.0 \
-    android.hardware.wifi@1.0 \
+    android.hardware.wifi \
     libaudio-resampler \
     libaudiohal \
     libdrm \
@@ -126,11 +126,6 @@ PRODUCT_SYSTEM_PROPERTIES += \
 # Enable headless system user mode
 PRODUCT_SYSTEM_PROPERTIES += \
     ro.fw.mu.headless_system_user?=true
-
-# Enable user pre-creation
-PRODUCT_SYSTEM_PROPERTIES += \
-    android.car.number_pre_created_users?=1 \
-    android.car.number_pre_created_guests?=1
 
 # Enable User HAL integration
 # NOTE: when set to true, VHAL must also implement the user-related properties,

@@ -64,6 +64,7 @@ import android.car.user.CarUserManager;
 import android.car.user.UserCreationRequest;
 import android.car.user.UserCreationResult;
 import android.car.user.UserIdentificationAssociationResponse;
+import android.car.user.UserRemovalRequest;
 import android.car.user.UserRemovalResult;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AsyncFuture;
@@ -189,12 +190,14 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String COMMAND_RESUME = "resume";
     private static final String COMMAND_SUSPEND = "suspend";
     private static final String COMMAND_HIBERNATE = "hibernate";
+    private static final String COMMAND_SET_DISPLAY_STATE = "set-display-state";
     private static final String PARAM_SIMULATE = "--simulate";
     private static final String PARAM_REAL = "--real";
     private static final String PARAM_AUTO = "--auto";
     private static final String PARAM_SKIP_GARAGEMODE = "--skip-garagemode";
     private static final String PARAM_REBOOT = "--reboot";
     private static final String PARAM_WAKEUP_AFTER = "--wakeup-after";
+    private static final String PARAM_FREE_MEMORY = "--free-memory";
     private static final String COMMAND_SET_UID_TO_ZONE = "set-audio-zone-for-uid";
     private static final String COMMAND_RESET_VOLUME_CONTEXT = "reset-selected-volume-context";
     private static final String COMMAND_SET_MUTE_CAR_VOLUME_GROUP = "set-mute-car-volume-group";
@@ -341,6 +344,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_RESUME, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_SUSPEND, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_HIBERNATE, PERMISSION_CAR_POWER);
+        USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_SET_DISPLAY_STATE, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_POWER_OFF, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_DEFINE_POWER_POLICY, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_APPLY_POWER_POLICY,
@@ -639,8 +643,12 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 + "performed.\n", PARAM_AUTO);
         pw.printf("\t  %s skips Garage Mode before going into hibernation.\n",
                 PARAM_SKIP_GARAGEMODE);
+        pw.printf("\t  %s frees cached apps memory before simulating hibernation.\n",
+                PARAM_FREE_MEMORY);
         pw.println("\tresume");
         pw.println("\t  Wake the system up after a simulated suspension/hibernation.");
+        pw.println("\tset-display-state [displayId] [true|false]");
+        pw.println("\t  Turn on or off the individual display.");
         pw.println("\tprojection-tethering [true|false]");
         pw.println("\t  Whether tethering should be used when creating access point for"
                 + " wireless projection");
@@ -1213,6 +1221,19 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 // fall-through
             case COMMAND_HIBERNATE:
                 runSuspendCommand(args, writer);
+                break;
+            case COMMAND_SET_DISPLAY_STATE:
+                if (args.length != 3) {
+                    return showInvalidArguments(writer);
+                }
+                try {
+                    mCarPowerManagementService.setDisplayPowerState(
+                            Integer.valueOf(args[1]), Boolean.parseBoolean(args[2]));
+                } catch (Exception e) {
+                    Slogf.w(TAG, "Invalid argument: %s %s %s", COMMAND_SET_DISPLAY_STATE, args[1],
+                            args[2]);
+                    return showInvalidArguments(writer);
+                }
                 break;
             case COMMAND_SET_UID_TO_ZONE:
                 if (args.length != 3) {
@@ -2362,10 +2383,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
         }
 
         CarUserManager carUserManager = getCarUserManager(mContext);
-        // TODO(b/235994391): Update this call with new removeUser call
-        UserRemovalResult result = carUserManager.removeUser(userId);
-        writer.printf("UserRemovalResult: status = %s\n",
-                UserRemovalResult.statusToString(result.getStatus()));
+        carUserManager.removeUser(new UserRemovalRequest.Builder(
+                        UserHandle.of(userId)).build(), Runnable::run,
+                response -> writer.printf("UserRemovalResult: status = %s\n",
+                        UserRemovalResult.statusToString(response.getStatus()))
+        );
     }
 
     private static <T> T waitForFuture(IndentingPrintWriter writer,
@@ -2662,6 +2684,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         boolean simulate = !mCarPowerManagementService.isSuspendAvailable(isHibernation);
         boolean modeSet = false;
         boolean skipGarageMode = false;
+        boolean freeMemory = false;
         int resumeDelay = CarPowerManagementService.NO_WAKEUP_BY_TIMER;
         int index = 1;
         while (index < args.length) {
@@ -2705,6 +2728,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
                     }
                     resumeDelay = Integer.parseInt(args[index]);
                     break;
+                case PARAM_FREE_MEMORY:
+                    freeMemory = true;
+                    break;
                 default:
                     writer.printf("Invalid command syntax.\nUsage: %s\n",
                             getSuspendCommandUsage(command));
@@ -2717,6 +2743,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
             return;
         }
 
+        if (freeMemory && !simulate) {
+            writer.printf("Free memory can be used only with simulated hibernation.\n");
+            return;
+        }
+
         String suspendType = isHibernation ? "disk" : "RAM";
         if (simulate) {
             try {
@@ -2724,7 +2755,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 mCarPowerManagementService.simulateSuspendAndMaybeReboot(
                         isHibernation ? PowerHalService.PowerState.SHUTDOWN_TYPE_HIBERNATION
                                 : PowerHalService.PowerState.SHUTDOWN_TYPE_DEEP_SLEEP,
-                        /* shouldReboot= */ false, skipGarageMode, resumeDelay);
+                        /* shouldReboot= */ false, skipGarageMode, resumeDelay, freeMemory);
             } catch (Exception e) {
                 writer.printf("Simulating suspend-to-%s failed: %s\n", suspendType, e.getMessage());
             }
@@ -3957,7 +3988,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
     private static String getSuspendCommandUsage(String command) {
         return command + " [" + PARAM_AUTO + "|" + PARAM_SIMULATE + "|" + PARAM_REAL + "] ["
-                + PARAM_SKIP_GARAGEMODE + "] [" + PARAM_WAKEUP_AFTER + " RESUME_DELAY]";
+                + PARAM_SKIP_GARAGEMODE + "] [" + PARAM_WAKEUP_AFTER + " RESUME_DELAY]" + "["
+                + PARAM_FREE_MEMORY + "]";
     }
 
     private static final class AudioZoneMirrorStatusCallbackImpl extends

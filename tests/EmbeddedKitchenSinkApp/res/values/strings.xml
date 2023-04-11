@@ -115,6 +115,7 @@
     <string name="hw_audio_source_not_found" translatable="false">Not found</string>
     <string name="media_with_delayed_focus" translatable="false">Media With Delayed Focus</string>
     <string name="player_not_started" translatable="false">Player Not Started</string>
+    <string name="audio_device_selected" translatable="false">Audio Device Selected: %1$s</string>
     <string name="player_paused" translatable="false">Player Paused</string>
     <string name="player_started" translatable="false">Player Started</string>
     <string name="player_delayed" translatable="false">Player Delayed</string>
@@ -169,6 +170,11 @@
     <string name="assign_audio_ask_user" translatable="false">Ask User To Accept/Reject</string>
     <string name="zone_configuration" translatable="false">Zone Configuration</string>
     <string name="switch_zone_configuration" translatable="false">Switch Configuration</string>
+    <string name="select_zone_title" translatable="false">Select Audio Zone to Mirror</string>
+    <string name="select_mirror_id_title" translatable="false">Select Mirror Id</string>
+    <string name="enable_audio_mirror" translatable="false">Enable Audio Mirror for Zones</string>
+    <string name="disable_audio_mirror" translatable="false">Disable Audio Mirror for Zones</string>
+    <string name="update_audio_zones" translatable="false">Updates Audio Zones</string>
 
     <!-- Audio Input-->
     <string name="play_audio_input" translatable="false">Play</string>
@@ -245,6 +251,7 @@
     <string name="property_get_async" translatable="false">Get Async</string>
     <string name="property_register" translatable="false">Register</string>
     <string name="property_set" translatable="false">Set</string>
+    <string name="property_set_async" translatable="false">Set Async</string>
     <string name="property_unregister" translatable="false">Unregister</string>
 
     <!-- radio test -->

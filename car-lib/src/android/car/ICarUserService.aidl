@@ -41,11 +41,9 @@ interface ICarUserService {
     // TODO(b/235994008): remove this call.
     void createUser(@nullable String name, String userType, int flags, int timeoutMs,
       in AndroidFuture<UserCreationResult> receiver);
-    void updatePreCreatedUsers();
     UserStartResponse startUser(in UserStartRequest request);
     UserStopResponse stopUser(in UserStopRequest request);
-    // TODO(b/235994391): Use callback instead of AsyncFuture.
-    void removeUser(int userId, in AndroidFuture<UserRemovalResult> receiver);
+    void removeUser(int userId, in ResultCallbackImpl<UserRemovalResult> callback);
     void setLifecycleListenerForApp(String pkgName, in UserLifecycleEventFilter filter,
       in ICarResultReceiver listener);
     void resetLifecycleListenerForApp(in ICarResultReceiver listener);
