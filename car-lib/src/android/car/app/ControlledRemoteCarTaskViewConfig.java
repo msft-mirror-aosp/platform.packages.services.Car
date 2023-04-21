@@ -17,9 +17,11 @@
 package android.car.app;
 
 import android.annotation.NonNull;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.car.annotation.ApiRequirements;
 import android.content.Intent;
+import android.os.Build;
 
 /**
  * This class provides the required configuration to create a
@@ -28,20 +30,20 @@ import android.content.Intent;
  */
 @SystemApi
 public final class ControlledRemoteCarTaskViewConfig {
-    private static final String TAG = ControlledRemoteCarTaskView.class.getSimpleName();
+    private static final String TAG = "ControlledRemoteCarTaskView";
 
     final Intent mActivityIntent;
-    final boolean mShouldAutoRestartOnCrash;
+    final boolean mShouldAutoRestartOnTaskRemoval;
     final boolean mShouldCaptureGestures;
     final boolean mShouldCaptureLongPress;
 
     private ControlledRemoteCarTaskViewConfig(
             Intent activityIntent,
-            boolean shouldAutoRestartOnCrash,
+            boolean shouldAutoRestartOnTaskRemoval,
             boolean shouldCaptureGestures,
             boolean shouldCaptureLongPress) {
         mActivityIntent = activityIntent;
-        mShouldAutoRestartOnCrash = shouldAutoRestartOnCrash;
+        mShouldAutoRestartOnTaskRemoval = shouldAutoRestartOnTaskRemoval;
         mShouldCaptureGestures = shouldCaptureGestures;
         mShouldCaptureLongPress = shouldCaptureLongPress;
     }
@@ -54,11 +56,11 @@ public final class ControlledRemoteCarTaskViewConfig {
         return mActivityIntent;
     }
 
-    /** See {@link Builder#setShouldAutoRestartOnCrash(boolean)}. */
+    /** See {@link Builder#setShouldAutoRestartOnTaskRemoval(boolean)}. */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public boolean shouldAutoRestartOnCrash() {
-        return mShouldAutoRestartOnCrash;
+        return mShouldAutoRestartOnTaskRemoval;
     }
 
     /** See {@link Builder#setShouldCaptureGestures(boolean)}. */
@@ -76,12 +78,10 @@ public final class ControlledRemoteCarTaskViewConfig {
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public String toString() {
         return TAG + " {"
                 + "activityIntent=" + mActivityIntent
-                + ", shouldAutoRestartOnCrash=" + mShouldAutoRestartOnCrash
+                + ", mShouldAutoRestartOnTaskRemoval=" + mShouldAutoRestartOnTaskRemoval
                 + ", shouldCaptureGestures=" + mShouldCaptureGestures
                 + ", shouldCaptureLongPress=" + mShouldCaptureLongPress
                 + '}';
@@ -119,16 +119,23 @@ public final class ControlledRemoteCarTaskViewConfig {
         /**
          * Sets the auto restart functionality. If set, the {@link ControlledRemoteCarTaskView}
          * will restart the task by re-launching the intent set via {@link
-         * #setActivityIntent(Intent)} when the task crashes.
+         * #setActivityIntent(Intent)} when the task is removed.
          *
-         * @param shouldAutoRestartOnCrash denotes if the auto restart functionality should be
+         * The task might get removed because of multiple reasons like:
+         * <ul>
+         *     <li>Due to memory pressure</li>
+         *     <li>Due to the apk update</li>
+         *     <li>etc.</li>
+         * </ul>
+         *
+         * @param shouldAutoRestartOnTaskRemoval denotes if the auto restart functionality should be
          *                                 enabled or not.
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         @NonNull
-        public Builder setShouldAutoRestartOnCrash(boolean shouldAutoRestartOnCrash) {
-            mShouldAutoRestartOnCrash = shouldAutoRestartOnCrash;
+        public Builder setShouldAutoRestartOnTaskRemoval(boolean shouldAutoRestartOnTaskRemoval) {
+            mShouldAutoRestartOnCrash = shouldAutoRestartOnTaskRemoval;
             return this;
         }
 

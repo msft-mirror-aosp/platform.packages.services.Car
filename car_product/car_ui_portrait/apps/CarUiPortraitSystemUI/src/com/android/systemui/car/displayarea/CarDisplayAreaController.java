@@ -16,8 +16,11 @@
 
 package com.android.systemui.car.displayarea;
 
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_LAUNCHER_READY;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_SUW_IN_PROGRESS;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.REQUEST_FROM_LAUNCHER;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.REQUEST_FROM_SYSTEM_UI;
@@ -28,6 +31,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.UserHandle;
@@ -38,6 +42,7 @@ import com.android.systemui.R;
 import com.android.systemui.car.CarDeviceProvisionedController;
 import com.android.systemui.car.CarDeviceProvisionedListener;
 import com.android.systemui.car.CarServiceProvider;
+import com.android.systemui.car.aloha.AlohaViewController;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
@@ -67,6 +72,9 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
     private final CarServiceProvider mCarServiceProvider;
 
     private boolean mUserSetupInProgress;
+    private boolean mIsImmersive;
+    private boolean mIsLauncherReady;
+    private AlohaViewController mAlohaViewController;
 
     private final CarUiPortraitDisplaySystemBarsController.Callback
             mCarUiPortraitDisplaySystemBarsControllerCallback =
@@ -74,11 +82,18 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 @Override
                 public void onImmersiveRequestedChanged(ComponentName componentName,
                         boolean requested) {
+                    mUserSetupInProgress = mCarDeviceProvisionedController
+                            .isCurrentUserSetupInProgress();
                     if (mUserSetupInProgress) {
+                        mCarFullScreenTouchHandler.enable(false);
+                        mAlohaViewController.stop();
                         logIfDebuggable(
                                 "No need to send out immersive request change intent during SUW");
+                        updateImmersiveModeInternal();
                         return;
                     }
+                    mIsImmersive = requested;
+                    mCarFullScreenTouchHandler.enable(requested);
                     Intent intent = new Intent(REQUEST_FROM_SYSTEM_UI);
                     intent.putExtra(INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED, requested);
                     mApplicationContext.sendBroadcastAsUser(intent,
@@ -86,7 +101,16 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 }
 
                 @Override
-                public void onImmersiveStateChanged(boolean immersive) {
+                public void onImmersiveStateChanged(boolean hideNavBar) {
+                    if (mUserSetupInProgress) {
+                        logIfDebuggable(
+                                "No need to send out immersive state change intent during SUW");
+                        return;
+                    }
+                    Intent intent = new Intent(REQUEST_FROM_SYSTEM_UI);
+                    intent.putExtra(INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE, hideNavBar);
+                    mApplicationContext.sendBroadcastAsUser(intent,
+                            new UserHandle(ActivityManager.getCurrentUser()));
 
                 }
             };
@@ -103,14 +127,33 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                     mApplicationContext.sendBroadcastAsUser(intent,
                             new UserHandle(ActivityManager.getCurrentUser()));
 
-                    mCarUiDisplaySystemBarsController.requestImmersiveModeForSUW(
-                            mApplicationContext.getDisplayId(), mUserSetupInProgress);
-                    if (mUserSetupInProgress) {
-                        mCarFullScreenTouchHandler.enable(false);
-                    }
-
+                    updateImmersiveModeInternal();
                 }
             };
+
+
+    private void updateImmersiveModeInternal() {
+        mCarUiDisplaySystemBarsController.requestImmersiveModeForSUW(
+                mApplicationContext.getDisplayId(), mUserSetupInProgress);
+        if (mUserSetupInProgress) {
+            updateImmersiveModeForSUW();
+        } else if (!mIsLauncherReady) {
+            updateImmersiveMode();
+        }
+    }
+
+    private void updateImmersiveModeForSUW() {
+        mCarFullScreenTouchHandler.enable(false);
+        mAlohaViewController.stop();
+    }
+
+    private void updateImmersiveMode() {
+        mCarFullScreenTouchHandler.enable(mIsLauncherReady);
+        if (!mIsLauncherReady) {
+            mAlohaViewController.start();
+        }
+    }
+
 
     /**
      * Initializes the controller
@@ -123,7 +166,8 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             DisplayAreaOrganizer organizer,
             CarUiPortraitDisplaySystemBarsController carUiPortraitDisplaySystemBarsController,
             CommandQueue commandQueue,
-            CarDeviceProvisionedController deviceProvisionedController) {
+            CarDeviceProvisionedController deviceProvisionedController,
+            AlohaViewController alohaViewController) {
         mApplicationContext = applicationContext;
         mOrganizer = organizer;
         mShellExecutor = shellExecutor;
@@ -132,22 +176,38 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         Resources resources = applicationContext.getResources();
         mNotificationCenterComponent = ComponentName.unflattenFromString(resources.getString(
                 R.string.config_notificationCenterActivity));
-
         mCarUiDisplaySystemBarsController = carUiPortraitDisplaySystemBarsController;
         mCarDeviceProvisionedController = deviceProvisionedController;
-        mCarUiDisplaySystemBarsController.registerCallback(mApplicationContext.getDisplayId(),
-                mCarUiPortraitDisplaySystemBarsControllerCallback);
         mCarFullScreenTouchHandler = new CarFullScreenTouchHandler(mShellExecutor);
+        mAlohaViewController = alohaViewController;
+        mAlohaViewController.start();
 
-        commandQueue.addCallback(this);
+        BroadcastReceiver taskViewReadyReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent.hasExtra(INTENT_EXTRA_LAUNCHER_READY)) {
+                    mAlohaViewController.stop();
+                    mIsLauncherReady = true;
+                }
+            }
+        };
+        mApplicationContext.registerReceiverForAllUsers(taskViewReadyReceiver,
+                new IntentFilter(REQUEST_FROM_LAUNCHER), null, null, Context.RECEIVER_EXPORTED);
+
+        if (applicationContext.getResources().getConfiguration().orientation
+                == Configuration.ORIENTATION_PORTRAIT) {
+            mCarUiDisplaySystemBarsController.registerCallback(mApplicationContext.getDisplayId(),
+                    mCarUiPortraitDisplaySystemBarsControllerCallback);
+            commandQueue.addCallback(this);
+        }
     }
 
     @Override
     public void animateCollapsePanels(int flags, boolean force) {
-        Intent homeActivityIntent = new Intent(Intent.ACTION_MAIN);
-        homeActivityIntent.addCategory(Intent.CATEGORY_HOME);
-        homeActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        mApplicationContext.startActivityAsUser(homeActivityIntent, UserHandle.CURRENT);
+        Intent intent = new Intent(REQUEST_FROM_SYSTEM_UI);
+        intent.putExtra(INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL, true);
+        mApplicationContext.sendBroadcastAsUser(intent,
+                new UserHandle(ActivityManager.getCurrentUser()));
     }
 
     private static void logIfDebuggable(String message) {
@@ -168,19 +228,32 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         mCarDeviceProvisionedController.addCallback(mCarDeviceProvisionedListener);
         mCarFullScreenTouchHandler.registerTouchEventListener(
                 () -> {
+                    if (!mIsImmersive) {
+                        logIfDebuggable("Block touch event as not in immersive");
+                        return;
+                    }
+                    // Show Nav bar
                     mCarUiDisplaySystemBarsController.requestImmersiveMode(
                             mApplicationContext.getDisplayId(), true);
+
+                    // Notify Launcher
+                    Intent intent = new Intent(REQUEST_FROM_SYSTEM_UI);
+                    intent.putExtra(INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE, true);
+                    mApplicationContext.sendBroadcastAsUser(intent,
+                            new UserHandle(ActivityManager.getCurrentUser()));
                 }
         );
         BroadcastReceiver immersiveModeChangeReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if (intent.hasExtra(INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE)) {
-                    boolean hideSystemBar = intent.getBooleanExtra(
-                            INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE, false);
+                if (!intent.hasExtra(INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE)) {
+                    return;
+                }
+                boolean hideSystemBar = intent.getBooleanExtra(
+                        INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE, false);
+                if (hideSystemBar == mIsImmersive) {
                     mCarUiDisplaySystemBarsController.requestImmersiveMode(
                             mApplicationContext.getDisplayId(), hideSystemBar);
-                    mCarFullScreenTouchHandler.enable(hideSystemBar);
                 }
             }
         };

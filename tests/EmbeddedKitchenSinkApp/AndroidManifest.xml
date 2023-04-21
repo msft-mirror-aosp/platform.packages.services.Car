@@ -156,6 +156,39 @@
     <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_SEAT"/>
     <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_INFO"/>
     <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_INFO"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_WINDOW"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_WINDOW"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_DOOR"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_DOOR"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_SEAT"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_MIRROR"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_MIRROR"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_ENGINE"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_ENGINE"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_HVAC"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_HVAC"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_LIGHT"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_LIGHT"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_1"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_1"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_2"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_2"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_3"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_3"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_4"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_4"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_5"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_5"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_6"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_6"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_7"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_7"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_8"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_8"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_9"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_9"/>
+    <uses-permission android:name="android.car.permission.GET_CAR_VENDOR_CATEGORY_10"/>
+    <uses-permission android:name="android.car.permission.SET_CAR_VENDOR_CATEGORY_10"/>
 
     <uses-permission android:name="android.car.permission.CONTROL_CAR_FEATURES"/>
 
@@ -193,6 +226,9 @@
     <!-- To be a remote task client -->
     <uses-permission android:name="android.car.permission.USE_REMOTE_ACCESS"/>
     <uses-permission android:name="android.car.permission.CONTROL_REMOTE_ACCESS"/>
+
+    <!-- use for BiometricPromptTestFragment to test the API -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
 
     <!-- Allow backup is set to false for KitchenSinkApp to avoid infinite loop during backup -->
     <application android:label="@string/app_title"
@@ -383,12 +419,24 @@
             </intent-filter>
         </service>
 
-        <service android:name=".remoteaccess.RemoteTaskClientService"
+        <service android:name=".remoteaccess.KitchenSinkRemoteTaskService"
                  android:directBootAware="true"
                  android:exported="true">
             <intent-filter>
                 <action android:name="android.car.remoteaccess.RemoteTaskClientService" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".autofill.KitchenSinkAutofillService"
+            android:label="KS Autofill"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

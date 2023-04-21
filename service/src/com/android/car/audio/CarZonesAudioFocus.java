@@ -29,6 +29,7 @@ import android.media.AudioFocusInfo;
 import android.media.AudioManager;
 import android.media.audiopolicy.AudioPolicy;
 import android.os.Bundle;
+import android.util.ArraySet;
 import android.util.SparseArray;
 
 import com.android.car.CarLocalServices;
@@ -117,10 +118,25 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
         return focus.getAudioFocusHoldersForUid(uid);
     }
 
+
+    /**
+     * For the zone queried, transiently lose all active focus entries
+     * @param zoneId zone id where all focus entries should be lost
+     * @return focus entries lost in the zone.
+     */
+    List<AudioFocusInfo> transientlyLoseAllFocusHoldersInZone(int zoneId) {
+        CarAudioFocus focus = mFocusZones.get(zoneId);
+        List<AudioFocusInfo> activeFocusInfos = focus.getAudioFocusHolders();
+        if (!activeFocusInfos.isEmpty()) {
+            transientlyLoseInFocusInZone(activeFocusInfos, zoneId);
+        }
+        return activeFocusInfos;
+    }
+
     /**
      * For each entry in list, transiently lose focus
      * @param afiList list of audio focus entries
-     * @param zoneId zone id where focus should should be lost
+     * @param zoneId zone id where focus should be lost
      */
     void transientlyLoseInFocusInZone(List<AudioFocusInfo> afiList, int zoneId) {
         CarAudioFocus focus = mFocusZones.get(zoneId);
@@ -134,6 +150,29 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
             AudioFocusInfo info = audioFocusInfos.get(index);
             focus.removeAudioFocusInfoAndTransientlyLoseFocus(info);
         }
+    }
+
+    /**
+     * For each entry in list, reevaluate and regain focus and notify focus listener of its zone
+     *
+     * @param audioFocusInfos list of audio focus entries to reevaluate and regain
+     * @return list of results for regaining focus
+     */
+    List<Integer> reevaluateAndRegainAudioFocusList(List<AudioFocusInfo> audioFocusInfos) {
+        List<Integer> res = new ArrayList<>(audioFocusInfos.size());
+        ArraySet<Integer> zoneIds = new ArraySet<>();
+        for (int index = 0; index < audioFocusInfos.size(); index++) {
+            AudioFocusInfo afi = audioFocusInfos.get(index);
+            int zoneId = getAudioZoneIdForAudioFocusInfo(afi);
+            res.add(getCarAudioFocusForZoneId(zoneId).reevaluateAndRegainAudioFocus(afi));
+            zoneIds.add(zoneId);
+        }
+        int[] zoneIdArray = new int[zoneIds.size()];
+        for (int zoneIdIndex = 0; zoneIdIndex < zoneIds.size(); zoneIdIndex++) {
+            zoneIdArray[zoneIdIndex] = zoneIds.valueAt(zoneIdIndex);
+        }
+        notifyFocusListeners(zoneIdArray);
+        return res;
     }
 
     int reevaluateAndRegainAudioFocus(AudioFocusInfo afi) {
@@ -187,7 +226,6 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
         notifyFocusListeners(new int[]{zoneId});
     }
 
-    @NonNull
     private CarAudioFocus getCarAudioFocusForZoneId(int zoneId) {
         return mFocusZones.get(zoneId);
     }
@@ -275,6 +313,21 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
         List<AudioFocusInfo> inactiveFocusInfos = carAudioFocus
                 .getInactiveAudioFocusForUserAndAudioAttributes(audioAttributes, userId);
 
+        return transientlyLoserFocusForFocusStack(carAudioFocus, activeFocusInfos,
+                inactiveFocusInfos);
+    }
+
+    AudioFocusStack transientlyLoseAudioFocusForZone(int zoneId) {
+        CarAudioFocus carAudioFocus = mFocusZones.get(zoneId);
+        List<AudioFocusInfo> activeFocusInfos = carAudioFocus.getAudioFocusHolders();
+        List<AudioFocusInfo> inactiveFocusInfos = carAudioFocus.getAudioFocusLosers();
+
+        return transientlyLoserFocusForFocusStack(carAudioFocus, activeFocusInfos,
+                inactiveFocusInfos);
+    }
+
+    private AudioFocusStack transientlyLoserFocusForFocusStack(CarAudioFocus carAudioFocus,
+            List<AudioFocusInfo> activeFocusInfos, List<AudioFocusInfo> inactiveFocusInfos) {
         // Order matters here: Remove the focus losers first
         // then do the current holder to prevent loser from popping up while
         // the focus is being removed for current holders

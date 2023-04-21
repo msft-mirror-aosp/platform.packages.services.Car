@@ -25,7 +25,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * Used by emergency lane keep assist to enumerate state.
+ * Used to enumerate the current state of {@link
+ * android.car.VehiclePropertyIds#EMERGENCY_LANE_KEEP_ASSIST_STATE}.
  *
  * <p>This enum could be extended in future releases to include additional feature states.
  * @hide
@@ -33,10 +34,11 @@ import java.lang.annotation.RetentionPolicy;
 @SystemApi
 public class EmergencyLaneKeepAssistState {
     /**
-     * This state is used as an alternative for any EmergencyLaneKeepAssistState value that is not
-     * defined in the platform. Ideally, implementations of {@link EMERGENCY_LANE_KEEP_ASSIST_STATE}
-     * should not use this state. The framework can use this field to remain backwards compatible if
-     * EmergencyLaneKeepAssistState is extended to include additional states.
+     * This state is used as an alternative for any {@code EmergencyLaneKeepAssistState} value that
+     * is not defined in the platform. Ideally, implementations of {@link
+     * android.car.VehiclePropertyIds#EMERGENCY_LANE_KEEP_ASSIST_STATE} should not use this state.
+     * The framework can use this field to remain backwards compatible if {@code
+     * EmergencyLaneKeepAssistState} is extended to include additional states.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -92,7 +94,7 @@ public class EmergencyLaneKeepAssistState {
     private EmergencyLaneKeepAssistState() {}
 
     /**
-     * Gets a user-friendly representation of an {@code EmergencyLaneKeepAssistState}.
+     * Returns a user-friendly representation of an {@code EmergencyLaneKeepAssistState}.
      */
     @NonNull
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,

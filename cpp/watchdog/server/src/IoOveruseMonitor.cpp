@@ -47,7 +47,6 @@ namespace {
 using ::aidl::android::automotive::watchdog::IoOveruseStats;
 using ::aidl::android::automotive::watchdog::IResourceOveruseListener;
 using ::aidl::android::automotive::watchdog::PerStateBytes;
-using ::aidl::android::automotive::watchdog::ResourceOveruseStats;
 using ::aidl::android::automotive::watchdog::internal::ComponentType;
 using ::aidl::android::automotive::watchdog::internal::IoOveruseConfiguration;
 using ::aidl::android::automotive::watchdog::internal::IoUsageStats;
@@ -55,6 +54,8 @@ using ::aidl::android::automotive::watchdog::internal::PackageIdentifier;
 using ::aidl::android::automotive::watchdog::internal::PackageInfo;
 using ::aidl::android::automotive::watchdog::internal::PackageIoOveruseStats;
 using ::aidl::android::automotive::watchdog::internal::ResourceOveruseConfiguration;
+using ::aidl::android::automotive::watchdog::internal::ResourceOveruseStats;
+using ::aidl::android::automotive::watchdog::internal::ResourceStats;
 using ::aidl::android::automotive::watchdog::internal::UidType;
 using ::aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats;
 using ::android::IPCThreadState;
@@ -234,10 +235,18 @@ void IoOveruseMonitor::terminate() {
     return;
 }
 
+void IoOveruseMonitor::onCarWatchdogServiceRegistered() {
+    std::unique_lock writeLock(mRwMutex);
+    if (!mDidReadTodayPrevBootStats) {
+        requestTodayIoUsageStatsLocked();
+    }
+}
+
 Result<void> IoOveruseMonitor::onPeriodicCollection(
         time_t time, SystemState systemState,
         const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-        [[maybe_unused]] const android::wp<ProcStatCollectorInterface>& procStatCollector) {
+        [[maybe_unused]] const android::wp<ProcStatCollectorInterface>& procStatCollector,
+        ResourceStats* resourceStats) {
     android::sp<UidStatsCollectorInterface> uidStatsCollectorSp = uidStatsCollector.promote();
     if (uidStatsCollectorSp == nullptr) {
         return Error() << "Per-UID I/O stats collector must not be null";
@@ -245,7 +254,7 @@ Result<void> IoOveruseMonitor::onPeriodicCollection(
 
     std::unique_lock writeLock(mRwMutex);
     if (!mDidReadTodayPrevBootStats) {
-        syncTodayIoUsageStatsLocked();
+        requestTodayIoUsageStatsLocked();
     }
     struct tm prevGmt, curGmt;
     gmtime_r(&mLastUserPackageIoMonitorTime, &prevGmt);
@@ -278,17 +287,20 @@ Result<void> IoOveruseMonitor::onPeriodicCollection(
         }
         UserPackageIoUsage curUsage(curUidStats.packageInfo, curUidStats.ioStats,
                                     isGarageModeActive);
+
+        if (!mPrevBootIoUsageStatsById.empty()) {
+            if (auto prevBootStats = mPrevBootIoUsageStatsById.find(curUsage.id());
+                prevBootStats != mPrevBootIoUsageStatsById.end()) {
+                curUsage += prevBootStats->second;
+                mPrevBootIoUsageStatsById.erase(prevBootStats);
+            }
+        }
         UserPackageIoUsage* dailyIoUsage;
         if (auto cachedUsage = mUserPackageDailyIoUsageById.find(curUsage.id());
             cachedUsage != mUserPackageDailyIoUsageById.end()) {
             cachedUsage->second += curUsage;
             dailyIoUsage = &cachedUsage->second;
         } else {
-            if (auto prevBootStats = mPrevBootIoUsageStatsById.find(curUsage.id());
-                prevBootStats != mPrevBootIoUsageStatsById.end()) {
-                curUsage += prevBootStats->second;
-                mPrevBootIoUsageStatsById.erase(prevBootStats);
-            }
             const auto& [it, wasInserted] = mUserPackageDailyIoUsageById.insert(
                     std::pair(curUsage.id(), std::move(curUsage)));
             dailyIoUsage = &it->second;
@@ -366,17 +378,14 @@ Result<void> IoOveruseMonitor::onPeriodicCollection(
     if (mLatestIoOveruseStats.empty()) {
         return {};
     }
-    if (const auto status = mWatchdogServiceHelper->latestIoOveruseStats(mLatestIoOveruseStats);
-        !status.isOk()) {
-        // Don't clear the cache as it can be pushed again on the next collection.
-        ALOGW("Failed to push the latest I/O overuse stats to watchdog service: %s",
-              status.getDescription().c_str());
-    } else {
-        mLatestIoOveruseStats.clear();
-        if (DEBUG) {
-            ALOGD("Pushed latest I/O overuse stats to watchdog service");
-        }
+    // Do not clear the cache here since it is not known if the I/O overuse stats were sent
+    // successfully. This will be known once WatchdogPerfService sends the stats to car watchdog
+    // service side and calls the |onResourceStatsSent| method on each data processor. Handle all
+    // clearing logic on the |onResourceStatsSent| method instead.
+    if (!(resourceStats->resourceOveruseStats).has_value()) {
+        resourceStats->resourceOveruseStats = std::make_optional<ResourceOveruseStats>({});
     }
+    resourceStats->resourceOveruseStats->packageIoOveruseStats = mLatestIoOveruseStats;
     return {};
 }
 
@@ -384,9 +393,11 @@ Result<void> IoOveruseMonitor::onCustomCollection(
         time_t time, SystemState systemState,
         [[maybe_unused]] const std::unordered_set<std::string>& filterPackages,
         const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-        const android::wp<ProcStatCollectorInterface>& procStatCollector) {
+        const android::wp<ProcStatCollectorInterface>& procStatCollector,
+        ResourceStats* resourceStats) {
     // Nothing special for custom collection.
-    return onPeriodicCollection(time, systemState, uidStatsCollector, procStatCollector);
+    return onPeriodicCollection(time, systemState, uidStatsCollector, procStatCollector,
+                                resourceStats);
 }
 
 Result<void> IoOveruseMonitor::onPeriodicMonitor(
@@ -443,6 +454,15 @@ Result<void> IoOveruseMonitor::onPeriodicMonitor(
     return {};
 }
 
+Result<void> IoOveruseMonitor::onResourceStatsSent(bool successful) {
+    // Clear the cache only if the stats were sent successfully. If unsuccessful, keep the stats
+    // cached as they can be pushed again on the next collection.
+    if (successful) {
+        mLatestIoOveruseStats.clear();
+    }
+    return {};
+}
+
 Result<void> IoOveruseMonitor::onDump([[maybe_unused]] int fd) const {
     // TODO(b/183436216): Dump the list of killed/disabled packages. Dump the list of packages that
     //  exceed xx% of their threshold.
@@ -454,13 +474,24 @@ bool IoOveruseMonitor::dumpHelpText(int fd) const {
                            fd);
 }
 
-void IoOveruseMonitor::syncTodayIoUsageStatsLocked() {
-    std::vector<UserPackageIoUsageStats> userPackageIoUsageStats;
-    if (const auto status = mWatchdogServiceHelper->getTodayIoUsageStats(&userPackageIoUsageStats);
-        !status.isOk()) {
-        ALOGE("Failed to fetch today I/O usage stats collected during previous boot: %s",
+void IoOveruseMonitor::requestTodayIoUsageStatsLocked() {
+    if (const auto status = mWatchdogServiceHelper->requestTodayIoUsageStats(); !status.isOk()) {
+        // Request made only after CarWatchdogService connection is established. Logging the error
+        // is enough in this case.
+        ALOGE("Failed to request today I/O usage stats collected during previous boot: %s",
               status.getMessage());
         return;
+    }
+    if (DEBUG) {
+        ALOGD("Requested today's I/O usage stats collected during previous boot.");
+    }
+}
+
+Result<void> IoOveruseMonitor::onTodayIoUsageStatsFetched(
+        const std::vector<UserPackageIoUsageStats>& userPackageIoUsageStats) {
+    std::unique_lock writeLock(mRwMutex);
+    if (mDidReadTodayPrevBootStats) {
+        return {};
     }
     for (const auto& statsEntry : userPackageIoUsageStats) {
         std::string uniqueId = uniquePackageIdStr(statsEntry.packageName,
@@ -473,6 +504,7 @@ void IoOveruseMonitor::syncTodayIoUsageStatsLocked() {
         mPrevBootIoUsageStatsById.insert(std::pair(uniqueId, statsEntry.ioUsageStats));
     }
     mDidReadTodayPrevBootStats = true;
+    return {};
 }
 
 void IoOveruseMonitor::notifyNativePackagesLocked(
@@ -484,8 +516,9 @@ void IoOveruseMonitor::notifyNativePackagesLocked(
         } else {
             listener = it->second.get();
         }
-        ResourceOveruseStats stats;
-        stats.set<ResourceOveruseStats::ioOveruseStats>(ioOveruseStats);
+        aidl::android::automotive::watchdog::ResourceOveruseStats stats;
+        stats.set<aidl::android::automotive::watchdog::ResourceOveruseStats::ioOveruseStats>(
+                ioOveruseStats);
         listener->onOveruse(stats);
     }
     if (DEBUG) {

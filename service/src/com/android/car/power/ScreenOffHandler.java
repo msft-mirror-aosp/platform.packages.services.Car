@@ -24,9 +24,11 @@ import android.car.CarOccupantZoneManager;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.ICarOccupantZoneCallback;
 import android.car.builtin.util.Slogf;
+import android.car.builtin.view.DisplayHelper;
 import android.car.settings.CarSettings;
 import android.content.Context;
 import android.database.ContentObserver;
+import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -206,6 +208,18 @@ final class ScreenOffHandler {
         }
     }
 
+    @VisibleForTesting
+    boolean canTurnOffDisplay(int displayId) {
+        synchronized (mLock) {
+            DisplayPowerInfo info = mDisplayPowerInfos.get(displayId);
+            if (info == null) {
+                Slogf.w(TAG, "display(%d) power info is not ready yet.", displayId);
+                return false;
+            }
+            return info.getMode() == DISPLAY_POWER_MODE_ON;
+        }
+    }
+
     @GuardedBy("mLock")
     private boolean canTurnOnDisplayLocked(int displayId) {
         DisplayPowerInfo info = mDisplayPowerInfos.get(displayId);
@@ -235,19 +249,24 @@ final class ScreenOffHandler {
                 if (info == null) {
                     continue;
                 }
+                int displayPort = getDisplayPort(displayId);
+                if (displayPort == DisplayHelper.INVALID_PORT) {
+                    continue;
+                }
                 if (i > 0) {
                     sb.append(',');
                 }
-                sb.append(displayId);
+                sb.append(displayPort);
                 sb.append(':');
                 if (info.isDriverDisplay()) {
                     // for driver display
                     info.setMode(DISPLAY_POWER_MODE_ALWAYS_ON);
                     sb.append(DISPLAY_POWER_MODE_ALWAYS_ON);
                 } else {
+                    // TODO(b/274050716): Restore passenger displays to ON.
                     // for passenger display
-                    info.setMode(DISPLAY_POWER_MODE_ON);
-                    sb.append(DISPLAY_POWER_MODE_ON);
+                    info.setMode(DISPLAY_POWER_MODE_ALWAYS_ON);
+                    sb.append(DISPLAY_POWER_MODE_ALWAYS_ON);
                 }
             }
         }
@@ -436,7 +455,7 @@ final class ScreenOffHandler {
                 CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
     }
 
-    // value format: comma-separated displayId:mode
+    // value format: comma-separated displayPort:mode
     @VisibleForTesting
     SparseIntArray parseModeAssignmentSettingValue(String value) {
         SparseIntArray mapping = new SparseIntArray();
@@ -448,7 +467,12 @@ final class ScreenOffHandler {
                 if (pair.length != 2) {
                     return null;
                 }
-                int displayId = Integer.parseInt(pair[0], /* radix= */ 10);
+                int displayPort = Integer.parseInt(pair[0], /* radix= */ 10);
+                int displayId = getDisplayId(displayPort);
+                if (displayId == Display.INVALID_DISPLAY) {
+                    Slogf.w(TAG, "Invalid display port: %d", displayPort);
+                    return null;
+                }
                 @DisplayPowerMode int mode = Integer.parseInt(pair[1], /* radix= */ 10);
                 if (mapping.indexOfKey(displayId) >= 0) {
                     Slogf.w(TAG, "Multiple use of display id: %d", displayId);
@@ -467,6 +491,25 @@ final class ScreenOffHandler {
             return null;
         }
         return mapping;
+    }
+
+    private int getDisplayId(int displayPort) {
+        DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
+        for (Display display : displayManager.getDisplays()) {
+            if (DisplayHelper.getPhysicalPort(display) == displayPort) {
+                return display.getDisplayId();
+            }
+        }
+        return Display.INVALID_DISPLAY;
+    }
+
+    private int getDisplayPort(int displayId) {
+        DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
+        Display display = displayManager.getDisplay(displayId);
+        if (display != null) {
+            return DisplayHelper.getPhysicalPort(display);
+        }
+        return DisplayHelper.INVALID_PORT;
     }
 
     private static final class EventHandler extends Handler {
@@ -499,6 +542,9 @@ final class ScreenOffHandler {
                 case MSG_USER_ACTIVITY_TIMEOUT:
                     screenOffHandler.handleSetDisplayState(/* displayId= */ (Integer) msg.obj,
                             /* on= */ false);
+                    break;
+                default:
+                    Slogf.w(TAG, "Invalid message type: %d", msg.what);
                     break;
             }
         }

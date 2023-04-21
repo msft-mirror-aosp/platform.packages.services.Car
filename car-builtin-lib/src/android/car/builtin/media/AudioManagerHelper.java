@@ -24,6 +24,7 @@ import static android.media.AudioManager.MASTER_MUTE_CHANGED_ACTION;
 import static android.media.AudioManager.VOLUME_CHANGED_ACTION;
 
 import android.annotation.NonNull;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.car.builtin.annotation.AddedIn;
 import android.car.builtin.annotation.PlatformVersion;
@@ -44,6 +45,7 @@ import android.media.AudioPatch;
 import android.media.AudioPortConfig;
 import android.media.AudioSystem;
 import android.media.audiopolicy.AudioProductStrategy;
+import android.os.Build;
 import android.text.TextUtils;
 
 import com.android.internal.util.Preconditions;
@@ -64,7 +66,8 @@ public final class AudioManagerHelper {
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public static final int UNDEFINED_STREAM_TYPE = -1;
 
-    @AddedIn(PlatformVersion.TIRAMISU_0)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static final String AUDIO_ATTRIBUTE_TAG_SEPARATOR = ";";
 
     private AudioManagerHelper() {
@@ -454,7 +457,6 @@ public final class AudioManagerHelper {
         }
 
         @Override
-        @AddedIn(PlatformVersion.TIRAMISU_0)
         public String toString() {
             StringBuilder builder = new StringBuilder();
             builder.append("Source{ ");
@@ -490,6 +492,8 @@ public final class AudioManagerHelper {
                     case MASTER_MUTE_CHANGED_ACTION:
                         onMuteChanged();
                         break;
+                    default:
+                        break;
                 }
             }
         };
@@ -524,7 +528,8 @@ public final class AudioManagerHelper {
      * @param builder {@link AudioAttributes.Builder} helper to build {@link AudioAttributes}
      * @param tag to be added to the {@link AudioAttributes} once built.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_3)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static void addTagToAudioAttributes(@NonNull AudioAttributes.Builder builder,
             @NonNull String tag) {
         builder.addTag(tag);
@@ -535,9 +540,10 @@ public final class AudioManagerHelper {
      *
      * @param attributes {@link AudioAttributes} to be considered
      * @return the tags of the given {@link AudioAttributes} as a
-     * {@link AUDIO_ATTRIBUTE_TAG_SEPARATOR} separated string.
+     * {@link #AUDIO_ATTRIBUTE_TAG_SEPARATOR} separated string.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_3)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static String getFormattedTags(@NonNull AudioAttributes attributes) {
         Preconditions.checkNotNull(attributes, "Audio Attributes must not be null");
         return TextUtils.join(AUDIO_ATTRIBUTE_TAG_SEPARATOR, attributes.getTags());
@@ -559,7 +565,8 @@ public final class AudioManagerHelper {
      * @return {@link AudioAttributes.ContentType} representation of xsd content type string if
      * found, {@code AudioAttributes.CONTENT_TYPE_UNKNOWN} otherwise.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_3)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static int xsdStringToContentType(String xsdString) {
         if (XSD_STRING_TO_CONTENT_TYPE.containsKey(xsdString)) {
             return XSD_STRING_TO_CONTENT_TYPE.get(xsdString);
@@ -568,16 +575,17 @@ public final class AudioManagerHelper {
     }
 
     /**
-     * Gets the {@link AudioVolumeGroup} id associated with given {@link AudioProductStrategy}
-     * and {@link AudioAttributes}
+     * Gets the {@link android.media.AudioVolumeGroup} id associated with given
+     * {@link AudioProductStrategy} and {@link AudioAttributes}
      *
      * @param strategy {@link AudioProductStrategy} to be considered
      * @param attributes {@link AudioAttributes} to be considered
-     * @return the id of the {@link AudioVolumeGroup} supporting the given {@link AudioAttributes}
-     * and {@link AudioProductStrategy} if found, {@link AudioVolumeGroup.DEFAULT_VOLUME_GROUP}
-     * otherwise.
+     * @return the id of the {@link android.media.AudioVolumeGroup} supporting the given
+     * {@link AudioAttributes} and {@link AudioProductStrategy} if found,
+     * {@link android.media.AudioVolumeGroup.DEFAULT_VOLUME_GROUP} otherwise.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_3)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static int getVolumeGroupIdForAudioAttributes(
             @NonNull AudioProductStrategy strategy, @NonNull AudioAttributes attributes) {
         Preconditions.checkNotNull(attributes, "Audio Attributes must not be null");
@@ -586,17 +594,18 @@ public final class AudioManagerHelper {
     }
 
     /**
-     * Gets the last audible volume for a given {@link AudioVolumeGroup} id.
+     * Gets the last audible volume for a given {@link android.media.AudioVolumeGroup} id.
      * <p>The last audible index is the current index if not muted, or index applied before mute if
      * muted. If muted by volume 0, the last audible index is 0. See
      * {@link AudioManager#getLastAudibleVolumeForVolumeGroup} for details.
      *
      * @param audioManager {@link AudioManager} instance to be used for the request
-     * @param amGroupId id of the {@link AudioVolumeGroup} to consider
-     * @return the last audible volume of the {@link AudioVolumeGroup}
+     * @param amGroupId id of the {@link android.media.AudioVolumeGroup} to consider
+     * @return the last audible volume of the {@link android.media.AudioVolumeGroup}
      * referred by its id if found, {@code 0} otherwise.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_3)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static int getLastAudibleVolumeGroupVolume(@NonNull AudioManager audioManager,
                                                      int amGroupId) {
         Objects.requireNonNull(audioManager, "Audio manager can not be null");
@@ -604,30 +613,33 @@ public final class AudioManagerHelper {
     }
 
     /**
-     * Checks if the given {@link AudioVolumeGroup} is muted or not.
+     * Checks if the given {@link android.media.AudioVolumeGroup} is muted or not.
      * <p>See {@link AudioManager#isVolumeGroupMuted} for details
      *
      * @param audioManager {@link AudioManager} instance to be used for the request
-     * @param amGroupId id of the {@link AudioVolumeGroup} to consider
-     * @return true if the {@link AudioVolumeGroup} referred by its id is found and muted, false
-     *                otherwise.
+     * @param amGroupId id of the {@link android.media.AudioVolumeGroup} to consider
+     * @return true if the {@link android.media.AudioVolumeGroup} referred by its id is found and
+     * muted, false otherwise.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_3)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static boolean isVolumeGroupMuted(@NonNull AudioManager audioManager, int amGroupId) {
         Objects.requireNonNull(audioManager, "Audio manager can not be null");
         return audioManager.isVolumeGroupMuted(amGroupId);
     }
 
     /**
-     * Adjusts the volume for the {@link AudioVolumeGroup} id if found. No-operation otherwise.
+     * Adjusts the volume for the {@link android.media.AudioVolumeGroup} id if found. No-operation
+     * otherwise.
      * <p>See {@link AudioManager#adjustVolumeGroupVolume} for details
      *
      * @param audioManager audio manager to use for managing the volume group
-     * @param amGroupId id of the {@link AudioVolumeGroup} to consider
+     * @param amGroupId id of the {@link android.media.AudioVolumeGroup} to consider
      * @param direction direction to adjust the volume, one of {@link AudioManager#VolumeAdjustment}
      * @param flags one ore more flags of {@link AudioManager#Flags}
      */
-    @AddedIn(PlatformVersion.TIRAMISU_3)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static void adjustVolumeGroupVolume(@NonNull AudioManager audioManager,
             int amGroupId, int direction, @AudioManager.Flags int flags) {
         Objects.requireNonNull(audioManager, "Audio manager can not be null");

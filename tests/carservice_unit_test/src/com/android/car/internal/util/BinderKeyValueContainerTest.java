@@ -40,6 +40,8 @@ public final class BinderKeyValueContainerTest {
     private final BinderKeyValueContainer<String, TestBinderInterface> mContainer =
             new BinderKeyValueContainer<>();
 
+    private String mDeadKey;
+
     @Test
     public void testBasicFunctions() {
         assertThat(mContainer.size()).isEqualTo(0);
@@ -77,10 +79,15 @@ public final class BinderKeyValueContainerTest {
         assertThat(mContainer.get(mKey1)).isNull();
         assertThat(mContainer.size()).isEqualTo(1);
         assertThat(!mContainer.containsKey(mKey1)).isTrue();
+
+        // Remove the item at index 0 (key2).
+        mContainer.removeAt(0);
+        assertThat(mContainer.size()).isEqualTo(0);
     }
 
     @Test
     public void testBinderDied() {
+        mContainer.setBinderDeathCallback(deadKey -> mDeadKey = deadKey);
         mContainer.put(mKey1, mInterface1);
         mContainer.put(mKey2, mInterface2);
         mInterface1.die();
@@ -88,6 +95,7 @@ public final class BinderKeyValueContainerTest {
         assertThat(mContainer.size()).isEqualTo(1);
         assertThat(mContainer.containsKey(mKey1)).isFalse();
         assertThat(mContainer.containsKey(mKey2)).isTrue();
+        assertThat(mDeadKey).isEqualTo(mKey1);
     }
 
     private static final class TestBinderInterface extends android.os.Binder implements IInterface {

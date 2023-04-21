@@ -16,11 +16,10 @@
 package com.android.car;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
 import android.annotation.Nullable;
 import android.app.ActivityManager;
-import android.car.Car;
-import android.car.PlatformVersion;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback;
 import android.car.builtin.os.ProcessHelper;
@@ -41,7 +40,9 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -79,6 +80,9 @@ public class SystemActivityMonitoringService implements CarServiceBase {
     private final Map<Integer, Set<Integer>> mForegroundUidPids = new ArrayMap<>();
 
     @GuardedBy("mLock")
+    private final List<ProcessObserverCallback> mCustomProcessObservers = new ArrayList<>();
+
+    @GuardedBy("mLock")
     private boolean mAssignPassengerActivityToFgGroup;
 
     public SystemActivityMonitoringService(Context context) {
@@ -94,7 +98,7 @@ public class SystemActivityMonitoringService implements CarServiceBase {
     @Override
     public void init() {
         boolean assignPassengerActivityToFgGroup = false;
-        if (Car.getPlatformVersion().isAtLeast(PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0)) {
+        if (isPlatformVersionAtLeastU()) {
             if (mContext.getResources().getBoolean(
                     R.bool.config_assignPassengerActivityToForegroundCpuGroup)) {
                 CarOccupantZoneService occupantService = CarLocalServices.getService(
@@ -157,8 +161,26 @@ public class SystemActivityMonitoringService implements CarServiceBase {
         }
     }
 
+    /** Registers a callback to get notified when the running state of a process has changed. */
+    void registerProcessObserverCallback(ProcessObserverCallback callback) {
+        synchronized (mLock) {
+            mCustomProcessObservers.add(callback);
+        }
+    }
+
+    /** Unregisters the ProcessObserverCallback, if there is any. */
+    void unregisterProcessObserverCallback(ProcessObserverCallback callback) {
+        synchronized (mLock) {
+            mCustomProcessObservers.remove(callback);
+        }
+    }
+
     private void handleForegroundActivitiesChanged(int pid, int uid, boolean foregroundActivities) {
         synchronized (mLock) {
+            for (int i = 0; i < mCustomProcessObservers.size(); i++) {
+                ProcessObserverCallback callback = mCustomProcessObservers.get(i);
+                callback.onForegroundActivitiesChanged(pid, uid, foregroundActivities);
+            }
             if (foregroundActivities) {
                 Set<Integer> pids = mForegroundUidPids.get(uid);
                 if (pids == null) {
@@ -174,6 +196,10 @@ public class SystemActivityMonitoringService implements CarServiceBase {
 
     private void handleProcessDied(int pid, int uid) {
         synchronized (mLock) {
+            for (int i = 0; i < mCustomProcessObservers.size(); i++) {
+                ProcessObserverCallback callback = mCustomProcessObservers.get(i);
+                callback.onProcessDied(pid, uid);
+            }
             doHandlePidGoneLocked(pid, uid);
         }
     }

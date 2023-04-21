@@ -32,6 +32,7 @@ import android.os.RemoteException;
 
 import com.android.car.internal.PropertyPermissionMapping;
 import com.android.car.internal.property.AsyncPropertyServiceRequest;
+import com.android.car.internal.property.CarPropertyConfigList;
 import com.android.car.internal.property.GetSetValueResult;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
 
@@ -85,12 +86,12 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
     }
 
     @Override
-    public List<CarPropertyConfig> getPropertyList() throws RemoteException {
-        return new ArrayList<>(mConfigs.values());
+    public CarPropertyConfigList getPropertyList() throws RemoteException {
+        return new CarPropertyConfigList(new ArrayList<>(mConfigs.values()));
     }
 
     @Override
-    public List<CarPropertyConfig> getPropertyConfigList(int[] propIds) {
+    public CarPropertyConfigList getPropertyConfigList(int[] propIds) {
         List<CarPropertyConfig> configs = new ArrayList<>(propIds.length);
         for (int prop : propIds) {
             CarPropertyConfig cfg = mConfigs.get(prop);
@@ -98,7 +99,7 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
                 configs.add(cfg);
             }
         }
-        return configs;
+        return new CarPropertyConfigList(configs);
     }
 
     @Override

@@ -16,13 +16,17 @@
 
 package android.car.view;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
+
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.app.Activity;
 import android.car.Car;
+import android.car.PlatformVersion;
 import android.car.annotation.ApiRequirements;
 import android.car.app.CarActivityManager;
 import android.car.builtin.util.Slogf;
@@ -30,6 +34,7 @@ import android.car.builtin.view.TouchableInsetsProvider;
 import android.content.Context;
 import android.graphics.Rect;
 import android.graphics.Region;
+import android.os.Build;
 import android.os.IBinder;
 import android.util.AttributeSet;
 import android.util.Dumpable;
@@ -50,6 +55,7 @@ import java.io.PrintWriter;
  *
  * @hide
  */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 @SystemApi
 @SuppressWarnings("[NotCloseable]") // View object won't be used in try-with-resources statement.
 public final class MirroredSurfaceView extends SurfaceView {
@@ -88,7 +94,7 @@ public final class MirroredSurfaceView extends SurfaceView {
                         SurfaceControl.Transaction transaction,
                         TouchableInsetsProvider touchableInsetsProvider) {
         super(context, attrs, defStyleAttr, defStyleRes);
-
+        assertPlatformVersionAtLeast(PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
         mTransaction = transaction;
         mTouchableInsetsProvider = touchableInsetsProvider != null
                 ? touchableInsetsProvider : new TouchableInsetsProvider(this);
@@ -112,6 +118,10 @@ public final class MirroredSurfaceView extends SurfaceView {
 
     /**
      * Attaches the mirrored Surface which is represented by the given token to this View.
+     * <p>
+     * <b>Note:</b> MirroredSurfaceView will hold the Surface unless you call {@link #release()}
+     * explicitly. This is so that the host can keep the Surface when {@link Activity#onStop()} and
+     * {@link Activity#onStart()} are called again.
      *
      * @param token A token to access the Task Surface to mirror.
      * @return true if the operation is successful.
@@ -167,6 +177,14 @@ public final class MirroredSurfaceView extends SurfaceView {
         removeMirroredSurface();
     }
 
+    @Override
+    protected void finalize() throws Throwable {
+        if (mMirroredSurface != null) {
+            removeMirroredSurface();
+        }
+        super.finalize();
+    }
+
     private void reparentMirroredSurface() {
         if (DBG) Slog.d(TAG, "reparentMirroredSurface");
         calculateScale();
@@ -176,6 +194,10 @@ public final class MirroredSurfaceView extends SurfaceView {
     }
 
     private void removeMirroredSurface() {
+        if (mMirroredSurface == null) {
+            Slog.w(TAG, "Skip removeMirroredSurface() on null Surface.");
+            return;
+        }
         mTransaction.reparent(mMirroredSurface, null).apply();
         mMirroredSurface.release();
         mMirroredSurface = null;
@@ -226,7 +248,8 @@ public final class MirroredSurfaceView extends SurfaceView {
 
         @Override
         public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-            removeMirroredSurface();
+            // Don't remove mMirroredSurface autonomously, because it may not get it again
+            // after some timeout. So the host Activity needs to keep it for the next onStart event.
         }
     };
 

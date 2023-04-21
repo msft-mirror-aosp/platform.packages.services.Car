@@ -16,6 +16,7 @@
 
 package com.android.car.audio;
 
+import android.car.media.CarVolumeGroupEvent;
 import android.car.media.CarVolumeGroupInfo;
 import android.media.AudioAttributes;
 
@@ -63,6 +64,10 @@ final class CarVolumeInfoWrapper {
         return mCarAudioService.getVolumeGroupInfo(zoneId, groupId);
     }
 
+    public int getVolumeGroupIdForAudioAttribute(int audioZoneId, AudioAttributes attributes) {
+        return mCarAudioService.getVolumeGroupIdForAudioAttribute(audioZoneId, attributes);
+    }
+
     public List<CarVolumeGroupInfo> getVolumeGroupInfosForZone(int zoneId) {
         return mCarAudioService.getVolumeGroupInfosForZone(zoneId);
     }
@@ -77,5 +82,9 @@ final class CarVolumeInfoWrapper {
 
     public void onAudioVolumeGroupChanged(int zoneId, String groupName, int flags) {
         mCarAudioService.onAudioVolumeGroupChanged(zoneId, groupName, flags);
+    }
+
+    public void onVolumeGroupEvent(List<CarVolumeGroupEvent> events) {
+        mCarAudioService.callbackVolumeGroupEvent(events);
     }
 }

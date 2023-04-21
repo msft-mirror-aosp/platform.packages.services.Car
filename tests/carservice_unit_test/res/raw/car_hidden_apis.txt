@@ -12,9 +12,8 @@ android.car ApiVersion T readFromParcel(Parcel source, ApiVersionFactory<T> fact
 android.car Car String PROPERTY_EMULATED_PLATFORM_VERSION_MAJOR
 android.car Car String PROPERTY_EMULATED_PLATFORM_VERSION_MINOR
 android.car Car String CAR_SERVICE_BINDER_SERVICE_NAME
-android.car Car String CAR_OCCUPANT_CONNECTION_SERVICE
-android.car Car String CAR_REMOTE_DEVICE_SERVICE
 android.car Car String EXPERIMENTAL_CAR_USER_SERVICE
+android.car Car String EXPERIMENTAL_CAR_KEYGUARD_SERVICE
 android.car Car String CAR_INSTRUMENT_CLUSTER_SERVICE
 android.car Car String CLUSTER_HOME_SERVICE
 android.car Car String PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE
@@ -398,7 +397,6 @@ android.car.hardware.property CarPropertyEvent int getErrorCode()
 android.car.hardware.property CarPropertyEvent String toString()
 android.car.hardware.property CarPropertyEvent boolean equals(Object object)
 android.car.hardware.property CarPropertyEvent int hashCode()
-android.car.hardware.property CarPropertyManager int STATUS_OK
 android.car.hardware.property CarPropertyManager String getReadPermission(int propId)
 android.car.hardware.property CarPropertyManager String getWritePermission(int propId)
 android.car.hardware.property CarPropertyManager void onCarDisconnected()
@@ -624,22 +622,6 @@ android.car.user ExperimentalCarUserManager boolean startPassenger(int passenger
 android.car.user ExperimentalCarUserManager boolean stopPassenger(int passengerId)
 android.car.user ExperimentalCarUserManager void onCarDisconnected()
 android.car.user OperationResult boolean isSuccess()
-android.car.user UserCreationResult int STATUS_SUCCESSFUL
-android.car.user UserCreationResult int STATUS_ANDROID_FAILURE
-android.car.user UserCreationResult int STATUS_HAL_FAILURE
-android.car.user UserCreationResult int STATUS_HAL_INTERNAL_FAILURE
-android.car.user UserCreationResult int STATUS_INVALID_REQUEST
-android.car.user UserCreationResult Parcelable.Creator<UserCreationResult> CREATOR
-android.car.user UserCreationResult boolean isSuccess()
-android.car.user UserCreationResult int describeContents()
-android.car.user UserCreationResult String statusToString(int value)
-android.car.user UserCreationResult int getStatus()
-android.car.user UserCreationResult Integer getAndroidFailureStatus()
-android.car.user UserCreationResult UserHandle getUser()
-android.car.user UserCreationResult String getErrorMessage()
-android.car.user UserCreationResult String getInternalErrorMessage()
-android.car.user UserCreationResult String toString()
-android.car.user UserCreationResult void writeToParcel(android.os.Parcel dest, int flags)
 android.car.user UserIdentificationAssociationResponse Parcelable.Creator<UserIdentificationAssociationResponse> CREATOR
 android.car.user UserIdentificationAssociationResponse UserIdentificationAssociationResponse forFailure()
 android.car.user UserIdentificationAssociationResponse UserIdentificationAssociationResponse forFailure(String errorMessage)
@@ -653,20 +635,6 @@ android.car.user UserIdentificationAssociationResponse void writeToParcel(androi
 android.car.user UserIdentificationAssociationResponse int describeContents()
 android.car.user UserLifecycleEventFilter int[] getEventTypes()
 android.car.user UserLifecycleEventFilter int[] getUserIds()
-android.car.user UserRemovalResult int STATUS_SUCCESSFUL
-android.car.user UserRemovalResult int STATUS_ANDROID_FAILURE
-android.car.user UserRemovalResult int STATUS_INVALID_REQUEST
-android.car.user UserRemovalResult int STATUS_USER_DOES_NOT_EXIST
-android.car.user UserRemovalResult int STATUS_SUCCESSFUL_LAST_ADMIN_REMOVED
-android.car.user UserRemovalResult int STATUS_SUCCESSFUL_SET_EPHEMERAL
-android.car.user UserRemovalResult int STATUS_SUCCESSFUL_LAST_ADMIN_SET_EPHEMERAL
-android.car.user UserRemovalResult Parcelable.Creator<UserRemovalResult> CREATOR
-android.car.user UserRemovalResult boolean isSuccess()
-android.car.user UserRemovalResult String statusToString(int value)
-android.car.user UserRemovalResult int getStatus()
-android.car.user UserRemovalResult String toString()
-android.car.user UserRemovalResult void writeToParcel(android.os.Parcel dest, int flags)
-android.car.user UserRemovalResult int describeContents()
 android.car.user UserStartResult int STATUS_SUCCESSFUL
 android.car.user UserStartResult int STATUS_ANDROID_FAILURE
 android.car.user UserStartResult int STATUS_SUCCESSFUL_USER_IS_CURRENT_USER
@@ -691,26 +659,6 @@ android.car.user UserStopResult int getStatus()
 android.car.user UserStopResult String toString()
 android.car.user UserStopResult void writeToParcel(android.os.Parcel dest, int flags)
 android.car.user UserStopResult int describeContents()
-android.car.user UserSwitchResult int STATUS_SUCCESSFUL
-android.car.user UserSwitchResult int STATUS_ANDROID_FAILURE
-android.car.user UserSwitchResult int STATUS_HAL_FAILURE
-android.car.user UserSwitchResult int STATUS_HAL_INTERNAL_FAILURE
-android.car.user UserSwitchResult int STATUS_INVALID_REQUEST
-android.car.user UserSwitchResult int STATUS_UX_RESTRICTION_FAILURE
-android.car.user UserSwitchResult int STATUS_OK_USER_ALREADY_IN_FOREGROUND
-android.car.user UserSwitchResult int STATUS_TARGET_USER_ALREADY_BEING_SWITCHED_TO
-android.car.user UserSwitchResult int STATUS_TARGET_USER_ABANDONED_DUE_TO_A_NEW_REQUEST
-android.car.user UserSwitchResult int STATUS_NOT_SWITCHABLE
-android.car.user UserSwitchResult int STATUS_NOT_LOGGED_IN
-android.car.user UserSwitchResult Parcelable.Creator<UserSwitchResult> CREATOR
-android.car.user UserSwitchResult boolean isSuccess()
-android.car.user UserSwitchResult int describeContents()
-android.car.user UserSwitchResult String statusToString(int value)
-android.car.user UserSwitchResult int getStatus()
-android.car.user UserSwitchResult Integer getAndroidFailureStatus()
-android.car.user UserSwitchResult String getErrorMessage()
-android.car.user UserSwitchResult String toString()
-android.car.user UserSwitchResult void writeToParcel(android.os.Parcel dest, int flags)
 android.car.util.concurrent AndroidAsyncFuture T get()
 android.car.util.concurrent AndroidAsyncFuture T get(long timeout, TimeUnit unit)
 android.car.util.concurrent AndroidAsyncFuture AsyncFuture<T> whenCompleteAsync(BiConsumer<? super T,? super Throwable> action, Executor executor)

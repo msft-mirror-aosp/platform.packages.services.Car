@@ -41,7 +41,6 @@ import android.view.Display;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.Lists;
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -209,7 +208,6 @@ public class CarOccupantZoneManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public boolean equals(Object other) {
             if (this == other) {
                 return true;
@@ -223,7 +221,6 @@ public class CarOccupantZoneManager extends CarManagerBase {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public int hashCode() {
             int hash = 23;
             hash = hash * 17 + zoneId;
@@ -245,7 +242,6 @@ public class CarOccupantZoneManager extends CarManagerBase {
                 };
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public String toString() {
             StringBuilder b = new StringBuilder(64);
             b.append("OccupantZoneInfo{zoneId=");
@@ -339,24 +335,6 @@ public class CarOccupantZoneManager extends CarManagerBase {
     @interface UserAssignmentResult {}
 
     /**
-     * Launch home with category of {@link android.content.Intent#CATEGORY_HOME} or
-     * {@link android.content.Intent#CATEGORY_SECONDARY_HOME} for the assigned display.
-     *
-     * @hide
-     */
-    @SystemApi
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-    public static final int USER_ASSIGNMENT_FLAG_LAUNCH_HOME = 0x1;
-
-    /** @hide */
-    @IntDef(flag = true, prefix = {"USER_ASSIGNMENT_FLAG_"}, value = {
-            USER_ASSIGNMENT_FLAG_LAUNCH_HOME,
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    @interface UserAssignmentFlags {}
-
-    /**
      * Invalid user ID. Zone with this user ID has no allocated user. Should have the same value
      * with {@link UserHandle#USER_NULL}.
      */
@@ -392,8 +370,13 @@ public class CarOccupantZoneManager extends CarManagerBase {
     private final CopyOnWriteArrayList<OccupantZoneConfigChangeListener> mListeners =
             new CopyOnWriteArrayList<>();
 
-    /** @hide */
-    @VisibleForTesting
+    /**
+     * Gets an instance of the CarOccupantZoneManager.
+     *
+     * <p>Should not be obtained directly by clients, use {@link Car#getCarManager(String)} instead.
+     *
+     * @hide
+     */
     public CarOccupantZoneManager(Car car, IBinder service) {
         super(car);
         mService = ICarOccupantZone.Stub.asInterface(service);
@@ -576,6 +559,29 @@ public class CarOccupantZoneManager extends CarManagerBase {
     }
 
     /**
+     * Returns the info for the occupant zone that has the display identified by the given
+     * {@code displayId}.
+     *
+     * @param displayId Should be valid display id. Passing in invalid display id will lead into
+     *        getting {@code null} occupant zone info result.
+     * @return Occupant zone info or {@code null} if no occupant zone is found which has the given
+     * display.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    @Nullable
+    public OccupantZoneInfo getOccupantZoneForDisplayId(int displayId) {
+        try {
+            return mService.getOccupantZoneForDisplayId(displayId);
+        } catch (RemoteException e) {
+            return handleRemoteExceptionFromCarService(e, null);
+        }
+    }
+
+    /**
      * Assigns the given profile {@code userId} to the {@code occupantZone}. Returns true when the
      * request succeeds.
      *
@@ -586,7 +592,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
      * @param userId       profile user id to assign. Passing {@link #INVALID_USER_ID} leads into
      *                     removing the current user assignment.
      * @return true if the request succeeds or if the user is already assigned to the zone.
-     * @deprecated Use {@link #assignVisibleUserToOccupantZone(OccupantZoneInfo, UserHandle, int)}
+     * @deprecated Use {@link #assignVisibleUserToOccupantZone(OccupantZoneInfo, UserHandle)}
      * instead.
      *
      * @hide
@@ -609,7 +615,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
      * Assign a visible user, which gets {@code true} from ({@link UserManager#isUserVisible()},
      * to the specified occupant zone.
      *
-     * <p>This API handles occupant zone change and other actions specified in the {@code flags}.
+     * <p>This API handles occupant zone change.
      *
      * <p>This API can take a long time, so it is recommended to call this from non-main thread.
      *
@@ -631,7 +637,6 @@ public class CarOccupantZoneManager extends CarManagerBase {
      * @param occupantZone the occupant zone to change user allocation
      * @param user the user to allocate. {@code null} user removes the allocation for the zone
      *             {@link UserHandle#CURRENT} will assign the current user to the zone
-     * @param flags the flags to define actions done with the user assignment
      * @return Check the above
      *
      * @hide
@@ -643,10 +648,10 @@ public class CarOccupantZoneManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @UserAssignmentResult
     public int assignVisibleUserToOccupantZone(@NonNull OccupantZoneInfo occupantZone,
-            @NonNull UserHandle user, @UserAssignmentFlags int flags) {
+            @NonNull UserHandle user) {
         assertNonNullOccupant(occupantZone);
         try {
-            return mService.assignVisibleUserToOccupantZone(occupantZone.zoneId, user, flags);
+            return mService.assignVisibleUserToOccupantZone(occupantZone.zoneId, user);
         } catch (RemoteException e) {
             // Return any error code if car service is gone.
             return handleRemoteExceptionFromCarService(e,

@@ -15,6 +15,11 @@
  */
 package com.android.car.audio;
 
+import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_ATTENUATION_CHANGED;
+import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_MUTE_CHANGED;
+import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_BLOCKED_CHANGED;
+import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED;
+
 import static com.android.car.audio.CarVolumeEventFlag.VolumeEventFlags;
 import static com.android.car.audio.hal.HalAudioGainCallback.reasonToString;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
@@ -34,6 +39,7 @@ import android.util.SparseArray;
 
 import com.android.car.CarLog;
 import com.android.car.audio.CarAudioContext.AudioContext;
+import com.android.car.audio.hal.HalAudioDeviceInfo;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
@@ -53,8 +59,8 @@ import java.util.Objects;
  * while the audioserver resource config_useFixedVolume is set.
  *
  * -volume groups relying on audioserver to control the volume and access using
- * {@link AudioManager#setVolumeIndexForAudioAttributes} and all other related volume
- * APIs.
+ * {@link AudioManager#setVolumeIndexForAttributes(AudioAttributes, int, int)} and all other
+ * related volume APIs.
  * Gain may either be controlled on hardware amplifier using Audio HAL setaudioPortConfig if the
  * correlated audio device port defines a gain controller with attribute name="useForVolume" set
  * or in software using the port id in Audio flinger.
@@ -71,6 +77,7 @@ import java.util.Objects;
     protected final int mId;
     private final String mName;
     protected final int mZoneId;
+    protected final int mConfigId;
     protected final SparseArray<String> mContextToAddress;
     protected final ArrayMap<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
 
@@ -83,53 +90,67 @@ import java.util.Objects;
     @GuardedBy("mLock")
     protected int mCurrentGainIndex = UNINITIALIZED;
 
+    /**
+     * Mute state for requests coming from clients. See {@link #mIsHalMuted} for state of requests
+     * coming from HAL.
+     */
     @GuardedBy("mLock")
     protected boolean mIsMuted;
     @GuardedBy("mLock")
     protected @UserIdInt int mUserId = UserHandle.CURRENT.getIdentifier();
 
     /**
-     * Attenuated gain is set to {@see CarAudioDeviceInfo#UNINITIALIZED} till attenuation explicitly
-     * reported by {@see HalAudioGainCallback#onAudioDeviceGainsChanged} for one or more {@see
-     * android.hardware.automotive.audiocontrol#Reasons}. When the reason is cleared, it returns
-     * back to {@see CarAudioDeviceInfo#UNINITIALIZED}.
+     * Attenuated gain is set to {@link #UNINITIALIZED} till attenuation explicitly reported by
+     * {@link com.android.car.audio.hal.HalAudioGainCallback#onAudioDeviceGainsChanged} for one or
+     * more {@link android.hardware.automotive.audiocontrol.Reasons}. When the reason is cleared,
+     * it returns back to {@link #UNINITIALIZED}.
      */
     @GuardedBy("mLock")
     protected int mAttenuatedGainIndex = UNINITIALIZED;
 
     /**
-     * Limitation gain is set to max gain value till limitation explicitly reported by {@see
-     * HalAudioGainCallback#onAudioDeviceGainsChanged} for one or more {@see
-     * android.hardware.automotive.audiocontrol#Reasons}. When the reason is cleared, it returns
-     * back to max.
+     * Limitation gain is set to max gain value till limitation explicitly reported by {@link
+     * com.android.car.audio.hal.HalAudioGainCallback#onAudioDeviceGainsChanged} for one or more
+     * {@link android.hardware.automotive.audiocontrol.Reasons}. When the reason is cleared, it
+     * returns back to max.
      */
     @GuardedBy("mLock")
     protected int mLimitedGainIndex;
 
     /**
-     * Blocked gain is set to {@see CarAudioDeviceInfo#UNINITIALIZED} till blocking case explicitly
-     * reported by {@see HalAudioGainCallback#onAudioDeviceGainsChanged} for one or more {@see
-     * android.hardware.automotive.audiocontrol#Reasons}. When the reason is cleared, it returns
-     * back to {@see CarAudioDeviceInfo#UNINITIALIZED}.
+     * Blocked gain is set to {@link #UNINITIALIZED} till blocking case explicitly reported by
+     * {@link com.android.car.audio.hal.HalAudioGainCallback#onAudioDeviceGainsChanged} for one or
+     * more {@link android.hardware.automotive.audiocontrol.Reasons}. When the reason is cleared,
+     * it returns back to {@link #UNINITIALIZED}.
      */
     @GuardedBy("mLock")
     protected int mBlockedGainIndex = UNINITIALIZED;
 
     /**
-     * Reasons list currently reported for this port by {@see
-     * HalAudioGainCallback#onAudioDeviceGainsChanged}.
+     * The default state of HAL mute is {@code false} until HAL explicitly reports through
+     * {@link com.android.car.audio.hal.HalAudioGainCallback#onAudioDeviceGainsChanged} for one or
+     * more {@link android.hardware.automotive.audiocontrol.Reasons}. When the reason
+     * is cleared, it is reset. See {@link #mIsMuted} for state of requests coming from clients.
+     */
+    @GuardedBy("mLock")
+    private boolean mIsHalMuted = false;
+
+    /**
+     * Reasons list currently reported for this port by {@link
+     * com.android.car.audio.hal.HalAudioGainCallback#onAudioDeviceGainsChanged}.
      */
     protected List<Integer> mReasons = new ArrayList<>();
 
     protected CarVolumeGroup(CarAudioContext carAudioContext, CarAudioSettings settingsManager,
             SparseArray<String> contextToAddress, ArrayMap<String,
-            CarAudioDeviceInfo> addressToCarAudioDeviceInfo, int zoneId, int volumeGroupId,
-            String name, boolean useCarVolumeGroupMute) {
+            CarAudioDeviceInfo> addressToCarAudioDeviceInfo, int zoneId, int configId,
+            int volumeGroupId, String name, boolean useCarVolumeGroupMute) {
         mSettingsManager = settingsManager;
         mContextToAddress = contextToAddress;
         mAddressToCarAudioDeviceInfo = addressToCarAudioDeviceInfo;
         mCarAudioContext = carAudioContext;
         mZoneId = zoneId;
+        mConfigId = configId;
         mId = volumeGroupId;
         mName = Objects.requireNonNull(name, "Volume group name cannot be null");
         mUseCarVolumeGroupMute = useCarVolumeGroupMute;
@@ -147,7 +168,7 @@ import java.util.Objects;
     void init() {
         synchronized (mLock) {
             mStoredGainIndex = mSettingsManager.getStoredVolumeGainIndexForUser(
-                    mUserId, mZoneId, mId);
+                    mUserId, mZoneId, mConfigId, mId);
             updateCurrentGainIndexLocked();
         }
     }
@@ -210,6 +231,16 @@ import java.util.Objects;
     @GuardedBy("mLock")
     protected boolean isAttenuatedLocked() {
         return mAttenuatedGainIndex != UNINITIALIZED;
+    }
+
+    @GuardedBy("mLock")
+    private void setHalMuteLocked(boolean mute) {
+        mIsHalMuted = mute;
+    }
+
+    @GuardedBy("mLock")
+    private boolean isHalMutedLocked() {
+        return mIsHalMuted;
     }
 
     void setBlocked(int blockedIndex) {
@@ -367,31 +398,35 @@ import java.util.Objects;
 
     int getCurrentGainIndex() {
         synchronized (mLock) {
-            if (mIsMuted) {
+            if (isMutedLocked()) {
                 return getMinGainIndex();
             }
-            if (isBlockedLocked()) {
-                return mBlockedGainIndex;
-            }
-            if (isAttenuatedLocked()) {
-                // Need to figure out if attenuation shall be hidden to end user
-                // as while ducked from IAudioControl
-                // Also, keep unchanged current index / use it as a cache of previous value
-                //
-                // TODO(b/) clarify in case of volume adjustment if the reference index is the
-                // ducked index or the current index. Taking current may lead to gap of index > 1.
-                return mAttenuatedGainIndex;
-            }
-            if (isOverLimitLocked()) {
-                return mLimitedGainIndex;
-            }
-            return getCurrentGainIndexLocked();
+
+            return getRestrictedGainForIndexLocked(getCurrentGainIndexLocked());
         }
     }
 
     @GuardedBy("mLock")
     protected int getCurrentGainIndexLocked() {
         return mCurrentGainIndex;
+    }
+
+    @GuardedBy("mLock")
+    protected int getRestrictedGainForIndexLocked(int index) {
+        if (isBlockedLocked()) {
+            return mBlockedGainIndex;
+        }
+        if (isOverLimitLocked()) {
+            return mLimitedGainIndex;
+        }
+        if (isAttenuatedLocked()) {
+            // Need to figure out if attenuation shall be hidden to end user
+            // as while ducked from IAudioControl
+            // TODO(b/) clarify in case of volume adjustment if the reference index is the
+            // ducked index or the current index. Taking current may lead to gap of index > 1.
+            return mAttenuatedGainIndex;
+        }
+        return index;
     }
 
     /**
@@ -405,11 +440,9 @@ import java.util.Objects;
                     gainIndex);
             if (isBlockedLocked()) {
                 // prevent any volume change while {@link IAudioGainCallback} reported block event.
-                // TODO(b/) callback mecanism to inform HMI/User of failure and reason why if needed
                 return;
             }
             if (isOverLimitLocked(currentgainIndex)) {
-                // TODO(b/) callback to inform if over limit index and why if needed.
                 currentgainIndex = mLimitedGainIndex;
             }
             if (isAttenuatedLocked()) {
@@ -455,8 +488,9 @@ import java.util.Objects;
             writer.printf("CarVolumeGroup(%d)\n", mId);
             writer.increaseIndent();
             writer.printf("Name(%s)\n", mName);
-            writer.printf("Zone Id(%b)\n", mZoneId);
-            writer.printf("Is Muted(%b)\n", mIsMuted);
+            writer.printf("Zone Id(%d)\n", mZoneId);
+            writer.printf("Configuration Id(%d)\n", mConfigId);
+            writer.printf("Is Muted(%b)\n", isMutedLocked());
             writer.printf("UserId(%d)\n", mUserId);
             writer.printf("Persist Volume Group Mute(%b)\n",
                     mSettingsManager.isPersistVolumeGroupMuteEnabled(mUserId));
@@ -495,6 +529,7 @@ import java.util.Objects;
                     "Attenuated: %b%s\n",
                     isAttenuatedLocked(),
                     (isAttenuatedLocked() ? " (at: " + mAttenuatedGainIndex + ")" : ""));
+            writer.printf("Muted by HAL: %b\n", isHalMutedLocked());
             writer.decreaseIndent();
             // Empty line for comfortable reading
             writer.println();
@@ -516,6 +551,13 @@ import java.util.Objects;
 
     void setMute(boolean mute) {
         synchronized (mLock) {
+            // if hal muted the audio devices, then do not allow other incoming requests
+            // to perform unmute.
+            if (!mute && isHalMutedLocked()) {
+                Slogf.e(CarLog.TAG_AUDIO, "Un-mute request cannot be processed due to active "
+                        + "hal mute restriction!");
+                return;
+            }
             setMuteLocked(mute);
         }
     }
@@ -524,14 +566,20 @@ import java.util.Objects;
     protected void setMuteLocked(boolean mute) {
         mIsMuted = mute;
         if (mSettingsManager.isPersistVolumeGroupMuteEnabled(mUserId)) {
-            mSettingsManager.storeVolumeGroupMuteForUser(mUserId, mZoneId, mId, mute);
+            mSettingsManager.storeVolumeGroupMuteForUser(mUserId, mZoneId, mConfigId, mId, mute);
         }
     }
 
     boolean isMuted() {
         synchronized (mLock) {
-            return mIsMuted;
+            return isMutedLocked();
         }
+    }
+
+    @GuardedBy("mLock")
+    private boolean isMutedLocked() {
+        // if either of the mute states is set, it results in group being muted.
+        return mIsMuted || mIsHalMuted;
     }
 
     private static boolean containsCriticalAttributes(List<AudioAttributes> volumeAttributes) {
@@ -552,7 +600,7 @@ import java.util.Objects;
     @GuardedBy("mLock")
     private int getCurrentGainIndexForUserLocked() {
         int gainIndexForUser = mSettingsManager.getStoredVolumeGainIndexForUser(mUserId, mZoneId,
-                mId);
+                mConfigId, mId);
         Slogf.i(CarLog.TAG_AUDIO, "updateUserId userId " + mUserId
                 + " gainIndexForUser " + gainIndexForUser);
         return gainIndexForUser;
@@ -582,7 +630,7 @@ import java.util.Objects;
     @GuardedBy("mLock")
     private void storeGainIndexForUserLocked(int gainIndex, @UserIdInt int userId) {
         mSettingsManager.storeVolumeGainIndexForUser(userId,
-                mZoneId, mId, gainIndex);
+                mZoneId, mConfigId, mId, gainIndex);
     }
 
     @GuardedBy("mLock")
@@ -594,51 +642,71 @@ import java.util.Objects;
             mIsMuted = false;
             return;
         }
-        mIsMuted = mSettingsManager.getVolumeGroupMuteForUser(mUserId, mZoneId, mId);
+        mIsMuted = mSettingsManager.getVolumeGroupMuteForUser(mUserId, mZoneId, mConfigId, mId);
     }
 
-    void onAudioGainChanged(List<Integer> halReasons, CarAudioGainConfigInfo gain) {
-        if (getCarAudioDeviceInfoForAddress(gain.getDeviceAddress()) == null) {
+    /**
+     * Updates volume group states (index, mute, blocked etc) on callback from audio control hal.
+     *
+     * <p>If gain config info carries duplicate info, do not generate events (i.e. eventType = 0)
+     * @param halReasons reasons for change to gain config info
+     * @param gain updated gain config info
+     * @return one or more of {@link EventTypeEnum}. Or 0 for duplicate gain config info
+     */
+    int onAudioGainChanged(List<Integer> halReasons, CarAudioGainConfigInfo gain) {
+        int eventType = 0;
+        int halIndex = gain.getVolumeIndex();
+        if (getCarAudioDeviceInfoForAddress(gain.getDeviceAddress()) == null
+                || !isValidGainIndex(halIndex)) {
             Slogf.e(CarLog.TAG_AUDIO,
-                    "onAudioGainChanged no port found for address %s on group %d",
-                    gain.getDeviceAddress(),
-                    mId);
-            return;
+                    "onAudioGainChanged invalid CarAudioGainConfigInfo: " + gain
+                    + " for group id: " + mId);
+            return eventType;
         }
         synchronized (mLock) {
             mReasons = new ArrayList<>(halReasons);
-            int halIndex = gain.getVolumeIndex();
-            if (CarAudioGainMonitor.shouldBlockVolumeRequest(halReasons)) {
-                setBlockedLocked(halIndex);
-            } else {
-                resetBlockedLocked();
+
+            boolean shouldBlock = CarAudioGainMonitor.shouldBlockVolumeRequest(halReasons);
+            if ((shouldBlock != isBlockedLocked())
+                    || (shouldBlock && (halIndex != mBlockedGainIndex))) {
+                setBlockedLocked(shouldBlock ? halIndex : UNINITIALIZED);
+                eventType |= EVENT_TYPE_VOLUME_BLOCKED_CHANGED;
             }
-            if (CarAudioGainMonitor.shouldLimitVolume(halReasons)) {
-                setLimitLocked(halIndex);
-            } else {
-                resetLimitLocked();
+
+            boolean shouldLimit = CarAudioGainMonitor.shouldLimitVolume(halReasons);
+            if ((shouldLimit != isLimitedLocked())
+                    || (shouldLimit && (halIndex != mLimitedGainIndex))) {
+                setLimitLocked(shouldLimit ? halIndex : getMaxGainIndex());
+                eventType |= EVENT_TYPE_ATTENUATION_CHANGED;
             }
-            if (CarAudioGainMonitor.shouldDuckGain(halReasons)) {
-                setAttenuatedGainLocked(halIndex);
-            } else {
-                resetAttenuationLocked();
+
+            boolean shouldDuck = CarAudioGainMonitor.shouldDuckGain(halReasons);
+            if ((shouldDuck != isAttenuatedLocked())
+                    || (shouldDuck && (halIndex != mAttenuatedGainIndex))) {
+                setAttenuatedGainLocked(shouldDuck ? halIndex : UNINITIALIZED);
+                eventType |= EVENT_TYPE_ATTENUATION_CHANGED;
             }
-            int indexToBroadCast = mCurrentGainIndex;
-            if (isBlockedLocked()) {
-                indexToBroadCast = mBlockedGainIndex;
-            } else if (isAttenuatedLocked()) {
-                indexToBroadCast = mAttenuatedGainIndex;
-            } else if (isOverLimitLocked()) {
-                // TODO(b/) callback to inform if over limit index and why if needed.
-                indexToBroadCast = mLimitedGainIndex;
+
+            boolean shouldMute = CarAudioGainMonitor.shouldMuteVolumeGroup(halReasons);
+            if (shouldMute != isHalMutedLocked()) {
+                setHalMuteLocked(shouldMute);
+                eventType |= EVENT_TYPE_MUTE_CHANGED;
             }
+
+            if (CarAudioGainMonitor.shouldUpdateVolumeIndex(halReasons)
+                    && (halIndex != mCurrentGainIndex)) {
+                mCurrentGainIndex = halIndex;
+                eventType |= EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED;
+            }
+
             // Blocked/Attenuated index shall have been already apply by Audio HAL on HW.
             // However, keep in sync & broadcast to all ports this volume group deals with.
             //
             // Do not update current gain cache, keep it for restoring rather using reported index
             // when the event is cleared.
-            setCurrentGainIndexLocked(indexToBroadCast);
+            setCurrentGainIndexLocked(getRestrictedGainForIndexLocked(mCurrentGainIndex));
         }
+        return eventType;
     }
 
     CarVolumeGroupInfo getCarVolumeGroupInfo() {
@@ -648,7 +716,7 @@ import java.util.Objects;
         boolean isAttenuated;
         synchronized (mLock) {
             gainIndex = mCurrentGainIndex;
-            isMuted = mIsMuted;
+            isMuted = isMutedLocked();
             isBlocked = isBlockedLocked();
             isAttenuated = isAttenuatedLocked();
         }
@@ -656,7 +724,7 @@ import java.util.Objects;
         return new CarVolumeGroupInfo.Builder("group id " + mId, mZoneId, mId)
                 .setVolumeGainIndex(gainIndex).setMaxVolumeGainIndex(getMaxGainIndex())
                 .setMinVolumeGainIndex(getMinGainIndex()).setMuted(isMuted).setBlocked(isBlocked)
-                .setAttenuated(isAttenuated).build();
+                .setAttenuated(isAttenuated).setAudioAttributes(getAudioAttributes()).build();
     }
 
     List<AudioAttributes> getAudioAttributes() {
@@ -678,5 +746,31 @@ import java.util.Objects;
      */
     public @VolumeEventFlags int onAudioVolumeGroupChanged(int flags) {
         return CarVolumeEventFlag.FLAG_EVENT_VOLUME_NONE;
+    }
+
+    /**
+     * Updates car audio device info with the hal audio device info
+     */
+    void updateAudioDeviceInfo(HalAudioDeviceInfo halDeviceInfo) {
+        synchronized (mLock) {
+            CarAudioDeviceInfo info = mAddressToCarAudioDeviceInfo.get(halDeviceInfo.getAddress());
+            if (info == null) {
+                Slogf.w(CarLog.TAG_AUDIO, "No matching car audio device info found for address: %s",
+                        halDeviceInfo.getAddress());
+                return;
+            }
+            info.updateAudioDeviceInfo(halDeviceInfo);
+        }
+    }
+
+    /**
+     * Calculates the new gain stages from list of assigned audio device infos
+     *
+     * <p>Used to update audio device gain stages dynamically.
+     *
+     * @return  one or more of {@link EventTypeEnum}. Or 0 if dynamic updates are not supported
+     */
+    int calculateNewGainStageFromDeviceInfos() {
+        return 0;
     }
 }

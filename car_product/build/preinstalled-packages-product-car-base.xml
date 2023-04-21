@@ -59,6 +59,11 @@
         <install-in user-type="SYSTEM"/>
     </install-in-user-type>
 
+    <!-- This is a test satellite service used for verifying Telephony satellite modules. -->
+    <install-in-user-type package="com.google.android.telephony.satellite">
+        <install-in user-type="SYSTEM"/>
+    </install-in-user-type>
+
 <!--
   Apps that need to run on SYSTEM and evaluated by package owner.
   Here the apps will have FULL and SYSTEM.
@@ -438,6 +443,10 @@
         <install-in user-type="FULL" />
     </install-in-user-type>
     <!-- Mainline module -->
+    <install-in-user-type package="com.android.health.connect.backuprestore">
+        <install-in user-type="FULL" />
+    </install-in-user-type>
+    <!-- Mainline module -->
     <install-in-user-type package="com.android.federatedcompute.services">
         <install-in user-type="FULL" />
     </install-in-user-type>
@@ -451,6 +460,10 @@
     </install-in-user-type>
     <!-- Required by FederatedCompute Service -->
     <install-in-user-type package="com.android.federatedcompute">
+        <install-in user-type="FULL" />
+    </install-in-user-type>
+    <!-- RRO package to be applied when the system boots up for secondary user-->
+    <install-in-user-type package="com.android.systemui.md.passenger.car.rro">
         <install-in user-type="FULL" />
     </install-in-user-type>
 </config>

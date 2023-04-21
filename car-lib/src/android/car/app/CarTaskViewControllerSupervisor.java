@@ -18,10 +18,12 @@ package android.car.app;
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.app.Activity;
 import android.app.Application;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -37,6 +39,7 @@ import java.util.concurrent.Executor;
  * - It is also responsible to dispatch {@link CarTaskViewControllerCallback} methods to the
  * clients.
  */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 final class CarTaskViewControllerSupervisor implements Application.ActivityLifecycleCallbacks{
     private static final String TAG = CarTaskViewControllerSupervisor.class.getSimpleName();
     private final Map<IBinder, ActivityHolder> mActivityHolders = new ArrayMap<>();
@@ -175,6 +178,18 @@ final class CarTaskViewControllerSupervisor implements Application.ActivityLifec
 
         ActivityHolder activityHolder = mActivityHolders.remove(getToken(activity));
         activityHolder.onActivityDestroyed();
+
+        // When all the underlying activities are destroyed, the callback should be removed
+        // from the CarActivityService as its no longer required.
+        // A new callback will be registered when a new activity calls the createTaskViewController.
+        if (mActivityHolders.isEmpty()) {
+            try {
+                mCarActivityService.removeCarSystemUIProxyCallback(mSystemUIProxyCallback);
+                mSystemUIProxyCallback = null;
+            } catch (RemoteException e) {
+                Slogf.e(TAG, "Failed to remove CarSystemUIProxyCallback", e);
+            }
+        }
     }
 
     private static final class ActivityHolder {
@@ -209,18 +224,16 @@ final class CarTaskViewControllerSupervisor implements Application.ActivityLifec
         }
 
         private void onCarSystemUIDisconnected() {
-            dispatchOnDisconnected(mCarTaskViewController);
-            releaseController();
-        }
-
-        private void dispatchOnDisconnected(CarTaskViewController carTaskViewController) {
-            if (carTaskViewController == null) {
+            if (mCarTaskViewController == null) {
                 Slogf.w(TAG, "car task view controller not found, not dispatching onDisconnected");
                 return;
             }
             mCallbackExecutor.execute(() ->
-                    mCarTaskViewControllerCallback.onDisconnected(carTaskViewController)
+                    mCarTaskViewControllerCallback.onDisconnected(mCarTaskViewController)
             );
+            // Only release the taskviews and not the controller because the system ui might get
+            // connected while the activity is still visible.
+            mCarTaskViewController.releaseTaskViews();
         }
 
         private void onActivityDestroyed() {

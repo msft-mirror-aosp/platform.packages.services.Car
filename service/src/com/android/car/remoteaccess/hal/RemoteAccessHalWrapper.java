@@ -16,6 +16,10 @@
 
 package com.android.car.remoteaccess.hal;
 
+import static android.car.Car.getPlatformVersion;
+
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
+
 import android.annotation.Nullable;
 import android.car.builtin.os.ServiceManagerHelper;
 import android.car.builtin.os.TraceHelper;
@@ -98,12 +102,12 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
         }
     }
 
-    /** Check {@link IRemoteAccess#getDeviceId()}. */
-    public String getDeviceId() {
+    /** Check {@link IRemoteAccess#getVehicleId()}. */
+    public String getVehicleId() {
         IRemoteAccess remoteAccessHal = getRemoteAccessHal();
         try {
-            return remoteAccessHal.getDeviceId();
-        } catch (RemoteException e) {
+            return remoteAccessHal.getVehicleId();
+        } catch (RemoteException | RuntimeException e) {
             throw new IllegalStateException("Failed to get device ID", e);
         }
     }
@@ -113,24 +117,35 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
         IRemoteAccess remoteAccessHal = getRemoteAccessHal();
         try {
             return remoteAccessHal.getWakeupServiceName();
-        } catch (RemoteException e) {
+        } catch (RemoteException | RuntimeException e) {
             throw new IllegalStateException("Failed to get wakeup service name", e);
         }
     }
 
-    /** Check {@link IRemoteAccess#notifyApStateChange(ApState)}. */
-    public void notifyApStateChange(boolean isReadyForRemoteTask, boolean isWakeupRequired) {
+    /** Check {@link IRemoteAccess#getProcessorId()}. */
+    public String getProcessorId() {
         IRemoteAccess remoteAccessHal = getRemoteAccessHal();
         try {
+            return remoteAccessHal.getProcessorId();
+        } catch (RemoteException | RuntimeException e) {
+            throw new IllegalStateException("Failed to get processor ID", e);
+        }
+    }
+
+    /** Check {@link IRemoteAccess#notifyApStateChange(ApState)}. */
+    public boolean notifyApStateChange(boolean isReadyForRemoteTask, boolean isWakeupRequired) {
+        try {
+            IRemoteAccess remoteAccessHal = getRemoteAccessHal();
             ApState state = new ApState();
             state.isReadyForRemoteTask = isReadyForRemoteTask;
             state.isWakeupRequired = isWakeupRequired;
             remoteAccessHal.notifyApStateChange(state);
-        } catch (RemoteException e) {
-            throw new IllegalStateException("Failed to notify power state change: "
-                    + "isReadyForRemoteTask=" + isReadyForRemoteTask + ", isWakeupRequired="
-                    + isWakeupRequired);
+        } catch (RemoteException | RuntimeException e) {
+            Slogf.w(TAG, e, "Failed to notify power state change: isReadyForRemoteTask=%b, "
+                    + "isWakeupRequired=%b", isReadyForRemoteTask, isWakeupRequired);
+            return false;
         }
+        return true;
     }
 
     private void connectToHal() {
@@ -208,6 +223,11 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
     @VisibleForTesting
     @Nullable
     public static IBinder getRemoteAccessHalService() {
+        if (!isPlatformVersionAtLeastU()) {
+            Slogf.w(TAG, "The platform does not support getRemoteAccessHalService."
+                    + " Platform version: %s", getPlatformVersion());
+            return null;
+        }
         String[] instances = ServiceManagerHelper.getDeclaredInstances(IRemoteAccess.DESCRIPTOR);
         if (instances == null || instances.length == 0) {
             Slogf.e(TAG, "No remote access HAL service found");

@@ -17,12 +17,16 @@
 package com.android.car;
 
 import static com.android.car.internal.property.CarPropertyHelper.STATUS_OK;
+import static com.android.car.internal.property.CarPropertyHelper.getVhalSystemErrorCode;
+import static com.android.car.internal.property.CarPropertyHelper.getVhalVendorErrorCode;
 
 import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.util.Slogf;
 import android.car.hardware.property.CarPropertyManager;
+import android.car.hardware.property.VehicleHalStatusCode;
+import android.car.hardware.property.VehicleHalStatusCode.VehicleHalStatusCodeInt;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
@@ -43,6 +47,7 @@ import java.util.List;
  * underlying IVehicle service is in.
  */
 public abstract class VehicleStub {
+
     /**
      * SubscriptionClient represents a client that could subscribe/unsubscribe to properties.
      */
@@ -78,7 +83,7 @@ public abstract class VehicleStub {
             CarPropertyManager.STATUS_ERROR_TIMEOUT,
             STATUS_TRY_AGAIN
     })
-    public @interface VehicleStubErrorCode {}
+    public @interface CarPropMgrErrorCode {}
 
     /**
      * A request for {@link VehicleStub#getAsync} or {@link VehicleStub#setAsync}.
@@ -86,7 +91,7 @@ public abstract class VehicleStub {
     public static class AsyncGetSetRequest {
         private final int mServiceRequestId;
         private final HalPropValue mHalPropValue;
-        private final long mTimeoutInMs;
+        private final long mTimeoutUptimeMs;
 
         public int getServiceRequestId() {
             return mServiceRequestId;
@@ -96,18 +101,18 @@ public abstract class VehicleStub {
             return mHalPropValue;
         }
 
-        public long getTimeoutInMs() {
-            return mTimeoutInMs;
+        public long getTimeoutUptimeMs() {
+            return mTimeoutUptimeMs;
         }
 
         /**
          * Get an instance for AsyncGetSetRequest.
          */
         public AsyncGetSetRequest(int serviceRequestId, HalPropValue halPropValue,
-                long timeoutInMs) {
+                long timeoutUptimeMs) {
             mServiceRequestId = serviceRequestId;
             mHalPropValue = halPropValue;
-            mTimeoutInMs = timeoutInMs;
+            mTimeoutUptimeMs = timeoutUptimeMs;
         }
     }
 
@@ -118,8 +123,9 @@ public abstract class VehicleStub {
         private final int mServiceRequestId;
         @Nullable
         private final HalPropValue mHalPropValue;
-        @VehicleStubErrorCode
+        @CarPropMgrErrorCode
         private final int mErrorCode;
+        private final int mVendorErrorCode;
 
         public int getServiceRequestId() {
             return mServiceRequestId;
@@ -130,9 +136,13 @@ public abstract class VehicleStub {
             return mHalPropValue;
         }
 
-        @VehicleStubErrorCode
+        @CarPropMgrErrorCode
         public int getErrorCode() {
             return mErrorCode;
+        }
+
+        public int getVendorErrorCode() {
+            return mVendorErrorCode;
         }
 
         /**
@@ -142,16 +152,18 @@ public abstract class VehicleStub {
             mServiceRequestId = serviceRequestId;
             mHalPropValue = halPropValue;
             mErrorCode = STATUS_OK;
+            mVendorErrorCode = 0;
         }
 
         /**
          * Constructs an instance for GetVehicleStubAsyncResult when error.
          */
         public GetVehicleStubAsyncResult(int serviceRequestId,
-                @VehicleStubErrorCode int errorCode) {
+                @CarPropMgrErrorCode int errorCode, int vendorErrorCode) {
             mServiceRequestId = serviceRequestId;
             mHalPropValue = null;
             mErrorCode = errorCode;
+            mVendorErrorCode = vendorErrorCode;
         }
     }
 
@@ -160,16 +172,21 @@ public abstract class VehicleStub {
      */
     public static final class SetVehicleStubAsyncResult {
         private final int mServiceRequestId;
-        @VehicleStubErrorCode
+        @CarPropMgrErrorCode
         private final int mErrorCode;
+        private final int mVendorErrorCode;
 
         public int getServiceRequestId() {
             return mServiceRequestId;
         }
 
-        @VehicleStubErrorCode
+        @CarPropMgrErrorCode
         public int getErrorCode() {
             return mErrorCode;
+        }
+
+        public int getVendorErrorCode() {
+            return mVendorErrorCode;
         }
 
         /**
@@ -178,15 +195,17 @@ public abstract class VehicleStub {
         public SetVehicleStubAsyncResult(int serviceRequestId) {
             mServiceRequestId = serviceRequestId;
             mErrorCode = STATUS_OK;
+            mVendorErrorCode = 0;
         }
 
         /**
          * Constructs an error result.
          */
         public SetVehicleStubAsyncResult(int serviceRequestId,
-                @VehicleStubErrorCode int errorCode) {
+                @CarPropMgrErrorCode int errorCode, int vendorErrorCode) {
             mServiceRequestId = serviceRequestId;
             mErrorCode = errorCode;
+            mVendorErrorCode = vendorErrorCode;
         }
     }
 
@@ -352,7 +371,7 @@ public abstract class VehicleStub {
             throws RemoteException, ServiceSpecificException;
 
     /**
-     * Dump VHAL debug information.
+     * Dumps VHAL debug information.
      *
      * Additional arguments could also be provided through {@link args} to debug VHAL.
      *
@@ -374,9 +393,42 @@ public abstract class VehicleStub {
     }
 
     /**
-     * Cancel all the on-going async requests with the given request IDs.
+     * Cancels all the on-going async requests with the given request IDs.
      *
      * @param requestIds a list of async get/set request IDs.
      */
     public void cancelRequests(List<Integer> requestIds) {}
+
+    /**
+     * Converts a StatusCode from VHAL to error code used by CarPropertyManager.
+     *
+     * The returned error code is a two-element array, the first element is a
+     * {@link CarPropMgrErrorCode}, the second element is the vendor error code.
+     */
+    public static int[] convertHalToCarPropertyManagerError(int errorCode) {
+        int[] result = new int[2];
+        @VehicleHalStatusCodeInt int systemErrorCode = getVhalSystemErrorCode(errorCode);
+        int vendorErrorCode = getVhalVendorErrorCode(errorCode);
+        result[0] = STATUS_OK;
+        result[1] = vendorErrorCode;
+        switch (systemErrorCode) {
+            case VehicleHalStatusCode.STATUS_OK:
+                break;
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE: // Fallthrough
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED: // Fallthrough
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW: // Fallthrough
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_HIGH: // Fallthrough
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_POOR_VISIBILITY: // Fallthrough
+            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SAFETY:
+                result[0] = CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE;
+                break;
+            case VehicleHalStatusCode.STATUS_TRY_AGAIN:
+                result[0] = STATUS_TRY_AGAIN;
+                break;
+            default:
+                result[0] = CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR;
+                break;
+        }
+        return result;
+    }
 }

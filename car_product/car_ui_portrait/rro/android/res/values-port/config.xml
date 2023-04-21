@@ -16,9 +16,6 @@
   -->
 
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <!-- IME should not hide nav bar -->
-    <bool name="config_hideNavBarForKeyboard">false</bool>
-
     <!-- Uses customized system bar controls -->
     <bool name="config_remoteInsetsControllerControlsSystemBars">true</bool>
 
@@ -48,4 +45,8 @@
 
     <!-- Setting the icon mask to circular path data -->
     <string name="config_icon_mask" translatable="false">"M50 0A50 50,0,1,1,50 100A50 50,0,1,1,50 0"</string>
+
+    <!-- Whether the device allows users to start in background visible on displays.
+     Should be false for most devices, except automotive vehicle with passenger displays. -->
+    <bool name="config_multiuserVisibleBackgroundUsers">false</bool>
 </resources>

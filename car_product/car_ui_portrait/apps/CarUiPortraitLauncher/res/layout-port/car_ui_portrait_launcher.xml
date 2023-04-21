@@ -18,12 +18,15 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/car_under_surface">
 
     <FrameLayout
         android:id="@+id/background_app_area"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
+
+    <include layout="@layout/car_ui_portrait_panel" android:id="@+id/app_grid_panel"/>
 
     <include layout="@layout/car_ui_portrait_panel" android:id="@+id/application_panel"/>
 

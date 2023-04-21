@@ -177,7 +177,7 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
 
     class CarUiPortraitPerDisplay extends DisplaySystemBarsController.PerDisplay {
         private final int[] mDefaultVisibilities =
-                new int[]{ WindowInsets.Type.systemBars(), 0};
+                new int[]{WindowInsets.Type.systemBars(), 0};
         private final int[] mFullImmersiveVisibilities =
                 new int[]{0, WindowInsets.Type.systemBars()};
         // Only hide statusBars
@@ -202,8 +202,10 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
         CarUiPortraitPerDisplay(int displayId) {
             super(displayId);
 
-            mDelayedImmersiveModeWithNavBarRunnable = () -> setImmersiveMode(
-                    STATE_IMMERSIVE_WITHOUT_NAV_BAR);
+            mDelayedImmersiveModeWithNavBarRunnable = () -> {
+                setImmersiveMode(STATE_IMMERSIVE_WITHOUT_NAV_BAR);
+                notifyOnImmersiveStateChanged(/* hideNavBar = */ false);
+            };
         }
 
         @Override
@@ -244,7 +246,7 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
             int[] barVisibilities = BarControlPolicy.getBarVisibilities(mPackageName);
             //TODO(b/260948168): Check with UX on how to deal with activity resize when changing
             // between STATE_IMMERSIVE_WITHOUT_NAV_BAR and STATE_IMMERSIVE_WITH_NAV_BAR
-            switch (mImmersiveState){
+            switch (mImmersiveState) {
                 case STATE_DEFAULT: {
                     Slog.d(TAG, "Update barVisibilities to STATE_DEFAULT");
                     barVisibilities = mDefaultVisibilities;
@@ -255,7 +257,7 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
                     barVisibilities = mFullImmersiveVisibilities;
                     break;
                 }
-                case STATE_IMMERSIVE_WITH_NAV_BAR : {
+                case STATE_IMMERSIVE_WITH_NAV_BAR: {
                     Slog.d(TAG, "Update barVisibilities to STATE_IMMERSIVE_WITH_NAV_BAR");
                     barVisibilities = mImmersiveWithNavBarVisibilities;
                     break;
@@ -274,12 +276,6 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
             showInsets(barVisibilities[0], /* fromIme= */ false, /* statsToken= */ null);
             hideInsets(barVisibilities[1], /* fromIme= */ false, /* statsToken= */ null);
 
-            boolean immersiveState = (mImmersiveState != STATE_DEFAULT) || (
-                    (barVisibilities[1] & (WindowInsets.Type.statusBars()
-                            | WindowInsets.Type.navigationBars())) == (
-                            WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars()));
-            notifyOnImmersiveStateChanged(immersiveState);
-
             try {
                 mWmService.updateDisplayWindowRequestedVisibleTypes(mDisplayId,
                         mRequestedVisibleTypes);
@@ -290,11 +286,6 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
 
         void setImmersiveMode(@ImmersiveState int state) {
             if (mImmersiveState == state) {
-                return;
-            }
-            if (state != STATE_DEFAULT && mCurrentDrivingState == DRIVING_STATE_MOVING) {
-                Toast.makeText(mContext,
-                        R.string.car_ui_restricted_while_driving, Toast.LENGTH_LONG).show();
                 return;
             }
             mImmersiveState = state;
@@ -329,24 +320,34 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
             mCallbacks.remove(callback);
         }
 
-        void notifyOnImmersiveStateChanged(boolean immersive) {
+        void notifyOnImmersiveStateChanged(boolean hideNavBar) {
             for (Callback callback : mCallbacks) {
-                callback.onImmersiveStateChanged(immersive);
+                callback.onImmersiveStateChanged(hideNavBar);
             }
         }
 
         void notifyOnImmersiveRequestedChanged(ComponentName component, boolean requested) {
+            if (requested && mCurrentDrivingState == DRIVING_STATE_MOVING) {
+                // Show toast when app requests immersive mode while driving.
+                Toast.makeText(mContext,
+                        R.string.car_ui_restricted_while_driving, Toast.LENGTH_LONG).show();
+                return;
+            }
             for (Callback callback : mCallbacks) {
                 callback.onImmersiveRequestedChanged(component, requested);
             }
         }
 
         void onDrivingStateChanged() {
-            if ((mImmersiveState != STATE_DEFAULT)
-                    && mCurrentDrivingState == DRIVING_STATE_MOVING) {
-                mImmersiveState = STATE_DEFAULT;
-                updateDisplayWindowRequestedVisibleTypes();
+            if (mImmersiveState == STATE_DEFAULT || mCurrentDrivingState != DRIVING_STATE_MOVING) {
+                return;
             }
+            mImmersiveState = STATE_DEFAULT;
+            updateDisplayWindowRequestedVisibleTypes();
+            notifyOnImmersiveRequestedChanged(null, false);
+            // Show toast when drive state changes to driving while immersive mode is on.
+            Toast.makeText(mContext,
+                    R.string.car_ui_restricted_while_driving, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -361,8 +362,8 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
         void onImmersiveRequestedChanged(ComponentName component, boolean requested);
 
         /**
-         * Callback triggered when the immersive override state changes.
+         * Callback triggered when the immersive state changes.
          */
-        void onImmersiveStateChanged(boolean immersive);
+        void onImmersiveStateChanged(boolean hideNavBar);
     }
 }

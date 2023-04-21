@@ -28,8 +28,12 @@ import static android.car.test.mocks.AndroidMockitoHelper.mockContextCheckCallin
 import static android.car.test.mocks.AndroidMockitoHelper.mockContextCreateContextAsUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockContextGetService;
 import static android.car.test.mocks.AndroidMockitoHelper.mockDpmLogoutUser;
+import static android.car.test.mocks.AndroidMockitoHelper.mockForceStopUser;
+import static android.car.test.mocks.AndroidMockitoHelper.mockForceStopUserThrows;
 import static android.car.test.mocks.AndroidMockitoHelper.mockQueryService;
 import static android.car.test.mocks.AndroidMockitoHelper.mockSmGetService;
+import static android.car.test.mocks.AndroidMockitoHelper.mockStopUserWithDelayedLocking;
+import static android.car.test.mocks.AndroidMockitoHelper.mockStopUserWithDelayedLockingThrows;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetAliveUsers;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetSystemUser;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserHandles;
@@ -40,6 +44,7 @@ import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsHeadlessSystem
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserRunning;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserUnlockingOrUnlocked;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsUserVisible;
+import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmIsVisibleBackgroundUsersSupported;
 import static android.car.test.mocks.AndroidMockitoHelper.mockUmRemoveUserWhenPossible;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
@@ -48,6 +53,7 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSess
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 
 import android.app.ActivityManager;
@@ -159,6 +165,39 @@ public final class AndroidMockitoHelperTest {
     }
 
     @Test
+    public void testMockForceStopUser() throws Exception {
+        mockForceStopUser(TEST_USER_ID, 42);
+
+        assertThat(ActivityManagerHelper.stopUser(TEST_USER_ID, /* force= */ true)).isEqualTo(42);
+    }
+
+    @Test
+    public void testMockForceStopUserThrows() throws Exception {
+        mockForceStopUserThrows(TEST_USER_ID, new IllegalStateException());
+
+        assertThrows(IllegalStateException.class,
+                () -> ActivityManagerHelper.stopUser(TEST_USER_ID, /* force= */ true));
+    }
+
+    @Test
+    public void testMockStopUserWithDelayedLocking() throws Exception {
+        mockStopUserWithDelayedLocking(TEST_USER_ID, 42);
+
+        assertThat(ActivityManagerHelper
+                .stopUserWithDelayedLocking(TEST_USER_ID, /* force= */ true))
+                .isEqualTo(42);
+    }
+
+    @Test
+    public void testMockStopUserWithDelayedLockingThrows() throws Exception {
+        mockStopUserWithDelayedLockingThrows(TEST_USER_ID, new IllegalStateException());
+
+        assertThrows(IllegalStateException.class,
+                () -> ActivityManagerHelper
+                        .stopUserWithDelayedLocking(TEST_USER_ID, /* force= */ true));
+    }
+
+    @Test
     public void testMockUmIsHeadlessSystemUserMode_true() {
         mockUmIsHeadlessSystemUserMode(/* mode= */ true);
 
@@ -224,6 +263,7 @@ public final class AndroidMockitoHelperTest {
     }
 
     @Test
+    @SuppressWarnings("DirectInvocationOnMock")
     public void testMockUmIsVisibleBackgroundUsersSupported_true() {
         mockUmIsVisibleBackgroundUsersSupported(mMockedUserManager, true);
 
@@ -231,10 +271,28 @@ public final class AndroidMockitoHelperTest {
     }
 
     @Test
+    @SuppressWarnings("DirectInvocationOnMock")
     public void testMockUmIsVisibleBackgroundUsersSupported_false() {
         mockUmIsVisibleBackgroundUsersSupported(mMockedUserManager, false);
 
         assertThat(mMockedUserManager.isVisibleBackgroundUsersSupported()).isFalse();
+    }
+
+    @Test
+    @SuppressWarnings("DirectInvocationOnMock")
+    public void testMockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported_true() {
+        mockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported(mMockedUserManager, true);
+
+        assertThat(mMockedUserManager.isVisibleBackgroundUsersOnDefaultDisplaySupported()).isTrue();
+    }
+
+    @Test
+    @SuppressWarnings("DirectInvocationOnMock")
+    public void testMockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported_false() {
+        mockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported(mMockedUserManager, false);
+
+        assertThat(mMockedUserManager.isVisibleBackgroundUsersOnDefaultDisplaySupported())
+                .isFalse();
     }
 
     @Test

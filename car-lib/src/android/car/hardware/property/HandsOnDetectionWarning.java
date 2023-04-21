@@ -25,7 +25,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * Used to enumerate the current warning state of Hands On Detection (HOD).
+ * Used to enumerate the current warning state of {@link
+ * android.car.VehiclePropertyIds#HANDS_ON_DETECTION_WARNING}.
  *
  * <p>This enum could be extended in future releases to include additional feature states.
  * @hide
@@ -33,10 +34,11 @@ import java.lang.annotation.RetentionPolicy;
 @SystemApi
 public class HandsOnDetectionWarning {
     /**
-     * This state is used as an alternative for any HandsOnDetectionWarning value that is defined in
-     * the platform. Ideally, implementations of {@link HANDS_ON_DETECTION_WARNING} should not use
-     * this state. The framework can use this field to remain backwards compatible if
-     * HandsOnDetectionWarning is extended to include additional states.
+     * This state is used as an alternative for any {@code HandsOnDetectionWarning} value that is
+     * not defined in the platform. Ideally, implementations of {@link
+     * android.car.VehiclePropertyIds#HANDS_ON_DETECTION_WARNING} should not use this state. The
+     * framework can use this field to remain backwards compatible if {@code
+     * HandsOnDetectionWarning} is extended to include additional states.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)

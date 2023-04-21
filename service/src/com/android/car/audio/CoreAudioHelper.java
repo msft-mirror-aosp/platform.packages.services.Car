@@ -25,6 +25,7 @@ import android.media.audiopolicy.AudioProductStrategy;
 import android.media.audiopolicy.AudioVolumeGroup;
 import android.util.SparseArray;
 
+import com.android.car.internal.util.VersionUtils;
 import com.android.internal.util.Preconditions;
 
 import java.util.List;
@@ -70,12 +71,12 @@ final class CoreAudioHelper {
 
     private static class StaticLazyInitializer {
         /**
-         * @see {@link AudioProductStrategy}
+         * @see AudioProductStrategy
          */
         static final List<AudioProductStrategy> sAudioProductStrategies =
                 AudioManager.getAudioProductStrategies();
         /**
-         * @see {@link AudioVolumeGroup}
+         * @see AudioVolumeGroup
          */
         static final List<AudioVolumeGroup> sAudioVolumeGroups =
                 AudioManager.getAudioVolumeGroups();
@@ -93,8 +94,8 @@ final class CoreAudioHelper {
      * Identifies the {@link AudioProductStrategy} supporting the given {@link AudioAttributes}.
      *
      * @param attributes {@link AudioAttributes} to look for.
-     * @return the id of the {@linkAudioProductStrategy} supporting the
-     * given {@linkAudioAttributes} if found, {@code INVALID_STRATEGY} id otherwise.
+     * @return the id of the {@link AudioProductStrategy} supporting the
+     * given {@link AudioAttributes} if found, {@link #INVALID_STRATEGY} id otherwise.
      */
     public static int getStrategyForAudioAttributes(AudioAttributes attributes) {
         Preconditions.checkNotNull(attributes, "Audio Attributes must not be null");
@@ -184,11 +185,11 @@ final class CoreAudioHelper {
      * referred by it s name.
      * <p>When relying on core audio to control volume, Volume APIs are based on AudioAttributes,
      * thus, selecting the most representative attributes (not default without tag, with tag as
-     * fallback, {@link DEFAULT_ATTRIBUTES} otherwise) will help identify the request.
+     * fallback, {@link #DEFAULT_ATTRIBUTES} otherwise) will help identify the request.
      *
      * @param groupName name of the {@link AudioVolumeGroup} to look for.
      * @return the best {@link AudioAttributes} for a given volume group id,
-     * {@link DEFAULT_ATTRIBUTES} otherwise.
+     * {@link #DEFAULT_ATTRIBUTES} otherwise.
      */
     public static AudioAttributes selectAttributesForVolumeGroupName(String groupName) {
         AudioVolumeGroup group = getVolumeGroup(groupName);
@@ -201,7 +202,8 @@ final class CoreAudioHelper {
             // bestAttributes attributes are not default and without tag (most generic as possible)
             if (!attributes.equals(DEFAULT_ATTRIBUTES)) {
                 bestAttributes = attributes;
-                if (AudioManagerHelper.getFormattedTags(attributes).equals("")) {
+                if (!VersionUtils.isPlatformVersionAtLeastU()
+                        || AudioManagerHelper.getFormattedTags(attributes).equals("")) {
                     break;
                 }
             }
@@ -229,7 +231,7 @@ final class CoreAudioHelper {
     /**
      * Gets the name of the {@link AudioVolumeGroup} referred by its id.
      *
-     * @param name of the volume group to look for.
+     * @param coreGroupId id of the volume group to look for.
      * @return the volume group id referred by its name if found, throws an exception otherwise.
      */
     @Nullable
@@ -242,10 +244,15 @@ final class CoreAudioHelper {
      *
      * @param attributes {@link AudioAttributes} to be considered
      * @return the id of the {@link AudioVolumeGroup} supporting the given {@link AudioAttributes}
-     * if found, {@link INVALID_GROUP_ID} otherwise.
+     * if found, {@link #INVALID_GROUP_ID} otherwise.
      */
     public static int getVolumeGroupIdForAudioAttributes(AudioAttributes attributes) {
         Preconditions.checkNotNull(attributes, "Audio Attributes must not be null");
+        if (!VersionUtils.isPlatformVersionAtLeastU()) {
+            Slogf.e(TAG, "AudioManagerHelper.getVolumeGroupIdForAudioAttributes() not"
+                    + " supported for this build version, returning INVALID_GROUP_ID");
+            return INVALID_GROUP_ID;
+        }
         for (int index = 0; index < getAudioProductStrategies().size(); index++) {
             AudioProductStrategy strategy = getAudioProductStrategies().get(index);
             int volumeGroupId =

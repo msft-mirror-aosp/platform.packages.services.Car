@@ -16,6 +16,7 @@
 
 package android.car.hardware.property;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.property.CarPropertyHelper.STATUS_OK;
 import static com.android.car.internal.property.CarPropertyHelper.SYNC_OP_LIMIT_TRY_AGAIN;
 
@@ -26,6 +27,7 @@ import android.annotation.FloatRange;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
@@ -48,6 +50,7 @@ import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.car.internal.CarPropertyEventCallbackController;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.SingleMessageHandler;
 import com.android.car.internal.os.HandlerExecutor;
 import com.android.car.internal.property.AsyncPropertyServiceRequest;
@@ -62,21 +65,17 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Provides an application interface for interacting with the Vehicle specific properties.
- * For details about the individual properties, see the descriptions in
- * hardware/interfaces/automotive/vehicle/types.hal
+ * For details about the individual properties, see the descriptions in {@link VehiclePropertyIds}
  */
 public class CarPropertyManager extends CarManagerBase {
     private static final boolean DBG = false;
     private static final String TAG = "CarPropertyManager";
     private static final int MSG_GENERIC_EVENT = 0;
-    private static final int SYSTEM_ERROR_CODE_MASK = 0Xffff;
-    private static final int VENDOR_ERROR_CODE_SHIFT = 16;
     private static final int SYNC_OP_RETRY_SLEEP_IN_MS = 10;
     private static final int SYNC_OP_RETRY_MAX_COUNT = 10;
     /**
@@ -117,19 +116,36 @@ public class CarPropertyManager extends CarManagerBase {
                     } catch (RemoteException e) {
                         handleRemoteExceptionFromCarService(e);
                         return false;
+                    } catch (IllegalArgumentException e) {
+                        Log.w(TAG, "register: propertyId: "
+                                + VehiclePropertyIds.toString(propertyId) + ", updateRateHz: "
+                                + updateRateHz + ", exception: ", e);
+                        return false;
                     }
                     return true;
                 }
 
                 @Override
-                public void unregister(int propertyId) {
+                public boolean unregister(int propertyId) {
                     try {
                         mService.unregisterListener(propertyId, mCarPropertyEventToService);
                     } catch (RemoteException e) {
                         handleRemoteExceptionFromCarService(e);
+                        return false;
+                    } catch (IllegalArgumentException e) {
+                        Log.w(TAG, "unregister: propertyId: "
+                                + VehiclePropertyIds.toString(propertyId) + ", exception: ", e);
+                        return false;
                     }
+                    return true;
                 }
             };
+
+    private final GetPropertyResultCallback mGetPropertyResultCallback =
+            new GetPropertyResultCallback();
+
+    private final SetPropertyResultCallback mSetPropertyResultCallback =
+            new SetPropertyResultCallback();
 
     /**
      * Application registers {@link CarPropertyEventCallback} object to receive updates and changes
@@ -138,7 +154,8 @@ public class CarPropertyManager extends CarManagerBase {
     public interface CarPropertyEventCallback {
         /**
          * Called when a property is updated
-         * @param value Property that has been updated.
+         *
+         * @param value the new value of the property
          */
         @AddedInOrBefore(majorVersion = 33)
         void onChangeEvent(CarPropertyValue value);
@@ -146,13 +163,13 @@ public class CarPropertyManager extends CarManagerBase {
         /**
          * Called when an error is detected when setting a property.
          *
-         * @param propId Property ID which is detected an error.
-         * @param zone Zone which is detected an error.
+         * @param propertyId the property ID which has detected an error
+         * @param areaId the area ID which has detected an error
          *
          * @see CarPropertyEventCallback#onErrorEvent(int, int, int)
          */
         @AddedInOrBefore(majorVersion = 33)
-        void onErrorEvent(int propId, int zone);
+        void onErrorEvent(int propertyId, int areaId);
 
         /**
          * Called when an error is detected when setting a property.
@@ -163,17 +180,18 @@ public class CarPropertyManager extends CarManagerBase {
          * (in the order that they are issued to car's ECU) overrides the previous set operations.
          * The delivered error reflects the error happened in the last set operation.
          *
-         * @param propId Property ID which is detected an error.
-         * @param areaId AreaId which is detected an error.
-         * @param errorCode Error code is raised in the car.
+         * @param propertyId the property ID which is detected an error
+         * @param areaId the area ID which is detected an error
+         * @param errorCode the error code is raised in the car
          */
         @AddedInOrBefore(majorVersion = 33)
-        default void onErrorEvent(int propId, int areaId, @CarSetPropertyErrorCode int errorCode) {
+        default void onErrorEvent(int propertyId, int areaId,
+                @CarSetPropertyErrorCode int errorCode) {
             if (DBG) {
-                Log.d(TAG, "onErrorEvent propertyId: 0x" + toHexString(propId) + " areaId:0x"
-                        + toHexString(areaId) + " ErrorCode: " + errorCode);
+                Log.d(TAG, "onErrorEvent propertyId: " + VehiclePropertyIds.toString(propertyId)
+                        + " areaId: 0x" + toHexString(areaId) + " ErrorCode: " + errorCode);
             }
-            onErrorEvent(propId, areaId);
+            onErrorEvent(propertyId, areaId);
         }
     }
 
@@ -225,7 +243,7 @@ public class CarPropertyManager extends CarManagerBase {
          * <p>If only one requests is successfully processed by the vehicle bus, overwriting the
          * other request, then only one success callback would be called for one client. The other
          * client would get the failure callback with
-         * {@link CarPropertyManager#STATUS_ERROR_TIMEOUT) error code.
+         * {@link CarPropertyManager#STATUS_ERROR_TIMEOUT} error code.
          *
          * <p>If multiple clients set a property for the same area ID simultaneously with the same
          * value. The success callback for both clients would be called in an undefined order.
@@ -316,7 +334,8 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         /**
-         * Internal use only. Users should use {@link generateGetPropertyRequest} instead.
+         * Internal use only. Users should use {@link #generateGetPropertyRequest(int, int)}
+         * instead.
          */
         private GetPropertyRequest(int requestId, int propertyId, int areaId) {
             mRequestId = requestId;
@@ -329,8 +348,8 @@ public class CarPropertyManager extends CarManagerBase {
      * A request for {@link CarPropertyManager#setPropertiesAsync(List, long, CancellationSignal,
      * Executor, SetPropertyCallback)}.
      *
-     * @param <T> The type for the property value, must be one of Object, Boolean, Float, Integer,
-     *      Long, Float[], Integer[], Long[], String, byte[], Object[].
+     * @param <T> the type for the property value, must be one of Object, Boolean, Float, Integer,
+     *      Long, Float[], Integer[], Long[], String, byte[], Object[]
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -339,11 +358,86 @@ public class CarPropertyManager extends CarManagerBase {
         private final int mPropertyId;
         private final int mAreaId;
         private float mUpdateRateHz = 0.f;
+        // By default, the async set operation will wait for the property to be updated to the
+        // target value before calling the success callback (or when the target value is the
+        // same as the current value).
+        private boolean mWaitForPropertyUpdate = true;
 
         /**
          * The value to set.
          */
         private final T mValue;
+
+        /**
+         * Sets the update rate in Hz for listening for property updates for continuous property.
+         *
+         * <p>If {@code waitForPropertyUpdate} is set to {@code true} (by default) and if the
+         * property is set to a different value than its current value, the success callback will be
+         * called when a property update event for the new value arrived. This option controls how
+         * frequent the property update event should be reported for continuous property. This is
+         * similar to {@code updateRateHz} in {@link CarPropertyManager#registerCallback}.
+         *
+         * <p>This is ignored for non-continuous properties.
+         *
+         * <p>This is ignored if {@code waitForPropertyUpdate} is set to {@code false}.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public void setUpdateRateHz(float updateRateHz) {
+            mUpdateRateHz = updateRateHz;
+        }
+
+        /**
+         * Sets whether to wait for the property update event before calling success callback.
+         *
+         * <p>This arguments controls under what conditions the operation is considered succeeded
+         * and the success callback will be called.
+         *
+         * <p>If this is set to {@code true} (by default), the success callback will be called when
+         * both of the following coniditions are met:
+         *
+         * <ul>
+         * <li>the set operation is successfully delivered to vehicle bus.
+         * <li>the {@code mPropertyId}+{@code mAreaId}'s value already equal to {@code mValue} or
+         * is successfully updated to the {@code mValue} through the set operation.
+         * </ul>
+         *
+         * <p>Even if the target value is the same as the current value, we will still send the set
+         * operation to the vehicle bus. If caller wants to reduce unnecessary overhead, caller must
+         * check existing values before issuing the requests.
+         *
+         * <p>If the first condition fails, the error callback will be called. If the second
+         * condition fails, which means we don't see the property updated to the target value within
+         * a specified timeout, the error callback will be called with {@link
+         * #STATUS_ERROR_TIMEOUT}.
+         *
+         * <p>If this is set to {@code false}, the success callback will be called after the
+         * set operation is successfully delivered to vehicle bus.
+         *
+         * <p>Under most cases, client should wait for the property update to verify that the set
+         * operation actually succeeded.
+         *
+         * <p>For cases when the property is write-only (no way to get property update event) or
+         * when the property represents some action, instead of an actual state, e.g. key stroke
+         * where the property's current value is not meaningful, caller should set
+         * {@code waitForPropertyUpdate} to {@code false}.
+         *
+         * <p>For {@code HVAC_TEMPERATURE_VALUE_SUGGESTION}, this must be set to {@code false}
+         * because the updated property value will not be the same as the value to be set.
+         *
+         * <p>Note that even if this is set to {@code true}, it is only guaranteed that the property
+         * value is the target value after the success callback is called if no other clients are
+         * changing the property at the same time. It is always possible that another client changes
+         * the property value after the property is updated to the target value, but before the
+         * client success callback runs. We only guarantee that at some point during the period
+         * after the client issues the request and before the success callback is called, the
+         * property value was set to the target value.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public void setWaitForPropertyUpdate(boolean waitForPropertyUpdate) {
+            mWaitForPropertyUpdate = waitForPropertyUpdate;
+        }
 
         /**
          * @see AsyncPropertyRequest#getRequestId
@@ -385,22 +479,6 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         /**
-         * Sets the update rate for listening for property updates for continuous property.
-         *
-         * <p>For continuous property, if the property is set to a different value, the success
-         * callback will be called when a property update event for the new value arrived. This
-         * option controls how frequent the property update event should be reported. This is
-         * similar to {@code updateRateHz} in {@link CarPropertyManager#registerCallback}.
-         *
-         * <p>This is ignored for non-continuous properties.
-         */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
-        public void setUpdateRateHz(float updateRateHz) {
-            mUpdateRateHz = updateRateHz;
-        }
-
-        /**
          * Gets the update rate for listening for property updates.
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -410,7 +488,17 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         /**
-         * Internal use only. Users should use {@link generateSetPropertyRequest} instead.
+         * Gets whether to wait for property update event before calling success callback.
+         */
+        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+                         minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+        public boolean isWaitForPropertyUpdate() {
+            return mWaitForPropertyUpdate;
+        }
+
+        /**
+         * Internal use only. Users should use {@link #generateSetPropertyRequest(int, int, T)}
+         * instead.
          */
         private SetPropertyRequest(int requestId, int propertyId, int areaId, T value) {
             mRequestId = requestId;
@@ -459,7 +547,7 @@ public class CarPropertyManager extends CarManagerBase {
         /**
          * Gets the vendor error codes to allow for more detailed error codes.
          *
-         * @return Vendor error code if it is set, otherwise 0. A vendor error code will have a
+         * @return the vendor error code if it is set, otherwise 0. A vendor error code will have a
          * range from 0x0000 to 0xffff.
          *
          * @hide
@@ -474,25 +562,47 @@ public class CarPropertyManager extends CarManagerBase {
         /**
          * Creates a new error result for async property request.
          *
-         * @param requestId the request ID.
-         * @param propertyId the property ID in the request.
-         * @param areaId the area ID for the property in the request.
-         * @param errorCode the code indicating the error.
+         * @param requestId the request ID
+         * @param propertyId the property ID in the request
+         * @param areaId the area ID for the property in the request
+         * @param errorCode the code indicating the error
          */
-        PropertyAsyncError(int requestId, int propertyId, int areaId, int errorCode) {
+        PropertyAsyncError(int requestId, int propertyId, int areaId,
+                @CarPropertyAsyncErrorCode int errorCode,
+                int vendorErrorCode) {
             mRequestId = requestId;
             mPropertyId = propertyId;
             mAreaId = areaId;
-            mErrorCode = errorCode & SYSTEM_ERROR_CODE_MASK;
-            mVendorErrorCode = errorCode >>> VENDOR_ERROR_CODE_SHIFT;
+            mErrorCode = errorCode;
+            mVendorErrorCode = vendorErrorCode;
+        }
+
+        /**
+         * Prints out debug message.
+         */
+        @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+        public String toString() {
+            return new StringBuilder()
+                    .append("PropertyAsyncError{request ID: ")
+                    .append(mRequestId)
+                    .append(", property: ")
+                    .append(VehiclePropertyIds.toString(mPropertyId))
+                    .append(", areaId: ")
+                    .append(mAreaId)
+                    .append(", error code: ")
+                    .append(mErrorCode)
+                    .append(", vendor error code: ")
+                    .append(mVendorErrorCode)
+                    .append("}").toString();
         }
     }
 
     /**
      * A successful result for {@link GetPropertyCallback}.
      *
-     * @param <T> The type for the property value, must be one of Object, Boolean, Float, Integer,
-     *      Long, Float[], Integer[], Long[], String, byte[], Object[].
+     * @param <T> the type for the property value, must be one of Object, Boolean, Float, Integer,
+     *      Long, Float[], Integer[], Long[], String, byte[], Object[]
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -534,8 +644,8 @@ public class CarPropertyManager extends CarManagerBase {
          * increasing using the same time base as {@link SystemClock#elapsedRealtimeNanos()}.
          *
          * <p>NOTE: Timestamp should be synchronized with other signals from the platform (e.g.
-         * {@link Location} and {@link SensorEvent} instances). Ideally, timestamp synchronization
-         * error should be below 1 millisecond.
+         * {@link android.location.Location} and {@link android.hardware.SensorEvent} instances).
+         * Ideally, timestamp synchronization error should be below 1 millisecond.
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -546,11 +656,11 @@ public class CarPropertyManager extends CarManagerBase {
         /**
          * Creates a new value result for async GetProperty request.
          *
-         * @param requestId the request ID.
-         * @param propertyId the property ID in the request.
-         * @param areaId the area ID for the property in the request.
-         * @param timestampNanos the timestamp in nanoseconds when this property is updated.
-         * @param value the property's value.
+         * @param requestId the request ID
+         * @param propertyId the property ID in the request
+         * @param areaId the area ID for the property in the request
+         * @param timestampNanos the timestamp in nanoseconds when this property is updated
+         * @param value the property's value
          */
         GetPropertyResult(int requestId, int propertyId, int areaId, long timestampNanos,
                  @NonNull T value) {
@@ -559,6 +669,28 @@ public class CarPropertyManager extends CarManagerBase {
             mAreaId = areaId;
             mTimestampNanos = timestampNanos;
             mValue = value;
+        }
+
+        /**
+         * Prints out debug message.
+         */
+        @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+        public String toString() {
+            return new StringBuilder()
+                    .append("GetPropertyResult{type: ")
+                    .append(mValue.getClass())
+                    .append(", request ID: ")
+                    .append(mRequestId)
+                    .append(", property: ")
+                    .append(VehiclePropertyIds.toString(mPropertyId))
+                    .append(", areaId: ")
+                    .append(mAreaId)
+                    .append(", value: ")
+                    .append(mValue)
+                    .append(", timestamp: ")
+                    .append(mTimestampNanos).append("ns")
+                    .append("}").toString();
         }
     }
 
@@ -606,9 +738,13 @@ public class CarPropertyManager extends CarManagerBase {
          * <p>The timestamp will use the same time base as
          * {@link SystemClock#elapsedRealtimeNanos()}.
          *
+         * <p>NOTE: If {@code waitForPropertyUpdate} is set to {@code false} for the request, then
+         * this value will be the time when the async set request is successfully sent to the
+         * vehicle bus, not when the property is updated since we have no way of knowing that.
+         *
          * <p>NOTE: Timestamp should be synchronized with other signals from the platform (e.g.
-         * {@link Location} and {@link SensorEvent} instances). Ideally, timestamp synchronization
-         * error should be below 1 millisecond.
+         * {@link android.location.Location} and {@link android.hardware.SensorEvent} instances).
+         * Ideally, timestamp synchronization error should be below 1 millisecond.
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -616,17 +752,95 @@ public class CarPropertyManager extends CarManagerBase {
             return mUpdateTimestampNanos;
         }
 
-        SetPropertyResult(int requestId, int propertyId, int areaId, int updateTimestampNanos) {
+        SetPropertyResult(int requestId, int propertyId, int areaId, long updateTimestampNanos) {
             mRequestId = requestId;
             mPropertyId = propertyId;
             mAreaId = areaId;
             mUpdateTimestampNanos = updateTimestampNanos;
         }
+
+        /**
+         * Prints out debug message.
+         */
+        @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+        public String toString() {
+            return new StringBuilder()
+                    .append("SetPropertyResult{request ID: ")
+                    .append(mRequestId)
+                    .append(", property: ")
+                    .append(VehiclePropertyIds.toString(mPropertyId))
+                    .append(", areaId: ")
+                    .append(mAreaId)
+                    .append(", updated timestamp: ")
+                    .append(mUpdateTimestampNanos).append("ns")
+                    .append("}").toString();
+        }
     }
 
     /**
-     * A class for delivering {@link GetPropertyCallback} client callback when
-     * {@link IAsyncPropertyResultCallback} returns a result.
+     * An abstract interface for converting async get/set result and calling client callbacks.
+     */
+    private interface PropertyResultCallback<CallbackType, ResultType> {
+        ResultType build(int requestId, int propertyId, int areaId, long timestampNanos,
+                @Nullable Object value);
+        void onSuccess(CallbackType callback, ResultType result);
+        void onFailure(CallbackType callback, PropertyAsyncError error);
+    }
+
+    /**
+     * Class to hide implementation detail for get/set callbacks.
+     */
+    private static final class GetPropertyResultCallback implements
+            PropertyResultCallback<GetPropertyCallback, GetPropertyResult> {
+        public GetPropertyResult build(int requestId, int propertyId, int areaId,
+                long timestampNanos, @Nullable Object value) {
+            return new GetPropertyResult(requestId, propertyId, areaId, timestampNanos, value);
+        }
+
+        public void onSuccess(GetPropertyCallback callback, GetPropertyResult result) {
+            if (DBG) {
+                Log.d(TAG, "delivering success get property result: " + result);
+            }
+            callback.onSuccess(result);
+        }
+
+        public void onFailure(GetPropertyCallback callback, PropertyAsyncError error) {
+            if (DBG) {
+                Log.d(TAG, "delivering error get property result: " + error);
+            }
+            callback.onFailure(error);
+        }
+    }
+
+    /**
+     * Class to hide implementation detail for get/set callbacks.
+     */
+    private static final class SetPropertyResultCallback implements
+            PropertyResultCallback<SetPropertyCallback, SetPropertyResult> {
+        public  SetPropertyResult build(int requestId, int propertyId, int areaId,
+                long timestampNanos, @Nullable Object value) {
+            return new SetPropertyResult(requestId, propertyId, areaId, timestampNanos);
+        }
+
+        public void onSuccess(SetPropertyCallback callback, SetPropertyResult result) {
+            if (DBG) {
+                Log.d(TAG, "delivering success set property result: " + result);
+            }
+            callback.onSuccess(result);
+        }
+
+        public void onFailure(SetPropertyCallback callback, PropertyAsyncError error) {
+            if (DBG) {
+                Log.d(TAG, "delivering error set property result: " + error);
+            }
+            callback.onFailure(error);
+        }
+    }
+
+    /**
+     * A class for delivering {@link GetPropertyCallback} or {@link SetPropertyCallback} client
+     * callback when {@code IAsyncPropertyResultCallback} returns results.
      */
     private class AsyncPropertyResultCallback extends IAsyncPropertyResultCallback.Stub {
 
@@ -637,51 +851,78 @@ public class CarPropertyManager extends CarManagerBase {
 
         @Override
         public void onGetValueResults(List<GetSetValueResult> getValueResults) {
-            for (int i = 0; i < getValueResults.size(); i++) {
-                GetSetValueResult getValueResult = getValueResults.get(i);
-                int requestId = getValueResult.getRequestId();
-                AsyncPropertyRequestInfo<GetPropertyRequest, GetPropertyCallback> requestInfo;
+            this.<GetPropertyRequest, GetPropertyCallback, GetPropertyResult>onResults(
+                    getValueResults, mGetPropertyResultCallback);
+        }
+
+        @Override
+        public void onSetValueResults(List<GetSetValueResult> setValueResults) {
+            this.<SetPropertyRequest<?>, SetPropertyCallback, SetPropertyResult>onResults(
+                    setValueResults, mSetPropertyResultCallback);
+        }
+
+        @SuppressLint("WrongConstant")
+        private <RequestType extends AsyncPropertyRequest, CallbackType, ResultType> void onResults(
+                List<GetSetValueResult> results,
+                PropertyResultCallback<CallbackType, ResultType> propertyResultCallback) {
+            for (int i = 0; i < results.size(); i++) {
+                GetSetValueResult result = results.get(i);
+                int requestId = result.getRequestId();
+                AsyncPropertyRequestInfo<RequestType, CallbackType> requestInfo;
                 synchronized (mLock) {
                     requestInfo =
-                            (AsyncPropertyRequestInfo<GetPropertyRequest, GetPropertyCallback>)
+                            (AsyncPropertyRequestInfo<RequestType, CallbackType>)
                             mRequestIdToAsyncRequestInfo.get(requestId);
                     mRequestIdToAsyncRequestInfo.remove(requestId);
                 }
                 if (requestInfo == null) {
-                    Log.w(TAG, "onGetValueResult: Request ID: " + requestId
+                    Log.w(TAG, "onResults: Request ID: " + requestId
                             + " might have been completed, cancelled or an exception might have "
                             + "been thrown");
                     continue;
                 }
                 Executor callbackExecutor = requestInfo.getCallbackExecutor();
-                GetPropertyCallback getPropertyCallback = requestInfo.getCallback();
-                int errorCode = getValueResult.getErrorCode();
-                @CarPropertyAsyncErrorCode
-                int asyncErrorCode = errorCode & SYSTEM_ERROR_CODE_MASK;
-                if (asyncErrorCode == STATUS_OK) {
-                    CarPropertyValue<?> carPropertyValue = getValueResult.getCarPropertyValue();
-                    int propertyId = carPropertyValue.getPropertyId();
-                    int areaId = carPropertyValue.getAreaId();
+                CallbackType clientCallback = requestInfo.getCallback();
+                @CarPropertyAsyncErrorCode int errorCode = result.getErrorCode();
+                int propertyId = requestInfo.getRequest().getPropertyId();
+                String propertyName = VehiclePropertyIds.toString(propertyId);
+                int areaId = requestInfo.getRequest().getAreaId();
+                if (errorCode == STATUS_OK) {
+                    CarPropertyValue<?> carPropertyValue = result.getCarPropertyValue();
+                    long timestampNanos;
+                    if (carPropertyValue != null) {
+                        // This is a get result.
+                        int valuePropertyId = carPropertyValue.getPropertyId();
+                        if (propertyId  != valuePropertyId) {
+                            Log.e(TAG, "onResults: Request ID: " + requestId + " received get "
+                                    + "property value result, but has mismatch property ID, "
+                                    + " expect: " + propertyName + ", got: "
+                                    + VehiclePropertyIds.toString(valuePropertyId));
+                        }
+                        int valueAreaId = carPropertyValue.getAreaId();
+                        if (areaId  != valueAreaId) {
+                            Log.e(TAG, "onResults: Property: " + propertyName + " Request ID: "
+                                    + requestId + " received get property value result, but has "
+                                    + "mismatch area ID, expect: " + areaId + ", got: "
+                                    + valueAreaId);
+                        }
+                        timestampNanos = carPropertyValue.getTimestamp();
+                    } else {
+                        // This is a set result.
+                        timestampNanos = result.getUpdateTimestampNanos();
+                    }
 
-                    long timestampNanos = carPropertyValue.getTimestamp();
-                    callbackExecutor.execute(() -> getPropertyCallback.onSuccess(
-                            new GetPropertyResult(requestId, propertyId, areaId,
-                                    timestampNanos, carPropertyValue.getValue())));
+                    ResultType clientResult = propertyResultCallback.build(
+                            requestId, propertyId, areaId, timestampNanos,
+                            carPropertyValue == null ? null : carPropertyValue.getValue());
+                    callbackExecutor.execute(() -> propertyResultCallback.onSuccess(
+                            clientCallback, clientResult));
                 } else {
-                    // We are not receiving property Id and areaId from the result, so we use
-                    // the ones from the request.
-                    int propertyId = requestInfo.getRequest()
-                            .getPropertyId();
-                    int areaId = requestInfo.getRequest().getAreaId();
-                    callbackExecutor.execute(() -> getPropertyCallback.onFailure(
-                            new PropertyAsyncError(requestId, propertyId, areaId, errorCode)));
+                    callbackExecutor.execute(() -> propertyResultCallback.onFailure(clientCallback,
+                            new PropertyAsyncError(requestId, propertyId, areaId, errorCode,
+                                    result.getVendorErrorCode())));
                 }
             }
-        }
-
-        @Override
-        public void onSetValueResults(List<GetSetValueResult> getValueResults) {
-            // TODO(b/264719384): Implement this.
         }
     }
 
@@ -805,8 +1046,9 @@ public class CarPropertyManager extends CarManagerBase {
      * Get an instance of the CarPropertyManager.
      *
      * Should not be obtained directly by clients, use {@link Car#getCarManager(String)} instead.
-     * @param car Car instance
-     * @param service ICarProperty instance
+     *
+     * @param car the Car instance
+     * @param service the ICarProperty instance
      * @hide
      */
     public CarPropertyManager(Car car, @NonNull ICarProperty service) {
@@ -850,7 +1092,7 @@ public class CarPropertyManager extends CarManagerBase {
      * Register {@link CarPropertyEventCallback} to get property updates. Multiple callbacks
      * can be registered for a single property or the same callback can be used for different
      * properties. If the same callback is registered again for the same property, it will be
-     * updated to new updateRateHz.
+     * updated to new {@code updateRateHz}.
      *
      * <p>Rate could be one of the following:
      * <ul>
@@ -869,7 +1111,7 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>
-     * <b>Note:</b>If listener registers a callback for updates for a property for the first time,
+     * <b>Note:</b> If listener registers a callback for updates for a property for the first time,
      * it will receive the property's current value via a change event upon registration if the
      * property is currently available for reading.
      *
@@ -877,23 +1119,23 @@ public class CarPropertyManager extends CarManagerBase {
      * property change events containing the property's initial value will be generated once their
      * power state is on.
      *
-     * <p>If updateRateHz is higher than {@link CarPropertyConfig#getMaxSampleRate()}, it will be
-     * registered with max sample updateRateHz.
+     * <p>If {@code updateRateHz} is higher than {@link CarPropertyConfig#getMaxSampleRate()}, it
+     * will be registered with max sample {@code updateRateHz}.
      *
-     * <p>If updateRateHz is lower than {@link CarPropertyConfig#getMinSampleRate()}, it will be
-     * registered with min sample updateRateHz.
+     * <p>If {@code updateRateHz} is lower than {@link CarPropertyConfig#getMinSampleRate()}, it
+     * will be registered with min sample {@code updateRateHz}.
      *
      * <p>
-     * <b>Note:</b>A property change event will only happen when the property is available. Caller
+     * <b>Note:</b> A property change event will only happen when the property is available. Caller
      * must never depend on the change event to check property's availability. For properties that
      * might be unavailable because they depend on certain power state, caller should subscribe
-     * to the power state property (e.g. HVAC_POWER_ON for hvac dependant properties) to decide
-     * this property's availability.
+     * to the power state property (e.g. {@link VehiclePropertyIds#HVAC_POWER_ON} for hvac dependant
+     * properties) to decide this property's availability.
      *
-     * @param carPropertyEventCallback CarPropertyEventCallback to be registered.
-     * @param propertyId               PropertyId to subscribe
-     * @param updateRateHz             how fast the property events are delivered in Hz.
-     * @return {@code true} if the listener is successfully registered.
+     * @param carPropertyEventCallback the CarPropertyEventCallback to be registered
+     * @param propertyId               the property ID to subscribe
+     * @param updateRateHz             how fast the property events are delivered in Hz
+     * @return {@code true} if the listener is successfully registered
      * @throws SecurityException if missing the appropriate permission.
      */
     @AddedInOrBefore(majorVersion = 33)
@@ -902,7 +1144,7 @@ public class CarPropertyManager extends CarManagerBase {
         requireNonNull(carPropertyEventCallback);
         CarPropertyConfig<?> carPropertyConfig = getCarPropertyConfig(propertyId);
         if (carPropertyConfig == null) {
-            Log.e(TAG, "registerListener:  propId is not in carPropertyConfig list:  "
+            Log.e(TAG, "registerCallback:  propertyId is not in carPropertyConfig list:  "
                     + VehiclePropertyIds.toString(propertyId));
             return false;
         }
@@ -910,19 +1152,25 @@ public class CarPropertyManager extends CarManagerBase {
         float sanitizedUpdateRateHz = InputSanitizationUtils.sanitizeUpdateRateHz(carPropertyConfig,
                 updateRateHz);
 
-        CarPropertyEventCallbackController carPropertyEventCallbackController;
+        boolean registerSuccessful;
         synchronized (mLock) {
-            carPropertyEventCallbackController =
+            boolean isNewInstance = false;
+            CarPropertyEventCallbackController carPropertyEventCallbackController =
                     mPropertyIdToCarPropertyEventCallbackController.get(propertyId);
             if (carPropertyEventCallbackController == null) {
                 carPropertyEventCallbackController = new CarPropertyEventCallbackController(
                         propertyId, mLock, mRegistrationUpdateCallback);
+                isNewInstance = true;
+            }
+
+            registerSuccessful = carPropertyEventCallbackController.add(carPropertyEventCallback,
+                    sanitizedUpdateRateHz);
+            if (registerSuccessful && isNewInstance) {
                 mPropertyIdToCarPropertyEventCallbackController.put(propertyId,
                         carPropertyEventCallbackController);
             }
         }
-        return carPropertyEventCallbackController.add(carPropertyEventCallback,
-                sanitizedUpdateRateHz);
+        return registerSuccessful;
     }
 
     private static class CarPropertyEventListenerToService extends ICarPropertyEventListener.Stub {
@@ -951,6 +1199,8 @@ public class CarPropertyManager extends CarManagerBase {
      * Stop getting property updates for the given {@link CarPropertyEventCallback}. If there are
      * multiple registrations for this {@link CarPropertyEventCallback}, all listening will be
      * stopped.
+     *
+     * @throws SecurityException if missing the appropriate permission.
      */
     @AddedInOrBefore(majorVersion = 33)
     public void unregisterCallback(@NonNull CarPropertyEventCallback carPropertyEventCallback) {
@@ -971,6 +1221,8 @@ public class CarPropertyManager extends CarManagerBase {
      * Stop getting update for {@code propertyId} to the given {@link CarPropertyEventCallback}. If
      * the same {@link CarPropertyEventCallback} is used for other properties, those subscriptions
      * will not be affected.
+     *
+     * @throws SecurityException if missing the appropriate permission.
      */
     @AddedInOrBefore(majorVersion = 33)
     public void unregisterCallback(@NonNull CarPropertyEventCallback carPropertyEventCallback,
@@ -981,15 +1233,14 @@ public class CarPropertyManager extends CarManagerBase {
                     + VehiclePropertyIds.toString(propertyId) + " is not supported");
             return;
         }
-        CarPropertyEventCallbackController carPropertyEventCallbackController;
         synchronized (mLock) {
-            carPropertyEventCallbackController =
+            CarPropertyEventCallbackController carPropertyEventCallbackController =
                     mPropertyIdToCarPropertyEventCallbackController.get(propertyId);
-        }
-        if (carPropertyEventCallbackController == null) {
-            return;
-        }
-        synchronized (mLock) {
+
+            if (carPropertyEventCallbackController == null) {
+                return;
+            }
+
             boolean allCallbacksRemoved = carPropertyEventCallbackController.remove(
                     carPropertyEventCallback);
             if (allCallbacksRemoved) {
@@ -999,14 +1250,14 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * @return List of properties supported by this car that the application may access
+     * @return the list of properties supported by this car that the application may access
      */
     @NonNull
     @AddedInOrBefore(majorVersion = 33)
     public List<CarPropertyConfig> getPropertyList() {
         List<CarPropertyConfig> configs;
         try {
-            configs = mService.getPropertyList();
+            configs = mService.getPropertyList().getConfigs();
         } catch (RemoteException e) {
             Log.e(TAG, "getPropertyList exception ", e);
             return handleRemoteExceptionFromCarService(e, new ArrayList<>());
@@ -1019,25 +1270,25 @@ public class CarPropertyManager extends CarManagerBase {
      *
      * If some of the properties in the given ID list are not supported, they will not be returned.
      *
-     * @param propertyIds property ID list
-     * @return List of property configs.
+     * @param propertyIds the list of property IDs
+     * @return the list of property configs
      */
     @NonNull
     @AddedInOrBefore(majorVersion = 33)
     public List<CarPropertyConfig> getPropertyList(@NonNull ArraySet<Integer> propertyIds) {
         List<Integer> filteredPropertyIds = new ArrayList<>();
-        for (int propId : propertyIds) {
-            if (!CarPropertyHelper.isSupported(propId)) {
+        for (int propertyId : propertyIds) {
+            if (!CarPropertyHelper.isSupported(propertyId)) {
                 continue;
             }
-            filteredPropertyIds.add(propId);
+            filteredPropertyIds.add(propertyId);
         }
         int[] filteredPropertyIdsArray = new int[filteredPropertyIds.size()];
         for (int i = 0; i < filteredPropertyIds.size(); i++) {
             filteredPropertyIdsArray[i] = filteredPropertyIds.get(i);
         }
         try {
-            return mService.getPropertyConfigList(filteredPropertyIdsArray);
+            return mService.getPropertyConfigList(filteredPropertyIdsArray).getConfigs();
         } catch (RemoteException e) {
             Log.e(TAG, "getPropertyList exception ", e);
             return handleRemoteExceptionFromCarService(e, new ArrayList<>());
@@ -1045,21 +1296,21 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * Get CarPropertyConfig by property ID.
+     * Get {@link CarPropertyConfig} by property ID.
      *
-     * @param propId Property ID
-     * @return {@link CarPropertyConfig} for the selected property, {@code null} if the property is
-     * not available.
+     * @param propertyId the property ID
+     * @return the {@link CarPropertyConfig} for the selected property, {@code null} if the property
+     * is not available
      */
     @Nullable
     @AddedInOrBefore(majorVersion = 33)
-    public CarPropertyConfig<?> getCarPropertyConfig(int propId) {
-        if (!CarPropertyHelper.isSupported(propId)) {
+    public CarPropertyConfig<?> getCarPropertyConfig(int propertyId) {
+        if (!CarPropertyHelper.isSupported(propertyId)) {
             return null;
         }
         List<CarPropertyConfig> configs;
         try {
-            configs = mService.getPropertyConfigList(new int[] {propId});
+            configs = mService.getPropertyConfigList(new int[] {propertyId}).getConfigs();
         } catch (RemoteException e) {
             Log.e(TAG, "getPropertyList exception ", e);
             return handleRemoteExceptionFromCarService(e, null);
@@ -1070,18 +1321,18 @@ public class CarPropertyManager extends CarManagerBase {
     /**
      * Returns areaId contains the selected area for the property.
      *
-     * @param propId Property ID
-     * @param area Area enum such as Enums in {@link android.car.VehicleAreaSeat}.
+     * @param propertyId the property ID
+     * @param area the area enum such as Enums in {@link android.car.VehicleAreaSeat}
      * @throws IllegalArgumentException if the property is not available in the vehicle for
      * the selected area
-     * @return {@link AreaId} containing the selected area for the property
+     * @return the {@code AreaId} containing the selected area for the property
      */
     @AddedInOrBefore(majorVersion = 33)
-    public int getAreaId(int propId, int area) {
-        CarPropertyConfig<?> propConfig = getCarPropertyConfig(propId);
+    public int getAreaId(int propertyId, int area) {
+        CarPropertyConfig<?> propConfig = getCarPropertyConfig(propertyId);
         if (propConfig == null) {
-            throw new IllegalArgumentException("The property propId: 0x" + toHexString(propId)
-                    + " is not available");
+            throw new IllegalArgumentException("The propertyId: "
+                    + VehiclePropertyIds.toString(propertyId) + " is not available");
         }
         // For the global property, areaId is 0
         if (propConfig.isGlobalProperty()) {
@@ -1093,15 +1344,18 @@ public class CarPropertyManager extends CarManagerBase {
             }
         }
 
-        throw new IllegalArgumentException("The property propId: 0x" + toHexString(propId)
-                + " is not available at the area: 0x" + toHexString(area));
+        throw new IllegalArgumentException("The propertyId: "
+                + VehiclePropertyIds.toString(propertyId) + " is not available at the area: 0x"
+                + toHexString(area));
     }
 
     /**
      * Return read permission string for given property ID.
      *
-     * @param propId Property ID to query
-     * @return Permission needed to read this property, {@code null} if propId not available
+     * @param propId the property ID to query
+     * @return the permission needed to read this property, {@code null} if the property ID is not
+     * available
+     *
      * @hide
      */
     @Nullable
@@ -1120,8 +1374,10 @@ public class CarPropertyManager extends CarManagerBase {
     /**
      * Return write permission string for given property ID.
      *
-     * @param propId Property ID to query
-     * @return Permission needed to write this property, {@code null} if propId not available
+     * @param propId the property ID to query
+     * @return the permission needed to write this property, {@code null} if the property ID is not
+     * available.
+     *
      * @hide
      */
     @Nullable
@@ -1140,19 +1396,21 @@ public class CarPropertyManager extends CarManagerBase {
 
     /**
      * Check whether a given property is available or disabled based on the car's current state.
-     * @param propId Property ID
-     * @param area AreaId of property
-     * @return {@code true} if STATUS_AVAILABLE, {@code false} otherwise (eg STATUS_UNAVAILABLE)
+     *
+     * @param propertyId the property ID
+     * @param areaId the area ID
+     * @return {@code true} if {@link CarPropertyValue#STATUS_AVAILABLE}, {@code false} otherwise
+     * (eg {@link CarPropertyValue#STATUS_UNAVAILABLE})
      */
     @AddedInOrBefore(majorVersion = 33)
-    public boolean isPropertyAvailable(int propId, int area) {
-        if (!CarPropertyHelper.isSupported(propId)) {
+    public boolean isPropertyAvailable(int propertyId, int areaId) {
+        if (!CarPropertyHelper.isSupported(propertyId)) {
             return false;
         }
 
         try {
             CarPropertyValue propValue = runSyncOperation(() -> {
-                return mService.getProperty(propId, area);
+                return mService.getProperty(propertyId, areaId);
             });
             return propValue != null;
         } catch (RemoteException e) {
@@ -1187,14 +1445,14 @@ public class CarPropertyManager extends CarManagerBase {
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
      *         cars denied the access of the property, or when the property is not available and
      *         might be unavailable for a while, or when unexpected error happens.
-     *     <li>{@link IllegalArgumentException} when the [prop, area] is not supported.
+     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
      * </ul>
      *
      * <p>For pre-R client, the returned value is {@code false} if the property is temporarily not
      * available.
      *
-     * @param prop Property ID to get
-     * @param area Area of the property to get
+     * @param propertyId the property ID to get
+     * @param areaId the area ID of the property to get
      *
      * @throws CarInternalErrorException when there is an unexpected error detected in cars
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
@@ -1203,14 +1461,14 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [prop, area] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
      *
-     * @return value of a bool property, or {@code false} for pre-R client if the property is
-     *         temporarily not available.
+     * @return the value of a bool property, or {@code false} for pre-R client if the property is
+     *         temporarily not available
      */
     @AddedInOrBefore(majorVersion = 33)
-    public boolean getBooleanProperty(int prop, int area) {
-        CarPropertyValue<Boolean> carProp = getProperty(Boolean.class, prop, area);
+    public boolean getBooleanProperty(int propertyId, int areaId) {
+        CarPropertyValue<Boolean> carProp = getProperty(Boolean.class, propertyId, areaId);
         return carProp != null ? carProp.getValue() : false;
     }
 
@@ -1222,8 +1480,8 @@ public class CarPropertyManager extends CarManagerBase {
      *
      * <p>This method has the same exception behavior as {@link #getBooleanProperty(int, int)}.
      *
-     * @param prop Property ID to get
-     * @param area Area of the property to get
+     * @param propertyId the property ID to get
+     * @param areaId the area ID of the property to get
      *
      * @throws CarInternalErrorException when there is an unexpected error detected in cars
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
@@ -1232,14 +1490,14 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [prop, area] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
      *
-     * @return value of a float property, or 0 if client is pre-R and the property is temporarily
-     *         not available.
+     * @return the value of a float property, or 0 if client is pre-R and the property is
+     *         temporarily not available
      */
     @AddedInOrBefore(majorVersion = 33)
-    public float getFloatProperty(int prop, int area) {
-        CarPropertyValue<Float> carProp = getProperty(Float.class, prop, area);
+    public float getFloatProperty(int propertyId, int areaId) {
+        CarPropertyValue<Float> carProp = getProperty(Float.class, propertyId, areaId);
         return carProp != null ? carProp.getValue() : 0f;
     }
 
@@ -1251,8 +1509,8 @@ public class CarPropertyManager extends CarManagerBase {
      *
      * <p>This method has the same exception behavior as {@link #getBooleanProperty(int, int)}.
      *
-     * @param prop Property ID to get
-     * @param area Zone of the property to get
+     * @param propertyId the property ID to get
+     * @param areaId the area ID of the property to get
      *
      * @throws CarInternalErrorException when there is an unexpected error detected in cars
      * @throws PropertyAccessDeniedSecurityException} when cars denied the access of the
@@ -1261,14 +1519,14 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [prop, area] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
      *
-     * @return value of a integer property, or 0 if client is pre-R and the property is temporarily
-     *         not available.
+     * @return the value of a integer property, or 0 if client is pre-R and the property is
+     *         temporarily not available
      */
     @AddedInOrBefore(majorVersion = 33)
-    public int getIntProperty(int prop, int area) {
-        CarPropertyValue<Integer> carProp = getProperty(Integer.class, prop, area);
+    public int getIntProperty(int propertyId, int areaId) {
+        CarPropertyValue<Integer> carProp = getProperty(Integer.class, propertyId, areaId);
         return carProp != null ? carProp.getValue() : 0;
     }
 
@@ -1280,8 +1538,8 @@ public class CarPropertyManager extends CarManagerBase {
      *
      * <p>This method has the same exception behavior as {@link #getBooleanProperty(int, int)}.
      *
-     * @param prop Property ID to get
-     * @param area Zone of the property to get
+     * @param propertyId the property ID to get
+     * @param areaId the area ID of the property to get
      *
      * @throws CarInternalErrorException when there is an unexpected error detected in cars
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
@@ -1290,15 +1548,15 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException} when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException} when the [prop, area] is not supported.
+     * @throws IllegalArgumentException} when the [propertyId, areaId] is not supported.
      *
-     * @return value of a integer array property, or an empty integer array if client is pre-R and
-     *         the property is temporarily not available.
+     * @return the value of a integer array property, or an empty integer array if client is pre-R
+     *         and the property is temporarily not available
      */
     @NonNull
     @AddedInOrBefore(majorVersion = 33)
-    public int[] getIntArrayProperty(int prop, int area) {
-        CarPropertyValue<Integer[]> carProp = getProperty(Integer[].class, prop, area);
+    public int[] getIntArrayProperty(int propertyId, int areaId) {
+        CarPropertyValue<Integer[]> carProp = getProperty(Integer[].class, propertyId, areaId);
         return carProp != null ? toIntArray(carProp.getValue()) : new int[0];
     }
 
@@ -1311,7 +1569,13 @@ public class CarPropertyManager extends CarManagerBase {
         return arr;
     }
 
-    private static <V> V runSyncOperation(Callable<V> c)
+    @FunctionalInterface
+    private interface RemoteCallable<V> {
+        V call() throws RemoteException;
+    }
+
+    @Nullable
+    private static <V> V runSyncOperation(RemoteCallable<V> c)
             throws RemoteException, ServiceSpecificException {
         int retryCount = 0;
         while (retryCount < SYNC_OP_RETRY_MAX_COUNT) {
@@ -1328,11 +1592,8 @@ public class CarPropertyManager extends CarManagerBase {
                         + " ms before retry");
                 SystemClock.sleep(SYNC_OP_RETRY_SLEEP_IN_MS);
                 continue;
-            } catch (RuntimeException | RemoteException e) {
+            } catch (RemoteException e) {
                 throw e;
-            } catch (Exception e) {
-                Log.e(TAG, "catching unexpected exception for getProperty/setProperty", e);
-                return null;
             }
         }
         throw new ServiceSpecificException(VehicleHalStatusCode.STATUS_INTERNAL_ERROR,
@@ -1340,7 +1601,7 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * Return CarPropertyValue
+     * Return {@link CarPropertyValue}
      *
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
@@ -1365,15 +1626,15 @@ public class CarPropertyManager extends CarManagerBase {
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
      *         cars denied the access of the property, or when the property is not available and
      *         might be unavailable for a while, or when unexpected error happens.
-     *     <li>{@link IllegalArgumentException} when the [propId, areaId] is not supported.
+     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
      * </ul>
      *
      * <p>For pre-R client, the returned value might be null if the property is temporarily not
      * available. The client should try again in this case.
      *
-     * @param clazz The class object for the CarPropertyValue
-     * @param propId Property ID to get
-     * @param areaId Zone of the property to get
+     * @param clazz the class object for the CarPropertyValue
+     * @param propertyId the property ID to get
+     * @param areaId the area ID of the property to get
      *
      * @throws CarInternalErrorException when there is an unexpected error detected in cars
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
@@ -1382,15 +1643,16 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [propId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
      *
-     * @return {@link CarPropertyValue}.
+     * @return the value of a property
      */
     @SuppressWarnings("unchecked")
     @Nullable
     @AddedInOrBefore(majorVersion = 33)
-    public <E> CarPropertyValue<E> getProperty(@NonNull Class<E> clazz, int propId, int areaId) {
-        CarPropertyValue<E> carPropertyValue = getProperty(propId, areaId);
+    public <E> CarPropertyValue<E> getProperty(@NonNull Class<E> clazz, int propertyId,
+            int areaId) {
+        CarPropertyValue<E> carPropertyValue = getProperty(propertyId, areaId);
         if (carPropertyValue == null) {
             return null;
         }
@@ -1404,7 +1666,7 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * Query CarPropertyValue with property id and areaId.
+     * Query {@link CarPropertyValue} with property id and areaId.
      *
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
@@ -1429,15 +1691,15 @@ public class CarPropertyManager extends CarManagerBase {
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
      *         cars denied the access of the property, or when the property is not available and
      *         might be unavailable for a while, or when unexpected error happens.
-     *     <li>{@link IllegalArgumentException} when the [propId, areaId] is not supported.
+     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
      * </ul>
      *
      * <p>For pre-R client, the returned value might be null if the property is temporarily not
      * available. The client should try again in this case.
      *
-     * @param propId Property ID
-     * @param areaId areaId
-     * @param <E> Value type of the property
+     * @param propertyId the property ID to get
+     * @param areaId the area ID of the property to get
+     * @param <E> the class type of the property
      *
      * @throws CarInternalErrorException when there is an unexpected error detected in cars.
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
@@ -1446,24 +1708,24 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful.
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [propId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
      *
-     * @return {@link CarPropertyValue}
+     * @return the value of a property
      */
     @Nullable
     @AddedInOrBefore(majorVersion = 33)
-    public <E> CarPropertyValue<E> getProperty(int propId, int areaId) {
+    public <E> CarPropertyValue<E> getProperty(int propertyId, int areaId) {
         if (DBG) {
-            Log.d(TAG, "getProperty, propId: " + VehiclePropertyIds.toString(propId)
+            Log.d(TAG, "getProperty, propertyId: " + VehiclePropertyIds.toString(propertyId)
                     + ", areaId: 0x" + toHexString(areaId));
         }
 
-        assertPropertyIdIsSupported(propId);
+        assertPropertyIdIsSupported(propertyId);
 
-        Trace.beginSection("CarPropertyManager#getProperty");
+        Trace.beginSection("getProperty-" + propertyId + "/" + areaId);
         try {
             return (CarPropertyValue<E>) (runSyncOperation(() -> {
-                return mService.getProperty(propId, areaId);
+                return mService.getProperty(propertyId, areaId);
             }));
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, null);
@@ -1472,12 +1734,12 @@ public class CarPropertyManager extends CarManagerBase {
                 if (e.errorCode == VehicleHalStatusCode.STATUS_TRY_AGAIN) {
                     return null;
                 } else {
-                    throw new IllegalStateException(String.format(
-                            "Failed to get property: 0x%x, "
-                            + "areaId: 0x%x", propId, areaId), e);
+                    throw new IllegalStateException("Failed to get propertyId: "
+                            + VehiclePropertyIds.toString(propertyId) + " areaId: 0x"
+                            + toHexString(areaId), e);
                 }
             }
-            handleCarServiceSpecificException(e, propId, areaId);
+            handleCarServiceSpecificException(e, propertyId, areaId);
 
             // Never reaches here.
             return null;
@@ -1514,14 +1776,14 @@ public class CarPropertyManager extends CarManagerBase {
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
      *         cars denied the access of the property, or when the property is not available and
      *         might be unavailable for a while, or when unexpected error happens.
-     *     <li>{@link IllegalArgumentException} when the [propId, areaId] is not supported.
+     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
      * </ul>
      *
-     * @param clazz The class object for the CarPropertyValue
-     * @param propId Property ID
-     * @param areaId areaId
-     * @param val Value of CarPropertyValue
-     * @param <E> data type of the given property, for example property that was
+     * @param clazz the class object for the CarPropertyValue
+     * @param propertyId the property ID to modify
+     * @param areaId the area ID to apply the modification
+     * @param val the value to set
+     * @param <E> the class type of the given property, for example property that was
      * defined as {@code VEHICLE_VALUE_TYPE_INT32} in vehicle HAL could be accessed using
      * {@code Integer.class}.
      *
@@ -1531,21 +1793,22 @@ public class CarPropertyManager extends CarManagerBase {
      * unavailable for a while.
      * @throws PropertyNotAvailableAndRetryException when the property is temporarily not available
      * and likely that retrying will be successful.
-     * @throws IllegalArgumentException when the [propId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
      */
     @AddedInOrBefore(majorVersion = 33)
-    public <E> void setProperty(@NonNull Class<E> clazz, int propId, int areaId, @NonNull E val) {
+    public <E> void setProperty(@NonNull Class<E> clazz, int propertyId, int areaId,
+            @NonNull E val) {
         if (DBG) {
-            Log.d(TAG, "setProperty, propId: 0x" + toHexString(propId)
+            Log.d(TAG, "setProperty, propertyId: " + VehiclePropertyIds.toString(propertyId)
                     + ", areaId: 0x" + toHexString(areaId) + ", class: " + clazz + ", val: " + val);
         }
 
-        assertPropertyIdIsSupported(propId);
+        assertPropertyIdIsSupported(propertyId);
 
-        Trace.beginSection("CarPropertyManager#setProperty");
+        Trace.beginSection("setProperty-" + propertyId + "/" + areaId);
         try {
             runSyncOperation(() -> {
-                mService.setProperty(new CarPropertyValue<>(propId, areaId, val),
+                mService.setProperty(new CarPropertyValue<>(propertyId, areaId, val),
                         mCarPropertyEventToService);
                 return null;
             });
@@ -1555,15 +1818,16 @@ public class CarPropertyManager extends CarManagerBase {
         } catch (ServiceSpecificException e) {
             if (mAppTargetSdk < Build.VERSION_CODES.R) {
                 if (e.errorCode == VehicleHalStatusCode.STATUS_TRY_AGAIN) {
-                    throw new RuntimeException(String.format("Failed to set property: 0x%x, "
-                            + "areaId: 0x%x", propId, areaId), e);
+                    throw new RuntimeException("Failed to set propertyId: "
+                            + VehiclePropertyIds.toString(propertyId) + " areaId: 0x"
+                            + toHexString(areaId), e);
                 } else {
-                    throw new IllegalStateException(String.format(
-                            "Failed to set property: 0x%x, " + "areaId: 0x%x", propId, areaId),
-                            e);
+                    throw new IllegalStateException("Failed to set propertyId: "
+                            + VehiclePropertyIds.toString(propertyId) + " areaId: 0x"
+                            + toHexString(areaId), e);
                 }
             }
-            handleCarServiceSpecificException(e, propId, areaId);
+            handleCarServiceSpecificException(e, propertyId, areaId);
             return;
         } finally {
             Trace.endSection();
@@ -1577,13 +1841,13 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
      *
-     * @param prop Property ID to modify
-     * @param areaId AreaId to apply the modification.
-     * @param val Value to set
+     * @param propertyId the property ID to modify
+     * @param areaId the area ID to apply the modification
+     * @param val the value to set
      */
     @AddedInOrBefore(majorVersion = 33)
-    public void setBooleanProperty(int prop, int areaId, boolean val) {
-        setProperty(Boolean.class, prop, areaId, val);
+    public void setBooleanProperty(int propertyId, int areaId, boolean val) {
+        setProperty(Boolean.class, propertyId, areaId, val);
     }
 
     /**
@@ -1592,13 +1856,13 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
      *
-     * @param prop Property ID to modify
-     * @param areaId AreaId to apply the modification
-     * @param val Value to set
+     * @param propertyId the property ID to modify
+     * @param areaId the area ID to apply the modification
+     * @param val the value to set
      */
     @AddedInOrBefore(majorVersion = 33)
-    public void setFloatProperty(int prop, int areaId, float val) {
-        setProperty(Float.class, prop, areaId, val);
+    public void setFloatProperty(int propertyId, int areaId, float val) {
+        setProperty(Float.class, propertyId, areaId, val);
     }
 
     /**
@@ -1607,46 +1871,46 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
      *
-     * @param prop Property ID to modify
-     * @param areaId AreaId to apply the modification
-     * @param val Value to set
+     * @param propertyId the property ID to modify
+     * @param areaId the area ID to apply the modification
+     * @param val the value to set
      */
     @AddedInOrBefore(majorVersion = 33)
-    public void setIntProperty(int prop, int areaId, int val) {
-        setProperty(Integer.class, prop, areaId, val);
+    public void setIntProperty(int propertyId, int areaId, int val) {
+        setProperty(Integer.class, propertyId, areaId, val);
     }
 
     /**
-     *  Handles ServiceSpecificException in CarService for R and later version.
+     *  Handles {@code ServiceSpecificException} in {@code CarService} for R and later version.
      */
     private void handleCarServiceSpecificException(
-            ServiceSpecificException e, int propId, int areaId) {
+            ServiceSpecificException e, int propertyId, int areaId) {
         // We are not passing the error message down, so log it here.
         Log.w(TAG, "received ServiceSpecificException: " + e);
-        int errorCode = e.errorCode & SYSTEM_ERROR_CODE_MASK;
-        int vendorErrorCode = e.errorCode >>> VENDOR_ERROR_CODE_SHIFT;
+        int errorCode = CarPropertyHelper.getVhalSystemErrorCode(e.errorCode);
+        int vendorErrorCode = CarPropertyHelper.getVhalVendorErrorCode(e.errorCode);
 
         switch (errorCode) {
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE:
-                throw new PropertyNotAvailableException(propId, areaId, vendorErrorCode);
+                throw new PropertyNotAvailableException(propertyId, areaId, vendorErrorCode);
             case VehicleHalStatusCode.STATUS_TRY_AGAIN:
                 // Vendor error code is ignored for STATUS_TRY_AGAIN error
-                throw new PropertyNotAvailableAndRetryException(propId, areaId);
+                throw new PropertyNotAvailableAndRetryException(propertyId, areaId);
             case VehicleHalStatusCode.STATUS_ACCESS_DENIED:
                 // Vendor error code is ignored for STATUS_ACCESS_DENIED error
-                throw new PropertyAccessDeniedSecurityException(propId, areaId);
+                throw new PropertyAccessDeniedSecurityException(propertyId, areaId);
             case VehicleHalStatusCode.STATUS_INTERNAL_ERROR:
-                throw new CarInternalErrorException(propId, areaId, vendorErrorCode);
+                throw new CarInternalErrorException(propertyId, areaId, vendorErrorCode);
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED:
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW:
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_HIGH:
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_POOR_VISIBILITY:
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SAFETY:
-                throw new PropertyNotAvailableException(propId, areaId,
+                throw new PropertyNotAvailableException(propertyId, areaId,
                         getPropertyNotAvailableErrorCodeFromStatusCode(errorCode), vendorErrorCode);
             default:
                 Log.e(TAG, "Invalid errorCode: " + errorCode + " in CarService");
-                throw new CarInternalErrorException(propId, areaId);
+                throw new CarInternalErrorException(propertyId, areaId);
         }
     }
 
@@ -1686,7 +1950,7 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     /**
-     * Set an onCancelListener for the cancellation signal.
+     * Set an {@code onCancelListener} for the cancellation signal.
      *
      * <p>When the signal is cancelled, car service will remove the stored state for the specified
      * pending request IDs and ignore all the future results.
@@ -1722,9 +1986,9 @@ public class CarPropertyManager extends CarManagerBase {
     /**
      * Generate unique get request ID and return to the client.
      *
-     * @param propertyId Property ID
-     * @param areaId area ID
-     * @return GetPropertyRequest object
+     * @param propertyId the property ID
+     * @param areaId the area ID
+     * @return the GetPropertyRequest object
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -1737,12 +2001,12 @@ public class CarPropertyManager extends CarManagerBase {
     /**
      * Generate unique set request ID and return to the client.
      *
-     * @param <T> The type for the property value, must be one of Object, Boolean, Float, Integer,
-     *      Long, Float[], Integer[], Long[], String, byte[], Object[].
-     * @param propertyId Property ID
-     * @param areaId area ID
-     * @param value the value to set.
-     * @return SetPropertyRequest object
+     * @param <T> the type for the property value, must be one of Object, Boolean, Float, Integer,
+     *      Long, Float[], Integer[], Long[], String, byte[], Object[]
+     * @param propertyId the property ID
+     * @param areaId the area ID
+     * @param value the value to set
+     * @return the {@link SetPropertyRequest} object
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -1753,7 +2017,6 @@ public class CarPropertyManager extends CarManagerBase {
         int requestIdCounter = mRequestIdCounter.getAndIncrement();
         return new SetPropertyRequest(requestIdCounter, propertyId, areaId, value);
     }
-
 
     private void checkAsyncArguments(Object requests, Object callback, long timeoutInMs) {
         requireNonNull(requests);
@@ -1779,16 +2042,17 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>If the operation is cancelled, it is guaranteed that no more callbacks will be called.
      *
      * <p>For one request, if the property's status is not available,
-     * {@code errorCallback.onFailure} will be called once with {@link STATUS_ERROR_NOT_AVAILABLE}.
+     * {@code errorCallback.onFailure} will be called once with {@link #STATUS_ERROR_NOT_AVAILABLE}.
      *
      * <p>For one request, if the property's status is error,
-     * {@code errorCallback.onFailure} will be called once with {@link STATUS_ERROR_INTERNAL_ERROR}.
+     * {@code errorCallback.onFailure} will be called once with {@link
+     * #STATUS_ERROR_INTERNAL_ERROR}.
      *
-     * @param getPropertyRequests The property ID and the optional area ID for the property to get
-     * @param timeoutInMs The timeout for the operation, in milliseconds
-     * @param cancellationSignal A signal that could be used to cancel the on-going operation
-     * @param callbackExecutor The executor to execute the callback with
-     * @param getPropertyCallback The callback function to deliver the result
+     * @param getPropertyRequests a list of properties to get
+     * @param timeoutInMs the timeout for the operation, in milliseconds
+     * @param cancellationSignal a signal that could be used to cancel the on-going operation
+     * @param callbackExecutor the executor to execute the callback with
+     * @param getPropertyCallback the callback function to deliver the result
      * @throws SecurityException if missing permission to read one of the specific properties.
      * @throws IllegalArgumentException if one of the properties to read is not supported.
      */
@@ -1812,13 +2076,13 @@ public class CarPropertyManager extends CarManagerBase {
             int propertyId = getPropertyRequest.getPropertyId();
             int areaId = getPropertyRequest.getAreaId();
             if (DBG) {
-                Log.d(TAG, "getPropertiesAsync, propId: " + VehiclePropertyIds.toString(propertyId)
-                        + ", areaId: 0x" + toHexString(areaId));
+                Log.d(TAG, "getPropertiesAsync, propertyId: " + VehiclePropertyIds.toString(
+                        propertyId) + ", areaId: 0x" + toHexString(areaId));
             }
             assertPropertyIdIsSupported(propertyId);
 
-            getPropertyServiceRequests.add(new AsyncPropertyServiceRequest(
-                    getPropertyRequest.getRequestId(), propertyId, areaId));
+            getPropertyServiceRequests.add(AsyncPropertyServiceRequest.newGetAsyncRequest(
+                    getPropertyRequest));
         }
 
         List<Integer> requestIds = storePendingRequestInfo(getPropertyRequests, callbackExecutor,
@@ -1875,13 +2139,37 @@ public class CarPropertyManager extends CarManagerBase {
      * precedence is undefined. Typically, the last set operation (in the order that they are issued
      * to the car's ECU) overrides the previous set operations.
      *
-     * @param setPropertyRequests The property values to set.
-     * @param timeoutInMs The timeout for the operation, in milliseconds.
-     * @param cancellationSignal A signal that could be used to cancel the on-going operation.
-     * @param callbackExecutor The executor to execute the callback with.
-     * @param setPropertyCallback The callback function to deliver the result.
+     * <p>When the success callback will be called depends on whether {@code waitForPropertyUpdate}
+     * for each request is set. If this is set to {@code true} (by default), the success callback
+     * will be called when the set operation is successfully delivered to vehicle bus AND either
+     * target value is the same as the current or when the property is updated to the target value.
+     *
+     * <p>When {@code waitForPropertyUpdate} is set to {@code false}, the success callback will be
+     * called as long as the set operation is successfully delivered to vehicle bus.
+     *
+     * <p>Under most cases, client should wait for the property update to verify that the set
+     * operation actually succeeded.
+     *
+     * <p>For cases when the property is write-only (no way to get property update event) or when
+     * the property represents some action, instead of an actual state, e.g. key stroke where the
+     * property's current value is not meaningful, caller must set {@code waitForPropertyUpdate}
+     * to {@code false}.
+     *
+     * <p>For {@code HVAC_TEMPERATURE_VALUE_SUGGESTION}, this must be set to {@code false}
+     * because the updated property value will not be the same as the value to be set.
+     *
+     * @param setPropertyRequests a list of properties to set
+     * @param timeoutInMs the timeout for the operation, in milliseconds
+     * @param cancellationSignal a signal that could be used to cancel the on-going operation
+     * @param callbackExecutor the executor to execute the callback with
+     * @param setPropertyCallback the callback function to deliver the result
      * @throws SecurityException if missing permission to write one of the specific properties.
      * @throws IllegalArgumentException if one of the properties to set is not supported.
+     * @throws IllegalArgumentException if one of the properties is not readable and does not set
+     *   {@code waitForPropertyUpdate} to {@code false}.
+     * @throws IllegalArgumentException if one of the properties is
+     *   {@code HVAC_TEMPERATURE_VALUE_SUGGESTION} and does not set {@code waitForPropertyUpdate}
+     *   to {@code false}.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -1904,14 +2192,13 @@ public class CarPropertyManager extends CarManagerBase {
             int areaId = setPropertyRequest.getAreaId();
             requireNonNull(setPropertyRequest.getValue());
             if (DBG) {
-                Log.d(TAG, "setPropertiesAsync, propId: " + VehiclePropertyIds.toString(propertyId)
-                        + ", areaId: 0x" + toHexString(areaId));
+                Log.d(TAG, "setPropertiesAsync, propertyId: " + VehiclePropertyIds.toString(
+                        propertyId) + ", areaId: 0x" + toHexString(areaId));
             }
             assertPropertyIdIsSupported(propertyId);
 
-            setPropertyServiceRequests.add(new AsyncPropertyServiceRequest(
-                    setPropertyRequest.getRequestId(), propertyId, areaId,
-                    new CarPropertyValue(propertyId, areaId, setPropertyRequest.getValue())));
+            setPropertyServiceRequests.add(AsyncPropertyServiceRequest.newSetAsyncRequest(
+                    setPropertyRequest));
         }
 
         List<Integer> requestIds = storePendingRequestInfo(setPropertyRequests, callbackExecutor,
@@ -1949,10 +2236,10 @@ public class CarPropertyManager extends CarManagerBase {
                 callbackExecutor, setPropertyCallback);
     }
 
-    private void assertPropertyIdIsSupported(int propId) {
-        if (!CarPropertyHelper.isSupported(propId)) {
+    private void assertPropertyIdIsSupported(int propertyId) {
+        if (!CarPropertyHelper.isSupported(propertyId)) {
             throw new IllegalArgumentException("The property: "
-                    + VehiclePropertyIds.toString(propId) + " is unsupported");
+                    + VehiclePropertyIds.toString(propertyId) + " is unsupported");
         }
     }
 

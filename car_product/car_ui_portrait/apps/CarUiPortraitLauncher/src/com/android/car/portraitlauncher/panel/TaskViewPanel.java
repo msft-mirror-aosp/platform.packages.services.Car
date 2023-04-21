@@ -20,22 +20,27 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Insets;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.Region;
 import android.os.Build;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.Animation;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 
 import androidx.annotation.Nullable;
 
 import com.android.car.carlauncher.CarTaskView;
 import com.android.car.portraitlauncher.R;
+import com.android.car.portraitlauncher.panel.animation.ClosePanelAnimator;
+import com.android.car.portraitlauncher.panel.animation.ExpandPanelAnimator;
+import com.android.car.portraitlauncher.panel.animation.FadeInPanelAnimator;
+import com.android.car.portraitlauncher.panel.animation.FadeOutPanelAnimator;
+import com.android.car.portraitlauncher.panel.animation.FullScreenPanelAnimator;
 import com.android.car.portraitlauncher.panel.animation.PanelAnimator;
-
 /**
  * A view container used to display CarTaskViews.
  *
@@ -43,7 +48,7 @@ import com.android.car.portraitlauncher.panel.animation.PanelAnimator;
  * When panel is in open state it shows a grab bar to the users which can be dragged to transition
  * to the other states.
  */
-public class TaskViewPanel extends LinearLayout {
+public class TaskViewPanel extends RelativeLayout {
 
     private static final String TAG = TaskViewPanel.class.getSimpleName();
     private static final boolean DBG = Build.IS_DEBUGGABLE;
@@ -55,20 +60,35 @@ public class TaskViewPanel extends LinearLayout {
         /** The insets used for the panel. */
         Insets mInsets = Insets.NONE;
         /** Whether or not the panel should display the grip bar. */
-        private boolean mHasGripBar;
+        private final boolean mHasGripBar;
         /** Whether the panel is visible when put in this state. */
-        private boolean mIsVisible;
+        private final boolean mIsVisible;
         /** Whether the panel is considered full screen when put in this state. */
-        private boolean mIsFullScreen;
+        private final boolean mIsFullScreen;
+        /** Whether the panel should display the toolbar. */
+        private boolean mHasToolBar;
+        /** Whether the panel should show the background surfaceView. */
+        private boolean mHasBackgroundSurfaceView;
 
-        public State(boolean hasGripBar, boolean isVisible, boolean isFullScreen) {
+        public State(boolean hasGripBar, boolean isVisible, boolean isFullScreen,
+                boolean hasToolBar, boolean hasBackgroundSurfaceView) {
             mHasGripBar = hasGripBar;
             mIsVisible = isVisible;
             mIsFullScreen = isFullScreen;
+            mHasToolBar = hasToolBar;
+            mHasBackgroundSurfaceView = hasBackgroundSurfaceView;
         }
 
         boolean hasGripBar() {
             return mHasGripBar;
+        }
+
+        boolean hasToolBar() {
+            return mHasToolBar;
+        }
+
+        boolean hasBackgroundSurfaceView() {
+            return mHasBackgroundSurfaceView;
         }
 
         /** Whether the panel in this state has any visible parts. */
@@ -79,6 +99,12 @@ public class TaskViewPanel extends LinearLayout {
         /** Is this state considered full screen or not. */
         public boolean isFullScreen() {
             return mIsFullScreen;
+        }
+
+        /** The string representation of the state. Used for debugging */
+        public String toString() {
+            return "(visible: " + isVisible() + ", fullscreen: " + isFullScreen() + ", bounds: "
+                    + mBounds + ")";
         }
     }
 
@@ -111,11 +137,11 @@ public class TaskViewPanel extends LinearLayout {
     }
 
     /** The properties of the panel when in {@code open} state. */
-    private State mOpenState;
+    private final State mOpenState;
     /** The properties of the panel when in {@code close} state. */
-    private State mCloseState;
+    private final State mCloseState;
     /** The properties of the panel when in {@code full screen} state. */
-    private State mFullScreenState;
+    private final State mFullScreenState;
 
     /**
      * The current state of the panel.
@@ -129,10 +155,7 @@ public class TaskViewPanel extends LinearLayout {
     private OnStateChangeListener mOnStateChangeListener;
 
     /** The drag threshold after which the panel transitions to the close mode. */
-    private int mDragThreshold;
-
-    /** The top margin used for the panel in open state. */
-    private int mDefaultTopMargin;
+    private final int mDragThreshold;
 
     /** The height of the grip bar. */
     private int mGripBarHeight;
@@ -140,14 +163,17 @@ public class TaskViewPanel extends LinearLayout {
     /** The grip bar used to drag the panel. */
     private GripBarView mGripBar;
 
+    /** The toolbar on top of the panel. */
+    private ToolBarView mToolBarView;
+
     /** Internal container of the {@code CarTaskView}. */
     private ViewGroup mTaskViewContainer;
 
+    /** A view that is shown on top of the task view and used to fake the fade effect. */
+    private View mTaskViewOverlay;
+
     /** The {@code CarTaskView} embedded in this panel. This is the main content of the panel. */
     private CarTaskView mTaskView;
-
-    /** The {@code Animator} used to animate the panel. */
-    private PanelAnimator mAnimator;
 
     /** Shows whether the panel is animating or there is no ongoing animation. */
     private boolean mIsAnimating;
@@ -155,6 +181,11 @@ public class TaskViewPanel extends LinearLayout {
     /** The last reported window bounds of the task view. */
     private Rect mTaskViewWindowBounds;
 
+    /** The surface view showed on the back of the panel. */
+    private BackgroundSurfaceView mBackgroundSurfaceView;
+
+    /** The flag indicating if the task view on the panel is ready. */
+    private boolean mIsReady;
 
     public TaskViewPanel(Context context) {
         this(context, null);
@@ -173,16 +204,16 @@ public class TaskViewPanel extends LinearLayout {
         super(context, attrs, defStyleAttr, defStyleRes);
 
         mDragThreshold = (int) getResources().getDimension(R.dimen.panel_drag_threshold);
-        mDefaultTopMargin = (int) getResources().getDimension(R.dimen.panel_default_top_margin);
-
-        mAnimator = new PanelAnimator(this);
 
         mOpenState = new State(/* hasGripBar = */ true, /* isVisible = */ true,
-                /* isFullScreen */false);
+                /* isFullScreen */false, /* hasToolBar = */ false,
+                /* hasBackgroundSurfaceView = */ false);
         mCloseState = new State(/* hasGripBar = */ true, /* isVisible = */ false,
-                /* isFullScreen */false);
+                /* isFullScreen */false, /* hasToolBar = */ false,
+                /* hasBackgroundSurfaceView = */ false);
         mFullScreenState = new State(/* hasGripBar = */ false, /* isVisible = */ true,
-                /* isFullScreen */true);
+                /* isFullScreen */true, /* hasToolBar = */ true,
+                /* hasBackgroundSurfaceView = */ true);
     }
 
     @Override
@@ -190,9 +221,13 @@ public class TaskViewPanel extends LinearLayout {
         super.onFinishInflate();
 
         mGripBar = findViewById(R.id.grip_bar);
+        mToolBarView = findViewById(R.id.toolbar);
         mTaskViewContainer = findViewById(R.id.task_view_container);
+        mTaskViewOverlay = findViewById(R.id.task_view_overlay);
+        mBackgroundSurfaceView = findViewById(R.id.surface_view);
+        mBackgroundSurfaceView.setZOrderOnTop(false);
         setupGrabBar();
-        setActiveState(mCloseState, /* animate = */ false);
+        setActiveState(mCloseState, /* animator = */ null);
     }
 
     /** Whether the panel is in the open state. */
@@ -200,9 +235,9 @@ public class TaskViewPanel extends LinearLayout {
         return mActiveState == mOpenState;
     }
 
-    /** Whether the panel is in full screen state. */
+    /** Whether the panel is in the full screen state. */
     public boolean isFullScreen() {
-        return mActiveState.isFullScreen();
+        return mActiveState == mFullScreenState;
     }
 
     /** Whether the panel is actively animating. */
@@ -211,18 +246,55 @@ public class TaskViewPanel extends LinearLayout {
     }
 
     /** Transitions the panel into the open state. */
+    public void openPanel() {
+        openPanel(/* animated= */ true);
+    }
+
+    /** Transitions the panel into the open state. */
     public void openPanel(boolean animated) {
-        setActiveState(mOpenState, animated);
+        PanelAnimator animator =
+                animated ? new ClosePanelAnimator(this, mOpenState.mBounds) : null;
+        setActiveState(mOpenState, animator);
+    }
+
+    /** Transitions the panel into the close state. */
+    public void closePanel() {
+        closePanel(/* animated= */ true);
     }
 
     /** Transitions the panel into the close state. */
     public void closePanel(boolean animated) {
-        setActiveState(mCloseState, animated);
+        PanelAnimator animator =
+                animated ? new ClosePanelAnimator(this, mCloseState.mBounds) : null;
+
+        setActiveState(mCloseState, animator);
+    }
+
+    /** Transitions the panel into the open state using the expand animation. */
+    public void expandPanel() {
+        Point origin = new Point(mOpenState.mBounds.centerX(), mOpenState.mBounds.centerY());
+        PanelAnimator animator =
+                new ExpandPanelAnimator(this, origin, mOpenState.mBounds, mGripBar);
+        setActiveState(mOpenState, animator);
+    }
+
+    /** Transitions the panel into the open state using the fade-in animation. */
+    public void fadeInPanel() {
+        setActiveState(mOpenState, new FadeInPanelAnimator(this, mTaskView, mOpenState.mBounds));
+    }
+
+    /** Transitions the panel into the close state using the fade-out animation. */
+    public void fadeOutPanel() {
+        PanelAnimator animator =
+                new FadeOutPanelAnimator(this, mTaskViewOverlay, mTaskView, mOpenState.mBounds);
+        setActiveState(mCloseState, animator);
     }
 
     /** Transitions the panel into the full screen state. */
-    public void openFullScreenPanel(boolean animated) {
-        setActiveState(mFullScreenState, animated);
+    public void openFullScreenPanel(boolean animated, boolean showToolBar, int bottomAdjustment) {
+        mFullScreenState.mHasToolBar = showToolBar;
+        mFullScreenState.mBounds.bottom = ((ViewGroup) getParent()).getHeight() - bottomAdjustment;
+        setActiveState(mFullScreenState, animated ? createFullScreenPanelAnimator() : null);
     }
 
     /** Sets the state change listener for the panel. */
@@ -249,18 +321,29 @@ public class TaskViewPanel extends LinearLayout {
 
     /** Updates the {@code TaskView} used in the panel. */
     public void setTaskView(CarTaskView taskView) {
-        logIfDebuggable("TaskView updated " + taskView);
         mTaskView = taskView;
         mTaskViewContainer.addView(mTaskView);
+        onParentDimensionChanged();
+    }
+
+    /** Updates the readiness state of the panel. */
+    public void setReady(boolean isReady) {
+        mIsReady = isReady;
+    }
+
+    /** Returns whether the panel is ready. */
+    public boolean isReady() {
+        return mIsReady;
     }
 
     /** Refreshes the panel according to the given {@code Theme}. */
     public void refresh(Resources.Theme theme) {
         int backgroundColor = getResources().getColor(R.color.car_background, theme);
         mTaskViewContainer.setBackgroundColor(backgroundColor);
+        mTaskViewOverlay.setBackgroundColor(backgroundColor);
         mGripBar.refresh(theme);
+        mBackgroundSurfaceView.refresh(theme);
     }
-
 
     /**
      * Updates the Obscured touch region of the panel.
@@ -277,15 +360,20 @@ public class TaskViewPanel extends LinearLayout {
     @SuppressLint("ClickableViewAccessibility")
     private void setupGrabBar() {
         mGripBarHeight = (int) getResources().getDimension(R.dimen.panel_grip_bar_height);
-        mGripBar.setOnTouchListener(new OnPanelDragListener() {
+        mGripBar.setOnTouchListener(new OnPanelDragListener(getContext()) {
+            @Override void onClick() {
+                closePanel();
+            }
+
             @Override
-            public void onDragBegin() {}
+            public void onDragBegin() {
+            }
 
             @Override
             public void onDrag(int deltaX, int deltaY) {
                 deltaY = Math.max(0, deltaY);
                 Rect rect = new Rect(mActiveState.mBounds);
-                rect.offset(0, deltaY);
+                rect.offset(/* dx= */ 0, deltaY);
                 updateBounds(rect);
             }
 
@@ -293,9 +381,9 @@ public class TaskViewPanel extends LinearLayout {
             public void onDragEnd(int deltaX, int deltaY) {
                 deltaY = Math.max(0, deltaY);
                 if (deltaY > mDragThreshold) {
-                    setActiveState(mCloseState, /* animate = */ true);
+                    closePanel();
                 } else {
-                    setActiveState(mOpenState, /* animate = */ true);
+                    openPanel();
                 }
             }
         });
@@ -323,7 +411,16 @@ public class TaskViewPanel extends LinearLayout {
         updateInsets(mActiveState.mInsets);
         recalculateBounds();
         updateBounds(mActiveState.mBounds);
-        post(() -> mTaskView.onLocationChanged());
+        post(() -> {
+            if (mTaskView != null) {
+                mTaskView.onLocationChanged();
+            }
+        });
+    }
+
+    /** Sets a fixed background color for the task view. */
+    public void setTaskViewBackgroundColor(int color) {
+        mBackgroundSurfaceView.setFixedColor(color);
     }
 
     /** Should be called when the view is no longer in use. */
@@ -336,14 +433,31 @@ public class TaskViewPanel extends LinearLayout {
         int parentWidth = ((ViewGroup) getParent()).getWidth();
         int parentHeight = ((ViewGroup) getParent()).getHeight();
 
-        Log.w(TAG, "onDimensionChanged: " + parentWidth + " " + parentHeight);
+        logIfDebuggable("onDimensionChanged: " + parentWidth + " " + parentHeight);
 
         recalculateBounds();
 
-        post(() -> mTaskView.onLocationChanged());
+        post(() -> {
+            if (mTaskView != null) {
+                mTaskView.onLocationChanged();
+            }
+        });
         updateBounds(mActiveState.mBounds);
     }
 
+    /**
+     * Set Callback for {@link ToolBarView} on {@link TaskViewPanel}
+     */
+    public void setToolBarCallback(ToolBarView.Callback callback) {
+        mToolBarView.registerToolbarCallback(callback);
+    }
+
+    /**
+     * Show/hide the content in {@link ToolBarView}
+     */
+    public void setToolBarViewVisibility(boolean isVisible) {
+        mToolBarView.updateToolBarContentVisibility(mActiveState.hasToolBar() && isVisible);
+    }
 
     private void recalculateBounds() {
         int parentWidth = ((ViewGroup) getParent()).getWidth();
@@ -357,25 +471,44 @@ public class TaskViewPanel extends LinearLayout {
         mFullScreenState.mBounds.set(0, 0, parentWidth, parentHeight);
     }
 
-    private void setActiveState(State toState, boolean animated) {
-        Log.w(TAG, "SetActiveState to " + toState.mBounds);
+    private void setActiveState(State toState, PanelAnimator animator) {
         State fromState = mActiveState;
+        logIfDebuggable("Panel( " + getTag() + ") active state changes from " + fromState
+                + " to " + toState);
 
+        boolean animated = animator != null;
         onStateChangeStart(fromState, toState, animated);
 
         mActiveState = toState;
 
         updateInsets(mActiveState.mInsets);
         updateTaskViewWindowBounds();
-        mGripBar.setVisibility(toState.hasGripBar() ? VISIBLE : GONE);
 
         if (animated) {
-            animateToState(mActiveState, () -> {
-                Log.w(TAG, "On animation end");
-                onStateChangeEnd(fromState, toState, animated);
+            post(() -> {
+                // Hide toolbar before animation if toState doesn't have toolbar for better
+                // animation
+                if (!toState.hasToolBar()) {
+                    mToolBarView.setVisibility(GONE);
+                }
+                animator.animate(() -> {
+                            mGripBar.setVisibility(toState.hasGripBar() ? VISIBLE : GONE);
+                            mToolBarView.setVisibility(toState.hasToolBar() ? VISIBLE : GONE);
+                            mBackgroundSurfaceView.setVisibility(
+                                    toState.hasBackgroundSurfaceView() ? VISIBLE : GONE);
+                            updateBounds(mActiveState.mBounds);
+                            onStateChangeEnd(fromState, toState, /* animated= */ true);
+                        }
+
+                );
             });
         } else {
-            onStateChangeEnd(fromState, toState, animated);
+            mGripBar.setVisibility(toState.hasGripBar() ? VISIBLE : GONE);
+            mToolBarView.setVisibility(toState.hasToolBar()  ? VISIBLE : GONE);
+            mBackgroundSurfaceView.setVisibility(
+                    toState.hasBackgroundSurfaceView() ? VISIBLE : GONE);
+            updateBounds(mActiveState.mBounds);
+            onStateChangeEnd(fromState, toState, /* animated= */ false);
         }
     }
 
@@ -386,10 +519,6 @@ public class TaskViewPanel extends LinearLayout {
         }
     }
     private void onStateChangeEnd(State fromState, State toState, boolean animated) {
-        if (mTaskView != null) {
-            mTaskView.setZOrderOnTop(false);
-        }
-
         if (mOnStateChangeListener != null) {
             mOnStateChangeListener.onStateChangeEnd(fromState, toState, animated);
         }
@@ -401,32 +530,14 @@ public class TaskViewPanel extends LinearLayout {
         // to a visible state and only if the window bounds is not changed since the last visible
         // state.
         Rect taskViewBounds = getTaskViewBounds(mActiveState);
-        if (mActiveState.isVisible() && !taskViewBounds.equals(mTaskViewWindowBounds)) {
-            mTaskViewWindowBounds = taskViewBounds;
-            logIfDebuggable("TaskView bounds: " + mTaskViewWindowBounds);
-            mTaskView.setWindowBounds(taskViewBounds);
-        }
-    }
-
-    private void animateToState(State state, Runnable onAnimationEnd) {
-        Animation animation;
-        if (state == mOpenState) {
-            animation = mAnimator.createOpenPanelAnimation(state.mBounds, onAnimationEnd);
-        } else if (state == mCloseState) {
-            animation = mAnimator.createClosePanelAnimation(state.mBounds, onAnimationEnd);
-        } else if (state == mFullScreenState) {
-            // To reduce the visual glitches, resize the panel before starting the animation.
-            Rect bounds = new Rect(mFullScreenState.mBounds);
-            bounds.offset(mOpenState.mBounds.left, mOpenState.mBounds.top);
-            updateBounds(bounds);
-            animation = mAnimator.createFullScreenPanelAnimation(mFullScreenState.mBounds,
-                    onAnimationEnd);
-        } else {
-            onAnimationEnd();
+        if (!mActiveState.isVisible() || taskViewBounds.equals(mTaskViewWindowBounds)) {
             return;
         }
-        // Start the animation on the next cycle to avoid relayout conflicts.
-        post(() -> startAnimation(animation));
+        mTaskViewWindowBounds = taskViewBounds;
+        logIfDebuggable("TaskView bounds: " + mTaskViewWindowBounds);
+        if (mTaskView != null) {
+            mTaskView.setWindowBounds(taskViewBounds);
+        }
     }
 
     private void updateInsets(Insets insets) {
@@ -440,5 +551,11 @@ public class TaskViewPanel extends LinearLayout {
         layoutParams.width = bounds.width();
         layoutParams.height = bounds.height();
         setLayoutParams(layoutParams);
+    }
+
+    private FullScreenPanelAnimator createFullScreenPanelAnimator() {
+        Point offset = new Point(mOpenState.mBounds.left, mOpenState.mBounds.top);
+        Rect bounds = mFullScreenState.mBounds;
+        return new FullScreenPanelAnimator(this, bounds, offset);
     }
 }

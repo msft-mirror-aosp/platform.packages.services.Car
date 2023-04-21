@@ -168,7 +168,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
         mPropValueBuilder = vehicle.getHalPropValueBuilder();
         mHandlerThread = handlerThread;
         mHandler = new Handler(mHandlerThread.getLooper());
-        mPowerHal = powerHal != null ? powerHal : new PowerHalService(this);
+        mPowerHal = powerHal != null ? powerHal : new PowerHalService(context, this);
         mPropertyHal = propertyHal != null ? propertyHal : new PropertyHalService(this);
         mInputHal = inputHal != null ? inputHal : new InputHalService(this);
         mVmsHal = vmsHal != null ? vmsHal : new VmsHalService(context, this);
@@ -349,12 +349,16 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
 
     /**
      * Inits the vhal configurations.
-     *
-     * <p><Note that {@link #getIfAvailableOrFailForEarlyStage(int, int)}
-     * can be called before {@code init()}.
      */
     @Override
     public void init() {
+        // nothing to init as everything was done on priorityInit
+    }
+
+    /**
+     * PriorityInit for the vhal configurations.
+     */
+    public void priorityInit() {
         fetchAllPropConfigs();
 
         // PropertyHalService will take most properties, so make it big enough.
@@ -513,6 +517,12 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
             opts.areaIds = new int[0];
             synchronized (mLock) {
                 assertServiceOwnerLocked(service, property);
+                if (mSubscribedProperties.get(property) != null
+                        && mSubscribedProperties.get(property).sampleRate == samplingRateHz) {
+                    Slogf.w(CarLog.TAG_HAL, "property: " + VehiclePropertyIds.toString(property)
+                            + " is already subscribed at rate: " + samplingRateHz + " hz");
+                    return;
+                }
                 mSubscribedProperties.put(property, opts);
             }
             try {
@@ -1330,7 +1340,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
 
 
     /**
-     * Query HalPropValue with list of GetVehicleHalRequest objects.
+     * Queries HalPropValue with list of GetVehicleHalRequest objects.
      *
      * <p>This method gets the HalPropValue using async methods.
      */
@@ -1340,7 +1350,15 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
     }
 
     /**
-     * Cancel all the on-going async requests with the given request IDs.
+     * Sets vehicle property value asynchronously.
+     */
+    public void setAsync(List<VehicleStub.AsyncGetSetRequest> setVehicleStubAsyncRequests,
+            VehicleStub.VehicleStubCallbackInterface setVehicleStubAsyncCallback) {
+        mVehicleStub.setAsync(setVehicleStubAsyncRequests, setVehicleStubAsyncCallback);
+    }
+
+    /**
+     * Cancels all the on-going async requests with the given request IDs.
      */
     public void cancelRequests(List<Integer> vehicleStubRequestIds) {
         mVehicleStub.cancelRequests(vehicleStubRequestIds);

@@ -53,11 +53,13 @@ import com.google.android.car.kitchensink.activityresolver.ActivityResolverFragm
 import com.google.android.car.kitchensink.admin.DevicePolicyFragment;
 import com.google.android.car.kitchensink.alertdialog.AlertDialogTestFragment;
 import com.google.android.car.kitchensink.assistant.CarAssistantFragment;
+import com.google.android.car.kitchensink.audio.AudioMirrorTestFragment;
 import com.google.android.car.kitchensink.audio.AudioTestFragment;
 import com.google.android.car.kitchensink.audio.AudioUserAssignmentFragment;
 import com.google.android.car.kitchensink.audio.CarAudioInputTestFragment;
 import com.google.android.car.kitchensink.audiorecorder.AudioRecorderTestFragment;
 import com.google.android.car.kitchensink.backup.BackupAndRestoreFragment;
+import com.google.android.car.kitchensink.biometrics.BiometricPromptTestFragment;
 import com.google.android.car.kitchensink.bluetooth.BluetoothHeadsetFragment;
 import com.google.android.car.kitchensink.bluetooth.BluetoothUuidFragment;
 import com.google.android.car.kitchensink.bluetooth.MapMceTestFragment;
@@ -87,6 +89,7 @@ import com.google.android.car.kitchensink.privacy.PrivacyIndicatorFragment;
 import com.google.android.car.kitchensink.projection.ProjectionFragment;
 import com.google.android.car.kitchensink.property.PropertyTestFragment;
 import com.google.android.car.kitchensink.qc.QCViewerFragment;
+import com.google.android.car.kitchensink.remoteaccess.RemoteAccessTestFragment;
 import com.google.android.car.kitchensink.rotary.RotaryFragment;
 import com.google.android.car.kitchensink.sensor.SensorsTestFragment;
 import com.google.android.car.kitchensink.storagelifetime.StorageLifetimeFragment;
@@ -238,11 +241,15 @@ public class KitchenSinkActivity extends FragmentActivity {
                     AudioRecorderTestFragment.class),
             new FragmentMenuEntry(CarAudioInputTestFragment.FRAGMENT_NAME,
                     CarAudioInputTestFragment.class),
+            new FragmentMenuEntry(AudioMirrorTestFragment.FRAGMENT_NAME,
+                    AudioMirrorTestFragment.class),
             new FragmentMenuEntry("Hotword", CarMultiConcurrentHotwordTestFragment.class),
             new FragmentMenuEntry("B&R", BackupAndRestoreFragment.class),
             new FragmentMenuEntry("BT headset", BluetoothHeadsetFragment.class),
             new FragmentMenuEntry("BT messaging", MapMceTestFragment.class),
             new FragmentMenuEntry("BT Uuids", BluetoothUuidFragment.class),
+            new FragmentMenuEntry(BiometricPromptTestFragment.FRAGMENT_NAME,
+                    BiometricPromptTestFragment.class),
             new FragmentMenuEntry("carapi", CarApiTestFragment.class),
             new FragmentMenuEntry("carboard", KeyboardTestFragment.class),
             new FragmentMenuEntry("connectivity", ConnectivityFragment.class),
@@ -269,6 +276,7 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("projection", ProjectionFragment.class),
             new FragmentMenuEntry("property test", PropertyTestFragment.class),
             new FragmentMenuEntry("qc viewer", QCViewerFragment.class),
+            new FragmentMenuEntry("remote access", RemoteAccessTestFragment.class),
             new FragmentMenuEntry("rotary", RotaryFragment.class),
             new FragmentMenuEntry("sensors", SensorsTestFragment.class),
             new FragmentMenuEntry("storage lifetime", StorageLifetimeFragment.class),

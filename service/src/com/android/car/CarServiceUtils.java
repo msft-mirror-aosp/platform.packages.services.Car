@@ -17,10 +17,11 @@
 package com.android.car;
 
 import static android.car.user.CarUserManager.lifecycleEventTypeToString;
-import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.os.Process.INVALID_UID;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -29,7 +30,6 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.car.Car;
-import android.car.PlatformVersion;
 import android.car.builtin.content.ContextHelper;
 import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
@@ -39,9 +39,9 @@ import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.net.Uri;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -50,6 +50,8 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.view.Display;
@@ -63,12 +65,20 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.security.KeyStore;
+import java.security.KeyStore.SecretKeyEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 
 /** Utility class */
 public final class CarServiceUtils {
@@ -85,6 +95,9 @@ public final class CarServiceUtils {
             "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".getBytes();
 
     private static final String PACKAGE_NOT_FOUND = "Package not found:";
+    private static final String ANDROID_KEYSTORE_NAME = "AndroidKeyStore";
+    private static final String CIPHER_ALGORITHM = "AES/GCM/NoPadding";
+    private static final int GCM_TAG_LENGTH = 128;
 
     /** K: class name, V: HandlerThread */
     private static final ArrayMap<String, HandlerThread> sHandlerThreads = new ArrayMap<>();
@@ -269,45 +282,18 @@ public final class CarServiceUtils {
     public static void checkCalledByPackage(Context context, String packageName) {
         int callingUid = Binder.getCallingUid();
         PackageManager pm = context.getPackageManager();
-        String[] packages = pm.getPackagesForUid(callingUid);
-        if (packages != null) {
-            for (String candidate: packages) {
-                if (candidate.equals(packageName)) {
-                    return;
-                }
-            }
-        }
-        throw new SecurityException(
-                "Package " + packageName + " is not associated to UID " + callingUid);
-    }
-
-    /**
-     * Check if package name passed belongs to UID for the current binder call.
-     * @param context
-     * @param packageName
-     */
-    public static void assertPackageName(Context context, String packageName)
-            throws IllegalArgumentException, SecurityException {
-        if (packageName == null) {
-            throw new IllegalArgumentException("Package name null");
-        }
-        ApplicationInfo appInfo = null;
+        int uidFromPm = INVALID_UID;
         try {
-            appInfo = context.getPackageManager().getApplicationInfo(packageName,
-                    0);
+            uidFromPm = PackageManagerHelper.getPackageUidAsUser(pm, packageName,
+                    UserManagerHelper.getUserId(callingUid));
         } catch (PackageManager.NameNotFoundException e) {
             String msg = PACKAGE_NOT_FOUND + packageName;
-            Slogf.w(CarLog.TAG_SERVICE,  msg, e);
             throw new SecurityException(msg, e);
         }
-        if (appInfo == null) {
-            throw new SecurityException(PACKAGE_NOT_FOUND + packageName);
-        }
-        int uid = Binder.getCallingUid();
-        if (uid != appInfo.uid) {
-            throw new SecurityException("Wrong package name:" + packageName
-                    + ", The package does not belong to caller's uid:" + uid + "package uid "
-                    + appInfo.uid);
+
+        if (uidFromPm != callingUid) {
+            throw new SecurityException(
+                    "Package " + packageName + " is not associated to UID " + callingUid);
         }
     }
 
@@ -456,6 +442,19 @@ public final class CarServiceUtils {
             array[i] = list.get(i);
         }
         return array;
+    }
+
+    /**
+     * Converts array to an array list
+     */
+    public static ArrayList<Integer> asList(int[] array) {
+        Preconditions.checkArgument(array != null, "Array to convert to list can not be null");
+        int size = array.length;
+        ArrayList<Integer> results = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            results.add(array[i]);
+        }
+        return results;
     }
 
     public static byte[] toByteArray(List<Byte> list) {
@@ -687,8 +686,18 @@ public final class CarServiceUtils {
      * displays.
      */
     public static boolean isMultipleUsersOnMultipleDisplaysSupported(UserManager userManager) {
-        return Car.getPlatformVersion().isAtLeast(PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0)
+        return isPlatformVersionAtLeastU()
                 && UserManagerHelper.isVisibleBackgroundUsersSupported(userManager);
+    }
+
+    /**
+     * Returns {@code true} if the current configuration supports visible background users on
+     * default display.
+     */
+    public static boolean isVisibleBackgroundUsersOnDefaultDisplaySupported(
+            UserManager userManager) {
+        return isPlatformVersionAtLeastU()
+                && UserManagerHelper.isVisibleBackgroundUsersOnDefaultDisplaySupported(userManager);
     }
 
     /**
@@ -722,12 +731,44 @@ public final class CarServiceUtils {
     }
 
     /**
+     * Starts Secondary Home Activity for the given {@code userId} and {@code displayId}.
+     *
+     * @return {@code true} when starting activity succeeds. It can fail in situation like secondary
+     *         home package not existing.
+     */
+    public static boolean startSecondaryHomeForUserAndDisplay(Context context,
+            @UserIdInt int userId, int displayId) {
+        if (DBG) {
+            Slogf.d(TAG, "Starting secondary HOME for user: %d, display:%d", userId, displayId);
+        }
+        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+        homeIntent.addCategory(Intent.CATEGORY_SECONDARY_HOME);
+        ActivityOptions activityOptions = ActivityOptions.makeBasic()
+                .setLaunchDisplayId(displayId);
+        try {
+            ContextHelper.startActivityAsUser(context, homeIntent, activityOptions.toBundle(),
+                    UserHandle.of(userId));
+            if (DBG) {
+                Slogf.d(TAG, "Started secondary HOME for user: %d, display:%d", userId, displayId);
+            }
+            return true;
+        } catch (Exception e) {
+            Slogf.w(TAG, e, "Could not start secondary HOME for user: %d, display:%d", userId,
+                    displayId);
+            return false;
+        }
+    }
+
+    /**
      * Starts SystemUI component for a particular user - should be called for non-current user only.
      *
      * @return {@code true} when starting service succeeds. It can fail in situation like the
      * SystemUI service component not being defined.
      */
     public static boolean startSystemUiForUser(Context context, @UserIdInt int userId) {
+        if (!isPlatformVersionAtLeastU()) {
+            return false;
+        }
         Preconditions.checkArgument(userId != UserHandle.SYSTEM.getIdentifier(),
                 "Cannot start SystemUI for the system user");
         Preconditions.checkArgument(userId != ActivityManager.getCurrentUser(),
@@ -752,6 +793,9 @@ public final class CarServiceUtils {
      * for the system user.
      */
     public static void stopSystemUiForUser(Context context, @UserIdInt int userId) {
+        if (!isPlatformVersionAtLeastU()) {
+            return;
+        }
         Preconditions.checkArgument(userId != UserHandle.SYSTEM.getIdentifier(),
                 "Cannot stop SystemUI for the system user");
         // TODO (b/261192740): add EventLog for SystemUI stopping
@@ -774,7 +818,8 @@ public final class CarServiceUtils {
         Intent intent = new Intent()
                 .setComponent(ComponentName.unflattenFromString(
                     userPickerActivityPackage))
-                .addFlags(FLAG_ACTIVITY_MULTIPLE_TASK | FLAG_ACTIVITY_NEW_TASK);
+                .addFlags(FLAG_ACTIVITY_NEW_TASK)
+                .setData(Uri.parse("data://com.android.car/userpicker/display" + displayId));
         ActivityOptions activityOptions = ActivityOptions.makeBasic()
                 .setLaunchDisplayId(displayId);
         try {
@@ -800,5 +845,119 @@ public final class CarServiceUtils {
             sb.append(CHAR_POOL_FOR_RANDOM_STRING[ThreadLocalRandom.current().nextInt(poolSize)]);
         }
         return sb.toString();
+    }
+
+    /**
+     * Encrypts byte array with the keys stored in {@code keyAlias} using AES.
+     *
+     * @return Encrypted data and initialization vector in {@link EncryptedData}. {@code null} in
+     *         case of errors.
+     */
+    @Nullable
+    public static EncryptedData encryptData(byte[] data, String keyAlias) {
+        SecretKey secretKey = getOrCreateSecretKey(keyAlias);
+        if (secretKey == null) {
+            Slogf.e(TAG, "Failed to encrypt data: cannot get a secret key (keyAlias: %s)",
+                    keyAlias);
+            return null;
+        }
+        try {
+            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+            return new EncryptedData(cipher.doFinal(data), cipher.getIV());
+        } catch (Exception e) {
+            Slogf.e(TAG, e, "Failed to encrypt data: keyAlias=%s", keyAlias);
+            return null;
+        }
+    }
+
+    /**
+     * Decrypts byte array with the keys stored in {@code keyAlias} using AES.
+     *
+     * @return Decrypted data in byte array. {@code null} in case of errors.
+     */
+    @Nullable
+    public static byte[] decryptData(EncryptedData data, String keyAlias) {
+        SecretKey secretKey = getOrCreateSecretKey(keyAlias);
+        if (secretKey == null) {
+            Slogf.e(TAG, "Failed to decrypt data: cannot get a secret key (keyAlias: %s)",
+                    keyAlias);
+            return null;
+        }
+        try {
+            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, data.getIv());
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            return cipher.doFinal(data.getEncryptedData());
+        } catch (Exception e) {
+            Slogf.e(TAG, e, "Failed to decrypt data: keyAlias=%s", keyAlias);
+            return null;
+        }
+    }
+
+    /**
+     * Class to hold encrypted data and its initialization vector.
+     */
+    public static final class EncryptedData {
+        private final byte[] mEncryptedData;
+        private final byte[] mIv;
+
+        public EncryptedData(byte[] encryptedData, byte[] iv) {
+            mEncryptedData = encryptedData;
+            mIv = iv;
+        }
+
+        public byte[] getEncryptedData() {
+            return mEncryptedData;
+        }
+
+        public byte[] getIv() {
+            return mIv;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof EncryptedData)) return false;
+            EncryptedData data = (EncryptedData) other;
+            return Arrays.equals(mEncryptedData, data.mEncryptedData)
+                    && Arrays.equals(mIv, data.mIv);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(Arrays.hashCode(mEncryptedData), Arrays.hashCode(mIv));
+        }
+    }
+
+    @Nullable
+    private static SecretKey getOrCreateSecretKey(String keyAlias) {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE_NAME);
+            keyStore.load(/* KeyStore.LoadStoreParameter= */ null);
+            if (keyStore.containsAlias(keyAlias)) {
+                SecretKeyEntry secretKeyEntry = (SecretKeyEntry) keyStore.getEntry(keyAlias,
+                        /* protParam= */ null);
+                if (secretKeyEntry != null) {
+                    return secretKeyEntry.getSecretKey();
+                }
+                Slogf.e(TAG, "Android key store contains the alias (%s) but the secret key "
+                        + "entry is null", keyAlias);
+                return null;
+            }
+            KeyGenerator keyGenerator = KeyGenerator.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE_NAME);
+            KeyGenParameterSpec keyGenParameterSpec =
+                    new KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT
+                            | KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .build();
+            keyGenerator.init(keyGenParameterSpec);
+            return keyGenerator.generateKey();
+        } catch (Exception e) {
+            Slogf.e(TAG, "Failed to get or create a secret key for the alias (%s)", keyAlias);
+            return null;
+        }
     }
 }

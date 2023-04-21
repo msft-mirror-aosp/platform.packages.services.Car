@@ -25,6 +25,7 @@ import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -104,6 +105,7 @@ public class VehicleHalTest {
     @Mock private TimeHalService mTimeHalService;
     @Mock private VehicleStub mVehicle;
     @Mock private VehicleStub.VehicleStubCallbackInterface mGetVehicleStubAsyncCallback;
+    @Mock private VehicleStub.VehicleStubCallbackInterface mSetVehicleStubAsyncCallback;
     @Mock private VehicleStub.SubscriptionClient mSubscriptionClient;
 
     private final HandlerThread mHandlerThread = CarServiceUtils.getHandlerThread(
@@ -117,6 +119,8 @@ public class VehicleHalTest {
             new AsyncGetSetRequest(REQUEST_ID_1, mHalPropValue, /* timeoutInMs= */ 0);
     private final AsyncGetSetRequest mGetVehicleRequest2 =
             new AsyncGetSetRequest(REQUEST_ID_2, mHalPropValue, /* timeoutInMs= */ 0);
+    private final AsyncGetSetRequest mSetVehicleRequest =
+            new AsyncGetSetRequest(REQUEST_ID_1, mHalPropValue, /* timeoutInMs= */ 0);
 
     @Rule public final TestName mTestName = new TestName();
 
@@ -146,7 +150,7 @@ public class VehicleHalTest {
         when(mClusterHalService.getAllSupportedProperties()).thenReturn(new int[0]);
 
         when(mVehicle.getAllPropConfigs()).thenReturn(toHalPropConfigs(mConfigs));
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
     }
 
     private static Answer<Void> checkConfigs(ArrayList<VehiclePropConfig> configs) {
@@ -236,6 +240,17 @@ public class VehicleHalTest {
     }
 
     @Test
+    public void testSetAsync() {
+        mVehicleHal.setAsync(List.of(mSetVehicleRequest), mSetVehicleStubAsyncCallback);
+
+        ArgumentCaptor<List<AsyncGetSetRequest>> captor = ArgumentCaptor.forClass(List.class);
+        verify(mVehicle).setAsync(captor.capture(),
+                any(VehicleStub.VehicleStubCallbackInterface.class));
+        assertThat(captor.getValue().get(0).getServiceRequestId()).isEqualTo(REQUEST_ID_1);
+        assertThat(captor.getValue().get(0).getHalPropValue()).isEqualTo(mHalPropValue);
+    }
+
+    @Test
     public void testInit_skipSetupInit() throws Exception {
         VehiclePropConfig powerHalConfig = new VehiclePropConfig();
         powerHalConfig.prop = SOME_READ_ON_CHANGE_PROPERTY;
@@ -313,7 +328,7 @@ public class VehicleHalTest {
 
         when(mVehicle.getAllPropConfigs()).thenReturn(toHalPropConfigs(mConfigs));
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
     }
 
     @Test
@@ -329,7 +344,7 @@ public class VehicleHalTest {
         propertyHalConfig.changeMode = VehiclePropertyChangeMode.STATIC;
 
         init(powerHalConfig, propertyHalConfig);
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
 
         // getAllPropConfigs should only be called once.
         verify(mVehicle, times(1)).getAllPropConfigs();
@@ -369,7 +384,7 @@ public class VehicleHalTest {
         doAnswer(checkConfigs(new ArrayList<VehiclePropConfig>()))
                 .when(mDiagnosticHalService).takeProperties(any());
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
 
         verify(mPowerHalService).init();
         verify(mPropertyHalService).init();
@@ -413,7 +428,7 @@ public class VehicleHalTest {
         doAnswer(checkConfigs(new ArrayList<VehiclePropConfig>()))
                 .when(mDiagnosticHalService).takeProperties(any());
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
 
         verify(mPowerHalService).init();
         verify(mPropertyHalService).init();
@@ -444,7 +459,7 @@ public class VehicleHalTest {
         // Throw exception.
         when(mVehicle.getAllPropConfigs()).thenThrow(new RemoteException());
 
-        assertThrows(RuntimeException.class, () -> mVehicleHal.init());
+        assertThrows(RuntimeException.class, () -> mVehicleHal.priorityInit());
     }
 
     @Test
@@ -581,6 +596,21 @@ public class VehicleHalTest {
                 mPowerHalService, SOME_READ_WRITE_STATIC_PROPERTY, ANY_SAMPLING_RATE);
 
         // Assert
+        verify(mSubscriptionClient, never()).subscribe(any());
+    }
+
+    @Test
+    public void testSubscribeProperty_subscribeSameSampleRate_ignored() throws Exception {
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE);
+
+        verify(mSubscriptionClient).subscribe(any());
+        clearInvocations(mSubscriptionClient);
+
+        // Subscribe the same property with same sample rate must be ignored.
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE);
+
         verify(mSubscriptionClient, never()).subscribe(any());
     }
 
@@ -1510,7 +1540,7 @@ public class VehicleHalTest {
         when(mPowerHalService.getDispatchList()).thenReturn(dispatchList);
         doAnswer(storePropValues(values)).when(mPowerHalService).onHalEvents(any());
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
     }
 
     @Test

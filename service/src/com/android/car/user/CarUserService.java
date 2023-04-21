@@ -19,22 +19,22 @@ package com.android.car.user;
 import static android.Manifest.permission.CREATE_USERS;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.Manifest.permission.MANAGE_USERS;
-import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 import static android.car.builtin.os.UserManagerHelper.USER_NULL;
 import static android.car.drivingstate.CarUxRestrictions.UX_RESTRICTIONS_NO_SETUP;
 
 import static com.android.car.CarServiceUtils.getHandlerThread;
 import static com.android.car.CarServiceUtils.isMultipleUsersOnMultipleDisplaysSupported;
+import static com.android.car.CarServiceUtils.isVisibleBackgroundUsersOnDefaultDisplaySupported;
 import static com.android.car.CarServiceUtils.startHomeForUserAndDisplay;
+import static com.android.car.CarServiceUtils.startSecondaryHomeForUserAndDisplay;
 import static com.android.car.CarServiceUtils.startSystemUiForUser;
 import static com.android.car.CarServiceUtils.stopSystemUiForUser;
 import static com.android.car.CarServiceUtils.toIntArray;
 import static com.android.car.PermissionHelper.checkHasAtLeastOnePermissionGranted;
 import static com.android.car.PermissionHelper.checkHasDumpPermissionGranted;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeast;
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
-import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -64,6 +64,7 @@ import android.car.user.CarUserManager.UserIdentificationAssociationSetValue;
 import android.car.user.CarUserManager.UserIdentificationAssociationType;
 import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.car.user.CarUserManager.UserLifecycleListener;
+import android.car.user.UserCreationRequest;
 import android.car.user.UserCreationResult;
 import android.car.user.UserIdentificationAssociationResponse;
 import android.car.user.UserLifecycleEventFilter;
@@ -125,6 +126,7 @@ import com.android.car.hal.HalCallback;
 import com.android.car.hal.UserHalHelper;
 import com.android.car.hal.UserHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.car.internal.os.CarSystemProperties;
@@ -140,12 +142,11 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
 import java.io.PrintWriter;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -225,7 +226,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     private final DevicePolicyManager mDpm;
     private final int mMaxRunningUsers;
     private final InitialUserSetter mInitialUserSetter;
-    private final UserPreCreator mUserPreCreator;
 
     private final Object mLockUser = new Object();
     @GuardedBy("mLockUser")
@@ -243,6 +243,20 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      */
     @GuardedBy("mLockUser")
     private final ArrayList<Integer> mBackgroundUsersRestartedHere = new ArrayList<>();
+
+    /**
+     * The list of users that are starting but not visible at the time of starting excluding system
+     * user or current user.
+     *
+     * <p>Only applicable to devices that support
+     * {@link UserManager#isVisibleBackgroundUsersSupported()} background users on secondary
+     * displays.
+     *
+     * <p>Users will be added to this list if they are not visible at the time of starting.
+     * Users in this list will be removed the first time they become visible since starting.
+     */
+    @GuardedBy("mLockUser")
+    private final ArrayList<Integer> mNotVisibleAtStartingUsers = new ArrayList<>();
 
     private final UserHalService mHal;
 
@@ -293,24 +307,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private final CarPackageManagerService mCarPackageManagerService;
 
-    private static final int PRE_CREATION_STAGE_BEFORE_SUSPEND = 1;
-
-    private static final int PRE_CREATION_STAGE_ON_SYSTEM_START = 2;
-
-    private static final int DEFAULT_PRE_CREATION_DELAY_MS = 0;
-
-    @IntDef(flag = true, prefix = { "PRE_CREATION_STAGE_" }, value = {
-            PRE_CREATION_STAGE_BEFORE_SUSPEND,
-            PRE_CREATION_STAGE_ON_SYSTEM_START,
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface PreCreationStage { }
-
-    @PreCreationStage
-    private final int mPreCreationStage;
-
-    private final int mPreCreationDelayMs;
-
     /**
      * Whether some operations - like user switch - are restricted by driving safety constraints.
      */
@@ -325,6 +321,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      */
     @GuardedBy("mLockUser")
     private boolean mStartBackgroundUsersOnGarageMode = true;
+
+    // Whether visible background users are supported on the default display, a.k.a. passenger only
+    // systems.
+    private final boolean mIsVisibleBackgroundUsersOnDefaultDisplaySupported;
 
     private final ICarUxRestrictionsChangeListener mCarUxRestrictionsChangeListener =
             new ICarUxRestrictionsChangeListener.Stub() {
@@ -348,8 +348,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         this(context, hal, userManager, new UserHandleHelper(context, userManager),
                 context.getSystemService(DevicePolicyManager.class),
                 context.getSystemService(ActivityManager.class), maxRunningUsers,
-                /* initialUserSetter= */ null, /* userPreCreator= */ null, uxRestrictionService,
-                null, carPackageManagerService);
+                /* initialUserSetter= */ null, uxRestrictionService, /* handler= */ null,
+                carPackageManagerService);
     }
 
     @VisibleForTesting
@@ -360,7 +360,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @NonNull ActivityManager am,
             int maxRunningUsers,
             @Nullable InitialUserSetter initialUserSetter,
-            @Nullable UserPreCreator userPreCreator,
             @NonNull CarUxRestrictionsManagerService uxRestrictionService,
             @Nullable Handler handler,
             @NonNull CarPackageManagerService carPackageManagerService) {
@@ -376,19 +375,24 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mInitialUserSetter =
                 initialUserSetter == null ? new InitialUserSetter(context, this,
                         (u) -> setInitialUser(u), mUserHandleHelper) : initialUserSetter;
-        mUserPreCreator = userPreCreator == null
-                ? new UserPreCreator(context, mUserManager) : userPreCreator;
         Resources resources = context.getResources();
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
                 R.bool.config_switchGuestUserBeforeGoingSleep);
         mCarUxRestrictionService = uxRestrictionService;
         mCarPackageManagerService = carPackageManagerService;
-        mPreCreationStage = resources.getInteger(R.integer.config_userPreCreationStage);
-        int preCreationDelayMs = resources
-                .getInteger(R.integer.config_userPreCreationDelay);
-        mPreCreationDelayMs = preCreationDelayMs < DEFAULT_PRE_CREATION_DELAY_MS
-                ? DEFAULT_PRE_CREATION_DELAY_MS
-                : preCreationDelayMs;
+        mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
+                isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager);
+    }
+
+    /**
+     * Priority init for setting boot user. Only HAL is ready at this time. Other components have
+     * not done init yet.
+     */
+    public void priorityInit() {
+        // If platform is above U, then use new boot user flow and set the boot user ASAP.
+        if (isPlatformVersionAtLeastU()) {
+            mHandler.post(() -> initBootUser(getInitialUserInfoRequestType()));
+        }
     }
 
     @Override
@@ -457,10 +461,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             writer.printf("Start Background Users On Garage Mode=%s\n",
                     mStartBackgroundUsersOnGarageMode);
             writer.printf("Initial user: %s\n", mInitialUser);
+            writer.println("Users not visible at starting: " + mNotVisibleAtStartingUsers);
         }
         writer.println("SwitchGuestUserBeforeSleep: " + mSwitchGuestUserBeforeSleep);
-        writer.printf("PreCreateUserStages: %s\n", preCreationStageToString(mPreCreationStage));
-        writer.printf("PreCreationDelayMs: %s\n", mPreCreationDelayMs);
 
         writer.println("MaxRunningUsers: " + mMaxRunningUsers);
         writer.printf("User HAL: supported=%b, timeout=%dms\n", isUserHalSupported(),
@@ -506,10 +509,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             }
         }
         return null;
-    }
-
-    private static String preCreationStageToString(@PreCreationStage int stage) {
-        return DebugUtils.flagsToString(CarUserService.class, "PRE_CREATION_STAGE_", stage);
     }
 
     private void dumpGlobalProperty(IndentingPrintWriter writer, String property) {
@@ -719,10 +718,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (mSwitchGuestUserBeforeSleep) {
             initResumeReplaceGuest();
         }
-
-        if ((mPreCreationStage & PRE_CREATION_STAGE_BEFORE_SUSPEND) != 0) {
-            preCreateUsersInternal(/* waitTimeMs= */ DEFAULT_PRE_CREATION_DELAY_MS);
-        }
     }
 
     /**
@@ -744,10 +739,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      * Calls to start user at the android startup.
      */
     public void initBootUser() {
-        mHandler.post(() -> initBootUser(getInitialUserInfoRequestType()));
-
-        if ((mPreCreationStage & PRE_CREATION_STAGE_ON_SYSTEM_START) != 0) {
-            preCreateUsersInternal(mPreCreationDelayMs);
+        // This check is to make sure that initBootUser is called only once during boot.
+        // For U and above, different boot user flow is used and initBootUser is called in
+        // priorityInit
+        if (!isPlatformVersionAtLeastU()) {
+            mHandler.post(() -> initBootUser(getInitialUserInfoRequestType()));
         }
     }
 
@@ -756,9 +752,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 requestType == InitialUserInfoRequestType.RESUME && !mSwitchGuestUserBeforeSleep;
         checkManageUsersPermission("startInitialUser");
 
-        if (!isUserHalSupported()) {
+        // TODO(b/266473227): Fix isUserHalSupported() for Multi User No driver.
+        if (!isUserHalSupported() || mIsVisibleBackgroundUsersOnDefaultDisplaySupported) {
             fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
-                    /* supportsOverrideUserIdProperty= */ true);
+                    /* supportsOverrideUserIdProperty= */ true, requestType);
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
             return;
         }
@@ -782,10 +779,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         if (userId <= 0) {
                             Slogf.w(TAG, "invalid (or missing) user id sent by HAL: %d", userId);
                             fallbackToDefaultInitialUserBehavior(userLocales, replaceGuest,
-                                    /* supportsOverrideUserIdProperty= */ false);
+                                    /* supportsOverrideUserIdProperty= */ false, requestType);
                             break;
                         }
                         info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_SWITCH)
+                                .setRequestType(requestType)
                                 .setUserLocales(userLocales)
                                 .setSwitchUserId(userId)
                                 .setReplaceGuest(replaceGuest)
@@ -797,6 +795,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         int halFlags = resp.userToSwitchOrCreate.flags;
                         String userName =  resp.userNameToCreate;
                         info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_CREATE)
+                                .setRequestType(requestType)
                                 .setUserLocales(userLocales)
                                 .setNewUserName(userName)
                                 .setNewUserFlags(halFlags)
@@ -806,12 +805,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
                     case InitialUserInfoResponseAction.DEFAULT:
                         fallbackToDefaultInitialUserBehavior(userLocales, replaceGuest,
-                                /* supportsOverrideUserIdProperty= */ false);
+                                /* supportsOverrideUserIdProperty= */ false, requestType);
                         break;
                     default:
                         Slogf.w(TAG, "invalid response action on %s", resp);
                         fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
-                                /* supportsOverrideUserIdProperty= */ false);
+                                /* supportsOverrideUserIdProperty= */ false, requestType);
                         break;
 
                 }
@@ -820,16 +819,17 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         /* userId= */ 0, /* flags= */ 0,
                         /* safeName= */ "", /* userLocales= */ "");
                 fallbackToDefaultInitialUserBehavior(/* user locale */ null, replaceGuest,
-                        /* supportsOverrideUserIdProperty= */ false);
+                        /* supportsOverrideUserIdProperty= */ false, requestType);
             }
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
         });
     }
 
     private void fallbackToDefaultInitialUserBehavior(String userLocales, boolean replaceGuest,
-            boolean supportsOverrideUserIdProperty) {
+            boolean supportsOverrideUserIdProperty, int requestType) {
         InitialUserInfo info = new InitialUserSetter.Builder(
                 InitialUserSetter.TYPE_DEFAULT_BEHAVIOR)
+                .setRequestType(requestType)
                 .setUserLocales(userLocales)
                 .setReplaceGuest(replaceGuest)
                 .setSupportsOverrideUserIdProperty(supportsOverrideUserIdProperty)
@@ -1100,8 +1100,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     @Override
-    public void removeUser(@UserIdInt int userId, AndroidFuture<UserRemovalResult> receiver) {
-        removeUser(userId, /* hasCallerRestrictions= */ false, receiver);
+    public void removeUser(@UserIdInt int userId, ResultCallbackImpl<UserRemovalResult> callback) {
+        removeUser(userId, /* hasCallerRestrictions= */ false, callback);
     }
 
     /**
@@ -1111,10 +1111,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      * @param userId user to be removed
      * @param hasCallerRestrictions when {@code true}, if the caller user is not an admin, it can
      * only remove itself.
-     * @param receiver to post results
+     * @param callback to post results
      */
     public void removeUser(@UserIdInt int userId, boolean hasCallerRestrictions,
-            AndroidFuture<UserRemovalResult> receiver) {
+            ResultCallbackImpl<UserRemovalResult> callback) {
         checkManageOrCreateUsersPermission("removeUser");
         EventLogHelper.writeCarUserServiceRemoveUserReq(userId,
                 hasCallerRestrictions ? 1 : 0);
@@ -1128,14 +1128,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         + " can only remove itself");
             }
         }
-        mHandler.post(() -> handleRemoveUser(userId, hasCallerRestrictions, receiver));
+        mHandler.post(() -> handleRemoveUser(userId, hasCallerRestrictions, callback));
     }
 
     private void handleRemoveUser(@UserIdInt int userId, boolean hasCallerRestrictions,
-            AndroidFuture<UserRemovalResult> receiver) {
+            ResultCallbackImpl<UserRemovalResult> callback) {
         UserHandle user = mUserHandleHelper.getExistingUserHandle(userId);
         if (user == null) {
-            sendUserRemovalResult(userId, UserRemovalResult.STATUS_USER_DOES_NOT_EXIST, receiver);
+            sendUserRemovalResult(userId, UserRemovalResult.STATUS_USER_DOES_NOT_EXIST, callback);
             return;
         }
         UserInfo halUser = new UserInfo();
@@ -1167,7 +1167,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         boolean overrideDevicePolicy = hasCallerRestrictions;
         int result = mUserManager.removeUserWhenPossible(user, overrideDevicePolicy);
         if (!UserManager.isRemoveResultSuccessful(result)) {
-            sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, receiver);
+            sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, callback);
             return;
         }
 
@@ -1181,15 +1181,15 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             case UserManager.REMOVE_RESULT_ALREADY_BEING_REMOVED:
                 sendUserRemovalResult(userId,
                         isLastAdmin ? UserRemovalResult.STATUS_SUCCESSFUL_LAST_ADMIN_REMOVED
-                                : UserRemovalResult.STATUS_SUCCESSFUL, receiver);
+                                : UserRemovalResult.STATUS_SUCCESSFUL, callback);
                 break;
             case UserManager.REMOVE_RESULT_DEFERRED:
                 sendUserRemovalResult(userId,
                         isLastAdmin ? UserRemovalResult.STATUS_SUCCESSFUL_LAST_ADMIN_SET_EPHEMERAL
-                                : UserRemovalResult.STATUS_SUCCESSFUL_SET_EPHEMERAL, receiver);
+                                : UserRemovalResult.STATUS_SUCCESSFUL_SET_EPHEMERAL, callback);
                 break;
             default:
-                sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, receiver);
+                sendUserRemovalResult(userId, UserRemovalResult.STATUS_ANDROID_FAILURE, callback);
         }
     }
 
@@ -1239,9 +1239,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void sendUserRemovalResult(@UserIdInt int userId, @UserRemovalResult.Status int result,
-            AndroidFuture<UserRemovalResult> receiver) {
+            ResultCallbackImpl<UserRemovalResult> callback) {
         EventLogHelper.writeCarUserServiceRemoveUserResp(userId, result);
-        receiver.complete(new UserRemovalResult(result));
+        callback.complete(new UserRemovalResult(result));
     }
 
     private void sendUserSwitchUiCallback(@UserIdInt int targetUserId) {
@@ -1272,26 +1272,45 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      * Same as {@link UserManager#isUserVisible()}, but passing the user id.
      */
     public boolean isUserVisible(@UserIdInt int userId) {
-        if (isPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0)) {
-            UserManager currentUserManager = mContext.createContextAsUser(
-                    UserHandle.of(userId), /* flags= */ 0).getSystemService(UserManager.class);
-            return currentUserManager.isUserVisible();
+        if (isPlatformVersionAtLeastU()) {
+            Set<UserHandle> visibleUsers = mUserManager.getVisibleUsers();
+            return visibleUsers.contains(UserHandle.of(userId));
         }
         return false;
     }
 
     // TODO(b/244370727): Remove once the lifecycle event callbacks provide the display id.
     /**
-     * Same as {@link UserManager#getDisplayAssignedToUser()}.
+     * Same as {@link UserManager#getMainDisplayIdAssignedToUser()}.
      */
-    public int getDisplayAssignedToUser(int userId) {
-        return CarServiceHelperWrapper.getInstance().getDisplayAssignedToUser(userId);
+    public int getMainDisplayAssignedToUser(int userId) {
+        return CarServiceHelperWrapper.getInstance().getMainDisplayAssignedToUser(userId);
     }
 
     @Override
     public void createUser(@Nullable String name, @NonNull String userType, int flags,
             int timeoutMs, @NonNull AndroidFuture<UserCreationResult> receiver) {
         createUser(name, userType, flags, timeoutMs, receiver, /* hasCallerRestrictions= */ false);
+    }
+
+    // TODO(b/235994008): convert this call to createUser once other createUser call is removed.
+    @Override
+    public void createUser2(@NonNull UserCreationRequest userCreationRequest, int timeoutMs,
+            ResultCallbackImpl<UserCreationResult> callback) {
+        AndroidFuture<UserCreationResult> future = new AndroidFuture<UserCreationResult>() {
+            @Override
+            protected void onCompleted(UserCreationResult result, Throwable err) {
+                callback.complete(result);
+            }
+        };
+        String name = userCreationRequest.getName();
+        String userType = userCreationRequest.isGuest() ? UserManager.USER_TYPE_FULL_GUEST
+                : UserManager.USER_TYPE_FULL_SECONDARY;
+        int flags = 0;
+        flags |= userCreationRequest.isAdmin() ? UserManagerHelper.FLAG_ADMIN : 0;
+        flags |= userCreationRequest.isEphemeral() ? UserManagerHelper.FLAG_EPHEMERAL : 0;
+
+        createUser(name, userType, flags, timeoutMs, future);
     }
 
     /**
@@ -1872,19 +1891,129 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         startUsersOrHomeOnSecondaryDisplays(userId);
     }
 
+    private void onUserStarting(@UserIdInt int userId) {
+        if (DBG) {
+            Slogf.d(TAG, "onUserStarting: user %d", userId);
+        }
+
+        if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)
+                || isSystemUserInHeadlessSystemUserMode(userId)) {
+            return;
+        }
+
+        // Non-current user only
+        // TODO(b/270719791): Keep track of the current user to avoid IPC to AM.
+        if (userId == ActivityManager.getCurrentUser()) {
+            if (DBG) {
+                Slogf.d(TAG, "onUserStarting: user %d is the current user, skipping", userId);
+            }
+            return;
+        }
+
+        // TODO(b/273015292): Handling both "user visible" before "user starting" and
+        // "user starting" before "user visible" for now because
+        // UserController / UserVisibilityMediator don't sync the callbacks.
+        if (isUserVisible(userId)) {
+            if (DBG) {
+                Slogf.d(TAG, "onUserStarting: user %d is already visible", userId);
+            }
+
+            // If the user is already visible, do zone assignment and start SysUi.
+            // This addresses the most common scenario that "user starting" event occurs after
+            // "user visible" event.
+            assignVisibleUserToZone(userId);
+            startSystemUIForVisibleUser(userId);
+        } else {
+            // If the user is not visible at this point, they might become visible at a later point.
+            // So we save this user in 'mNotVisibleAtStartingUsers' for them to be checked in
+            // onUserVisible.
+            // This is the first half of addressing the scenario that "user visible" event occurs
+            // after "user starting" event.
+            if (DBG) {
+                Slogf.d(TAG, "onUserStarting: user %d is not visible, "
+                        + "adding to starting user queue", userId);
+            }
+            synchronized (mLockUser) {
+                if (!mNotVisibleAtStartingUsers.contains(userId)) {
+                    mNotVisibleAtStartingUsers.add(userId);
+                } else {
+                    // This is likely the case that this user started, but never became visible,
+                    // then stopped in the past before starting again and becoming visible.
+                    Slogf.i(TAG, "onUserStarting: user %d might start and stop in the past before "
+                            + "starting again, reusing the user", userId);
+                }
+            }
+        }
+    }
 
     private void onUserVisible(@UserIdInt int userId) {
-        assignVisibleUserToZone(userId);
-        startSystemUiForVisibleUser(userId);
+        if (DBG) {
+            Slogf.d(TAG, "onUserVisible: user %d", userId);
+        }
+
+        // TODO(b/270719791): Keep track of the current user to avoid IPC to AM.
+        if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)
+                || isSystemUserInHeadlessSystemUserMode(userId)) {
+            return;
+        }
+
+        // Non-current user only
+        // TODO(b/270719791): Keep track of the current user to avoid IPC to AM.
+        if (userId == ActivityManager.getCurrentUser()) {
+            if (DBG) {
+                Slogf.d(TAG, "onUserVisible: user %d is the current user, skipping", userId);
+            }
+            return;
+        }
+
+        boolean isUserRunning = mUserManager.isUserRunning(UserHandle.of(userId));
+        // If the user is found in 'mNotVisibleAtStartingUsers' and is running,
+        // do occupant zone assignment and start SysUi.
+        // Then remove the user from the 'mNotVisibleAtStartingUsers'.
+        // This is the second half of addressing the scenario that "user visible" event occurs after
+        // "user starting" event.
+        synchronized (mLockUser) {
+            if (mNotVisibleAtStartingUsers.contains(userId)) {
+                if (DBG) {
+                    Slogf.d(TAG, "onUserVisible: found user %d in the list of users not visible at"
+                            + " starting", userId);
+                }
+                if (!isUserRunning) {
+                    if (DBG) {
+                        Slogf.d(TAG, "onUserVisible: user %d is not running", userId);
+                    }
+                    // If the user found in 'mNotVisibleAtStartingUsers' is not running,
+                    // this is likely the case that this user started, but never became visible,
+                    // then stopped in the past before becoming visible and starting again.
+                    // Take this opportunity to clean this user up.
+                    mNotVisibleAtStartingUsers.remove(Integer.valueOf(userId));
+                    return;
+                }
+
+                // If the user found in 'mNotVisibleAtStartingUsers' is running, this is the case
+                // that user starting occurred earlier than user visible.
+                if (DBG) {
+                    Slogf.d(TAG, "onUserVisible: assigning user %d to occupant zone and starting "
+                            + "SysUi.", userId);
+                }
+                assignVisibleUserToZone(userId);
+                startSystemUIForVisibleUser(userId);
+                // The user will be cleared from 'mNotVisibleAtStartingUsers' the first time it
+                // becomes visible since starting.
+                mNotVisibleAtStartingUsers.remove(Integer.valueOf(userId));
+            }
+        }
     }
 
     private void onUserInvisible(@UserIdInt int userId) {
         if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)) {
             return;
         }
-        if (userId == UserHandle.SYSTEM.getIdentifier()) {
+
+        if (isSystemUserInHeadlessSystemUserMode(userId)) {
             return;
         }
+
         stopSystemUiForUser(mContext, userId);
         unassignInvisibleUserFromZone(userId);
     }
@@ -1920,15 +2049,24 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         int userId = request.getUserHandle().getIdentifier();
         int displayId = request.getDisplayId();
         int result;
+
         if (displayId == Display.INVALID_DISPLAY) {
             EventLogHelper.writeCarUserServiceStartUserInBackgroundReq(userId);
             result = startUserInBackgroundInternal(userId);
             EventLogHelper.writeCarUserServiceStartUserInBackgroundResp(userId, result);
-        } else {
+
+            return new UserStartResponse(result);
+        }
+
+        if (isPlatformVersionAtLeastU()) {
             EventLogHelper.writeCarUserServiceStartUserVisibleOnDisplayReq(userId, displayId);
             result = startUserVisibleOnDisplayInternal(userId, displayId);
             EventLogHelper.writeCarUserServiceStartUserVisibleOnDisplayResp(userId, displayId,
                     result);
+        } else {
+            Slogf.w(TAG, "The platform does not support startUser."
+                    + " Platform version: %s", Car.getPlatformVersion());
+            result = UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
         }
 
         return new UserStartResponse(result);
@@ -1941,13 +2079,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_DISPLAY_INVALID;
         }
 
-        PlatformVersion platformVersion = Car.getPlatformVersion();
-        if (!platformVersion.isAtLeast(UPSIDE_DOWN_CAKE_0)) {
-            Slogf.w(TAG, "The platform does not support startUser."
-                    + " Platform version: %s", platformVersion);
-            return UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
-        }
-
         // If the requested user is the system user.
         if (userId == UserHandle.SYSTEM.getIdentifier()) {
             return UserStartResponse.STATUS_USER_INVALID;
@@ -1957,11 +2088,17 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_USER_DOES_NOT_EXIST;
         }
 
-        // If the specified display is invalid.
-        // TODO(b/261606752) In MUPAND (multiple passenger no driver), a background user can be
-        // visible on the default display, so we should add the check for: !isPassengerOnlyMode().
+        // If the specified display is not a valid display for assigning user to.
+        // Note: In passenger only system, users will be allowed on the DEFAULT_DISPLAY.
         if (displayId == Display.DEFAULT_DISPLAY) {
-            return UserStartResponse.STATUS_DISPLAY_INVALID;
+            if (!mIsVisibleBackgroundUsersOnDefaultDisplaySupported) {
+                return UserStartResponse.STATUS_DISPLAY_INVALID;
+            } else {
+                if (DBG) {
+                    Slogf.d(TAG, "startUserVisibleOnDisplayInternal: allow starting user on the "
+                            + "default display under Multi User No Driver mode");
+                }
+            }
         }
         CarOccupantZoneService occupantZoneService =
                 CarLocalServices.getService(CarOccupantZoneService.class);
@@ -1971,7 +2108,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_DISPLAY_UNAVAILABLE;
         }
 
-        int curDisplayIdAssignedToUser = getDisplayAssignedToUser(userId);
+        int curDisplayIdAssignedToUser = getMainDisplayAssignedToUser(userId);
         if (curDisplayIdAssignedToUser == displayId) {
             // If the user is already visible on the display, do nothing and return success.
             return UserStartResponse.STATUS_SUCCESSFUL_USER_ALREADY_VISIBLE_ON_DISPLAY;
@@ -1980,6 +2117,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             // If the specified user is assigned to another display, the user has to be stopped
             // before it can start on another display.
             return UserStartResponse.STATUS_USER_ASSIGNED_TO_ANOTHER_DISPLAY;
+        }
+
+        if (!isPlatformVersionAtLeastU()) {
+            return UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
         }
 
         return ActivityManagerHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId)
@@ -2110,9 +2251,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                     + INTERACT_ACROSS_USERS);
         }
         int userId = request.getUserHandle().getIdentifier();
+        boolean withDelayedLocking = request.isWithDelayedLocking();
         boolean forceStop = request.isForce();
         EventLogHelper.writeCarUserServiceStopUserReq(userId);
-        int result = stopBackgroundUserInternal(userId, forceStop);
+        int result = stopBackgroundUserInternal(userId, forceStop, withDelayedLocking);
         EventLogHelper.writeCarUserServiceStopUserResp(userId, result);
 
         return new UserStopResponse(result);
@@ -2121,7 +2263,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     private void handleStopUser(
             @UserIdInt int userId, @NonNull AndroidFuture<UserStopResult> receiver) {
         @UserStopResult.Status int userStopStatus = stopBackgroundUserInternal(userId,
-                /* forceStop= */ true);
+                /* forceStop= */ true, /* withDelayedLocking= */ true);
         sendUserStopResult(userId, userStopStatus, receiver);
     }
 
@@ -2132,12 +2274,20 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private @UserStopResult.Status int stopBackgroundUserInternal(@UserIdInt int userId,
-            boolean forceStop) {
+            boolean forceStop, boolean withDelayedLocking) {
         int r;
         try {
-            r = ActivityManagerHelper.stopUserWithDelayedLocking(userId, forceStop);
+            if (withDelayedLocking) {
+                r =  ActivityManagerHelper.stopUserWithDelayedLocking(userId, forceStop);
+            } else if (isPlatformVersionAtLeastU()) {
+                r = ActivityManagerHelper.stopUser(userId, forceStop);
+            } else {
+                Slogf.w(TAG, "stopUser() without delayed locking is not supported "
+                        + " in older platform version");
+                return UserStopResult.STATUS_ANDROID_FAILURE;
+            }
         } catch (RuntimeException e) {
-            Slogf.e(TAG, e, "Exception calling am.stopUserWithDelayedLocking(%d, true)", userId);
+            Slogf.e(TAG, e, "Exception calling am.stopUser(%d, true)", userId);
             return UserStopResult.STATUS_ANDROID_FAILURE;
         }
         switch(r) {
@@ -2182,7 +2332,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         @UserStopResult.Status int userStopStatus = stopBackgroundUserInternal(userId,
-                /* forceStop= */ true);
+                /* forceStop= */ true, /* withDelayedLocking= */ true);
         if (UserStopResult.isSuccess(userStopStatus)) {
             // Remove the stopped user from the mBackgroundUserRestartedHere list.
             synchronized (mLockUser) {
@@ -2202,7 +2352,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             Slogf.d(TAG, "onUserLifecycleEvent(): event=%d, from=%d, to=%d", eventType, fromUserId,
                     toUserId);
         }
-        if (!Car.getPlatformVersion().isAtLeast(PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0)
+        if (!isPlatformVersionAtLeastU()
                 && (eventType == CarUserManager.USER_LIFECYCLE_EVENT_TYPE_VISIBLE
                 || eventType == CarUserManager.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE)) {
             // UserVisibilityChanged events are not supported before U.
@@ -2222,6 +2372,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 break;
             case CarUserManager.USER_LIFECYCLE_EVENT_TYPE_REMOVED:
                 onUserRemoved(UserHandle.of(userId));
+                break;
+            case CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STARTING:
+                onUserStarting(userId);
                 break;
             case CarUserManager.USER_LIFECYCLE_EVENT_TYPE_VISIBLE:
                 onUserVisible(userId);
@@ -2325,7 +2478,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)) {
             return;
         }
-        if (isSystemUserInHeadlessSystemUserMode(currentUserId)) {
+        if (isSystemUserInHeadlessSystemUserMode(currentUserId)
+                && !mIsVisibleBackgroundUsersOnDefaultDisplaySupported) {
             return;
         }
 
@@ -2335,20 +2489,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     // Assigns the non-current visible user to the occupant zone that has the display the user is
     // on.
     private void assignVisibleUserToZone(@UserIdInt int userId) {
-        if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)) {
-            return;
-        }
-        if (isSystemUserInHeadlessSystemUserMode(userId)) {
-            return;
-        }
 
-        // non-current user only
-        // TODO(b/270719791): Keep track of the current user to avoid IPC to AM.
-        if (userId == ActivityManager.getCurrentUser()) {
-            return;
-        }
-
-        int displayId = getDisplayAssignedToUser(userId);
+        int displayId = getMainDisplayAssignedToUser(userId);
         if (displayId == Display.INVALID_DISPLAY) {
             Slogf.w(TAG, "Cannot get display assigned to visible user %d", userId);
             return;
@@ -2365,7 +2507,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         CarOccupantZoneService zoneService = CarLocalServices.getService(
                 CarOccupantZoneService.class);
         int assignResult = zoneService.assignVisibleUserToOccupantZone(zoneId,
-                UserHandle.of(userId), /* flags= */ 0);
+                UserHandle.of(userId));
         if (assignResult != CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK) {
             Slogf.w(TAG,
                     "assignVisibleUserToZone: failed to assign user %d to zone %d, result %d",
@@ -2375,7 +2517,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
     }
 
-    // Unassigns the non-current invisible user from the occupant zone.
+    // Unassigns the invisible user from the occupant zone.
     private void unassignInvisibleUserFromZone(@UserIdInt int userId) {
         CarOccupantZoneService zoneService = CarLocalServices.getService(
                 CarOccupantZoneService.class);
@@ -2397,6 +2539,29 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     /** Should be called for non-current user only */
+    private void startSystemUIForVisibleUser(@UserIdInt int userId) {
+        if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)) {
+            return;
+        }
+        if (userId == UserHandle.SYSTEM.getIdentifier()
+                || userId == ActivityManager.getCurrentUser()) {
+            Slogf.w(TAG, "Cannot start SystemUI for current or system user (userId=%d)", userId);
+            return;
+        }
+
+        if (isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager)) {
+            int displayId = getMainDisplayAssignedToUser(userId);
+            if (displayId == Display.DEFAULT_DISPLAY) {
+                // System user SystemUI is responsible for users running on the default display
+                Slogf.d(TAG, "Skipping starting SystemUI for passenger user %d on default display",
+                        userId);
+                return;
+            }
+        }
+        startSystemUiForUser(mContext, userId);
+    }
+
+    /** Should be called for non-current user only */
     private void startLauncherForVisibleUser(@UserIdInt int userId) {
         if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)) {
             return;
@@ -2405,30 +2570,21 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return;
         }
 
-        int displayId = getDisplayAssignedToUser(userId);
+        int displayId = getMainDisplayAssignedToUser(userId);
         if (displayId == Display.INVALID_DISPLAY) {
             Slogf.w(TAG, "Cannot get display assigned to visible user %d", userId);
             return;
         }
 
-        if (!startHomeForUserAndDisplay(mContext, userId, displayId)) {
+        boolean result = mIsVisibleBackgroundUsersOnDefaultDisplaySupported
+                ? startSecondaryHomeForUserAndDisplay(mContext, userId, displayId)
+                : startHomeForUserAndDisplay(mContext, userId, displayId);
+        if (!result) {
             Slogf.w(TAG,
                     "Cannot launch home for assigned user %d, display %d, will stop the user",
                     userId, displayId);
             stopUser(userId, new AndroidFuture<UserStopResult>());
         }
-    }
-
-    private void startSystemUiForVisibleUser(@UserIdInt int userId) {
-        if (!isMultipleUsersOnMultipleDisplaysSupported(mUserManager)) {
-            return;
-        }
-        if (userId == UserHandle.SYSTEM.getIdentifier()
-                || userId == ActivityManager.getCurrentUser()) {
-            return;
-        }
-
-        startSystemUiForUser(mContext, userId);
     }
 
     private void sendPostSwitchToHalLocked(@UserIdInt int userId) {
@@ -2659,19 +2815,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         checkHasAtLeastOnePermissionGranted(mContext, message,
                 android.Manifest.permission.INTERACT_ACROSS_USERS,
                 android.Manifest.permission.INTERACT_ACROSS_USERS_FULL);
-    }
-
-    /**
-     * Manages the required number of pre-created users.
-     */
-    @Override
-    public void updatePreCreatedUsers() {
-        checkManageOrCreateUsersPermission("preCreateUsers");
-        preCreateUsersInternal(/* waitTimeMs= */ DEFAULT_PRE_CREATION_DELAY_MS);
-    }
-
-    private void preCreateUsersInternal(int waitTimeMs) {
-        mHandler.postDelayed(() -> mUserPreCreator.managePreCreatedUsers(), waitTimeMs);
     }
 
     // TODO(b/167698977): members below were copied from UserManagerService; it would be better to

@@ -16,8 +16,8 @@
 
 <resources>
 
-    <style name="TextAppearance.Car" parent="android:TextAppearance.DeviceDefault">
-            <item name="android:fontFamily">google-sans-text</item>
+    <style name="TextAppearance.Car" parent="android:TextAppearance">
+        <item name="android:fontFamily">google-sans-text</item>
     </style>
 
 
@@ -37,10 +37,6 @@
     </style>
 
     <style name="TextAppearance.Car.Headline.Medium">
-        <item name="android:textSize">56sp</item>
-    </style>
-
-    <style name="TextAppearance.Car.Headline.Small">
         <item name="android:textSize">44sp</item>
     </style>
 
@@ -88,12 +84,15 @@
     </style>
     <style name="TextAppearance.Car.Button.Large">
         <item name="android:textSize">36sp</item>
+        <item name="android:lineHeight">44dp</item>
     </style>
     <style name="TextAppearance.Car.Button.Medium">
         <item name="android:textSize">32sp</item>
+        <item name="android:lineHeight">40dp</item>
     </style>
     <style name="TextAppearance.Car.Button.Small">
         <item name="android:textSize">28sp</item>
+        <item name="android:lineHeight">36dp</item>
     </style>
 
 

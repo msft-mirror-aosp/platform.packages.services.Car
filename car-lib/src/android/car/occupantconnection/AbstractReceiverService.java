@@ -16,29 +16,50 @@
 
 package android.car.occupantconnection;
 
+import static android.car.Car.CAR_INTENT_ACTION_RECEIVER_SERVICE;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.SuppressLint;
+import android.annotation.SystemApi;
 import android.app.Service;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
+import android.car.CarRemoteDeviceManager.AppState;
 import android.car.annotation.ApiRequirements;
+import android.car.builtin.util.Slogf;
 import android.content.Intent;
 import android.os.IBinder;
 import android.os.RemoteException;
 
-import java.util.List;
+import com.android.car.internal.util.BinderKeyValueContainer;
+
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.util.Set;
 
 /**
  * A service used to respond to connection requests from peer clients on other occupant zones,
  * receive {@link Payload} from peer clients, cache the received Payload, and dispatch it to the
  * receiver endpoints in this client.
  * <p>
- * The client app must extend this service to receiver Payload from peer clients.
- * This service lives inside the client app, and is a singleton for the client app.
+ * The client app must extend this service to receive Payload from peer clients. When declaring
+ * this service in the manifest file, the client must add an intent filter with action
+ * {@value android.car.Car#CAR_INTENT_ACTION_RECEIVER_SERVICE} for this service, and require
+ * {@code android.car.occupantconnection.permission.BIND_RECEIVER_SERVICE}. For example:
+ * <pre>{@code
+ * <service android:name=".MyReceiverService"
+ *          android:permission="android.car.occupantconnection.permission.BIND_RECEIVER_SERVICE"
+ *          android:exported="true">
+ *     <intent-filter>
+ *         <action android:name="android.car.intent.action.RECEIVER_SERVICE" />
+ *     </intent-filter>
+ * </service>}
+ * </pre>
+ * <p>
+ * This service runs on the main thread of the client app, and is a singleton for the client app.
  * The lifecycle of this service is managed by car service ({@link
  * com.android.car.occupantconnection.CarOccupantConnectionService}).
  * <p>
- * This service can be started and bound by car service in two ways:
+ * This service can be bound by car service in two ways:
  * <ul>
  *   <li> A sender endpoint in the peer client calls {@link
  *        CarOccupantConnectionManager#requestConnection} to connect to this client.
@@ -47,7 +68,7 @@ import java.util.List;
  * </ul>
  * <p>
  * Once all the senders have disconnected from this client and there is no receiver endpoints
- * registered in this client, this service will be unbound and destroyed automatically.
+ * registered in this client, this service will be unbound by car service automatically.
  * <p>
  * When this service is crashed, all connections to this client will be terminated. As a result,
  * all senders that were connected to this client will be notified via {@link
@@ -56,29 +77,40 @@ import java.util.List;
  *
  * @hide
  */
-// TODO(b/257117236): Change it to system API once it's ready to release.
-// @SystemApi
+@SystemApi
 public abstract class AbstractReceiverService extends Service {
+
+    private static final String TAG = AbstractReceiverService.class.getSimpleName();
+    private static final String INDENTATION_2 = "  ";
+    private static final String INDENTATION_4 = "    ";
+
+    /**
+     * A map of receiver endpoints in this client. The key is the ID of the endpoint, the value is
+     * the associated payload callback.
+     * <p>
+     * Although it is unusual, the process that registered the payload callback (process1) might be
+     * different from the process that this service is running (process2). When process1 is dead,
+     * if this service invokes the dead callback, a DeadObjectException will be thrown.
+     * To avoid that, the callbacks are stored in this BinderKeyValueContainer so that dead
+     * callbacks can be removed automatically.
+     */
+    private final BinderKeyValueContainer<String, IPayloadCallback> mReceiverEndpointMap =
+            new BinderKeyValueContainer<>();
 
     private IBackendConnectionResponder mBackendConnectionResponder;
 
     private final IBackendReceiver.Stub mBackendReceiver = new IBackendReceiver.Stub() {
-        // There is no need to accept an Executor here because the callback is supposed to run
-        // on main thread.
-        @SuppressLint("ExecutorRegistration")
         @Override
         public void registerReceiver(String receiverEndpointId, IPayloadCallback callback) {
-            // TODO(b/257117236): implement this method.
+            mReceiverEndpointMap.put(receiverEndpointId, callback);
+            AbstractReceiverService.this.onReceiverRegistered(receiverEndpointId);
         }
 
         @Override
         public void unregisterReceiver(String receiverEndpointId) {
-            // TODO(b/257117236): implement this method.
+            mReceiverEndpointMap.remove(receiverEndpointId);
         }
 
-        // There is no need to accept an Executor here because the callback is supposed to run
-        // on main thread.
-        @SuppressLint("ExecutorRegistration")
         @Override
         public void registerBackendConnectionResponder(IBackendConnectionResponder responder) {
             mBackendConnectionResponder = responder;
@@ -90,8 +122,9 @@ public abstract class AbstractReceiverService extends Service {
         }
 
         @Override
-        public void onConnectionInitiated(OccupantZoneInfo senderZone) {
-            AbstractReceiverService.this.onConnectionInitiated(senderZone);
+        public void onConnectionInitiated(OccupantZoneInfo senderZone,
+                @AppState int senderAppState) {
+            AbstractReceiverService.this.onConnectionInitiated(senderZone, senderAppState);
         }
 
         @Override
@@ -110,12 +143,34 @@ public abstract class AbstractReceiverService extends Service {
         }
     };
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * To prevent the client app overriding this method improperly, this method is {@code final}.
+     * If the client app needs to bind to this service, it should override {@link
+     * #onLocalServiceBind}.
+     */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Nullable
     @Override
-    public IBinder onBind(Intent intent) {
-        return mBackendReceiver.asBinder();
+    public final IBinder onBind(@NonNull Intent intent) {
+        if (CAR_INTENT_ACTION_RECEIVER_SERVICE.equals(intent.getAction())) {
+            return mBackendReceiver.asBinder();
+        }
+        return onLocalServiceBind(intent);
+    }
+
+    /**
+     * Returns the communication channel to this service. If the client app needs to bind to this
+     * service and get a communication channel to this service, it should override this method
+     * instead of {@link #onBind}.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @Nullable
+    public IBinder onLocalServiceBind(@NonNull Intent intent) {
+        return null;
     }
 
     /**
@@ -131,23 +186,26 @@ public abstract class AbstractReceiverService extends Service {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected abstract void onPayloadReceived(@NonNull OccupantZoneInfo senderZone,
+    public abstract void onPayloadReceived(@NonNull OccupantZoneInfo senderZone,
             @NonNull Payload payload);
 
     /**
      * Invoked when a receiver endpoint is registered.
      * <p>
-     * In this method, the inheritance of this service can forward the cached Payload (if any) to
-     * the newly registered endpoint.
+     * The inheritance of this service can override this method to forward the cached Payload
+     * (if any) to the newly registered endpoint. The inheritance of this service doesn't need to
+     * override this method if it never caches the Payload.
      *
      * @param receiverEndpointId the ID of the newly registered endpoint
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected abstract void onReceiverRegistered(@NonNull String receiverEndpointId);
+    public void onReceiverRegistered(@NonNull String receiverEndpointId) {
+    }
+
 
     /**
-     * Invoked when the sender endpoint on {@code senderZone} has requested a connection to this
+     * Invoked when the sender client on {@code senderZone} has requested a connection to this
      * client.
      * <p>
      * When the connection is initiated, the inheritance of this service can call {@link
@@ -160,11 +218,23 @@ public abstract class AbstractReceiverService extends Service {
      *        {@link #acceptConnection} or {@link #rejectConnection} based on the activity result.
      *        For driving safety, the permission activity must be distraction optimized. If this
      *        is infeasible, the inheritance should just call {@link #rejectConnection}.
+     *   <li> For security, it is highly recommended that the inheritance not accept the connection
+     *        if {@code senderAppState} doesn't contain
+     *        {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_VERSION} or
+     *        {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_SIGNATURE}. If the
+     *        inheritance still wants to accept the connection in the case above, it should call
+     *        {@link android.car.CarRemoteDeviceManager#getEndpointPackageInfo} to get the sender's
+     *        {@link android.content.pm.PackageInfo} and check if it's valid before accepting the
+     *        connection.
      * </ul>
+     *
+     * @param senderZone     the occupant zone that the sender client runs in
+     * @param senderAppState the {@link AppState} of the sender
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected abstract void onConnectionInitiated(@NonNull OccupantZoneInfo senderZone);
+    public abstract void onConnectionInitiated(@NonNull OccupantZoneInfo senderZone,
+            @AppState int senderAppState);
 
     /**
      * Invoked when the one-way connection has been established.
@@ -178,12 +248,15 @@ public abstract class AbstractReceiverService extends Service {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected abstract void onConnected(@NonNull OccupantZoneInfo senderZone);
+    public abstract void onConnected(@NonNull OccupantZoneInfo senderZone);
 
-    /** Invoked when the connection request has been canceled by the sender. */
+    /**
+     * Invoked when the sender has canceled the pending connection request, or has become
+     * unreachable after sending the connection request.
+     */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected abstract void onConnectionCanceled(@NonNull OccupantZoneInfo senderZone);
+    public abstract void onConnectionCanceled(@NonNull OccupantZoneInfo senderZone);
 
     /**
      * Invoked when the connection is terminated. For example, the sender on {@code senderZone}
@@ -194,13 +267,17 @@ public abstract class AbstractReceiverService extends Service {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected abstract void onDisconnected(@NonNull OccupantZoneInfo senderZone);
+    public abstract void onDisconnected(@NonNull OccupantZoneInfo senderZone);
 
     /** Accepts the connection request from {@code senderZone}. */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected void acceptConnection(@NonNull OccupantZoneInfo senderZone) throws RemoteException {
-        mBackendConnectionResponder.acceptConnection(senderZone);
+    public final void acceptConnection(@NonNull OccupantZoneInfo senderZone) {
+        try {
+            mBackendConnectionResponder.acceptConnection(senderZone);
+        } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        }
     }
 
     /**
@@ -211,9 +288,12 @@ public abstract class AbstractReceiverService extends Service {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected void rejectConnection(@NonNull OccupantZoneInfo senderZone, int rejectionReason)
-            throws RemoteException {
-        mBackendConnectionResponder.rejectConnection(senderZone, rejectionReason);
+    public final void rejectConnection(@NonNull OccupantZoneInfo senderZone, int rejectionReason) {
+        try {
+            mBackendConnectionResponder.rejectConnection(senderZone, rejectionReason);
+        } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        }
     }
 
     /**
@@ -231,29 +311,54 @@ public abstract class AbstractReceiverService extends Service {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    protected boolean forwardPayload(@NonNull OccupantZoneInfo senderZone,
+    public final boolean forwardPayload(@NonNull OccupantZoneInfo senderZone,
             @NonNull String receiverEndpointId,
             @NonNull Payload payload) {
-        // TODO(b/257117236): implement this method.
-        return true;
+        IPayloadCallback callback = mReceiverEndpointMap.get(receiverEndpointId);
+        if (callback == null) {
+            Slogf.e(TAG, "The receiver endpoint has been unregistered: %s", receiverEndpointId);
+            return false;
+        }
+        try {
+            callback.onPayloadReceived(senderZone, receiverEndpointId, payload);
+            return true;
+        } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        }
     }
 
     /**
-     * Returns a list containing all the IDs of the receiver endpoints. Returns an empty list if
-     * there is no receiver endpoint registered.
+     * Returns an unmodifiable set containing all the IDs of the receiver endpoints. Returns an
+     * empty set if there is no receiver endpoint registered.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
-    protected List<String> getAllReceiverEndpoints() {
-        // TODO(b/257117236): implement this method.
-        return null;
+    public final Set<String> getAllReceiverEndpoints() {
+        return mReceiverEndpointMap.keySet();
     }
 
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    public int onStartCommand(@NonNull Intent intent, int flags, int startId) {
         return START_STICKY;
+    }
+
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @Override
+    public void dump(@Nullable FileDescriptor fd, @NonNull PrintWriter writer,
+            @Nullable String[] args) {
+        writer.println("*AbstractReceiverService*");
+        writer.printf("%smReceiverEndpointMap:\n", INDENTATION_2);
+        for (int i = 0; i < mReceiverEndpointMap.size(); i++) {
+            String id = mReceiverEndpointMap.keyAt(i);
+            IPayloadCallback callback = mReceiverEndpointMap.valueAt(i);
+            writer.printf("%s%s, callback:%s\n", INDENTATION_4, id, callback);
+        }
+        writer.printf("%smBackendConnectionResponder:%s\n", INDENTATION_2,
+                mBackendConnectionResponder);
+        writer.printf("%smBackendReceiver:%s\n", INDENTATION_2, mBackendReceiver);
     }
 }
