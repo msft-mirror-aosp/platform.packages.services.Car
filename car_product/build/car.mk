@@ -36,6 +36,7 @@ PRODUCT_PACKAGES += \
     pppd \
     screenrecord
 
+ifneq ($(PRODUCT_IS_AUTOMOTIVE_SDK),true)
 # This is for testing
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
@@ -57,6 +58,7 @@ PRODUCT_PACKAGES += \
 # SEPolicy for test apps / services
 PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
 endif
+endif # PRODUCT_IS_AUTOMOTIVE_SDK
 
 # ClusterOsDouble is the testing app to test Cluster2 framework and it can handle Cluster VHAL
 # and do some Cluster OS role.
