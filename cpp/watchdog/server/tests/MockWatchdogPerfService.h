@@ -18,6 +18,7 @@
 #define CPP_WATCHDOG_SERVER_TESTS_MOCKWATCHDOGPERFSERVICE_H_
 
 #include "WatchdogPerfService.h"
+#include "WatchdogServiceHelper.h"
 
 #include <aidl/android/automotive/watchdog/internal/UserState.h>
 #include <android-base/result.h>
@@ -38,6 +39,7 @@ public:
     MOCK_METHOD(android::base::Result<void>, start, (), (override));
     MOCK_METHOD(void, terminate, (), (override));
     MOCK_METHOD(void, setSystemState, (SystemState), (override));
+    MOCK_METHOD(void, onCarWatchdogServiceRegistered, (), (override));
     MOCK_METHOD(android::base::Result<void>, onBootFinished, (), (override));
     MOCK_METHOD(android::base::Result<void>, onUserStateChange,
                 (userid_t userId,

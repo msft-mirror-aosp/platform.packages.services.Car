@@ -30,6 +30,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,6 +39,7 @@ import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.occupantconnection.CarOccupantConnectionManager;
 import android.car.occupantconnection.CarOccupantConnectionManager.ConnectionRequestCallback;
 import android.car.occupantconnection.CarOccupantConnectionManager.PayloadCallback;
+import android.car.occupantconnection.CarOccupantConnectionManager.PayloadTransferException;
 import android.car.occupantconnection.ICarOccupantConnection;
 import android.car.occupantconnection.IConnectionRequestCallback;
 import android.car.occupantconnection.IPayloadCallback;
@@ -195,7 +197,32 @@ public final class CarOccupantConnectionManagerUnitTest {
     }
 
     @Test
-    public void testRegisterReceiverWithNullParameters() {
+    public void testCancelConnectionWithNullParameter_throwsException() {
+        assertThrows(NullPointerException.class,
+                () -> mOccupantConnectionManager.cancelConnection(/* receiverZone= */ null));
+
+    }
+
+    @Test
+    public void testCancelConnectionWithoutConnectionRequest_throwsException() {
+        assertThrows(IllegalStateException.class,
+                () -> mOccupantConnectionManager.cancelConnection(mReceiverZone));
+    }
+
+    @Test
+    public void testCancelConnection() throws RemoteException {
+        mOccupantConnectionManager.requestConnection(mReceiverZone, mCallbackExecutor,
+                mConnectionRequestCallback);
+        mOccupantConnectionManager.cancelConnection(mReceiverZone);
+        mOccupantConnectionManager.requestConnection(mReceiverZone, mCallbackExecutor,
+                mConnectionRequestCallback);
+        mOccupantConnectionManager.cancelConnection(mReceiverZone);
+
+        verify(mService, times(2)).cancelConnection(PACKAGE_NAME, mReceiverZone);
+    }
+
+    @Test
+    public void testRegisterReceiverWithNullParameters_throwsException() {
         assertThrows(NullPointerException.class,
                 () -> mOccupantConnectionManager.registerReceiver(
                         /* receiverEndpointId= */ null, mCallbackExecutor, mPayloadCallback));
@@ -208,7 +235,8 @@ public final class CarOccupantConnectionManagerUnitTest {
     }
 
     @Test
-    public void testRegisterReceiverWithDuplicateReceiverId() throws RemoteException {
+    public void testRegisterReceiverWithDuplicateReceiverId_throwsException()
+            throws RemoteException {
         // The first registerReceiver() call should run normally, while the second
         // registerReceiver() call should throw an exception because the same ID has been
         // registered.
@@ -261,5 +289,75 @@ public final class CarOccupantConnectionManagerUnitTest {
             verify(mPayloadCallback, timeout(TIMEOUT_MS)).onPayloadReceived(senderZone, payload);
         }, mPayloadCallback);
         binderCallback[0].onPayloadReceived(senderZone, RECEIVER_ENDPOINT_ID, payload);
+    }
+
+    @Test
+    public void testUnregisterReceiverWithNullParameter_throwsException() throws RemoteException {
+        assertThrows(NullPointerException.class,
+                () -> mOccupantConnectionManager.unregisterReceiver(
+                        /* receiverEndpointId= */ null));
+
+    }
+
+    @Test
+    public void testUnregisterReceiver() throws RemoteException {
+        mOccupantConnectionManager.unregisterReceiver(RECEIVER_ENDPOINT_ID);
+
+        verify(mService).unregisterReceiver(PACKAGE_NAME, RECEIVER_ENDPOINT_ID);
+    }
+
+    @Test
+    public void testSendPayloadNullParameters_throwsException() {
+        assertThrows(NullPointerException.class,
+                () -> mOccupantConnectionManager
+                        .sendPayload(/* receiverZone= */ null, mock(Payload.class)));
+        assertThrows(NullPointerException.class,
+                () -> mOccupantConnectionManager.sendPayload(
+                        mReceiverZone, /* payload= */ null));
+    }
+
+    @Test
+    public void testSendPayloadWithoutConnection_throwsException() throws RemoteException {
+        doThrow(IllegalStateException.class)
+                .when(mService).sendPayload(eq(PACKAGE_NAME), any(), any());
+
+        assertThrows(PayloadTransferException.class,
+                () -> mOccupantConnectionManager.sendPayload(mReceiverZone, mock(Payload.class)));
+    }
+
+    @Test
+    public void testSendPayload() throws PayloadTransferException, RemoteException {
+        Payload payload = mock(Payload.class);
+        mOccupantConnectionManager.sendPayload(mReceiverZone, payload);
+
+        verify(mService).sendPayload(PACKAGE_NAME, mReceiverZone, payload);
+    }
+
+    @Test
+    public void testIsConnectedWithNullParameters_throwsException() {
+        assertThrows(NullPointerException.class,
+                () -> mOccupantConnectionManager.isConnected(/* receiverZone= */ null));
+    }
+
+    @Test
+    public void testIsConnected() throws RemoteException {
+        when(mService.isConnected(PACKAGE_NAME, mReceiverZone)).thenReturn(true);
+        boolean isConnected = mOccupantConnectionManager.isConnected(mReceiverZone);
+
+        verify(mService).isConnected(PACKAGE_NAME, mReceiverZone);
+        assertThat(isConnected).isTrue();
+    }
+
+    @Test
+    public void testDisconnectWithNullParameters_throwsException() {
+        assertThrows(NullPointerException.class,
+                () -> mOccupantConnectionManager.disconnect(/* receiverZone= */ null));
+    }
+
+    @Test
+    public void testDisconnect() throws RemoteException {
+        mOccupantConnectionManager.disconnect(mReceiverZone);
+
+        verify(mService).disconnect(PACKAGE_NAME, mReceiverZone);
     }
 }

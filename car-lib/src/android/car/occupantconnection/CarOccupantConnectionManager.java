@@ -16,6 +16,8 @@
 
 package android.car.occupantconnection;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -179,10 +181,15 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
 
     private static final String TAG = CarOccupantConnectionManager.class.getSimpleName();
 
-    /** The connection request failed because of a different error than the errors listed below. */
+    /** The connection request has no error. */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int CONNECTION_ERROR_UNKNOWN = 0;
+    public static final int CONNECTION_ERROR_NONE = 0;
+
+    /** The connection request failed because of an error of unidentified cause. */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int CONNECTION_ERROR_UNKNOWN = 1;
 
     /**
      * The connection request failed because the peer occupant zone was not ready for connection.
@@ -192,7 +199,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int CONNECTION_ERROR_NOT_READY = 1;
+    public static final int CONNECTION_ERROR_NOT_READY = 2;
 
     /**
      * The connection request failed because the peer app was not installed. To avoid this error,
@@ -202,7 +209,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int CONNECTION_ERROR_PEER_APP_NOT_INSTALLED = 2;
+    public static final int CONNECTION_ERROR_PEER_APP_NOT_INSTALLED = 3;
 
     /**
      * Flags for the error type of connection request.
@@ -210,6 +217,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * @hide
      */
     @IntDef(flag = false, prefix = {"CONNECTION_ERROR_"}, value = {
+            CONNECTION_ERROR_NONE,
             CONNECTION_ERROR_UNKNOWN,
             CONNECTION_ERROR_NOT_READY,
             CONNECTION_ERROR_PEER_APP_NOT_INSTALLED
@@ -419,6 +427,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void onCarDisconnected() {
+        assertPlatformVersionAtLeastU();
         synchronized (mLock) {
             mConnectionRequestMap.clear();
             mReceiverPayloadCallbackMap.clear();
@@ -448,6 +457,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     public void registerReceiver(@NonNull String receiverEndpointId,
             @NonNull @CallbackExecutor Executor executor,
             @NonNull PayloadCallback callback) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverEndpointId, "receiverEndpointId cannot be null");
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
@@ -455,8 +465,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
             try {
                 mService.registerReceiver(mPackageName, receiverEndpointId, mBinderPayloadCallback);
                 // Save the callback only after the remote call succeeded.
-                mReceiverPayloadCallbackMap.put(
-                        receiverEndpointId, new Pair<>(callback, executor));
+                mReceiverPayloadCallbackMap.put(receiverEndpointId, new Pair<>(callback, executor));
             } catch (RemoteException e) {
                 Slog.e(TAG, "Failed to register receiver: " + receiverEndpointId);
                 handleRemoteExceptionFromCarService(e);
@@ -479,20 +488,39 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void unregisterReceiver(@NonNull String receiverEndpointId) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverEndpointId, "receiverEndpointId cannot be null");
-        // TODO(b/257117236): implement this method.
+        synchronized (mLock) {
+            try {
+                mService.unregisterReceiver(mPackageName, receiverEndpointId);
+                // Remove the callback after the remote call succeeded.
+                mReceiverPayloadCallbackMap.remove(receiverEndpointId);
+            } catch (RemoteException e) {
+                Slog.e(TAG, "Failed to unregister receiver: " + receiverEndpointId);
+                handleRemoteExceptionFromCarService(e);
+            }
+        }
     }
 
     /**
-     * Sends a request to connect to the peer client in {@code receiverZone}. The {@link
-     * AbstractReceiverService} in the peer client will be started and bound automatically if it
+     * Sends a request to connect to the receiver client in {@code receiverZone}. The {@link
+     * AbstractReceiverService} in the receiver client will be started and bound automatically if it
      * was not started yet.
      * <p>
-     * This method should only be called when the state of the {@code receiverZone} is
+     * This method should only be called when the state of the {@code receiverZone} contains
      * {@link android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_CONNECTION_READY} (and
      * {@link android.car.CarRemoteDeviceManager#FLAG_OCCUPANT_ZONE_SCREEN_UNLOCKED} and {@link
      * android.car.CarRemoteDeviceManager#FLAG_CLIENT_IN_FOREGROUND} if UI is needed to
      * establish the connection). Otherwise, errors may occur.
+     * <p>
+     * For security, it is highly recommended that the sender not request a connection to the
+     * receiver client if the state of the receiver client doesn't contain
+     * {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_VERSION} or
+     * {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_SIGNATURE}. If the sender still
+     * wants to request the connection in the case above, it should call
+     * {@link android.car.CarRemoteDeviceManager#getEndpointPackageInfo} to get the receiver's
+     * {@link android.content.pm.PackageInfo} and check if it's valid before requesting the
+     * connection.
      * <p>
      * The caller may call {@link #cancelConnection} to cancel the request.
      * <p>
@@ -517,6 +545,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     public void requestConnection(@NonNull OccupantZoneInfo receiverZone,
             @NonNull @CallbackExecutor Executor executor,
             @NonNull ConnectionRequestCallback callback) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
@@ -542,19 +571,25 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * In other words, this method should be called after {@link #requestConnection}, and before
      * any events in the {@link ConnectionRequestCallback} is triggered.
      *
-     * @throws IllegalStateException if there was no pending connection request to {@code
-     *                               receiverZone}
+     * @throws IllegalStateException if this {@link CarOccupantConnectionManager} has no pending
+     *                               connection request to {@code receiverZone}
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void cancelConnection(@NonNull OccupantZoneInfo receiverZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
-        try {
-            mService.cancelConnection(receiverZone);
-        } catch (RemoteException e) {
-            Slog.e(TAG, "Failed to cancel connection");
-            handleRemoteExceptionFromCarService(e);
+        synchronized (mLock) {
+            Preconditions.checkState(mConnectionRequestMap.contains(receiverZone.zoneId),
+                    "This manager instance has no connection request to " + receiverZone);
+            try {
+                mService.cancelConnection(mPackageName, receiverZone);
+                mConnectionRequestMap.remove(receiverZone.zoneId);
+            } catch (RemoteException e) {
+                Slog.e(TAG, "Failed to cancel connection");
+                handleRemoteExceptionFromCarService(e);
+            }
         }
     }
 
@@ -565,6 +600,8 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * sender endpoints need to differentiate themselves, they can put the identity info into the
      * payload.
      *
+     * @throws IllegalStateException    if it was not connected to the peer client in
+     *                                  {@code receiverZone}
      * @throws PayloadTransferException if the payload was not sent. For example, this method is
      *                                  called when the connection is not established or has been
      *                                  terminated, or an internal error occurred.
@@ -574,19 +611,22 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void sendPayload(@NonNull OccupantZoneInfo receiverZone, @NonNull Payload payload)
             throws PayloadTransferException {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         Objects.requireNonNull(payload, "payload cannot be null");
         try {
-            mService.sendPayload(receiverZone, payload);
+            mService.sendPayload(mPackageName, receiverZone, payload);
+        } catch (IllegalStateException e) {
+            Slog.e(TAG, "Failed to send Payload to " + receiverZone);
+            throw new PayloadTransferException();
         } catch (RemoteException e) {
-            Slog.e(TAG, "Failed to send Payload");
+            Slog.e(TAG, "Failed to send Payload to " + receiverZone);
             handleRemoteExceptionFromCarService(e);
         }
     }
 
     /**
-     * Disconnects from the peer client in {@code receiverZone}. No operation if it was not
-     * connected to the peer client.
+     * Disconnects from the peer client in {@code receiverZone}.
      * <p>
      * This method can be called as soon as the caller app no longer needs to send {@link Payload}
      * to {@code receiverZone}. If there are multiple sender endpoints in the client app reuse the
@@ -596,16 +636,18 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * This method must be called before the caller is destroyed. Failing to call this method might
      * cause the {@link AbstractReceiverService} in the peer client to persist.
      *
-     * @throws IllegalStateException if it was not connected to {@code receiverZone}
+     * @throws IllegalStateException if it was not connected to the peer client in
+     *                               {@code receiverZone}
      */
     @SuppressWarnings("[NotCloseable]")
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void disconnect(@NonNull OccupantZoneInfo receiverZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         try {
-            mService.disconnect(receiverZone);
+            mService.disconnect(mPackageName, receiverZone);
         } catch (RemoteException e) {
             Slog.e(TAG, "Failed to disconnect");
             handleRemoteExceptionFromCarService(e);
@@ -613,16 +655,21 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     }
 
     /**
-     * @return whether it is connected to its peer client in {@code receiverZone}.
+     * Returns whether it is connected to its peer client in {@code receiverZone}. When it is
+     * connected, it can send {@link Payload} to the peer client.
+     * <p>
+     * Note: the connection is one-way. The peer client can not send {@link Payload} to this client
+     * unless the peer client is also connected to this client.
      */
     @SuppressWarnings("[NotCloseable]")
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public boolean isConnected(@NonNull OccupantZoneInfo receiverZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         try {
-            return mService.isConnected(receiverZone);
+            return mService.isConnected(mPackageName, receiverZone);
         } catch (RemoteException e) {
             Slog.e(TAG, "Failed to get connection state");
             return handleRemoteExceptionFromCarService(e, false);

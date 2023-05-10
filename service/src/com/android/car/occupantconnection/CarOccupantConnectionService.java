@@ -18,29 +18,37 @@ package com.android.car.occupantconnection;
 
 import static android.car.Car.CAR_INTENT_ACTION_RECEIVER_SERVICE;
 import static android.car.CarOccupantZoneManager.INVALID_USER_ID;
+import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_INSTALLED;
+import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_IN_FOREGROUND;
+import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_RUNNING;
+import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_SAME_SIGNATURE;
+import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_SAME_VERSION;
+import static android.car.occupantconnection.CarOccupantConnectionManager.CONNECTION_ERROR_NONE;
+import static android.car.occupantconnection.CarOccupantConnectionManager.CONNECTION_ERROR_NOT_READY;
+import static android.car.occupantconnection.CarOccupantConnectionManager.CONNECTION_ERROR_PEER_APP_NOT_INSTALLED;
 import static android.car.occupantconnection.CarOccupantConnectionManager.CONNECTION_ERROR_UNKNOWN;
 
-import static com.android.car.CarServiceUtils.assertPackageName;
 import static com.android.car.CarServiceUtils.assertPermission;
+import static com.android.car.CarServiceUtils.checkCalledByPackage;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
+import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.car.Car;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.builtin.util.Slogf;
+import android.car.occupantconnection.CarOccupantConnectionManager.ConnectionError;
 import android.car.occupantconnection.IBackendConnectionResponder;
 import android.car.occupantconnection.IBackendReceiver;
 import android.car.occupantconnection.ICarOccupantConnection;
 import android.car.occupantconnection.IConnectionRequestCallback;
 import android.car.occupantconnection.IPayloadCallback;
-import android.car.occupantconnection.IStateCallback;
 import android.car.occupantconnection.Payload;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -48,21 +56,23 @@ import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 
+import com.android.car.CarLocalServices;
 import com.android.car.CarOccupantZoneService;
 import com.android.car.CarServiceBase;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.BinderKeyValueContainer;
+import com.android.car.internal.util.BinderKeyValueContainer.BinderDeathCallback;
 import com.android.car.internal.util.IndentingPrintWriter;
-import com.android.car.power.CarPowerManagementService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.Set;
 
 /**
  * Service to implement API defined in
- * {@link android.car.occupantconnection.CarOccupantConnectionManager} and
- * {@link android.car.CarRemoteDeviceManager}.
+ * {@link android.car.occupantconnection.CarOccupantConnectionManager}.
  */
 public class CarOccupantConnectionService extends ICarOccupantConnection.Stub implements
         CarServiceBase {
@@ -71,10 +81,19 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     private static final String INDENTATION_2 = "  ";
     private static final String INDENTATION_4 = "    ";
 
+    private static final int NOTIFY_ON_DISCONNECT = 1;
+    private static final int NOTIFY_ON_FAILED = 2;
+    @IntDef(flag = false, prefix = {"NOTIFY_ON_"}, value = {
+            NOTIFY_ON_DISCONNECT,
+            NOTIFY_ON_FAILED
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    @interface NotifyCallbackType {
+    }
+
     private final Context mContext;
     private final Object mLock = new Object();
     private final CarOccupantZoneService mOccupantZoneService;
-    private final CarPowerManagementService mPowerManagementService;
 
     /**
      * A set of receiver services that this service has requested to bind but has not connected
@@ -147,10 +166,27 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     private final BinderKeyValueContainer<ConnectionId, IConnectionRequestCallback>
             mAcceptedConnectionRequestMap;
 
-    // TODO(b/257117236): update this map when the sender dies.
     /** A set of established connection records. */
     @GuardedBy("mLock")
-    private final ArraySet<ConnectionRecord> mEstablishConnections;
+    private final ArraySet<ConnectionRecord> mEstablishedConnections;
+
+    private final BinderDeathCallback<ConnectionId> mConnectedSenderDeathCallback =
+            staleConnection -> {
+                Slogf.e(TAG, "The sender was connected before, but now it is dead %s",
+                        staleConnection.senderClient);
+                synchronized (mLock) {
+                    handleSenderDisconnectedLocked(staleConnection);
+                }
+            };
+
+    private final BinderDeathCallback<ConnectionId> mPendingConnectedSenderDeathCallback =
+            connectionToCancel -> {
+                Slogf.e(TAG, "The sender requested a connection before, but now it is dead %s",
+                        connectionToCancel.senderClient);
+                synchronized (mLock) {
+                    handleConnectionCanceledLocked(connectionToCancel);
+                }
+            };
 
     /**
      * A class to handle the connection to {@link
@@ -170,6 +206,11 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
                 public void acceptConnection(OccupantZoneInfo senderZone) {
                     ClientId senderClient = getClientIdInOccupantZone(senderZone,
                             receiverClient.packageName);
+                    if (senderClient == null) {
+                        // senderClient can't be null because it requested a connection, but let's
+                        // be cautious.
+                        return;
+                    }
                     ConnectionId connectionId = new ConnectionId(senderClient, receiverClient);
                     synchronized (mLock) {
                         IConnectionRequestCallback callback =
@@ -192,7 +233,7 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
                             mReceiverService.onConnected(senderZone);
 
                             mAcceptedConnectionRequestMap.put(connectionId, callback);
-                            mEstablishConnections.add(new ConnectionRecord(
+                            mEstablishedConnections.add(new ConnectionRecord(
                                     receiverClient.packageName,
                                     senderZone.zoneId,
                                     receiverClient.occupantZone.zoneId));
@@ -272,17 +313,17 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
                     }
                 }
 
-                notifySenderOfReceiverServiceDisconnect(mPendingConnectionRequestMap,
-                        mReceiverClient);
-                notifySenderOfReceiverServiceDisconnect(mAcceptedConnectionRequestMap,
-                        mReceiverClient);
+                notifyPeersOfReceiverServiceDisconnect(mPendingConnectionRequestMap,
+                        mReceiverClient, NOTIFY_ON_FAILED);
+                notifyPeersOfReceiverServiceDisconnect(mAcceptedConnectionRequestMap,
+                        mReceiverClient, NOTIFY_ON_DISCONNECT);
 
-                for (int i = mEstablishConnections.size() - 1; i >= 0; i--) {
-                    ConnectionRecord connectionRecord = mEstablishConnections.valueAt(i);
+                for (int i = mEstablishedConnections.size() - 1; i >= 0; i--) {
+                    ConnectionRecord connectionRecord = mEstablishedConnections.valueAt(i);
                     if (connectionRecord.packageName.equals(mReceiverClient.packageName)
                             && connectionRecord.receiverZoneId
                             == mReceiverClient.occupantZone.zoneId) {
-                        mEstablishConnections.removeAt(i);
+                        mEstablishedConnections.removeAt(i);
                     }
                 }
             }
@@ -290,11 +331,9 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     }
 
     public CarOccupantConnectionService(Context context,
-            CarOccupantZoneService occupantZoneService,
-            CarPowerManagementService powerManagementService) {
+            CarOccupantZoneService occupantZoneService) {
         this(context,
                 occupantZoneService,
-                powerManagementService,
                 /* connectingReceiverServices= */ new ArraySet<>(),
                 /* connectedReceiverServiceMap= */ new BinderKeyValueContainer<>(),
                 /* receiverServiceConnectionMap= */ new ArrayMap<>(),
@@ -308,7 +347,6 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     @VisibleForTesting
     CarOccupantConnectionService(Context context,
             CarOccupantZoneService occupantZoneService,
-            CarPowerManagementService powerManagementService,
             ArraySet<ClientId> connectingReceiverServices,
             BinderKeyValueContainer<ClientId, IBackendReceiver> connectedReceiverServiceMap,
             ArrayMap<ClientId, ServiceConnection> receiverServiceConnectionMap,
@@ -320,10 +358,9 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
                     pendingConnectionRequestMap,
             BinderKeyValueContainer<ConnectionId, IConnectionRequestCallback>
                     acceptedConnectionRequestMap,
-            ArraySet<ConnectionRecord> establishConnections) {
+            ArraySet<ConnectionRecord> establishedConnections) {
         mContext = context;
         mOccupantZoneService = occupantZoneService;
-        mPowerManagementService = powerManagementService;
         mConnectingReceiverServices = connectingReceiverServices;
         mConnectedReceiverServiceMap = connectedReceiverServiceMap;
         mReceiverServiceConnectionMap = receiverServiceConnectionMap;
@@ -331,12 +368,16 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
         mRegisteredReceiverEndpointMap = registeredReceiverEndpointMap;
         mPendingConnectionRequestMap = pendingConnectionRequestMap;
         mAcceptedConnectionRequestMap = acceptedConnectionRequestMap;
-        mEstablishConnections = establishConnections;
+        mEstablishedConnections = establishedConnections;
     }
 
     @Override
     public void init() {
-        // TODO(b/257117236): implement this method.
+        synchronized (mLock) {
+            mAcceptedConnectionRequestMap.setBinderDeathCallback(mConnectedSenderDeathCallback);
+            mPendingConnectionRequestMap.setBinderDeathCallback(
+                    mPendingConnectedSenderDeathCallback);
+        }
     }
 
     @Override
@@ -391,75 +432,17 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
                 writer.printf("%s%s, callback:%s\n", INDENTATION_4, id, callback);
             }
             writer.printf("%smEstablishConnections:\n", INDENTATION_2);
-            for (int i = 0; i < mEstablishConnections.size(); i++) {
-                writer.printf("%s%s\n", INDENTATION_4, mEstablishConnections.valueAt(i));
+            for (int i = 0; i < mEstablishedConnections.size(); i++) {
+                writer.printf("%s%s\n", INDENTATION_4, mEstablishedConnections.valueAt(i));
             }
         }
-    }
-
-    @Override
-    public void registerStateCallback(IStateCallback callback) {
-        assertPermission(mContext, Car.PERMISSION_MANAGE_REMOTE_DEVICE);
-        // TODO(b/257117236): implement this method.
-    }
-
-    @Override
-    public void unregisterStateCallback() {
-        assertPermission(mContext, Car.PERMISSION_MANAGE_REMOTE_DEVICE);
-        // TODO(b/257117236): implement this method.
-    }
-
-    @Override
-    public PackageInfo getEndpointPackageInfo(int occupantZoneId, String packageName) {
-        assertPermission(mContext, Car.PERMISSION_MANAGE_REMOTE_DEVICE);
-        assertPackageName(mContext, packageName);
-
-        // PackageManager#getPackageInfoAsUser() can do this with few lines, but it's hidden API.
-        int userId = mOccupantZoneService.getUserForOccupant(occupantZoneId);
-        if (userId == INVALID_USER_ID) {
-            Slogf.e(TAG, "Invalid user ID for occupant zone " + occupantZoneId);
-            return null;
-        }
-        UserHandle userHandle = UserHandle.of(userId);
-        Context userContext = mContext.createContextAsUser(userHandle, /* flags= */ 0);
-        PackageManager pm = userContext.getPackageManager();
-        if (pm == null) {
-            Slogf.e(TAG, "Failed to get PackageManager as user " + userId);
-            return null;
-        }
-        PackageInfo packageInfo = null;
-        try {
-            packageInfo = pm.getPackageInfo(packageName,
-                    PackageManager.PackageInfoFlags.of(/* value= */ 0));
-        } catch (PackageManager.NameNotFoundException e) {
-            // The client app should be installed in all occupant zones, so log an error.
-            Slogf.e(TAG, "Didn't find " + packageName + " in occupant zone " + occupantZoneId);
-        }
-        return packageInfo;
-    }
-
-    @Override
-    public void setOccupantZonePower(OccupantZoneInfo occupantZone, boolean powerOn) {
-        assertPermission(mContext, Car.PERMISSION_MANAGE_REMOTE_DEVICE);
-
-        int[] displayIds = mOccupantZoneService.getAllDisplaysForOccupantZone(occupantZone.zoneId);
-        for (int id : displayIds) {
-            mPowerManagementService.setDisplayPowerState(id, powerOn);
-        }
-    }
-
-    @Override
-    public boolean isOccupantZonePowerOn(OccupantZoneInfo occupantZone) {
-        assertPermission(mContext, Car.PERMISSION_MANAGE_REMOTE_DEVICE);
-
-        return mOccupantZoneService.areDisplaysOnForOccupantZone(occupantZone.zoneId);
     }
 
     @Override
     public void registerReceiver(String packageName, String receiverEndpointId,
             IPayloadCallback callback) {
         assertPermission(mContext, Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION);
-        assertPackageName(mContext, packageName);
+        checkCalledByPackage(mContext, packageName);
 
         ClientId receiverClient = getCallingClientId(packageName);
         ReceiverEndpointId receiverEndpoint =
@@ -484,18 +467,53 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     }
 
     @Override
-    public void unregisterReceiver(String receiverEndpointId) {
+    public void unregisterReceiver(String packageName, String receiverEndpointId) {
         assertPermission(mContext, Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION);
-        // TODO(b/257117236): implement this method.
+        checkCalledByPackage(mContext, packageName);
+
+        ClientId receiverClient = getCallingClientId(packageName);
+        ReceiverEndpointId receiverEndpoint =
+                new ReceiverEndpointId(receiverClient, receiverEndpointId);
+        IBackendReceiver receiverService;
+        synchronized (mLock) {
+            assertHasReceiverEndpointLocked(receiverEndpoint);
+            receiverService = mConnectedReceiverServiceMap.get(receiverClient);
+            if (receiverService == null) {
+                // This could happen when unregisterReceiver() is called immediately after
+                // registerReceiver(). In this case, the receiver service is not connected yet.
+                Slogf.d(TAG, "The receiver service in " + receiverClient + " is being bound");
+                mPreregisteredReceiverEndpointMap.remove(receiverEndpoint);
+                maybeUnbindReceiverServiceLocked(receiverClient);
+                return;
+            }
+            try {
+                receiverService.unregisterReceiver(receiverEndpointId);
+                mRegisteredReceiverEndpointMap.remove(receiverEndpoint);
+                maybeUnbindReceiverServiceLocked(receiverClient);
+            } catch (RemoteException e) {
+                Slogf.e(TAG, "Failed the unregister the receiver " + receiverEndpoint + e);
+            }
+        }
     }
 
     @Override
     public void requestConnection(String packageName, OccupantZoneInfo receiverZone,
             IConnectionRequestCallback callback) {
         assertPermission(mContext, Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION);
-        assertPackageName(mContext, packageName);
+        checkCalledByPackage(mContext, packageName);
 
         ClientId senderClient = getCallingClientId(packageName);
+        int connectionError = calculateConnectionError(receiverZone, packageName);
+        if (connectionError != CONNECTION_ERROR_NONE) {
+            try {
+                callback.onFailed(receiverZone, connectionError);
+            } catch (RemoteException e) {
+                Slogf.e(TAG, "Failed to notify the sender %s of connection failure %s",
+                        senderClient, e);
+            }
+            return;
+        }
+
         ClientId receiverClient = getClientIdInOccupantZone(receiverZone, packageName);
         ConnectionId connectionId = new ConnectionId(senderClient, receiverClient);
         synchronized (mLock) {
@@ -510,7 +528,17 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
             IBackendReceiver receiverService = mConnectedReceiverServiceMap.get(receiverClient);
             if (receiverService != null) {
                 try {
-                    receiverService.onConnectionInitiated(senderClient.occupantZone);
+                    // Since the sender client is requesting connection, it must be running in the
+                    // foreground.
+                    // TODO(b/257118072): maybe we should evaluate it before setting
+                    //  FLAG_CLIENT_IN_FOREGROUND.
+                    // In single-SoC model, the sender client is guaranteed to have the same
+                    // signing info and long version code.
+                    // TODO(b/257118327): support multiple-SoC.
+                    receiverService.onConnectionInitiated(senderClient.occupantZone,
+                            FLAG_CLIENT_INSTALLED | FLAG_CLIENT_SAME_VERSION
+                                    | FLAG_CLIENT_SAME_SIGNATURE | FLAG_CLIENT_RUNNING
+                                    | FLAG_CLIENT_IN_FOREGROUND);
                 } catch (RemoteException e) {
                     Slogf.e(TAG, "Failed to notify the receiver for connection request", e);
                 }
@@ -522,29 +550,79 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     }
 
     @Override
-    public void cancelConnection(OccupantZoneInfo receiverZone) {
+    public void cancelConnection(String packageName, OccupantZoneInfo receiverZone) {
         assertPermission(mContext, Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION);
-        // TODO(b/257117236): implement this method.
+        checkCalledByPackage(mContext, packageName);
+
+        ClientId senderClient = getCallingClientId(packageName);
+        ClientId receiverClient = getClientIdInOccupantZone(receiverZone, packageName);
+        if (receiverClient == null) {
+            // receiverClient can't be null (because the sender requested a connection to it, and
+            // it didn't throw an exception), but let's be cautious.
+            return;
+        }
+        ConnectionId connectionToCancel = new ConnectionId(senderClient, receiverClient);
+        synchronized (mLock) {
+            assertHasPendingConnectionRequestLocked(connectionToCancel);
+            mPendingConnectionRequestMap.remove(connectionToCancel);
+            handleConnectionCanceledLocked(connectionToCancel);
+        }
     }
 
     @Override
-    public void sendPayload(OccupantZoneInfo receiverZone,
-            Payload payload) {
+    public void sendPayload(String packageName, OccupantZoneInfo receiverZone, Payload payload) {
         assertPermission(mContext, Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION);
-        // TODO(b/257117236): implement this method.
+        checkCalledByPackage(mContext, packageName);
+
+        ClientId senderClient = getCallingClientId(packageName);
+        ClientId receiverClient = getClientIdInOccupantZone(receiverZone, packageName);
+        IBackendReceiver receiverService;
+        synchronized (mLock) {
+            assertConnectedLocked(packageName, senderClient.occupantZone, receiverZone);
+            // receiverClient can't be null because the sender is connected to it now.
+            receiverService = mConnectedReceiverServiceMap.get(receiverClient);
+        }
+        if (receiverService == null) {
+            // receiverService can't be null since it is connected, but let's be cautious.
+            throw new IllegalStateException("The receiver service in " + receiverClient
+                    + "is not bound yet");
+        }
+        try {
+            receiverService.onPayloadReceived(senderClient.occupantZone, payload);
+        } catch (RemoteException e) {
+            throw new IllegalStateException("The receiver client is dead " + receiverClient, e);
+        }
     }
 
     @Override
-    public void disconnect(OccupantZoneInfo receiverZone) {
+    public void disconnect(String packageName, OccupantZoneInfo receiverZone) {
         assertPermission(mContext, Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION);
-        // TODO(b/257117236): implement this method.
+        checkCalledByPackage(mContext, packageName);
+
+        ClientId senderClient = getCallingClientId(packageName);
+        ClientId receiverClient = getClientIdInOccupantZone(receiverZone, packageName);
+        synchronized (mLock) {
+            assertConnectedLocked(packageName, senderClient.occupantZone, receiverZone);
+
+            // Remove the connection callback.
+            // receiverClient can't be null because the sender is connected to it now.
+            ConnectionId staleConnection = new ConnectionId(senderClient, receiverClient);
+            mAcceptedConnectionRequestMap.remove(staleConnection);
+
+            handleSenderDisconnectedLocked(staleConnection);
+        }
     }
 
     @Override
-    public boolean isConnected(OccupantZoneInfo receiverZone) {
+    public boolean isConnected(String packageName, OccupantZoneInfo receiverZone) {
         assertPermission(mContext, Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION);
-        // TODO(b/257117236): implement this method.
-        return false;
+        checkCalledByPackage(mContext, packageName);
+
+        UserHandle senderUserHandle = Binder.getCallingUserHandle();
+        OccupantZoneInfo senderZone = mOccupantZoneService.getOccupantZoneForUser(senderUserHandle);
+        synchronized (mLock) {
+            return isConnectedLocked(packageName, senderZone, receiverZone);
+        }
     }
 
     @GuardedBy("mLock")
@@ -579,9 +657,14 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
         return new ClientId(occupantZone, callingUserId, packageName);
     }
 
+    @Nullable
     private ClientId getClientIdInOccupantZone(OccupantZoneInfo occupantZone,
             String packageName) {
         int userId = mOccupantZoneService.getUserForOccupant(occupantZone.zoneId);
+        if (userId == INVALID_USER_ID) {
+            Slogf.e(TAG, "The user in %s is not assigned yet", occupantZone);
+            return null;
+        }
         return new ClientId(occupantZone, userId, packageName);
     }
 
@@ -589,6 +672,14 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     private void assertNoDuplicateReceiverEndpointLocked(ReceiverEndpointId receiverEndpoint) {
         if (hasReceiverEndpointLocked(receiverEndpoint)) {
             throw new IllegalStateException("The receiver endpoint was registered already: "
+                    + receiverEndpoint);
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void assertHasReceiverEndpointLocked(ReceiverEndpointId receiverEndpoint) {
+        if (!hasReceiverEndpointLocked(receiverEndpoint)) {
+            throw new IllegalStateException("The receiver endpoint was not registered before: "
                     + receiverEndpoint);
         }
     }
@@ -638,6 +729,63 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
         mReceiverServiceConnectionMap.put(receiverClient, connection);
     }
 
+    /**
+     * Unbinds the receiver service in {@code receiverClient} if there is no
+     * preregistered/registered receiver endpoint in {@code receiverClient}, and no
+     * pending/established connection to {@code receiverClient}.
+     */
+    @GuardedBy("mLock")
+    private void maybeUnbindReceiverServiceLocked(ClientId receiverClient) {
+        for (int i = 0; i < mRegisteredReceiverEndpointMap.size(); i++) {
+            ReceiverEndpointId receiverEndpoint = mRegisteredReceiverEndpointMap.keyAt(i);
+            if (receiverEndpoint.clientId.equals(receiverClient)) {
+                Slogf.i(TAG, "Don't unbind the receiver service because it has a receiver"
+                        + "endpoint registered: " + receiverEndpoint);
+                return;
+            }
+        }
+        for (int i = 0; i < mPreregisteredReceiverEndpointMap.size(); i++) {
+            ReceiverEndpointId receiverEndpoint = mPreregisteredReceiverEndpointMap.keyAt(i);
+            if (receiverEndpoint.clientId.equals(receiverClient)) {
+                Slogf.i(TAG, "Don't unbind the receiver service because it has a receiver"
+                        + "endpoint pending registered " + receiverEndpoint);
+                return;
+            }
+        }
+        for (int i = 0; i < mAcceptedConnectionRequestMap.size(); i++) {
+            ConnectionId connectionId = mAcceptedConnectionRequestMap.keyAt(i);
+            if (connectionId.receiverClient.equals(receiverClient)) {
+                Slogf.i(TAG, "Don't unbind the receiver service because there is a connection"
+                        + " to it:" + connectionId);
+                return;
+            }
+        }
+        for (int i = 0; i < mPendingConnectionRequestMap.size(); i++) {
+            ConnectionId connectionId = mPendingConnectionRequestMap.keyAt(i);
+            if (connectionId.receiverClient.equals(receiverClient)) {
+                Slogf.i(TAG, "Don't unbind because there is a sender endpoint connecting"
+                        + "to it:" + connectionId);
+                return;
+            }
+        }
+
+        unbindReceiverServiceLocked(receiverClient);
+        mConnectingReceiverServices.remove(receiverClient);
+        mConnectedReceiverServiceMap.remove(receiverClient);
+    }
+
+    @GuardedBy("mLock")
+    private void unbindReceiverServiceLocked(ClientId receiverClient) {
+        ServiceConnection connection = mReceiverServiceConnectionMap.get(receiverClient);
+        if (connection == null) {
+            Slogf.w(TAG, "Failed to unbind to the receiver service in " + receiverClient
+                    + " because it was not bound");
+            return;
+        }
+        mContext.unbindService(connection);
+        mReceiverServiceConnectionMap.remove(receiverClient);
+    }
+
     @GuardedBy("mLock")
     private void assertNoDuplicateConnectionRequestLocked(ConnectionId connectionId) {
         if (mPendingConnectionRequestMap.containsKey(connectionId)) {
@@ -651,9 +799,18 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
         }
     }
 
-    private void notifySenderOfReceiverServiceDisconnect(
+    @GuardedBy("mLock")
+    private void assertHasPendingConnectionRequestLocked(ConnectionId connectionId) {
+        if (!mPendingConnectionRequestMap.containsKey(connectionId)) {
+            throw new IllegalStateException("The client " + connectionId.senderClient
+                    + " has no pending connection request to " + connectionId.receiverClient);
+        }
+    }
+
+    private void notifyPeersOfReceiverServiceDisconnect(
             BinderKeyValueContainer<ConnectionId, IConnectionRequestCallback>
-                    connectionRequestMap, ClientId receiverClient) {
+                    connectionRequestMap, ClientId receiverClient,
+            @NotifyCallbackType int callbackType) {
         for (int i = connectionRequestMap.size() - 1; i >= 0; i--) {
             ConnectionId connectionId = connectionRequestMap.keyAt(i);
             if (!connectionId.receiverClient.equals(receiverClient)) {
@@ -661,7 +818,17 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
             }
             IConnectionRequestCallback callback = connectionRequestMap.valueAt(i);
             try {
-                callback.onFailed(receiverClient.occupantZone, CONNECTION_ERROR_UNKNOWN);
+                switch (callbackType) {
+                    case NOTIFY_ON_DISCONNECT:
+                        callback.onDisconnected(receiverClient.occupantZone);
+                        break;
+                    case NOTIFY_ON_FAILED:
+                        callback.onFailed(receiverClient.occupantZone, CONNECTION_ERROR_UNKNOWN);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Undefined NotifyCallbackType: "
+                                + callbackType);
+                }
             } catch (RemoteException e) {
                 Slogf.e(TAG, "Failed to notify the sender for connection failure", e);
             }
@@ -672,19 +839,31 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
     /**
      * Returns whether the sender client is connected to the receiver client.
      */
-    // TODO(b/257117236): call this method in isConnected() and sendPayload().
     @GuardedBy("mLock")
     private boolean isConnectedLocked(String packageName, OccupantZoneInfo senderZone,
             OccupantZoneInfo receiverZone) {
         ConnectionRecord expectedConnection =
                 new ConnectionRecord(packageName, senderZone.zoneId, receiverZone.zoneId);
-        return mEstablishConnections.contains(expectedConnection);
+        return mEstablishedConnections.contains(expectedConnection);
+    }
+
+    @GuardedBy("mLock")
+    private void assertConnectedLocked(String packageName, OccupantZoneInfo senderZone,
+            OccupantZoneInfo receiverZone) {
+        if (!isConnectedLocked(packageName, senderZone, receiverZone)) {
+            throw new IllegalStateException("The client " + packageName + " in " + senderZone
+                    + " is not connected to " + receiverZone);
+        }
     }
 
     @GuardedBy("mLock")
     private IConnectionRequestCallback extractRequestCallbackToNotifyLocked(
             OccupantZoneInfo senderZone, ClientId receiverClient) {
         ClientId senderClient = getClientIdInOccupantZone(senderZone, receiverClient.packageName);
+        if (senderClient == null) {
+            // senderClient can't be null because it requested a connection, but let's be cautious.
+            return null;
+        }
         ConnectionId connectionId = new ConnectionId(senderClient, receiverClient);
         IConnectionRequestCallback pendingCallback = mPendingConnectionRequestMap.get(connectionId);
         if (pendingCallback == null) {
@@ -706,12 +885,103 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
             if (connectionId.receiverClient.equals(receiverClient)
                     && !notifiedSenderClients.contains(connectionId.senderClient)) {
                 try {
-                    receiverService.onConnectionInitiated(connectionId.senderClient.occupantZone);
+                    // Since the sender client is requesting connection, it must be running in the
+                    // foreground.
+                    // In single-SoC model, the sender client is guaranteed to have the same
+                    // signing info and long version code.
+                    // TODO(b/257118327): support multiple-SoC.
+                    receiverService.onConnectionInitiated(connectionId.senderClient.occupantZone,
+                            FLAG_CLIENT_INSTALLED | FLAG_CLIENT_SAME_VERSION
+                                    | FLAG_CLIENT_SAME_SIGNATURE | FLAG_CLIENT_RUNNING
+                                    | FLAG_CLIENT_IN_FOREGROUND);
                     notifiedSenderClients.add(connectionId.senderClient);
                 } catch (RemoteException e) {
                     Slogf.e(TAG, "Failed to notify the receiver for connection request", e);
                 }
             }
         }
+    }
+
+    /**
+     * This method is invoked when the sender was connected before but is disconnected now.
+     * For example, the sender calls {@link #disconnect}, or dies.
+     */
+    @GuardedBy("mLock")
+    private void handleSenderDisconnectedLocked(ConnectionId staleConnection) {
+        // Remove the connection record.
+        ConnectionRecord staleRecord = new ConnectionRecord(
+                staleConnection.senderClient.packageName,
+                staleConnection.senderClient.occupantZone.zoneId,
+                staleConnection.receiverClient.occupantZone.zoneId);
+        mEstablishedConnections.remove(staleRecord);
+
+        // Notify the receiver service.
+        IBackendReceiver receiverService =
+                mConnectedReceiverServiceMap.get(staleConnection.receiverClient);
+        if (receiverService == null) {
+            // receiverService can't be null since it must be connected when this method is called,
+            // but let's be cautious.
+            Slogf.e(TAG, "The receiver service in %s is not bound yet",
+                    staleConnection.receiverClient);
+            return;
+        }
+        try {
+            receiverService.onDisconnected(staleConnection.senderClient.occupantZone);
+        } catch (RemoteException e) {
+            // There is no need to propagate the Exception to the sender client because
+            // the connection was terminated successfully anyway.
+            Slogf.e(TAG, "Failed to notify the receiver service of disconnection! "
+                            + "senderClient:%s, receiverClient:%s", staleConnection.senderClient,
+                    staleConnection.receiverClient, e);
+        }
+
+        maybeUnbindReceiverServiceLocked(staleConnection.receiverClient);
+    }
+
+    /**
+     * This method is invoked when a pending connection is canceled. For example, the sender calls
+     * {@link #cancelConnection}, or dies.
+     */
+    @GuardedBy("mLock")
+    private void handleConnectionCanceledLocked(ConnectionId connectionToCancel) {
+        IBackendReceiver receiverService =
+                mConnectedReceiverServiceMap.get(connectionToCancel.receiverClient);
+        // If the AbstractReceiverService of the receiver app is bound, notify it of the
+        // cancellation now.
+        if (receiverService != null) {
+            try {
+                receiverService.onConnectionCanceled(connectionToCancel.senderClient.occupantZone);
+            } catch (RemoteException e) {
+                // There is no need to propagate the Exception to the sender client because
+                // the connection was canceled successfully anyway.
+                Slogf.e(TAG, "Failed to notify the receiver service of connection request"
+                                + " cancellation! senderClient:%s, receiverClient:%s",
+                        connectionToCancel.senderClient, connectionToCancel.receiverClient, e);
+            }
+        }
+        // The receiverService may be bound already, or being bound. In either case, it needs to be
+        // unbound if it is not needed any more.
+        maybeUnbindReceiverServiceLocked(connectionToCancel.receiverClient);
+    }
+
+    @ConnectionError
+    private static int calculateConnectionError(OccupantZoneInfo receiverZone, String packageName) {
+        CarRemoteDeviceService remoteDeviceService =
+                CarLocalServices.getService(CarRemoteDeviceService.class);
+        if (remoteDeviceService == null) {
+            Slogf.e(TAG, "CarRemoteDeviceService is not available on this device");
+            return CONNECTION_ERROR_UNKNOWN;
+        }
+        if (!remoteDeviceService.isConnectionReady(receiverZone)) {
+            Slogf.e(TAG, "%s is not ready for connection", receiverZone);
+            return CONNECTION_ERROR_NOT_READY;
+        }
+        PackageInfo receiverInfo =
+                remoteDeviceService.getEndpointPackageInfo(receiverZone.zoneId, packageName);
+        if (receiverInfo == null) {
+            Slogf.e(TAG, "Peer app %s is not installed in %s", packageName, receiverZone);
+            return CONNECTION_ERROR_PEER_APP_NOT_INSTALLED;
+        }
+        return CONNECTION_ERROR_NONE;
     }
 }

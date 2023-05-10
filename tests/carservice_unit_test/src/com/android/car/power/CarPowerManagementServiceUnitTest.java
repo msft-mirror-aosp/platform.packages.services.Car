@@ -775,6 +775,59 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         assertThat(listenerAudio.getCurrentPowerPolicy()).isNull();
     }
 
+    @Test
+    public void testNotifyPowerPolicyChange() throws Exception {
+        grantPowerPolicyPermission();
+        MockedPowerPolicyListener listenerAudio = new MockedPowerPolicyListener();
+        MockedPowerPolicyListener listenerForDisabledComponents = new MockedPowerPolicyListener();
+        MockedPowerPolicyListener listenerForEnabledComponents = new MockedPowerPolicyListener();
+
+        int customComponent1 = 1000;
+        int customComponent2 = 1001;
+        int customComponent3 = 1002;
+        CarPowerPolicyFilter filterDisabledComponents =
+                new CarPowerPolicyFilter.Builder().setComponents(customComponent1,
+                        customComponent2).build();
+        CarPowerPolicyFilter filterEnabledComponents =
+                new CarPowerPolicyFilter.Builder().setComponents(customComponent3).build();
+        CarPowerPolicyFilter filterAudio = new CarPowerPolicyFilter.Builder().setComponents(
+                PowerComponent.AUDIO).build();
+
+        mService.addPowerPolicyListener(filterAudio, listenerAudio);
+
+        String testPolicyId = "test_policy_id";
+        mService.definePowerPolicy(testPolicyId, new String[]{String.valueOf(customComponent3)},
+                new String[]{"AUDIO", String.valueOf(customComponent1),
+                        String.valueOf(customComponent2)});
+        mService.addPowerPolicyListener(filterDisabledComponents, listenerForDisabledComponents);
+        mService.addPowerPolicyListener(filterEnabledComponents, listenerForEnabledComponents);
+        mService.applyPowerPolicy(testPolicyId);
+        waitForPowerPolicy(testPolicyId);
+
+        waitForPolicyId(listenerAudio, testPolicyId,
+                "Current power policy of listenerAudio is not " + testPolicyId);
+        waitForPolicyId(listenerForDisabledComponents, testPolicyId,
+                "Current power policy of listenerForDisabledComponents is not " + testPolicyId);
+        waitForPolicyId(listenerForEnabledComponents, testPolicyId,
+                "Current power policy of listenerForEnabledComponents is not " + testPolicyId);
+        assertThat(listenerAudio.getCurrentPowerPolicy()).isNotNull();
+        assertThat(listenerAudio.getCurrentPowerPolicy().getPolicyId()).isEqualTo(testPolicyId);
+        // Check if policy change was notified for enabled components
+        assertThat(listenerForEnabledComponents.getCurrentPowerPolicy()).isNotNull();
+        assertThat(listenerForEnabledComponents.getCurrentPowerPolicy().getPolicyId()).isEqualTo(
+                testPolicyId);
+        // Check if policy change was notified for disabled components
+        assertThat(listenerForDisabledComponents.getCurrentPowerPolicy()).isNotNull();
+        assertThat(listenerForDisabledComponents.getCurrentPowerPolicy().getPolicyId()).isEqualTo(
+                testPolicyId);
+
+        assertThat(mService.getCurrentPowerPolicy().isComponentEnabled(
+                PowerComponent.AUDIO)).isFalse();
+        assertThat(mService.getCurrentPowerPolicy().isComponentEnabled(customComponent1)).isFalse();
+        assertThat(mService.getCurrentPowerPolicy().isComponentEnabled(customComponent2)).isFalse();
+        assertThat(mService.getCurrentPowerPolicy().isComponentEnabled(customComponent3)).isTrue();
+    }
+
     /**
      * This test case increases the code coverage to cover methods
      * {@code describeContents()} and {@code newArray()}. They are public APIs
@@ -959,6 +1012,112 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         assertWithMessage("Requested shutdown power state")
                 .that(mPowerHal.getRequestedShutdownPowerState())
                 .isEqualTo(PowerHalService.PowerState.SHUTDOWN_TYPE_UNDEFINED);
+    }
+    @Test
+    public void testPowerPolicyNotificationCustomComponents() throws Exception {
+        grantPowerPolicyPermission();
+
+        Context context = InstrumentationRegistry.getInstrumentation().getContext();
+        mService.readPowerPolicyFromXml(
+                context.getResources().openRawResource(R.raw.valid_power_policy_custom_components));
+
+        int custom_component_1000 = 1000;
+        CarPowerPolicyFilter filter = new CarPowerPolicyFilter.Builder().setComponents(
+                custom_component_1000).build();
+        MockedPowerPolicyListener listener = new MockedPowerPolicyListener();
+        mService.addPowerPolicyListener(filter, listener);
+        String policyIdCustomOtherOff = "policy_id_custom_other_off";
+        mService.applyPowerPolicy(policyIdCustomOtherOff);
+
+        waitForPowerPolicy(policyIdCustomOtherOff);
+        assertThat(mPowerComponentHandler.getAccumulatedPolicy().getPolicyId()).isEqualTo(
+                policyIdCustomOtherOff);
+        PollingCheck.check("Current power policy of listener is null", WAIT_TIMEOUT_LONG_MS,
+                () -> listener.getCurrentPowerPolicy() != null);
+        assertThat(mPowerPolicyDaemon.getLastNotifiedPolicyId()).isEqualTo(policyIdCustomOtherOff);
+    }
+
+    @Test
+    public void testPowerPolicyNotification_testAccumulatedPolicy() throws Exception {
+        // Checking if accumulated power policy can preserve custom components between policy
+        // changes
+        grantPowerPolicyPermission();
+        // define used policies
+        String policyIdCustomOtherOff = "policy_id_custom_other_off";
+        String policyIdOtherNone = "policy_id_other_none";
+        String policyIdCustom = "policy_id_custom";
+        String policyIdOtherOff = "policy_id_other_off";
+
+        Context context = InstrumentationRegistry.getInstrumentation().getContext();
+        mService.readPowerPolicyFromXml(
+                context.getResources().openRawResource(R.raw.valid_power_policy_custom_components));
+        int custom_component_1000 = 1000;
+        CarPowerPolicyFilter filter = new CarPowerPolicyFilter.Builder().setComponents(
+                custom_component_1000).build();
+        MockedPowerPolicyListener listener = new MockedPowerPolicyListener();
+        MockedPowerPolicyListener referenceListenerAudio = new MockedPowerPolicyListener();
+        CarPowerPolicyFilter filterAudio = new CarPowerPolicyFilter.Builder()
+                .setComponents(PowerComponent.AUDIO).build();
+        mService.addPowerPolicyListener(filterAudio, referenceListenerAudio);
+        mService.addPowerPolicyListener(filter, listener);
+
+        // Start test
+        mService.applyPowerPolicy(policyIdOtherNone);
+        waitForPowerPolicy(policyIdOtherNone);
+
+        assertThat(mPowerComponentHandler.getAccumulatedPolicy().getPolicyId()).isEqualTo(
+                policyIdOtherNone);
+
+        PollingCheck.check("Current power policy of listener is null", WAIT_TIMEOUT_LONG_MS,
+                () -> referenceListenerAudio.getCurrentPowerPolicy() != null);
+
+        assertWithMessage("Audio should be disabled in accumulated policy").that(
+                referenceListenerAudio.getCurrentPowerPolicy().getDisabledComponents())
+                .asList().contains(PowerComponent.AUDIO);
+        // Custom component state hasn't changed, as result no current policy in listener
+        assertWithMessage("Current power policy is not null").that(
+                listener.getCurrentPowerPolicy()).isNull();
+
+        mService.applyPowerPolicy(policyIdCustomOtherOff);
+        waitForPowerPolicy(policyIdCustomOtherOff);
+
+        // Audio state is not expected to change
+        assertThat(referenceListenerAudio.getCurrentPowerPolicy().getPolicyId()).isEqualTo(
+                policyIdOtherNone);
+
+        PollingCheck.check("Current power policy of listener is null", WAIT_TIMEOUT_LONG_MS,
+                () -> listener.getCurrentPowerPolicy() != null && policyIdCustomOtherOff.equals(
+                        listener.getCurrentPowerPolicy().getPolicyId()));
+        assertWithMessage("Custom components is missing from accumulated policy").that(
+                listener.getCurrentPowerPolicy().getEnabledComponents()).asList().contains(
+                custom_component_1000);
+        assertThat(mPowerPolicyDaemon.getLastNotifiedPolicyId()).isEqualTo(policyIdCustomOtherOff);
+        // Change again and ensure no notification
+        // This policy doesn't change state of component_1000
+        mService.applyPowerPolicy(policyIdCustom);
+        waitForPowerPolicy(policyIdCustom);
+
+        PollingCheck.check("Current power policy of listener is null", WAIT_TIMEOUT_LONG_MS,
+                () -> listener.getCurrentPowerPolicy() != null && policyIdCustomOtherOff.equals(
+                        listener.getCurrentPowerPolicy().getPolicyId()));
+        assertWithMessage("Custom components is missing from accumulated policy").that(
+                listener.getCurrentPowerPolicy().getEnabledComponents()).asList().contains(
+                custom_component_1000);
+
+        // Apply policy_id_other_off, to ensure that custom component is removed from enabled in
+        // accumulated policy and moved to disabled
+        mService.applyPowerPolicy(policyIdOtherOff);
+        waitForPowerPolicy(policyIdOtherOff);
+
+        PollingCheck.check("Current power policy of listener is null", WAIT_TIMEOUT_LONG_MS,
+                () -> listener.getCurrentPowerPolicy() != null && policyIdOtherOff.equals(
+                        listener.getCurrentPowerPolicy().getPolicyId()));
+        assertWithMessage("Custom components is missing from accumulated policy").that(
+                listener.getCurrentPowerPolicy().getDisabledComponents()).asList().contains(
+                custom_component_1000);
+        assertWithMessage("Custom component is in enabled components of accumulated policy").that(
+                listener.getCurrentPowerPolicy().getEnabledComponents()).asList().doesNotContain(
+                custom_component_1000);
     }
 
     private void suspendDevice() throws Exception {
@@ -1167,6 +1326,9 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         public void setDisplayBrightness(int brightness) {}
 
         @Override
+        public void setDisplayBrightness(int displayId, int brightness) {}
+
+        @Override
         public void setDisplayState(int displayId, boolean on) {
             synchronized (sLock) {
                 mDisplayOn.put(displayId, on);
@@ -1240,6 +1402,9 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
 
         @Override
         public void refreshDisplayBrightness() {}
+
+        @Override
+        public void refreshDisplayBrightness(int displayId) {}
 
         @Override
         public boolean isAnyDisplayEnabled() {

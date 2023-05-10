@@ -25,14 +25,14 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * Used by {@link EV_STOPPING_MODE} to enumerate the current state of the stopping mode.
+ * Used by {@link android.car.VehiclePropertyIds#EV_STOPPING_MODE} to enumerate the current state of
+ * the stopping mode.
  *
  * <p>This list of states may be extended to include more states in the future.
  * @hide
  */
 @SystemApi
 public final class EvStoppingMode {
-
     /**
      * Other EV stopping mode. Ideally, this should never be used.
      */
@@ -64,7 +64,7 @@ public final class EvStoppingMode {
     private EvStoppingMode() {}
 
     /**
-     * Gets a user-friendly representation of an EV stopping mode.
+     * Returns a user-friendly representation of an EV stopping mode.
      */
     @NonNull
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,

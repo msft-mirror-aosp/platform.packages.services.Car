@@ -17,6 +17,7 @@
 package android.car;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -41,7 +42,6 @@ import android.view.Display;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.Lists;
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -371,8 +371,13 @@ public class CarOccupantZoneManager extends CarManagerBase {
     private final CopyOnWriteArrayList<OccupantZoneConfigChangeListener> mListeners =
             new CopyOnWriteArrayList<>();
 
-    /** @hide */
-    @VisibleForTesting
+    /**
+     * Gets an instance of the CarOccupantZoneManager.
+     *
+     * <p>Should not be obtained directly by clients, use {@link Car#getCarManager(String)} instead.
+     *
+     * @hide
+     */
     public CarOccupantZoneManager(Car car, IBinder service) {
         super(car);
         mService = ICarOccupantZone.Stub.asInterface(service);
@@ -555,6 +560,29 @@ public class CarOccupantZoneManager extends CarManagerBase {
     }
 
     /**
+     * Returns the info for the occupant zone that has the display identified by the given
+     * {@code displayId}.
+     *
+     * @param displayId Should be valid display id. Passing in invalid display id will lead into
+     *        getting {@code null} occupant zone info result.
+     * @return Occupant zone info or {@code null} if no occupant zone is found which has the given
+     * display.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    @Nullable
+    public OccupantZoneInfo getOccupantZoneForDisplayId(int displayId) {
+        try {
+            return mService.getOccupantZoneForDisplayId(displayId);
+        } catch (RemoteException e) {
+            return handleRemoteExceptionFromCarService(e, null);
+        }
+    }
+
+    /**
      * Assigns the given profile {@code userId} to the {@code occupantZone}. Returns true when the
      * request succeeds.
      *
@@ -622,6 +650,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
     @UserAssignmentResult
     public int assignVisibleUserToOccupantZone(@NonNull OccupantZoneInfo occupantZone,
             @NonNull UserHandle user) {
+        assertPlatformVersionAtLeastU();
         assertNonNullOccupant(occupantZone);
         try {
             return mService.assignVisibleUserToOccupantZone(occupantZone.zoneId, user);
@@ -650,6 +679,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @UserAssignmentResult
     public int unassignOccupantZone(@NonNull OccupantZoneInfo occupantZone) {
+        assertPlatformVersionAtLeastU();
         try {
             return mService.unassignOccupantZone(occupantZone.zoneId);
         } catch (RemoteException e) {

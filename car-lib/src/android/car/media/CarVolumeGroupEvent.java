@@ -21,6 +21,7 @@ import static android.media.AudioManager.FLAG_PLAY_SOUND;
 import static android.media.AudioManager.FLAG_SHOW_UI;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -39,6 +40,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 /**
  * Class to encapsulate car volume group event information.
@@ -116,6 +118,20 @@ public final class CarVolumeGroupEvent implements Parcelable {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static final int EVENT_TYPE_ATTENUATION_CHANGED = 1 << 5;
 
+    /**
+     * This event type indicates that the car audio zone configuration of the volume group has
+     * switched by {@link CarAudioManager#switchAudioZoneToConfig(CarAudioZoneConfigInfo, Executor,
+     * SwitchAudioZoneConfigCallback)}. The new audio attributes can be queried through
+     * {@link android.car.media.CarVolumeGroupInfo#getAudioAttributes()} on the
+     * list of {@link android.car.media.CarVolumeGroupInfo} received here.
+     *
+     * <p><b> Note: </b> When the car audio zone configuration is switched, the volume groups
+     * received here are completely new.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int EVENT_TYPE_ZONE_CONFIGURATION_CHANGED = 1 << 6;
+
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(flag = true, prefix = "EVENT_TYPE", value = {
@@ -125,6 +141,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
             EVENT_TYPE_MUTE_CHANGED,
             EVENT_TYPE_VOLUME_BLOCKED_CHANGED,
             EVENT_TYPE_ATTENUATION_CHANGED,
+            EVENT_TYPE_ZONE_CONFIGURATION_CHANGED,
     })
     public @interface EventTypeEnum {}
 
@@ -289,6 +306,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public @NonNull List<CarVolumeGroupInfo> getCarVolumeGroupInfos() {
+        assertPlatformVersionAtLeastU();
         return List.copyOf(mCarVolumeGroupInfos);
     }
 
@@ -305,11 +323,13 @@ public final class CarVolumeGroupEvent implements Parcelable {
      *         {@link #EVENT_TYPE_MUTE_CHANGED},
      *         {@link #EVENT_TYPE_VOLUME_BLOCKED_CHANGED},
      *         {@link #EVENT_TYPE_ATTENUATION_CHANGED}
+     *         {@link #EVENT_TYPE_ZONE_CONFIGURATION_CHANGED}
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @EventTypeEnum
     public int getEventTypes() {
+        assertPlatformVersionAtLeastU();
         return mEventTypes;
     }
 
@@ -350,6 +370,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public @NonNull List<Integer> getExtraInfos() {
+        assertPlatformVersionAtLeastU();
         return List.copyOf(mExtraInfos);
     }
 
@@ -367,6 +388,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static int convertExtraInfoToFlags(@NonNull List<Integer> extraInfos) {
+        assertPlatformVersionAtLeastU();
         int flags = 0;
         if (extraInfos.contains(EXTRA_INFO_SHOW_UI)) {
             flags |= FLAG_SHOW_UI;
@@ -398,6 +420,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     public static List<Integer> convertFlagsToExtraInfo(int flags, int eventTypes) {
+        assertPlatformVersionAtLeastU();
         List<Integer> extraInfos = new ArrayList<>();
 
         if ((flags & FLAG_SHOW_UI) != 0) {
@@ -438,6 +461,8 @@ public final class CarVolumeGroupEvent implements Parcelable {
                 "EVENT_TYPE_VOLUME_BLOCKED_CHANGED");
         EVENT_TYPE_NAMES.put(EVENT_TYPE_ATTENUATION_CHANGED,
                 "EVENT_TYPE_ATTENUATION_CHANGED");
+        EVENT_TYPE_NAMES.put(EVENT_TYPE_ZONE_CONFIGURATION_CHANGED,
+                "EVENT_TYPE_ZONE_CONFIGURATION_CHANGED");
     }
 
     /**
@@ -450,6 +475,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     public static String eventTypeToString(@EventTypeEnum int eventTypes) {
+        assertPlatformVersionAtLeastU();
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 32; i++) {
             int eventType = eventTypes & (1 << i);
@@ -513,6 +539,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     public static String extraInfosToString(@NonNull List<Integer> extraInfos) {
+        assertPlatformVersionAtLeastU();
         final StringBuilder sb = new StringBuilder();
         for (int extraInfo : extraInfos) {
             if (sb.length() > 0) {
@@ -647,6 +674,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         @NonNull
         public Builder addCarVolumeGroupInfo(@NonNull CarVolumeGroupInfo volumeGroupInfo) {
+            assertPlatformVersionAtLeastU();
             Preconditions.checkArgument(volumeGroupInfo != null,
                     "Volume group info can not be null");
             mCarVolumeGroupInfos.add(volumeGroupInfo);
@@ -658,6 +686,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         @NonNull
         public Builder addEventType(@EventTypeEnum int eventType) {
+            assertPlatformVersionAtLeastU();
             mEventTypes |= eventType;
             return this;
         }
@@ -667,6 +696,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         @NonNull
         public Builder setExtraInfos(@NonNull List<Integer> extraInfos) {
+            assertPlatformVersionAtLeastU();
             Preconditions.checkArgument(extraInfos != null, "Extra infos can not be null");
             mExtraInfos = extraInfos;
             return this;
@@ -677,6 +707,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         @NonNull
         public Builder addExtraInfo(int extraInfo) {
+            assertPlatformVersionAtLeastU();
             if (mExtraInfos == null) {
                 setExtraInfos(new ArrayList<>());
             }
@@ -693,6 +724,7 @@ public final class CarVolumeGroupEvent implements Parcelable {
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         @NonNull
         public CarVolumeGroupEvent build() {
+            assertPlatformVersionAtLeastU();
             checkNotUsed();
             mBuilderFieldsSet |= IS_USED_FIELD_SET; // Mark builder used
             // mark as EXTRA_INFO_NONE if none is available

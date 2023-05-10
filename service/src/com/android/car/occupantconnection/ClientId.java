@@ -31,7 +31,9 @@ final class ClientId {
     /** The package name of the client. */
     public final String packageName;
 
-    ClientId(@NonNull OccupantZoneInfo occupantZone, int userId, @NonNull String packageName) {
+    // TODO(b/275370184): use factory method pattern.
+    public ClientId(@NonNull OccupantZoneInfo occupantZone, int userId,
+            @NonNull String packageName) {
         this.occupantZone = Objects.requireNonNull(occupantZone, "occupantZone cannot be null");
         this.userId = userId;
         this.packageName = Objects.requireNonNull(packageName, "packageName cannot be null");

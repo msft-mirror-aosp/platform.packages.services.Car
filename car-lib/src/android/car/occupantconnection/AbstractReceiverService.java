@@ -18,11 +18,14 @@ package android.car.occupantconnection;
 
 import static android.car.Car.CAR_INTENT_ACTION_RECEIVER_SERVICE;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.app.Service;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
+import android.car.CarRemoteDeviceManager.AppState;
 import android.car.annotation.ApiRequirements;
 import android.car.builtin.util.Slogf;
 import android.content.Intent;
@@ -51,7 +54,7 @@ import java.util.Set;
  *     <intent-filter>
  *         <action android:name="android.car.intent.action.RECEIVER_SERVICE" />
  *     </intent-filter>
- *</service>}
+ * </service>}
  * </pre>
  * <p>
  * This service runs on the main thread of the client app, and is a singleton for the client app.
@@ -121,8 +124,9 @@ public abstract class AbstractReceiverService extends Service {
         }
 
         @Override
-        public void onConnectionInitiated(OccupantZoneInfo senderZone) {
-            AbstractReceiverService.this.onConnectionInitiated(senderZone);
+        public void onConnectionInitiated(OccupantZoneInfo senderZone,
+                @AppState int senderAppState) {
+            AbstractReceiverService.this.onConnectionInitiated(senderZone, senderAppState);
         }
 
         @Override
@@ -153,6 +157,7 @@ public abstract class AbstractReceiverService extends Service {
     @Nullable
     @Override
     public final IBinder onBind(@NonNull Intent intent) {
+        assertPlatformVersionAtLeastU();
         if (CAR_INTENT_ACTION_RECEIVER_SERVICE.equals(intent.getAction())) {
             return mBackendReceiver.asBinder();
         }
@@ -168,6 +173,7 @@ public abstract class AbstractReceiverService extends Service {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Nullable
     public IBinder onLocalServiceBind(@NonNull Intent intent) {
+        assertPlatformVersionAtLeastU();
         return null;
     }
 
@@ -203,7 +209,7 @@ public abstract class AbstractReceiverService extends Service {
 
 
     /**
-     * Invoked when the sender endpoint on {@code senderZone} has requested a connection to this
+     * Invoked when the sender client on {@code senderZone} has requested a connection to this
      * client.
      * <p>
      * When the connection is initiated, the inheritance of this service can call {@link
@@ -216,11 +222,23 @@ public abstract class AbstractReceiverService extends Service {
      *        {@link #acceptConnection} or {@link #rejectConnection} based on the activity result.
      *        For driving safety, the permission activity must be distraction optimized. If this
      *        is infeasible, the inheritance should just call {@link #rejectConnection}.
+     *   <li> For security, it is highly recommended that the inheritance not accept the connection
+     *        if {@code senderAppState} doesn't contain
+     *        {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_VERSION} or
+     *        {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_SIGNATURE}. If the
+     *        inheritance still wants to accept the connection in the case above, it should call
+     *        {@link android.car.CarRemoteDeviceManager#getEndpointPackageInfo} to get the sender's
+     *        {@link android.content.pm.PackageInfo} and check if it's valid before accepting the
+     *        connection.
      * </ul>
+     *
+     * @param senderZone     the occupant zone that the sender client runs in
+     * @param senderAppState the {@link AppState} of the sender
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public abstract void onConnectionInitiated(@NonNull OccupantZoneInfo senderZone);
+    public abstract void onConnectionInitiated(@NonNull OccupantZoneInfo senderZone,
+            @AppState int senderAppState);
 
     /**
      * Invoked when the one-way connection has been established.
@@ -236,7 +254,10 @@ public abstract class AbstractReceiverService extends Service {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public abstract void onConnected(@NonNull OccupantZoneInfo senderZone);
 
-    /** Invoked when the connection request has been canceled by the sender. */
+    /**
+     * Invoked when the sender has canceled the pending connection request, or has become
+     * unreachable after sending the connection request.
+     */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public abstract void onConnectionCanceled(@NonNull OccupantZoneInfo senderZone);
@@ -256,6 +277,7 @@ public abstract class AbstractReceiverService extends Service {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public final void acceptConnection(@NonNull OccupantZoneInfo senderZone) {
+        assertPlatformVersionAtLeastU();
         try {
             mBackendConnectionResponder.acceptConnection(senderZone);
         } catch (RemoteException e) {
@@ -272,6 +294,7 @@ public abstract class AbstractReceiverService extends Service {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public final void rejectConnection(@NonNull OccupantZoneInfo senderZone, int rejectionReason) {
+        assertPlatformVersionAtLeastU();
         try {
             mBackendConnectionResponder.rejectConnection(senderZone, rejectionReason);
         } catch (RemoteException e) {
@@ -297,6 +320,7 @@ public abstract class AbstractReceiverService extends Service {
     public final boolean forwardPayload(@NonNull OccupantZoneInfo senderZone,
             @NonNull String receiverEndpointId,
             @NonNull Payload payload) {
+        assertPlatformVersionAtLeastU();
         IPayloadCallback callback = mReceiverEndpointMap.get(receiverEndpointId);
         if (callback == null) {
             Slogf.e(TAG, "The receiver endpoint has been unregistered: %s", receiverEndpointId);
@@ -305,7 +329,7 @@ public abstract class AbstractReceiverService extends Service {
         try {
             callback.onPayloadReceived(senderZone, receiverEndpointId, payload);
             return true;
-        }  catch (RemoteException e) {
+        } catch (RemoteException e) {
             throw e.rethrowAsRuntimeException();
         }
     }
@@ -318,6 +342,7 @@ public abstract class AbstractReceiverService extends Service {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     public final Set<String> getAllReceiverEndpoints() {
+        assertPlatformVersionAtLeastU();
         return mReceiverEndpointMap.keySet();
     }
 
@@ -325,6 +350,7 @@ public abstract class AbstractReceiverService extends Service {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Override
     public int onStartCommand(@NonNull Intent intent, int flags, int startId) {
+        assertPlatformVersionAtLeastU();
         return START_STICKY;
     }
 
@@ -333,6 +359,7 @@ public abstract class AbstractReceiverService extends Service {
     @Override
     public void dump(@Nullable FileDescriptor fd, @NonNull PrintWriter writer,
             @Nullable String[] args) {
+        assertPlatformVersionAtLeastU();
         writer.println("*AbstractReceiverService*");
         writer.printf("%smReceiverEndpointMap:\n", INDENTATION_2);
         for (int i = 0; i < mReceiverEndpointMap.size(); i++) {

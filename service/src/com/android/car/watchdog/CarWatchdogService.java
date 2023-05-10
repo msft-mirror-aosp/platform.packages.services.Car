@@ -93,6 +93,7 @@ import java.lang.ref.WeakReference;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Service to implement CarWatchdogManager API.
@@ -152,7 +153,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 case ACTION_GARAGE_MODE_OFF:
                     int garageMode;
                     synchronized (mLock) {
-                        garageMode = mCurrentGarageMode = action.equals(ACTION_GARAGE_MODE_ON)
+                        garageMode = mCurrentGarageMode = Objects.equals(action,
+                                ACTION_GARAGE_MODE_ON)
                                 ? GarageMode.GARAGE_MODE_ON : GarageMode.GARAGE_MODE_OFF;
                     }
                     mWatchdogPerfHandler.onGarageModeChange(garageMode);
@@ -887,11 +889,10 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         }
 
         @Override
-        public void onLatestResourceStats(ResourceStats resourceStats) {
+        public void onLatestResourceStats(List<ResourceStats> resourceStats) {
             // TODO(b/266008146): Handle the resourceUsageStats.
-            if (resourceStats.resourceOveruseStats == null
-                    || resourceStats.resourceOveruseStats.packageIoOveruseStats.isEmpty()) {
-                Slogf.w(TAG, "Latest I/O overuse stats is empty");
+            if (resourceStats.isEmpty()) {
+                Slogf.w(TAG, "Latest resource stats is empty");
                 return;
             }
             CarWatchdogService service = mService.get();
@@ -899,8 +900,16 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 Slogf.w(TAG, "CarWatchdogService is not available");
                 return;
             }
-            service.mWatchdogPerfHandler.latestIoOveruseStats(
-                    resourceStats.resourceOveruseStats.packageIoOveruseStats);
+            for (int i = 0; i < resourceStats.size(); i++) {
+                ResourceStats stats = resourceStats.get(i);
+                if (stats.resourceOveruseStats == null
+                        || stats.resourceOveruseStats.packageIoOveruseStats.isEmpty()) {
+                    Slogf.w(TAG, "Received latest I/O overuse stats is empty");
+                    continue;
+                }
+                service.mWatchdogPerfHandler.latestIoOveruseStats(
+                        stats.resourceOveruseStats.packageIoOveruseStats);
+            }
         }
 
         @Override
@@ -917,6 +926,10 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             service.mWatchdogPerfHandler.resetResourceOveruseStats(new ArraySet<>(packageNames));
         }
 
+        // TODO(b/273354756): This method was replaced by an async request/response pattern
+        // Android U. Requests for the I/O stats are received through the requestTodayIoUsageStats
+        // method. And responses are sent through the carwatchdog daemon via
+        // ICarWatchdog#onTodayIoUsageStats. Make method no-op in Android W (N+2 releases).
         @Override
         public List<UserPackageIoUsageStats> getTodayIoUsageStats() {
             CarWatchdogService service = mService.get();
@@ -925,6 +938,26 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 return Collections.emptyList();
             }
             return service.mWatchdogPerfHandler.getTodayIoUsageStats();
+        }
+
+        @Override
+        public void requestAidlVhalPid() {
+            CarWatchdogService service = mService.get();
+            if (service == null) {
+                Slogf.w(TAG, "CarWatchdogService is not available");
+                return;
+            }
+            service.mWatchdogProcessHandler.asyncFetchAidlVhalPid();
+        }
+
+        @Override
+        public void requestTodayIoUsageStats() {
+            CarWatchdogService service = mService.get();
+            if (service == null) {
+                Slogf.w(TAG, "CarWatchdogService is not available");
+                return;
+            }
+            service.mWatchdogPerfHandler.asyncFetchTodayIoUsageStats();
         }
 
         @Override

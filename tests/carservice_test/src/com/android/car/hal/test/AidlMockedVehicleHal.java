@@ -45,6 +45,7 @@ import android.hardware.automotive.vehicle.VehiclePropertyAccess;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
+import android.util.ArrayMap;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -52,6 +53,7 @@ import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
@@ -65,6 +67,14 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
      */
     public interface VehicleHalPropertyHandler {
         default void onPropertySet(VehiclePropValue value) {}
+
+        // Same as onPropertySet, except that it returns whether to generate property change event
+        // for the new value. By default, this will return true.
+        // Caller can override this to control whether to generate property change event.
+        default boolean onPropertySet2(VehiclePropValue value) {
+            onPropertySet(value);
+            return true;
+        }
 
         default VehiclePropValue onPropertyGet(VehiclePropValue value) {
             return null;
@@ -129,7 +139,7 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
                 // Update property if requested
                 VehicleHalPropertyHandler handler = mPropertyHandlerMap.get(value.prop);
                 if (handler != null) {
-                    handler.onPropertySet(value);
+                    handler.onPropertySet2(value);
                 }
             }
 
@@ -258,12 +268,12 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
     @Override
     public void setValues(IVehicleCallback callback, SetValueRequests requests)
             throws RemoteException {
+        SetValueResults results = new SetValueResults();
+        Map<IVehicleCallback, List<VehiclePropValue>> subCallbackToValues = new ArrayMap<>();
         synchronized (mLock) {
             assertWithMessage("AidlMockedVehicleHal does not support large parcelable").that(
                     requests.sharedMemoryFd).isNull();
-            SetValueResults results = new SetValueResults();
             results.payloads = new SetValueResult[requests.payloads.length];
-
             for (int i = 0; i < requests.payloads.length; i++) {
                 SetValueRequest request = requests.payloads[i];
                 SetValueResult result = new SetValueResult();
@@ -275,17 +285,43 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
                     result.status = StatusCode.INVALID_ARG;
                 } else {
                     try {
-                        handler.onPropertySet(requestedPropValue);
+                        requestedPropValue.timestamp = SystemClock.elapsedRealtimeNanos();
+                        boolean generateEvent = handler.onPropertySet2(requestedPropValue);
                         result.status = StatusCode.OK;
+                        int propId = requestedPropValue.prop;
+                        // VMS has special logic.
+                        if (generateEvent && mSubscribers.get(propId) != null) {
+                            for (IVehicleCallback subCallback: mSubscribers.get(propId)) {
+                                if (subCallbackToValues.get(subCallback) == null) {
+                                    subCallbackToValues.put(subCallback, new ArrayList<>());
+                                }
+                                subCallbackToValues.get(subCallback).add(requestedPropValue);
+                            }
+                        }
                     } catch (ServiceSpecificException e) {
                         result.status = e.errorCode;
                     }
                 }
                 results.payloads[i] = result;
             }
-
-            callback.onSetValues(results);
         }
+        callback.onSetValues(results);
+
+        for (IVehicleCallback subCallback : subCallbackToValues.keySet()) {
+            VehiclePropValues propValues = new VehiclePropValues();
+            List<VehiclePropValue> updatedValues = subCallbackToValues.get(subCallback);
+            propValues.payloads = new VehiclePropValue[updatedValues.size()];
+            for (int i = 0; i < updatedValues.size(); i++) {
+                propValues.payloads[i] = updatedValues.get(i);
+            }
+            try {
+                subCallback.onPropertyEvent(propValues, /* sharedMemoryCount= */ 0);
+            } catch (RemoteException e) {
+                Log.e(TAG, "Failed invoking callback", e);
+                fail("Remote exception while injecting events.");
+            }
+        }
+
     }
 
     @Override

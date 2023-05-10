@@ -53,6 +53,8 @@ import android.util.SparseArray;
 import com.android.car.hal.PropertyHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.property.AsyncPropertyServiceRequest;
+import com.android.car.internal.property.AsyncPropertyServiceRequestList;
+import com.android.car.internal.property.CarPropertyConfigList;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
 import com.android.car.internal.property.InputSanitizationUtils;
 import com.android.car.internal.util.ArrayUtils;
@@ -62,6 +64,7 @@ import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Formatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +86,11 @@ public class CarPropertyService extends ICarProperty.Stub
     // will cause all the pending sync operation to timeout because result cannot be delivered.
     private static final int SYNC_GET_SET_PROPERTY_OP_LIMIT = 16;
     private static final long TRACE_TAG = TraceHelper.TRACE_TAG_CAR_SERVICE;
+    // A list of properties that must not set waitForPropertyUpdate to {@code true} for set async.
+    private static final Set<Integer> NOT_ALLOWED_WAIT_FOR_UPDATE_PROPERTIES =
+            new HashSet<>(Arrays.asList(
+                VehiclePropertyIds.HVAC_TEMPERATURE_VALUE_SUGGESTION
+            ));
 
     private static final Set<Integer> ERROR_STATES =
             new HashSet<Integer>(Arrays.asList(
@@ -129,6 +137,7 @@ public class CarPropertyService extends ICarProperty.Stub
                 WINDSHIELD_WIPERS_SWITCH_UNWRITABLE_STATES);
     }
 
+    private final Formatter mFormatter = new Formatter();
     private final Context mContext;
     private final PropertyHalService mPropertyHalService;
     private final Object mLock = new Object();
@@ -357,7 +366,7 @@ public class CarPropertyService extends ICarProperty.Stub
                 clients.add(client);
             }
             // Set the new updateRateHz
-            if (sanitizedUpdateRateHz > mPropertyHalService.getSampleRate(propertyId)) {
+            if (sanitizedUpdateRateHz > mPropertyHalService.getSubscribedUpdateRateHz(propertyId)) {
                 mPropertyHalService.subscribeProperty(propertyId, sanitizedUpdateRateHz);
             }
             finalClient = client;
@@ -479,7 +488,8 @@ public class CarPropertyService extends ICarProperty.Stub
             float rate = c.getRate(propId);
             updateMaxRate = Math.max(rate, updateMaxRate);
         }
-        if (Float.compare(updateMaxRate, mPropertyHalService.getSampleRate(propId)) != 0) {
+        if (Float.compare(updateMaxRate,
+                mPropertyHalService.getSubscribedUpdateRateHz(propId)) != 0) {
             try {
                 // Only reset the sample rate if needed
                 mPropertyHalService.subscribeProperty(propId, updateMaxRate);
@@ -504,7 +514,7 @@ public class CarPropertyService extends ICarProperty.Stub
      */
     @NonNull
     @Override
-    public List<CarPropertyConfig> getPropertyList() {
+    public CarPropertyConfigList getPropertyList() {
         int[] allPropId;
         // Avoid permission checking under lock.
         synchronized (mLock) {
@@ -522,12 +532,12 @@ public class CarPropertyService extends ICarProperty.Stub
      */
     @NonNull
     @Override
-    public List<CarPropertyConfig> getPropertyConfigList(int[] propIds) {
+    public CarPropertyConfigList getPropertyConfigList(int[] propIds) {
         // Cache the granted permissions
         Set<String> grantedPermission = new HashSet<>();
         List<CarPropertyConfig> availableProp = new ArrayList<>();
         if (propIds == null) {
-            return availableProp;
+            return new CarPropertyConfigList(availableProp);
         }
         for (int propId : propIds) {
             String readPermission = getReadPermission(propId);
@@ -535,14 +545,13 @@ public class CarPropertyService extends ICarProperty.Stub
             if (readPermission == null && writePermission == null) {
                 continue;
             }
-            boolean isHvacTemperatureDisplayUnitsAvailable =
-                    (propId == VehiclePropertyIds.HVAC_TEMPERATURE_DISPLAY_UNITS
-                            && checkAndUpdateGrantedPermissionSet(mContext, grantedPermission,
-                            Car.PERMISSION_READ_DISPLAY_UNITS));
+
             // Check if context already granted permission first
             if (checkAndUpdateGrantedPermissionSet(mContext, grantedPermission, readPermission)
-                    || checkAndUpdateGrantedPermissionSet(mContext, grantedPermission,
-                    writePermission) || isHvacTemperatureDisplayUnitsAvailable) {
+                    || checkAndUpdateGrantedWritePermissionSet(mContext, grantedPermission,
+                            writePermission, propId)
+                    || checkAndUpdateGrantedTemperatureDisplayUnitsPermissionSet(mContext,
+                            grantedPermission, propId)) {
                 synchronized (mLock) {
                     availableProp.add(mPropertyIdToCarPropertyConfig.get(propId));
                 }
@@ -551,7 +560,27 @@ public class CarPropertyService extends ICarProperty.Stub
         if (DBG) {
             Slogf.d(TAG, "getPropertyList returns " + availableProp.size() + " configs");
         }
-        return availableProp;
+        return new CarPropertyConfigList(availableProp);
+    }
+
+    private boolean checkAndUpdateGrantedWritePermissionSet(Context context,
+            Set<String> grantedPermissions, @Nullable String permission, int propertyId) {
+        if (!checkAndUpdateGrantedPermissionSet(context, grantedPermissions, permission)) {
+            return false;
+        }
+        if (mPropertyHalService.isDisplayUnitsProperty(propertyId) && permission != null
+                && permission.equals(Car.PERMISSION_CONTROL_DISPLAY_UNITS)) {
+            return checkAndUpdateGrantedPermissionSet(context, grantedPermissions,
+                    Car.PERMISSION_VENDOR_EXTENSION);
+        }
+        return true;
+    }
+
+    private static boolean checkAndUpdateGrantedTemperatureDisplayUnitsPermissionSet(
+            Context context, Set<String> grantedPermissions, int propertyId) {
+        return propertyId == VehiclePropertyIds.HVAC_TEMPERATURE_DISPLAY_UNITS
+                && checkAndUpdateGrantedPermissionSet(context, grantedPermissions,
+                Car.PERMISSION_READ_DISPLAY_UNITS);
     }
 
     private static boolean checkAndUpdateGrantedPermissionSet(Context context,
@@ -660,10 +689,8 @@ public class CarPropertyService extends ICarProperty.Stub
     public void setProperty(CarPropertyValue carPropertyValue,
             ICarPropertyEventListener iCarPropertyEventListener)
             throws IllegalArgumentException, ServiceSpecificException {
-        requireNonNull(carPropertyValue);
         requireNonNull(iCarPropertyEventListener);
-        validateSetParameters(carPropertyValue.getPropertyId(), carPropertyValue.getAreaId(),
-                carPropertyValue.getValue());
+        validateSetParameters(carPropertyValue);
 
         runSyncOperationCheckLimit(() -> {
             mPropertyHalService.setProperty(carPropertyValue);
@@ -797,17 +824,24 @@ public class CarPropertyService extends ICarProperty.Stub
         }
     }
 
+    private static void validateGetSetAsyncParameters(AsyncPropertyServiceRequestList requests,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback,
+            long timeoutInMs) throws IllegalArgumentException {
+        requireNonNull(requests);
+        requireNonNull(asyncPropertyResultCallback);
+        Preconditions.checkArgument(timeoutInMs > 0, "timeoutInMs must be a positive number");
+    }
+
     /**
      * Gets CarPropertyValues asynchronously.
      */
-    public void getPropertiesAsync(List<AsyncPropertyServiceRequest> getPropertyServiceRequests,
-            IAsyncPropertyResultCallback asyncPropertyResultCallback,
-            long timeoutInMs) {
-        requireNonNull(getPropertyServiceRequests);
-        requireNonNull(asyncPropertyResultCallback);
-        if (timeoutInMs <= 0) {
-            throw new IllegalArgumentException("timeoutInMs must be a positive number");
-        }
+    public void getPropertiesAsync(
+            AsyncPropertyServiceRequestList getPropertyServiceRequestsParcelable,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback, long timeoutInMs) {
+        validateGetSetAsyncParameters(getPropertyServiceRequestsParcelable,
+                asyncPropertyResultCallback, timeoutInMs);
+        List<AsyncPropertyServiceRequest> getPropertyServiceRequests =
+                getPropertyServiceRequestsParcelable.getList();
         for (int i = 0; i < getPropertyServiceRequests.size(); i++) {
             validateGetParameters(getPropertyServiceRequests.get(i).getPropertyId(),
                     getPropertyServiceRequests.get(i).getAreaId());
@@ -819,10 +853,42 @@ public class CarPropertyService extends ICarProperty.Stub
     /**
      * Sets CarPropertyValues asynchronously.
      */
-    public void setPropertiesAsync(List<AsyncPropertyServiceRequest> setPropertyServiceRequests,
+    public void setPropertiesAsync(AsyncPropertyServiceRequestList setPropertyServiceRequests,
             IAsyncPropertyResultCallback asyncPropertyResultCallback,
             long timeoutInMs) {
-       // TODO(b/264719384): Implement this.
+        validateGetSetAsyncParameters(setPropertyServiceRequests, asyncPropertyResultCallback,
+                timeoutInMs);
+        List<AsyncPropertyServiceRequest> setPropertyServiceRequestList =
+                setPropertyServiceRequests.getList();
+        for (int i = 0; i < setPropertyServiceRequestList.size(); i++) {
+            AsyncPropertyServiceRequest request = setPropertyServiceRequestList.get(i);
+            CarPropertyValue carPropertyValueToSet = request.getCarPropertyValue();
+            int propertyId = request.getPropertyId();
+            int valuePropertyId = carPropertyValueToSet.getPropertyId();
+            int areaId = request.getAreaId();
+            int valueAreaId = carPropertyValueToSet.getAreaId();
+            String propertyName = VehiclePropertyIds.toString(propertyId);
+            if (valuePropertyId != propertyId) {
+                throw new IllegalArgumentException(mFormatter.format(
+                        "Property ID in request and CarPropertyValue mismatch: %s vs %s",
+                        VehiclePropertyIds.toString(valuePropertyId), propertyName).toString());
+            }
+            if (valueAreaId != areaId) {
+                throw new IllegalArgumentException(mFormatter.format(
+                        "For property: %s, area ID in request and CarPropertyValue mismatch: %d vs"
+                        + " %d", propertyName, valueAreaId, areaId).toString());
+            }
+            validateSetParameters(carPropertyValueToSet);
+            if (request.isWaitForPropertyUpdate()) {
+                if (NOT_ALLOWED_WAIT_FOR_UPDATE_PROPERTIES.contains(propertyId)) {
+                    throw new IllegalArgumentException("Property: "
+                            + propertyName + " must set waitForPropertyUpdate to false");
+                }
+                validateGetParameters(propertyId, areaId);
+            }
+        }
+        mPropertyHalService.setCarPropertyValuesAsync(setPropertyServiceRequestList,
+                asyncPropertyResultCallback, timeoutInMs);
     }
 
     /**
@@ -896,7 +962,11 @@ public class CarPropertyService extends ICarProperty.Stub
         assertAreaIdIsSupported(areaId, carPropertyConfig);
     }
 
-    private <T> void validateSetParameters(int propertyId, int areaId, T valueToSet) {
+    private void validateSetParameters(CarPropertyValue<?> carPropertyValue) {
+        requireNonNull(carPropertyValue);
+        int propertyId = carPropertyValue.getPropertyId();
+        int areaId = carPropertyValue.getAreaId();
+        Object valueToSet = carPropertyValue.getValue();
         CarPropertyConfig<?> carPropertyConfig = getCarPropertyConfig(propertyId);
         assertConfigIsNotNull(propertyId, carPropertyConfig);
 

@@ -205,7 +205,8 @@ public:
 
     android::base::Result<void> onBoottimeCollection(
             time_t time, const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStatCollectorInterface>& procStatCollector) override;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector,
+            aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onWakeUpCollection(
             time_t time, const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
@@ -214,7 +215,8 @@ public:
     android::base::Result<void> onPeriodicCollection(
             time_t time, SystemState systemState,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStatCollectorInterface>& procStatCollector) override;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector,
+            aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onUserSwitchCollection(
             time_t time, userid_t from, userid_t to,
@@ -225,7 +227,8 @@ public:
             time_t time, SystemState systemState,
             const std::unordered_set<std::string>& filterPackages,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
-            const android::wp<ProcStatCollectorInterface>& procStatCollector) override;
+            const android::wp<ProcStatCollectorInterface>& procStatCollector,
+            aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onPeriodicMonitor(
             [[maybe_unused]] time_t time,

@@ -19,41 +19,27 @@ package android.car.occupantconnection;
 import android.car.CarOccupantZoneManager;
 import android.car.occupantconnection.IConnectionRequestCallback;
 import android.car.occupantconnection.IPayloadCallback;
-import android.car.occupantconnection.IStateCallback;
 import android.car.occupantconnection.Payload;
-import android.content.pm.PackageInfo;
-import android.os.IBinder;
-
-import java.util.List;
 
 /** @hide */
 interface ICarOccupantConnection {
 
-    // The following callbacks are used by CarRemoteDeviceManager.
-    void registerStateCallback(in IStateCallback callback);
-    void unregisterStateCallback();
-
-    PackageInfo getEndpointPackageInfo(int occupantZoneId, String packageName);
-
-    void setOccupantZonePower(in CarOccupantZoneManager.OccupantZoneInfo occupantZone,
-        boolean powerOn);
-
-    boolean isOccupantZonePowerOn(in CarOccupantZoneManager.OccupantZoneInfo occupantZone);
-
-    // The following callbacks are used by CarOccupantConnectionManager.
     void registerReceiver(String packageName, in String receiverEndpointId,
             in IPayloadCallback callback);
-    void unregisterReceiver(in String receiverEndpointId);
+    void unregisterReceiver(String packageName, in String receiverEndpointId);
 
     void requestConnection(String packageName,
             in CarOccupantZoneManager.OccupantZoneInfo receiverZone,
             in IConnectionRequestCallback callback);
-    void cancelConnection(in CarOccupantZoneManager.OccupantZoneInfo receiverZone);
+    void cancelConnection(String packageName,
+            in CarOccupantZoneManager.OccupantZoneInfo receiverZone);
 
-    void sendPayload(in CarOccupantZoneManager.OccupantZoneInfo receiverZone,
+    void sendPayload(String packageName,
+        in CarOccupantZoneManager.OccupantZoneInfo receiverZone,
         in Payload payload);
 
-    void disconnect(in CarOccupantZoneManager.OccupantZoneInfo receiverZone);
+    void disconnect(String packageName, in CarOccupantZoneManager.OccupantZoneInfo receiverZone);
 
-    boolean isConnected(in CarOccupantZoneManager.OccupantZoneInfo receiverZone);
+    boolean isConnected(String packageName,
+        in CarOccupantZoneManager.OccupantZoneInfo receiverZone);
 }

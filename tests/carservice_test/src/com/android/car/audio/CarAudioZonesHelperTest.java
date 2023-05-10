@@ -15,7 +15,10 @@
  */
 package com.android.car.audio;
 
+import static android.car.PlatformVersion.VERSION_CODES.TIRAMISU_3;
+import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
+import static android.car.test.mocks.AndroidMockitoHelper.mockCarGetPlatformVersion;
 import static android.media.AudioAttributes.USAGE_ANNOUNCEMENT;
 import static android.media.AudioAttributes.USAGE_EMERGENCY;
 import static android.media.AudioAttributes.USAGE_SAFETY;
@@ -28,11 +31,13 @@ import static com.android.car.audio.CarAudioService.CAR_DEFAULT_AUDIO_ATTRIBUTE;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.car.Car;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.Context;
 import android.media.AudioAttributes;
@@ -82,14 +87,8 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
     public static final int TEST_ANNOUNCEMENT_CONTEXT_ID = TEST_CAR_AUDIO_CONTEXT
             .getContextForAudioAttribute(CarAudioContext
                     .getAudioAttributeFromUsage(USAGE_ANNOUNCEMENT));
-    private List<CarAudioDeviceInfo> mCarAudioOutputDeviceInfos;
-    private AudioDeviceInfo[] mInputAudioDeviceInfos;
-    private InputStream mInputStream;
-    private Context mContext;
-    private CarAudioSettings mCarAudioSettings;
-    @Mock
-    private AudioManager mAudioManager;
-
+    private static final String BUS_MIRROR_DEVICE_1 = "mirror_bus_device_1";
+    private static final String BUS_MIRROR_DEVICE_2 = "mirror_bus_device_2";
     private static final String PRIMARY_ZONE_NAME = "primary zone";
     private static final String PRIMARY_ZONE_CONFIG_NAME = "primary zone config 1";
     private static final String REAR_ZONE_CONFIG_NAME_1 = "rear seat zone config 1";
@@ -109,6 +108,18 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
 
     private static final int PRIMARY_OCCUPANT_ID = 1;
     private static final int SECONDARY_ZONE_ID = 2;
+    private List<CarAudioDeviceInfo> mCarAudioOutputDeviceInfos;
+    private AudioDeviceInfo[] mInputAudioDeviceInfos;
+    private InputStream mInputStream;
+    private Context mContext;
+    private CarAudioSettings mCarAudioSettings;
+    @Mock
+    private AudioManager mAudioManager;
+
+    @Mock
+    private CarAudioDeviceInfo mTestCarMirrorDeviceOne;
+    @Mock
+    private CarAudioDeviceInfo mTestCarMirrorDeviceTwo;
 
     public CarAudioZonesHelperTest() {
         super(TAG);
@@ -116,7 +127,7 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        session.spyStatic(AudioManager.class);
+        session.spyStatic(AudioManager.class).spyStatic(Car.class);
     }
 
     @Before
@@ -128,6 +139,7 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
         mContext = ApplicationProvider.getApplicationContext();
         mInputStream = mContext.getResources().openRawResource(R.raw.car_audio_configuration);
         mCarAudioSettings = mock(CarAudioSettings.class);
+        mockCarGetPlatformVersion(UPSIDE_DOWN_CAKE_0);
     }
 
     @After
@@ -138,6 +150,8 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
     }
 
     private List<CarAudioDeviceInfo> generateCarDeviceInfos() {
+        mTestCarMirrorDeviceOne = generateCarAudioDeviceInfo(BUS_MIRROR_DEVICE_1);
+        mTestCarMirrorDeviceTwo = generateCarAudioDeviceInfo(BUS_MIRROR_DEVICE_2);
         return ImmutableList.of(
                 generateCarAudioDeviceInfo(BUS_0_ADDRESS),
                 generateCarAudioDeviceInfo(BUS_1_ADDRESS),
@@ -147,7 +161,9 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
                 generateCarAudioDeviceInfo(""),
                 generateCarAudioDeviceInfo(""),
                 generateCarAudioDeviceInfo(null),
-                generateCarAudioDeviceInfo(null)
+                generateCarAudioDeviceInfo(null),
+                mTestCarMirrorDeviceOne,
+                mTestCarMirrorDeviceTwo
         );
     }
 
@@ -806,6 +822,25 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    public void loadAudioZones_failsOnPrimaryZoneWithMultipleConfigs() throws Exception {
+        try (InputStream missingZoneConfigNameStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_primary_zone_with_multiple_configs)) {
+            CarAudioZonesHelper cazh =
+                    new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                            missingZoneConfigNameStream, mCarAudioOutputDeviceInfos,
+                            mInputAudioDeviceInfos, /* useCarVolumeGroupMute= */ false,
+                            /* useCoreAudioVolume= */ false, /* useCoreAudioRouting= */ false);
+
+            IllegalArgumentException thrown =
+                    assertThrows(IllegalArgumentException.class, () -> cazh.loadAudioZones());
+
+            expectWithMessage("Exception for multiple configurations in primary zone").that(thrown)
+                    .hasMessageThat().contains(
+                            "Primary zone cannot have multiple zone configurations");
+        }
+    }
+
+    @Test
     public void loadAudioZones_failsOnEmptyInputDeviceAddress() throws Exception {
         try (InputStream inputDevicesStream = mContext.getResources().openRawResource(
                 R.raw.car_audio_configuration_empty_input_device)) {
@@ -1029,6 +1064,27 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    public void loadAudioZones_usingCoreAudioVersionThree_failsOnReleaseLessThanU_fails()
+            throws Exception {
+        mockCarGetPlatformVersion(TIRAMISU_3);
+        try (InputStream versionOneStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_using_core_routing_and_volume)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                    versionOneStream,
+                    mCarAudioOutputDeviceInfos, mInputAudioDeviceInfos,
+                    /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ true, /* useCoreAudioRouting= */ true);
+
+            IllegalArgumentException thrown =
+                    assertThrows(IllegalArgumentException.class,
+                            () -> cazh.loadAudioZones());
+
+            assertWithMessage("Invalid release version exception").that(thrown)
+                    .hasMessageThat().contains("is only supported for release version");
+        }
+    }
+
+    @Test
     public void loadAudioZones_usingCoreAudioVersionThree_failsOnEmptyGroupName()
             throws Exception {
         try (InputStream versionOneStream = mContext.getResources().openRawResource(
@@ -1063,6 +1119,104 @@ public class CarAudioZonesHelperTest extends AbstractExtendedMockitoTestCase {
 
             expectWithMessage("Exception thrown when OEM audio contexts was defined after zones")
                     .that(thrown).hasMessageThat().matches("Car audio context .* is invalid");
+        }
+    }
+
+    @Test
+    public void loadAudioZones_usingCoreAudioVersionThree_succeedsOnAttributesWithOptionalFields()
+            throws Exception {
+        try (InputStream versionOneStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_using_core_routing_attr_valid_optional_fields)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                    versionOneStream, mCarAudioOutputDeviceInfos, mInputAudioDeviceInfos,
+                    /* useCarVolumeGroupMute= */ false, /* useCoreAudioVolume= */ true,
+                    /* useCoreAudioRouting= */ true);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Succeeded to parse zones").that(zones.size()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    public void loadAudioZones_usingCoreAudioVersionThree_failsOnEmptyAttributes()
+            throws Exception {
+        try (InputStream versionOneStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_using_core_routing_attr_invalid_empty_fields)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                    versionOneStream, mCarAudioOutputDeviceInfos, mInputAudioDeviceInfos,
+                    /* useCarVolumeGroupMute= */ false, /* useCoreAudioVolume= */ true,
+                    /* useCoreAudioRouting= */ true);
+
+            RuntimeException thrown =
+                    assertThrows(RuntimeException.class, () -> cazh.loadAudioZones());
+
+            expectWithMessage("Music context has empty attributes").that(thrown)
+                    .hasMessageThat().contains("Empty attributes for context: MUSIC_CONTEXT");
+        }
+    }
+
+    @Test
+    public void getMirrorDeviceInfos() throws Exception {
+        CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                mInputStream, mCarAudioOutputDeviceInfos, mInputAudioDeviceInfos,
+                /* useCarVolumeGroupMute= */ false, /* useCoreAudioVolume= */ false,
+                /* useCoreAudioRouting= */ false);
+        cazh.loadAudioZones();
+
+        expectWithMessage("Mirror devices").that(cazh.getMirrorDeviceInfos())
+                .containsExactly(mTestCarMirrorDeviceOne, mTestCarMirrorDeviceTwo);
+    }
+
+    @Test
+    public void getMirrorDeviceInfos_withOutMirroringDevices() throws Exception {
+        try (InputStream versionOneStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_without_mirroring)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                    versionOneStream,
+                    mCarAudioOutputDeviceInfos, mInputAudioDeviceInfos,
+                    /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ false, /* useCoreAudioRouting= */ false);
+            cazh.loadAudioZones();
+
+            expectWithMessage("Mirror devices for empty configuration")
+                    .that(cazh.getMirrorDeviceInfos()).isEmpty();
+        }
+    }
+
+    @Test
+    public void loadAudioZones_failsOnMirroringDevicesInV2() throws Exception {
+        try (InputStream versionOneStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_mirroring_V2)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                    versionOneStream,
+                    mCarAudioOutputDeviceInfos, mInputAudioDeviceInfos,
+                    /* useCarVolumeGroupMute= */ false, /* useCoreAudioVolume= */ false,
+                    /* useCoreAudioRouting= */ false);
+
+            IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                    () -> cazh.loadAudioZones());
+
+            expectWithMessage("Mirror devices in v2 configuration exception")
+                    .that(thrown).hasMessageThat().contains("mirroringDevices");
+        }
+    }
+
+    @Test
+    public void loadAudioZones_failsOnDuplicateMirroringDevices() throws Exception {
+        try (InputStream versionOneStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_duplicate_mirror_devices)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManager, mCarAudioSettings,
+                    versionOneStream,
+                    mCarAudioOutputDeviceInfos, mInputAudioDeviceInfos,
+                    /* useCarVolumeGroupMute= */ false, /* useCoreAudioVolume= */ false,
+                    /* useCoreAudioRouting= */ false);
+
+            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                    () -> cazh.loadAudioZones());
+
+            expectWithMessage("Duplicates mirror devices in configuration exception")
+                    .that(thrown).hasMessageThat().contains("can not repeat");
         }
     }
 

@@ -65,11 +65,13 @@ else
 PRODUCT_PACKAGES += DirectRenderingCluster
 endif  # ENABLE_CLUSTER_OS_DOUBLE
 
-PRODUCT_COPY_FILES += \
-    frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf
-
 PRODUCT_PROPERTY_OVERRIDES += \
-    ro.carrier=unknown
+    ro.carrier=unknown \
+    ro.hardware.type=automotive \
+
+# Disable developer options activity embedding
+PRODUCT_SYSTEM_PROPERTIES += \
+    persist.sys.fflag.override.settings_support_large_screen=false
 
 # Set default Bluetooth profiles
 TARGET_SYSTEM_PROP += \
@@ -86,11 +88,6 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.fw.mu.headless_system_user?=true
 
-# Enable user pre-creation
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    android.car.number_pre_created_users?=1 \
-    android.car.number_pre_created_guests?=1
-
 # Enable User HAL integration
 # NOTE: when set to true, VHAL must also implement the user-related properties,
 # otherwise CarService will ignore it
@@ -103,6 +100,9 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 $(call inherit-product, device/sample/products/location_overlay.mk)
 $(call inherit-product-if-exists, frameworks/webview/chromium/chromium.mk)
 $(call inherit-product, packages/services/Car/car_product/build/car_base.mk)
+
+# Window Extensions
+$(call inherit-product, $(SRC_TARGET_DIR)/product/window_extensions.mk)
 
 # Overrides
 PRODUCT_BRAND := generic

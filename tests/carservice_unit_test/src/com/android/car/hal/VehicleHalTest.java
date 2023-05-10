@@ -25,6 +25,7 @@ import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -90,8 +91,13 @@ public class VehicleHalTest {
     private static final int SOME_INT64_PROPERTY = VehiclePropertyType.INT32 | 0x10;
     private static final int SOME_INT64_VEC_PROPERTY = VehiclePropertyType.INT64_VEC | 0x11;
     private static final int UNSUPPORTED_PROPERTY = -1;
+    private static final int GLOBAL_AREA_ID = 0;
+    private static final int AREA_ID_1 = 1;
+    private static final int AREA_ID_2 = 3;
+    private static final int AREA_ID_3 = 5;
 
-    private static final float ANY_SAMPLING_RATE = 60f;
+    private static final float ANY_SAMPLING_RATE_1 = 60f;
+    private static final float ANY_SAMPLING_RATE_2 = 33f;
 
     @Mock private Context mContext;
     @Mock private PowerHalService mPowerHalService;
@@ -149,7 +155,7 @@ public class VehicleHalTest {
         when(mClusterHalService.getAllSupportedProperties()).thenReturn(new int[0]);
 
         when(mVehicle.getAllPropConfigs()).thenReturn(toHalPropConfigs(mConfigs));
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
     }
 
     private static Answer<Void> checkConfigs(ArrayList<VehiclePropConfig> configs) {
@@ -327,7 +333,7 @@ public class VehicleHalTest {
 
         when(mVehicle.getAllPropConfigs()).thenReturn(toHalPropConfigs(mConfigs));
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
     }
 
     @Test
@@ -343,7 +349,7 @@ public class VehicleHalTest {
         propertyHalConfig.changeMode = VehiclePropertyChangeMode.STATIC;
 
         init(powerHalConfig, propertyHalConfig);
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
 
         // getAllPropConfigs should only be called once.
         verify(mVehicle, times(1)).getAllPropConfigs();
@@ -383,7 +389,7 @@ public class VehicleHalTest {
         doAnswer(checkConfigs(new ArrayList<VehiclePropConfig>()))
                 .when(mDiagnosticHalService).takeProperties(any());
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
 
         verify(mPowerHalService).init();
         verify(mPropertyHalService).init();
@@ -427,7 +433,7 @@ public class VehicleHalTest {
         doAnswer(checkConfigs(new ArrayList<VehiclePropConfig>()))
                 .when(mDiagnosticHalService).takeProperties(any());
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
 
         verify(mPowerHalService).init();
         verify(mPropertyHalService).init();
@@ -458,13 +464,13 @@ public class VehicleHalTest {
         // Throw exception.
         when(mVehicle.getAllPropConfigs()).thenThrow(new RemoteException());
 
-        assertThrows(RuntimeException.class, () -> mVehicleHal.init());
+        assertThrows(RuntimeException.class, () -> mVehicleHal.priorityInit());
     }
 
     @Test
     public void testRelease() throws Exception {
         mVehicleHal.subscribeProperty(
-                mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY, ANY_SAMPLING_RATE);
+                mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY, ANY_SAMPLING_RATE_1);
 
         mVehicleHal.release();
 
@@ -480,7 +486,7 @@ public class VehicleHalTest {
     @Test
     public void testReleaseUnsubscribeRemoteException() throws Exception {
         mVehicleHal.subscribeProperty(
-                mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY, ANY_SAMPLING_RATE);
+                mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY, ANY_SAMPLING_RATE_1);
         // This exception should be captured into a warning.
         doThrow(new RemoteException()).when(mSubscriptionClient).unsubscribe(
                 SOME_READ_ON_CHANGE_PROPERTY);
@@ -512,13 +518,11 @@ public class VehicleHalTest {
     public void testSubscribeProperty_registeringReadWriteAndOnChangeProperty() throws Exception {
         // Act
         mVehicleHal.subscribeProperty(
-                mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY, ANY_SAMPLING_RATE);
+                mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY, ANY_SAMPLING_RATE_1);
 
         // Assert
-        SubscribeOptions expectedOptions = new SubscribeOptions();
-        expectedOptions.propId = SOME_READ_ON_CHANGE_PROPERTY;
-        expectedOptions.sampleRate = ANY_SAMPLING_RATE;
-        expectedOptions.areaIds = new int[0];
+        SubscribeOptions expectedOptions = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, new int[]{GLOBAL_AREA_ID});
 
         verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions}));
     }
@@ -528,10 +532,9 @@ public class VehicleHalTest {
         mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY);
 
         // Assert
-        SubscribeOptions expectedOptions = new SubscribeOptions();
-        expectedOptions.propId = SOME_READ_ON_CHANGE_PROPERTY;
-        expectedOptions.sampleRate = 0f;
-        expectedOptions.areaIds = new int[0];
+        SubscribeOptions expectedOptions = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                0f, new int[]{GLOBAL_AREA_ID});
+
 
         verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions}));
     }
@@ -539,13 +542,11 @@ public class VehicleHalTest {
     @Test
     public void testSubscribeProperty_defaultFlag() throws Exception {
         mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
-                ANY_SAMPLING_RATE);
+                ANY_SAMPLING_RATE_1);
 
         // Assert
-        SubscribeOptions expectedOptions = new SubscribeOptions();
-        expectedOptions.propId = SOME_READ_ON_CHANGE_PROPERTY;
-        expectedOptions.sampleRate = ANY_SAMPLING_RATE;
-        expectedOptions.areaIds = new int[0];
+        SubscribeOptions expectedOptions = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, new int[]{GLOBAL_AREA_ID});
 
         verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions}));
     }
@@ -559,7 +560,7 @@ public class VehicleHalTest {
                         mVehicleHal.subscribeProperty(
                                 mPropertyHalService,
                                 SOME_READ_ON_CHANGE_PROPERTY,
-                                ANY_SAMPLING_RATE));
+                                ANY_SAMPLING_RATE_1));
     }
 
     @Test
@@ -569,7 +570,7 @@ public class VehicleHalTest {
                 IllegalArgumentException.class,
                 () ->
                         mVehicleHal.subscribeProperty(
-                                mPowerHalService, UNSUPPORTED_PROPERTY, ANY_SAMPLING_RATE));
+                                mPowerHalService, UNSUPPORTED_PROPERTY, ANY_SAMPLING_RATE_1));
     }
 
     @Test
@@ -577,12 +578,10 @@ public class VehicleHalTest {
         doThrow(new RemoteException()).when(mSubscriptionClient).subscribe(any());
 
         mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
-                ANY_SAMPLING_RATE);
+                ANY_SAMPLING_RATE_1);
 
-        SubscribeOptions expectedOptions = new SubscribeOptions();
-        expectedOptions.propId = SOME_READ_ON_CHANGE_PROPERTY;
-        expectedOptions.sampleRate = ANY_SAMPLING_RATE;
-        expectedOptions.areaIds = new int[0];
+        SubscribeOptions expectedOptions = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, new int[]{GLOBAL_AREA_ID});
 
         // RemoteException is handled in subscribeProperty.
         verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions}));
@@ -592,10 +591,156 @@ public class VehicleHalTest {
     public void testSubscribeProperty_registeringStaticProperty() throws Exception {
         // Act
         mVehicleHal.subscribeProperty(
-                mPowerHalService, SOME_READ_WRITE_STATIC_PROPERTY, ANY_SAMPLING_RATE);
+                mPowerHalService, SOME_READ_WRITE_STATIC_PROPERTY, ANY_SAMPLING_RATE_1);
 
         // Assert
         verify(mSubscriptionClient, never()).subscribe(any());
+    }
+
+    @Test
+    public void testSubscribeProperty_subscribeSameSampleRate_ignored() throws Exception {
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1);
+
+        verify(mSubscriptionClient).subscribe(any());
+        clearInvocations(mSubscriptionClient);
+
+        // Subscribe the same property with same sample rate must be ignored.
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1);
+
+        verify(mSubscriptionClient, never()).subscribe(any());
+    }
+
+    @Test
+    public void testSubscribeProperty_subscribeWithAreaId() throws Exception {
+        int[] areaIds = new int[] {AREA_ID_1};
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds);
+
+        SubscribeOptions expectedOptions = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds);
+
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions}));
+    }
+
+    @Test
+    public void testSubscribeProperty_withSameSampleRateDifferentArea() throws Exception {
+        // Arrange
+        int[] areaIds1 = new int[] {AREA_ID_1};
+        int[] areaIds2 = new int[] {AREA_ID_2};
+
+        // Act
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds2);
+
+        // Assert
+        SubscribeOptions expectedOptions1 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        SubscribeOptions expectedOptions2 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds2);
+
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions1}));
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions2}));
+    }
+
+    @Test
+    public void testSubscribeProperty_withSameSampleRateIntersectingAreas() throws Exception {
+        // Arrange
+        int[] areaIds1 = new int[] {AREA_ID_1, AREA_ID_2};
+        int[] areaIds2 = new int[] {AREA_ID_2, AREA_ID_3};
+
+        // Act
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds2);
+
+        // Assert
+        SubscribeOptions expectedOptions1 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        SubscribeOptions expectedOptions2 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, new int[] {AREA_ID_3});
+
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions1}));
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions2}));
+    }
+
+    @Test
+    public void testSubscribeProperty_withSameSampleRateMoreAreas() throws Exception {
+        // Arrange
+        int[] areaIds1 = new int[] {AREA_ID_1};
+        int[] areaIds2 = new int[] {AREA_ID_1, AREA_ID_2};
+
+        // Act
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds2);
+
+        // Assert
+        SubscribeOptions expectedOptions1 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        SubscribeOptions expectedOptions2 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, new int[]{AREA_ID_2});
+
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions1}));
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions2}));
+    }
+
+    @Test
+    public void testSubscribeProperty_withSameSampleRateSameArea() throws Exception {
+        // Arrange
+        int[] areaIds1 = new int[] {AREA_ID_1, AREA_ID_2};
+        int[] areaIds2 = new int[] {AREA_ID_1};
+
+        // Act
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds2);
+
+        // Assert
+        SubscribeOptions expectedOptions1 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        SubscribeOptions expectedOptions2 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds2);
+
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions1}));
+        verify(mSubscriptionClient, never())
+                .subscribe(eq(new SubscribeOptions[]{expectedOptions2}));
+    }
+
+    @Test
+    public void testSubscribeProperty_withDifferentSampleRateWithAreaId() throws Exception {
+        // Arrange
+        int[] areaIds1 = new int[] {AREA_ID_1, AREA_ID_2};
+        int[] areaIds2 = new int[] {AREA_ID_1, AREA_ID_2};
+
+        // Act
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_2, areaIds2);
+
+        // Assert
+        SubscribeOptions expectedOptions1 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_1, areaIds1);
+        SubscribeOptions expectedOptions2 = createSubscribeOptions(SOME_READ_ON_CHANGE_PROPERTY,
+                ANY_SAMPLING_RATE_2, areaIds2);
+
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions1}));
+        verify(mSubscriptionClient).subscribe(eq(new SubscribeOptions[]{expectedOptions2}));
+    }
+
+    private SubscribeOptions createSubscribeOptions(int propId, float sampleRate, int[] areaIds) {
+        SubscribeOptions opts = new SubscribeOptions();
+        opts.propId = propId;
+        opts.sampleRate = sampleRate;
+        opts.areaIds = areaIds;
+        return opts;
     }
 
     @Test
@@ -629,12 +774,6 @@ public class VehicleHalTest {
     }
 
     @Test
-    public void testGetSampleRate_unsupportedProperty() {
-        assertThat(mVehicleHal.getSampleRate(UNSUPPORTED_PROPERTY)).isEqualTo(
-                VehicleHal.NO_SAMPLE_RATE);
-    }
-
-    @Test
     public void testUnsubscribeProperty_remoteException() throws Exception {
         // Arrange
         mVehicleHal.subscribeProperty(mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY);
@@ -646,17 +785,6 @@ public class VehicleHalTest {
         // Assert
         // RemoteException is handled in subscribeProperty.
         verify(mSubscriptionClient).unsubscribe(eq(SOME_READ_ON_CHANGE_PROPERTY));
-    }
-
-    @Test
-    public void testGetSampleRate_supportedAndRegisteredProperty() {
-        // Act
-        mVehicleHal.subscribeProperty(
-                mPowerHalService, SOME_READ_ON_CHANGE_PROPERTY, ANY_SAMPLING_RATE);
-
-        // Assert
-        assertThat(mVehicleHal.getSampleRate(SOME_READ_ON_CHANGE_PROPERTY)).isEqualTo(
-                ANY_SAMPLING_RATE);
     }
 
     @Test
@@ -1524,7 +1652,7 @@ public class VehicleHalTest {
         when(mPowerHalService.getDispatchList()).thenReturn(dispatchList);
         doAnswer(storePropValues(values)).when(mPowerHalService).onHalEvents(any());
 
-        mVehicleHal.init();
+        mVehicleHal.priorityInit();
     }
 
     @Test

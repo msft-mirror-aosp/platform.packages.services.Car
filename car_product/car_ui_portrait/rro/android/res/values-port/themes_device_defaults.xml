@@ -23,6 +23,7 @@
         <!-- Text styles -->
         <!-- TODO clean up -->
 
+        <item name="android:textAppearanceButton">@style/TextAppearance.DeviceDefault.Widget.Button</item>
         <item name="android:textAppearanceListItem">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSmall">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSecondary">@*android:style/TextAppearance.DeviceDefault.Small</item>
@@ -41,6 +42,7 @@
         <item name="android:colorBackgroundFloating">@color/floating_background_color</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:colorButtonNormal">@color/btn_device_default</item>
+        <item name="android:colorAccent">@color/car_primary</item>
         <item name="android:colorActivatedHighlight">@color/car_control_highlight</item>
         <item name="android:colorBackground">@color/car_background</item>
         <item name="android:colorControlHighlight">@color/car_control_highlight</item>
@@ -48,12 +50,16 @@
         <item name="android:colorFocusedHighlight">@color/car_control_highlight</item>
         <item name="android:textColorPrimary">@color/car_on_background</item>
         <item name="android:textColorPrimaryInverse">@color/car_background</item>
+        <item name="android:textColorSecondary">@color/car_secondary</item>
+        <item name="android:textColorSecondaryInverse">@color/car_on_secondary</item>
+        <item name="android:textColorTertiary">@color/car_secondary</item>
+        <item name="android:textColorTertiaryInverse">@color/car_on_secondary</item>
 
         <item name="android:listDivider">@color/list_divider_color</item>
         <item name="android:alertDialogTheme">@android:style/Theme.DeviceDefault.Dialog.Alert</item>
     </style>
 
-    <style name="Theme.DeviceDefault.Dialog" parent="android:Theme.Material.Dialog">
+    <style name="Theme.DeviceDefault.Dialog" parent="*android:Theme.DeviceDefault.Dialog">
         <item name="android:textAppearanceLarge">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceMedium">@*android:style/TextAppearance.DeviceDefault.Medium</item>
         <item name="android:textAppearanceSmall">@*android:style/TextAppearance.DeviceDefault.Small</item>
@@ -63,7 +69,7 @@
         <item name="android:textAppearanceListItem">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSmall">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSecondary">@*android:style/TextAppearance.DeviceDefault.Small</item>
-        <item name="android:textAppearanceButton">@*android:style/Widget.DeviceDefault.Button</item>
+        <item name="android:textAppearanceButton">@*android:style/TextAppearance.DeviceDefault.Widget.Button</item>
         <item name="android:borderlessButtonStyle">@*android:style/Widget.DeviceDefault.Button.Borderless.Colored</item>
         <item name="android:buttonBarButtonStyle">@*android:style/Widget.DeviceDefault.Button.ButtonBar.AlertDialog</item>
         <item name="android:buttonStyle">@*android:style/Widget.DeviceDefault.Button</item>
@@ -71,7 +77,8 @@
         <item name="android:windowTitleStyle">?android:attr/textAppearanceLarge</item>
         <!-- Color palette -->
         <item name="android:colorButtonNormal">@color/btn_device_default</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackground">@color/car_surface</item>
+        <item name="android:colorBackgroundFloating">@color/car_surface</item>
     </style>
 
     <style name="Theme.DeviceDefault.Dialog.NoActionBar" parent="android:Theme.DeviceDefault.Dialog">

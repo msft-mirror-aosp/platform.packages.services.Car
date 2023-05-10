@@ -41,11 +41,16 @@ import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.description;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import android.car.oem.AudioFocusEntry;
+import android.car.oem.OemCarAudioFocusEvaluationRequest;
+import android.car.oem.OemCarAudioFocusResult;
 import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.media.AudioAttributes.AttributeUsage;
@@ -57,6 +62,7 @@ import android.os.Build;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.car.CarLocalServices;
+import com.android.car.oem.CarOemAudioFocusProxyService;
 import com.android.car.oem.CarOemProxyService;
 
 import org.junit.After;
@@ -64,6 +70,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
@@ -88,6 +95,8 @@ public class CarAudioFocusUnitTest {
             new CarAudioContext(CarAudioContext.getAllContextsInfo(),
                     /* useCoreAudioRouting= */ false);
 
+    private static final int TEST_VOLUME_GROUP = 5;
+
     @Rule
     public MockitoRule rule = MockitoJUnit.rule();
     @Mock
@@ -104,6 +113,8 @@ public class CarAudioFocusUnitTest {
     private CarVolumeInfoWrapper mMockCarVolumeInfoWrapper;
     @Mock
     private CarOemProxyService mMockCarOemProxyService;
+    @Mock
+    private CarOemAudioFocusProxyService mMockAudioFocusProxyService;
 
     private FocusInteraction mFocusInteraction;
 
@@ -221,6 +232,41 @@ public class CarAudioFocusUnitTest {
                 AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
         verify(mMockAudioManager, times(1)).setFocusRequestResult(sameClientAndUsageFocusInfo,
                 AUDIOFOCUS_REQUEST_GRANTED, mAudioPolicy);
+    }
+
+    @Test
+    public void onAudioFocusAbandon_whileMediaWaitsForRingerAndCall_focusRegained() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo mediaFocusInfo = getInfoForFirstClientWithMedia();
+        carAudioFocus.onAudioFocusRequest(mediaFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        AudioFocusInfo ringerFocusInfo = getInfo(USAGE_NOTIFICATION_RINGTONE, CALL_CLIENT_ID,
+                AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, /* acceptsDelayedFocus= */ false);
+        carAudioFocus.onAudioFocusRequest(ringerFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        AudioFocusInfo callFocusInfo = getInfo(USAGE_VOICE_COMMUNICATION, CALL_CLIENT_ID,
+                AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, /* acceptsDelayedFocus= */ false);
+        carAudioFocus.onAudioFocusRequest(callFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        carAudioFocus.onAudioFocusAbandon(callFocusInfo);
+
+        List<Integer> focusChanges = getFocusChanges(mediaFocusInfo);
+        assertWithMessage("Media focus changes with call and ringer")
+                .that(focusChanges).containsExactly(AUDIOFOCUS_LOSS_TRANSIENT, AUDIOFOCUS_GAIN);
+    }
+
+    @Test
+    public void onAudioFocusAbandon_whileMediaWaitsOnCallOnly_focusRegained() {
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+        AudioFocusInfo mediaFocusInfo = getInfoForFirstClientWithMedia();
+        carAudioFocus.onAudioFocusRequest(mediaFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        AudioFocusInfo callFocusInfo = getInfo(USAGE_VOICE_COMMUNICATION, CALL_CLIENT_ID,
+                AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK, /* acceptsDelayedFocus= */ false);
+        carAudioFocus.onAudioFocusRequest(callFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        carAudioFocus.onAudioFocusAbandon(callFocusInfo);
+
+        List<Integer> focusChanges = getFocusChanges(mediaFocusInfo);
+        assertWithMessage("Media focus changes with call only")
+                .that(focusChanges).containsExactly(AUDIOFOCUS_LOSS_TRANSIENT, AUDIOFOCUS_GAIN);
     }
 
     @Test
@@ -1275,6 +1321,56 @@ public class CarAudioFocusUnitTest {
 
         assertWithMessage("User %s focus info with audio attributes %s active focus list",
                 USER_11_ID, mediaAudioAttribute).that(activeFocus).isEmpty();
+    }
+
+    @Test
+    public void onAudioFocusRequest_withOemServiceEnabled_capturesFocusRequest() {
+        when(mMockCarOemProxyService.isOemServiceEnabled()).thenReturn(true);
+        when(mMockCarOemProxyService.isOemServiceReady()).thenReturn(true);
+        when(mMockCarOemProxyService.getCarOemAudioFocusService())
+                .thenReturn(mMockAudioFocusProxyService);
+        AudioFocusInfo audioFocusInfo = getInfo(USAGE_MEDIA, SECOND_CLIENT_ID, AUDIOFOCUS_GAIN,
+                /* acceptsDelayedFocus= */ false);
+        AudioAttributes mediaAudioAttribute =
+                new AudioAttributes.Builder().setUsage(USAGE_MEDIA).build();
+        AudioFocusEntry mediaEntry = new AudioFocusEntry.Builder(audioFocusInfo,
+                TEST_CAR_AUDIO_CONTEXT.getContextForAudioAttribute(mediaAudioAttribute),
+                TEST_VOLUME_GROUP, AUDIOFOCUS_GAIN).build();
+        OemCarAudioFocusResult mediaResults = getAudioFocusResults(mediaEntry,
+                AUDIOFOCUS_REQUEST_GRANTED);
+        when(mMockAudioFocusProxyService.evaluateAudioFocusRequest(any())).thenReturn(mediaResults);
+        when(mMockCarVolumeInfoWrapper.getVolumeGroupIdForAudioAttribute(PRIMARY_AUDIO_ZONE,
+                mediaAudioAttribute)).thenReturn(TEST_VOLUME_GROUP);
+        CarAudioFocus carAudioFocus = getCarAudioFocus();
+
+        carAudioFocus.onAudioFocusRequest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        AudioFocusEntry entry = captureOemServiceAudioFocusEntry();
+        assertWithMessage("Media focus entry info").that(entry
+                .getAudioFocusInfo()).isEqualTo(audioFocusInfo);
+        assertWithMessage("Media focus entry volume group").that(entry
+                .getAudioVolumeGroupId()).isEqualTo(TEST_VOLUME_GROUP);
+    }
+
+    private AudioFocusEntry captureOemServiceAudioFocusEntry() {
+        ArgumentCaptor<OemCarAudioFocusEvaluationRequest> captor = ArgumentCaptor
+                .forClass(OemCarAudioFocusEvaluationRequest.class);
+        verify(mMockAudioFocusProxyService).evaluateAudioFocusRequest(captor.capture());
+        OemCarAudioFocusEvaluationRequest request = captor.getValue();
+        AudioFocusEntry entry = request.getAudioFocusRequest();
+        return entry;
+    }
+
+    protected OemCarAudioFocusResult getAudioFocusResults(AudioFocusEntry entry, int results) {
+        return new OemCarAudioFocusResult.Builder(/* lostEntries= */ List.of(),
+                /* blockedEntries= */ List.of(), results).setAudioFocusEntry(entry).build();
+    }
+
+    private List<Integer> getFocusChanges(AudioFocusInfo info) {
+        ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+        verify(mMockAudioManager, atLeastOnce()).dispatchAudioFocusChange(eq(info),
+                captor.capture(), any());
+        return captor.getAllValues();
     }
 
     private AudioFocusInfo setupFocusInfoAndRequestFocusForCall(CarAudioFocus carAudioFocus) {

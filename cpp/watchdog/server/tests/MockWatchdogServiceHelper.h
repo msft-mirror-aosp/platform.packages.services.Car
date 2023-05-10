@@ -36,6 +36,9 @@ class MockWatchdogServiceHelper : public WatchdogServiceHelperInterface {
 public:
     MockWatchdogServiceHelper() {
         ON_CALL(*this, isServiceConnected()).WillByDefault(::testing::Return(false));
+        ON_CALL(*this, requestAidlVhalPid()).WillByDefault([]() {
+            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_STATE);
+        });
     }
     ~MockWatchdogServiceHelper() {}
 
@@ -62,20 +65,14 @@ public:
     MOCK_METHOD(ndk::ScopedAStatus, getPackageInfosForUids,
                 (const std::vector<int32_t>&, const std::vector<std::string>&,
                  std::vector<aidl::android::automotive::watchdog::internal::PackageInfo>*),
-                (override));
-    MOCK_METHOD(ndk::ScopedAStatus, latestIoOveruseStats,
-                (const std::vector<
-                        aidl::android::automotive::watchdog::internal::PackageIoOveruseStats>&),
-                (override));
-    MOCK_METHOD(ndk::ScopedAStatus, resetResourceOveruseStats, (const std::vector<std::string>&),
-                (override));
-    MOCK_METHOD(
-            ndk::ScopedAStatus, getTodayIoUsageStats,
-            (std::vector<aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>*),
-            (override));
-    MOCK_METHOD(ndk::ScopedAStatus, onLatestResourceStats,
-                (const aidl::android::automotive::watchdog::internal::ResourceStats&),
                 (const, override));
+    MOCK_METHOD(ndk::ScopedAStatus, resetResourceOveruseStats, (const std::vector<std::string>&),
+                (const, override));
+    MOCK_METHOD(ndk::ScopedAStatus, onLatestResourceStats,
+                (const std::vector<aidl::android::automotive::watchdog::internal::ResourceStats>&),
+                (const, override));
+    MOCK_METHOD(ndk::ScopedAStatus, requestAidlVhalPid, (), (const, override));
+    MOCK_METHOD(ndk::ScopedAStatus, requestTodayIoUsageStats, (), (const, override));
     MOCK_METHOD(void, terminate, (), (override));
 };
 

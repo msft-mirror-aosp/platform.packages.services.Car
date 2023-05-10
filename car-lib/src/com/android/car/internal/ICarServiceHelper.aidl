@@ -79,8 +79,8 @@ interface ICarServiceHelper {
     /** Check {@link android.os.Process#getProcessGroup(int)}. */
     int getProcessGroup(int pid) = 8;
 
-    /** Same as {@code UserManagerInternal#getDisplayAssignedToUser()} */
-    int getDisplayAssignedToUser(int userId) = 9;
+    /** Same as {@code UserManagerInternal#getMainDisplayAssignedToUser()} */
+    int getMainDisplayAssignedToUser(int userId) = 9;
 
     /** Same as {@code UserManagerInternal#getUsersAssignedToDisplay()} */
     int getUserAssignedToDisplay(int displayId) = 10;
@@ -92,4 +92,18 @@ interface ICarServiceHelper {
 
     /** Check {@link android.os.Process#setProcessProfile(int, int, String)}. */
     void setProcessProfile(int pid, int uid, in String profile) = 12;
+
+    /**
+     * Returns the PID for the AIDL VHAL service.
+     *
+     * On error, returns {@link com.android.car.internal.common.CommonConstants#INVALID_PID}.
+     */
+    int fetchAidlVhalPid() = 13;
+
+    /**
+     * Designates the given {@code activities} to be launched in the root task associated with
+     * {@code rootTaskToken}.
+     */
+    void setPersistentActivitiesOnRootTask(in List<ComponentName> activity,
+        in IBinder rootTaskToken) = 14;
 }

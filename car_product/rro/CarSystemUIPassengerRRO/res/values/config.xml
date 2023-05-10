@@ -15,6 +15,6 @@
   -->
 <resources>
     <string-array name="config_quickControlsEntryPointIconControllers" translatable="false">
-        <item>com.android.systemui.car.statusicon.ui.DisplayStatusIconController</item>
+        <item>com.android.systemui.car.statusicon.ui.QuickControlsStatusIconListController</item>
     </string-array>
 </resources>

@@ -176,6 +176,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
     }
 
     // This sends a focus loss message to the targeted requester.
+    @GuardedBy("mLock")
     private void sendFocusLossLocked(AudioFocusInfo loser, int lossType) {
         int result = mAudioManager.dispatchAudioFocusChange(loser, lossType,
                 mAudioPolicy);
@@ -272,8 +273,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
                     // This is a request from a current focus holder.
                     // Abandon the previous request (without sending a LOSS notification to it),
                     // and don't check the interaction matrix for it.
-                    Slogf.i(TAG, "Replacing accepted request from same client: %s",
-                            afi.getClientId());
+                    Slogf.i(TAG, "Replacing accepted request from same client: %s", afi);
                     replacedCurrentEntry = entry;
                     continue;
                 } else {
@@ -310,8 +310,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
                     // Evaluate it as if it were a new request, but note that we should remove
                     // the old pending request, and move it.
                     // We do not want to evaluate the new request against itself.
-                    Slogf.i(TAG, "Replacing pending request from same client id",
-                            afi.getClientId());
+                    Slogf.i(TAG, "Replacing pending request from same client id", afi);
                     replacedCurrentEntry = entry;
                     continue;
                 } else {
@@ -335,6 +334,12 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
         if (evaluationResults.getAudioFocusResult() == AUDIOFOCUS_REQUEST_FAILED
                 || evaluationResults.getAudioFocusEntry() == null) {
             return AUDIOFOCUS_REQUEST_FAILED;
+        }
+
+        if (replacedCurrentEntry != null) {
+            mFocusHolders.remove(replacedCurrentEntry.getClientId());
+            mFocusLosers.remove(replacedCurrentEntry.getClientId());
+            permanentlyLost.add(replacedCurrentEntry);
         }
 
         // Now that we've decided we'll grant focus, construct our new FocusEntry
@@ -465,11 +470,6 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
             return OemCarAudioFocusResult.EMPTY_OEM_CAR_AUDIO_FOCUS_RESULTS;
         }
 
-        if (replacedCurrentEntry != null) {
-            mFocusHolders.remove(replacedCurrentEntry.getClientId());
-            mFocusLosers.remove(replacedCurrentEntry.getClientId());
-        }
-
         boolean delayFocus = holdersEvaluation.mAudioFocusEvalResults == AUDIOFOCUS_REQUEST_DELAYED
                 || losersEvaluation.mAudioFocusEvalResults == AUDIOFOCUS_REQUEST_DELAYED;
 
@@ -555,8 +555,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
     }
 
     private int getVolumeGroupForAttribute(AudioAttributes attributes) {
-        //TODO(b/240615622): Get volume group info from service
-        return 0;
+        return mCarVolumeInfoWrapper.getVolumeGroupIdForAudioAttribute(mAudioZoneId, attributes);
     }
 
     @GuardedBy("mLock")
@@ -634,6 +633,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
                 + " resulted in " + focusRequestResponseToString(response));
     }
 
+    @GuardedBy("mLock")
     private void swapDelayedAudioFocusRequestLocked(AudioFocusInfo afi) {
         // If we are swapping to a different client then send the focus loss signal
         if (mDelayedRequest != null
@@ -680,6 +680,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
      * @param afi Audio Focus Info to remove
      * @return Removed Focus Entry
      */
+    @GuardedBy("mLock")
     private FocusEntry removeFocusEntryLocked(AudioFocusInfo afi) {
         Slogf.i(TAG, "removeFocusEntry " + afi.getClientId());
 
@@ -688,7 +689,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
         if (deadEntry == null) {
             deadEntry = mFocusLosers.remove(afi.getClientId());
             if (deadEntry == null) {
-                // Caller is providing an unrecognzied clientId!?
+                // Caller is providing an unrecognized clientId!?
                 Slogf.w(TAG, "Audio focus abandoned by unrecognized client id: "
                         + afi.getClientId());
                 // This probably means an app double released focused for some reason.  One
@@ -747,6 +748,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
     /**
      * Removes the dead entry from blocked waiters but does not send focus gain signal
      */
+    @GuardedBy("mLock")
     private void removeBlockerFromBlockedFocusLosersLocked(FocusEntry deadEntry) {
         // Remove this entry from the blocking list of any pending requests
         Iterator<FocusEntry> it = mFocusLosers.values().iterator();
@@ -760,6 +762,7 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
     /**
      * Removes the dead entry from blocked waiters and sends focus gain signal
      */
+    @GuardedBy("mLock")
     private void removeBlockerAndRestoreUnblockedFocusLosersLocked(FocusEntry deadEntry) {
         // Remove this entry from the blocking list of any pending requests
         Iterator<FocusEntry> it = mFocusLosers.values().iterator();

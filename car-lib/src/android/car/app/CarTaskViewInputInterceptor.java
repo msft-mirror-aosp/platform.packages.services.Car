@@ -23,6 +23,7 @@ import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.app.Activity;
 import android.app.Application;
 import android.car.builtin.input.InputManagerHelper;
@@ -32,6 +33,7 @@ import android.content.Context;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.hardware.input.InputManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -54,6 +56,7 @@ import java.util.List;
  *       ControlledRemoteCarTaskViewConfig#mShouldCaptureLongPress} is set.
  * </ul>
  */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 final class CarTaskViewInputInterceptor {
 
     private static final String TAG = "CarTaskViewInput";
@@ -89,7 +92,7 @@ final class CarTaskViewInputInterceptor {
     @MainThread
     void init() {
         if (mInitialized) {
-            Log.e(TAG, "Already initialized");
+            Log.w(TAG, "Already initialized");
             return;
         }
         mInitialized = true;
@@ -104,7 +107,7 @@ final class CarTaskViewInputInterceptor {
     @MainThread
     void release() {
         if (!mInitialized) {
-            Log.e(TAG, "Failed to release as it is not initialized");
+            Log.w(TAG, "Failed to release as it is not initialized");
             return;
         }
         mInitialized = false;

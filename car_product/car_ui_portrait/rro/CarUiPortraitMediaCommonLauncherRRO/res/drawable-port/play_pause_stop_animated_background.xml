@@ -14,35 +14,48 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<selector
+<animated-selector
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:car="http://schemas.android.com/apk/res-auto" >
-    <item car:state_pause="true">
-        <shape android:shape="oval">
-            <solid android:color="@color/play_pause_ic_bg_color"/>
-        </shape>
+
+    <item
+        android:id="@+id/pause"
+        android:drawable="@drawable/circle_background"
+        car:state_pause="true"/>
+
+    <item
+        android:id="@+id/stop"
+        android:drawable="@drawable/circle_background"
+        car:state_stop="true"/>
+
+    <item
+        android:id="@+id/play_off"
+        android:drawable="@drawable/disabled_background"
+        car:state_disabled="true">
     </item>
-    <item car:state_stop="true">
-        <shape android:shape="oval">
-            <solid android:color="@color/play_pause_ic_bg_color"/>
-        </shape>
-    </item>
-    <item car:state_play="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/play_pause_ic_bg_color"/>
-            <corners android:radius="@dimen/play_pause_button_bg_radius"/>
-        </shape>
-    </item>
-    <item car:state_disabled="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/disabled_ic_bg_color"/>
-            <corners android:radius="@dimen/play_pause_disabled_button_bg_radius"/>
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="@color/play_pause_ic_bg_color"/>
-            <corners android:radius="@dimen/play_pause_button_bg_radius"/>
-        </shape>
-    </item>
-</selector>
+
+    <item
+        android:id="@+id/play"
+        android:drawable="@drawable/square_background"/>
+
+    <transition
+        android:drawable="@drawable/circle_to_square_background"
+        android:fromId="@id/pause"
+        android:toId="@id/play" />
+
+    <transition
+        android:drawable="@drawable/square_to_circle_background"
+        android:fromId="@id/play"
+        android:toId="@id/pause" />
+
+    <transition
+        android:drawable="@drawable/circle_to_square_background"
+        android:fromId="@id/stop"
+        android:toId="@id/play" />
+
+    <transition
+        android:drawable="@drawable/square_to_circle_background"
+        android:fromId="@id/play"
+        android:toId="@id/stop" />
+
+</animated-selector>

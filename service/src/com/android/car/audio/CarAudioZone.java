@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
 import android.car.media.CarAudioManager;
 import android.car.media.CarAudioZoneConfigInfo;
+import android.car.media.CarVolumeGroupEvent;
 import android.car.media.CarVolumeGroupInfo;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
@@ -29,6 +30,7 @@ import android.media.AudioPlaybackConfiguration;
 import android.util.SparseArray;
 
 import com.android.car.CarLog;
+import com.android.car.audio.hal.HalAudioDeviceInfo;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
@@ -312,15 +314,31 @@ public class CarAudioZone {
         return getCurrentCarAudioZoneConfig().isAudioDeviceInfoValidForZone(info);
     }
 
-    void onAudioGainChanged(List<Integer> halReasons, List<CarAudioGainConfigInfo> gains) {
-        for (int gainIndex = 0; gainIndex < gains.size(); gainIndex++) {
-            CarAudioGainConfigInfo gainInfo = gains.get(gainIndex);
-            for (int index = 0; index < mCarAudioZoneConfigs.size(); index++) {
-                if (mCarAudioZoneConfigs.valueAt(index).onAudioGainChanged(halReasons, gainInfo)) {
-                    break;
-                }
+    List<CarVolumeGroupEvent> onAudioGainChanged(List<Integer> halReasons,
+            List<CarAudioGainConfigInfo> gainInfos) {
+        List<CarVolumeGroupEvent> events = new ArrayList<>();
+        for (int index = 0; index < mCarAudioZoneConfigs.size(); index++) {
+            List<CarVolumeGroupEvent> eventsForZoneConfig = mCarAudioZoneConfigs.valueAt(index)
+                    .onAudioGainChanged(halReasons, gainInfos);
+            // use events for callback only if current zone configuration
+            if (mCarAudioZoneConfigs.keyAt(index) == getCurrentConfigId()) {
+                events.addAll(eventsForZoneConfig);
             }
         }
+        return events;
+    }
+
+    List<CarVolumeGroupEvent> onAudioPortsChanged(List<HalAudioDeviceInfo> deviceInfos) {
+        List<CarVolumeGroupEvent> events = new ArrayList<>();
+        for (int index = 0; index < mCarAudioZoneConfigs.size(); index++) {
+            List<CarVolumeGroupEvent> eventsForZoneConfig = mCarAudioZoneConfigs.valueAt(index)
+                    .onAudioPortsChanged(deviceInfos);
+            // Use events for callback only if current zone configuration
+            if (mCarAudioZoneConfigs.keyAt(index) == getCurrentConfigId()) {
+                events.addAll(eventsForZoneConfig);
+            }
+        }
+        return events;
     }
 
     /**
