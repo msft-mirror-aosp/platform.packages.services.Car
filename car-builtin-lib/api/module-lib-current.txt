@@ -148,6 +148,20 @@ package android.car.builtin.content.pm {
 
 }
 
+package android.car.builtin.display {
+
+  public final class DisplayManagerHelper {
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static float getBrightness(android.content.Context, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void registerDisplayListener(android.content.Context, android.hardware.display.DisplayManager.DisplayListener, android.os.Handler, long);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void setBrightness(android.content.Context, int, @FloatRange(from=0.0f, to=1.0f) float);
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final long EVENT_FLAG_DISPLAY_ADDED = 1L; // 0x1L
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final long EVENT_FLAG_DISPLAY_BRIGHTNESS = 8L; // 0x8L
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final long EVENT_FLAG_DISPLAY_CHANGED = 4L; // 0x4L
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final long EVENT_FLAG_DISPLAY_REMOVED = 2L; // 0x2L
+  }
+
+}
+
 package android.car.builtin.input {
 
   public class InputManagerHelper {
@@ -162,6 +176,26 @@ package android.car.builtin.job {
   public final class JobSchedulerHelper {
     method public static int getNumberOfPendingJobs(android.content.Context);
     method public static int getNumberOfRunningJobsAtIdle(android.content.Context);
+  }
+
+}
+
+package android.car.builtin.keyguard {
+
+  public final class KeyguardServiceDelegate {
+    ctor public KeyguardServiceDelegate();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void bindService(android.content.Context, android.os.UserHandle, int[]);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void dump(java.io.PrintWriter);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public boolean isShowing();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void notifyDisplayOff();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void notifyDisplayOn();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void registerKeyguardLockedStateCallback(@NonNull android.car.builtin.keyguard.KeyguardServiceDelegate.KeyguardLockedStateCallback);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void stop(android.content.Context);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void unregisterKeyguardLockedStateCallback();
+  }
+
+  public static interface KeyguardServiceDelegate.KeyguardLockedStateCallback {
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void onKeyguardLockedStateChanged(boolean);
   }
 
 }
@@ -274,18 +308,17 @@ package android.car.builtin.os {
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static int getMainDisplayIdAssignedToUser(@NonNull android.os.UserManager);
     method public static int getMaxRunningUsers(@NonNull android.content.Context);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static int getMaxSupportedUsers(@NonNull android.content.Context);
-    method @NonNull public static java.util.List<android.os.UserHandle> getUserHandles(@NonNull android.os.UserManager, boolean, boolean, boolean);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) @NonNull public static java.util.List<android.os.UserHandle> getUserHandles(@NonNull android.os.UserManager, boolean);
+    method @Deprecated @NonNull public static java.util.List<android.os.UserHandle> getUserHandles(@NonNull android.os.UserManager, boolean, boolean, boolean);
     method public static int getUserId(int);
     method public static boolean isEnabledUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method public static boolean isEphemeralUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static boolean isFullUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static boolean isGuestUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method public static boolean isInitializedUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
-    method public static boolean isPreCreatedUser(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static boolean isVisibleBackgroundUsersOnDefaultDisplaySupported(@NonNull android.os.UserManager);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static boolean isVisibleBackgroundUsersSupported(@NonNull android.os.UserManager);
     method public static boolean markGuestForDeletion(@NonNull android.os.UserManager, @NonNull android.os.UserHandle);
-    method @Nullable public static android.os.UserHandle preCreateUser(@NonNull android.os.UserManager, @NonNull String);
     field public static final int FLAG_ADMIN = 2; // 0x2
     field public static final int FLAG_DEMO = 512; // 0x200
     field public static final int FLAG_DISABLED = 64; // 0x40
@@ -314,6 +347,14 @@ package android.car.builtin.power {
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static android.os.PowerManager.WakeLock newWakeLock(android.content.Context, int, String, int);
     method public static void setDisplayState(android.content.Context, boolean, long);
     method public static void shutdown(android.content.Context, boolean, String, boolean);
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final int BRIGHTNESS_DEFAULT = -1; // 0xffffffff
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final int BRIGHTNESS_INVALID = -1; // 0xffffffff
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final float BRIGHTNESS_INVALID_FLOAT;
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final float BRIGHTNESS_MAX = 1.0f;
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final float BRIGHTNESS_MIN = 0.0f;
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final int BRIGHTNESS_OFF = 0; // 0x0
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final float BRIGHTNESS_OFF_FLOAT = -1.0f;
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final int BRIGHTNESS_ON = 255; // 0xff
   }
 
 }
@@ -415,6 +456,10 @@ package android.car.builtin.util {
     method public static void writeCarUserManagerRemoveUserResp(int, int);
     method public static void writeCarUserManagerSetUserAuthReq(@Nullable Object[]);
     method public static void writeCarUserManagerSetUserAuthResp(@Nullable Object[]);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void writeCarUserManagerStartUserReq(int, int, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void writeCarUserManagerStartUserResp(int, int, int, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void writeCarUserManagerStopUserReq(int, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void writeCarUserManagerStopUserResp(int, int, int);
     method public static void writeCarUserManagerSwitchUserReq(int, int);
     method public static void writeCarUserManagerSwitchUserResp(int, int, @Nullable String);
     method public static void writeCarUserServiceCreateUserReq(@Nullable String, @Nullable String, int, int, int);
@@ -526,7 +571,7 @@ package android.car.builtin.view {
   }
 
   public final class SurfaceControlHelper {
-    method public static android.view.SurfaceControl copy(android.view.SurfaceControl);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static android.view.SurfaceControl copy(android.view.SurfaceControl);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) @Nullable public static android.view.SurfaceControl mirrorDisplay(int);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) @NonNull public static android.view.SurfaceControl mirrorSurface(@NonNull android.view.SurfaceControl);
   }
@@ -539,8 +584,8 @@ package android.car.builtin.view {
   }
 
   public final class ViewHelper {
-    method public static void getBoundsOnScreen(@NonNull android.view.View, @NonNull android.graphics.Rect);
-    method public static void seResizeBackgroundColor(@NonNull android.view.SurfaceView, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void getBoundsOnScreen(@NonNull android.view.View, @NonNull android.graphics.Rect);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void seResizeBackgroundColor(@NonNull android.view.SurfaceView, int);
   }
 
 }
@@ -561,8 +606,8 @@ package android.car.builtin.window {
   }
 
   public final class WindowManagerHelper {
-    method public static void setInputFeatureSpy(@NonNull android.view.WindowManager.LayoutParams);
-    method public static void setTrustedOverlay(@NonNull android.view.WindowManager.LayoutParams);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void setInputFeatureSpy(@NonNull android.view.WindowManager.LayoutParams);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static void setTrustedOverlay(@NonNull android.view.WindowManager.LayoutParams);
   }
 
 }

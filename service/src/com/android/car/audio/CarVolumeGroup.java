@@ -398,6 +398,10 @@ import java.util.Objects;
 
     int getCurrentGainIndex() {
         synchronized (mLock) {
+            if (isMutedLocked()) {
+                return getMinGainIndex();
+            }
+
             return getRestrictedGainForIndexLocked(getCurrentGainIndexLocked());
         }
     }
@@ -409,9 +413,6 @@ import java.util.Objects;
 
     @GuardedBy("mLock")
     protected int getRestrictedGainForIndexLocked(int index) {
-        if (isMutedLocked()) {
-            return getMinGainIndex();
-        }
         if (isBlockedLocked()) {
             return mBlockedGainIndex;
         }
@@ -686,8 +687,10 @@ import java.util.Objects;
                 eventType |= EVENT_TYPE_ATTENUATION_CHANGED;
             }
 
+            // Accept mute callbacks from hal only if group mute is enabled.
+            // If disabled, such callbacks will be considered as blocking restriction only.
             boolean shouldMute = CarAudioGainMonitor.shouldMuteVolumeGroup(halReasons);
-            if (shouldMute != isHalMutedLocked()) {
+            if (mUseCarVolumeGroupMute && (shouldMute != isHalMutedLocked())) {
                 setHalMuteLocked(shouldMute);
                 eventType |= EVENT_TYPE_MUTE_CHANGED;
             }

@@ -65,9 +65,6 @@ else
 PRODUCT_PACKAGES += DirectRenderingCluster
 endif  # ENABLE_CLUSTER_OS_DOUBLE
 
-PRODUCT_COPY_FILES += \
-    frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf
-
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.carrier=unknown \
     ro.hardware.type=automotive \
@@ -103,6 +100,9 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 $(call inherit-product, device/sample/products/location_overlay.mk)
 $(call inherit-product-if-exists, frameworks/webview/chromium/chromium.mk)
 $(call inherit-product, packages/services/Car/car_product/build/car_base.mk)
+
+# Window Extensions
+$(call inherit-product, $(SRC_TARGET_DIR)/product/window_extensions.mk)
 
 # Overrides
 PRODUCT_BRAND := generic

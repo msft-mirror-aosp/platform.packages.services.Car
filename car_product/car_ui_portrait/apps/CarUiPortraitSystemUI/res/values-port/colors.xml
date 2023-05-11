@@ -27,8 +27,9 @@
     <color name="hvac_temperature_increase_arrow_color">@color/car_neutral_90</color>
     <color name="system_bar_background_pill_color">@color/car_surface_3</color>
 
-    <color name="status_icon_not_highlighted_color">#202124</color>
-    <color name="status_icon_selected_button_color">#6BF0FF</color>
+    <color name="status_icon_highlighted_color">@color/car_on_primary</color>
+    <color name="status_icon_not_highlighted_color">@color/car_on_surface</color>
+    <color name="status_icon_selected_button_color">@color/car_primary</color>
     <color name="status_icon_panel_bg_color">@android:color/transparent</color>
     <color name="qc_panel_bg_color">@color/car_surface_2</color>
 
@@ -63,4 +64,6 @@
 
     <color name="car_user_switcher_add_user_background_color">@color/car_secondary_container</color>
     <color name="car_user_switcher_add_user_add_sign_color">@color/car_on_secondary_container</color>
+    <color name="car_user_switching_dialog_background_color">@color/car_neutral_0</color>
+    <color name="car_user_switching_dialog_loading_text_color">@color/car_neutral_90</color>
 </resources>

@@ -95,11 +95,14 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.lang.ref.WeakReference;
@@ -287,8 +290,13 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private final ScreenOffHandler mScreenOffHandler;
 
     @VisibleForTesting
-    PolicyReader getPowerPolicyReader() {
-        return mPolicyReader;
+    void readPowerPolicyFromXml(InputStream inputStream)
+            throws IOException, PolicyReader.PolicyXmlException, XmlPullParserException {
+        mPolicyReader.readPowerPolicyFromXml(inputStream);
+        Integer[] customComponents =
+                new Integer[mPolicyReader.getCustomComponents().values().size()];
+        mPolicyReader.getCustomComponents().values().toArray(customComponents);
+        mPowerComponentHandler.registerCustomComponents(customComponents);
     }
 
     interface ActionOnDeath<T extends IInterface> {
@@ -390,7 +398,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     @Override
     public void init() {
         mPolicyReader.init();
-        mPowerComponentHandler.init();
+        mPowerComponentHandler.init(mPolicyReader.getCustomComponents());
         mHal.setListener(this);
         mSystemInterface.init(this, mUserService);
         mScreenOffHandler.init();
@@ -646,6 +654,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             case CarPowerManager.STATE_HIBERNATION_EXIT:
                 lastShutdownState = CarRemoteAccessManager.NEXT_POWER_STATE_SUSPEND_TO_DISK;
                 mHal.sendHibernationExit();
+                break;
+            default:
+                Slogf.w(TAG, "Invalid action when handling wait for VHAL: %d",
+                        carPowerStateListenerState);
                 break;
         }
         synchronized (mLock) {
@@ -906,6 +918,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     break;
                 case CarPowerManager.STATE_HIBERNATION_ENTER:
                     mHal.sendHibernationEntry(wakeupSec);
+                    break;
+                default:
+                    Slogf.w(TAG, "Invalid action when handling wait for finish: %d",
+                            state.mCarPowerStateListenerState);
                     break;
             }
         };
@@ -1312,7 +1328,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             mNextWakeupSec = 0;
         }
         Slogf.i(TAG, "Resuming after suspending");
-        mSystemInterface.refreshDisplayBrightness();
+        forEachDisplay(mContext, mSystemInterface::refreshDisplayBrightness);
         onApPowerStateChange(CpmsState.WAIT_FOR_VHAL, nextListenerState);
     }
 
@@ -1392,11 +1408,16 @@ public class CarPowerManagementService extends ICarPower.Stub implements
 
     @Override
     public void onDisplayBrightnessChange(int brightness) {
-        mHandler.handleDisplayBrightnessChange(brightness);
+        mHandler.handleDisplayBrightnessChange(Display.DEFAULT_DISPLAY, brightness);
     }
 
-    private void doHandleDisplayBrightnessChange(int brightness) {
-        mSystemInterface.setDisplayBrightness(brightness);
+    @Override
+    public void onDisplayBrightnessChange(int displayId, int brightness) {
+        mHandler.handleDisplayBrightnessChange(displayId, brightness);
+    }
+
+    private void doHandleDisplayBrightnessChange(int displayId, int brightness) {
+        mSystemInterface.setDisplayBrightness(displayId, brightness);
     }
 
     private void doHandleDisplayStateChange(int displayId, boolean on) {
@@ -1443,6 +1464,15 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      */
     public void sendDisplayBrightness(int brightness) {
         mHal.sendDisplayBrightness(brightness);
+    }
+
+    /**
+     * Sends display brightness to VHAL.
+     * @param displayId the target display
+     * @param brightness value 0-100%
+     */
+    public void sendDisplayBrightness(int displayId, int brightness) {
+        mHal.sendDisplayBrightness(displayId, brightness);
     }
 
     /**
@@ -2040,8 +2070,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             sendMessage(msg);
         }
 
-        private void handleDisplayBrightnessChange(int brightness) {
-            Message msg = obtainMessage(MSG_DISPLAY_BRIGHTNESS_CHANGE, brightness, 0);
+        private void handleDisplayBrightnessChange(int displayId, int brightness) {
+            Message msg = obtainMessage(MSG_DISPLAY_BRIGHTNESS_CHANGE, displayId, brightness);
             sendMessage(msg);
         }
 
@@ -2087,7 +2117,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     service.doHandlePowerStateChange();
                     break;
                 case MSG_DISPLAY_BRIGHTNESS_CHANGE:
-                    service.doHandleDisplayBrightnessChange(msg.arg1);
+                    service.doHandleDisplayBrightnessChange(
+                            /* displayId= */ msg.arg1, /* brightness= */ msg.arg2);
                     break;
                 case MSG_DISPLAY_STATE_CHANGE:
                     int displayId = (Integer) msg.obj;
@@ -2099,6 +2130,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     break;
                 case MSG_POWER_POLICY_NOTIFICATION:
                     service.doHandlePowerPolicyNotification((String) msg.obj);
+                    break;
+                default:
+                    Slogf.w(TAG, "handleMessage invalid message type: %d", msg.what);
                     break;
             }
         }

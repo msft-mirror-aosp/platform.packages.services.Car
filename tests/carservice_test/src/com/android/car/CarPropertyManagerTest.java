@@ -18,8 +18,10 @@ package com.android.car;
 
 import static android.car.hardware.property.CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR;
 import static android.car.hardware.property.CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE;
+import static android.car.hardware.property.CarPropertyManager.STATUS_ERROR_TIMEOUT;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 
@@ -194,13 +196,6 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             0x1301 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;
     private static final int PROP_WITH_WRITE_ONLY_PERMISSION =
             0x1302 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;
-
-    // Vendor properties for supporting
-    private static final int STARTING_TEST_PROPERTY_ID = 0x5000 | VehiclePropertyGroup.VENDOR
-            | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;
-    private static final int ENDING_TEST_PROPERTY_ID = 0x5000 + 0x2000 | VehiclePropertyGroup.VENDOR
-            | VehiclePropertyType.INT32 | VehicleArea.GLOBAL;;
-
     private static final int SUPPORT_CUSTOM_PERMISSION = 287313669;
     private static final java.util.Collection<Integer> VENDOR_PERMISSION_CONFIG =
             Collections.unmodifiableList(
@@ -210,6 +205,9 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                             PROP_WITH_WRITE_ONLY_PERMISSION,
                             VehicleVendorPermission.PERMISSION_NOT_ACCESSIBLE,
                             VehicleVendorPermission.PERMISSION_SET_VENDOR_CATEGORY_1));
+
+    private static final int PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED =
+            0x1401 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32 |  VehicleArea.GLOBAL;
 
 
     // Use FAKE_PROPERTY_ID to test api return null or throw exception.
@@ -281,12 +279,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
     public void testMixedPropertyConfigs() {
         List<CarPropertyConfig> configs = mManager.getPropertyList();
         for (CarPropertyConfig cfg : configs) {
-            int configPropertyId = cfg.getPropertyId();
-            if (configPropertyId >= STARTING_TEST_PROPERTY_ID
-                    && configPropertyId < ENDING_TEST_PROPERTY_ID) {
-                continue;
-            }
-            switch (configPropertyId) {
+            switch (cfg.getPropertyId()) {
                 case CUSTOM_SEAT_MIXED_PROP_ID_1:
                     assertThat(cfg.getConfigArray()).containsExactlyElementsIn(CONFIG_ARRAY_1)
                             .inOrder();
@@ -325,6 +318,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 case VehiclePropertyIds.TIRE_PRESSURE:
                 case VehiclePropertyIds.FUEL_DOOR_OPEN:
                 case VehiclePropertyIds.EPOCH_TIME:
+                case PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED:
                     break;
                 default:
                     Assert.fail("Unexpected CarPropertyConfig: " + cfg);
@@ -611,7 +605,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 CarPropertyManager.SENSOR_RATE_ONCHANGE);
         callback.assertRegisterCompleted();
         injectErrorEvent(VehiclePropertyIds.HVAC_TEMPERATURE_SET, PASSENGER_SIDE_AREA_ID,
-                CarPropertyManager.CAR_SET_PROPERTY_ERROR_CODE_UNKNOWN);
+                VehicleHalStatusCode.STATUS_INTERNAL_ERROR);
         // app never change the value of HVAC_TEMPERATURE_SET, it won't get an error code.
         callback.assertOnErrorEventNotCalled();
     }
@@ -627,7 +621,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 VehiclePropertyIds.HVAC_TEMPERATURE_SET, PASSENGER_SIDE_AREA_ID,
                 CHANGED_TEMP_VALUE);
         injectErrorEvent(VehiclePropertyIds.HVAC_TEMPERATURE_SET, PASSENGER_SIDE_AREA_ID,
-                CarPropertyManager.CAR_SET_PROPERTY_ERROR_CODE_UNKNOWN);
+                VehicleHalStatusCode.STATUS_INTERNAL_ERROR);
         callback.assertOnErrorEventCalled();
         assertThat(callback.getErrorCode()).isEqualTo(
                 CarPropertyManager.CAR_SET_PROPERTY_ERROR_CODE_UNKNOWN);
@@ -650,7 +644,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         mManager.unregisterCallback(callback1, VehiclePropertyIds.HVAC_TEMPERATURE_SET);
         SystemClock.sleep(WAIT_FOR_NO_EVENTS);
         injectErrorEvent(VehiclePropertyIds.HVAC_TEMPERATURE_SET, PASSENGER_SIDE_AREA_ID,
-                CarPropertyManager.CAR_SET_PROPERTY_ERROR_CODE_UNKNOWN);
+                VehicleHalStatusCode.STATUS_INTERNAL_ERROR);
         // callback1 is unregistered
         callback1.assertOnErrorEventNotCalled();
         callback2.assertOnErrorEventCalled();
@@ -1112,8 +1106,30 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         }
         for (PropertyAsyncError error : callback.getErrorList()) {
             assertThat(error.getErrorCode()).isNotEqualTo(0);
+            int propertyId = error.getPropertyId();
+            if (propertyId == PROP_VALUE_STATUS_ERROR_INT_ARRAY
+                    || propertyId == PROP_VALUE_STATUS_ERROR_BOOLEAN
+                    || propertyId == PROP_CAUSE_STATUS_CODE_ACCESS_DENIED
+                    || propertyId == PROP_CAUSE_STATUS_CODE_INVALID_ARG) {
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_INTERNAL_ERROR);
+                assertThat(error.getVendorErrorCode()).isEqualTo(0);
+            }
+            if (propertyId == PROP_VALUE_STATUS_UNAVAILABLE_INT
+                    || propertyId == PROP_VALUE_STATUS_UNAVAILABLE_FLOAT
+                    || propertyId == PROP_CAUSE_STATUS_CODE_NOT_AVAILABLE) {
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_NOT_AVAILABLE);
+                assertThat(error.getVendorErrorCode()).isEqualTo(0);
+            }
+            if (propertyId == PROP_CAUSE_STATUS_CODE_TRY_AGAIN) {
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_TIMEOUT);
+                assertThat(error.getVendorErrorCode()).isEqualTo(0);
+            }
             if (error.getRequestId() == vendorErrorRequestId) {
-                assertThat(error.getErrorCode()).isEqualTo(STATUS_ERROR_INTERNAL_ERROR);
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_INTERNAL_ERROR);
                 assertThat(error.getVendorErrorCode()).isEqualTo(VENDOR_CODE_FOR_INTERNAL_ERROR);
             }
         }
@@ -1166,7 +1182,8 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 PROP_CAUSE_STATUS_CODE_ACCESS_DENIED,
                 PROP_CAUSE_STATUS_CODE_NOT_AVAILABLE,
                 PROP_CAUSE_STATUS_CODE_NOT_AVAILABLE_WITH_VENDOR_CODE,
-                PROP_CAUSE_STATUS_CODE_INVALID_ARG);
+                PROP_CAUSE_STATUS_CODE_INVALID_ARG,
+                PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED);
         for (int propId : errorPropIds) {
             SetPropertyRequest<Integer> errorRequest = mManager.generateSetPropertyRequest(
                     propId, /* areaId= */ 0, /* value= */ 1);
@@ -1201,16 +1218,33 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             assertThat(result.getUpdateTimestampNanos()).isGreaterThan(startTime);
         }
         for (PropertyAsyncError error : callback.getErrorList()) {
-            assertThat(error.getPropertyId()).isIn(errorPropIds);
+            int propertyId = error.getPropertyId();
+            assertThat(propertyId).isIn(errorPropIds);
             assertThat(error.getAreaId()).isEqualTo(0);
-            assertThat(error.getErrorCode()).isNotEqualTo(0);
+            if (propertyId == PROP_CAUSE_STATUS_CODE_ACCESS_DENIED
+                    || propertyId == PROP_CAUSE_STATUS_CODE_INVALID_ARG) {
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_INTERNAL_ERROR);
+                assertThat(error.getVendorErrorCode()).isEqualTo(0);
+            }
+            if (propertyId == PROP_CAUSE_STATUS_CODE_NOT_AVAILABLE
+                    || propertyId == PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED) {
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_NOT_AVAILABLE);
+                assertThat(error.getVendorErrorCode()).isEqualTo(0);
+            }
+            if (propertyId == PROP_CAUSE_STATUS_CODE_TRY_AGAIN) {
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_TIMEOUT);
+                assertThat(error.getVendorErrorCode()).isEqualTo(0);
+            }
             if (error.getRequestId() == vendorErrorRequestId) {
-                assertThat(error.getErrorCode()).isEqualTo(STATUS_ERROR_NOT_AVAILABLE);
+                assertWithMessage("receive correct error for property ID: " + propertyId)
+                        .that(error.getErrorCode()).isEqualTo(STATUS_ERROR_NOT_AVAILABLE);
                 assertThat(error.getVendorErrorCode()).isEqualTo(VENDOR_CODE_FOR_NOT_AVAILABLE);
             }
         }
     }
-
 
     @Test
     public void testGetVendorErrorCode_forGetProperty_throwsNotAvailable_EqualAfterR() {
@@ -1256,24 +1290,6 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                         /* val= */ 0));
 
         assertThat(thrown.getVendorErrorCode()).isEqualTo(VENDOR_CODE_FOR_INTERNAL_ERROR);
-    }
-
-    @Test
-    public void testGetPropertyList_withLargeReturnList() {
-        ArraySet<Integer> propertyIds = new ArraySet<>();
-        for (int i = STARTING_TEST_PROPERTY_ID; i < ENDING_TEST_PROPERTY_ID; i++) {
-            propertyIds.add(i);
-        }
-
-        List<CarPropertyConfig> result = mManager.getPropertyList(propertyIds);
-
-        ArraySet<Integer> propIdResults = new ArraySet<>();
-        for (int i = 0; i < result.size(); i++) {
-            propIdResults.add(result.get(i).getPropertyId());
-        }
-        for (int i = STARTING_TEST_PROPERTY_ID; i < ENDING_TEST_PROPERTY_ID; i++) {
-            assertThat(i).isIn(propIdResults);
-        }
     }
 
     @Override
@@ -1334,6 +1350,8 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 .addAreaConfig(PASSENGER_SIDE_AREA_ID);
 
         addAidlProperty(NULL_VALUE_PROP, handler);
+        addAidlProperty(PROP_UNSUPPORTED, handler);
+        addAidlProperty(PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED, handler);
 
         // Add properties for permission testing.
         addAidlProperty(SUPPORT_CUSTOM_PERMISSION, handler).setConfigArray(
@@ -1342,18 +1360,21 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         addAidlProperty(PROP_WITH_WRITE_ONLY_PERMISSION, handler);
 
         addAidlProperty(PROP_UNSUPPORTED, handler);
-
-        for (int i = STARTING_TEST_PROPERTY_ID; i < ENDING_TEST_PROPERTY_ID; i++) {
-            addAidlProperty(i, handler);
-        }
     }
 
-    private static class PropertyHandler implements VehicleHalPropertyHandler {
+    private class PropertyHandler implements VehicleHalPropertyHandler {
         SparseArray<SparseArray<VehiclePropValue>> mValueByAreaIdByPropId = new SparseArray<>();
 
         @Override
-        public synchronized void onPropertySet(VehiclePropValue value) {
+        public synchronized boolean onPropertySet2(VehiclePropValue value) {
             // Simulate VehicleHal.set() behavior.
+            if (value.prop == PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED) {
+                injectErrorEvent(PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED, /* areaId= */ 0,
+                        VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED);
+                // Don't generate property change event.
+                return false;
+            }
+
             int statusCode = mapPropertyToVhalStatusCode(value.prop);
             if (statusCode != VehicleHalStatusCode.STATUS_OK) {
                 // The ServiceSpecificException here would pass the statusCode back to caller.
@@ -1366,6 +1387,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 mValueByAreaIdByPropId.put(propId, new SparseArray<>());
             }
             mValueByAreaIdByPropId.get(propId).put(areaId, value);
+            return true;
         }
 
         @Override

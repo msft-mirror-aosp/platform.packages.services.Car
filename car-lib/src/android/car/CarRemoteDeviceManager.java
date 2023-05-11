@@ -25,12 +25,11 @@ import android.annotation.SystemApi;
 import android.car.CarOccupantZoneManager.OccupantZoneInfo;
 import android.car.annotation.ApiRequirements;
 import android.car.builtin.util.Slogf;
-import android.car.occupantconnection.ICarOccupantConnection;
+import android.car.occupantconnection.ICarRemoteDevice;
 import android.car.occupantconnection.IStateCallback;
 import android.content.pm.PackageInfo;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.util.ArrayMap;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
@@ -57,8 +56,8 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     private static final String TAG = CarRemoteDeviceManager.class.getSimpleName();
 
     /**
-     * Flag to indicate whether the occupant zone is powered on. If it is not powered on, the caller
-     * can power it on by {@link #setOccupantZonePower}.
+     * Flag to indicate whether all the displays of the occupant zone are powered on. If any of
+     * them is not powered on, the caller can power them on by {@link #setOccupantZonePower}.
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
@@ -195,6 +194,9 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
         /**
          * Invoked when the callback is registered, or when the {@link AppState} of the peer app in
          * the given occupant zone has changed.
+         * <p>
+         * Note: Apps sharing the same user ID through the "sharedUserId" mechanism won't get
+         * notified when the running state of their peer apps has changed.
          *
          * @param appStates the state of the peer app. Multiple flags can be set in the state.
          */
@@ -205,7 +207,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     }
 
     private final Object mLock = new Object();
-    private final ICarOccupantConnection mService;
+    private final ICarRemoteDevice mService;
     private final String mPackageName;
 
     @GuardedBy("mLock")
@@ -257,7 +259,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     /** @hide */
     public CarRemoteDeviceManager(Car car, IBinder service) {
         super(car);
-        mService = ICarOccupantConnection.Stub.asInterface(service);
+        mService = ICarRemoteDevice.Stub.asInterface(service);
         mPackageName = mCar.getContext().getPackageName();
     }
 
@@ -290,7 +292,6 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
             @NonNull StateCallback callback) {
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
-        ArrayMap<OccupantZoneInfo, Integer> occupantZoneStates;
         synchronized (mLock) {
             Preconditions.checkState(mCallback == null,
                     "A StateCallback was registered already");

@@ -22,12 +22,14 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import android.Manifest;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.app.Activity;
 import android.car.annotation.ApiRequirements;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.os.Build;
 import android.os.RemoteException;
 import android.os.UserManager;
 import android.util.Dumpable;
@@ -35,6 +37,7 @@ import android.util.Log;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -43,6 +46,7 @@ import java.util.concurrent.Executor;
  * @hide
  */
 @SystemApi
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public final class CarTaskViewController {
     private static final String TAG = CarTaskViewController.class.getSimpleName();
     static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
@@ -97,7 +101,8 @@ public final class CarTaskViewController {
                         mHostActivity.getSystemService(UserManager.class));
 
         try {
-            ICarTaskViewHost host = mService.createCarTaskView(taskViewClient.mICarTaskViewClient);
+            ICarTaskViewHost host = mService.createControlledCarTaskView(
+                    taskViewClient.mICarTaskViewClient);
             taskViewClient.setRemoteHost(host);
             mControlledRemoteCarTaskViews.add(taskViewClient);
 
@@ -110,6 +115,19 @@ public final class CarTaskViewController {
         } catch (RemoteException e) {
             Slogf.e(TAG, "Unable to create task view.", e);
         }
+    }
+
+    void onControlledRemoteCarTaskViewReleased(@NonNull ControlledRemoteCarTaskView taskView) {
+        if (mReleased) {
+            Log.w(TAG, "Failed to remove the taskView as the "
+                    + "CarTaskViewController is already released");
+            return;
+        }
+        if (!mControlledRemoteCarTaskViews.contains(taskView)) {
+            Log.w(TAG, "This taskView has already been removed");
+            return;
+        }
+        mControlledRemoteCarTaskViews.remove(taskView);
     }
 
     private void assertPermission(String permission) {
@@ -140,10 +158,14 @@ public final class CarTaskViewController {
     }
 
     void releaseTaskViews() {
-        for (RemoteCarTaskView carTaskView : mControlledRemoteCarTaskViews) {
-            carTaskView.release();
+        Iterator<ControlledRemoteCarTaskView> iterator = mControlledRemoteCarTaskViews.iterator();
+        while (iterator.hasNext()) {
+            ControlledRemoteCarTaskView taskView = iterator.next();
+            // Remove the task view here itself because release triggers removal again which can
+            // result in concurrent modification exception.
+            iterator.remove();
+            taskView.release();
         }
-        mControlledRemoteCarTaskViews.clear();
     }
 
     /**

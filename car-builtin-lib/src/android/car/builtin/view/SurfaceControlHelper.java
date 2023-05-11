@@ -72,7 +72,8 @@ public final class SurfaceControlHelper {
     /**
      * See {@link SurfaceControl(SurfaceControl)}}.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static SurfaceControl copy(SurfaceControl source) {
         return new SurfaceControl(source, SurfaceControlHelper.class.getSimpleName());
     }

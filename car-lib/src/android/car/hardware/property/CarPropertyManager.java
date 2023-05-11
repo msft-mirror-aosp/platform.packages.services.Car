@@ -27,6 +27,7 @@ import android.annotation.FloatRange;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
@@ -75,8 +76,6 @@ public class CarPropertyManager extends CarManagerBase {
     private static final boolean DBG = false;
     private static final String TAG = "CarPropertyManager";
     private static final int MSG_GENERIC_EVENT = 0;
-    private static final int SYSTEM_ERROR_CODE_MASK = 0Xffff;
-    private static final int VENDOR_ERROR_CODE_SHIFT = 16;
     private static final int SYNC_OP_RETRY_SLEEP_IN_MS = 10;
     private static final int SYNC_OP_RETRY_MAX_COUNT = 10;
     /**
@@ -117,17 +116,28 @@ public class CarPropertyManager extends CarManagerBase {
                     } catch (RemoteException e) {
                         handleRemoteExceptionFromCarService(e);
                         return false;
+                    } catch (IllegalArgumentException e) {
+                        Log.w(TAG, "register: propertyId: "
+                                + VehiclePropertyIds.toString(propertyId) + ", updateRateHz: "
+                                + updateRateHz + ", exception: ", e);
+                        return false;
                     }
                     return true;
                 }
 
                 @Override
-                public void unregister(int propertyId) {
+                public boolean unregister(int propertyId) {
                     try {
                         mService.unregisterListener(propertyId, mCarPropertyEventToService);
                     } catch (RemoteException e) {
                         handleRemoteExceptionFromCarService(e);
+                        return false;
+                    } catch (IllegalArgumentException e) {
+                        Log.w(TAG, "unregister: propertyId: "
+                                + VehiclePropertyIds.toString(propertyId) + ", exception: ", e);
+                        return false;
                     }
+                    return true;
                 }
             };
 
@@ -557,12 +567,14 @@ public class CarPropertyManager extends CarManagerBase {
          * @param areaId the area ID for the property in the request
          * @param errorCode the code indicating the error
          */
-        PropertyAsyncError(int requestId, int propertyId, int areaId, int errorCode) {
+        PropertyAsyncError(int requestId, int propertyId, int areaId,
+                @CarPropertyAsyncErrorCode int errorCode,
+                int vendorErrorCode) {
             mRequestId = requestId;
             mPropertyId = propertyId;
             mAreaId = areaId;
-            mErrorCode = errorCode & SYSTEM_ERROR_CODE_MASK;
-            mVendorErrorCode = errorCode >>> VENDOR_ERROR_CODE_SHIFT;
+            mErrorCode = errorCode;
+            mVendorErrorCode = vendorErrorCode;
         }
 
         /**
@@ -849,6 +861,7 @@ public class CarPropertyManager extends CarManagerBase {
                     setValueResults, mSetPropertyResultCallback);
         }
 
+        @SuppressLint("WrongConstant")
         private <RequestType extends AsyncPropertyRequest, CallbackType, ResultType> void onResults(
                 List<GetSetValueResult> results,
                 PropertyResultCallback<CallbackType, ResultType> propertyResultCallback) {
@@ -870,13 +883,11 @@ public class CarPropertyManager extends CarManagerBase {
                 }
                 Executor callbackExecutor = requestInfo.getCallbackExecutor();
                 CallbackType clientCallback = requestInfo.getCallback();
-                int errorCode = result.getErrorCode();
-                @CarPropertyAsyncErrorCode
-                int asyncErrorCode = errorCode & SYSTEM_ERROR_CODE_MASK;
+                @CarPropertyAsyncErrorCode int errorCode = result.getErrorCode();
                 int propertyId = requestInfo.getRequest().getPropertyId();
                 String propertyName = VehiclePropertyIds.toString(propertyId);
                 int areaId = requestInfo.getRequest().getAreaId();
-                if (asyncErrorCode == STATUS_OK) {
+                if (errorCode == STATUS_OK) {
                     CarPropertyValue<?> carPropertyValue = result.getCarPropertyValue();
                     long timestampNanos;
                     if (carPropertyValue != null) {
@@ -908,7 +919,8 @@ public class CarPropertyManager extends CarManagerBase {
                             clientCallback, clientResult));
                 } else {
                     callbackExecutor.execute(() -> propertyResultCallback.onFailure(clientCallback,
-                            new PropertyAsyncError(requestId, propertyId, areaId, errorCode)));
+                            new PropertyAsyncError(requestId, propertyId, areaId, errorCode,
+                                    result.getVendorErrorCode())));
                 }
             }
         }
@@ -1132,7 +1144,7 @@ public class CarPropertyManager extends CarManagerBase {
         requireNonNull(carPropertyEventCallback);
         CarPropertyConfig<?> carPropertyConfig = getCarPropertyConfig(propertyId);
         if (carPropertyConfig == null) {
-            Log.e(TAG, "registerListener:  propertyId is not in carPropertyConfig list:  "
+            Log.e(TAG, "registerCallback:  propertyId is not in carPropertyConfig list:  "
                     + VehiclePropertyIds.toString(propertyId));
             return false;
         }
@@ -1140,19 +1152,25 @@ public class CarPropertyManager extends CarManagerBase {
         float sanitizedUpdateRateHz = InputSanitizationUtils.sanitizeUpdateRateHz(carPropertyConfig,
                 updateRateHz);
 
-        CarPropertyEventCallbackController carPropertyEventCallbackController;
+        boolean registerSuccessful;
         synchronized (mLock) {
-            carPropertyEventCallbackController =
+            boolean isNewInstance = false;
+            CarPropertyEventCallbackController carPropertyEventCallbackController =
                     mPropertyIdToCarPropertyEventCallbackController.get(propertyId);
             if (carPropertyEventCallbackController == null) {
                 carPropertyEventCallbackController = new CarPropertyEventCallbackController(
                         propertyId, mLock, mRegistrationUpdateCallback);
+                isNewInstance = true;
+            }
+
+            registerSuccessful = carPropertyEventCallbackController.add(carPropertyEventCallback,
+                    sanitizedUpdateRateHz);
+            if (registerSuccessful && isNewInstance) {
                 mPropertyIdToCarPropertyEventCallbackController.put(propertyId,
                         carPropertyEventCallbackController);
             }
         }
-        return carPropertyEventCallbackController.add(carPropertyEventCallback,
-                sanitizedUpdateRateHz);
+        return registerSuccessful;
     }
 
     private static class CarPropertyEventListenerToService extends ICarPropertyEventListener.Stub {
@@ -1181,6 +1199,8 @@ public class CarPropertyManager extends CarManagerBase {
      * Stop getting property updates for the given {@link CarPropertyEventCallback}. If there are
      * multiple registrations for this {@link CarPropertyEventCallback}, all listening will be
      * stopped.
+     *
+     * @throws SecurityException if missing the appropriate permission.
      */
     @AddedInOrBefore(majorVersion = 33)
     public void unregisterCallback(@NonNull CarPropertyEventCallback carPropertyEventCallback) {
@@ -1201,6 +1221,8 @@ public class CarPropertyManager extends CarManagerBase {
      * Stop getting update for {@code propertyId} to the given {@link CarPropertyEventCallback}. If
      * the same {@link CarPropertyEventCallback} is used for other properties, those subscriptions
      * will not be affected.
+     *
+     * @throws SecurityException if missing the appropriate permission.
      */
     @AddedInOrBefore(majorVersion = 33)
     public void unregisterCallback(@NonNull CarPropertyEventCallback carPropertyEventCallback,
@@ -1211,15 +1233,14 @@ public class CarPropertyManager extends CarManagerBase {
                     + VehiclePropertyIds.toString(propertyId) + " is not supported");
             return;
         }
-        CarPropertyEventCallbackController carPropertyEventCallbackController;
         synchronized (mLock) {
-            carPropertyEventCallbackController =
+            CarPropertyEventCallbackController carPropertyEventCallbackController =
                     mPropertyIdToCarPropertyEventCallbackController.get(propertyId);
-        }
-        if (carPropertyEventCallbackController == null) {
-            return;
-        }
-        synchronized (mLock) {
+
+            if (carPropertyEventCallbackController == null) {
+                return;
+            }
+
             boolean allCallbacksRemoved = carPropertyEventCallbackController.remove(
                     carPropertyEventCallback);
             if (allCallbacksRemoved) {
@@ -1866,8 +1887,8 @@ public class CarPropertyManager extends CarManagerBase {
             ServiceSpecificException e, int propertyId, int areaId) {
         // We are not passing the error message down, so log it here.
         Log.w(TAG, "received ServiceSpecificException: " + e);
-        int errorCode = e.errorCode & SYSTEM_ERROR_CODE_MASK;
-        int vendorErrorCode = e.errorCode >>> VENDOR_ERROR_CODE_SHIFT;
+        int errorCode = CarPropertyHelper.getVhalSystemErrorCode(e.errorCode);
+        int vendorErrorCode = CarPropertyHelper.getVhalVendorErrorCode(e.errorCode);
 
         switch (errorCode) {
             case VehicleHalStatusCode.STATUS_NOT_AVAILABLE:

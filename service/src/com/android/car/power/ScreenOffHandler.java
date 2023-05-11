@@ -249,10 +249,14 @@ final class ScreenOffHandler {
                 if (info == null) {
                     continue;
                 }
+                int displayPort = getDisplayPort(displayId);
+                if (displayPort == DisplayHelper.INVALID_PORT) {
+                    continue;
+                }
                 if (i > 0) {
                     sb.append(',');
                 }
-                sb.append(displayId);
+                sb.append(displayPort);
                 sb.append(':');
                 if (info.isDriverDisplay()) {
                     // for driver display
@@ -451,7 +455,7 @@ final class ScreenOffHandler {
                 CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
     }
 
-    // value format: comma-separated displayId:mode
+    // value format: comma-separated displayPort:mode
     @VisibleForTesting
     SparseIntArray parseModeAssignmentSettingValue(String value) {
         SparseIntArray mapping = new SparseIntArray();
@@ -499,6 +503,15 @@ final class ScreenOffHandler {
         return Display.INVALID_DISPLAY;
     }
 
+    private int getDisplayPort(int displayId) {
+        DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
+        Display display = displayManager.getDisplay(displayId);
+        if (display != null) {
+            return DisplayHelper.getPhysicalPort(display);
+        }
+        return DisplayHelper.INVALID_PORT;
+    }
+
     private static final class EventHandler extends Handler {
         private static final int MSG_USER_ACTIVITY_TIMEOUT = 0;
 
@@ -529,6 +542,9 @@ final class ScreenOffHandler {
                 case MSG_USER_ACTIVITY_TIMEOUT:
                     screenOffHandler.handleSetDisplayState(/* displayId= */ (Integer) msg.obj,
                             /* on= */ false);
+                    break;
+                default:
+                    Slogf.w(TAG, "Invalid message type: %d", msg.what);
                     break;
             }
         }

@@ -59,6 +59,10 @@ public class CarUiPortraitService extends Service {
     public static final String INTENT_EXTRA_APP_GRID_VISIBILITY_CHANGE =
             "INTENT_EXTRA_APP_GRID_VISIBILITY_CHANGE";
 
+    // key name for the intent's extra that tells the notification's visibility status
+    public static final String INTENT_EXTRA_NOTIFICATION_VISIBILITY_CHANGE =
+            "INTENT_EXTRA_NOTIFICATION_VISIBILITY_CHANGE";
+
     // key name for the intent's extra that tells if suw is in progress
     public static final String INTENT_EXTRA_SUW_IN_PROGRESS =
             "INTENT_EXTRA_SUW_IN_PROGRESS";
@@ -66,6 +70,14 @@ public class CarUiPortraitService extends Service {
     // key name for the intent's extra that tells if task views are ready
     public static final String INTENT_EXTRA_FG_TASK_VIEW_READY =
             "INTENT_EXTRA_TASK_VIEW_READY";
+
+    // key name for the intent's extra that tells if launcher is ready
+    public static final String INTENT_EXTRA_LAUNCHER_READY =
+            "INTENT_EXTRA_LAUNCHER_READY";
+
+    // key name for the intent's extra that tells if notification panel should be collapsed.
+    public static final String INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL =
+            "INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL";
 
     // Keeps track of all current registered clients.
     private final ArrayList<Messenger> mClients = new ArrayList<Messenger>();
@@ -116,8 +128,24 @@ public class CarUiPortraitService extends Service {
      */
     public static final int MSG_IMMERSIVE_MODE_CHANGE = 8;
 
+    /**
+     * Command to service to notify when SysUI is ready and started.
+     */
+    public static final int MSG_SYSUI_STARTED = 9;
+
+    /**
+     * Command to service to set a new value for notifications visibility.
+     */
+    public static final int MSG_NOTIFICATIONS_VISIBILITY_CHANGE = 10;
+
+    /**
+     * Command to service to collapse notification panel if open.
+     */
+    public static final int MSG_COLLAPSE_NOTIFICATION = 11;
+
     private boolean mIsSystemInImmersiveMode;
     private boolean mIsSuwInProgress;
+    private BroadcastReceiver mSysUiRequestsReceiver;
 
     /**
      * Handler of incoming messages from CarUiPortraitLauncher.
@@ -127,6 +155,10 @@ public class CarUiPortraitService extends Service {
         public void handleMessage(Message msg) {
             Log.d(TAG, "Received message: " + msg.what);
             switch (msg.what) {
+                case MSG_SYSUI_STARTED:
+                    // value is passed as 0 because launcher just needs a event and no need for val
+                    notifyClients(MSG_SYSUI_STARTED, 0);
+                    break;
                 case MSG_REGISTER_CLIENT:
                     mClients.add(msg.replyTo);
                     break;
@@ -139,6 +171,12 @@ public class CarUiPortraitService extends Service {
                             intToBoolean(msg.arg1));
                     CarUiPortraitService.this.sendBroadcast(intent);
                     break;
+                case MSG_NOTIFICATIONS_VISIBILITY_CHANGE:
+                    Intent notificationIntent = new Intent(REQUEST_FROM_LAUNCHER);
+                    notificationIntent.putExtra(INTENT_EXTRA_NOTIFICATION_VISIBILITY_CHANGE,
+                            intToBoolean(msg.arg1));
+                    CarUiPortraitService.this.sendBroadcast(notificationIntent);
+                    break;
                 case MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE:
                     int val = msg.arg1;
                     Intent hideSysBarIntent = new Intent(REQUEST_FROM_LAUNCHER);
@@ -150,6 +188,8 @@ public class CarUiPortraitService extends Service {
                     Intent taskViewReadyIntent = new Intent(REQUEST_FROM_LAUNCHER);
                     taskViewReadyIntent.putExtra(INTENT_EXTRA_FG_TASK_VIEW_READY,
                             intToBoolean(msg.arg1));
+                    taskViewReadyIntent.putExtra(INTENT_EXTRA_LAUNCHER_READY,
+                            intToBoolean(msg.arg1));
                     CarUiPortraitService.this.sendBroadcast(taskViewReadyIntent);
                     break;
                 default:
@@ -160,7 +200,7 @@ public class CarUiPortraitService extends Service {
 
     @Override
     public void onCreate() {
-        BroadcastReceiver immersiveModeChangeReceiver = new BroadcastReceiver() {
+        mSysUiRequestsReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 boolean isImmersive = intent.getBooleanExtra(
@@ -184,17 +224,27 @@ public class CarUiPortraitService extends Service {
                     mIsSuwInProgress = isSuwInProgress;
                     notifyClients(MSG_SUW_IN_PROGRESS, boolToInt(isSuwInProgress));
                 }
+
+                if (intent.hasExtra(INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL)) {
+                    notifyClients(MSG_COLLAPSE_NOTIFICATION, 1);
+                }
             }
         };
         IntentFilter filter = new IntentFilter();
         filter.addAction(REQUEST_FROM_SYSTEM_UI);
-        registerReceiver(immersiveModeChangeReceiver, filter);
+        registerReceiver(mSysUiRequestsReceiver, filter);
         Log.d(TAG, "Portrait service is created");
     }
 
     @Override
     public IBinder onBind(Intent intent) {
         return mMessenger.getBinder();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(mSysUiRequestsReceiver);
     }
 
     private void notifyClients(int key, int value) {

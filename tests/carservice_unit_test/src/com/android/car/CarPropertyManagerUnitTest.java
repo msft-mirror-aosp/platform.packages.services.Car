@@ -876,7 +876,7 @@ public final class CarPropertyManagerUnitTest {
 
         // Call the manager callback after the request is already cancelled.
         GetSetValueResult getValueResult = GetSetValueResult.newErrorResult(0,
-                CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
+                CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR, /* vendorErrorCode= */ 0);
         assertThat(callbackWrapper.size()).isEqualTo(1);
         callbackWrapper.get(0).onGetValueResults(List.of(getValueResult));
 
@@ -978,8 +978,7 @@ public final class CarPropertyManagerUnitTest {
             assertThat(getPropertyServiceRequest.getPropertyId()).isEqualTo(HVAC_TEMPERATURE_SET);
 
             GetSetValueResult getValueResult = GetSetValueResult.newErrorResult(0,
-                    VENDOR_ERROR_CODE << VENDOR_ERROR_CODE_SHIFT
-                            | CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
+                    CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR, VENDOR_ERROR_CODE);
 
             getAsyncPropertyResultCallback.onGetValueResults(List.of(getValueResult));
             return null;
@@ -1455,8 +1454,7 @@ public final class CarPropertyManagerUnitTest {
             assertThat(setPropertyServiceRequest.getPropertyId()).isEqualTo(HVAC_TEMPERATURE_SET);
 
             GetSetValueResult setValueResult = GetSetValueResult.newErrorSetValueResult(0,
-                    VENDOR_ERROR_CODE << VENDOR_ERROR_CODE_SHIFT
-                            | CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
+                    CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR, VENDOR_ERROR_CODE);
 
             setAsyncPropertyResultCallback.onSetValueResults(List.of(setValueResult));
             return null;
@@ -1549,6 +1547,28 @@ public final class CarPropertyManagerUnitTest {
                 VENDOR_ON_CHANGE_PROPERTY, CarPropertyManager.SENSOR_RATE_ONCHANGE)).isTrue();
         verify(mICarProperty, times(2)).registerListener(eq(VENDOR_ON_CHANGE_PROPERTY),
                 eq(CarPropertyManager.SENSOR_RATE_ONCHANGE), any(ICarPropertyEventListener.class));
+    }
+
+    @Test
+    public void testRegisterCallback_returnsFalseForIllegalArgumentException()
+            throws RemoteException {
+        doThrow(IllegalArgumentException.class).when(mICarProperty).registerListener(
+                eq(VENDOR_ON_CHANGE_PROPERTY), eq(CarPropertyManager.SENSOR_RATE_ONCHANGE),
+                any(ICarPropertyEventListener.class));
+
+        assertThat(mCarPropertyManager.registerCallback(mCarPropertyEventCallback,
+                VENDOR_ON_CHANGE_PROPERTY, CarPropertyManager.SENSOR_RATE_ONCHANGE)).isFalse();
+    }
+
+    @Test
+    public void testRegisterCallback_SecurityException() throws RemoteException {
+        doThrow(SecurityException.class).when(mICarProperty).registerListener(
+                eq(VENDOR_ON_CHANGE_PROPERTY), eq(CarPropertyManager.SENSOR_RATE_ONCHANGE),
+                any(ICarPropertyEventListener.class));
+
+        assertThrows(SecurityException.class,
+                () -> mCarPropertyManager.registerCallback(mCarPropertyEventCallback,
+                        VENDOR_ON_CHANGE_PROPERTY, CarPropertyManager.SENSOR_RATE_ONCHANGE));
     }
 
     @Test
@@ -1713,6 +1733,33 @@ public final class CarPropertyManagerUnitTest {
         mCarPropertyManager.unregisterCallback(mCarPropertyEventCallback);
         verify(mICarProperty, never()).unregisterListener(anyInt(),
                 any(ICarPropertyEventListener.class));
+    }
+
+    @Test
+    public void testUnregisterCallback_returnsVoidForIllegalArgumentException()
+            throws RemoteException {
+        doThrow(IllegalArgumentException.class).when(mICarProperty).unregisterListener(
+                eq(VENDOR_ON_CHANGE_PROPERTY), any(ICarPropertyEventListener.class));
+
+        assertThat(mCarPropertyManager.registerCallback(mCarPropertyEventCallback,
+                VENDOR_ON_CHANGE_PROPERTY, CarPropertyManager.SENSOR_RATE_ONCHANGE)).isTrue();
+        mCarPropertyManager.unregisterCallback(mCarPropertyEventCallback,
+                VENDOR_ON_CHANGE_PROPERTY);
+
+        verify(mICarProperty).unregisterListener(eq(VENDOR_ON_CHANGE_PROPERTY),
+                any(ICarPropertyEventListener.class));
+    }
+
+    @Test
+    public void testUnregisterCallback_SecurityException() throws RemoteException {
+        doThrow(SecurityException.class).when(mICarProperty).unregisterListener(
+                eq(VENDOR_ON_CHANGE_PROPERTY), any(ICarPropertyEventListener.class));
+
+        assertThat(mCarPropertyManager.registerCallback(mCarPropertyEventCallback,
+                VENDOR_ON_CHANGE_PROPERTY, CarPropertyManager.SENSOR_RATE_ONCHANGE)).isTrue();
+        assertThrows(SecurityException.class,
+                () -> mCarPropertyManager.unregisterCallback(mCarPropertyEventCallback,
+                        VENDOR_ON_CHANGE_PROPERTY));
     }
 
     @Test

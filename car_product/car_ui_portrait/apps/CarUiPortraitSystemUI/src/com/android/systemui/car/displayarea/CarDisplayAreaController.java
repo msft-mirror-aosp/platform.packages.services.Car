@@ -16,9 +16,11 @@
 
 package com.android.systemui.car.displayarea;
 
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_LAUNCHER_READY;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_SUW_IN_PROGRESS;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.REQUEST_FROM_LAUNCHER;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.REQUEST_FROM_SYSTEM_UI;
@@ -40,6 +42,7 @@ import com.android.systemui.R;
 import com.android.systemui.car.CarDeviceProvisionedController;
 import com.android.systemui.car.CarDeviceProvisionedListener;
 import com.android.systemui.car.CarServiceProvider;
+import com.android.systemui.car.loading.LoadingViewController;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
@@ -70,6 +73,8 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
 
     private boolean mUserSetupInProgress;
     private boolean mIsImmersive;
+    private boolean mIsLauncherReady;
+    private LoadingViewController mLoadingViewController;
 
     private final CarUiPortraitDisplaySystemBarsController.Callback
             mCarUiPortraitDisplaySystemBarsControllerCallback =
@@ -77,9 +82,14 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                 @Override
                 public void onImmersiveRequestedChanged(ComponentName componentName,
                         boolean requested) {
+                    mUserSetupInProgress = mCarDeviceProvisionedController
+                            .isCurrentUserSetupInProgress();
                     if (mUserSetupInProgress) {
+                        mCarFullScreenTouchHandler.enable(false);
+                        mLoadingViewController.stop();
                         logIfDebuggable(
                                 "No need to send out immersive request change intent during SUW");
+                        updateImmersiveModeInternal();
                         return;
                     }
                     mIsImmersive = requested;
@@ -117,14 +127,33 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
                     mApplicationContext.sendBroadcastAsUser(intent,
                             new UserHandle(ActivityManager.getCurrentUser()));
 
-                    mCarUiDisplaySystemBarsController.requestImmersiveModeForSUW(
-                            mApplicationContext.getDisplayId(), mUserSetupInProgress);
-                    if (mUserSetupInProgress) {
-                        mCarFullScreenTouchHandler.enable(false);
-                    }
-
+                    updateImmersiveModeInternal();
                 }
             };
+
+
+    private void updateImmersiveModeInternal() {
+        mCarUiDisplaySystemBarsController.requestImmersiveModeForSUW(
+                mApplicationContext.getDisplayId(), mUserSetupInProgress);
+        if (mUserSetupInProgress) {
+            updateImmersiveModeForSUW();
+        } else if (!mIsLauncherReady) {
+            updateImmersiveMode();
+        }
+    }
+
+    private void updateImmersiveModeForSUW() {
+        mCarFullScreenTouchHandler.enable(false);
+        mLoadingViewController.stop();
+    }
+
+    private void updateImmersiveMode() {
+        mCarFullScreenTouchHandler.enable(mIsLauncherReady);
+        if (!mIsLauncherReady) {
+            mLoadingViewController.start();
+        }
+    }
+
 
     /**
      * Initializes the controller
@@ -137,7 +166,8 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
             DisplayAreaOrganizer organizer,
             CarUiPortraitDisplaySystemBarsController carUiPortraitDisplaySystemBarsController,
             CommandQueue commandQueue,
-            CarDeviceProvisionedController deviceProvisionedController) {
+            CarDeviceProvisionedController deviceProvisionedController,
+            LoadingViewController loadingViewController) {
         mApplicationContext = applicationContext;
         mOrganizer = organizer;
         mShellExecutor = shellExecutor;
@@ -149,6 +179,20 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         mCarUiDisplaySystemBarsController = carUiPortraitDisplaySystemBarsController;
         mCarDeviceProvisionedController = deviceProvisionedController;
         mCarFullScreenTouchHandler = new CarFullScreenTouchHandler(mShellExecutor);
+        mLoadingViewController = loadingViewController;
+        mLoadingViewController.start();
+
+        BroadcastReceiver taskViewReadyReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent.hasExtra(INTENT_EXTRA_LAUNCHER_READY)) {
+                    mLoadingViewController.stop();
+                    mIsLauncherReady = true;
+                }
+            }
+        };
+        mApplicationContext.registerReceiverForAllUsers(taskViewReadyReceiver,
+                new IntentFilter(REQUEST_FROM_LAUNCHER), null, null, Context.RECEIVER_EXPORTED);
 
         if (applicationContext.getResources().getConfiguration().orientation
                 == Configuration.ORIENTATION_PORTRAIT) {
@@ -160,10 +204,10 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
 
     @Override
     public void animateCollapsePanels(int flags, boolean force) {
-        Intent homeActivityIntent = new Intent(Intent.ACTION_MAIN);
-        homeActivityIntent.addCategory(Intent.CATEGORY_HOME);
-        homeActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        mApplicationContext.startActivityAsUser(homeActivityIntent, UserHandle.CURRENT);
+        Intent intent = new Intent(REQUEST_FROM_SYSTEM_UI);
+        intent.putExtra(INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL, true);
+        mApplicationContext.sendBroadcastAsUser(intent,
+                new UserHandle(ActivityManager.getCurrentUser()));
     }
 
     private static void logIfDebuggable(String message) {
