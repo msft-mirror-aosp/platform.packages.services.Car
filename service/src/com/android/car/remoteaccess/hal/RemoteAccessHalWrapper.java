@@ -60,8 +60,18 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
     @GuardedBy("mLock")
     private IRemoteAccess mRemoteAccessHal;
 
+    private IRemoteAccess mTestRemoteAccessHal;
+
     public RemoteAccessHalWrapper(RemoteAccessHalCallback callback) {
+        this(callback, /* testRemoteAccessHal= */ null);
+    }
+
+    /* For car service test. */
+    @VisibleForTesting
+    public RemoteAccessHalWrapper(RemoteAccessHalCallback callback,
+            IRemoteAccess testRemoteAccessHal) {
         mRemoteAccessHalCallback = Objects.requireNonNull(callback, "Callback cannot be null");
+        mTestRemoteAccessHal = testRemoteAccessHal;
     }
 
     /** Initializes connection to remote task HAL service. */
@@ -81,7 +91,9 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
             mRemoteAccessHal = null;
         }
         try {
-            remoteAccessHal.clearRemoteTaskCallback();
+            if (remoteAccessHal != null) {
+                remoteAccessHal.clearRemoteTaskCallback();
+            }
         } catch (RemoteException e) {
             Slogf.w(TAG, e, "Failed to clear remote task callback");
         }
@@ -108,7 +120,7 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
         try {
             return remoteAccessHal.getVehicleId();
         } catch (RemoteException | RuntimeException e) {
-            throw new IllegalStateException("Failed to get device ID", e);
+            throw new IllegalStateException("Failed to get vehicle ID", e);
         }
     }
 
@@ -154,35 +166,40 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
             return;
         }
         TimingsTraceLog t = new TimingsTraceLog(TAG, TraceHelper.TRACE_TAG_CAR_SERVICE);
-        t.traceBegin("connect-to-remote-access-hal");
-        IBinder binder = getRemoteAccessHalService();
-        t.traceEnd();
-        if (binder == null) {
-            mConnecting.set(/* newValue= */ false);
-            throw new IllegalStateException("Remote access HAL not found");
-        }
-
-        try {
-            binder.linkToDeath(this, /* flags= */ 0);
-        } catch (RemoteException e) {
-            mConnecting.set(/* newValue= */ false);
-            throw new IllegalStateException("Failed to link a death recipient to remote access HAL",
-                    e);
-        }
 
         IRemoteAccess remoteAccessHal;
-        synchronized (mLock) {
-            if (mBinder != null) {
-                Slogf.w(TAG, "Remote access HAL is already connected");
-                binder.unlinkToDeath(this, /* flags= */ 0);
+        if (mTestRemoteAccessHal != null) {
+            remoteAccessHal = mTestRemoteAccessHal;
+        } else {
+            t.traceBegin("connect-to-remote-access-hal");
+            IBinder binder = getRemoteAccessHalService();
+            t.traceEnd();
+            if (binder == null) {
                 mConnecting.set(/* newValue= */ false);
-                return;
+                throw new IllegalStateException("Remote access HAL not found");
             }
-            mBinder = binder;
-            mRemoteAccessHal = IRemoteAccess.Stub.asInterface(mBinder);
-            remoteAccessHal = mRemoteAccessHal;
+
+            try {
+                binder.linkToDeath(this, /* flags= */ 0);
+            } catch (RemoteException e) {
+                mConnecting.set(/* newValue= */ false);
+                throw new IllegalStateException(
+                        "Failed to link a death recipient to remote access HAL", e);
+            }
+
+            synchronized (mLock) {
+                if (mBinder != null) {
+                    Slogf.w(TAG, "Remote access HAL is already connected");
+                    binder.unlinkToDeath(this, /* flags= */ 0);
+                    mConnecting.set(/* newValue= */ false);
+                    return;
+                }
+                mBinder = binder;
+                mRemoteAccessHal = IRemoteAccess.Stub.asInterface(mBinder);
+                remoteAccessHal = mRemoteAccessHal;
+            }
+            mConnecting.set(/* newValue= */ false);
         }
-        mConnecting.set(/* newValue= */ false);
         try {
             remoteAccessHal.setRemoteTaskCallback(mRemoteTaskCallback);
         } catch (RemoteException e) {
@@ -203,6 +220,9 @@ public final class RemoteAccessHalWrapper implements IBinder.DeathRecipient {
 
     private IRemoteAccess getRemoteAccessHal() {
         synchronized (mLock) {
+            if (mTestRemoteAccessHal != null) {
+                return mTestRemoteAccessHal;
+            }
             if (mRemoteAccessHal == null) {
                 throw new IllegalStateException("Remote access HAL is not ready");
             }
