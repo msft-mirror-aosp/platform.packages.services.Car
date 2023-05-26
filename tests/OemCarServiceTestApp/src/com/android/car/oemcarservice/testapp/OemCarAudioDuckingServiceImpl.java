@@ -18,15 +18,20 @@ package com.android.car.oemcarservice.testapp;
 
 import android.car.oem.OemCarAudioDuckingService;
 import android.car.oem.OemCarAudioVolumeRequest;
+import android.content.Context;
 import android.media.AudioAttributes;
+import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Slog;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import com.android.car.oem.ducking.DuckingInteractions;
+import com.android.car.oem.utils.OemCarServiceHelper;
 
+import org.xmlpull.v1.XmlPullParserException;
+
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 
@@ -38,19 +43,20 @@ final class OemCarAudioDuckingServiceImpl implements OemCarAudioDuckingService {
     private final DuckingInteractions mDuckingInteractions;
 
     /**
-     * Constructs a {@link DuckingInteractions} with the given ducking priorities, if
-     * the given ducking priorities is null it will default to
-     * {@link DuckingInteractions.DUCKED_PRIORITIES}
+     * Constructs a {@link DuckingInteractions} with the given ducking interactions, if
+     * the given ducking interactions is null it will use the default ducking interactions set in
+     * {@link DuckingInteractions#getDefaultDuckingInteractions()}
      *
-     * @param duckingPriorities A list of ducking priorities from highest priority to lowest
-     *        priority
+     * @param duckingInteractions A mapping from one AudioAttributes to a list of AudioAttributes
+     *        to be ducked.
      */
-    OemCarAudioDuckingServiceImpl(@Nullable List<AudioAttributes> duckingPriorities) {
-        List<AudioAttributes> duckingPriorityList = duckingPriorities;
-        if (duckingPriorityList == null) {
-            duckingPriorityList = DuckingInteractions.DUCKED_PRIORITIES;
+    OemCarAudioDuckingServiceImpl(Context context) {
+        ArrayMap<AudioAttributes, List<AudioAttributes>> duckingInteractionsMapping =
+                parseAndGetDuckingConfig(context);
+        if (duckingInteractionsMapping == null) {
+            duckingInteractionsMapping = DuckingInteractions.DEFAULT_INTERACTION;
         }
-        mDuckingInteractions = new DuckingInteractions(duckingPriorityList);
+        mDuckingInteractions = new DuckingInteractions(duckingInteractionsMapping);
         if (DEBUG) {
             Slog.d(TAG, "constructor");
         }
@@ -92,5 +98,18 @@ final class OemCarAudioDuckingServiceImpl implements OemCarAudioDuckingService {
         }
         writer.println("  OemCarAudioDuckingServiceImpl");
         mDuckingInteractions.dump(writer, "  ");
+    }
+
+    private ArrayMap<AudioAttributes, List<AudioAttributes>> parseAndGetDuckingConfig(
+            Context context) {
+        OemCarServiceHelper oemCarServiceHelper = new OemCarServiceHelper();
+        try {
+            oemCarServiceHelper.parseAudioManagementConfiguration(context.getAssets().open(
+                    "oem_ducking_config.xml"));
+            return oemCarServiceHelper.getDuckingInteractions();
+        } catch (XmlPullParserException | IOException e) {
+            Slog.w(TAG, "Ducking config file was not able to be parsed", e);
+            return null;
+        }
     }
 }

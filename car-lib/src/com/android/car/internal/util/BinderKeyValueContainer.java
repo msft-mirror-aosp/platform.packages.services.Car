@@ -21,10 +21,10 @@ import android.os.IBinder;
 import android.os.IInterface;
 import android.os.RemoteException;
 import android.util.ArrayMap;
-import android.util.ArraySet;
 
 import com.android.internal.annotations.GuardedBy;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
@@ -48,6 +48,9 @@ public final class BinderKeyValueContainer<K, V extends IInterface> {
 
     @GuardedBy("mLock")
     private final ArrayMap<K, BinderInterfaceHolder<K, V>> mBinderMap;
+
+    @Nullable
+    private BinderDeathCallback<K> mBinderDeathCallback;
 
     /**
      * Wrapper class for objects that want to be notified whenever they are unlinked from
@@ -75,6 +78,17 @@ public final class BinderKeyValueContainer<K, V extends IInterface> {
             mBinder.unlinkToDeath(this, 0);
             mMap.removeByBinderInterfaceHolder(this);
         }
+    }
+
+    /**
+     * Interface to be implemented by object that wants to be notified whenever a binder is unlinked
+     * (dies).
+     *
+     * @param <K> type of the key of the container
+     */
+    public interface BinderDeathCallback<K> {
+        /** Callback to be invoked after a binder is unlinked and removed from the container. */
+        void onBinderDied(K deadKey);
     }
 
     public BinderKeyValueContainer() {
@@ -136,6 +150,21 @@ public final class BinderKeyValueContainer<K, V extends IInterface> {
     }
 
     /**
+     * Removes the item at the given index, if there is any.
+     */
+    public void removeAt(int index) {
+        synchronized (mLock) {
+            BinderInterfaceHolder<K, V> holder = mBinderMap.valueAt(index);
+            if (holder == null) {
+                Slogf.i(TAG, "Failed to remove because there was no item at index %d", index);
+                return;
+            }
+            holder.mBinder.unlinkToDeath(holder, 0);
+            mBinderMap.removeAt(index);
+        }
+    }
+
+    /**
      * Returns the number of registered {@link BinderInterfaceHolder} objects in this container.
      */
     public int size() {
@@ -179,21 +208,35 @@ public final class BinderKeyValueContainer<K, V extends IInterface> {
     }
 
     /**
-     * Returns a copy of keys in the container, or an empty set if the container is empty.
+     * Returns an unmodifiable copy of keys in the container, or an empty set if the container is
+     * empty.
      */
     public Set<K> keySet() {
         synchronized (mLock) {
-            return new ArraySet<>(mBinderMap.keySet());
+            return Collections.unmodifiableSet(mBinderMap.keySet());
         }
     }
 
+    /**
+     * Sets a death callback to be notified after a binder is unlinked and removed from the
+     * container.
+     */
+    public void setBinderDeathCallback(@Nullable BinderDeathCallback<K> binderDeathCallback) {
+        mBinderDeathCallback = binderDeathCallback;
+    }
+
     private void removeByBinderInterfaceHolder(BinderInterfaceHolder<K, V> holder) {
+        K deadKey = null;
         synchronized (mLock) {
             int index = mBinderMap.indexOfValue(holder);
             if (index >= 0) {
+                deadKey = mBinderMap.keyAt(index);
                 mBinderMap.removeAt(index);
                 Slogf.i(TAG, "Binder died, so remove %s", holder.mBinderInterface);
             }
+        }
+        if (mBinderDeathCallback != null && deadKey != null) {
+            mBinderDeathCallback.onBinderDied(deadKey);
         }
     }
 }

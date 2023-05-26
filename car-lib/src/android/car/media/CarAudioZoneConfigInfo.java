@@ -17,6 +17,7 @@
 package android.car.media;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
@@ -102,6 +103,7 @@ public final class CarAudioZoneConfigInfo implements Parcelable {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     public String getName() {
+        assertPlatformVersionAtLeastU();
         return mName;
     }
 
@@ -111,6 +113,7 @@ public final class CarAudioZoneConfigInfo implements Parcelable {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public int getZoneId() {
+        assertPlatformVersionAtLeastU();
         return mZoneId;
     }
 
@@ -120,15 +123,14 @@ public final class CarAudioZoneConfigInfo implements Parcelable {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public int getConfigId() {
+        assertPlatformVersionAtLeastU();
         return mConfigId;
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public String toString() {
-        return new StringBuilder().append("CarVolumeGroupId { .name = ").append(mName)
+        return new StringBuilder().append("CarAudioZoneConfigInfo { .name = ").append(mName)
                 .append(", zone id = ").append(mZoneId).append(" config id = ").append(mConfigId)
                 .append(" }").toString();
     }
@@ -143,8 +145,6 @@ public final class CarAudioZoneConfigInfo implements Parcelable {
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -161,8 +161,6 @@ public final class CarAudioZoneConfigInfo implements Parcelable {
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public int hashCode() {
         return Objects.hash(mName, mZoneId, mConfigId);
     }

@@ -21,7 +21,7 @@ android.car.CarProjectionManager$ProjectionKeyEventHandler
 android.car.CarProjectionManager$ProjectionStatusListener
 android.car.CarProjectionManager$ProjectionAccessPointCallback
 android.car.CarRemoteDeviceManager
-android.car.CarRemoteDeviceManager$OccupantZoneStateCallback
+android.car.CarRemoteDeviceManager$StateCallback
 android.car.CarTransactionException
 android.car.CarVersion
 android.car.CarVersion$VERSION_CODES
@@ -170,8 +170,6 @@ android.car.hardware.property.CarPropertyManager$SetPropertyResult
 android.car.hardware.property.CruiseControlCommand
 android.car.hardware.property.CruiseControlState
 android.car.hardware.property.CruiseControlType
-android.car.hardware.property.DriverAttentionMonitoringState
-android.car.hardware.property.DriverAttentionMonitoringWarning
 android.car.hardware.property.EmergencyLaneKeepAssistState
 android.car.hardware.property.ErrorState
 android.car.hardware.property.EvChargeState
@@ -185,6 +183,7 @@ android.car.hardware.property.LaneCenteringAssistCommand
 android.car.hardware.property.LaneCenteringAssistState
 android.car.hardware.property.LaneDepartureWarningState
 android.car.hardware.property.LaneKeepAssistState
+android.car.hardware.property.LocationCharacterization
 android.car.hardware.property.PropertyAccessDeniedSecurityException
 android.car.hardware.property.PropertyNotAvailableAndRetryException
 android.car.hardware.property.PropertyNotAvailableErrorCode
@@ -234,7 +233,6 @@ android.car.occupantawareness.SystemStatusEvent
 android.car.occupantconnection.AbstractReceiverService
 android.car.occupantconnection.CarOccupantConnectionManager
 android.car.occupantconnection.CarOccupantConnectionManager$ConnectionRequestCallback
-android.car.occupantconnection.CarOccupantConnectionManager$ConnectionStateCallback
 android.car.occupantconnection.CarOccupantConnectionManager$PayloadCallback
 android.car.occupantconnection.CarOccupantConnectionManager$PayloadTransferException
 android.car.occupantconnection.Payload
@@ -270,6 +268,7 @@ android.car.projection.ProjectionStatus$MobileDevice$Builder
 android.car.remoteaccess.CarRemoteAccessManager
 android.car.remoteaccess.CarRemoteAccessManager$CompletableRemoteTaskFuture
 android.car.remoteaccess.CarRemoteAccessManager$RemoteTaskClientCallback
+android.car.remoteaccess.RemoteTaskClientRegistrationInfo
 android.car.settings.CarSettings
 android.car.settings.CarSettings$Global
 android.car.settings.CarSettings$Secure
@@ -295,10 +294,14 @@ android.car.user.CarUserManager$UserSwitchUiCallback
 android.car.user.CarUserManager$UserHandleSwitchUiCallback
 android.car.user.ExperimentalCarUserManager
 android.car.user.OperationResult
+android.car.user.UserCreationRequest
+android.car.user.UserCreationRequest$Builder
 android.car.user.UserCreationResult
 android.car.user.UserIdentificationAssociationResponse
 android.car.user.UserLifecycleEventFilter
 android.car.user.UserLifecycleEventFilter$Builder
+android.car.user.UserRemovalRequest
+android.car.user.UserRemovalRequest$Builder
 android.car.user.UserRemovalResult
 android.car.user.UserStartRequest
 android.car.user.UserStartRequest$Builder
@@ -308,12 +311,15 @@ android.car.user.UserStopRequest
 android.car.user.UserStopRequest$Builder
 android.car.user.UserStopResponse
 android.car.user.UserStopResult
+android.car.user.UserSwitchRequest
+android.car.user.UserSwitchRequest$Builder
 android.car.user.UserSwitchResult
 android.car.util.concurrent.AndroidAsyncFuture
 android.car.util.concurrent.AndroidFuture
 android.car.util.concurrent.AsyncFuture
 android.car.view.DisplayHelper
 android.car.view.MirroredSurfaceView
+android.car.view.WindowManagerHelper
 android.car.vms.VmsAssociatedLayer
 android.car.vms.VmsAvailableLayers
 android.car.vms.VmsClient

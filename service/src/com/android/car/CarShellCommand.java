@@ -46,6 +46,7 @@ import android.app.UiModeManager;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
 import android.car.CarVersion;
+import android.car.SyncResultCallback;
 import android.car.VehiclePropertyIds;
 import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.builtin.os.BuildHelper;
@@ -60,9 +61,12 @@ import android.car.media.IAudioZonesMirrorStatusCallback;
 import android.car.telemetry.CarTelemetryManager;
 import android.car.telemetry.TelemetryProto.TelemetryError;
 import android.car.user.CarUserManager;
+import android.car.user.UserCreationRequest;
 import android.car.user.UserCreationResult;
 import android.car.user.UserIdentificationAssociationResponse;
+import android.car.user.UserRemovalRequest;
 import android.car.user.UserRemovalResult;
+import android.car.user.UserSwitchRequest;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AsyncFuture;
 import android.car.watchdog.CarWatchdogManager;
@@ -187,12 +191,14 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String COMMAND_RESUME = "resume";
     private static final String COMMAND_SUSPEND = "suspend";
     private static final String COMMAND_HIBERNATE = "hibernate";
+    private static final String COMMAND_SET_DISPLAY_STATE = "set-display-state";
     private static final String PARAM_SIMULATE = "--simulate";
     private static final String PARAM_REAL = "--real";
     private static final String PARAM_AUTO = "--auto";
     private static final String PARAM_SKIP_GARAGEMODE = "--skip-garagemode";
     private static final String PARAM_REBOOT = "--reboot";
     private static final String PARAM_WAKEUP_AFTER = "--wakeup-after";
+    private static final String PARAM_FREE_MEMORY = "--free-memory";
     private static final String COMMAND_SET_UID_TO_ZONE = "set-audio-zone-for-uid";
     private static final String COMMAND_RESET_VOLUME_CONTEXT = "reset-selected-volume-context";
     private static final String COMMAND_SET_MUTE_CAR_VOLUME_GROUP = "set-mute-car-volume-group";
@@ -249,6 +255,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String DRIVING_STATE_DRIVE = "drive";
     private static final String DRIVING_STATE_PARK = "park";
     private static final String DRIVING_STATE_REVERSE = "reverse";
+    private static final String DRIVING_STATE_NEUTRAL = "neutral";
 
     private static final String COMMAND_SET_REARVIEW_CAMERA_ID = "set-rearview-camera-id";
     private static final String COMMAND_GET_REARVIEW_CAMERA_ID = "get-rearview-camera-id";
@@ -339,6 +346,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_RESUME, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_SUSPEND, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_HIBERNATE, PERMISSION_CAR_POWER);
+        USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_SET_DISPLAY_STATE, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_POWER_OFF, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_DEFINE_POWER_POLICY, PERMISSION_CAR_POWER);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_APPLY_POWER_POLICY,
@@ -637,8 +645,12 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 + "performed.\n", PARAM_AUTO);
         pw.printf("\t  %s skips Garage Mode before going into hibernation.\n",
                 PARAM_SKIP_GARAGEMODE);
+        pw.printf("\t  %s frees cached apps memory before simulating hibernation.\n",
+                PARAM_FREE_MEMORY);
         pw.println("\tresume");
         pw.println("\t  Wake the system up after a simulated suspension/hibernation.");
+        pw.println("\tset-display-state [displayId] [true|false]");
+        pw.println("\t  Turn on or off the individual display.");
         pw.println("\tprojection-tethering [true|false]");
         pw.println("\t  Whether tethering should be used when creating access point for"
                 + " wireless projection");
@@ -657,9 +669,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.printf("\t%s [zoneId1] [zoneId2]\n", COMMAND_SET_AUDIO_MIRROR);
         pw.println("\t  sets audio mirror for zones [zoneId1] and [zoneId2],");
         pw.println("\t  [zoneId#] must be a valid zone id ");
-        pw.printf("\t%s [zoneId1]\n", COMMAND_UNSET_AUDIO_MIRROR);
-        pw.println("\t  unsets audio mirror with zones [zoneId],");
-        pw.println("\t  [zoneId] must be a valid zone id");
+        pw.printf("\t%s [value] [--requestId]\n", COMMAND_UNSET_AUDIO_MIRROR);
+        pw.println("\t  unsets audio mirror for zone [value],");
+        pw.println("\t  [value] must be a valid zone id");
+        pw.println("\t  use --requestId to disable a request id instead");
         pw.println("\tstart-fixed-activity displayId packageName activityName");
         pw.println("\t  Start an Activity the specified display as fixed mode");
         pw.println("\tstop-fixed-mode displayId");
@@ -797,8 +810,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 + "displays the silent state");
         pw.println("\t  and shows how many listeners are monitoring the state.");
 
-        pw.printf("\t%s [%s|%s|%s]\n", COMMAND_EMULATE_DRIVING_STATE, DRIVING_STATE_DRIVE,
-                DRIVING_STATE_PARK, DRIVING_STATE_REVERSE);
+        pw.printf("\t%s [%s|%s|%s|%s]\n", COMMAND_EMULATE_DRIVING_STATE, DRIVING_STATE_DRIVE,
+                DRIVING_STATE_PARK, DRIVING_STATE_REVERSE, DRIVING_STATE_NEUTRAL);
         pw.println("\t  Emulates the giving driving state.");
 
         pw.printf("\t%s <POLICY_ID> [--enable COMP1,COMP2,...] [--disable COMP1,COMP2,...]\n",
@@ -854,7 +867,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.printf("\t%s enable|disable\n", COMMAND_WATCHDOG_CONTROL_PROCESS_HEALTH_CHECK);
         pw.println("\t  Enables/disables car watchdog process health check.");
 
-        pw.printf("\t%s <PACKAGE_NAME>\n", COMMAND_WATCHDOG_RESOURCE_OVERUSE_KILL);
+        pw.printf("\t%s <PACKAGE_NAME> [--user USER_ID]\n", COMMAND_WATCHDOG_RESOURCE_OVERUSE_KILL);
         pw.println("\t  Kills PACKAGE_NAME due to resource overuse.");
 
         pw.printf("\t%s [REGION_STRING]", COMMAND_DRIVING_SAFETY_SET_REGION);
@@ -984,8 +997,20 @@ final class CarShellCommand extends BasicShellCommandHandler {
         writer.decreaseIndent();
     }
 
-    private void runUnsetAudioMirror(String zoneIdString, IndentingPrintWriter writer) {
-        int zoneId = Integer.parseInt(zoneIdString);
+    private void runUnsetAudioMirror(String[] args, IndentingPrintWriter writer) {
+        boolean useConfig = false;
+        for (int i = 2; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "--requestId":
+                    useConfig = true;
+                    break;
+                default:
+                    writer.println("Invalid option at index " + i + ": " + arg);
+                    return;
+            }
+        }
+        String inputString = args[1];
         if (mMirrorStatusCallback == null) {
             mMirrorStatusCallback = new AudioZoneMirrorStatusCallbackImpl();
             boolean registered = mCarAudioService.registerAudioZonesMirrorStatusCallback(
@@ -997,23 +1022,29 @@ final class CarShellCommand extends BasicShellCommandHandler {
         }
         mMirrorStatusCallback.reset();
 
-        mCarAudioService.disableAudioMirrorForZone(zoneId);
+        if (useConfig) {
+            long requestId = Long.parseLong(inputString);
+            mCarAudioService.disableAudioMirror(requestId);
+        } else {
+            int zoneId = Integer.parseInt(inputString);
+            mCarAudioService.disableAudioMirrorForZone(zoneId);
+        }
 
         boolean called;
         try {
             called = mMirrorStatusCallback.waitForCallback();
         } catch (Exception e) {
             Slogf.e(TAG, e, "runUnsetAudioMirror wait for callback failed for zones %s",
-                    zoneIdString);
+                    inputString);
             return;
         }
 
         if (!called) {
-            writer.printf("Did not receive mirror status callback for zones %s\n", zoneIdString);
+            writer.printf("Did not receive mirror status callback for zones %s\n", inputString);
             return;
         }
 
-        writer.printf("Received mirror status callback for zones %s\n", zoneIdString);
+        writer.printf("Received mirror status callback for zones %s\n", inputString);
         writer.increaseIndent();
         for (int c = 0; c < mMirrorStatusCallback.mZoneIds.length; c++) {
             writer.printf("Received zone[%d] %d\n", c , mMirrorStatusCallback.mZoneIds[c]);
@@ -1102,7 +1133,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 if (argNum < 3 || argNum > 6) {
                     return showInvalidArguments(writer);
                 }
-                String delayTime = args[argNum - 2].equals("-t") ?  args[argNum - 1] : "0";
+                String delayTime = Objects.equals(args[argNum - 2], "-t") ?  args[argNum - 1] : "0";
                 if (argNum == 4 || argNum == 6) {
                     // Zoned
                     zone = args[2];
@@ -1193,6 +1224,19 @@ final class CarShellCommand extends BasicShellCommandHandler {
             case COMMAND_HIBERNATE:
                 runSuspendCommand(args, writer);
                 break;
+            case COMMAND_SET_DISPLAY_STATE:
+                if (args.length != 3) {
+                    return showInvalidArguments(writer);
+                }
+                try {
+                    mCarPowerManagementService.setDisplayPowerState(
+                            Integer.valueOf(args[1]), Boolean.parseBoolean(args[2]));
+                } catch (Exception e) {
+                    Slogf.w(TAG, "Invalid argument: %s %s %s", COMMAND_SET_DISPLAY_STATE, args[1],
+                            args[2]);
+                    return showInvalidArguments(writer);
+                }
+                break;
             case COMMAND_SET_UID_TO_ZONE:
                 if (args.length != 3) {
                     return showInvalidArguments(writer);
@@ -1224,10 +1268,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 runSetAudioMirror(args[1], args[2], writer);
                 break;
             case COMMAND_UNSET_AUDIO_MIRROR:
-                if (args.length != 2) {
+                if (args.length < 1) {
                     return showInvalidArguments(writer);
                 }
-                runUnsetAudioMirror(args[1], writer);
+                runUnsetAudioMirror(args, writer);
                 break;
             case COMMAND_SET_USER_ID_TO_OCCUPANT_ZONE:
                 if (args.length != 3) {
@@ -2075,14 +2119,24 @@ final class CarShellCommand extends BasicShellCommandHandler {
             return;
         }
         CarUserManager carUserManager = getCarUserManager(mContext);
-        AsyncFuture<UserSwitchResult> future = carUserManager.switchUser(targetUserId);
 
-        showUserSwitchResult(writer, future, timeout);
+        SyncResultCallback<UserSwitchResult> syncResultCallback = new SyncResultCallback<>();
+
+        carUserManager.switchUser(
+                new UserSwitchRequest.Builder(UserHandle.of(targetUserId)).build(), Runnable::run,
+                syncResultCallback);
+
+        try {
+            showUserSwitchResult(writer, syncResultCallback.get(timeout, TimeUnit.MILLISECONDS));
+        } catch (TimeoutException e) {
+            writer.printf("UserSwitchResult: timed out waitng for result");
+        } catch (InterruptedException e) {
+            writer.printf("UserSwitchResult: interrupted waitng for result");
+            Thread.currentThread().interrupt();
+        }
     }
 
-    private void showUserSwitchResult(IndentingPrintWriter writer,
-            AsyncFuture<UserSwitchResult> future, int timeout) {
-        UserSwitchResult result = waitForFuture(writer, future, timeout);
+    private void showUserSwitchResult(IndentingPrintWriter writer, UserSwitchResult result) {
         if (result == null) return;
         writer.printf("UserSwitchResult: status=%s",
                 UserSwitchResult.statusToString(result.getStatus()));
@@ -2114,7 +2168,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
         CarUserManager carUserManager = getCarUserManager(mContext);
         AsyncFuture<UserSwitchResult> future = carUserManager.logoutUser();
-        showUserSwitchResult(writer, future, timeout);
+        UserSwitchResult result = waitForFuture(writer, future, timeout);
+        showUserSwitchResult(writer, result);
     }
 
     private void createUser(String[] args, IndentingPrintWriter writer) {
@@ -2159,11 +2214,40 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
         if (!halOnly) {
             CarUserManager carUserManager = getCarUserManager(mContext);
-            AsyncFuture<UserCreationResult> future = isGuest
-                    ? carUserManager.createGuest(name)
-                    : carUserManager.createUser(name, flags);
 
-            UserCreationResult result = waitForFuture(writer, future, timeout);
+            SyncResultCallback<UserCreationResult> syncResultCallback =
+                    new SyncResultCallback<UserCreationResult>();
+            UserCreationRequest.Builder builder = new UserCreationRequest.Builder();
+            if (name != null) {
+                builder.setName(name);
+            }
+
+            if (isGuest) {
+                builder.setGuest();
+            }
+
+            if ((flags & UserManagerHelper.FLAG_ADMIN) == UserManagerHelper.FLAG_ADMIN) {
+                builder.setAdmin();
+            }
+
+            if ((flags & UserManagerHelper.FLAG_EPHEMERAL) == UserManagerHelper.FLAG_EPHEMERAL) {
+                builder.setEphemeral();
+            }
+
+            carUserManager.createUser(builder.build(), Runnable::run, syncResultCallback);
+
+            UserCreationResult result;
+            try {
+                result = syncResultCallback.get(timeout, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                writer.printf("UserCreationResult: Got Timeout Exception - %s", e);
+                return;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                writer.printf("UserCreationResult: Got InterruptedException - %s", e);
+                return;
+            }
+
             if (result == null) return;
 
             UserHandle user = result.getUser();
@@ -2278,6 +2362,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         }
 
         int userId = Integer.parseInt(args[1]);
+        int timeout = DEFAULT_HAL_TIMEOUT_MS + DEFAULT_CAR_USER_SERVICE_TIMEOUT_MS;
         boolean halOnly = false;
 
         for (int i = 2; i < args.length; i++) {
@@ -2311,9 +2396,19 @@ final class CarShellCommand extends BasicShellCommandHandler {
         }
 
         CarUserManager carUserManager = getCarUserManager(mContext);
-        UserRemovalResult result = carUserManager.removeUser(userId);
-        writer.printf("UserRemovalResult: status = %s\n",
-                UserRemovalResult.statusToString(result.getStatus()));
+        SyncResultCallback<UserRemovalResult> syncResultCallback = new SyncResultCallback<>();
+        carUserManager.removeUser(new UserRemovalRequest.Builder(
+                UserHandle.of(userId)).build(), Runnable::run, syncResultCallback);
+        try {
+            UserRemovalResult result = syncResultCallback.get(timeout, TimeUnit.MILLISECONDS);
+            writer.printf("UserRemovalResult: status = %s\n",
+                    UserRemovalResult.statusToString(result.getStatus()));
+        } catch (TimeoutException e) {
+            writer.printf("UserRemovalResult: timed out waitng for result");
+        } catch (InterruptedException e) {
+            writer.printf("UserRemovalResult: interrupted waitng for result");
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static <T> T waitForFuture(IndentingPrintWriter writer,
@@ -2605,11 +2700,12 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private void runSuspendCommand(String[] args, IndentingPrintWriter writer) {
         // args[0] is always either COMMAND_SUSPEND or COMMAND_HIBERNE.
         String command = args[0];
-        boolean isHibernation = command.equals(COMMAND_HIBERNATE);
+        boolean isHibernation = Objects.equals(command, COMMAND_HIBERNATE);
         // Default is --auto, so simulate is decided based on device capability.
         boolean simulate = !mCarPowerManagementService.isSuspendAvailable(isHibernation);
         boolean modeSet = false;
         boolean skipGarageMode = false;
+        boolean freeMemory = false;
         int resumeDelay = CarPowerManagementService.NO_WAKEUP_BY_TIMER;
         int index = 1;
         while (index < args.length) {
@@ -2653,6 +2749,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
                     }
                     resumeDelay = Integer.parseInt(args[index]);
                     break;
+                case PARAM_FREE_MEMORY:
+                    freeMemory = true;
+                    break;
                 default:
                     writer.printf("Invalid command syntax.\nUsage: %s\n",
                             getSuspendCommandUsage(command));
@@ -2665,6 +2764,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
             return;
         }
 
+        if (freeMemory && !simulate) {
+            writer.printf("Free memory can be used only with simulated hibernation.\n");
+            return;
+        }
+
         String suspendType = isHibernation ? "disk" : "RAM";
         if (simulate) {
             try {
@@ -2672,7 +2776,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 mCarPowerManagementService.simulateSuspendAndMaybeReboot(
                         isHibernation ? PowerHalService.PowerState.SHUTDOWN_TYPE_HIBERNATION
                                 : PowerHalService.PowerState.SHUTDOWN_TYPE_DEEP_SLEEP,
-                        /* shouldReboot= */ false, skipGarageMode, resumeDelay);
+                        /* shouldReboot= */ false, skipGarageMode, resumeDelay, freeMemory);
             } catch (Exception e) {
                 writer.printf("Simulating suspend-to-%s failed: %s\n", suspendType, e.getMessage());
             }
@@ -2758,6 +2862,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
             case DRIVING_STATE_REVERSE:
                 emulateReverse();
                 break;
+            case DRIVING_STATE_NEUTRAL:
+                emulateNeutral();
+                break;
             default:
                 writer.printf("invalid driving mode %s; must be %s or %s\n", mode,
                         DRIVING_STATE_DRIVE, DRIVING_STATE_PARK);
@@ -2802,6 +2909,20 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 /* zone= */ 0, /* value= */ "0", /* delayTime= */ 0);
         mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
                 /* zone= */ 0, Integer.toString(VehicleGear.GEAR_PARK), /* delayTime= */ 0);
+    }
+
+    /**
+     * Emulates neutral driving state. Called by
+     * {@code adb shell cmd car_service emulate-driving-state neutral}.
+     */
+    private void emulateNeutral() {
+        Slogf.i(TAG, "Emulating neutral driving mode");
+        mHal.injectVhalEvent(VehiclePropertyIds.PERF_VEHICLE_SPEED,
+                /* zone= */ 0, /* value= */ "0", /* delayTime= */ 0);
+        mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
+                /* zone= */ 0, Integer.toString(VehicleGear.GEAR_NEUTRAL), /* delayTime= */ 0);
+        mHal.injectVhalEvent(VehiclePropertyIds.PARKING_BRAKE_ON,
+                /* zone= */ 0, /* value= */ "true", /* delayTime= */ 0);
     }
 
     private int definePowerPolicy(String[] args, IndentingPrintWriter writer) {
@@ -3042,16 +3163,17 @@ final class CarShellCommand extends BasicShellCommandHandler {
             showInvalidArguments(writer);
             return;
         }
-        if (!args[1].equals("true") && !args[1].equals("false")) {
+        if (!Objects.equals(args[1], "true") && !Objects.equals(args[1], "false")) {
             writer.println("Failed to parse killable state argument. "
                     + "Valid arguments: killable | not-killable");
             return;
         }
         int currentUserId = ActivityManager.getCurrentUser();
         mCarWatchdogService.setKillablePackageAsUser(
-                args[2], UserHandle.of(currentUserId), args[1].equals("true"));
+                args[2], UserHandle.of(currentUserId), Objects.equals(args[1], "true"));
         writer.printf("Set package killable state as '%s' for user '%d' and package '%s'\n",
-                args[1].equals("true") ? "killable" : "not killable", currentUserId, args[2]);
+                Objects.equals(args[1], "true") ? "killable" : "not killable", currentUserId,
+                args[2]);
     }
 
     // Set third-party foreground I/O threshold for car watchdog
@@ -3153,21 +3275,31 @@ final class CarShellCommand extends BasicShellCommandHandler {
             showInvalidArguments(writer);
             return;
         }
-        if (!args[1].equals("enable") && !args[1].equals("disable")) {
+        if (!Objects.equals(args[1], "enable") && !Objects.equals(args[1], "disable")) {
             writer.println("Failed to parse argument. Valid arguments: enable | disable");
             return;
         }
-        mCarWatchdogService.controlProcessHealthCheck(args[1].equals("enable"));
+        mCarWatchdogService.controlProcessHealthCheck(Objects.equals(args[1], "enable"));
         writer.printf("Watchdog health checking is now %sd \n", args[1]);
     }
 
     private void performResourceOveruseKill(String[] args, IndentingPrintWriter writer) {
-        if (args.length != 2) {
+        if (args.length != 2 && args.length != 4) {
             showInvalidArguments(writer);
             return;
         }
         String packageName = args[1];
-        int userId = ActivityManager.getCurrentUser();
+        int userId;
+        if (args.length > 2 && args[2].equals("--user")) {
+            try {
+                userId = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                writer.printf("Invalid user id provided: %s\n", args[3]);
+                return;
+            }
+        } else {
+            userId = ActivityManager.getCurrentUser();
+        }
         boolean isKilled = mCarWatchdogService.performResourceOveruseKill(packageName, userId);
         if (isKilled) {
             writer.printf("Successfully killed package '%s' for user %d\n", packageName, userId);
@@ -3574,7 +3706,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         String packageName = args[2];
         int currentUserId = ActivityManager.getCurrentUser();
 
-        if ("get".equals(args[1])) {
+        if (Objects.equals(args[1], "get")) {
             try {
                 int curState = PackageManagerHelper
                         .getApplicationEnabledSettingForUser(packageName, currentUserId);
@@ -3759,14 +3891,14 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
         // TODO(b/234499460): move --user logic to private helper / support 'all'
         int userId = UserHandle.CURRENT.getIdentifier();
-        if (args[1].equals("--user")) {
+        if (Objects.equals(args[1], "--user")) {
             if (args.length < 4) {
                 showInvalidArguments(writer);
                 return;
             }
             String userArg = args[2];
             firstAppArg += 2;
-            if (!"current".equals(userArg) && !"cur".equals(userArg)) {
+            if (!Objects.equals(userArg, "current") && !Objects.equals(userArg, "cur")) {
                 try {
                     userId = Integer.parseInt(args[2]);
                 } catch (NumberFormatException e) {
@@ -3853,7 +3985,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         String userIdArg = args[1];
         int userId;
 
-        if ("current".equals(userIdArg) || "cur".equals(userIdArg)) {
+        if (Objects.equals(userIdArg, "current") || Objects.equals(userIdArg, "cur")) {
             userId = ActivityManager.getCurrentUser();
         } else {
             try {
@@ -3864,7 +3996,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
             }
         }
 
-        int displayId = CarServiceHelperWrapper.getInstance().getDisplayAssignedToUser(userId);
+        int displayId = CarServiceHelperWrapper.getInstance().getMainDisplayAssignedToUser(userId);
         if (displayId == Display.INVALID_DISPLAY) {
             writer.println("none");
         } else {
@@ -3905,7 +4037,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
     private static String getSuspendCommandUsage(String command) {
         return command + " [" + PARAM_AUTO + "|" + PARAM_SIMULATE + "|" + PARAM_REAL + "] ["
-                + PARAM_SKIP_GARAGEMODE + "] [" + PARAM_WAKEUP_AFTER + " RESUME_DELAY]";
+                + PARAM_SKIP_GARAGEMODE + "] [" + PARAM_WAKEUP_AFTER + " RESUME_DELAY]" + "["
+                + PARAM_FREE_MEMORY + "]";
     }
 
     private static final class AudioZoneMirrorStatusCallbackImpl extends

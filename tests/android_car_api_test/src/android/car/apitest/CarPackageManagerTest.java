@@ -16,6 +16,11 @@
 
 package android.car.apitest;
 
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+
+import static org.junit.Assert.assertThrows;
+
 import android.car.Car;
 import android.car.CarVersion;
 import android.car.content.pm.CarPackageManager;
@@ -24,11 +29,6 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Build;
 import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Log;
-
-import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
-
-import static org.junit.Assert.assertThrows;
 
 import org.junit.Before;
 import org.junit.Test;

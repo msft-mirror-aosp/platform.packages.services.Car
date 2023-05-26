@@ -16,6 +16,8 @@
 
 package com.android.car.hal;
 
+import static android.Manifest.permission.ACCESS_FINE_LOCATION;
+
 import static java.lang.Integer.toHexString;
 
 import android.annotation.NonNull;
@@ -29,8 +31,6 @@ import android.hardware.automotive.vehicle.BlindSpotWarningState;
 import android.hardware.automotive.vehicle.CruiseControlCommand;
 import android.hardware.automotive.vehicle.CruiseControlState;
 import android.hardware.automotive.vehicle.CruiseControlType;
-import android.hardware.automotive.vehicle.DriverAttentionMonitoringState;
-import android.hardware.automotive.vehicle.DriverAttentionMonitoringWarning;
 import android.hardware.automotive.vehicle.ElectronicTollCollectionCardStatus;
 import android.hardware.automotive.vehicle.ElectronicTollCollectionCardType;
 import android.hardware.automotive.vehicle.EmergencyLaneKeepAssistState;
@@ -48,6 +48,7 @@ import android.hardware.automotive.vehicle.LaneCenteringAssistCommand;
 import android.hardware.automotive.vehicle.LaneCenteringAssistState;
 import android.hardware.automotive.vehicle.LaneDepartureWarningState;
 import android.hardware.automotive.vehicle.LaneKeepAssistState;
+import android.hardware.automotive.vehicle.LocationCharacterization;
 import android.hardware.automotive.vehicle.PortLocationType;
 import android.hardware.automotive.vehicle.TrailerState;
 import android.hardware.automotive.vehicle.VehicleAreaSeat;
@@ -134,6 +135,8 @@ public class PropertyHalServiceIds {
             new HashSet<>(getIntegersFromDataEnums(TrailerState.class));
     private static final Set<Integer> GSR_COMP_TYPE =
             new HashSet<>(getIntegersFromDataEnums(GsrComplianceRequirementType.class));
+    private static final int LOCATION_CHARACTERIZATION =
+            generateAllCombination(LocationCharacterization.class);
     private static final Set<Integer> WINDSHIELD_WIPERS_STATE =
             new HashSet<>(getIntegersFromDataEnums(WindshieldWipersState.class));
     private static final Set<Integer> WINDSHIELD_WIPERS_SWITCH =
@@ -155,12 +158,6 @@ public class PropertyHalServiceIds {
     private static final Set<Integer> HANDS_ON_DETECTION_WARNING =
             new HashSet<>(getIntegersFromDataEnums(
                     HandsOnDetectionWarning.class, ErrorState.class));
-    private static final Set<Integer> DRIVER_ATTENTION_MONITORING_STATE =
-            new HashSet<>(getIntegersFromDataEnums(
-                    DriverAttentionMonitoringState.class, ErrorState.class));
-    private static final Set<Integer> DRIVER_ATTENTION_MONITORING_WARNING =
-            new HashSet<>(getIntegersFromDataEnums(
-                    DriverAttentionMonitoringWarning.class, ErrorState.class));
     private static final Set<Integer> AUTOMATIC_EMERGENCY_BRAKING_STATE =
             new HashSet<>(getIntegersFromDataEnums(
                 AutomaticEmergencyBrakingState.class, ErrorState.class));
@@ -254,10 +251,6 @@ public class PropertyHalServiceIds {
                 HANDS_ON_DETECTION_DRIVER_STATE);
         HAL_PROP_ID_TO_ENUM_SET.put(VehicleProperty.HANDS_ON_DETECTION_WARNING,
                 HANDS_ON_DETECTION_WARNING);
-        HAL_PROP_ID_TO_ENUM_SET.put(VehicleProperty.DRIVER_ATTENTION_MONITORING_STATE,
-                DRIVER_ATTENTION_MONITORING_STATE);
-        HAL_PROP_ID_TO_ENUM_SET.put(VehicleProperty.DRIVER_ATTENTION_MONITORING_WARNING,
-                DRIVER_ATTENTION_MONITORING_WARNING);
         HAL_PROP_ID_TO_ENUM_SET.put(VehicleProperty.AUTOMATIC_EMERGENCY_BRAKING_STATE,
                 AUTOMATIC_EMERGENCY_BRAKING_STATE);
         HAL_PROP_ID_TO_ENUM_SET.put(VehicleProperty.FORWARD_COLLISION_WARNING_STATE,
@@ -654,6 +647,14 @@ public class PropertyHalServiceIds {
         mHalPropIdToPermissions.put(VehicleProperty.CRUISE_CONTROL_TARGET_SPEED, new Pair<>(
                 Car.PERMISSION_READ_ADAS_STATES,
                 null));
+        mHalPropIdToPermissions.put(VehicleProperty.ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP,
+                new Pair<>(
+                        Car.PERMISSION_READ_ADAS_STATES,
+                        Car.PERMISSION_CONTROL_ADAS_STATES));
+        mHalPropIdToPermissions.put(
+                VehicleProperty.ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE, new Pair<>(
+                        Car.PERMISSION_READ_ADAS_STATES,
+                        null));
         mHalPropIdToPermissions.put(VehicleProperty.HANDS_ON_DETECTION_ENABLED, new Pair<>(
                 Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS,
                 Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS));
@@ -661,15 +662,6 @@ public class PropertyHalServiceIds {
                 Car.PERMISSION_READ_DRIVER_MONITORING_STATES,
                 null));
         mHalPropIdToPermissions.put(VehicleProperty.HANDS_ON_DETECTION_WARNING, new Pair<>(
-                Car.PERMISSION_READ_DRIVER_MONITORING_STATES,
-                null));
-        mHalPropIdToPermissions.put(VehicleProperty.DRIVER_ATTENTION_MONITORING_ENABLED, new Pair<>(
-                Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS,
-                Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS));
-        mHalPropIdToPermissions.put(VehicleProperty.DRIVER_ATTENTION_MONITORING_STATE, new Pair<>(
-                Car.PERMISSION_READ_DRIVER_MONITORING_STATES,
-                null));
-        mHalPropIdToPermissions.put(VehicleProperty.DRIVER_ATTENTION_MONITORING_WARNING, new Pair<>(
                 Car.PERMISSION_READ_DRIVER_MONITORING_STATES,
                 null));
         mHalPropIdToPermissions.put(VehicleProperty.PERF_ODOMETER, new Pair<>(
@@ -922,12 +914,17 @@ public class PropertyHalServiceIds {
         mHalPropIdToPermissions.put(
                 VehicleProperty.GENERAL_SAFETY_REGULATION_COMPLIANCE_REQUIREMENT,
                 new Pair<>(Car.PERMISSION_CAR_INFO, null));
+        mHalPropIdToPermissions.put(VehicleProperty.LOCATION_CHARACTERIZATION, new Pair<>(
+                ACCESS_FINE_LOCATION,
+                null));
 
         // mPropToValidBitFlag contains all properties which return values are combinations of bits
         mHalPropIdToValidBitFlag.put(VehicleProperty.HVAC_FAN_DIRECTION_AVAILABLE,
                 HVAC_FAN_DIRECTION_COMBINATIONS);
         mHalPropIdToValidBitFlag.put(VehicleProperty.HVAC_FAN_DIRECTION,
                 HVAC_FAN_DIRECTION_COMBINATIONS);
+        mHalPropIdToValidBitFlag.put(VehicleProperty.LOCATION_CHARACTERIZATION,
+                LOCATION_CHARACTERIZATION);
     }
 
     /**

@@ -37,6 +37,7 @@ namespace watchdog {
 
 namespace {
 
+using ::aidl::android::automotive::watchdog::internal::ResourceStats;
 using ::aidl::android::automotive::watchdog::internal::UserState;
 using ::android::sp;
 using ::android::String16;
@@ -51,6 +52,8 @@ using ::android::base::StringAppendF;
 using ::android::base::StringPrintf;
 using ::android::base::WriteStringToFd;
 
+const int32_t kMaxCachedUnsentResourceStats = 10;
+const std::chrono::nanoseconds kPrevUnsentResourceStatsDelayNs = 3s;
 // Minimum required collection polling interval between subsequent collections.
 const std::chrono::nanoseconds kMinEventInterval = 1s;
 const std::chrono::seconds kDefaultSystemEventCollectionInterval = 1s;
@@ -137,6 +140,11 @@ constexpr const char* toString(SystemState systemState) {
     }
 }
 
+bool isEmpty(const ResourceStats& resourceStats) {
+    return !resourceStats.resourceUsageStats.has_value() &&
+            !resourceStats.resourceOveruseStats.has_value();
+}
+
 }  // namespace
 
 std::string WatchdogPerfService::EventMetadata::toString() const {
@@ -173,6 +181,9 @@ Result<void> WatchdogPerfService::start() {
         Mutex::Autolock lock(mMutex);
         if (mCurrCollectionEvent != EventType::INIT || mCollectionThread.joinable()) {
             return Error(INVALID_OPERATION) << "Cannot start " << kServiceName << " more than once";
+        }
+        if (mWatchdogServiceHelper == nullptr) {
+            return Error(INVALID_OPERATION) << "No watchdog service helper is registered";
         }
         std::chrono::nanoseconds systemEventCollectionInterval =
                 std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -273,6 +284,7 @@ void WatchdogPerfService::terminate() {
             processor->terminate();
         }
         mCurrCollectionEvent = EventType::TERMINATED;
+        mUnsentResourceStats.clear();
     }
     if (mCollectionThread.joinable()) {
         mCollectionThread.join();
@@ -289,6 +301,15 @@ void WatchdogPerfService::setSystemState(SystemState systemState) {
               toString(systemState));
     }
     mSystemState = systemState;
+}
+
+void WatchdogPerfService::onCarWatchdogServiceRegistered() {
+    Mutex::Autolock lock(mMutex);
+    if (mUnsentResourceStats.empty()) {
+        return;
+    }
+    mHandlerLooper->sendMessage(sp<WatchdogPerfService>::fromExisting(this),
+                                TaskMessage::SEND_RESOURCE_STATS);
 }
 
 Result<void> WatchdogPerfService::onBootFinished() {
@@ -737,6 +758,9 @@ void WatchdogPerfService::handleMessage(const Message& message) {
             switchToPeriodicLocked(/*startNow=*/true);
             return;
         }
+        case static_cast<int>(TaskMessage::SEND_RESOURCE_STATS):
+            result = sendResourceStats();
+            break;
         default:
             result = Error() << "Unknown message: " << message.what;
     }
@@ -809,16 +833,18 @@ Result<void> WatchdogPerfService::collectLocked(WatchdogPerfService::EventMetada
         }
     }
 
+    ResourceStats resourceStats = {};
+
     for (const auto& processor : mDataProcessors) {
         Result<void> result;
         switch (mCurrCollectionEvent) {
             case EventType::BOOT_TIME_COLLECTION:
                 result = processor->onBoottimeCollection(now, mUidStatsCollector,
-                                                         mProcStatCollector);
+                                                         mProcStatCollector, &resourceStats);
                 break;
             case EventType::PERIODIC_COLLECTION:
                 result = processor->onPeriodicCollection(now, mSystemState, mUidStatsCollector,
-                                                         mProcStatCollector);
+                                                         mProcStatCollector, &resourceStats);
                 break;
             case EventType::USER_SWITCH_COLLECTION: {
                 WatchdogPerfService::UserSwitchEventMetadata* userSwitchMetadata =
@@ -833,7 +859,8 @@ Result<void> WatchdogPerfService::collectLocked(WatchdogPerfService::EventMetada
                 break;
             case EventType::CUSTOM_COLLECTION:
                 result = processor->onCustomCollection(now, mSystemState, metadata->filterPackages,
-                                                       mUidStatsCollector, mProcStatCollector);
+                                                       mUidStatsCollector, mProcStatCollector,
+                                                       &resourceStats);
                 break;
             default:
                 result = Error() << "Invalid collection event " << toString(mCurrCollectionEvent);
@@ -843,6 +870,21 @@ Result<void> WatchdogPerfService::collectLocked(WatchdogPerfService::EventMetada
                            << " collection: " << result.error();
         }
     }
+
+    if (!isEmpty(resourceStats)) {
+        cacheUnsentResourceStatsLocked(std::move(resourceStats));
+    }
+
+    if (mUnsentResourceStats.empty() || !mWatchdogServiceHelper->isServiceConnected()) {
+        if (DEBUG && !mWatchdogServiceHelper->isServiceConnected()) {
+            ALOGD("Cannot send resource stats since CarWatchdogService not connected.");
+        }
+        return {};
+    }
+
+    // Send message to send resource stats
+    mHandlerLooper->sendMessage(sp<WatchdogPerfService>::fromExisting(this),
+                                TaskMessage::SEND_RESOURCE_STATS);
 
     return {};
 }
@@ -915,6 +957,38 @@ Result<void> WatchdogPerfService::processMonitorEvent(
     return {};
 }
 
+Result<void> WatchdogPerfService::sendResourceStats() {
+    std::vector<ResourceStats> unsentResourceStats = {};
+    {
+        Mutex::Autolock lock(mMutex);
+        nsecs_t now = mHandlerLooper->now();
+        for (auto it = mUnsentResourceStats.begin(); it != mUnsentResourceStats.end();) {
+            if (now - std::get<nsecs_t>(*it) >= kPrevUnsentResourceStatsMaxDurationNs.count()) {
+                // Drop the expired stats
+                it = mUnsentResourceStats.erase(it);
+                continue;
+            }
+            unsentResourceStats.push_back(std::get<ResourceStats>(*it));
+            ++it;
+        }
+    }
+    if (unsentResourceStats.empty()) {
+        return {};
+    }
+    if (auto status = mWatchdogServiceHelper->onLatestResourceStats(unsentResourceStats);
+        !status.isOk()) {
+        ALOGW("Failed to push the unsent resource stats to watchdog service: %s",
+              status.getDescription().c_str());
+        return {};
+    }
+    Mutex::Autolock lock(mMutex);
+    mUnsentResourceStats.clear();
+    if (DEBUG) {
+        ALOGD("Pushed latest resource usage and I/O overuse stats to watchdog service");
+    }
+    return {};
+}
+
 Result<void> WatchdogPerfService::notifySystemStartUpLocked() {
     for (const auto& processor : mDataProcessors) {
         if (const auto result = processor->onSystemStartup(); !result.ok()) {
@@ -923,6 +997,14 @@ Result<void> WatchdogPerfService::notifySystemStartUpLocked() {
         }
     }
     return {};
+}
+
+void WatchdogPerfService::cacheUnsentResourceStatsLocked(ResourceStats resourceStats) {
+    mUnsentResourceStats.push_back(
+            std::make_tuple(mHandlerLooper->now(), std::move(resourceStats)));
+    if (mUnsentResourceStats.size() > kMaxCachedUnsentResourceStats) {
+        mUnsentResourceStats.erase(mUnsentResourceStats.begin());
+    }
 }
 
 WatchdogPerfService::EventMetadata* WatchdogPerfService::getCurrentCollectionMetadataLocked() {

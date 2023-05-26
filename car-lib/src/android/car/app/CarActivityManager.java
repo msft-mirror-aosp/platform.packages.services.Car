@@ -16,10 +16,13 @@
 
 package android.car.app;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.annotation.IntDef;
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.app.Activity;
@@ -33,11 +36,14 @@ import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.graphics.Rect;
 import android.os.Binder;
+import android.os.Build;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.util.Log;
 import android.util.Pair;
+import android.view.Display;
 import android.view.SurfaceControl;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -49,7 +55,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
@@ -146,6 +151,33 @@ public final class CarActivityManager extends CarManagerBase {
         }
     }
 
+    /**
+     * Designates the given {@code activities} to be launched in the root task associated with the
+     * given {@code rootTaskToken}.
+     * <p>Note: If an activity is already persisted on a root task, it will be overridden by the
+     * {@code rootTaskToken} supplied in the latest call.
+     * <p>Note: If {@code rootTaskToken} is null, the designation will be removed and the given
+     * activities will follow default behavior.
+     *
+     * @param activities list of {@link ComponentName} of activities to be designated on the
+     *                   root task.
+     * @param rootTaskToken the binder token of the root task.
+     */
+    @RequiresPermission(Car.PERMISSION_CONTROL_CAR_APP_LAUNCH)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void setPersistentActivitiesOnRootTask(@NonNull List<ComponentName> activities,
+            @Nullable IBinder rootTaskToken) {
+        assertPlatformVersionAtLeastU();
+        try {
+            mService.setPersistentActivitiesOnRootTask(activities, rootTaskToken);
+        } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
+            throw e;
+        }  catch (RemoteException | RuntimeException e) {
+            handleExceptionFromCarService(e, RESULT_FAILURE);
+        }
+    }
+
     /** @hide */
     @Override
     @AddedInOrBefore(majorVersion = 33)
@@ -204,8 +236,7 @@ public final class CarActivityManager extends CarManagerBase {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo,
-                @NonNull SurfaceControl leash) {
-        Objects.requireNonNull(leash);
+                @Nullable SurfaceControl leash) {
         onTaskAppearedInternal(taskInfo, leash);
     }
 
@@ -266,7 +297,7 @@ public final class CarActivityManager extends CarManagerBase {
     }
 
     /**
-     * Returns all the visible tasks. The order is not guaranteed.
+     * Returns all the visible tasks in the all displays. The order is not guaranteed.
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
@@ -274,7 +305,26 @@ public final class CarActivityManager extends CarManagerBase {
     @NonNull
     public List<ActivityManager.RunningTaskInfo> getVisibleTasks() {
         try {
-            return mService.getVisibleTasks();
+            return mService.getVisibleTasks(Display.INVALID_DISPLAY);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns all the visible tasks in the given display. The order is not guaranteed.
+     *
+     * @param displayId the id of {@link Display} to retrieve the tasks,
+     *         {@link Display.INVALID_DISPLAY} to retrieve the tasks in the all displays.
+     */
+    @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    @NonNull
+    public List<ActivityManager.RunningTaskInfo> getVisibleTasks(int displayId) {
+        try {
+            return mService.getVisibleTasks(displayId);
         } catch (RemoteException e) {
             handleRemoteExceptionFromCarService(e);
         }
@@ -290,6 +340,7 @@ public final class CarActivityManager extends CarManagerBase {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void startUserPickerOnDisplay(int displayId) {
+        assertPlatformVersionAtLeastU();
         try {
             mService.startUserPickerOnDisplay(displayId);
         } catch (RemoteException e) {
@@ -306,9 +357,10 @@ public final class CarActivityManager extends CarManagerBase {
      */
     @RequiresPermission(android.Manifest.permission.MANAGE_ACTIVITY_TASKS)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Nullable
     public IBinder createTaskMirroringToken(int taskId) {
+        assertPlatformVersionAtLeastU();
         try {
             return mService.createTaskMirroringToken(taskId);
         } catch (RemoteException e) {
@@ -325,9 +377,10 @@ public final class CarActivityManager extends CarManagerBase {
      */
     @RequiresPermission(Car.PERMISSION_MIRROR_DISPLAY)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Nullable
     public IBinder createDisplayMirroringToken(int displayId) {
+        assertPlatformVersionAtLeastU();
         try {
             return mService.createDisplayMirroringToken(displayId);
         } catch (RemoteException e) {
@@ -349,6 +402,7 @@ public final class CarActivityManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Nullable
     public Pair<SurfaceControl, Rect> getMirroredSurface(@NonNull IBinder token) {
+        assertPlatformVersionAtLeastU();
         try {
             Rect outBounds = new Rect();
             // SurfaceControl constructor is hidden api, so we can get it by the return value.
@@ -380,6 +434,7 @@ public final class CarActivityManager extends CarManagerBase {
             minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void registerCarSystemUIProxy(@NonNull CarSystemUIProxy carSystemUIProxy) {
+        assertPlatformVersionAtLeastU();
         try {
             mService.registerCarSystemUIProxy(new CarSystemUIProxyAidlWrapper(carSystemUIProxy));
         } catch (RemoteException e) {
@@ -388,7 +443,30 @@ public final class CarActivityManager extends CarManagerBase {
     }
 
     /**
+     * Returns true if the {@link CarSystemUIProxy} is registered, false otherwise.
+     *
+     * @hide
+     */
+    @SystemApi
+    @ApiRequirements(
+            minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public boolean isCarSystemUIProxyRegistered() {
+        assertPlatformVersionAtLeastU();
+        try {
+            return mService.isCarSystemUIProxyRegistered();
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+            return false;
+        }
+    }
+
+    /**
      * Gets the {@link CarTaskViewController} using the {@code carTaskViewControllerCallback}.
+     *
+     * This method is expected to be called from the {@link Activity#onCreate(Bundle)}. It will
+     * take care of freeing up the held resources when activity is destroyed. If an activity is
+     * recreated, it should be called again in the next {@link Activity#onCreate(Bundle)}.
      *
      * @param carTaskViewControllerCallback the callback which the client can use to monitor the
      *                                      lifecycle of the {@link CarTaskViewController}.
@@ -397,6 +475,7 @@ public final class CarActivityManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_MANAGE_CAR_SYSTEM_UI)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
@@ -404,6 +483,7 @@ public final class CarActivityManager extends CarManagerBase {
             @NonNull Activity hostActivity,
             @NonNull Executor callbackExecutor,
             @NonNull CarTaskViewControllerCallback carTaskViewControllerCallback) {
+        assertPlatformVersionAtLeastU();
         try {
             if (mCarTaskViewControllerSupervisor == null) {
                 // Same supervisor is used for multiple activities.
@@ -432,6 +512,7 @@ public final class CarActivityManager extends CarManagerBase {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void moveRootTaskToDisplay(int taskId, int displayId) {
+        assertPlatformVersionAtLeastU();
         try {
             mService.moveRootTaskToDisplay(taskId, displayId);
         } catch (RemoteException e) {

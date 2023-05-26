@@ -35,6 +35,7 @@ package android.car {
     field public static final String CAR_EXTRA_BROWSE_SERVICE_FOR_SESSION = "android.media.session.BROWSE_SERVICE";
     field @Deprecated public static final String CAR_EXTRA_MEDIA_COMPONENT = "android.car.intent.extra.MEDIA_COMPONENT";
     field @Deprecated public static final String CAR_INTENT_ACTION_MEDIA_TEMPLATE = "android.car.intent.action.MEDIA_TEMPLATE";
+    field public static final String CAR_INTENT_ACTION_RECEIVER_SERVICE = "android.car.intent.action.RECEIVER_SERVICE";
     field public static final String CAR_NAVIGATION_SERVICE = "car_navigation_service";
     field public static final String CAR_OCCUPANT_ZONE_SERVICE = "car_occupant_zone_service";
     field public static final String CAR_UX_RESTRICTION_SERVICE = "uxrestriction";
@@ -400,6 +401,7 @@ package android.car {
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MULTI_EV_PORT_LOCATIONS = 289472780; // 0x1141010c
     field @RequiresPermission(android.car.Car.PERMISSION_IDENTIFICATION) public static final int INFO_VIN = 286261504; // 0x11100100
     field public static final int INVALID = 0; // 0x0
+    field @RequiresPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) public static final int LOCATION_CHARACTERIZATION = 289410064; // 0x11400c10
     field @RequiresPermission("android.car.permission.CONTROL_CAR_MIRRORS") public static final int MIRROR_FOLD = 287312709; // 0x11200b45
     field @RequiresPermission("android.car.permission.CONTROL_CAR_MIRRORS") public static final int MIRROR_LOCK = 287312708; // 0x11200b44
     field @RequiresPermission("android.car.permission.CONTROL_CAR_MIRRORS") public static final int MIRROR_Y_MOVE = 339741507; // 0x14400b43
@@ -732,6 +734,7 @@ package android.car.hardware.power {
     field public static final int LOCATION = 14; // 0xe
     field public static final int MEDIA = 2; // 0x2
     field public static final int MICROPHONE = 15; // 0xf
+    field public static final int MINIMUM_CUSTOM_COMPONENT_VALUE = 1000; // 0x3e8
     field public static final int NFC = 9; // 0x9
     field public static final int PROJECTION = 8; // 0x8
     field public static final int TRUSTED_DEVICE_DETECTION = 13; // 0xd
@@ -847,7 +850,9 @@ package android.car.hardware.property {
     method public int getRequestId();
     method public float getUpdateRateHz();
     method public T getValue();
+    method public boolean isWaitForPropertyUpdate();
     method public void setUpdateRateHz(float);
+    method public void setWaitForPropertyUpdate(boolean);
   }
 
   public static final class CarPropertyManager.SetPropertyResult {
@@ -889,6 +894,19 @@ package android.car.hardware.property {
     field public static final int STATE_FULLY_ENABLED = 3; // 0x3
     field public static final int STATE_PARTIALLY_ENABLED = 2; // 0x2
     field public static final int STATE_UNKNOWN = 0; // 0x0
+  }
+
+  public class LocationCharacterization {
+    method @NonNull public static String toString(int);
+    field public static final int ACCELEROMETER_FUSION = 4; // 0x4
+    field public static final int CAR_SPEED_FUSION = 64; // 0x40
+    field public static final int COMPASS_FUSION = 8; // 0x8
+    field public static final int DEAD_RECKONED = 128; // 0x80
+    field public static final int GYROSCOPE_FUSION = 2; // 0x2
+    field public static final int PRIOR_LOCATIONS = 1; // 0x1
+    field public static final int RAW_GNSS_ONLY = 256; // 0x100
+    field public static final int STEERING_ANGLE_FUSION = 32; // 0x20
+    field public static final int WHEEL_SPEED_FUSION = 16; // 0x10
   }
 
   public class PropertyAccessDeniedSecurityException extends java.lang.SecurityException {
@@ -947,6 +965,7 @@ package android.car.media {
     method public boolean isAudioFeatureEnabled(int);
     method public void registerCarVolumeCallback(@NonNull android.car.media.CarAudioManager.CarVolumeCallback);
     method public void unregisterCarVolumeCallback(@NonNull android.car.media.CarAudioManager.CarVolumeCallback);
+    field public static final int AUDIO_FEATURE_AUDIO_MIRRORING = 5; // 0x5
     field public static final int AUDIO_FEATURE_DYNAMIC_ROUTING = 1; // 0x1
     field public static final int AUDIO_FEATURE_OEM_AUDIO_SERVICE = 3; // 0x3
     field public static final int AUDIO_FEATURE_VOLUME_GROUP_EVENTS = 4; // 0x4
@@ -982,9 +1001,19 @@ package android.car.remoteaccess {
 
   public static interface CarRemoteAccessManager.RemoteTaskClientCallback {
     method public void onRegistrationFailed();
-    method public void onRegistrationUpdated(@NonNull String, @NonNull String, @NonNull String);
+    method public void onRegistrationUpdated(@NonNull android.car.remoteaccess.RemoteTaskClientRegistrationInfo);
     method public void onRemoteTaskRequested(@NonNull String, @Nullable byte[], int);
     method public void onShutdownStarting(@NonNull android.car.remoteaccess.CarRemoteAccessManager.CompletableRemoteTaskFuture);
+  }
+
+  public final class RemoteTaskClientRegistrationInfo implements android.os.Parcelable {
+    method public int describeContents();
+    method @NonNull public String getClientId();
+    method @NonNull public String getProcessorId();
+    method @NonNull public String getServiceId();
+    method @NonNull public String getVehicleId();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.car.remoteaccess.RemoteTaskClientRegistrationInfo> CREATOR;
   }
 
 }
