@@ -95,16 +95,20 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -287,8 +291,13 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private final ScreenOffHandler mScreenOffHandler;
 
     @VisibleForTesting
-    PolicyReader getPowerPolicyReader() {
-        return mPolicyReader;
+    void readPowerPolicyFromXml(InputStream inputStream)
+            throws IOException, PolicyReader.PolicyXmlException, XmlPullParserException {
+        mPolicyReader.readPowerPolicyFromXml(inputStream);
+        Integer[] customComponents =
+                new Integer[mPolicyReader.getCustomComponents().values().size()];
+        mPolicyReader.getCustomComponents().values().toArray(customComponents);
+        mPowerComponentHandler.registerCustomComponents(customComponents);
     }
 
     interface ActionOnDeath<T extends IInterface> {
@@ -390,7 +399,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     @Override
     public void init() {
         mPolicyReader.init();
-        mPowerComponentHandler.init();
+        mPowerComponentHandler.init(mPolicyReader.getCustomComponents());
         mHal.setListener(this);
         mSystemInterface.init(this, mUserService);
         mScreenOffHandler.init();
@@ -1267,6 +1276,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         // Broadcasts to the listeners that DO signal completion.
         notifyListeners(completingInternalListeners, newState, internalListenerExpirationTimeMs);
         notifyListeners(completingBinderListeners, newState, binderListenerExpirationTimeMs);
+
+        // Call unlinkToDeath inside RemoteCallbackList
+        completingInternalListeners.kill();
+        completingBinderListeners.kill();
     }
 
     private void notifyListeners(PowerManagerCallbackList<ICarPowerStateListener> listenerList,
@@ -2460,6 +2473,12 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 enabledComponents, disabledComponents);
         if (status != PolicyOperationStatus.OK) {
             return status;
+        }
+        // Get custom power components and update components list in PowerComponentHandler
+        Collection<Integer> customComponents = mPolicyReader.getCustomComponents().values();
+        if (customComponents.size() > 0) {
+            mPowerComponentHandler.registerCustomComponents(
+                    customComponents.toArray(new Integer[customComponents.size()]));
         }
         ICarPowerPolicySystemNotification daemon;
         synchronized (mLock) {

@@ -33,15 +33,14 @@ import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.expr.AnnotationExpr;
-import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MemberValuePair;
-import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public final class ParsedDataBuilder {
 
@@ -112,6 +111,8 @@ public final class ParsedDataBuilder {
                     }
 
                     methodData.annotationData = getAnnotationData(method.getAnnotations());
+                    CompilationUnit.Storage storage = cu.getStorage().get();
+                    methodData.fileName = storage.getDirectory() + "/" + storage.getFileName();
                     classData.methods.put(methodData.fullMethodname, methodData);
                 }
 
@@ -284,7 +285,7 @@ public final class ParsedDataBuilder {
                     hasAddedInAnnotation = true;
                     String fullPlatformVersion = getVersion(annotations.get(j),
                             "value");
-                    if (fullPlatformVersion.equals("0")) {
+                    if (Objects.equals(fullPlatformVersion, "0")) {
                         fullPlatformVersion = annotations.get(j).toString()
                                 .split("\\(")[1].split("\\)")[0];
                     }
@@ -307,12 +308,12 @@ public final class ParsedDataBuilder {
                 String fullRequiresApi = getVersion(annotations.get(j), "api");
 
                 // if RequiresApi doesn't have "api" parameter
-                if (fullRequiresApi.equals("0")) {
+                if (Objects.equals(fullRequiresApi, "0")) {
                     fullRequiresApi = getVersion(annotations.get(j), "value");
                 }
 
                 // if RequiresApi doesn't have "value" parameter. Means no parameter
-                if (fullRequiresApi.equals("0")) {
+                if (Objects.equals(fullRequiresApi, "0")) {
                     fullRequiresApi = annotations.get(j).toString()
                             .split("\\(")[1].split("\\)")[0];
                 }
@@ -380,18 +381,10 @@ public final class ParsedDataBuilder {
         return constructorData;
     }
 
-    private static MethodCallExpr getFirstBodyStatement(MethodDeclaration method) {
+    private static Statement getFirstBodyStatement(MethodDeclaration method) {
         if (method.getBody().isEmpty() || method.getBody().get().isEmpty()) {
             return null;
         }
-        Statement statement = method.getBody().get().getStatement(0);
-        if (!statement.isExpressionStmt()) {
-            return null;
-        }
-        Expression expression = statement.asExpressionStmt().getExpression();
-        if (!expression.isMethodCallExpr()) {
-            return null;
-        }
-        return (MethodCallExpr) statement.asExpressionStmt().getExpression();
+        return method.getBody().get().getStatement(0);
     }
 }

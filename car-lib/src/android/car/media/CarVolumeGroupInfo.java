@@ -17,6 +17,7 @@
 package android.car.media;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -225,6 +226,7 @@ public final class CarVolumeGroupInfo implements Parcelable {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     public List<AudioAttributes> getAudioAttributes() {
+        assertPlatformVersionAtLeastU();
         return mAudioAttributes;
     }
 
@@ -411,6 +413,10 @@ public final class CarVolumeGroupInfo implements Parcelable {
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         @NonNull
         public Builder setAudioAttributes(@NonNull List<AudioAttributes> audioAttributes) {
+            // TODO(b/273843708): add assertion back. getOccupantZoneId is not version guarded
+            // properly when it is used within Car module. Assertion should be added backed once
+            // b/280702422 is resolved
+            // assertPlatformVersionAtLeastU();
             checkNotUsed();
             mAudioAttributes = Objects.requireNonNull(audioAttributes,
                     "Audio Attributes can not be null");

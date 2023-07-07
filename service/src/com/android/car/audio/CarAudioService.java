@@ -28,8 +28,6 @@ import static android.car.media.CarAudioManager.INVALID_VOLUME_GROUP_ID;
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_MUTE_CHANGED;
 import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED;
-import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_MAX_INDEX_CHANGED;
-import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_MIN_INDEX_CHANGED;
 import static android.media.AudioAttributes.USAGE_MEDIA;
 import static android.media.AudioManager.ADJUST_LOWER;
 import static android.media.AudioManager.ADJUST_RAISE;
@@ -156,8 +154,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     static final String TAG = CarLog.TAG_AUDIO;
     private static final String MIRROR_COMMAND_SEPARATOR = ";";
     private static final String MIRROR_COMMAND_DESTINATION_SEPARATOR = ",";
-    public static final String MIRROR_COMMAND_SOURCE = "mirroring_src=";
-    public static final String MIRROR_COMMAND_DESTINATION = "mirroring_dst=";
+    private static final String MIRROR_COMMAND_SOURCE = "mirroring_src=";
+    private static final String MIRROR_COMMAND_DESTINATION = "mirroring_dst=";
+    private static final String DISABLE_AUDIO_MIRRORING = "mirroring=off";
 
     private static final String CAR_AUDIO_SERVICE_THREAD_NAME = "CarAudioService";
 
@@ -561,6 +560,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 }
 
                 mCarAudioMirrorRequestHandler.dump(writer);
+                mMediaRequestHandler.dump(writer);
             }
             writer.decreaseIndent();
         }
@@ -629,6 +629,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     private void handleMuteChanged(int zoneId, int groupId, int flags) {
+        if (!mUseCarVolumeGroupMuting) {
+            return;
+        }
         callbackGroupMuteChanged(zoneId, groupId, flags);
         mCarVolumeGroupMuting.carMuteChanged();
     }
@@ -1222,6 +1225,12 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         mAudioManager.setParameters(builder.toString());
     }
 
+    private String getAudioMirroringOffCommand(String mirrorSource) {
+        return new StringBuilder().append(MIRROR_COMMAND_SOURCE).append(mirrorSource)
+                .append(MIRROR_COMMAND_SEPARATOR).append(DISABLE_AUDIO_MIRRORING)
+                .append(MIRROR_COMMAND_SEPARATOR).toString();
+    }
+
     private String getOutputDeviceAddressForUsageInternal(int zoneId, int usage) {
         int contextForUsage = getCarAudioContext()
                 .getContextForAudioAttribute(CarAudioContext.getAudioAttributeFromUsage(usage));
@@ -1241,6 +1250,14 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     private void handleDisableAudioMirrorForZonesInConfig(int[] audioZoneIds, long requestId) {
+        AudioDeviceInfo mirrorDevice = mCarAudioMirrorRequestHandler.getAudioDeviceInfo(requestId);
+        if (mirrorDevice == null) {
+            Slogf.e(TAG, "handleDisableAudioMirrorForZonesInConfig failed,"
+                    + " audio mirror not allowed as there are no more mirror devices available");
+            mCarAudioMirrorRequestHandler.rejectMirrorForZones(requestId, audioZoneIds);
+            return;
+        }
+
         int[] oldConfigs = mCarAudioMirrorRequestHandler.getMirrorAudioZonesForRequest(requestId);
         if (oldConfigs == null) {
             Slogf.w(TAG, "Could not disable audio mirror for zones %s,"
@@ -1287,6 +1304,11 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
         modifyAudioMirrorForZones(oldConfigs, newConfig);
         mCarAudioMirrorRequestHandler.updateRemoveMirrorConfigurationForZones(requestId, newConfig);
+
+        // If there are no more zones mirroring then turn it off at HAL
+        if (newConfig.length == 0) {
+            mAudioManager.setParameters(getAudioMirroringOffCommand(mirrorDevice.getAddress()));
+        }
     }
 
     private void modifyAudioMirrorForZones(int[] audioZoneIds, int[] newConfig) {
@@ -2360,13 +2382,16 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
         requireDynamicRouting();
         requireVolumeGroupMuting();
+        boolean muteStateChanged = false;
         synchronized (mImplLock) {
             CarVolumeGroup group = getCarVolumeGroupLocked(zoneId, groupId);
-            group.setMute(mute);
+            muteStateChanged = group.setMute(mute);
         }
-        handleMuteChanged(zoneId, groupId, flags);
-        callbackVolumeGroupEvent(List.of(convertVolumeChangeToEvent(
-                getVolumeGroupInfo(zoneId, groupId), flags, EVENT_TYPE_MUTE_CHANGED)));
+        if (muteStateChanged) {
+            handleMuteChanged(zoneId, groupId, flags);
+            callbackVolumeGroupEvent(List.of(convertVolumeChangeToEvent(
+                    getVolumeGroupInfo(zoneId, groupId), flags, EVENT_TYPE_MUTE_CHANGED)));
+        }
     }
 
     @Override
@@ -2950,6 +2975,31 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         }
     }
 
+    void onVolumeGroupEvent(List<CarVolumeGroupEvent> events) {
+        for (int index = 0; index < events.size(); index++) {
+            CarVolumeGroupEvent event = events.get(index);
+            List<CarVolumeGroupInfo> infos = event.getCarVolumeGroupInfos();
+            boolean volumeEvent =
+                    (event.getEventTypes() & EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED) != 0;
+            boolean muteEvent = (event.getEventTypes() & EVENT_TYPE_MUTE_CHANGED) != 0;
+            if (!volumeEvent && !muteEvent) {
+                continue;
+            }
+            for (int infoIndex = 0; infoIndex < infos.size(); infoIndex++) {
+                CarVolumeGroupInfo info = infos.get(infoIndex);
+                int groupId = info.getId();
+                int zoneId = info.getZoneId();
+                if (volumeEvent) {
+                    mCarVolumeCallbackHandler.onVolumeGroupChange(zoneId, groupId, /* flags= */ 0);
+                }
+                if (muteEvent) {
+                    handleMuteChanged(zoneId, groupId, /* flags= */ 0);
+                }
+            }
+        }
+        callbackVolumeGroupEvent(events);
+    }
+
     void onAudioVolumeGroupChanged(int zoneId, String groupName, int flags) {
         int callbackFlags = flags;
         synchronized (mImplLock) {
@@ -2959,30 +3009,19 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                         groupName);
                 return;
             }
-            int volumeEventFlags = group.onAudioVolumeGroupChanged(flags);
-
-            if (CarVolumeEventFlag.hasInvalidFlag(volumeEventFlags)) {
-                Slogf.e(TAG, "onAudioVolumeGroupChanged has invalid flag(%s)",
-                        CarVolumeEventFlag.flagsToString(volumeEventFlags));
+            int eventTypes = group.onAudioVolumeGroupChanged(flags);
+            if (eventTypes == 0) {
                 return;
             }
-
-            int eventTypes = (EVENT_TYPE_VOLUME_MIN_INDEX_CHANGED
-                    | EVENT_TYPE_VOLUME_MAX_INDEX_CHANGED);
-            if ((volumeEventFlags & CarVolumeEventFlag.FLAG_EVENT_VOLUME_CHANGE) != 0) {
-                callbackGroupVolumeChange(zoneId, group.getId(), /* flags= */ 0);
-                volumeEventFlags &= ~CarVolumeEventFlag.FLAG_EVENT_VOLUME_CHANGE;
-                eventTypes |= EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED;
+            if ((eventTypes & EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED) != 0) {
+                callbackGroupVolumeChange(zoneId, group.getId(), FLAG_SHOW_UI);
                 if (mUseDynamicRouting && !isPlaybackOnVolumeGroupActive(zoneId, group.getId())) {
                     callbackFlags |= FLAG_PLAY_SOUND;
                 }
             }
-            if ((volumeEventFlags & CarVolumeEventFlag.FLAG_EVENT_VOLUME_MUTE) != 0) {
-                callbackGroupMuteChanged(zoneId, group.getId(), /* flags= */ 0);
-                volumeEventFlags &= ~CarVolumeEventFlag.FLAG_EVENT_VOLUME_MUTE;
-                eventTypes |= EVENT_TYPE_MUTE_CHANGED;
+            if ((eventTypes & EVENT_TYPE_MUTE_CHANGED) != 0) {
+                handleMuteChanged(zoneId, group.getId(), FLAG_SHOW_UI);
             }
-
             callbackVolumeGroupEvent(List.of(convertVolumeChangeToEvent(
                     getVolumeGroupInfo(zoneId, group.getId()), callbackFlags, eventTypes)));
         }

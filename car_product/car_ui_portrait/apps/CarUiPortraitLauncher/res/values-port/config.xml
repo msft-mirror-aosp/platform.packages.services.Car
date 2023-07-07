@@ -42,12 +42,24 @@
 
     <!-- A list of package names that provide the cards to display on the home screen -->
     <string-array name="config_homeCardModuleClasses" translatable="false">
-        <item>com.android.car.carlauncher.homescreen.audio.AudioCard</item>
+        <item>com.android.car.portraitlauncher.homescreen.audio.PortraitAudioCard</item>
     </string-array>
 
     <!--
      A list of all the apps that are meant to stay in full-screen.
     -->
     <string-array name="config_fullScreenActivities" translatable="false">
+        <!-- CTS test activities that pass when fullscreen -->
+        <item>android.assist.cts/android.assist.cts.TestStartActivity</item>
+        <item>android.widget.cts/android.widget.cts.ListViewCtsActivity</item>
+        <item>android.widget.cts/android.widget.cts.TextViewCtsActivity</item>
+        <item>android.widget.cts/android.widget.cts.RelativeLayoutCtsActivity</item>
+        <item>android.widget.cts/android.widget.cts.NumberPickerCtsActivity</item>
+        <item>android.widget.cts/android.widget.cts.AdapterViewCtsActivity</item>
+        <item>android.widget.cts/android.widget.cts.EditTextCtsActivity</item>
+        <item>android.sdksandbox.webkit.cts/android.app.sdksandbox.testutils.testscenario.SdkSandboxCtsActivity</item>
+        <item>android.view.surfacecontrol.cts/android.view.cts.surfacevalidator.CapturedActivity</item>
+        <item>android.view.surfacecontrol.cts/.TrustedPresentationCallbackTest$TestActivity</item>
+        <item>android.view.surfacecontrol.cts/android.view.cts.surfacevalidator.CapturedActivityWithResource</item>
     </string-array>
 </resources>

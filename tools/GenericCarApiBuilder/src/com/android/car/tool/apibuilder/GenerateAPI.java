@@ -35,8 +35,12 @@ public final class GenerateAPI {
     private static final String ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP";
     private static final String CAR_API_PATH =
             "/packages/services/Car/car-lib/src/android/car";
+    private static final String CAR_SERVICE_PATH =
+            "/packages/services/Car/service/src";
     private static final String CAR_BUILT_IN_API_PATH =
             "/packages/services/Car/car-builtin-lib/src/android/car/builtin";
+    private static final String CSHS_PATH =
+            "/frameworks/opt/car/services/builtInServices/src";
     private static final String CAR_API_ANNOTATION_TEST_FILE =
             "/packages/services/Car/tests/carservice_unit_test/res/raw/car_api_classes.txt";
     private static final String CAR_BUILT_IN_ANNOTATION_TEST_FILE =
@@ -48,9 +52,13 @@ public final class GenerateAPI {
     private static final String CAR_ADDEDINORBEFORE_API_FILE =
             "/packages/services/Car/tests/carservice_unit_test/res/raw/"
                     + "car_addedinorbefore_apis.txt";
+    private static final String CSHS_NON_HIDDEN_CLASSES_FILE =
+            "/frameworks/opt/car/services/builtInServices/tests/res/raw/CSHS_classes.txt";
 
     private static final String PRINT_CLASSES = "--print-classes";
+    private static final String PRINT_NON_HIDDEN_CLASSES_CSHS = "--print-non-hidden-classes-CSHS";
     private static final String UPDATE_CLASSES = "--update-classes";
+    private static final String UPDATE_NON_HIDDEN_CLASSES_CSHS = "--update-non-hidden-classes-CSHS";
     private static final String PRINT_HIDDEN_APIS = "--print-hidden-apis";
     private static final String PRINT_HIDDEN_APIS_WITH_CONSTR = "--print-hidden-apis-with-constr";
     private static final String UPDATE_HIDDEN_APIS = "--update-hidden-apis";
@@ -62,6 +70,12 @@ public final class GenerateAPI {
             "--platform-version-assertion-check";
     private static final String PRINT_ALL_APIS_WITH_CAR_VERSION =
             "--print-all-apis-with-car-version";
+    private static final String PRINT_INCORRECT_REQUIRES_API_USAGE_IN_CAR_SERVICE =
+            "--print-incorrect-requires-api-usage-in-car-service";
+    private static final String PRINT_ADDEDIN_WITHOUT_REQUIRES_API_IN_CAR_BUILT_IN =
+            "--print-addedin-without-requires-api-in-car-built-in";
+    private static final String PRINT_ADDEDIN_WITHOUT_REQUIRES_API_IN_CSHS =
+            "--print-addedin-without-requires-api-in-CSHS";
     private static final String ROOT_DIR = "--root-dir";
 
     public static void main(final String[] args) throws Exception {
@@ -71,8 +85,11 @@ public final class GenerateAPI {
                 return;
             }
 
+            boolean runForCSHS = false;
             boolean printClasses = false;
+            boolean printNonHiddenClassesCSHS = false;
             boolean updateClasses = false;
+            boolean updateNonHiddenClassesCSHS = false;
             boolean printHiddenApis = false;
             boolean printHiddenApisWithConstr = false;
             boolean updateHiddenApis = false;
@@ -81,6 +98,9 @@ public final class GenerateAPI {
             boolean updateApisWithAddedinorbefore = false;
             boolean platformVersionCheck = false;
             boolean printAllApisWithCarVersion = false;
+            boolean printIncorrectRequiresApiUsageInCarService = false;
+            boolean printAddedinWithoutRequiresApiInCarBuiltIn = false;
+            boolean printAddedinWithoutRequiresApiInCSHS = false;
             String rootDir = System.getenv(ANDROID_BUILD_TOP);
             // If print request is more than one. Use marker to separate data. This would be useful
             // for executing multiple requests in one go.
@@ -93,8 +113,17 @@ public final class GenerateAPI {
                         printClasses = true;
                         printRequests++;
                         break;
+                    case PRINT_NON_HIDDEN_CLASSES_CSHS:
+                        printNonHiddenClassesCSHS = true;
+                        runForCSHS = true;
+                        printRequests++;
+                        break;
                     case UPDATE_CLASSES:
                         updateClasses = true;
+                        break;
+                    case UPDATE_NON_HIDDEN_CLASSES_CSHS:
+                        updateNonHiddenClassesCSHS = true;
+                        runForCSHS = true;
                         break;
                     case PRINT_HIDDEN_APIS:
                         printHiddenApis = true;
@@ -127,6 +156,17 @@ public final class GenerateAPI {
                     case PRINT_ALL_APIS_WITH_CAR_VERSION:
                         printAllApisWithCarVersion = true;
                         break;
+                    case PRINT_INCORRECT_REQUIRES_API_USAGE_IN_CAR_SERVICE:
+                        printIncorrectRequiresApiUsageInCarService = true;
+                        break;
+                    case PRINT_ADDEDIN_WITHOUT_REQUIRES_API_IN_CAR_BUILT_IN:
+                        printAddedinWithoutRequiresApiInCarBuiltIn = true;
+                        break;
+                    case PRINT_ADDEDIN_WITHOUT_REQUIRES_API_IN_CSHS:
+                        printAddedinWithoutRequiresApiInCSHS = true;
+                        runForCSHS = true;
+                        printRequests++;
+                        break;
                     default:
                         System.out.println("Incorrect Arguments.");
                         printHelp();
@@ -138,6 +178,26 @@ public final class GenerateAPI {
             if (rootDir == null || rootDir.isEmpty()) {
                 System.out.println("Root dir not set.");
                 printHelp();
+                return;
+            }
+
+            // Do CarServiceHelperService related stuff here
+            if (runForCSHS) {
+                List<File> allJavaFiles_CSHS = getAllFiles(new File(rootDir + CSHS_PATH));
+                ParsedData parsedDataCSHS = new ParsedData();
+                ParsedDataBuilder.populateParsedData(allJavaFiles_CSHS, parsedDataCSHS);
+                if (printNonHiddenClassesCSHS) {
+                    printMarker(printRequests, PRINT_NON_HIDDEN_CLASSES_CSHS);
+                    print(ParsedDataHelper.getNonHiddenClassNamesOnly(parsedDataCSHS));
+                }
+                if (printAddedinWithoutRequiresApiInCSHS) {
+                    printMarker(printRequests, PRINT_ADDEDIN_WITHOUT_REQUIRES_API_IN_CSHS);
+                    print(ParsedDataHelper.getIncorrectRequiresApi(parsedDataCSHS));
+                }
+                if (updateNonHiddenClassesCSHS) {
+                    write(rootDir + CSHS_NON_HIDDEN_CLASSES_FILE,
+                            ParsedDataHelper.getNonHiddenClassNamesOnly(parsedDataCSHS));
+                }
                 return;
             }
 
@@ -201,6 +261,18 @@ public final class GenerateAPI {
                 printMarker(printRequests, PRINT_ALL_APIS_WITH_CAR_VERSION);
                 print(ParsedDataHelper.getApisWithVersion(parsedDataCarLib));
                 print(ParsedDataHelper.getApisWithVersion(parsedDataCarBuiltinLib));
+            }
+            if (printIncorrectRequiresApiUsageInCarService) {
+                printMarker(printRequests, PRINT_INCORRECT_REQUIRES_API_USAGE_IN_CAR_SERVICE);
+                List<File> allJavaFiles_CarService =
+                        getAllFiles(new File(rootDir + CAR_SERVICE_PATH));
+                ParsedData parsedDataCarService = new ParsedData();
+                ParsedDataBuilder.populateParsedData(allJavaFiles_CarService, parsedDataCarService);
+                print(ParsedDataHelper.getIncorrectRequiresApiUsage(parsedDataCarService));
+            }
+            if (printAddedinWithoutRequiresApiInCarBuiltIn) {
+                printMarker(printRequests, PRINT_ADDEDIN_WITHOUT_REQUIRES_API_IN_CAR_BUILT_IN);
+                print(ParsedDataHelper.getIncorrectRequiresApi(parsedDataCarBuiltinLib));
             }
         } catch (Exception e) {
             throw e;

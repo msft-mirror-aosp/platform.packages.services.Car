@@ -101,6 +101,15 @@ public final class UserTestingHelper {
     }
 
     /**
+     * Creates a simple {@link UserInfo}, containing just the given {@code userId}
+     * and {@code userName}.
+     */
+    @NonNull
+    public static UserInfo newUser(@UserIdInt int userId, @NonNull String userName) {
+        return new UserInfoBuilder(userId).setName(userName).build();
+    }
+
+    /**
      * Creates a list of {@link UserInfo UserInfos}, each containing just the given user ids.
      */
     @NonNull
@@ -209,7 +218,6 @@ public final class UserTestingHelper {
         private boolean mGuest;
         private boolean mEphemeral;
         private boolean mAdmin;
-        private boolean mPreCreated;
         private boolean mInitialized;
 
         /**
@@ -278,15 +286,6 @@ public final class UserTestingHelper {
         }
 
         /**
-         * Sets whether the user is an pre-created.
-         */
-        @NonNull
-        public UserInfoBuilder setPreCreated(boolean preCreated) {
-            mPreCreated = preCreated;
-            return this;
-        }
-
-        /**
          * Sets whether the user is initialized.
          */
         @NonNull
@@ -314,7 +313,6 @@ public final class UserTestingHelper {
                 mType = UserManager.USER_TYPE_FULL_GUEST;
             }
             UserInfo info = new UserInfo(mUserId, mName, /* iconPath= */ null, flags, mType);
-            info.preCreated = mPreCreated;
             return info;
         }
     }

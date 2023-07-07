@@ -20,7 +20,8 @@ import android.content.Context;
 import android.util.AttributeSet;
 
 /** The button used to show the app grid in the system bar. */
-public class CarUiPortraitAppGridButton extends CarUiPortraitSystemBarButton{
+public class CarUiPortraitAppGridButton extends CarUiPortraitSystemBarButton {
+
     public CarUiPortraitAppGridButton(Context context,
             AttributeSet attrs) {
         super(context, attrs);

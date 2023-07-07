@@ -113,6 +113,11 @@ package android.car.media {
     method @Deprecated public boolean isDynamicRoutingEnabled();
   }
 
+  public final class CarMediaManager {
+    method @RequiresPermission(android.Manifest.permission.MEDIA_CONTENT_CONTROL) public boolean isIndependentPlaybackConfig();
+    method @RequiresPermission(android.Manifest.permission.MEDIA_CONTENT_CONTROL) public void setIndependentPlaybackConfig(boolean);
+  }
+
 }
 
 package android.car.test {
@@ -131,7 +136,11 @@ package android.car.test {
 package android.car.user {
 
   public final class CarUserManager {
-    method @RequiresPermission(anyOf={android.Manifest.permission.MANAGE_USERS, android.Manifest.permission.CREATE_USERS}) public android.car.util.concurrent.AsyncFuture<android.car.user.UserSwitchResult> switchUser(int);
+    method @Deprecated @RequiresPermission(anyOf={android.Manifest.permission.MANAGE_USERS, android.Manifest.permission.CREATE_USERS}) public android.car.util.concurrent.AsyncFuture<android.car.user.UserSwitchResult> switchUser(int);
+  }
+
+  public final class UserCreationResult implements android.os.Parcelable {
+    ctor public UserCreationResult(int);
   }
 
 }

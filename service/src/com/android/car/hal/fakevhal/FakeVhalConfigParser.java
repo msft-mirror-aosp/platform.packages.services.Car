@@ -54,6 +54,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A JSON parser class to get configs and values from JSON config files.
@@ -113,6 +114,7 @@ public final class FakeVhalConfigParser {
     private static final int WHEEL_FRONT_LEFT = VehicleAreaWheel.LEFT_FRONT;
     private static final int CHARGE_PORT_FRONT_LEFT = PortLocationType.FRONT_LEFT;
     private static final int CHARGE_PORT_REAR_LEFT = PortLocationType.REAR_LEFT;
+    private static final int FAN_DIRECTION_UNKNOWN = VehicleHvacFanDirection.UNKNOWN;
     private static final int FAN_DIRECTION_FLOOR = VehicleHvacFanDirection.FLOOR;
     private static final int FAN_DIRECTION_FACE = VehicleHvacFanDirection.FACE;
     private static final int FAN_DIRECTION_DEFROST = VehicleHvacFanDirection.DEFROST;
@@ -190,6 +192,7 @@ public final class FakeVhalConfigParser {
             Map.entry("WHEEL_FRONT_LEFT", WHEEL_FRONT_LEFT),
             Map.entry("CHARGE_PORT_FRONT_LEFT", CHARGE_PORT_FRONT_LEFT),
             Map.entry("CHARGE_PORT_REAR_LEFT", CHARGE_PORT_REAR_LEFT),
+            Map.entry("FAN_DIRECTION_UNKNOWN", FAN_DIRECTION_UNKNOWN),
             Map.entry("FAN_DIRECTION_FLOOR", FAN_DIRECTION_FLOOR),
             Map.entry("FAN_DIRECTION_FACE", FAN_DIRECTION_FACE),
             Map.entry("FAN_DIRECTION_DEFROST", FAN_DIRECTION_DEFROST),
@@ -570,7 +573,7 @@ public final class FakeVhalConfigParser {
     private String parseStringValue(JSONObject parentObject, String fieldName,
             List<String> errors) {
         String value = parentObject.optString(fieldName);
-        if (value.equals("")) {
+        if (Objects.equals(value, "")) {
             errors.add(fieldName + " doesn't have a mapped value.");
             return null;
         }
@@ -651,7 +654,7 @@ public final class FakeVhalConfigParser {
         String enumClassName = ENUM_CLASS_DIRECTORY + propIdStrings[0];
         String constantName = propIdStrings[1];
 
-        if (propIdStrings[0].equals("Constants")) {
+        if (Objects.equals(propIdStrings[0], "Constants")) {
             if (CONSTANTS_BY_NAME.containsKey(constantName)) {
                 return CONSTANTS_BY_NAME.get(constantName);
             }

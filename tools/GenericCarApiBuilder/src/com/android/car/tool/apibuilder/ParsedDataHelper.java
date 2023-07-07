@@ -23,16 +23,36 @@ import com.android.car.tool.data.MethodData;
 import com.android.car.tool.data.PackageData;
 import com.android.car.tool.data.ParsedData;
 
+import com.github.javaparser.ast.expr.MethodCallExpr;
+
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public final class ParsedDataHelper {
+
+    private static final ArrayList<String> EXEMPT_METHODS = new ArrayList<>(
+            List.of("toString", "equals", "hashCode", "finalize", "writeToParcel",
+                    "describeContents"));
 
     public static List<String> getClassNamesOnly(ParsedData parsedData) {
         List<String> classes = new ArrayList<>();
         parsedData.packages.values().forEach((packageData) -> packageData.classes.values()
                 .forEach((classData) -> classes.add(classData.useableClassName)));
+        return classes;
+    }
+
+    /**
+     * Returns all the non-hidden classes
+     */
+    public static List<String> getNonHiddenClassNamesOnly(ParsedData parsedData) {
+        List<String> classes = new ArrayList<>();
+        parsedData.packages.values().forEach((packageData) -> packageData.classes.values()
+                .forEach((classData) -> {
+                    if (!classData.annotationData.isSystemApi && classData.isClassHidden) {
+                        return;
+                    }
+                    classes.add(classData.useableClassName);
+                }));
         return classes;
     }
 
@@ -129,7 +149,6 @@ public final class ParsedDataHelper {
         return allApis;
     }
 
-    // TODO(b/278759600): add tests for assertPlatformVersionAtLeast check
     public static List<String> checkAssertPlatformVersionAtLeast(
             ParsedData parsedData) {
         List<String> apis = new ArrayList<>();
@@ -143,19 +162,39 @@ public final class ParsedDataHelper {
                                     "TIRAMISU") || method.firstBodyStatement == null) {
                                 return;
                             }
-                            // Check that assertPlatformVersionAtLeast is called and that it has
-                            // the correct
-                            // version as its argument.
-                            if (method.firstBodyStatement.getName().asString().contains(
-                                    "assertPlatformVersionAtLeast")
-                                    && Objects.equals(method.firstBodyStatement.getArgument(
-                                            0).asNameExpr().getNameAsString(),
-                                    method.annotationData.minPlatformVersion)) {
+
+                            for (String exempt : EXEMPT_METHODS) {
+                                if (method.methodName.contains(exempt)) {
+                                    return;
+                                }
+                            }
+
+                            int line = 0;
+                            if (method.firstBodyStatement.getBegin().isPresent()) {
+                                line = method.firstBodyStatement.getBegin().get().line;
+                            }
+
+                            // Case where the first body statement is not a method call expression.
+                            if (!method.firstBodyStatement.isExpressionStmt()
+                                    || !method.firstBodyStatement.asExpressionStmt()
+                                            .getExpression().isMethodCallExpr()) {
+                                apis.add(formatMethodString(packageData, classData, method) + " | "
+                                        + line + " | " + method.fileName);
                                 return;
                             }
-                            apis.add(formatMethodString(packageData, classData, method));
-                        })));
 
+                            MethodCallExpr methodCallExpr = (MethodCallExpr)
+                                    method.firstBodyStatement.asExpressionStmt().getExpression();
+
+                            // Case where no `assertPlatformVersionAtLeastU` method call exists in
+                            // the first line of the method body.
+                            // TODO(b/280357275): Add the version (ex. U, V, ...) as an argument
+                            if (!methodCallExpr.getName().asString().contains(
+                                    "assertPlatformVersionAtLeastU")) {
+                                apis.add(formatMethodString(packageData, classData, method) + " | "
+                                        + line + " | " + method.fileName);
+                            }
+                        })));
         return apis;
     }
 
@@ -169,8 +208,8 @@ public final class ParsedDataHelper {
                             if (field.annotationData.hasAddedInAnnotation) {
                                 minCarVersion = field.annotationData.addedInPlatformVersion;
                             } else if (field.annotationData.hasAddedInOrBefore) {
-                                minCarVersion =
-                                        "TIRAMISU_" + field.annotationData.addedInPlatformVersion;
+                                // The only car version for @AddedInOrBefore is TIRAMISU_0.
+                                minCarVersion = "TIRAMISU_0";
                             } else {
                                 minCarVersion = field.annotationData.minCarVersion;
                             }
@@ -185,8 +224,8 @@ public final class ParsedDataHelper {
                             if (method.annotationData.hasAddedInAnnotation) {
                                 minCarVersion = method.annotationData.addedInPlatformVersion;
                             } else if (method.annotationData.hasAddedInOrBefore) {
-                                minCarVersion =
-                                        "TIRAMISU_" + method.annotationData.addedInPlatformVersion;
+                                // The only car version for @AddedInOrBefore is TIRAMISU_0.
+                                minCarVersion = "TIRAMISU_0";
                             } else {
                                 minCarVersion = method.annotationData.minCarVersion;
                             }
@@ -196,6 +235,64 @@ public final class ParsedDataHelper {
                         })));
 
         return apisWithVersion;
+    }
+
+    /**
+     * Gives incorrect usage of requiresApi annotation in Car Service.
+     */
+    // TODO(b/277617236): add tests for this
+    public static List<String> getIncorrectRequiresApiUsage(ParsedData parsedData) {
+        List<String> incorrectRequiresApiUsage = new ArrayList<>();
+        parsedData.packages.values().forEach((packageData) -> packageData.classes.values()
+                .forEach((classData) -> {
+                    if (classData.annotationData.hasRequiresApiAnnotation) {
+                        incorrectRequiresApiUsage.add(classData.useableClassName + " "
+                                + classData.annotationData.requiresApiVersion);
+                    }
+                }));
+        parsedData.packages.values().forEach((packageData) -> packageData.classes.values()
+                .forEach((classData) -> classData.methods.values().forEach(
+                        (method) -> {
+                            if (method.annotationData.hasRequiresApiAnnotation) {
+                                incorrectRequiresApiUsage
+                                        .add(formatMethodString(packageData, classData, method)
+                                                + " " + method.annotationData.requiresApiVersion);
+                            }
+                        })));
+        return incorrectRequiresApiUsage;
+    }
+
+    /**
+     * Gives incorrect usage of AddedIn annotation in Car built-in library.
+     */
+    // TODO(b/277617236): add tests for this
+    public static List<String> getIncorrectRequiresApi(ParsedData parsedData) {
+        List<String> incorrectRequiresApi = new ArrayList<>();
+        parsedData.packages.values().forEach((packageData) -> packageData.classes.values()
+                .forEach((classData) -> classData.methods.values().forEach(
+                        (method) -> {
+                            if (method.annotationData.hasAddedInAnnotation
+                                    && !method.annotationData.addedInPlatformVersion
+                                            .contains("TIRAMISU")) {
+                                if (!method.annotationData.hasRequiresApiAnnotation) {
+                                    // Require API annotation is missing.
+                                    incorrectRequiresApi.add(
+                                            formatMethodString(packageData, classData, method));
+                                }
+                                String platformVersion =
+                                        method.annotationData.addedInPlatformVersion;
+                                String platformVersionWithoutMinorVersion = platformVersion
+                                        .substring(0, platformVersion.length() - 2);
+                                if (method.annotationData.hasRequiresApiAnnotation
+                                        && !method.annotationData.requiresApiVersion
+                                                .equals(platformVersionWithoutMinorVersion)) {
+                                    // requires Api annotation is wrong
+                                    incorrectRequiresApi.add(
+                                            formatMethodString(packageData, classData, method));
+                                }
+                            }
+                        })));
+        return incorrectRequiresApi;
     }
 
     private static String formatMethodString(PackageData packageData, ClassData classData,

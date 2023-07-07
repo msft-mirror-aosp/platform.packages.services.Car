@@ -21,11 +21,13 @@ import static android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER
 
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_APP_GRID_VISIBILITY_CHANGE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_NOTIFICATION;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_RECENTS;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_FG_TASK_VIEW_READY;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_IMMERSIVE_MODE_CHANGE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_IMMERSIVE_MODE_REQUESTED;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_NOTIFICATIONS_VISIBILITY_CHANGE;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_RECENTS_VISIBILITY_CHANGE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_REGISTER_CLIENT;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_SUW_IN_PROGRESS;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_SYSUI_STARTED;
@@ -33,6 +35,8 @@ import static com.android.car.caruiportrait.common.service.CarUiPortraitService.
 
 import android.annotation.Nullable;
 import android.app.ActivityManager;
+import android.app.ActivityOptions;
+import android.app.IActivityManager;
 import android.app.TaskInfo;
 import android.app.TaskStackListener;
 import android.content.ComponentName;
@@ -55,6 +59,7 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.Display;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
@@ -81,6 +86,8 @@ import com.android.car.carlauncher.homescreen.HomeCardModule;
 import com.android.car.carlauncher.taskstack.TaskStackChangeListeners;
 import com.android.car.caruiportrait.common.service.CarUiPortraitService;
 import com.android.car.portraitlauncher.R;
+import com.android.car.portraitlauncher.common.IntentHandler;
+import com.android.car.portraitlauncher.homescreen.audio.MediaIntentRouter;
 import com.android.car.portraitlauncher.panel.TaskViewPanel;
 
 import java.lang.reflect.InvocationTargetException;
@@ -141,7 +148,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     private static final boolean DBG = Build.IS_DEBUGGABLE;
     private static final String SAVED_BACKGROUND_APP_COMPONENT_NAME =
             "SAVED_BACKGROUND_APP_COMPONENT_NAME";
+    private static final IActivityManager sActivityManager = ActivityManager.getService();
 
+    private int mCurrentBackgroundTaskId;
     private int mStatusBarHeight;
     private FrameLayout mContainer;
     private View mControlBarView;
@@ -155,6 +164,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     private boolean mIsSUWInProgress;
     private TaskCategoryManager mTaskCategoryManager;
     private boolean mIsNotificationCenterOnTop;
+    private boolean mIsRecentsOnTop;
     private TaskInfoCache mTaskInfoCache;
     private TaskViewPanel mAppGridTaskViewPanel;
     private TaskViewPanel mRootTaskViewPanel;
@@ -175,6 +185,21 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     private final List<Message> mMessageCache = new ArrayList<>();
 
     private CarUiPortraitDriveStateController mCarUiPortraitDriveStateController;
+
+    private final IntentHandler mMediaIntentHandler = new IntentHandler() {
+        @Override
+        public void handleIntent(Intent intent) {
+            if (TaskCategoryManager.isMediaApp(mRootTaskViewPanel.getCurrentTask())) {
+                mRootTaskViewPanel.closePanel();
+                return;
+            }
+
+            ActivityOptions options = ActivityOptions.makeBasic();
+            options.setLaunchDisplayId(Display.DEFAULT_DISPLAY);
+
+            startActivity(intent, options.toBundle());
+        }
+    };
 
     /**
      * Class for interacting with the main interface of the {@link CarUiPortraitService}.
@@ -211,10 +236,41 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     // This listener lets us know when actives are added and removed from any of the display regions
     // we care about, so we can trigger the opening and closing of the app containers as needed.
     private final TaskStackListener mTaskStackListener = new TaskStackListener() {
+
+        @Override
+        public void onTaskCreated(int taskId, ComponentName componentName) throws RemoteException {
+            if (componentName != null) {
+                logIfDebuggable("On task created, task = " + taskId
+                        + " componentName " + componentName);
+            }
+
+            // Re-launch the CarUiPortraitHomeScreen if coming background app is not current
+            // background app.
+            if (mTaskCategoryManager.isBackgroundApp(componentName)) {
+                mCurrentBackgroundTaskId = taskId;
+                if (!mTaskCategoryManager.isCurrentBackgroundApp(componentName)) {
+                    logIfDebuggable(
+                            "Re-create home screen on background app switch to " + componentName);
+                    mTaskCategoryManager.setCurrentBackgroundApp(componentName);
+                    recreate();
+                }
+            }
+        }
+
+        @Override
+        public void onTaskFocusChanged(int taskId, boolean focused) {
+            super.onTaskFocusChanged(taskId, focused);
+            boolean hostFocused = taskId == CarUiPortraitHomeScreen.this.getTaskId() && focused;
+            if (hostFocused && mTaskViewManager != null) {
+                mTaskViewManager.showEmbeddedTasks();
+            }
+        }
+
         @Override
         public void onTaskMovedToFront(ActivityManager.RunningTaskInfo taskInfo)
                 throws RemoteException {
-            logIfDebuggable("On task moved to front, task = " + taskInfo);
+            logIfDebuggable("On task moved to front, task = " + taskInfo.taskId + ", cmp = "
+                    + taskInfo.baseActivity);
             if (!mRootTaskViewPanel.isReady()) {
                 logIfDebuggable("Root Task View is not ready yet.");
                 if (!TaskCategoryManager.isHomeIntent(taskInfo)
@@ -227,29 +283,22 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             }
 
             mIsNotificationCenterOnTop = mTaskCategoryManager.isNotificationActivity(taskInfo);
+            mIsRecentsOnTop = mTaskCategoryManager.isRecentsActivity(taskInfo);
             // Close the panel if the top application is a blank activity.
-            // This is to prevent showing a blank panel to the user if an app crashes an reveals
+            // This is to prevent showing a blank panel to the user if an app crashes and reveals
             // the blank activity underneath.
             if (mTaskCategoryManager.isBlankActivity(taskInfo)) {
-                mRootTaskViewPanel.closePanel(/* animated = */ true);
+                setFocusToBackgroundApp();
                 return;
             }
 
-            // Re-launch the CarUiPortraitHomeScreen if coming background app is not current
-            // background app, close panel if already present in the background
             if (mTaskCategoryManager.isBackgroundApp(taskInfo)) {
-                if (!mTaskCategoryManager.isCurrentBackgroundApp(taskInfo)) {
-                    mTaskCategoryManager.setCurrentBackgroundApp(taskInfo.baseActivity);
-                    recreate();
-                } else {
-                    mRootTaskViewPanel.closePanel();
-                    mAppGridTaskViewPanel.closePanel();
-                }
                 return;
             }
 
             if (shouldTaskShowOnRootTaskView(taskInfo)) {
-                logIfDebuggable("Opening in root task view: " + taskInfo);
+                logIfDebuggable("Opening in root task view: ");
+                mRootTaskViewPanel.setCurrentTask(taskInfo);
 
                 if (mAppGridTaskViewPanel.isOpen()) {
                     // Animate the root task view to expand on top of the app grid task view.
@@ -279,9 +328,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 throws RemoteException {
             super.onActivityRestartAttempt(taskInfo, homeTaskVisible, clearedTask, wasVisible);
 
-            logIfDebuggable("On Activity restart attempt, task = " + taskInfo);
-            if (taskInfo.baseIntent == null || taskInfo.baseIntent.getComponent() == null
-                    || mRootTaskViewPanel.isAnimating()) {
+            logIfDebuggable("On Activity restart attempt, task = " + taskInfo.taskId + ", cmp ="
+                    + taskInfo.baseActivity);
+            if (taskInfo.baseIntent == null || taskInfo.baseIntent.getComponent() == null) {
                 return;
             }
 
@@ -294,12 +343,12 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 return;
             }
 
-            if (mRootTaskViewPanel.isAnimating() || mAppGridTaskViewPanel.isAnimating()) {
-                return;
-            }
-
-            logIfDebuggable("Update UI state on app restart attempt, task = " + taskInfo);
+            logIfDebuggable("Update UI state on app restart attempt");
             if (mTaskCategoryManager.isAppGridActivity(taskInfo)) {
+                if (mRootTaskViewPanel.isAnimating()) {
+                    mRootTaskViewPanel.closePanel(/* animated = */ false);
+                }
+
                 // If the new task is an app grid then toggle the app grid panel:
                 // 1 - Close the app grid panel if it is open.
                 // 2 - Open the app grid panel if it is closed:
@@ -315,24 +364,42 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                     mAppGridTaskViewPanel.openPanel();
                 }
             } else if (shouldTaskShowOnRootTaskView(taskInfo)) {
+                if (mAppGridTaskViewPanel.isAnimating() && mAppGridTaskViewPanel.isOpen()) {
+                    mAppGridTaskViewPanel.openPanel(/* animated = */ false);
+                }
+
                 // If the new task should be launched in the root task view panel:
                 // 1 - Close the root task view panel if it is open and the task is notification
-                //    center.
+                //    center. Make sure the app grid panel is closed already in case we are
+                //    interrupting a running animation.
                 // 2 - Open the root task view panel if it is closed:
                 //    a) If the app grid panel is already open then use an expand animation
                 //       to open the root task view on top of the app grid task view.
                 //    b) Otherwise, simply open the app grid panel.
                 if (mRootTaskViewPanel.isOpen()
                         && mTaskCategoryManager.isNotificationActivity(taskInfo)) {
+                    if (mAppGridTaskViewPanel.isOpen()) {
+                        mAppGridTaskViewPanel.closePanel(/* animated = */ false);
+                    }
                     mRootTaskViewPanel.closePanel();
-                } else if (mAppGridTaskViewPanel.isOpen()) {
-                    mRootTaskViewPanel.expandPanel();
                 } else {
-                    mRootTaskViewPanel.openPanel();
+                    if (mAppGridTaskViewPanel.isOpen()) {
+                        mRootTaskViewPanel.expandPanel();
+                    } else {
+                        mRootTaskViewPanel.openPanel();
+                    }
                 }
             }
         }
     };
+
+    private void setFocusToBackgroundApp() {
+        try {
+            sActivityManager.setFocusedRootTask(mCurrentBackgroundTaskId);
+        } catch (RemoteException e) {
+            Log.w(TAG, "Unable to set focus on background app: ", e);
+        }
+    }
 
     /**
      * Only resize the size of rootTaskView when SUW is in progress. This is to resize the height of
@@ -453,6 +520,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
         setUpRootTaskView();
 
+        MediaIntentRouter.getInstance().registerMediaIntentHandler(mMediaIntentHandler);
+
         mInputManagerGlobal = InputManagerGlobal.getInstance();
     }
 
@@ -505,6 +574,12 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         }
     }
 
+    private void collapseRecentsPanel() {
+        if (mIsRecentsOnTop) {
+            mRootTaskViewPanel.closePanel();
+        }
+    }
+
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
@@ -536,9 +611,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private boolean shouldTaskShowOnRootTaskView(TaskInfo taskInfo) {
-        if (taskInfo.baseIntent == null || taskInfo.baseIntent.getComponent() == null
-                || mRootTaskViewPanel.isAnimating()) {
-            logIfDebuggable("Should not show on root task view since task is null");
+        if (taskInfo.baseIntent == null || taskInfo.baseIntent.getComponent() == null) {
+            logIfDebuggable("Should not show on root task view since base intent is null");
             return false;
         }
 
@@ -573,10 +647,10 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private void cacheTask(ActivityManager.RunningTaskInfo taskInfo) {
-        logIfDebuggable("Caching the task: " + taskInfo);
+        logIfDebuggable("Caching the task: " + taskInfo.taskId);
         if (mTaskInfoCache.cancelTask(taskInfo)) {
             boolean cached = mTaskInfoCache.cacheTask(taskInfo);
-            logIfDebuggable("Task " + taskInfo + " is cached = " + cached);
+            logIfDebuggable("Task " + taskInfo.taskId + " is cached = " + cached);
         }
     }
 
@@ -637,12 +711,34 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         Rect topInsets = new Rect(appAreaBounds.left, appAreaBounds.top, appAreaBounds.right,
                 mStatusBarHeight);
 
-        logIfDebuggable(
-                "Applying bottom insets: " + bottomInsets + " top insets: " + topInsets);
+        logIfDebuggable("Applying inset to backgroundTaskView bottom: " + bottomInsets + " top: "
+                + topInsets);
         mBackgroundTaskView.addInsets(
-                0 /* index */, WindowInsets.Type.systemOverlays(), bottomInsets);
+                /* index= */ 0, WindowInsets.Type.systemOverlays(), bottomInsets);
         mBackgroundTaskView.addInsets(
-                1 /* index */, WindowInsets.Type.systemOverlays(), topInsets);
+                /* index= */ 1, WindowInsets.Type.systemOverlays(), topInsets);
+    }
+
+    private void updateFullScreenTaskViewInsets() {
+        if (mFullScreenTaskView == null) {
+            return;
+        }
+
+        Rect appAreaBounds = new Rect();
+        mFullScreenTaskView.getBoundsOnScreen(appAreaBounds);
+
+        Rect bottomInsets = new Rect(appAreaBounds.left, appAreaBounds.height(),
+                appAreaBounds.right, appAreaBounds.bottom);
+
+        Rect topInsets = new Rect(appAreaBounds.left, appAreaBounds.top, appAreaBounds.right,
+                mStatusBarHeight);
+
+        logIfDebuggable("Applying inset to fullScreenTaskView bottom: " + bottomInsets + " top: "
+                + topInsets);
+        mFullScreenTaskView.addInsets(
+                /* index= */ 0, WindowInsets.Type.systemOverlays(), bottomInsets);
+        mFullScreenTaskView.addInsets(
+                /* index= */ 1, WindowInsets.Type.systemOverlays(), topInsets);
     }
 
     private void updateTaskViewInsets() {
@@ -688,10 +784,15 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 new ControlledCarTaskViewCallbacks() {
                     @Override
                     public void onTaskViewCreated(CarTaskView taskView) {
-                        logIfDebuggable("Background Task View is created");
+                        logIfDebuggable("Background Task View is created with component = "
+                                + backgroundIntent.getComponent());
                         taskView.setZOrderOnTop(false);
                         mBackgroundTaskView = taskView;
                         parent.addView(mBackgroundTaskView);
+                        // Set the background app here to avoid recreating
+                        // CarUiPortraitHomeScreen in onTaskCreated
+                        mTaskCategoryManager.setCurrentBackgroundApp(
+                                backgroundIntent.getComponent());
                     }
 
                     @Override
@@ -700,8 +801,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                         mIsBackgroundTaskViewReady = true;
                         onTaskViewReadinessUpdated();
                         updateBackgroundTaskViewInsets();
-                        mTaskCategoryManager.setCurrentBackgroundApp(
-                                backgroundIntent.getComponent());
                     }
                 }
         );
@@ -756,6 +855,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                     TaskViewPanel.State newState, boolean animated) {
                 updateObscuredTouchRegion();
                 updateBackgroundTaskViewInsets();
+                if (!newState.isVisible() && !mRootTaskViewPanel.isVisible()) {
+                    setFocusToBackgroundApp();
+                }
             }
         });
     }
@@ -812,13 +914,19 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 } else {
                     notifySystemUI(MSG_NOTIFICATIONS_VISIBILITY_CHANGE, boolToInt(false));
                 }
+
+                // Update the Recents button's selection state.
+                if (mIsRecentsOnTop && isVisible) {
+                    notifySystemUI(MSG_RECENTS_VISIBILITY_CHANGE, boolToInt(true));
+                } else {
+                    notifySystemUI(MSG_RECENTS_VISIBILITY_CHANGE, boolToInt(false));
+                }
             }
 
             @Override
             public void onStateChangeEnd(TaskViewPanel.State oldState,
                     TaskViewPanel.State newState, boolean animated) {
                 updateObscuredTouchRegion();
-                updateBackgroundTaskViewInsets();
 
                 // Hide the control bar after the animation if in full screen.
                 if (newState.isFullScreen()) {
@@ -826,6 +934,10 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 } else {
                     // Adjust the bottom margin to count for the nav bar.
                     setHomeScreenBottomPadding(mNavBarHeight);
+                    // Update the background task view insets to make sure their content is not
+                    // covered with our panels. We only need to do this when we are not in
+                    // fullscreen.
+                    updateBackgroundTaskViewInsets();
                     // Show the nav bar if not showing Setup Wizard
                     if (!mIsSUWInProgress) {
                         notifySystemUI(MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE,
@@ -889,15 +1001,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     private void setUpFullScreenTaskView() {
         ViewGroup parent = findViewById(R.id.fullscreen_container);
         mTaskViewManager.createSemiControlledTaskView(getMainExecutor(),
+                mTaskCategoryManager.getFullScreenActivities().stream().toList(),
                 new SemiControlledCarTaskViewCallbacks() {
-                    @Override
-                    public boolean shouldStartInTaskView(TaskInfo taskInfo) {
-                        if (taskInfo.baseActivity == null) {
-                            return false;
-                        }
-                        return mTaskCategoryManager.isFullScreenActivity(taskInfo);
-                    }
-
                     @Override
                     public void onTaskViewCreated(CarTaskView taskView) {
                         logIfDebuggable("FullScreen Task View is created");
@@ -911,6 +1016,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                         logIfDebuggable("FullScreen Task View is ready");
                         mIsFullScreenTaskViewReady = true;
                         onTaskViewReadinessUpdated();
+                        updateFullScreenTaskViewInsets();
                     }
                 });
     }
@@ -957,6 +1063,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                     break;
                 case MSG_COLLAPSE_NOTIFICATION:
                     collapseNotificationPanel();
+                    break;
+                case MSG_COLLAPSE_RECENTS:
+                    collapseRecentsPanel();
                     break;
                 default:
                     super.handleMessage(msg);

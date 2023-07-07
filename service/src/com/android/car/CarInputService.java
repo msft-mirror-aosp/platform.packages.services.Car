@@ -433,6 +433,7 @@ public class CarInputService extends ICarInput.Stub
             mProjectionKeyEventHandler = null;
             mProjectionKeyEventsSubscribed.clear();
             mInstrumentClusterKeyListener = null;
+            mListeners.clear();
         }
         mUserService.removeUserLifecycleListener(mUserLifecycleListener);
     }
@@ -877,13 +878,7 @@ public class CarInputService extends ICarInput.Stub
             int userId = mCarOccupantZoneService.getUserForOccupant(zoneId);
             int displayId = mCarOccupantZoneService.getDisplayForOccupant(zoneId,
                     targetDisplayType);
-            // TODO(b/272281432): Do not explicitly launch intents.
-            if (CarServiceUtils.isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager)) {
-                // Passenger only system: Start secondary home on any display.
-                CarServiceUtils.startSecondaryHomeForUserAndDisplay(mContext, userId, displayId);
-            } else {
-                CarServiceUtils.startHomeForUserAndDisplay(mContext, userId, displayId);
-            }
+            CarServiceUtils.startHomeForUserAndDisplay(mContext, userId, displayId);
         }
     }
 

@@ -16,6 +16,8 @@
 
 package android.car;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -101,7 +103,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int FLAG_CLIENT_SAME_VERSION = 1 << 1;
+    public static final int FLAG_CLIENT_SAME_LONG_VERSION = 1 << 1;
 
     /**
      * Flag to indicate whether the client app with the same signing info ({@link
@@ -153,7 +155,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
      */
     @IntDef(flag = true, prefix = {"FLAG_CLIENT_"}, value = {
             FLAG_CLIENT_INSTALLED,
-            FLAG_CLIENT_SAME_VERSION,
+            FLAG_CLIENT_SAME_LONG_VERSION,
             FLAG_CLIENT_SAME_SIGNATURE,
             FLAG_CLIENT_RUNNING,
             FLAG_CLIENT_IN_FOREGROUND
@@ -268,6 +270,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void onCarDisconnected() {
+        assertPlatformVersionAtLeastU();
         synchronized (mLock) {
             mCallback = null;
             mCallbackExecutor = null;
@@ -290,6 +293,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     @RequiresPermission(Car.PERMISSION_MANAGE_REMOTE_DEVICE)
     public void registerStateCallback(@NonNull @CallbackExecutor Executor executor,
             @NonNull StateCallback callback) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
         synchronized (mLock) {
@@ -321,6 +325,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_REMOTE_DEVICE)
     public void unregisterStateCallback() {
+        assertPlatformVersionAtLeastU();
         synchronized (mLock) {
             Preconditions.checkState(mCallback != null, "There is no StateCallback "
                     + "registered by this CarRemoteDeviceManager");
@@ -344,6 +349,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
     @RequiresPermission(Car.PERMISSION_MANAGE_REMOTE_DEVICE)
     @Nullable
     public PackageInfo getEndpointPackageInfo(@NonNull OccupantZoneInfo occupantZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(occupantZone, "occupantZone cannot be null");
         try {
             return mService.getEndpointPackageInfo(occupantZone.zoneId, mPackageName);
@@ -368,6 +374,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(allOf = {Car.PERMISSION_CAR_POWER, Car.PERMISSION_MANAGE_REMOTE_DEVICE})
     public void setOccupantZonePower(@NonNull OccupantZoneInfo occupantZone, boolean powerOn) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(occupantZone, "occupantZone cannot be null");
         try {
             mService.setOccupantZonePower(occupantZone, powerOn);
@@ -385,6 +392,7 @@ public final class CarRemoteDeviceManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_REMOTE_DEVICE)
     public boolean isOccupantZonePowerOn(@NonNull OccupantZoneInfo occupantZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(occupantZone, "occupantZone cannot be null");
         try {
             return mService.isOccupantZonePowerOn(occupantZone);

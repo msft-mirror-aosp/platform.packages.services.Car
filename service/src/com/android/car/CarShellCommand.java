@@ -66,6 +66,7 @@ import android.car.user.UserCreationResult;
 import android.car.user.UserIdentificationAssociationResponse;
 import android.car.user.UserRemovalRequest;
 import android.car.user.UserRemovalResult;
+import android.car.user.UserSwitchRequest;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AsyncFuture;
 import android.car.watchdog.CarWatchdogManager;
@@ -254,6 +255,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String DRIVING_STATE_DRIVE = "drive";
     private static final String DRIVING_STATE_PARK = "park";
     private static final String DRIVING_STATE_REVERSE = "reverse";
+    private static final String DRIVING_STATE_NEUTRAL = "neutral";
 
     private static final String COMMAND_SET_REARVIEW_CAMERA_ID = "set-rearview-camera-id";
     private static final String COMMAND_GET_REARVIEW_CAMERA_ID = "get-rearview-camera-id";
@@ -808,8 +810,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 + "displays the silent state");
         pw.println("\t  and shows how many listeners are monitoring the state.");
 
-        pw.printf("\t%s [%s|%s|%s]\n", COMMAND_EMULATE_DRIVING_STATE, DRIVING_STATE_DRIVE,
-                DRIVING_STATE_PARK, DRIVING_STATE_REVERSE);
+        pw.printf("\t%s [%s|%s|%s|%s]\n", COMMAND_EMULATE_DRIVING_STATE, DRIVING_STATE_DRIVE,
+                DRIVING_STATE_PARK, DRIVING_STATE_REVERSE, DRIVING_STATE_NEUTRAL);
         pw.println("\t  Emulates the giving driving state.");
 
         pw.printf("\t%s <POLICY_ID> [--enable COMP1,COMP2,...] [--disable COMP1,COMP2,...]\n",
@@ -865,7 +867,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.printf("\t%s enable|disable\n", COMMAND_WATCHDOG_CONTROL_PROCESS_HEALTH_CHECK);
         pw.println("\t  Enables/disables car watchdog process health check.");
 
-        pw.printf("\t%s <PACKAGE_NAME>\n", COMMAND_WATCHDOG_RESOURCE_OVERUSE_KILL);
+        pw.printf("\t%s <PACKAGE_NAME> [--user USER_ID]\n", COMMAND_WATCHDOG_RESOURCE_OVERUSE_KILL);
         pw.println("\t  Kills PACKAGE_NAME due to resource overuse.");
 
         pw.printf("\t%s [REGION_STRING]", COMMAND_DRIVING_SAFETY_SET_REGION);
@@ -1131,7 +1133,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 if (argNum < 3 || argNum > 6) {
                     return showInvalidArguments(writer);
                 }
-                String delayTime = args[argNum - 2].equals("-t") ?  args[argNum - 1] : "0";
+                String delayTime = Objects.equals(args[argNum - 2], "-t") ?  args[argNum - 1] : "0";
                 if (argNum == 4 || argNum == 6) {
                     // Zoned
                     zone = args[2];
@@ -2117,15 +2119,24 @@ final class CarShellCommand extends BasicShellCommandHandler {
             return;
         }
         CarUserManager carUserManager = getCarUserManager(mContext);
-        // TODO(b/235991826): Update this call with new switchUser call
-        AsyncFuture<UserSwitchResult> future = carUserManager.switchUser(targetUserId);
 
-        showUserSwitchResult(writer, future, timeout);
+        SyncResultCallback<UserSwitchResult> syncResultCallback = new SyncResultCallback<>();
+
+        carUserManager.switchUser(
+                new UserSwitchRequest.Builder(UserHandle.of(targetUserId)).build(), Runnable::run,
+                syncResultCallback);
+
+        try {
+            showUserSwitchResult(writer, syncResultCallback.get(timeout, TimeUnit.MILLISECONDS));
+        } catch (TimeoutException e) {
+            writer.printf("UserSwitchResult: timed out waitng for result");
+        } catch (InterruptedException e) {
+            writer.printf("UserSwitchResult: interrupted waitng for result");
+            Thread.currentThread().interrupt();
+        }
     }
 
-    private void showUserSwitchResult(IndentingPrintWriter writer,
-            AsyncFuture<UserSwitchResult> future, int timeout) {
-        UserSwitchResult result = waitForFuture(writer, future, timeout);
+    private void showUserSwitchResult(IndentingPrintWriter writer, UserSwitchResult result) {
         if (result == null) return;
         writer.printf("UserSwitchResult: status=%s",
                 UserSwitchResult.statusToString(result.getStatus()));
@@ -2157,7 +2168,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
         CarUserManager carUserManager = getCarUserManager(mContext);
         AsyncFuture<UserSwitchResult> future = carUserManager.logoutUser();
-        showUserSwitchResult(writer, future, timeout);
+        UserSwitchResult result = waitForFuture(writer, future, timeout);
+        showUserSwitchResult(writer, result);
     }
 
     private void createUser(String[] args, IndentingPrintWriter writer) {
@@ -2688,7 +2700,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private void runSuspendCommand(String[] args, IndentingPrintWriter writer) {
         // args[0] is always either COMMAND_SUSPEND or COMMAND_HIBERNE.
         String command = args[0];
-        boolean isHibernation = command.equals(COMMAND_HIBERNATE);
+        boolean isHibernation = Objects.equals(command, COMMAND_HIBERNATE);
         // Default is --auto, so simulate is decided based on device capability.
         boolean simulate = !mCarPowerManagementService.isSuspendAvailable(isHibernation);
         boolean modeSet = false;
@@ -2850,6 +2862,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
             case DRIVING_STATE_REVERSE:
                 emulateReverse();
                 break;
+            case DRIVING_STATE_NEUTRAL:
+                emulateNeutral();
+                break;
             default:
                 writer.printf("invalid driving mode %s; must be %s or %s\n", mode,
                         DRIVING_STATE_DRIVE, DRIVING_STATE_PARK);
@@ -2894,6 +2909,20 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 /* zone= */ 0, /* value= */ "0", /* delayTime= */ 0);
         mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
                 /* zone= */ 0, Integer.toString(VehicleGear.GEAR_PARK), /* delayTime= */ 0);
+    }
+
+    /**
+     * Emulates neutral driving state. Called by
+     * {@code adb shell cmd car_service emulate-driving-state neutral}.
+     */
+    private void emulateNeutral() {
+        Slogf.i(TAG, "Emulating neutral driving mode");
+        mHal.injectVhalEvent(VehiclePropertyIds.PERF_VEHICLE_SPEED,
+                /* zone= */ 0, /* value= */ "0", /* delayTime= */ 0);
+        mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
+                /* zone= */ 0, Integer.toString(VehicleGear.GEAR_NEUTRAL), /* delayTime= */ 0);
+        mHal.injectVhalEvent(VehiclePropertyIds.PARKING_BRAKE_ON,
+                /* zone= */ 0, /* value= */ "true", /* delayTime= */ 0);
     }
 
     private int definePowerPolicy(String[] args, IndentingPrintWriter writer) {
@@ -3134,16 +3163,17 @@ final class CarShellCommand extends BasicShellCommandHandler {
             showInvalidArguments(writer);
             return;
         }
-        if (!args[1].equals("true") && !args[1].equals("false")) {
+        if (!Objects.equals(args[1], "true") && !Objects.equals(args[1], "false")) {
             writer.println("Failed to parse killable state argument. "
                     + "Valid arguments: killable | not-killable");
             return;
         }
         int currentUserId = ActivityManager.getCurrentUser();
         mCarWatchdogService.setKillablePackageAsUser(
-                args[2], UserHandle.of(currentUserId), args[1].equals("true"));
+                args[2], UserHandle.of(currentUserId), Objects.equals(args[1], "true"));
         writer.printf("Set package killable state as '%s' for user '%d' and package '%s'\n",
-                args[1].equals("true") ? "killable" : "not killable", currentUserId, args[2]);
+                Objects.equals(args[1], "true") ? "killable" : "not killable", currentUserId,
+                args[2]);
     }
 
     // Set third-party foreground I/O threshold for car watchdog
@@ -3245,21 +3275,31 @@ final class CarShellCommand extends BasicShellCommandHandler {
             showInvalidArguments(writer);
             return;
         }
-        if (!args[1].equals("enable") && !args[1].equals("disable")) {
+        if (!Objects.equals(args[1], "enable") && !Objects.equals(args[1], "disable")) {
             writer.println("Failed to parse argument. Valid arguments: enable | disable");
             return;
         }
-        mCarWatchdogService.controlProcessHealthCheck(args[1].equals("enable"));
+        mCarWatchdogService.controlProcessHealthCheck(Objects.equals(args[1], "enable"));
         writer.printf("Watchdog health checking is now %sd \n", args[1]);
     }
 
     private void performResourceOveruseKill(String[] args, IndentingPrintWriter writer) {
-        if (args.length != 2) {
+        if (args.length != 2 && args.length != 4) {
             showInvalidArguments(writer);
             return;
         }
         String packageName = args[1];
-        int userId = ActivityManager.getCurrentUser();
+        int userId;
+        if (args.length > 2 && args[2].equals("--user")) {
+            try {
+                userId = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                writer.printf("Invalid user id provided: %s\n", args[3]);
+                return;
+            }
+        } else {
+            userId = ActivityManager.getCurrentUser();
+        }
         boolean isKilled = mCarWatchdogService.performResourceOveruseKill(packageName, userId);
         if (isKilled) {
             writer.printf("Successfully killed package '%s' for user %d\n", packageName, userId);
@@ -3666,7 +3706,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         String packageName = args[2];
         int currentUserId = ActivityManager.getCurrentUser();
 
-        if ("get".equals(args[1])) {
+        if (Objects.equals(args[1], "get")) {
             try {
                 int curState = PackageManagerHelper
                         .getApplicationEnabledSettingForUser(packageName, currentUserId);
@@ -3851,14 +3891,14 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
         // TODO(b/234499460): move --user logic to private helper / support 'all'
         int userId = UserHandle.CURRENT.getIdentifier();
-        if (args[1].equals("--user")) {
+        if (Objects.equals(args[1], "--user")) {
             if (args.length < 4) {
                 showInvalidArguments(writer);
                 return;
             }
             String userArg = args[2];
             firstAppArg += 2;
-            if (!"current".equals(userArg) && !"cur".equals(userArg)) {
+            if (!Objects.equals(userArg, "current") && !Objects.equals(userArg, "cur")) {
                 try {
                     userId = Integer.parseInt(args[2]);
                 } catch (NumberFormatException e) {
@@ -3945,7 +3985,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         String userIdArg = args[1];
         int userId;
 
-        if ("current".equals(userIdArg) || "cur".equals(userIdArg)) {
+        if (Objects.equals(userIdArg, "current") || Objects.equals(userIdArg, "cur")) {
             userId = ActivityManager.getCurrentUser();
         } else {
             try {

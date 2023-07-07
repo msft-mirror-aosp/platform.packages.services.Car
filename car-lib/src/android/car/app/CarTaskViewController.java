@@ -19,6 +19,8 @@ package android.car.app;
 
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.Manifest;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -37,6 +39,7 @@ import android.util.Log;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -87,6 +90,7 @@ public final class CarTaskViewController {
             @NonNull ControlledRemoteCarTaskViewConfig controlledRemoteCarTaskViewConfig,
             @NonNull Executor callbackExecutor,
             @NonNull ControlledRemoteCarTaskViewCallback controlledRemoteCarTaskViewCallback) {
+        assertPlatformVersionAtLeastU();
         if (mReleased) {
             throw new IllegalStateException("CarTaskViewController is already released");
         }
@@ -100,7 +104,8 @@ public final class CarTaskViewController {
                         mHostActivity.getSystemService(UserManager.class));
 
         try {
-            ICarTaskViewHost host = mService.createCarTaskView(taskViewClient.mICarTaskViewClient);
+            ICarTaskViewHost host = mService.createControlledCarTaskView(
+                    taskViewClient.mICarTaskViewClient);
             taskViewClient.setRemoteHost(host);
             mControlledRemoteCarTaskViews.add(taskViewClient);
 
@@ -113,6 +118,19 @@ public final class CarTaskViewController {
         } catch (RemoteException e) {
             Slogf.e(TAG, "Unable to create task view.", e);
         }
+    }
+
+    void onControlledRemoteCarTaskViewReleased(@NonNull ControlledRemoteCarTaskView taskView) {
+        if (mReleased) {
+            Log.w(TAG, "Failed to remove the taskView as the "
+                    + "CarTaskViewController is already released");
+            return;
+        }
+        if (!mControlledRemoteCarTaskViews.contains(taskView)) {
+            Log.w(TAG, "This taskView has already been removed");
+            return;
+        }
+        mControlledRemoteCarTaskViews.remove(taskView);
     }
 
     private void assertPermission(String permission) {
@@ -133,6 +151,7 @@ public final class CarTaskViewController {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void release() {
+        assertPlatformVersionAtLeastU();
         if (mReleased) {
             Slogf.w(TAG, "CarTaskViewController is already released");
             return;
@@ -143,10 +162,14 @@ public final class CarTaskViewController {
     }
 
     void releaseTaskViews() {
-        for (RemoteCarTaskView carTaskView : mControlledRemoteCarTaskViews) {
-            carTaskView.release();
+        Iterator<ControlledRemoteCarTaskView> iterator = mControlledRemoteCarTaskViews.iterator();
+        while (iterator.hasNext()) {
+            ControlledRemoteCarTaskView taskView = iterator.next();
+            // Remove the task view here itself because release triggers removal again which can
+            // result in concurrent modification exception.
+            iterator.remove();
+            taskView.release();
         }
-        mControlledRemoteCarTaskViews.clear();
     }
 
     /**
@@ -155,6 +178,7 @@ public final class CarTaskViewController {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void showEmbeddedTasks() {
+        assertPlatformVersionAtLeastU();
         if (mReleased) {
             throw new IllegalStateException("CarTaskViewController is already released");
         }

@@ -53,6 +53,7 @@ import android.util.SparseArray;
 import com.android.car.hal.PropertyHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.property.AsyncPropertyServiceRequest;
+import com.android.car.internal.property.AsyncPropertyServiceRequestList;
 import com.android.car.internal.property.CarPropertyConfigList;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
 import com.android.car.internal.property.InputSanitizationUtils;
@@ -63,7 +64,6 @@ import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Formatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +136,6 @@ public class CarPropertyService extends ICarProperty.Stub
                 WINDSHIELD_WIPERS_SWITCH_UNWRITABLE_STATES);
     }
 
-    private final Formatter mFormatter = new Formatter();
     private final Context mContext;
     private final PropertyHalService mPropertyHalService;
     private final Object mLock = new Object();
@@ -823,7 +822,7 @@ public class CarPropertyService extends ICarProperty.Stub
         }
     }
 
-    private static void validateGetSetAsyncParameters(List<AsyncPropertyServiceRequest> requests,
+    private static void validateGetSetAsyncParameters(AsyncPropertyServiceRequestList requests,
             IAsyncPropertyResultCallback asyncPropertyResultCallback,
             long timeoutInMs) throws IllegalArgumentException {
         requireNonNull(requests);
@@ -834,11 +833,13 @@ public class CarPropertyService extends ICarProperty.Stub
     /**
      * Gets CarPropertyValues asynchronously.
      */
-    public void getPropertiesAsync(List<AsyncPropertyServiceRequest> getPropertyServiceRequests,
-            IAsyncPropertyResultCallback asyncPropertyResultCallback,
-            long timeoutInMs) {
-        validateGetSetAsyncParameters(getPropertyServiceRequests, asyncPropertyResultCallback,
-                timeoutInMs);
+    public void getPropertiesAsync(
+            AsyncPropertyServiceRequestList getPropertyServiceRequestsParcelable,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback, long timeoutInMs) {
+        validateGetSetAsyncParameters(getPropertyServiceRequestsParcelable,
+                asyncPropertyResultCallback, timeoutInMs);
+        List<AsyncPropertyServiceRequest> getPropertyServiceRequests =
+                getPropertyServiceRequestsParcelable.getList();
         for (int i = 0; i < getPropertyServiceRequests.size(); i++) {
             validateGetParameters(getPropertyServiceRequests.get(i).getPropertyId(),
                     getPropertyServiceRequests.get(i).getAreaId());
@@ -850,13 +851,16 @@ public class CarPropertyService extends ICarProperty.Stub
     /**
      * Sets CarPropertyValues asynchronously.
      */
-    public void setPropertiesAsync(List<AsyncPropertyServiceRequest> setPropertyServiceRequests,
+    @SuppressWarnings("FormatString")
+    public void setPropertiesAsync(AsyncPropertyServiceRequestList setPropertyServiceRequests,
             IAsyncPropertyResultCallback asyncPropertyResultCallback,
             long timeoutInMs) {
         validateGetSetAsyncParameters(setPropertyServiceRequests, asyncPropertyResultCallback,
                 timeoutInMs);
-        for (int i = 0; i < setPropertyServiceRequests.size(); i++) {
-            AsyncPropertyServiceRequest request = setPropertyServiceRequests.get(i);
+        List<AsyncPropertyServiceRequest> setPropertyServiceRequestList =
+                setPropertyServiceRequests.getList();
+        for (int i = 0; i < setPropertyServiceRequestList.size(); i++) {
+            AsyncPropertyServiceRequest request = setPropertyServiceRequestList.get(i);
             CarPropertyValue carPropertyValueToSet = request.getCarPropertyValue();
             int propertyId = request.getPropertyId();
             int valuePropertyId = carPropertyValueToSet.getPropertyId();
@@ -864,12 +868,12 @@ public class CarPropertyService extends ICarProperty.Stub
             int valueAreaId = carPropertyValueToSet.getAreaId();
             String propertyName = VehiclePropertyIds.toString(propertyId);
             if (valuePropertyId != propertyId) {
-                throw new IllegalArgumentException(mFormatter.format(
+                throw new IllegalArgumentException(String.format(
                         "Property ID in request and CarPropertyValue mismatch: %s vs %s",
                         VehiclePropertyIds.toString(valuePropertyId), propertyName).toString());
             }
             if (valueAreaId != areaId) {
-                throw new IllegalArgumentException(mFormatter.format(
+                throw new IllegalArgumentException(String.format(
                         "For property: %s, area ID in request and CarPropertyValue mismatch: %d vs"
                         + " %d", propertyName, valueAreaId, areaId).toString());
             }
@@ -882,7 +886,7 @@ public class CarPropertyService extends ICarProperty.Stub
                 validateGetParameters(propertyId, areaId);
             }
         }
-        mPropertyHalService.setCarPropertyValuesAsync(setPropertyServiceRequests,
+        mPropertyHalService.setCarPropertyValuesAsync(setPropertyServiceRequestList,
                 asyncPropertyResultCallback, timeoutInMs);
     }
 

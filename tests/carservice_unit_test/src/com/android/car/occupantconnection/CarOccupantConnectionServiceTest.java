@@ -19,13 +19,10 @@ package com.android.car.occupantconnection;
 import static android.car.Car.CAR_INTENT_ACTION_RECEIVER_SERVICE;
 import static android.car.CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER;
 import static android.car.CarOccupantZoneManager.OCCUPANT_TYPE_FRONT_PASSENGER;
-import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_INSTALLED;
-import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_IN_FOREGROUND;
-import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_RUNNING;
-import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_SAME_SIGNATURE;
-import static android.car.CarRemoteDeviceManager.FLAG_CLIENT_SAME_VERSION;
 import static android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT;
 import static android.car.VehicleAreaSeat.SEAT_ROW_1_RIGHT;
+import static android.car.occupantconnection.CarOccupantConnectionManager.CONNECTION_ERROR_NOT_READY;
+import static android.car.occupantconnection.CarOccupantConnectionManager.CONNECTION_ERROR_PEER_APP_NOT_INSTALLED;
 import static android.car.occupantconnection.CarOccupantConnectionManager.CONNECTION_ERROR_UNKNOWN;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -51,6 +48,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.IBinder;
@@ -83,6 +81,8 @@ public final class CarOccupantConnectionServiceTest {
     private Context mContext;
     @Mock
     private CarOccupantZoneService mOccupantZoneService;
+    @Mock
+    private CarRemoteDeviceService mRemoteDeviceService;
     @Mock
     private IPayloadCallback mPayloadCallback;
     @Mock
@@ -121,9 +121,12 @@ public final class CarOccupantConnectionServiceTest {
         // So just remove as safety guard.
         CarLocalServices.removeServiceForTest(CarOccupantZoneService.class);
         CarLocalServices.addService(CarOccupantZoneService.class, mOccupantZoneService);
+        CarLocalServices.removeServiceForTest(CarRemoteDeviceService.class);
+        CarLocalServices.addService(CarRemoteDeviceService.class, mRemoteDeviceService);
 
         mService = new CarOccupantConnectionService(mContext,
                 mOccupantZoneService,
+                mRemoteDeviceService,
                 mConnectingReceiverServices,
                 mConnectedReceiverServiceMap,
                 mReceiverServiceConnectionMap,
@@ -140,6 +143,7 @@ public final class CarOccupantConnectionServiceTest {
 
     @After
     public void tearDown() {
+        CarLocalServices.removeServiceForTest(CarRemoteDeviceService.class);
         CarLocalServices.removeServiceForTest(CarOccupantZoneService.class);
     }
 
@@ -460,8 +464,10 @@ public final class CarOccupantConnectionServiceTest {
     public void testRequestConnectionWithoutReceiverServiceBoundBefore() throws RemoteException {
         // The receiver service is not bound yet before the sender requests a connection.
         UserHandle senderUserHandle = Binder.getCallingUserHandle();
-        when(mOccupantZoneService.getOccupantZoneForUser(senderUserHandle))
-                .thenReturn(mSenderZone);
+        mockAppInstalled(mSenderZone, senderUserHandle);
+        UserHandle receiverUserHandle = UserHandle.of(RECEIVER_USER_ID);
+        mockAppInstalled(mReceiverZone, receiverUserHandle);
+
         mService.requestConnection(PACKAGE_NAME, mReceiverZone, mConnectionRequestCallback);
 
         // The sender endpoint should be saved in the cache.
@@ -493,19 +499,17 @@ public final class CarOccupantConnectionServiceTest {
         assertThat(mPendingConnectionRequestMap.size()).isEqualTo(1);
 
         // The receiver service should be notified for the connection request.
-        verify(receiverService).onConnectionInitiated(mSenderZone,
-                /* senderAppState= */ FLAG_CLIENT_INSTALLED | FLAG_CLIENT_SAME_VERSION
-                | FLAG_CLIENT_SAME_SIGNATURE | FLAG_CLIENT_RUNNING | FLAG_CLIENT_IN_FOREGROUND);
+        verify(receiverService).onConnectionInitiated(mSenderZone, /* senderVersion= */
+                0, /* senderSigningInfo= */ null);
     }
 
     @Test
     public void testRequestConnectionWithReceiverServiceBoundAlready() throws RemoteException {
         // The receiver service is bound already before the sender requests a connection.
         UserHandle senderUserHandle = Binder.getCallingUserHandle();
-        when(mOccupantZoneService.getOccupantZoneForUser(senderUserHandle))
-                .thenReturn(mSenderZone);
-        when(mOccupantZoneService.getUserForOccupant(mReceiverZone.zoneId))
-                .thenReturn(RECEIVER_USER_ID);
+        mockAppInstalled(mSenderZone, senderUserHandle);
+        UserHandle receiverUserHandle = UserHandle.of(RECEIVER_USER_ID);
+        mockAppInstalled(mReceiverZone, receiverUserHandle);
         ClientId receiverClient = new ClientId(mReceiverZone, RECEIVER_USER_ID, PACKAGE_NAME);
         IBinder binder = mock(IBinder.class);
         IBackendReceiver receiverService = mock(IBackendReceiver.class);
@@ -523,9 +527,8 @@ public final class CarOccupantConnectionServiceTest {
         assertThat(connectionId.senderClient.packageName).isEqualTo(PACKAGE_NAME);
 
         // The receiver service should be notified for the connection request.
-        verify(receiverService).onConnectionInitiated(mSenderZone,
-                /* senderAppState= */ FLAG_CLIENT_INSTALLED | FLAG_CLIENT_SAME_VERSION
-                | FLAG_CLIENT_SAME_SIGNATURE | FLAG_CLIENT_RUNNING | FLAG_CLIENT_IN_FOREGROUND);
+        verify(receiverService).onConnectionInitiated(mSenderZone, /* senderVersion= */
+                0, /* senderSigningInfo= */ null);
     }
 
     @Test
@@ -533,10 +536,9 @@ public final class CarOccupantConnectionServiceTest {
         // The sender client is already connected to the receiver client before requesting a
         // connection.
         UserHandle senderUserHandle = Binder.getCallingUserHandle();
-        when(mOccupantZoneService.getOccupantZoneForUser(senderUserHandle))
-                .thenReturn(mSenderZone);
-        when(mOccupantZoneService.getUserForOccupant(mReceiverZone.zoneId))
-                .thenReturn(RECEIVER_USER_ID);
+        mockAppInstalled(mSenderZone, senderUserHandle);
+        UserHandle receiverUserHandle = UserHandle.of(RECEIVER_USER_ID);
+        mockAppInstalled(mReceiverZone, receiverUserHandle);
         ClientId senderClient =
                 new ClientId(mSenderZone, senderUserHandle.getIdentifier(), PACKAGE_NAME);
         ClientId receiverClient = new ClientId(mReceiverZone, RECEIVER_USER_ID, PACKAGE_NAME);
@@ -557,10 +559,9 @@ public final class CarOccupantConnectionServiceTest {
         // The sender client is already connected to the receiver client before requesting a
         // connection.
         UserHandle senderUserHandle = Binder.getCallingUserHandle();
-        when(mOccupantZoneService.getOccupantZoneForUser(senderUserHandle))
-                .thenReturn(mSenderZone);
-        when(mOccupantZoneService.getUserForOccupant(mReceiverZone.zoneId))
-                .thenReturn(RECEIVER_USER_ID);
+        mockAppInstalled(mSenderZone, senderUserHandle);
+        UserHandle receiverUserHandle = UserHandle.of(RECEIVER_USER_ID);
+        mockAppInstalled(mReceiverZone, receiverUserHandle);
         ClientId senderClient =
                 new ClientId(mSenderZone, senderUserHandle.getIdentifier(), PACKAGE_NAME);
         ClientId receiverClient = new ClientId(mReceiverZone, RECEIVER_USER_ID, PACKAGE_NAME);
@@ -574,6 +575,29 @@ public final class CarOccupantConnectionServiceTest {
         assertThrows(IllegalStateException.class,
                 () -> mService.requestConnection(PACKAGE_NAME, mReceiverZone,
                         mConnectionRequestCallback));
+    }
+
+    @Test
+    public void testRequestConnectionReceiverZoneNotReady() throws RemoteException {
+        UserHandle senderUserHandle = Binder.getCallingUserHandle();
+        mockAppInstalled(mSenderZone, senderUserHandle);
+        when(mRemoteDeviceService.isConnectionReady(mReceiverZone)).thenReturn(false);
+
+        mService.requestConnection(PACKAGE_NAME, mReceiverZone, mConnectionRequestCallback);
+
+        verify(mConnectionRequestCallback).onFailed(mReceiverZone, CONNECTION_ERROR_NOT_READY);
+    }
+
+    @Test
+    public void testRequestConnectionReceiverAppNotInstalled() throws RemoteException {
+        UserHandle senderUserHandle = Binder.getCallingUserHandle();
+        mockAppInstalled(mSenderZone, senderUserHandle);
+        when(mRemoteDeviceService.isConnectionReady(mReceiverZone)).thenReturn(true);
+
+        mService.requestConnection(PACKAGE_NAME, mReceiverZone, mConnectionRequestCallback);
+
+        verify(mConnectionRequestCallback)
+                .onFailed(mReceiverZone, CONNECTION_ERROR_PEER_APP_NOT_INSTALLED);
     }
 
     @Test
@@ -666,8 +690,7 @@ public final class CarOccupantConnectionServiceTest {
                 anyInt(), any(UserHandle.class));
 
         UserHandle receiverUserHandle = Binder.getCallingUserHandle();
-        when(mOccupantZoneService.getOccupantZoneForUser(receiverUserHandle))
-                .thenReturn(mReceiverZone);
+        mockAppInstalled(mReceiverZone, receiverUserHandle);
         mService.registerReceiver(PACKAGE_NAME, RECEIVER_ENDPOINT_ID, mPayloadCallback);
 
         ClientId receiverClient = mService.getCallingClientId(PACKAGE_NAME);
@@ -712,7 +735,7 @@ public final class CarOccupantConnectionServiceTest {
 
         verify(mConnectionRequestCallback).onFailed(receiverClient.occupantZone,
                 CONNECTION_ERROR_UNKNOWN);
-        verify(callback2).onFailed(receiverClient.occupantZone, CONNECTION_ERROR_UNKNOWN);
+        verify(callback2).onDisconnected(receiverClient.occupantZone);
     }
 
     @Test
@@ -955,6 +978,19 @@ public final class CarOccupantConnectionServiceTest {
         when(pm.getPackageUidAsUser(eq(PACKAGE_NAME), anyInt())).thenReturn(Binder.getCallingUid());
     }
 
+    private void mockAppInstalled(OccupantZoneInfo occupantZone, UserHandle userHandle) {
+        when(mRemoteDeviceService.isConnectionReady(occupantZone)).thenReturn(true);
+        PackageInfo packageInfo = mock(PackageInfo.class);
+        when(mRemoteDeviceService.getEndpointPackageInfo(occupantZone.zoneId, PACKAGE_NAME))
+                .thenReturn(packageInfo);
+        when(mOccupantZoneService.getOccupantZoneForUser(userHandle))
+                .thenReturn(occupantZone);
+        when(mOccupantZoneService.getUserForOccupant(occupantZone.zoneId))
+                .thenReturn(userHandle.getIdentifier());
+        when(mRemoteDeviceService.getPackageInfoAsUser(PACKAGE_NAME, userHandle.getIdentifier()))
+                .thenReturn(packageInfo);
+    }
+
     private static final class TestConnectionRequestCallback extends android.os.Binder implements
             IConnectionRequestCallback {
 
@@ -983,10 +1019,6 @@ public final class CarOccupantConnectionServiceTest {
 
         @Override
         public void onConnected(OccupantZoneInfo receiverZone) {
-        }
-
-        @Override
-        public void onRejected(OccupantZoneInfo receiverZone, int rejectionReason) {
         }
 
         @Override

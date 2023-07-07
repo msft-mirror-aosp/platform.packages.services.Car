@@ -61,7 +61,11 @@ import android.car.user.CarUserManager.UserLifecycleEvent;
 import android.car.user.UserCreationResult;
 import android.car.user.UserIdentificationAssociationResponse;
 import android.car.user.UserRemovalResult;
+import android.car.user.UserStartRequest;
+import android.car.user.UserStartResponse;
 import android.car.user.UserStartResult;
+import android.car.user.UserStopRequest;
+import android.car.user.UserStopResponse;
 import android.car.user.UserStopResult;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AndroidFuture;
@@ -124,6 +128,7 @@ import org.mockito.Mock;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class contains unit tests for the {@link CarUserService}.
@@ -169,7 +174,6 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
     @Mock protected CarUxRestrictionsManagerService mCarUxRestrictionService;
     @Mock protected ICarUxRestrictionsChangeListener mCarUxRestrictionsListener;
     @Mock protected ICarServiceHelper mICarServiceHelper;
-    @Mock protected Handler mMockedHandler;
     @Mock protected UserHandleHelper mMockedUserHandleHelper;
     @Mock protected CarPackageManagerService mCarPackageManagerService;
     @Mock protected CarOccupantZoneService mCarOccupantZoneService;
@@ -185,14 +189,37 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
 
     // NOTE: Futures below should be used just once per test case, otherwise they could cause
     // failures
+
+    protected final SyncResultCallback<UserSwitchResult> mSyncResultCallbackForSwitchUser =
+            new SyncResultCallback<>();
+    protected final ResultCallbackImpl<UserSwitchResult> mUserSwitchResultCallbackImpl =
+            new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForSwitchUser);
+    protected final SyncResultCallback<UserSwitchResult> mSyncResultCallbackForSwitchUser2 =
+            new SyncResultCallback<>();
+    protected final ResultCallbackImpl<UserSwitchResult> mUserSwitchResultCallbackImpl2 =
+            new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForSwitchUser2);
     protected final AndroidFuture<UserSwitchResult> mUserSwitchFuture = new AndroidFuture<>();
-    protected final AndroidFuture<UserSwitchResult> mUserSwitchFuture2 = new AndroidFuture<>();
-    protected final AndroidFuture<UserCreationResult> mUserCreationFuture = new AndroidFuture<>();
+    protected final SyncResultCallback<UserCreationResult> mSyncResultCallbackForCreateUser =
+            new SyncResultCallback<>();
+    protected final ResultCallbackImpl<UserCreationResult> mUserCreationResultCallback =
+            new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForCreateUser);
+    protected final SyncResultCallback<UserCreationResult> mSyncResultCallbackForCreateUser2 =
+            new SyncResultCallback<>();
+    protected final ResultCallbackImpl<UserCreationResult> mUserCreationResultCallback2 =
+            new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForCreateUser2);
     protected final SyncResultCallback<UserRemovalResult> mSyncResultCallbackForRemoveUser =
-            new SyncResultCallback<UserRemovalResult>();
+            new SyncResultCallback<>();
 
     protected final ResultCallbackImpl<UserRemovalResult> mUserRemovalResultCallbackImpl =
             new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForRemoveUser);
+    protected final SyncResultCallback<UserStartResponse> mSyncResultCallbackForStartUser =
+            new SyncResultCallback<>();
+    protected final ResultCallbackImpl<UserStartResponse> mUserStartResultCallbackImpl =
+            new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForStartUser);
+    protected final SyncResultCallback<UserStopResponse> mSyncResultCallbackForStopUser =
+            new SyncResultCallback<>();
+    protected final ResultCallbackImpl<UserStopResponse> mUserStopResultCallbackImpl =
+            new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForStopUser);
     protected final AndroidFuture<UserIdentificationAssociationResponse>
             mUserAssociationRespFuture = new AndroidFuture<>();
     protected final InitialUserInfoResponse mGetUserInfoResponse = new InitialUserInfoResponse();
@@ -369,29 +396,30 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
     }
 
     protected void assertUserCreationInvalidArgumentsFailure(
-            AndroidFuture<UserCreationResult> future) throws Exception {
-        UserCreationResult result = assertBasicFieldsOnUserCreationFailure(future,
+            SyncResultCallback<UserCreationResult> callback) throws Exception {
+        UserCreationResult result = assertBasicFieldsOnUserCreationFailure(callback,
                 UserCreationResult.STATUS_INVALID_REQUEST);
         assertThat(result.getInternalErrorMessage()).isNull();
     }
 
     protected void assertUserCreationInvalidArgumentsFailureWithInternalErrorMessage(
-            AndroidFuture<UserCreationResult> future, String format, @Nullable Object... args)
+            SyncResultCallback<UserCreationResult> callback, String format,
+            @Nullable Object... args)
                     throws Exception {
-        assertUserCreationWithInternalErrorMessage(future,
+        assertUserCreationWithInternalErrorMessage(callback,
                 UserCreationResult.STATUS_INVALID_REQUEST, format, args);
     }
 
     protected void assertUserCreationWithInternalErrorMessage(
-            AndroidFuture<UserCreationResult> future, int status, String format,
+            SyncResultCallback<UserCreationResult> callback, int status, String format,
             @Nullable Object... args) throws Exception {
-        UserCreationResult result = assertBasicFieldsOnUserCreationFailure(future, status);
+        UserCreationResult result = assertBasicFieldsOnUserCreationFailure(callback, status);
         assertThat(result.getInternalErrorMessage()).isEqualTo(String.format(format, args));
     }
 
     private UserCreationResult assertBasicFieldsOnUserCreationFailure(
-            AndroidFuture<UserCreationResult> future, int status) throws Exception {
-        UserCreationResult result = getResult(future, "user creation");
+            SyncResultCallback<UserCreationResult> callback, int status) throws Exception {
+        UserCreationResult result = callback.get(ASYNC_CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertThat(result).isNotNull();
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getStatus()).isEqualTo(status);
@@ -403,21 +431,30 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
 
     protected void createUserWithRestrictionsInvalidTypes(@NonNull String type) throws Exception {
         int flags = 0;
-        AndroidFuture<UserCreationResult> future = new AndroidFuture<>();
-        mCarUserService.createUser("name", type, flags, ASYNC_CALL_TIMEOUT_MS, future,
+        SyncResultCallback<UserCreationResult> userCreationResultCallback =
+                new SyncResultCallback<>();
+        ResultCallbackImpl<UserCreationResult> resultCallbackImpl = new ResultCallbackImpl<>(
+                Runnable::run, userCreationResultCallback);
+        mCarUserService.createUser("name", type, flags, ASYNC_CALL_TIMEOUT_MS, resultCallbackImpl,
                 HAS_CALLER_RESTRICTIONS);
         waitForHandlerThreadToFinish();
-        assertUserCreationInvalidArgumentsFailureWithInternalErrorMessage(future,
+        assertUserCreationInvalidArgumentsFailureWithInternalErrorMessage(
+                userCreationResultCallback,
                 CarUserService.ERROR_TEMPLATE_INVALID_USER_TYPE_AND_FLAGS_COMBINATION, type, flags);
     }
 
     protected void createUserWithRestrictionsInvalidTypes(int flags) throws Exception {
         String userType = UserManager.USER_TYPE_FULL_SECONDARY;
-        AndroidFuture<UserCreationResult> future = new AndroidFuture<UserCreationResult>();
-        mCarUserService.createUser("name", userType, flags, ASYNC_CALL_TIMEOUT_MS, future,
+        SyncResultCallback<UserCreationResult> userCreationResultCallback =
+                new SyncResultCallback<>();
+        ResultCallbackImpl<UserCreationResult> resultCallbackImpl = new ResultCallbackImpl<>(
+                Runnable::run, userCreationResultCallback);
+        mCarUserService.createUser("name", userType, flags, ASYNC_CALL_TIMEOUT_MS,
+                resultCallbackImpl,
                 HAS_CALLER_RESTRICTIONS);
         waitForHandlerThreadToFinish();
-        assertUserCreationInvalidArgumentsFailureWithInternalErrorMessage(future,
+        assertUserCreationInvalidArgumentsFailureWithInternalErrorMessage(
+                userCreationResultCallback,
                 CarUserService.ERROR_TEMPLATE_INVALID_USER_TYPE_AND_FLAGS_COMBINATION,
                 userType, flags);
     }
@@ -437,16 +474,16 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
     }
 
     protected void createUser(@Nullable String name, @NonNull String userType, int flags,
-            int timeoutMs, @NonNull AndroidFuture<UserCreationResult> receiver,
+            int timeoutMs, @NonNull ResultCallbackImpl<UserCreationResult> callback,
             boolean hasCallerRestrictions) {
-        mCarUserService.createUser(name, userType, flags, timeoutMs, receiver,
+        mCarUserService.createUser(name, userType, flags, timeoutMs, callback,
                 hasCallerRestrictions);
         waitForHandlerThreadToFinish();
     }
 
     protected void switchUser(@UserIdInt int userId, int timeoutMs,
-            @NonNull AndroidFuture<UserSwitchResult> receiver) {
-        mCarUserService.switchUser(userId, timeoutMs, receiver);
+            @NonNull ResultCallbackImpl<UserSwitchResult> callback) {
+        mCarUserService.switchUser(userId, timeoutMs, callback);
         waitForHandlerThreadToFinish();
     }
 
@@ -462,6 +499,12 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
         waitForHandlerThreadToFinish();
     }
 
+    protected void startUser(UserStartRequest request,
+            @NonNull ResultCallbackImpl<UserStartResponse> callback) {
+        mCarUserService.startUser(request, callback);
+        waitForHandlerThreadToFinish();
+    }
+
     protected void startUserInBackground(@UserIdInt int userId,
             @NonNull AndroidFuture<UserStartResult> userStartResultFuture) {
         mCarUserService.startUserInBackground(userId, userStartResultFuture);
@@ -474,6 +517,12 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
         waitForHandlerThreadToFinish();
     }
 
+    protected void stopUser(UserStopRequest request,
+            @NonNull ResultCallbackImpl<UserStopResponse> callback) {
+        mCarUserService.stopUser(request, callback);
+        waitForHandlerThreadToFinish();
+    }
+
     /**
      * Gets the result of a user switch call that was made using {@link #mUserSwitchFuture}.
      */
@@ -483,19 +532,39 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
     }
 
     /**
-     * Gets the result of a user switch call that was made using {@link #mUserSwitchFuture2}.
+     * Gets the result of a user switch call that was made using
+     * {@link #mUserSwitchResultCallbackImpl}.
      */
     @NonNull
-    protected UserSwitchResult getUserSwitchResult2(int userId) throws Exception {
-        return getResult(mUserSwitchFuture2, "result of switching user %d", userId);
+    protected UserSwitchResult getUserSwitchResult() throws Exception {
+        return mSyncResultCallbackForSwitchUser.get(ASYNC_CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     /**
-     * Gets the result of a user creation call that was made using {@link #mUserCreationFuture}.
+     * Gets the result of a user switch call that was made using
+     * {@link #mUserSwitchResultCallbackImpl2}.
+     */
+    @NonNull
+    protected UserSwitchResult getUserSwitchResult2() throws Exception {
+        return mSyncResultCallbackForSwitchUser2.get(ASYNC_CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Gets the result of a user creation call that was made using
+     * {@link #mUserCreationResultCallback}.
      */
     @NonNull
     protected UserCreationResult getUserCreationResult() throws Exception {
-        return getResult(mUserCreationFuture, "result of user creation");
+        return mSyncResultCallbackForCreateUser.get();
+    }
+
+    /**
+     * Gets the result of a user creation call that was made using
+     * {@link #mUserCreationResultCallback2}.
+     */
+    @NonNull
+    protected UserCreationResult getUserCreationResult2() throws Exception {
+        return mSyncResultCallbackForCreateUser2.get();
     }
 
     /**
@@ -505,6 +574,24 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
     @NonNull
     protected UserRemovalResult getUserRemovalResult() throws Exception {
         return (UserRemovalResult) mSyncResultCallbackForRemoveUser.get();
+    }
+
+    /**
+     * Gets the result of a user start call that was made using
+     * {@link #mUserStartResultCallbackImpl}.
+     */
+    @NonNull
+    protected UserStartResponse getUserStartResponse() throws Exception {
+        return (UserStartResponse) mSyncResultCallbackForStartUser.get();
+    }
+
+    /**
+     * Gets the result of a user stop call that was made using
+     * {@link #mUserStopResultCallbackImpl}.
+     */
+    @NonNull
+    protected UserStopResponse getUserStopResponse() throws Exception {
+        return (UserStopResponse) mSyncResultCallbackForStopUser.get();
     }
 
     /**

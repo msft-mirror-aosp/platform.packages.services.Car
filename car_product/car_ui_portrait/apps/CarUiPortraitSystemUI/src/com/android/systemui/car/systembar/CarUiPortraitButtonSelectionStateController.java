@@ -58,11 +58,16 @@ public class CarUiPortraitButtonSelectionStateController extends ButtonSelection
         }
     }
 
-    /** Updates the selected state of the app grid button */
+    /** Updates the selected state (for AppGrid activity) of the app grid button */
     void setAppGridButtonSelected(boolean isSelected) {
         if (mAppGridButton != null) {
             mAppGridButton.setSelected(isSelected);
         }
+    }
+
+    /** Updates the selected state (for Recents activity) of the app grid button */
+    void setRecentsButtonSelected(boolean isSelected) {
+        // no-op
     }
 
     /** Updates the selected state of the notification button */

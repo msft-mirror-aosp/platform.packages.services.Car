@@ -76,6 +76,7 @@ import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.occupantconnection.CarOccupantConnectionService;
+import com.android.car.occupantconnection.CarRemoteDeviceService;
 import com.android.car.oem.CarOemProxyService;
 import com.android.car.os.CarPerformanceService;
 import com.android.car.pm.CarPackageManagerService;
@@ -165,8 +166,10 @@ public class ICarImpl extends ICar.Stub {
     private final CarTelemetryService mCarTelemetryService;
     private final CarActivityService mCarActivityService;
     private final CarOccupantConnectionService mCarOccupantConnectionService;
-    private final CarRemoteAccessService mCarRemoteAccessService;
     private final CarRemoteDeviceService mCarRemoteDeviceService;
+    // Only modified at setCarRemoteAccessService for testing.
+    @Nullable
+    private CarRemoteAccessService mCarRemoteAccessService;
 
     private final CarSystemService[] mAllServices;
 
@@ -197,8 +200,8 @@ public class ICarImpl extends ICar.Stub {
         this(serviceContext, builtinContext, vehicle, systemInterface, vehicleInterfaceName,
                 /* carUserService= */ null, /* carWatchdogService= */ null,
                 /* carPerformanceService= */ null, /* garageModeService= */ null,
-                /* powerPolicyDaemon= */ null, /*carTelemetryService= */
-                null, /* doPriorityInitInConstruction= */ true);
+                /* powerPolicyDaemon= */ null, /* carTelemetryService= */ null,
+                /* carRemoteAccessService= */ null, /* doPriorityInitInConstruction= */ true);
     }
 
     @VisibleForTesting
@@ -210,6 +213,7 @@ public class ICarImpl extends ICar.Stub {
             @Nullable GarageModeService garageModeService,
             @Nullable ICarPowerPolicySystemNotification powerPolicyDaemon,
             @Nullable CarTelemetryService carTelemetryService,
+            @Nullable CarRemoteAccessService carRemoteAccessService,
             boolean doPriorityInitInConstruction) {
         LimitedTimingsTraceLog t = new LimitedTimingsTraceLog(
                 CAR_SERVICE_INIT_TIMING_TAG, TraceHelper.TRACE_TAG_CAR_SERVICE,
@@ -238,12 +242,6 @@ public class ICarImpl extends ICar.Stub {
         mHal = constructWithTrace(t, VehicleHal.class,
                 () -> new VehicleHal(serviceContext, vehicle), allServices);
 
-        if (mDoPriorityInitInConstruction) {
-            t.traceBegin("VHAL.earlyInit");
-            Slogf.i(TAG, "VHAL Priority Init Enabled");
-            mHal.priorityInit();
-            t.traceEnd();
-        }
         HalPropValue disabledOptionalFeatureValue = mHal.getIfSupportedOrFailForEarlyStage(
                 VehicleProperty.DISABLED_OPTIONAL_FEATURES, INITIAL_VHAL_GET_RETRY);
 
@@ -294,8 +292,9 @@ public class ICarImpl extends ICar.Stub {
                     allServices);
         }
         if (mDoPriorityInitInConstruction) {
+            Slogf.i(TAG, "VHAL Priority Init Enabled");
             Slogf.i(TAG, "Car User Service Priority Init Enabled");
-            mCarUserService.priorityInit();
+            priorityInit();
         }
 
         if (mFeatureController.isFeatureEnabled(Car.EXPERIMENTAL_CAR_USER_SERVICE)) {
@@ -462,9 +461,15 @@ public class ICarImpl extends ICar.Stub {
         }
 
         if (mFeatureController.isFeatureEnabled((Car.CAR_REMOTE_ACCESS_SERVICE))) {
-            mCarRemoteAccessService = constructWithTrace(t, CarRemoteAccessService.class,
-                    () -> new CarRemoteAccessService(
-                            serviceContext, systemInterface, mHal.getPowerHal()), allServices);
+            if (carRemoteAccessService == null) {
+                mCarRemoteAccessService = constructWithTrace(t, CarRemoteAccessService.class,
+                        () -> new CarRemoteAccessService(
+                                serviceContext, systemInterface, mHal.getPowerHal()), allServices);
+            } else {
+                mCarRemoteAccessService = carRemoteAccessService;
+                mCarRemoteAccessService.setPowerHal(mHal.getPowerHal());
+                allServices.add(mCarRemoteAccessService);
+            }
         } else {
             mCarRemoteAccessService = null;
         }
@@ -481,15 +486,17 @@ public class ICarImpl extends ICar.Stub {
 
         if (mFeatureController.isFeatureEnabled(Car.CAR_OCCUPANT_CONNECTION_SERVICE)
                 || mFeatureController.isFeatureEnabled(Car.CAR_REMOTE_DEVICE_SERVICE)) {
-            mCarOccupantConnectionService = constructWithTrace(
-                    t, CarOccupantConnectionService.class,
-                    () -> new CarOccupantConnectionService(serviceContext, mCarOccupantZoneService),
-                    allServices);
             mCarRemoteDeviceService = constructWithTrace(
                     t, CarRemoteDeviceService.class,
                     () -> new CarRemoteDeviceService(serviceContext, mCarOccupantZoneService,
                             mCarPowerManagementService, mSystemActivityMonitoringService),
                     allServices);
+            mCarOccupantConnectionService = constructWithTrace(
+                    t, CarOccupantConnectionService.class,
+                    () -> new CarOccupantConnectionService(serviceContext, mCarOccupantZoneService,
+                            mCarRemoteDeviceService),
+                    allServices);
+
         } else {
             mCarOccupantConnectionService = null;
             mCarRemoteDeviceService = null;
@@ -509,8 +516,7 @@ public class ICarImpl extends ICar.Stub {
 
         t.traceBegin("ICarImpl.init");
         if (!mDoPriorityInitInConstruction) {
-            mHal.priorityInit();
-            mCarUserService.priorityInit();
+            priorityInit();
         }
 
         t.traceBegin("CarService.initAllServices");
@@ -1072,5 +1078,10 @@ public class ICarImpl extends ICar.Stub {
 
     /* package */ boolean hasAidlVhal() {
         return mHal.isAidlVhal();
+    }
+
+    /* package */ void priorityInit() {
+        mHal.priorityInit();
+        mCarUserService.priorityInit();
     }
 }

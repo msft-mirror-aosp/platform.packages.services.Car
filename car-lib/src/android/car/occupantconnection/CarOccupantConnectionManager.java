@@ -16,6 +16,8 @@
 
 package android.car.occupantconnection;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -179,10 +181,15 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
 
     private static final String TAG = CarOccupantConnectionManager.class.getSimpleName();
 
-    /** The connection request failed because of a different error than the errors listed below. */
+    /** The connection request has no error. */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int CONNECTION_ERROR_UNKNOWN = 0;
+    public static final int CONNECTION_ERROR_NONE = 0;
+
+    /** The connection request failed because of an error of unidentified cause. */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int CONNECTION_ERROR_UNKNOWN = 1;
 
     /**
      * The connection request failed because the peer occupant zone was not ready for connection.
@@ -192,7 +199,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int CONNECTION_ERROR_NOT_READY = 1;
+    public static final int CONNECTION_ERROR_NOT_READY = 2;
 
     /**
      * The connection request failed because the peer app was not installed. To avoid this error,
@@ -202,7 +209,38 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    public static final int CONNECTION_ERROR_PEER_APP_NOT_INSTALLED = 2;
+    public static final int CONNECTION_ERROR_PEER_APP_NOT_INSTALLED = 3;
+
+    /**
+     * The connection request failed because its long version code ({@link
+     * PackageInfo#getLongVersionCode}) didn't match the peer app's long version code.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int CONNECTION_ERROR_LONG_VERSION_NOT_MATCH = 4;
+
+    /**
+     * The connection request failed because its signing info ({@link PackageInfo#signingInfo}
+     * didn't match the peer app's signing info.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int CONNECTION_ERROR_SIGNATURE_NOT_MATCH = 5;
+
+    /** The connection request failed because the user rejected it. */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int CONNECTION_ERROR_USER_REJECTED = 6;
+
+    /**
+     * The maximum value of predefined connection error code. If the client app wants to pass a
+     * custom value in {@link AbstractReceiverService#rejectConnection}, the custom value must be
+     * larger than this value, otherwise the sender client might get the wrong connection error code
+     * when its connection request fails.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int CONNECTION_ERROR_PREDEFINED_MAXIMUM_VALUE = 10000;
 
     /**
      * Flags for the error type of connection request.
@@ -210,9 +248,14 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * @hide
      */
     @IntDef(flag = false, prefix = {"CONNECTION_ERROR_"}, value = {
+            CONNECTION_ERROR_NONE,
             CONNECTION_ERROR_UNKNOWN,
             CONNECTION_ERROR_NOT_READY,
-            CONNECTION_ERROR_PEER_APP_NOT_INSTALLED
+            CONNECTION_ERROR_PEER_APP_NOT_INSTALLED,
+            CONNECTION_ERROR_LONG_VERSION_NOT_MATCH,
+            CONNECTION_ERROR_SIGNATURE_NOT_MATCH,
+            CONNECTION_ERROR_USER_REJECTED,
+            CONNECTION_ERROR_PREDEFINED_MAXIMUM_VALUE
     })
     @Retention(RetentionPolicy.SOURCE)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -241,23 +284,16 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
         void onConnected(@NonNull OccupantZoneInfo receiverZone);
 
         /**
-         * Invoked when the connection request has been rejected by the receiver client.
-         *
-         * @param rejectionReason the reason for rejection, such as the user rejected, UX
-         *                        restricted. The client app is responsible for defining this value.
-         */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-                minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-        void onRejected(@NonNull OccupantZoneInfo receiverZone, int rejectionReason);
-
-        /**
          * Invoked when there was an error when establishing the connection. For example, the
-         * receiver client is not ready for connection.
+         * receiver client is not ready for connection, or the receiver client rejected the
+         * connection request.
+         *
+         * @param connectionError could be any value of {@link ConnectionError}, or an app-defined
+         *                        value
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
-        void onFailed(@NonNull OccupantZoneInfo receiverZone,
-                @ConnectionError int connectionError);
+        void onFailed(@NonNull OccupantZoneInfo receiverZone, int connectionError);
 
         /**
          * Invoked when the connection is terminated. For example, the receiver {@link
@@ -322,24 +358,6 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
 
                         // Unlike other onFoo() methods, we shouldn't remove the callback here
                         // because we need to invoke it once it is disconnected.
-                    }
-                }
-
-                @Override
-                public void onRejected(OccupantZoneInfo receiverZone, int rejectionReason) {
-                    synchronized (mLock) {
-                        Pair<ConnectionRequestCallback, Executor> pair =
-                                mConnectionRequestMap.get(receiverZone.zoneId);
-                        if (pair == null) {
-                            Slog.e(TAG, "onRejected: no pending connection request");
-                            return;
-                        }
-                        // Notify the sender of rejection.
-                        ConnectionRequestCallback callback = pair.first;
-                        Executor executor = pair.second;
-                        executor.execute(() -> callback.onRejected(receiverZone, rejectionReason));
-
-                        mConnectionRequestMap.remove(receiverZone.zoneId);
                     }
                 }
 
@@ -419,6 +437,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void onCarDisconnected() {
+        assertPlatformVersionAtLeastU();
         synchronized (mLock) {
             mConnectionRequestMap.clear();
             mReceiverPayloadCallbackMap.clear();
@@ -448,6 +467,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     public void registerReceiver(@NonNull String receiverEndpointId,
             @NonNull @CallbackExecutor Executor executor,
             @NonNull PayloadCallback callback) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverEndpointId, "receiverEndpointId cannot be null");
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
@@ -478,6 +498,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void unregisterReceiver(@NonNull String receiverEndpointId) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverEndpointId, "receiverEndpointId cannot be null");
         synchronized (mLock) {
             try {
@@ -504,7 +525,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * <p>
      * For security, it is highly recommended that the sender not request a connection to the
      * receiver client if the state of the receiver client doesn't contain
-     * {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_VERSION} or
+     * {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_LONG_VERSION} or
      * {@link android.car.CarRemoteDeviceManager#FLAG_CLIENT_SAME_SIGNATURE}. If the sender still
      * wants to request the connection in the case above, it should call
      * {@link android.car.CarRemoteDeviceManager#getEndpointPackageInfo} to get the receiver's
@@ -525,8 +546,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
      * @param receiverZone the occupant zone to connect to
      * @param executor     the Executor to run the callback
      * @param callback     the callback notified for the request result
-     * @throws IllegalStateException if the {@code receiverZone} is not ready for connection, or
-     *                               there is an established connection or pending connection to
+     * @throws IllegalStateException if there is an established connection or pending connection to
      *                               {@code receiverZone}
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -535,6 +555,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     public void requestConnection(@NonNull OccupantZoneInfo receiverZone,
             @NonNull @CallbackExecutor Executor executor,
             @NonNull ConnectionRequestCallback callback) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         Objects.requireNonNull(executor, "executor cannot be null");
         Objects.requireNonNull(callback, "callback cannot be null");
@@ -567,6 +588,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void cancelConnection(@NonNull OccupantZoneInfo receiverZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         synchronized (mLock) {
             Preconditions.checkState(mConnectionRequestMap.contains(receiverZone.zoneId),
@@ -599,6 +621,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void sendPayload(@NonNull OccupantZoneInfo receiverZone, @NonNull Payload payload)
             throws PayloadTransferException {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         Objects.requireNonNull(payload, "payload cannot be null");
         try {
@@ -631,6 +654,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public void disconnect(@NonNull OccupantZoneInfo receiverZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         try {
             mService.disconnect(mPackageName, receiverZone);
@@ -652,6 +676,7 @@ public final class CarOccupantConnectionManager extends CarManagerBase {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresPermission(Car.PERMISSION_MANAGE_OCCUPANT_CONNECTION)
     public boolean isConnected(@NonNull OccupantZoneInfo receiverZone) {
+        assertPlatformVersionAtLeastU();
         Objects.requireNonNull(receiverZone, "receiverZone cannot be null");
         try {
             return mService.isConnected(mPackageName, receiverZone);

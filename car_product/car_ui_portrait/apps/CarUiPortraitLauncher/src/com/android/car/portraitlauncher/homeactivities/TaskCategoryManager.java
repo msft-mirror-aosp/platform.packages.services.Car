@@ -18,6 +18,7 @@ package com.android.car.portraitlauncher.homeactivities;
 
 import android.app.ActivityManager;
 import android.app.TaskInfo;
+import android.car.media.CarMediaIntents;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -44,6 +45,7 @@ class TaskCategoryManager {
     private final ComponentName mBlankActivityComponent;
     private final ComponentName mAppGridActivityComponent;
     private final ComponentName mNotificationActivityComponent;
+    private final ComponentName mRecentsActivityComponent;
     private final ArraySet<ComponentName> mIgnoreOpeningRootTaskViewComponentsSet;
     private final Set<ComponentName> mFullScreenActivities;
     private final Set<ComponentName> mBackgroundActivities;
@@ -65,6 +67,8 @@ class TaskCategoryManager {
         mBlankActivityComponent = new ComponentName(context, BlankActivity.class);
         mNotificationActivityComponent = ComponentName.unflattenFromString(
                 mContext.getResources().getString(R.string.config_notificationActivity));
+        mRecentsActivityComponent = ComponentName.unflattenFromString(mContext.getResources()
+                .getString(com.android.internal.R.string.config_recentsComponentName));
 
         updateVoicePlateActivityMap();
     }
@@ -89,8 +93,12 @@ class TaskCategoryManager {
         return mBackgroundActivities.contains(taskInfo.baseActivity);
     }
 
-    boolean isCurrentBackgroundApp(TaskInfo taskInfo) {
-        return mCurrentBackgroundApp.equals(taskInfo.baseActivity);
+    boolean isBackgroundApp(ComponentName componentName) {
+        return mBackgroundActivities.contains(componentName);
+    }
+
+    boolean isCurrentBackgroundApp(ComponentName componentName) {
+        return mCurrentBackgroundApp != null && mCurrentBackgroundApp.equals(componentName);
     }
 
     ComponentName getCurrentBackgroundApp() {
@@ -109,12 +117,20 @@ class TaskCategoryManager {
         return mAppGridActivityComponent.equals(taskInfo.baseActivity);
     }
 
+    public Set<ComponentName> getFullScreenActivities() {
+        return mFullScreenActivities;
+    }
+
     boolean isFullScreenActivity(TaskInfo taskInfo) {
         return mFullScreenActivities.contains(taskInfo.baseActivity);
     }
 
     boolean isNotificationActivity(TaskInfo taskInfo) {
         return mNotificationActivityComponent.equals(taskInfo.baseActivity);
+    }
+
+    boolean isRecentsActivity(TaskInfo taskInfo) {
+        return mRecentsActivityComponent.equals(taskInfo.baseActivity);
     }
 
     boolean shouldIgnoreOpeningForegroundDA(TaskInfo taskInfo) {
@@ -132,6 +148,14 @@ class TaskCategoryManager {
         if (DBG) {
             Log.d(TAG, message);
         }
+    }
+
+    /**
+     * @return {@code true} if current task in panel was launched using media intent.
+     */
+    public static boolean isMediaApp(TaskInfo taskInfo) {
+        return taskInfo != null && taskInfo.baseIntent != null
+                && CarMediaIntents.ACTION_MEDIA_TEMPLATE.equals(taskInfo.baseIntent.getAction());
     }
 
     private static ArraySet<ComponentName> convertToComponentNames(String[] componentStrings) {

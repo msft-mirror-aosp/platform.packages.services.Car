@@ -16,6 +16,8 @@
 
 package android.car.app;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.RequiresApi;
@@ -93,6 +95,7 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public void startActivity() {
+        assertPlatformVersionAtLeastU();
         if (!mUserManager.isUserUnlocked()) {
             if (CarTaskViewController.DBG) {
                 Slogf.d(TAG, "Can't start activity due to user is isn't unlocked");
@@ -122,11 +125,15 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
             Slogf.d(TAG, "Starting (" + mConfig.mActivityIntent.getComponent() + ") on "
                     + launchBounds);
         }
+        Intent fillInIntent = null;
+        if ((mConfig.mActivityIntent.getFlags() & Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS) != 0) {
+            fillInIntent = new Intent().addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+        }
         startActivity(
                 PendingIntent.getActivity(mContext, /* requestCode= */ 0,
                         mConfig.mActivityIntent,
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT),
-                /* fillInIntent= */ null, options, launchBounds);
+                fillInIntent, options, launchBounds);
     }
 
     @Override
@@ -140,6 +147,7 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
     @Override
     void onReleased() {
         mCallbackExecutor.execute(() -> mCallback.onTaskViewReleased());
+        mCarTaskViewController.onControlledRemoteCarTaskViewReleased(this);
     }
 
     @Override
@@ -160,6 +168,7 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
     @Override
     @MainThread
     public void showEmbeddedTask() {
+        assertPlatformVersionAtLeastU();
         super.showEmbeddedTask();
         if (getTaskInfo() == null) {
             if (CarTaskViewController.DBG) {

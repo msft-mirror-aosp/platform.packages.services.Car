@@ -20,7 +20,6 @@ import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_MUTE_CHANGED;
 import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_BLOCKED_CHANGED;
 import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED;
 
-import static com.android.car.audio.CarVolumeEventFlag.VolumeEventFlags;
 import static com.android.car.audio.hal.HalAudioGainCallback.reasonToString;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
@@ -239,7 +238,7 @@ import java.util.Objects;
     }
 
     @GuardedBy("mLock")
-    private boolean isHalMutedLocked() {
+    protected boolean isHalMutedLocked() {
         return mIsHalMuted;
     }
 
@@ -549,25 +548,38 @@ import java.util.Objects;
         }
     }
 
-    void setMute(boolean mute) {
+    /**
+     * Set the mute state of the Volume Group
+     *
+     * @param mute state requested
+     * @return true if mute state has changed, false otherwiser (already set or change not allowed)
+     */
+    boolean setMute(boolean mute) {
         synchronized (mLock) {
             // if hal muted the audio devices, then do not allow other incoming requests
             // to perform unmute.
             if (!mute && isHalMutedLocked()) {
                 Slogf.e(CarLog.TAG_AUDIO, "Un-mute request cannot be processed due to active "
                         + "hal mute restriction!");
-                return;
+                return false;
             }
-            setMuteLocked(mute);
+            applyMuteLocked(mute);
+            return setMuteLocked(mute);
         }
     }
 
     @GuardedBy("mLock")
-    protected void setMuteLocked(boolean mute) {
+    protected boolean setMuteLocked(boolean mute) {
+        boolean hasChanged = mIsMuted != mute;
         mIsMuted = mute;
         if (mSettingsManager.isPersistVolumeGroupMuteEnabled(mUserId)) {
             mSettingsManager.storeVolumeGroupMuteForUser(mUserId, mZoneId, mConfigId, mId, mute);
         }
+        return hasChanged;
+    }
+
+    @GuardedBy("mLock")
+    protected void applyMuteLocked(boolean mute) {
     }
 
     boolean isMuted() {
@@ -577,9 +589,19 @@ import java.util.Objects;
     }
 
     @GuardedBy("mLock")
-    private boolean isMutedLocked() {
+    protected boolean isMutedLocked() {
         // if either of the mute states is set, it results in group being muted.
-        return mIsMuted || mIsHalMuted;
+        return isUserMutedLocked() || isHalMutedLocked();
+    }
+
+    @GuardedBy("mLock")
+    protected boolean isUserMutedLocked() {
+        return mIsMuted;
+    }
+
+    @GuardedBy("mLock")
+    protected boolean isFullyMutedLocked() {
+        return isUserMutedLocked() || isHalMutedLocked() || isBlockedLocked();
     }
 
     private static boolean containsCriticalAttributes(List<AudioAttributes> volumeAttributes) {
@@ -643,6 +665,7 @@ import java.util.Objects;
             return;
         }
         mIsMuted = mSettingsManager.getVolumeGroupMuteForUser(mUserId, mZoneId, mConfigId, mId);
+        applyMuteLocked(isFullyMutedLocked());
     }
 
     /**
@@ -664,6 +687,7 @@ import java.util.Objects;
             return eventType;
         }
         synchronized (mLock) {
+            int previousRestrictedIndex = getRestrictedGainForIndexLocked(mCurrentGainIndex);
             mReasons = new ArrayList<>(halReasons);
 
             boolean shouldBlock = CarAudioGainMonitor.shouldBlockVolumeRequest(halReasons);
@@ -687,14 +711,16 @@ import java.util.Objects;
                 eventType |= EVENT_TYPE_ATTENUATION_CHANGED;
             }
 
+            // Accept mute callbacks from hal only if group mute is enabled.
+            // If disabled, such callbacks will be considered as blocking restriction only.
             boolean shouldMute = CarAudioGainMonitor.shouldMuteVolumeGroup(halReasons);
-            if (shouldMute != isHalMutedLocked()) {
+            if (mUseCarVolumeGroupMute && (shouldMute != isHalMutedLocked())) {
                 setHalMuteLocked(shouldMute);
                 eventType |= EVENT_TYPE_MUTE_CHANGED;
             }
 
             if (CarAudioGainMonitor.shouldUpdateVolumeIndex(halReasons)
-                    && (halIndex != mCurrentGainIndex)) {
+                    && (halIndex != getRestrictedGainForIndexLocked(mCurrentGainIndex))) {
                 mCurrentGainIndex = halIndex;
                 eventType |= EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED;
             }
@@ -704,7 +730,15 @@ import java.util.Objects;
             //
             // Do not update current gain cache, keep it for restoring rather using reported index
             // when the event is cleared.
-            setCurrentGainIndexLocked(getRestrictedGainForIndexLocked(mCurrentGainIndex));
+            int newRestrictedIndex = getRestrictedGainForIndexLocked(mCurrentGainIndex);
+            setCurrentGainIndexLocked(newRestrictedIndex);
+            // Hal or user mute state can change (only user mute enabled while hal muted allowed).
+            // Force a sync of mute application.
+            applyMuteLocked(isFullyMutedLocked());
+
+            if (newRestrictedIndex != previousRestrictedIndex) {
+                eventType |= EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED;
+            }
         }
         return eventType;
     }
@@ -715,10 +749,10 @@ import java.util.Objects;
         boolean isBlocked;
         boolean isAttenuated;
         synchronized (mLock) {
-            gainIndex = mCurrentGainIndex;
+            gainIndex = getRestrictedGainForIndexLocked(mCurrentGainIndex);
             isMuted = isMutedLocked();
             isBlocked = isBlockedLocked();
-            isAttenuated = isAttenuatedLocked();
+            isAttenuated = isAttenuatedLocked() || isLimitedLocked();
         }
 
         return new CarVolumeGroupInfo.Builder("group id " + mId, mZoneId, mId)
@@ -742,10 +776,10 @@ import java.util.Objects;
     }
 
     /**
-     * Returns one or more {@link VolumeEventFlags}
+     * @return one or more {@link CarVolumeGroupEvent#EventTypeEnum}
      */
-    public @VolumeEventFlags int onAudioVolumeGroupChanged(int flags) {
-        return CarVolumeEventFlag.FLAG_EVENT_VOLUME_NONE;
+    public int onAudioVolumeGroupChanged(int flags) {
+        return 0;
     }
 
     /**
