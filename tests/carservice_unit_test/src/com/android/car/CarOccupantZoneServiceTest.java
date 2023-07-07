@@ -17,6 +17,8 @@
 package com.android.car;
 
 import static android.car.VehicleAreaSeat.SEAT_UNKNOWN;
+import static android.view.Display.STATE_OFF;
+import static android.view.Display.STATE_ON;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 
@@ -142,6 +144,7 @@ public class CarOccupantZoneServiceTest {
     private static final int SECONDARY_AUDIO_ZONE_ID_OCCUPANT = 3;
     private static final int UNMAPPED_AUDIO_ZONE_ID_OCCUPANT = 2;
     private static final int INVALID_AUDIO_ZONE_ID_OCCUPANT = 100;
+    private static final int NO_CONFIG_OCCUPANT_ZONE_ID = 100;
 
     // LHD : Left Hand Drive
     private final OccupantZoneInfo mZoneDriverLHD = new OccupantZoneInfo(0,
@@ -220,6 +223,10 @@ public class CarOccupantZoneServiceTest {
         when(displayManager.getDisplay(displayId)).thenReturn(display);
         when(display.getDisplayId()).thenReturn(displayId);
         when(display.getUniqueId()).thenReturn(uniqueId);
+    }
+
+    private void mockDisplay(Display display, int state) {
+        when(display.getState()).thenReturn(state);
     }
 
     @Before
@@ -511,8 +518,8 @@ public class CarOccupantZoneServiceTest {
 
         assertWithMessage("Visible user assigning should work").that(
                 mManager.assignVisibleUserToOccupantZone(mZoneFrontPassengerLHD,
-                UserHandle.of(VISIBLE_USER), /* flags= */ 0)).isEqualTo(
-                CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK);
+                UserHandle.of(VISIBLE_USER))).isEqualTo(
+                        CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK);
 
         assertPassengerDisplaysFromDefaultConfig();
         assertDisplayAllowlist(VISIBLE_USER, new int[]{mDisplay2.getDisplayId()});
@@ -531,7 +538,7 @@ public class CarOccupantZoneServiceTest {
         // Assign VISIBLE_USER to a zone.
         assertWithMessage("Assigning visible user to zone succeeds").that(
                 mManager.assignVisibleUserToOccupantZone(mZoneFrontPassengerLHD,
-                        UserHandle.of(VISIBLE_USER), /* flags= */ 0)).isEqualTo(
+                        UserHandle.of(VISIBLE_USER))).isEqualTo(
                 CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_OK);
 
         // Check zone assignment.
@@ -552,11 +559,11 @@ public class CarOccupantZoneServiceTest {
         mVisibleUsers.add(VISIBLE_USER);
         mService.init();
         mManager.assignVisibleUserToOccupantZone(mZoneDriverLHD,
-                UserHandle.of(VISIBLE_USER), /* flags= */ 0);
+                UserHandle.of(VISIBLE_USER));
 
         assertWithMessage("Visible user assignment for already assigned").that(
                 mManager.assignVisibleUserToOccupantZone(mZoneFrontPassengerLHD,
-                        UserHandle.of(VISIBLE_USER), /* flags= */ 0)).isEqualTo(
+                        UserHandle.of(VISIBLE_USER))).isEqualTo(
                 CarOccupantZoneManager.USER_ASSIGNMENT_RESULT_FAIL_ALREADY_ASSIGNED);
     }
 
@@ -622,7 +629,46 @@ public class CarOccupantZoneServiceTest {
     }
 
     @Test
-    public void testGetOccupantZone_invalidUser() {
+    public void testGetOccupantZoneForDisplayId_invalidDisplayId() {
+        mService.init();
+
+        OccupantZoneInfo occupantZoneInfo =
+                mService.getOccupantZoneForDisplayId(Display.INVALID_DISPLAY);
+
+        assertWithMessage("Occupant zone for invalid display id")
+                .that(occupantZoneInfo)
+                .isNull();
+    }
+
+    @Test
+    public void testGetOccupantZoneForDisplayId_displayIdForDriver() {
+        mService.init();
+
+        OccupantZoneInfo occupantZoneInfo =
+                mService.getOccupantZoneForDisplayId(Display.DEFAULT_DISPLAY);
+
+        assertWithMessage("Get occupant zone for display id (%s)", Display.DEFAULT_DISPLAY)
+                .that(occupantZoneInfo)
+                .isEqualTo(new OccupantZoneInfo(0, CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER,
+                          VehicleAreaSeat.SEAT_ROW_1_LEFT));
+    }
+
+    @Test
+    public void testGetOccupantZoneForDisplayId_displayIdForPassenger() {
+        mService.init();
+
+        OccupantZoneInfo occupantZoneInfo =
+                mService.getOccupantZoneForDisplayId(mDisplay2.getDisplayId());
+
+        assertWithMessage("Get occupant zone for display id (%s)", mDisplay2.getDisplayId())
+                .that(occupantZoneInfo)
+                .isEqualTo(new OccupantZoneInfo(1,
+                          CarOccupantZoneManager.OCCUPANT_TYPE_FRONT_PASSENGER,
+                          VehicleAreaSeat.SEAT_ROW_1_RIGHT));
+    }
+
+    @Test
+    public void testGetOccupantZoneForUser_invalidUser() {
         mService.init();
         int invalidProfileUser = UserHandle.USER_NULL;
 
@@ -635,11 +681,10 @@ public class CarOccupantZoneServiceTest {
     }
 
     @Test
-    public void testGetOccupantZone_validUser() {
+    public void testGetOccupantZoneForUser_validUser() {
         mService.init();
         SparseArray<CarOccupantZoneManager.OccupantZoneInfo> occupantZoneConfigs =
                 mService.getOccupantsConfig();
-        occupantZoneConfigs.get(PROFILE_USER1);
 
         OccupantZoneInfo occupantZoneInfo =
                 mService.getOccupantZoneForUser(UserHandle.of(PROFILE_USER1));
@@ -650,7 +695,7 @@ public class CarOccupantZoneServiceTest {
     }
 
     @Test
-    public void testGetOccupantZone_nullUser() {
+    public void testGetOccupantZoneForUser_nullUser() {
         mService.init();
 
         NullPointerException thrown = assertThrows(NullPointerException.class,
@@ -1286,6 +1331,32 @@ public class CarOccupantZoneServiceTest {
         assertWithMessage("Occupant zone for rear seat")
                 .that(mService.getOccupantZoneIdForSeat(VehicleAreaSeat.SEAT_ROW_2_RIGHT))
                 .isEqualTo(mZoneRearRight.zoneId);
+    }
+
+    @Test
+    public void areDisplaysOnForOccupantZone_on() {
+        mService.init();
+        mockDisplay(mDisplay0, STATE_ON);
+        mockDisplay(mDisplay1, STATE_ON);
+
+        assertThat(mService.areDisplaysOnForOccupantZone(mZoneDriverLHD.zoneId)).isTrue();
+    }
+    @Test
+    public void areDisplaysOnForOccupantZone_off() {
+        mService.init();
+        mockDisplay(mDisplay0, STATE_ON);
+        mockDisplay(mDisplay1, STATE_OFF);
+
+        assertThat(mService.areDisplaysOnForOccupantZone(mZoneDriverLHD.zoneId)).isFalse();
+    }
+
+    @Test
+    public void areDisplaysOnForOccupantZone_noConfig_off() {
+        mService.init();
+        mockDisplay(mDisplay0, STATE_ON);
+        mockDisplay(mDisplay1, STATE_ON);
+
+        assertThat(mService.areDisplaysOnForOccupantZone(NO_CONFIG_OCCUPANT_ZONE_ID)).isFalse();
     }
 
     private static class ICarServiceHelperImpl extends AbstractICarServiceHelperStub {

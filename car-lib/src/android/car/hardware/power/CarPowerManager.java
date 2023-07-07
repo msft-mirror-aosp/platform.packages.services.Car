@@ -18,6 +18,8 @@ package android.car.hardware.power;
 
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
+
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -695,8 +697,27 @@ public class CarPowerManager extends CarManagerBase {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void setDisplayPowerState(int displayId, boolean enable) {
+        assertPlatformVersionAtLeastU();
         try {
             mService.setDisplayPowerState(displayId, enable);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
+    }
+
+    /**
+     * Notifies that user activity has happened in the given display.
+     *
+     * @param displayId ID of the display
+     * @hide
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_POWER)
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void notifyUserActivity(int displayId) {
+        assertPlatformVersionAtLeastU();
+        try {
+            mService.notifyUserActivity(displayId);
         } catch (RemoteException e) {
             handleRemoteExceptionFromCarService(e);
         }

@@ -39,6 +39,8 @@ import android.content.pm.UserInfo;
 import android.os.RemoteException;
 import android.os.UserHandle;
 
+import com.android.car.internal.ResultCallbackImpl;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -187,9 +189,10 @@ public final class CarDevicePolicyManagerUnitTest extends AbstractExtendedMockit
     private void mockRemoveUser(@UserIdInt int userId, int status) throws Exception {
         doAnswer((invocation) -> {
             @SuppressWarnings("unchecked")
-            AndroidFuture<UserRemovalResult> future =
-                    (AndroidFuture<UserRemovalResult>) invocation.getArguments()[1];
-            future.complete(new UserRemovalResult(status));
+            ResultCallbackImpl<UserRemovalResult> resultResultCallbackImpl =
+                    (ResultCallbackImpl<UserRemovalResult>) invocation.getArguments()[1];
+            resultResultCallbackImpl.complete(
+                    new UserRemovalResult(UserRemovalResult.STATUS_SUCCESSFUL));
             return null;
         }).when(mService).removeUser(eq(userId), notNull());
     }
@@ -197,9 +200,9 @@ public final class CarDevicePolicyManagerUnitTest extends AbstractExtendedMockit
     private void mockCreateUser(String name, @NonNull UserInfo user, int status) throws Exception {
         doAnswer((invocation) -> {
             @SuppressWarnings("unchecked")
-            AndroidFuture<UserCreationResult> future =
-                    (AndroidFuture<UserCreationResult>) invocation.getArguments()[2];
-            future.complete(new UserCreationResult(status, user.getUserHandle()));
+            ResultCallbackImpl<UserCreationResult> resultCallbackImpl =
+                    (ResultCallbackImpl<UserCreationResult>) invocation.getArguments()[2];
+            resultCallbackImpl.complete(new UserCreationResult(status, user.getUserHandle()));
             return null;
         }).when(mService).createUser(eq(name), eq(user.id), notNull());
     }

@@ -24,6 +24,7 @@
 #include <aidl/android/automotive/watchdog/internal/ICarWatchdogServiceForSystem.h>
 #include <aidl/android/automotive/watchdog/internal/PackageInfo.h>
 #include <aidl/android/automotive/watchdog/internal/PackageIoOveruseStats.h>
+#include <aidl/android/automotive/watchdog/internal/ResourceStats.h>
 #include <aidl/android/automotive/watchdog/internal/UserPackageIoUsageStats.h>
 #include <android-base/result.h>
 #include <android/binder_auto_utils.h>
@@ -66,16 +67,15 @@ public:
     virtual ndk::ScopedAStatus prepareProcessTermination(const ndk::SpAIBinder& who) = 0;
     virtual ndk::ScopedAStatus getPackageInfosForUids(
             const std::vector<int32_t>& uids, const std::vector<std::string>& vendorPackagePrefixes,
-            std::vector<aidl::android::automotive::watchdog::internal::PackageInfo>*
-                    packageInfos) = 0;
-    virtual ndk::ScopedAStatus latestIoOveruseStats(
-            const std::vector<aidl::android::automotive::watchdog::internal::PackageIoOveruseStats>&
-                    packageIoOveruseStats) = 0;
+            std::vector<aidl::android::automotive::watchdog::internal::PackageInfo>* packageInfos)
+            const = 0;
     virtual ndk::ScopedAStatus resetResourceOveruseStats(
-            const std::vector<std::string>& packageNames) = 0;
-    virtual ndk::ScopedAStatus getTodayIoUsageStats(
-            std::vector<aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>*
-                    userPackageIoUsageStats) = 0;
+            const std::vector<std::string>& packageNames) const = 0;
+    virtual ndk::ScopedAStatus onLatestResourceStats(
+            const std::vector<aidl::android::automotive::watchdog::internal::ResourceStats>&
+                    resourceStats) const = 0;
+    virtual ndk::ScopedAStatus requestAidlVhalPid() const = 0;
+    virtual ndk::ScopedAStatus requestTodayIoUsageStats() const = 0;
 
 protected:
     virtual android::base::Result<void> init(
@@ -115,15 +115,14 @@ public:
     ndk::ScopedAStatus getPackageInfosForUids(
             const std::vector<int32_t>& uids, const std::vector<std::string>& vendorPackagePrefixes,
             std::vector<aidl::android::automotive::watchdog::internal::PackageInfo>* packageInfos)
-            override;
-    ndk::ScopedAStatus latestIoOveruseStats(
-            const std::vector<aidl::android::automotive::watchdog::internal::PackageIoOveruseStats>&
-                    packageIoOveruseStats) override;
+            const override;
     ndk::ScopedAStatus resetResourceOveruseStats(
-            const std::vector<std::string>& packageNames) override;
-    ndk::ScopedAStatus getTodayIoUsageStats(
-            std::vector<aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>*
-                    userPackageIoUsageStats) override;
+            const std::vector<std::string>& packageNames) const override;
+    ndk::ScopedAStatus onLatestResourceStats(
+            const std::vector<aidl::android::automotive::watchdog::internal::ResourceStats>&
+                    resourceStats) const override;
+    ndk::ScopedAStatus requestAidlVhalPid() const override;
+    ndk::ScopedAStatus requestTodayIoUsageStats() const override;
 
 protected:
     android::base::Result<void> init(
@@ -131,7 +130,7 @@ protected:
     void terminate();
 
 private:
-    void unregisterServiceLocked();
+    void unregisterServiceLocked(bool doUnregisterFromProcessService);
 
     android::sp<WatchdogProcessServiceInterface> mWatchdogProcessService;
     ndk::ScopedAIBinder_DeathRecipient mWatchdogServiceDeathRecipient;

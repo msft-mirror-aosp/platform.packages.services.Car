@@ -16,18 +16,14 @@
 
 package android.car.apitest;
 
-import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 import static android.car.test.util.UserTestingHelper.setMaxSupportedUsers;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeast;
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
 import static com.google.common.truth.Truth.assertWithMessage;
-
-import static org.junit.Assume.assumeTrue;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -35,18 +31,18 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
+import android.car.SyncResultCallback;
 import android.car.test.ApiCheckerRule.Builder;
 import android.car.test.util.AndroidHelper;
+import android.car.test.util.UserTestingHelper;
 import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
+import android.car.user.UserCreationRequest;
 import android.car.user.UserCreationResult;
-import android.car.user.UserRemovalResult;
+import android.car.user.UserRemovalRequest;
 import android.car.user.UserStartRequest;
-import android.car.user.UserStartResponse;
 import android.car.user.UserStopRequest;
-import android.car.user.UserStopResponse;
-import android.car.user.UserSwitchResult;
-import android.car.util.concurrent.AsyncFuture;
+import android.car.user.UserSwitchRequest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -63,7 +59,6 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -258,10 +253,21 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
         assertCanAddUser();
 
-        UserCreationResult result = (isGuest
-                ? mCarUserManager.createGuest(name)
-                : mCarUserManager.createUser(name, /* flags= */ 0))
-                    .get(DEFAULT_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        UserCreationRequest.Builder userCreationRequestBuilder = new UserCreationRequest.Builder();
+
+        if (isGuest) {
+            userCreationRequestBuilder.setGuest();
+        }
+
+        SyncResultCallback<UserCreationResult> userCreationResultCallback =
+                new SyncResultCallback<>();
+
+        mCarUserManager.createUser(userCreationRequestBuilder.setName(name).build(), Runnable::run,
+                userCreationResultCallback);
+
+        UserCreationResult result = userCreationResultCallback.get(
+                DEFAULT_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
         Log.d(TAG, "result: " + result);
         assertWithMessage("user creation result (waited for %sms)", DEFAULT_WAIT_TIMEOUT_MS)
                 .that(result).isNotNull();
@@ -320,12 +326,13 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
         try {
             Log.i(TAG, "Switching to user " + userId + " using CarUserManager");
-            AsyncFuture<UserSwitchResult> future = mCarUserManager.switchUser(userId);
-            UserSwitchResult result = future.get(SWITCH_USER_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            Log.d(TAG, "Result: " + result);
-
-            assertWithMessage("User %s switched in %sms. Result: %s", userId,
-                    SWITCH_USER_TIMEOUT_MS, result).that(result.isSuccess()).isTrue();
+            mCarUserManager.switchUser(new UserSwitchRequest.Builder(
+                    UserHandle.of(userId)).build(), Runnable::run, response -> {
+                    Log.d(TAG, "result: " + response);
+                    assertWithMessage("User %s switched in %sms. Result: %s", userId,
+                        SWITCH_USER_TIMEOUT_MS, response).that(response.isSuccess()).isTrue();
+                }
+            );
 
             if (waitForUserSwitchToComplete) {
                 listener.waitForEvents();
@@ -337,13 +344,16 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
         Log.d(TAG, "User switch complete. User id: " + userId);
     }
 
-    protected void removeUser(@UserIdInt int userId) {
+    protected void removeUser(@UserIdInt int userId) throws Exception {
         Log.d(TAG, "Removing user " + userId);
 
-        UserRemovalResult result = mCarUserManager.removeUser(userId);
-        Log.d(TAG, "result: " + result);
-        assertWithMessage("User %s removed. Result: %s", userId, result)
-                .that(result.isSuccess()).isTrue();
+        mCarUserManager.removeUser(new UserRemovalRequest.Builder(
+                UserHandle.of(userId)).build(), Runnable::run, response -> {
+                    Log.d(TAG, "result: " + response);
+                    assertWithMessage("User %s removed. Result: %s", userId, response)
+                            .that(response.isSuccess()).isTrue();
+                }
+        );
     }
 
     protected void startUserInBackgroundOnSecondaryDisplay(@UserIdInt int userId, int displayId)
@@ -352,11 +362,10 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
         UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(userId))
                 .setDisplayId(displayId).build();
-        UserStartResponse result = mCarUserManager.startUser(request);
-
-        assertWithMessage("startUserVisibleOnDisplay success for user %s on display %s",
-                        userId, displayId)
-                .that(result.isSuccess()).isTrue();
+        mCarUserManager.startUser(request, Runnable::run,
+                response ->
+                    assertWithMessage("startUser success for user %s on display %s",
+                            userId, displayId).that(response.isSuccess()).isTrue());
     }
 
     protected void forceStopUser(@UserIdInt int userId) throws Exception {
@@ -364,9 +373,10 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
 
         UserStopRequest request =
                 new UserStopRequest.Builder(UserHandle.of(userId)).setForce().build();
-        UserStopResponse result = mCarUserManager.stopUser(request);
-
-        assertWithMessage("stopUser success for user %s", userId).that(result.isSuccess()).isTrue();
+        mCarUserManager.stopUser(request, Runnable::run,
+                response ->
+                    assertWithMessage("stopUser success for user %s", userId)
+                            .that(response.isSuccess()).isTrue());
     }
 
     @Nullable
@@ -415,15 +425,8 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
      * Checks if the target device supports MUMD (multi-user multi-display).
      * @throws AssumptionViolatedException if the device does not support MUMD.
      */
-    // TODO(b/250108245): Currently doing this because using DeviceState rule is very heavy. We
-    //  may want to use PermissionsCheckerRule as a light-weight feature check
-    //  (and probably rename it to something like DeviceStateLite).
     protected static void requireMumd() {
-        assumeTrue(
-                "The device does not support multiple users on multiple displays",
-                isPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0)
-                        && getTargetContext().getSystemService(UserManager.class)
-                        .isVisibleBackgroundUsersSupported());
+        UserTestingHelper.requireMumd(getTargetContext());
     }
 
     /**
@@ -433,25 +436,8 @@ abstract class CarMultiUserTestBase extends CarApiTestBase {
      * @throws IllegalStateException when there is no secondary display available.
      */
     protected int getDisplayForStartingBackgroundUser() {
-        int[] displayIds = getTargetContext().getSystemService(ActivityManager.class)
-                .getDisplayIdsForStartingVisibleBackgroundUsers();
-        Log.d(TAG, "getSecondaryDisplayIdsForStartingBackgroundUsers() display IDs"
-                + " returned by AM: " + Arrays.toString(displayIds));
-        if (displayIds == null || displayIds.length == 0) {
-            throw new IllegalStateException("No secondary display is available to start a user.");
-        }
-
-        for (int displayId : displayIds) {
-            int userId = mCarOccupantZoneManager.getUserForDisplayId(displayId);
-            if (userId == CarOccupantZoneManager.INVALID_USER_ID) {
-                Log.d(TAG, "Returning first available display: " + displayId);
-                return displayId;
-            }
-            Log.d(TAG, "Display " + displayId + "is curretnly assigned to user " + userId);
-        }
-
-        throw new IllegalStateException(
-                "All secondary displays are assigned. No secondary display is available.");
+        return UserTestingHelper.getDisplayForStartingBackgroundUser(
+                getTargetContext(), mCarOccupantZoneManager);
     }
 
     private static Context getTargetContext() {

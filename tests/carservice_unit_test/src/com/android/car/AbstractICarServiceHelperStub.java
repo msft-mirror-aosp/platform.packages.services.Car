@@ -16,11 +16,13 @@
 package com.android.car;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 
 import android.annotation.NonNull;
 import android.annotation.UserIdInt;
 import android.car.app.CarActivityManager;
 import android.content.ComponentName;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Log;
@@ -83,6 +85,13 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
     }
 
     @Override
+    public void setPersistentActivitiesOnRootTask(List<ComponentName> activities,
+            IBinder rootTaskToken) {
+        Log.d(TAG, "setPersistentActivitiesOnRootTask(activities=" + activities.toString()
+                + ", rootTaskToken=" + rootTaskToken + ")");
+    }
+
+    @Override
     public void sendInitialUser(UserHandle user) {
         Log.d(TAG, "sendInitialUser " + user);
     }
@@ -100,8 +109,8 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
     }
 
     @Override
-    public int getDisplayAssignedToUser(int userId) {
-        Log.d(TAG, "getDisplayAssignedToUser(" + userId + ")");
+    public int getMainDisplayAssignedToUser(int userId) {
+        Log.d(TAG, "getMainDisplayAssignedToUser(" + userId + ")");
 
         return Display.INVALID_DISPLAY;
     }
@@ -126,5 +135,12 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
         Log.d(TAG, "setProcessProfile(" + pid + "," + uid + "," + profile + ")");
 
         return;
+    }
+
+    @Override
+    public int fetchAidlVhalPid() {
+        Log.d(TAG, "fetchAidlVhalPid()");
+
+        return INVALID_PID;
     }
 }

@@ -46,7 +46,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_SUCCESSFUL = CommonResults.STATUS_SUCCESSFUL;
 
@@ -57,7 +57,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_ANDROID_FAILURE = CommonResults.STATUS_ANDROID_FAILURE;
 
@@ -68,7 +68,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_UNSUPPORTED_PLATFORM_FAILURE =
             CommonResults.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
@@ -80,7 +80,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_SUCCESSFUL_USER_IS_CURRENT_USER =
             CommonResults.LAST_COMMON_STATUS + 1;
@@ -92,7 +92,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_USER_DOES_NOT_EXIST = CommonResults.LAST_COMMON_STATUS + 2;
 
@@ -103,7 +103,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_SUCCESSFUL_USER_ALREADY_VISIBLE_ON_DISPLAY =
             CommonResults.LAST_COMMON_STATUS + 3;
@@ -115,7 +115,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_DISPLAY_INVALID = CommonResults.LAST_COMMON_STATUS + 4;
 
@@ -126,7 +126,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_DISPLAY_UNAVAILABLE = CommonResults.LAST_COMMON_STATUS + 5;
 
@@ -137,7 +137,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int STATUS_USER_INVALID = CommonResults.LAST_COMMON_STATUS + 6;
 
@@ -148,7 +148,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @Status
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static final int
             STATUS_USER_ASSIGNED_TO_ANOTHER_DISPLAY = CommonResults.LAST_COMMON_STATUS + 7;
@@ -171,7 +171,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
 
     @Override
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public boolean isSuccess() {
         return mStatus == STATUS_SUCCESSFUL || mStatus == STATUS_SUCCESSFUL_USER_IS_CURRENT_USER
                 || mStatus == STATUS_SUCCESSFUL_USER_ALREADY_VISIBLE_ON_DISPLAY;
@@ -213,7 +213,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     public static @NonNull String statusToString(@Status int value) {
         switch (value) {
@@ -308,15 +308,13 @@ public final class UserStartResponse implements Parcelable, OperationResult {
      */
     @DataClass.Generated.Member
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public @Status int getStatus() {
         return mStatus;
     }
 
     @Override
     @DataClass.Generated.Member
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -330,7 +328,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -342,7 +340,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -386,7 +384,7 @@ public final class UserStartResponse implements Parcelable, OperationResult {
 
     @DataClass.Generated.Member
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public static final @NonNull Parcelable.Creator<UserStartResponse> CREATOR
             = new Parcelable.Creator<UserStartResponse>() {
         @Override

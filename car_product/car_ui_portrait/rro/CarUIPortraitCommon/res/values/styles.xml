@@ -16,20 +16,20 @@
 
 <resources>
 
-    <style name="TextAppearance.Car" parent="android:TextAppearance.DeviceDefault">
-            <item name="android:fontFamily">google-sans-text</item>
+    <style name="TextAppearance.Car" parent="android:TextAppearance">
+        <item name="android:fontFamily">roboto-regular</item>
     </style>
 
 
     <style name="TextAppearance.Car.Display">
-        <item name="android:fontFamily">google-sans-medium</item>
+        <item name="android:fontFamily">groboto-regular</item>
         <item name="android:textFontWeight">500</item>
         <item name="android:textSize">72sp</item>
     </style>
 
 
     <style name="TextAppearance.Car.Headline">
-        <item name="android:fontFamily">google-sans</item>
+        <item name="android:fontFamily">roboto-regular</item>
         <item name="android:textFontWeight">400</item>
     </style>
     <style name="TextAppearance.Car.Headline.Large">
@@ -37,21 +37,16 @@
     </style>
 
     <style name="TextAppearance.Car.Headline.Medium">
-        <item name="android:textSize">56sp</item>
-    </style>
-
-    <style name="TextAppearance.Car.Headline.Small">
         <item name="android:textSize">44sp</item>
     </style>
 
 
-    <style name="TextAppearance.Car.Body">
-        <item name="android:textFontWeight">400</item>
-    </style>
+    <!-- Attributes here affects textAppearanceSmall and might cause CTS failures. Careful when adding item like textFontWeight. -->
+    <style name="TextAppearance.Car.Body"></style>
+
     <style name="TextAppearance.Car.Body.Large">
         <item name="android:lineHeight">44dp</item>
         <item name="android:textSize">34sp</item>
-        <item name="android:textStyle">normal</item>
     </style>
     <style name="TextAppearance.Car.Body.Medium">
         <item name="android:lineHeight">40dp</item>
@@ -60,12 +55,11 @@
     <style name="TextAppearance.Car.Body.Small">
         <item name="android:lineHeight">36dp</item>
         <item name="android:textSize">28sp</item>
-        <item name="android:textStyle">normal</item>
     </style>
 
 
     <style name="TextAppearance.Car.Subhead">
-        <item name="android:fontFamily">google-sans-medium</item>
+        <item name="android:fontFamily">roboto-regular</item>
         <item name="android:textFontWeight">500</item>
     </style>
     <style name="TextAppearance.Car.Subhead.Large">
@@ -83,17 +77,20 @@
 
 
     <style name="TextAppearance.Car.Button">
-        <item name="android:fontFamily">google-sans-medium</item>
+        <item name="android:fontFamily">roboto-regular</item>
         <item name="android:textFontWeight">500</item>
     </style>
     <style name="TextAppearance.Car.Button.Large">
         <item name="android:textSize">36sp</item>
+        <item name="android:lineHeight">44dp</item>
     </style>
     <style name="TextAppearance.Car.Button.Medium">
         <item name="android:textSize">32sp</item>
+        <item name="android:lineHeight">40dp</item>
     </style>
     <style name="TextAppearance.Car.Button.Small">
         <item name="android:textSize">28sp</item>
+        <item name="android:lineHeight">36dp</item>
     </style>
 
 

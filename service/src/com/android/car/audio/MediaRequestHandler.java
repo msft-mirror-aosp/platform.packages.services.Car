@@ -18,6 +18,8 @@ package com.android.car.audio;
 
 import static android.car.media.CarAudioManager.INVALID_REQUEST_ID;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+
 import android.annotation.Nullable;
 import android.car.CarOccupantZoneManager;
 import android.car.builtin.util.Slogf;
@@ -34,6 +36,8 @@ import android.util.ArraySet;
 
 import com.android.car.CarLog;
 import com.android.car.CarServiceUtils;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
@@ -56,10 +60,6 @@ final class MediaRequestHandler {
             new ArrayMap<>();
 
     @GuardedBy("mLock")
-    private long mMediaRequestCounter;
-    @GuardedBy("mLock")
-    private final ArraySet<Long> mUsedMediaRequestIds = new ArraySet<>();
-    @GuardedBy("mLock")
     private final ArraySet<CarOccupantZoneManager.OccupantZoneInfo> mAssignedOccupants =
             new ArraySet<>();
     @GuardedBy("mLock")
@@ -67,6 +67,7 @@ final class MediaRequestHandler {
     @GuardedBy("mLock")
     private final RemoteCallbackList<IPrimaryZoneMediaAudioRequestCallback>
             mPrimaryZoneMediaAudioRequestCallbacks = new RemoteCallbackList<>();
+    private final RequestIdGenerator mIdGenerator = new RequestIdGenerator();
 
     boolean registerPrimaryZoneMediaAudioRequestCallback(
             IPrimaryZoneMediaAudioRequestCallback callback) {
@@ -108,7 +109,7 @@ final class MediaRequestHandler {
             CarOccupantZoneManager.OccupantZoneInfo info) {
         Objects.requireNonNull(callback, "Media audio request status callback can not be null");
         Objects.requireNonNull(info, "Occupant zone info can not be null");
-        long requestId = generateMediaRequestId();
+        long requestId = mIdGenerator.generateUniqueRequestId();
         Slogf.v(TAG, "requestMediaAudioOnPrimaryZone " + requestId);
 
         synchronized (mLock) {
@@ -311,18 +312,13 @@ final class MediaRequestHandler {
         InternalMediaAudioRequest request;
         synchronized (mLock) {
             request = mMediaAudioRequestIdToCallback.remove(requestId);
-            mUsedMediaRequestIds.remove(requestId);
+            mIdGenerator.releaseRequestId(requestId);
             if (request == null) {
                 return null;
             }
             mAssignedOccupants.remove(request.mOccupantZoneInfo);
             mRequestIdToApprover.remove(requestId);
 
-            // Reset counter back to lower value,
-            // on request the search will automatically assign this value or a newer one.
-            if (mMediaRequestCounter > requestId) {
-                mMediaRequestCounter = requestId;
-            }
         }
         return request;
     }
@@ -372,21 +368,46 @@ final class MediaRequestHandler {
         return handled;
     }
 
-    private long generateMediaRequestId() {
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    void dump(IndentingPrintWriter writer) {
         synchronized (mLock) {
-            while (mMediaRequestCounter < Long.MAX_VALUE) {
-                if (mUsedMediaRequestIds.contains(mMediaRequestCounter++)) {
-                    continue;
-                }
-
-                mUsedMediaRequestIds.add(mMediaRequestCounter);
-                return mMediaRequestCounter;
+            writer.println("Media request handler:");
+            writer.increaseIndent();
+            int n = mPrimaryZoneMediaAudioRequestCallbacks.beginBroadcast();
+            writer.printf("Media request callbacks[%d]:\n", n);
+            writer.increaseIndent();
+            for (int index = 0; index < mPrimaryZoneMediaAudioRequestCallbacks
+                    .getRegisteredCallbackCount(); index++) {
+                writer.printf("Callback[%d]: %s\n", index,
+                        mPrimaryZoneMediaAudioRequestCallbacks.getBroadcastItem(index).asBinder());
             }
-
-            mMediaRequestCounter = 0;
+            mPrimaryZoneMediaAudioRequestCallbacks.finishBroadcast();
+            writer.decreaseIndent();
+            writer.printf("Assigned occupant zones[%d]:\n", mAssignedOccupants.size());
+            writer.increaseIndent();
+            for (int index = 0; index < mAssignedOccupants.size(); index++) {
+                CarOccupantZoneManager.OccupantZoneInfo info = mAssignedOccupants.valueAt(index);
+                writer.println(info);
+            }
+            writer.decreaseIndent();
+            writer.printf("Request id to callback[%d]:\n", mMediaAudioRequestIdToCallback.size());
+            writer.increaseIndent();
+            for (int index = 0; index < mMediaAudioRequestIdToCallback.size(); index++) {
+                long key = mMediaAudioRequestIdToCallback.keyAt(index);
+                InternalMediaAudioRequest value = mMediaAudioRequestIdToCallback.valueAt(index);
+                writer.printf("%d : %s\n", key, value);
+            }
+            writer.increaseIndent();
+            writer.printf("Request id to approver[%d]\n", mRequestIdToApprover.size());
+            writer.increaseIndent();
+            for (int index = 0; index < mRequestIdToApprover.size(); index++) {
+                long key = mRequestIdToApprover.keyAt(index);
+                IBinder value = mRequestIdToApprover.valueAt(index);
+                writer.printf("%d : %s\n", key, value);
+            }
+            writer.decreaseIndent();
+            writer.decreaseIndent();
         }
-
-        throw new IllegalStateException("Could not generate media request id");
     }
 
     private static class InternalMediaAudioRequest {

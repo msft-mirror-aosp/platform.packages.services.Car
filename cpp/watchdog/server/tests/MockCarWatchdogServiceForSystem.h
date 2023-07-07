@@ -48,6 +48,11 @@ public:
             ndk::ScopedAStatus, getTodayIoUsageStats,
             (std::vector<aidl::android::automotive::watchdog::internal::UserPackageIoUsageStats>*),
             (override));
+    MOCK_METHOD(ndk::ScopedAStatus, onLatestResourceStats,
+                (const std::vector<aidl::android::automotive::watchdog::internal::ResourceStats>&),
+                (override));
+    MOCK_METHOD(ndk::ScopedAStatus, requestAidlVhalPid, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, requestTodayIoUsageStats, (), (override));
 };
 
 }  // namespace watchdog

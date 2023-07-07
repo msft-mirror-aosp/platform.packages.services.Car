@@ -17,7 +17,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android">
 
     <style name="TextAppearance.CarUi.AlertDialog.Title" parent="TextAppearance.Car.Subhead.Large">
-        <item name="android:fontFamily">google-sans-display</item>
+        <item name="android:fontFamily">roboto-regular</item>
         <item name="android:textStyle">normal</item>
         <item name="android:textColor">@color/car_on_surface</item>
         <item name="android:stateListAnimator">@null</item>
@@ -76,5 +76,14 @@
     <style name="Widget.CarUi.Toolbar.NavIcon">
         <item name="android:tint">@color/car_on_surface</item>
         <item name="android:background">@drawable/car_ui_toolbar_menu_item_icon_ripple</item>
+    </style>
+
+    <style name="PreferenceCarUiIcon"/>
+
+    <style name="CarUiPreferencePrimaryTitleStyle" parent="TextAppearance.CarUi.PreferenceSummary">
+        <item name="android:textColor">@color/car_ui_preference_primary_title</item>
+    </style>
+    <style name="CarUiPreferencePrimarySummaryStyle" parent="TextAppearance.CarUi.PreferenceSummary">
+        <item name="android:textColor">@color/car_ui_preference_primary_summary</item>
     </style>
 </resources>

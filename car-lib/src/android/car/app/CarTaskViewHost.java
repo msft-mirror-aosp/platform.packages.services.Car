@@ -40,7 +40,7 @@ public interface CarTaskViewHost {
     void release();
 
     /**
-     * See {@link com.android.wm.shell.TaskView#startActivity(PendingIntent, Intent,
+     * See {@link TaskView#startActivity(PendingIntent, Intent,
      * ActivityOptions, Rect)}
      */
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
@@ -76,4 +76,34 @@ public interface CarTaskViewHost {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void showEmbeddedTask();
+
+    /**
+     * Adds the given {@code insets} on the Task.
+     *
+     * <p>
+     * The given rectangle for the given insets type is applied to the underlying task right
+     * away.
+     * If a rectangle for an insets type was added previously, it will be replaced with the
+     * new value.
+     * If a rectangle for an insets type was already added, but is not specified currently in
+     * {@code insets}, it will remain applied to the task. Clients should explicitly call
+     * {@link #removeInsets(int, int)} to remove the rectangle for that insets type from
+     * the underlying task.
+     *
+     * @param index An owner might add multiple insets sources with the same type.
+     *              This identifies them.
+     * @param type  The insets type of the insets source. This doesn't accept the composite types.
+     * @param frame The rectangle area of the insets source.
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    void addInsets(int index, int type, @NonNull Rect frame);
+
+    /**
+     * Removes the insets for the given @code index}, and {@code type} that were added via
+     * {@link #addInsets(int, int, Rect)}
+     */
+    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
+            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    void removeInsets(int index, int type);
 }

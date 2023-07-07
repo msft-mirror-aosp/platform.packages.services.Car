@@ -16,6 +16,7 @@
 
 package android.car.app;
 
+import android.annotation.NonNull;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.graphics.Rect;
@@ -61,5 +62,15 @@ final class CarTaskViewHostAidlToImplAdapter extends ICarTaskViewHost.Stub {
     @Override
     public void showEmbeddedTask() {
         mCarTaskViewHost.showEmbeddedTask();
+    }
+
+    @Override
+    public void addInsets(int index, int type, @NonNull Rect frame) {
+        mCarTaskViewHost.addInsets(index, type, frame);
+    }
+
+    @Override
+    public void removeInsets(int index, int type) {
+        mCarTaskViewHost.removeInsets(index, type);
     }
 }
