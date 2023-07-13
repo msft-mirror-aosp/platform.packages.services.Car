@@ -28,6 +28,86 @@ genrule {
     out: ["com/android/car/CarStatsLog.java"],
 }
 
+gensrcs {
+    name: "dump-cppstream-protos",
+
+    tools: [
+        "aprotoc",
+        "protoc-gen-cppstream",
+    ],
+
+    cmd: "mkdir -p $(genDir) " +
+            "&& $(location aprotoc) " +
+            "  --plugin=$(location protoc-gen-cppstream) " +
+            "  --cppstream_out=$(genDir)/packages/services/Car/service/proto/android/car/watchdog " +
+            "  --cppstream_opt=experimental_allow_proto3_optional " +
+            "  -Iexternal/protobuf/src " +
+            "  -Ipackages/services/Car/service/proto/android/car/watchdog" +
+            "  $(in) ",
+
+    srcs: [
+        "proto/android/car/watchdog/carwatchdog_daemon_dump.proto",
+        "proto/android/car/watchdog/performance_stats.proto",
+        "proto/android/car/watchdog/health_check_client_info.proto",
+    ],
+
+    output_extension: "proto.h",
+}
+
+genrule {
+    name: "watchdog-protos-headers",
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir) " +
+            "&& $(location aprotoc) " +
+            "  --cpp_out=$(genDir) " +
+            "  --proto_path=external/protobuf/src/google/protobuf " +
+            "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
+            "  $(in) ",
+    srcs: [
+        "proto/android/car/watchdog/carwatchdog_daemon_dump.proto",
+        "proto/android/car/watchdog/performance_stats.proto",
+        "proto/android/car/watchdog/health_check_client_info.proto",
+    ],
+    out: [
+        "carwatchdog_daemon_dump.pb.h",
+        "performance_stats.pb.h",
+        "health_check_client_info.pb.h",
+    ],
+}
+
+genrule {
+    name: "watchdog-protos-srcs",
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir) " +
+            "&& $(location aprotoc) " +
+            "  --cpp_out=$(genDir) " +
+            "  --proto_path=external/protobuf/src/google/protobuf " +
+            "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
+            "  $(in) ",
+    srcs: [
+        "proto/android/car/watchdog/carwatchdog_daemon_dump.proto",
+        "proto/android/car/watchdog/performance_stats.proto",
+        "proto/android/car/watchdog/health_check_client_info.proto",
+    ],
+    out: [
+        "carwatchdog_daemon_dump.pb.cc",
+        "performance_stats.pb.cc",
+        "health_check_client_info.pb.cc",
+    ],
+}
+
+filegroup {
+    name: "car-service-non-dump-proto-srcs",
+    srcs: [
+        "proto/android/car/telemetry/*.proto",
+        "proto/android/car/watchdog/atoms.proto",
+    ],
+}
+
 java_defaults {
     name: "carservice-updatable-min-java-defaults",
 
@@ -38,10 +118,10 @@ java_defaults {
         ":android.car.watchdoglib-src",
         ":cartelemetry-cardata-proto-srcs",
         ":cartelemetryservice-proto-srcs",
+        ":car-service-non-dump-proto-srcs",
         ":com.android.car.procfsinspector-client-src",
         ":statslog-Car-java-gen",
         ":iscriptexecutor_aidl",
-        "proto/**/*.proto",
         "src/**/*.java",
         ],
 
@@ -89,6 +169,7 @@ java_defaults {
         "android.hardware.health-V1.0-java",
         "android.hardware.health-V2.0-java",
         "android.hardware.automotive.occupant_awareness-V1-java",
+        "libprotobuf-java-lite",
     ],
 
     proto: {
