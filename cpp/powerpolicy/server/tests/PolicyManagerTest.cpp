@@ -31,7 +31,7 @@ using android::hardware::automotive::vehicle::V2_0::VehicleApPowerStateReport;
 using tinyxml2::XML_SUCCESS;
 using tinyxml2::XMLDocument;
 
-namespace {
+namespace test {
 
 constexpr const char* kDirPrefix = "/tests/data/";
 
@@ -225,7 +225,7 @@ void assertDefaultPolicies(const PolicyManager& policyManager) {
     ASSERT_TRUE(policyManager.getPowerPolicy(kSystemPolicyIdInitialAllOn).ok());
 }
 
-}  // namespace
+}  // namespace test
 
 namespace internal {
 
@@ -242,7 +242,7 @@ public:
 private:
     void readXmlFile(const char* filename) {
         XMLDocument xmlDoc;
-        std::string path = getTestDataPath(filename);
+        std::string path = test::getTestDataPath(filename);
         xmlDoc.LoadFile(path.c_str());
         ASSERT_TRUE(xmlDoc.ErrorID() == XML_SUCCESS);
         mManager->readPowerPolicyFromXml(xmlDoc);
@@ -253,6 +253,8 @@ private:
 };
 
 }  // namespace internal
+
+namespace test {
 
 class PolicyManagerTest : public ::testing::Test {};
 
@@ -417,6 +419,7 @@ TEST_F(PolicyManagerTest, TestSystemPowerPolicyAllOn) {
     ASSERT_TRUE(systemPolicyDefault->disabledComponents.empty());
 }
 
+}  // namespace test
 }  // namespace powerpolicy
 }  // namespace automotive
 }  // namespace frameworks

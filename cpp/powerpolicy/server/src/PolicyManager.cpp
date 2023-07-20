@@ -627,8 +627,8 @@ void PolicyManager::initPreemptivePowerPolicy() {
                                      createPolicy(kSystemPolicyIdNoUserInteraction,
                                                   kNoUserInteractionEnabledComponents,
                                                   kNoUserInteractionDisabledComponents));
-    mPreemptivePowerPolicies.emplace(kSystemPolicyIdSuspendToRam,
-                                     createPolicy(kSystemPolicyIdSuspendToRam, kNoComponents,
+    mPreemptivePowerPolicies.emplace(kSystemPolicyIdSuspendPrep,
+                                     createPolicy(kSystemPolicyIdSuspendPrep, kNoComponents,
                                                   kSuspendToRamDisabledComponents));
 }
 
