@@ -774,7 +774,6 @@ public final class CarAudioContext {
 
         private final AudioAttributes mAudioAttributes;
 
-        @VisibleForTesting
         AudioAttributesWrapper(AudioAttributes audioAttributes) {
             mAudioAttributes = audioAttributes;
         }
