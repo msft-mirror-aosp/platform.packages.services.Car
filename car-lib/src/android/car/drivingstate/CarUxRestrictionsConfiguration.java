@@ -24,7 +24,6 @@ import static android.car.drivingstate.CarUxRestrictionsManager.UX_RESTRICTION_M
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeastU;
 
 import android.annotation.FloatRange;
 import android.annotation.NonNull;
@@ -234,7 +233,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         // TODO(b/273843708): add assertion back. getOccupantZoneId is not version guarded
         // properly when it is used within Car module. Assertion should be added backed once
         // b/280700896 is resolved
-        // assertPlatformVersionAtLeastU();
         return mOccupantZoneId;
     }
 
@@ -255,7 +253,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
     @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
             minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public @DisplayTypeEnum int getDisplayType() {
-        assertPlatformVersionAtLeastU();
         return mDisplayType;
     }
 
@@ -865,7 +862,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         public static int validateOccupantZoneId(int zoneId) {
-            assertPlatformVersionAtLeastU();
             if (zoneId > OccupantZoneInfo.INVALID_ZONE_ID) {
                 return zoneId;
             }
@@ -884,7 +880,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         public static int validateDisplayType(int displayType) {
-            assertPlatformVersionAtLeastU();
             if (displayType > CarOccupantZoneManager.DISPLAY_TYPE_UNKNOWN) {
                 return displayType;
             }
@@ -947,7 +942,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         public Builder setOccupantZoneId(int occupantZoneId) {
             // TODO(241589812): Call validation method here rather than separately.
-            assertPlatformVersionAtLeastU();
             mOccupantZoneId = occupantZoneId;
             return this;
         }
@@ -962,7 +956,6 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                 minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
         public Builder setDisplayType(@DisplayTypeEnum int displayType) {
-            assertPlatformVersionAtLeastU();
             mDisplayType = displayType;
             return this;
         }
@@ -1044,6 +1037,16 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         }
 
         /**
+         * Sets max string length if not set. If already set, the method is a no-op.
+         */
+        public Builder setMaxStringLengthIfNotSet(int maxStringLength) {
+            if (mMaxStringLength == UX_RESTRICTIONS_UNKNOWN) {
+                mMaxStringLength = maxStringLength;
+            }
+            return this;
+        }
+
+        /**
          * Sets max cumulative content items.
          */
         @AddedInOrBefore(majorVersion = 33)
@@ -1053,11 +1056,31 @@ public final class CarUxRestrictionsConfiguration implements Parcelable {
         }
 
         /**
+         * Sets max cumulative content items if not set. If already set, the method is a no-op.
+         */
+        public Builder setMaxCumulativeContentItemsIfNotSet(int maxCumulativeContentItems) {
+            if (mMaxCumulativeContentItems == UX_RESTRICTIONS_UNKNOWN) {
+                mMaxCumulativeContentItems = maxCumulativeContentItems;
+            }
+            return this;
+        }
+
+        /**
          * Sets max content depth.
          */
         @AddedInOrBefore(majorVersion = 33)
         public Builder setMaxContentDepth(int maxContentDepth) {
             mMaxContentDepth = maxContentDepth;
+            return this;
+        }
+
+        /**
+         * Sets max content depth if not set. If already set, the method is a no-op.
+         */
+        public Builder setMaxContentDepthIfNotSet(int maxContentDepth) {
+            if (mMaxContentDepth == UX_RESTRICTIONS_UNKNOWN) {
+                mMaxContentDepth = maxContentDepth;
+            }
             return this;
         }
 
