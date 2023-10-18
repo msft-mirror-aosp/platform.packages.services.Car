@@ -72,9 +72,11 @@ public class AudioCardFragment extends Fragment implements HomeCardInterface.Vie
         mInCallFragment = new DialerCardFragment();
 
         FragmentTransaction ft = getChildFragmentManager().beginTransaction();
-        ft.replace(R.id.media_fragment_container, mMediaFragment);
+        ft.replace(R.id.media_fragment_container, mMediaFragment, mMediaFragment.getTag());
         ft.replace(R.id.in_call_fragment_container, mInCallFragment);
         ft.commitNow();
+
+        showMediaCard();
 
         if (mOnViewLifecycleChangeListener != null) {
             mOnViewLifecycleChangeListener.onViewCreated();
