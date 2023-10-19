@@ -37,6 +37,7 @@ import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.ApiRequirements;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
+import android.os.Binder;
 import android.os.Build;
 import android.os.CancellationSignal;
 import android.os.Handler;
@@ -956,9 +957,11 @@ public class CarPropertyManager extends CarManagerBase {
                     ResultType clientResult = propertyResultCallback.build(
                             requestId, propertyId, areaId, timestampNanos,
                             carPropertyValue == null ? null : carPropertyValue.getValue());
+                    Binder.clearCallingIdentity();
                     callbackExecutor.execute(() -> propertyResultCallback.onSuccess(
                             clientCallback, clientResult));
                 } else {
+                    Binder.clearCallingIdentity();
                     callbackExecutor.execute(() -> propertyResultCallback.onFailure(clientCallback,
                             new PropertyAsyncError(requestId, propertyId, areaId, errorCode,
                                     result.getVendorErrorCode())));
