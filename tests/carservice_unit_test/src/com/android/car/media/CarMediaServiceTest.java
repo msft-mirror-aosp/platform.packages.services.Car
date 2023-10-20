@@ -440,6 +440,17 @@ public final class CarMediaServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    public void testGetLastMediaSources_returnsDefaultWhenNothingIsStored() {
+        initMediaService(MEDIA_CLASS);
+        when(mMockSharedPreferences.getString(anyString(), anyString())).thenReturn("");
+
+        assertThat(mCarMediaService.getLastMediaSources(MEDIA_SOURCE_MODE_PLAYBACK))
+                .containsExactly(MEDIA_COMPONENT);
+        assertThat(mCarMediaService.getLastMediaSources(MEDIA_SOURCE_MODE_BROWSE))
+                .containsExactly(MEDIA_COMPONENT);
+    }
+
+    @Test
     public void testIsIndependentPlaybackConfig_true() {
         mCarMediaService.setIndependentPlaybackConfig(true);
 
