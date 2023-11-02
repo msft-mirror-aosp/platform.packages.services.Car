@@ -269,3 +269,10 @@ else # !USE_CAR_FRAMEWORK_APEX
     PRODUCT_HIDDENAPI_STUBS_SYSTEM := android.car-system-stubs-dex
     PRODUCT_HIDDENAPI_STUBS_TEST := android.car-test-stubs-dex
 endif # USE_CAR_FRAMEWORK_APEX
+
+# Disable Dynamic System Update for automotive targets
+PRODUCT_NO_DYNAMIC_SYSTEM_UPDATE := true
+
+# TODO(b/299166571) Remove this after the artifact path requirements checker picks up
+# hwservicemanager correctly.
+PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += $(TARGET_COPY_OUT_SYSTEM)/bin/hwservicemanager
