@@ -14,10 +14,8 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.android.systemui.car.rro">
-    <application android:hasCode="false"/>
-    <overlay android:targetPackage="com.android.systemui"
-             android:resourcesMap="@xml/overlays"
-             android:isStatic="true" />
-</manifest>
+
+<resources>
+    <color name="icon_color_default">@*android:color/car_body1</color>
+    <color name="biometric_background_color">#000000</color>
+</resources>
