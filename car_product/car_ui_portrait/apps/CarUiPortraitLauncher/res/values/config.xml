@@ -66,7 +66,7 @@
         <item>android.server.wm.app/android.server.wm.app.MinAspectRatioLandscapeActivity</item>
         <item>android.server.wm.app/android.server.wm.app.MinAspectRatioPortraitActivity</item>
         <item>android.server.wm.app/android.server.wm.app.MinAspectRatioUnsetActivity</item>
-        <item>android.view.surfacecontrol.cts/android.view.cts.surfacevalidator.CapturedActivity</item>
+        <item>android.server.wm.cts/android.view.cts.surfacevalidator.CapturedActivity</item>
         <item>android.view.surfacecontrol.cts/.TrustedPresentationCallbackTest$TestActivity</item>
         <item>android.view.surfacecontrol.cts/android.view.cts.surfacevalidator.CapturedActivityWithResource</item>
         <item>android.uirendering.cts/android.uirendering.cts.testinfrastructure.DrawActivity</item>
