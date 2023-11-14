@@ -737,8 +737,10 @@ TEST_F(WatchdogProcessServiceTest, TestOnDumpProto) {
     util::ProtoOutputStream proto;
     mWatchdogProcessService->onDumpProto(proto);
 
-    HealthCheckServiceDump healthCheckServiceDump;
-    ASSERT_TRUE(healthCheckServiceDump.ParseFromString(toString(&proto)));
+    CarWatchdogDaemonDump carWatchdogDaemonDump;
+    ASSERT_TRUE(carWatchdogDaemonDump.ParseFromString(toString(&proto)));
+    HealthCheckServiceDump healthCheckServiceDump =
+            carWatchdogDaemonDump.health_check_service_dump();
     EXPECT_EQ(healthCheckServiceDump.is_enabled(), true);
     EXPECT_EQ(healthCheckServiceDump.is_monitor_registered(), false);
     EXPECT_EQ(healthCheckServiceDump.is_system_shut_down_in_progress(), false);
@@ -766,11 +768,12 @@ TEST_F(WatchdogProcessServiceTest, TestOnDumpProto) {
 
     EXPECT_EQ(healthCheckClientInfo.client_type(), HealthCheckClientInfo_ClientType_REGULAR);
     EXPECT_EQ(healthCheckClientInfo.start_time_millis(), 1000);
-    EXPECT_EQ(healthCheckClientInfo.health_check_timeout(), 0);
+    EXPECT_EQ(healthCheckClientInfo.health_check_timeout(),
+              HealthCheckClientInfo_HealthCheckTimeout_CRITICAL);
 
+    // Clean up test clients before exiting.
     mWatchdogProcessServicePeer->clearClientsByTimeout();
 }
-
 }  // namespace watchdog
 }  // namespace automotive
 }  // namespace android
