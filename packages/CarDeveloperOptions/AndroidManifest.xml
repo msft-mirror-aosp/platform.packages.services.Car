@@ -24,6 +24,12 @@
     <!-- Removing unnecessary permissions inherited from phone settings. -->
     <uses-permission android:name="android.permission.CONTROL_UI_TRACING"
                      tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove" />
 
     <application android:label="@string/development_settings_title"
                  android:theme="@style/Theme.CDOBaseTheme"
