@@ -132,9 +132,10 @@ public final class FixedActivityService implements CarServiceBase {
         @Override
         public String toString() {
             return "RunningActivityInfo{intent:" + intent + ",activityOptions:" + activityOptions
-                    + ",userId:" + userId + ",isVisible:" + isVisible
+                    + ",userId:" + userId + ",isVisible:" + isVisible + ",isStarted:" + isStarted
                     + ",lastLaunchTimeMs:" + lastLaunchTimeMs
-                    + ",consecutiveRetries:" + consecutiveRetries + ",taskId:" + taskId + "}";
+                    + ",consecutiveRetries:" + consecutiveRetries + ",taskId:" + taskId
+                    + ",previousTaskId:" + previousTaskId + ",inBackground:" + inBackground + "}";
         }
     }
 
@@ -215,6 +216,9 @@ public final class FixedActivityService implements CarServiceBase {
 
         @Override
         public void onDisplayChanged(int displayId) {
+            if (DBG) {
+                Slogf.d(TAG_AM, "onDisplayChanged(%d)", displayId);
+            }
             launchForDisplay(displayId);
         }
 
@@ -378,7 +382,11 @@ public final class FixedActivityService implements CarServiceBase {
      *         launched. It will return false for {@link Display#INVALID_DISPLAY} {@code displayId}.
      */
     private boolean launchIfNecessary(int displayId) {
-        List<? extends TaskInfo> infos = mActivityService.getVisibleTasksInternal();
+        if (DBG) {
+            Slogf.d(TAG_AM, "launchIfNecessary(%d)", displayId);
+        }
+        // Get the visible tasks on the specified display. INVALID_DISPLAY means all displays.
+        List<? extends TaskInfo> infos = mActivityService.getVisibleTasksInternal(displayId);
         if (infos == null) {
             Slogf.e(TAG_AM, "cannot get RootTaskInfo from AM");
             return false;
@@ -396,7 +404,12 @@ public final class FixedActivityService implements CarServiceBase {
                 }
 
                 RunningActivityInfo activityInfo = mRunningActivities.valueAt(i);
-                activityInfo.isVisible = false;
+                // Do not reset isVisible flag when the recheck interval has not passed yet,
+                // since the last launch attempt.
+                if (!activityInfo.isStarted
+                        || (now - activityInfo.lastLaunchTimeMs) > RECHECK_INTERVAL_MS) {
+                    activityInfo.isVisible = false;
+                }
                 if (isUserAllowedToLaunchActivity(activityInfo.userId)) {
                     continue;
                 }
@@ -425,7 +438,7 @@ public final class FixedActivityService implements CarServiceBase {
                 return false;
             }
             if (DBG) {
-                Slogf.i(TAG_AM, "Visible Tasks: %d", infos.size());
+                Slogf.d(TAG_AM, "Visible Tasks: %d", infos.size());
             }
             for (int i = 0, size = infos.size(); i < size; ++i) {
                 TaskInfo taskInfo = infos.get(i);
@@ -510,6 +523,9 @@ public final class FixedActivityService implements CarServiceBase {
                 }
             }
             RunningActivityInfo activityInfo = mRunningActivities.get(displayId);
+            if (DBG) {
+                Slogf.d(TAG_AM, "ActivityInfo for display %d: %s", displayId, activityInfo);
+            }
             if (activityInfo == null) {
                 return false;
             }
@@ -599,6 +615,13 @@ public final class FixedActivityService implements CarServiceBase {
             }
             return false;
         }
+        synchronized (mLock) {
+            // Do nothing if there is no activity for the given display.
+            if (!mRunningActivities.contains(displayId)) {
+                return false;
+            }
+        }
+
         boolean launched = launchIfNecessary(displayId);
         if (launched) {
             startMonitoringEvents();
@@ -640,11 +663,7 @@ public final class FixedActivityService implements CarServiceBase {
             return false;
         }
         Bundle optionsBundle = options.toBundle();
-        boolean startMonitoringEvents = false;
         synchronized (mLock) {
-            if (mRunningActivities.size() == 0) {
-                startMonitoringEvents = true;
-            }
             RunningActivityInfo activityInfo = mRunningActivities.get(displayId);
             boolean replaceEntry = true;
             if (activityInfo != null && intentEquals(activityInfo.intent, intent)
