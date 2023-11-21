@@ -141,6 +141,9 @@ binder_status_t WatchdogInternalHandler::dump(int fd, const char** args, uint32_
     }
     std::vector<const char*> argsVector;
     for (uint32_t i = 0; i < numArgs; ++i) {
+        if (EqualsIgnoreCase(args[i], kDumpProtoFlag)) {
+            return dumpProto(fd);
+        }
         argsVector.push_back(args[i]);
     }
     dumpHelpText(fd,
