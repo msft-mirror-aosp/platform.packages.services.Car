@@ -76,28 +76,29 @@ public final class RemoteCarRootTaskView extends RemoteCarTaskView {
     @GuardedBy("mLock")
     private final ArrayList<ComponentName> mAllowListedActivities;
 
+    @GuardedBy("mLock")
     private ActivityManager.RunningTaskInfo mRootTask;
 
     final ICarTaskViewClient mICarTaskViewClient = new ICarTaskViewClient.Stub() {
         @Override
         public void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo, SurfaceControl leash) {
-            if (mRootTask == null) {
-                mRootTask = taskInfo;
-                synchronized (mLock) {
+            synchronized (mLock) {
+                if (mRootTask == null) {
+                    mRootTask = taskInfo;
                     setPersistentActivitiesOnRootTask(mAllowListedActivities,
                             TaskInfoHelper.getToken(taskInfo));
-                }
 
-                // If onTaskAppeared() is called, it implicitly means that super.isInitialized()
-                // is true, as the root task is created only after initialization.
-                mCallbackExecutor.execute(() -> mCallback.onTaskViewInitialized());
+                    // If onTaskAppeared() is called, it implicitly means that super.isInitialized()
+                    // is true, as the root task is created only after initialization.
+                    mCallbackExecutor.execute(() -> mCallback.onTaskViewInitialized());
 
-                if (taskInfo.taskDescription != null) {
-                    ViewHelper.seResizeBackgroundColor(
-                            RemoteCarRootTaskView.this,
-                            taskInfo.taskDescription.getBackgroundColor());
+                    if (taskInfo.taskDescription != null) {
+                        ViewHelper.seResizeBackgroundColor(
+                                RemoteCarRootTaskView.this,
+                                taskInfo.taskDescription.getBackgroundColor());
+                    }
+                    updateWindowBounds();
                 }
-                updateWindowBounds();
             }
 
             mRootTaskStackManager.taskAppeared(taskInfo, leash);
@@ -105,18 +106,28 @@ public final class RemoteCarRootTaskView extends RemoteCarTaskView {
 
         @Override
         public void onTaskInfoChanged(ActivityManager.RunningTaskInfo taskInfo) {
-            if (mRootTask.taskId == taskInfo.taskId && taskInfo.taskDescription != null) {
-                ViewHelper.seResizeBackgroundColor(
-                        RemoteCarRootTaskView.this,
-                        taskInfo.taskDescription.getBackgroundColor());
+            synchronized (mLock) {
+                if (mRootTask == null) {
+                    return;
+                }
+                if (mRootTask.taskId == taskInfo.taskId && taskInfo.taskDescription != null) {
+                    ViewHelper.seResizeBackgroundColor(
+                            RemoteCarRootTaskView.this,
+                            taskInfo.taskDescription.getBackgroundColor());
+                }
             }
             mRootTaskStackManager.taskInfoChanged(taskInfo);
         }
 
         @Override
         public void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo) {
-            if (mRootTask.taskId == taskInfo.taskId) {
-                mRootTask = null;
+            synchronized (mLock) {
+                if (mRootTask == null) {
+                    return;
+                }
+                if (mRootTask.taskId == taskInfo.taskId) {
+                    mRootTask = null;
+                }
             }
             mRootTaskStackManager.taskVanished(taskInfo);
         }
@@ -174,7 +185,9 @@ public final class RemoteCarRootTaskView extends RemoteCarTaskView {
 
     @Override
     public boolean isInitialized() {
-        return super.isInitialized() && mRootTask != null;
+        synchronized (mLock) {
+            return super.isInitialized() && mRootTask != null;
+        }
     }
 
     @Override
@@ -186,7 +199,9 @@ public final class RemoteCarRootTaskView extends RemoteCarTaskView {
     @Nullable
     @Override
     public ActivityManager.RunningTaskInfo getTaskInfo() {
-        return mRootTask;
+        synchronized (mLock) {
+            return mRootTask;
+        }
     }
 
     @Override
