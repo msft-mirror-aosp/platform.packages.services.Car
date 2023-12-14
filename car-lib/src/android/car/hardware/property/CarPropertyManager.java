@@ -1358,6 +1358,7 @@ public class CarPropertyManager extends CarManagerBase {
         }
         List<Integer> filteredPropertyIds = new ArrayList<>();
         for (int propertyId : propertyIds) {
+            assertNotUserHalProperty(propertyId);
             if (!CarPropertyHelper.isSupported(propertyId)) {
                 continue;
             }
@@ -1397,6 +1398,7 @@ public class CarPropertyManager extends CarManagerBase {
         if (DBG) {
             Log.d(TAG, "getCarPropertyConfig(" + VehiclePropertyIds.toString(propertyId) + ")");
         }
+        assertNotUserHalProperty(propertyId);
         if (!CarPropertyHelper.isSupported(propertyId)) {
             Log.w(TAG, "Property: " + VehiclePropertyIds.toString(propertyId)
                     + " is not supported");
@@ -1428,6 +1430,7 @@ public class CarPropertyManager extends CarManagerBase {
      */
     @AddedInOrBefore(majorVersion = 33)
     public int getAreaId(int propertyId, int area) {
+        assertNotUserHalProperty(propertyId);
         String propertyIdStr = VehiclePropertyIds.toString(propertyId);
         if (DBG) {
             Log.d(TAG, "getAreaId(propertyId = " + propertyIdStr + ", area = " + area + ")");
@@ -1469,6 +1472,7 @@ public class CarPropertyManager extends CarManagerBase {
     @Nullable
     @AddedInOrBefore(majorVersion = 33)
     public String getReadPermission(int propId) {
+        assertNotUserHalProperty(propId);
         try {
             String permission = mService.getReadPermission(propId);
             if (DBG) {
@@ -1493,6 +1497,7 @@ public class CarPropertyManager extends CarManagerBase {
     @Nullable
     @AddedInOrBefore(majorVersion = 33)
     public String getWritePermission(int propId) {
+        assertNotUserHalProperty(propId);
         try {
             String permission = mService.getWritePermission(propId);
             if (DBG) {
@@ -1520,6 +1525,7 @@ public class CarPropertyManager extends CarManagerBase {
             Log.d(TAG, "isPropertyAvailable(propertyId = "
                     + VehiclePropertyIds.toString(propertyId) + ", areaId = " + areaId + ")");
         }
+        assertNotUserHalProperty(propertyId);
         if (!CarPropertyHelper.isSupported(propertyId)) {
             if (DBG) {
                 Log.d(TAG, "Property: " + VehiclePropertyIds.toString(propertyId)
@@ -1551,29 +1557,67 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
      *
-     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#R} will receive the following exceptions when
-     * request is failed.
+     * <p>Note: Client MUST NOT use one of the following as propertyId, otherwise the behavior is
+     * undefined:
+     *
      * <ul>
-     *     <li>{@link CarInternalErrorException}
-     *     <li>{@link PropertyAccessDeniedSecurityException}
-     *     <li>{@link PropertyNotAvailableAndRetryException}
-     *     <li>{@link PropertyNotAvailableException}
-     *     <li>{@link IllegalArgumentException}
+     * <li>{@code INITIAL_USER_INFO}
+     * <li>{@code SWITCH_USER}
+     * <li>{@code CREATE_USER}
+     * <li>{@code REMOVE_USER}
+     * <li>{@code USER_IDENTIFICATION_ASSOCIATION}
+     * </ul>
+     *
+     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
+     * or later than {@link Build.VERSION_CODES#U} will receive the following exceptions when
+     * request failed.
+     * <ul>
+     *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
+     *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
+     *     property
+     *     <li>{@link PropertyNotAvailableAndRetryException} when the property is temporarily
+     *     not available and likely that retrying will be successful
+     *     <li>{@link PropertyNotAvailableException} when the property is not available and might be
+     *     unavailable for a while.
+     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported or
+     *     when the property is of wrong type.
+     * </ul>
+     *
+     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
+     * or later than {@link Build.VERSION_CODES#R}, before {@link Build.VERSION_CODES#U} will
+     * receive the following exceptions or {@code false} when request failed.
+     * <ul>
+     *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
+     *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
+     *     property
+     *     <li>{@link PropertyNotAvailableAndRetryException} when the property is temporarily
+     *     not available and likely that retrying will be successful
+     *     <li>{@link PropertyNotAvailableException} when the property is not available and might be
+     *     unavailable for a while.
+     *     <li>{@link IllegalArgumentException} when the property is of wrong type.
+     *     <li>{@code false} when the [propertyId, areaId] is not supported
      * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion}
-     * earlier than {@link Build.VERSION_CODES#R} will receive the following exceptions if the call
-     * fails.
+     * earlier than {@link Build.VERSION_CODES#R} will receive the following exceptions or
+     * {@code false} when request failed.
      * <ul>
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
      *         cars denied the access of the property, or when the property is not available and
      *         might be unavailable for a while, or when unexpected error happens.
-     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
+     *     <li>{@link IllegalArgumentException} when the property is of wrong type.
+     *     <li>{@code false} when the [propertyId, areaId] is not supported or when the property is
+     *     temporarily not available.
      * </ul>
      *
-     * <p>For pre-R client, the returned value is {@code false} if the property is temporarily not
-     * available.
+     * <p>For pre-R client, the returned value might be {@code false} if the property is temporarily
+     * not available. The client should try again in this case.
+     *
+     * <p>For pre-U client, when the [propertyId, areaId] is not supported, this will return
+     * {@code false}.
+     *
+     * <p>For U and later client, when the [propertyId, areaId] is not supported, this is
+     * guaranteed to throw {@code IllegalArgumentException}.
      *
      * @param propertyId the property ID to get
      * @param areaId the area ID of the property to get
@@ -1585,10 +1629,10 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported for U and
+     * later client, or when the property is of wrong type.
      *
-     * @return the value of a bool property, or {@code false} for pre-R client if the property is
-     *         temporarily not available
+     * @return the value of a bool property or {@code false}.
      */
     @AddedInOrBefore(majorVersion = 33)
     public boolean getBooleanProperty(int propertyId, int areaId) {
@@ -1614,10 +1658,10 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported for U and
+     * later client, or when the property is of wrong type.
      *
-     * @return the value of a float property, or 0 if client is pre-R and the property is
-     *         temporarily not available
+     * @return the value of a float property or 0.
      */
     @AddedInOrBefore(majorVersion = 33)
     public float getFloatProperty(int propertyId, int areaId) {
@@ -1637,16 +1681,16 @@ public class CarPropertyManager extends CarManagerBase {
      * @param areaId the area ID of the property to get
      *
      * @throws CarInternalErrorException when there is an unexpected error detected in cars
-     * @throws PropertyAccessDeniedSecurityException} when cars denied the access of the
+     * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
      * property
-     * @throws PropertyNotAvailableAndRetryException} when the property is temporarily
+     * @throws PropertyNotAvailableAndRetryException when the property is temporarily
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported for U and
+     * later client, or when the property is of wrong type.
      *
-     * @return the value of a integer property, or 0 if client is pre-R and the property is
-     *         temporarily not available
+     * @return the value of aa integer property or 0.
      */
     @AddedInOrBefore(majorVersion = 33)
     public int getIntProperty(int propertyId, int areaId) {
@@ -1668,14 +1712,14 @@ public class CarPropertyManager extends CarManagerBase {
      * @throws CarInternalErrorException when there is an unexpected error detected in cars
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
      * property
-     * @throws PropertyNotAvailableAndRetryException} when the property is temporarily
+     * @throws PropertyNotAvailableAndRetryException when the property is temporarily
      * not available and likely that retrying will be successful
-     * @throws PropertyNotAvailableException} when the property is not available and might be
+     * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException} when the [propertyId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported for U and
+     * later client, or when the property is of wrong type.
      *
-     * @return the value of a integer array property, or an empty integer array if client is pre-R
-     *         and the property is temporarily not available
+     * @return the value of an integer array property or an empty array.
      */
     @NonNull
     @AddedInOrBefore(majorVersion = 33)
@@ -1755,31 +1799,82 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
      *
-     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#R} will receive the following exceptions when
-     * request is failed.
+     * <p>Note: Client MUST NOT use one of the following as propertyId, otherwise the behavior is
+     * undefined (might throw exception or might return null):
+     *
      * <ul>
-     *     <li>{@link CarInternalErrorException}
-     *     <li>{@link PropertyAccessDeniedSecurityException}
-     *     <li>{@link PropertyNotAvailableAndRetryException}
-     *     <li>{@link PropertyNotAvailableException}
-     *     <li>{@link IllegalArgumentException}
+     * <li>{@code INITIAL_USER_INFO}
+     * <li>{@code SWITCH_USER}
+     * <li>{@code CREATE_USER}
+     * <li>{@code REMOVE_USER}
+     * <li>{@code USER_IDENTIFICATION_ASSOCIATION}
      * </ul>
      *
-     * <p>For R or later version client, the returned value will never be null.
+     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
+     * or later than {@link Build.VERSION_CODES#U} will receive the following exceptions when
+     * request failed.
+     * <ul>
+     *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
+     *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
+     *     property
+     *     <li>{@link PropertyNotAvailableAndRetryException} when the property is temporarily
+     *     not available and likely that retrying will be successful
+     *     <li>{@link PropertyNotAvailableException} when the property is not available and might be
+     *     unavailable for a while.
+     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported or
+     *     when the specified class does not match the property type.
+     * </ul>
+     *
+     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
+     * or later than {@link Build.VERSION_CODES#R}, before {@link Build.VERSION_CODES#U} will
+     * receive the following exceptions or {@code null} when request failed.
+     * <ul>
+     *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
+     *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
+     *     property
+     *     <li>{@link PropertyNotAvailableAndRetryException} when the property is temporarily
+     *     not available and likely that retrying will be successful
+     *     <li>{@link PropertyNotAvailableException} when the property is not available and might be
+     *     unavailable for a while.
+     *     <li>{@link IllegalArgumentException} when the specified class does not match the property
+     *     type.
+     *     <li>{@code null} when the [propertyId, areaId] is not supported
+     * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion}
-     * earlier than {@link Build.VERSION_CODES#R} will receive the following exceptions when request
-     * is failed.
+     * earlier than {@link Build.VERSION_CODES#R} will receive the following exceptions or
+     * {@code null} when request failed.
      * <ul>
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
      *         cars denied the access of the property, or when the property is not available and
      *         might be unavailable for a while, or when unexpected error happens.
-     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
+     *     <li>{@link IllegalArgumentException} when the specified class does not match the
+     *         property type.
+     *     <li>{@code null} when the [propertyId, areaId] is not supported or when the property is
+     *     temporarily not available.
      * </ul>
      *
      * <p>For pre-R client, the returned value might be null if the property is temporarily not
      * available. The client should try again in this case.
+     *
+     * <p>For pre-U client, when the [propertyId, areaId] is not supported, this will return
+     * {@code null}.
+     *
+     * <p>For pre-U client, the returned {@link CarPropertyValue} might contain unavailable or
+     * error status. Client must use {@link CarPropertyValue#getStatus} to check. If the returned
+     * status is not {@link CarPropertyValue.STATUS_AVAILABLE}, then the value returned via
+     * {@link CarPropertyValue#getValue} is undefined.
+     *
+     * <p>For U and later client, when the [propertyId, areaId] is not supported, this is
+     * guaranteed to throw {@code IllegalArgumentException}. This method will never return
+     * {@code null}.
+     *
+     * <p>For U and later client, if the property's status is
+     * {@link CarPropertyValue.STATUS_UNAVAILABLE}, then {@link PropertyNotAvailableException} will
+     * be thrown. If the property's status is {@link CarPropertyValue.STATUS_ERROR}, then
+     * {@link CarInternalErrorException} will be thrown. If no exception is thrown, the returned
+     * {@link CarPropertyValue#getStatus} is guaranteed to be
+     * {@link CarPropertyValue.STATUS_AVAILABLE} so client do not need to check.
      *
      * @param clazz the class object for the CarPropertyValue
      * @param propertyId the property ID to get
@@ -1792,9 +1887,10 @@ public class CarPropertyManager extends CarManagerBase {
      * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported for U and
+     * later client, or when the specified class does not match the property type.
      *
-     * @return the value of a property
+     * @return the value of a property or {@code null}.
      */
     @SuppressWarnings("unchecked")
     @Nullable
@@ -1820,44 +1916,91 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>This method may take couple seconds to complete, so it needs to be called from a
      * non-main thread.
      *
-     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#R} will receive the following exceptions when
-     * request is failed.
+     * <p>Note: Client MUST NOT use one of the following as propertyId, otherwise the behavior is
+     * undefined (might throw exception or might return null):
+     *
      * <ul>
-     *     <li>{@link CarInternalErrorException}
-     *     <li>{@link PropertyAccessDeniedSecurityException}
-     *     <li>{@link PropertyNotAvailableAndRetryException}
-     *     <li>{@link PropertyNotAvailableException}
-     *     <li>{@link IllegalArgumentException}
+     * <li>{@code INITIAL_USER_INFO}
+     * <li>{@code SWITCH_USER}
+     * <li>{@code CREATE_USER}
+     * <li>{@code REMOVE_USER}
+     * <li>{@code USER_IDENTIFICATION_ASSOCIATION}
      * </ul>
      *
-     * <p>For R or later version client, the returned value will never be null.
+     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
+     * or later than {@link Build.VERSION_CODES#U} will receive the following exceptions when
+     * request failed.
+     * <ul>
+     *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
+     *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
+     *     property
+     *     <li>{@link PropertyNotAvailableAndRetryException} when the property is temporarily
+     *     not available and likely that retrying will be successful
+     *     <li>{@link PropertyNotAvailableException} when the property is not available and might be
+     *     unavailable for a while.
+     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
+     * </ul>
+     *
+     * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
+     * or later than {@link Build.VERSION_CODES#R}, before {@link Build.VERSION_CODES#U} will
+     * receive the following exceptions or {@code null} when request failed.
+     * <ul>
+     *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
+     *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
+     *     property
+     *     <li>{@link PropertyNotAvailableAndRetryException} when the property is temporarily
+     *     not available and likely that retrying will be successful
+     *     <li>{@link PropertyNotAvailableException} when the property is not available and might be
+     *     unavailable for a while.
+     *     <li>{@code null} when the [propertyId, areaId] is not supported
+     * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion}
-     * earlier than {@link Build.VERSION_CODES#R} will receive the following exceptions when request
-     * is failed.
+     * earlier than {@link Build.VERSION_CODES#R} will receive the following exceptions or
+     * {@code null} when request failed.
      * <ul>
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
      *         cars denied the access of the property, or when the property is not available and
      *         might be unavailable for a while, or when unexpected error happens.
-     *     <li>{@link IllegalArgumentException} when the [propertyId, areaId] is not supported.
+     *     <li>{@code null} when the [propertyId, areaId] is not supported or when the property is
+     *     temporarily not available.
      * </ul>
      *
      * <p>For pre-R client, the returned value might be null if the property is temporarily not
      * available. The client should try again in this case.
      *
+     * <p>For pre-U client, when the [propertyId, areaId] is not supported, this will return
+     * {@code null}.
+     *
+     * <p>For pre-U client, the returned {@link CarPropertyValue} might contain unavailable or
+     * error status. Client must use {@link CarPropertyValue#getStatus} to check. If the returned
+     * status is not {@link CarPropertyValue.STATUS_AVAILABLE}, then the value returned via
+     * {@link CarPropertyValue#getValue} is undefined.
+     *
+     * <p>For U and later client, when the [propertyId, areaId] is not supported, this is
+     * guaranteed to throw {@code IllegalArgumentException}. This method will never return
+     * {@code null}.
+     *
+     * <p>For U and later client, if the property's status is
+     * {@link CarPropertyValue.STATUS_UNAVAILABLE}, then {@link PropertyNotAvailableException} will
+     * be thrown. If the property's status is {@link CarPropertyValue.STATUS_ERROR}, then
+     * {@link CarInternalErrorException} will be thrown. If no exception is thrown, the returned
+     * {@link CarPropertyValue#getStatus} is guaranteed to be
+     * {@link CarPropertyValue.STATUS_AVAILABLE} so client do not need to check.
+     *
      * @param propertyId the property ID to get
      * @param areaId the area ID of the property to get
      * @param <E> the class type of the property
      *
-     * @throws CarInternalErrorException when there is an unexpected error detected in cars.
+     * @throws CarInternalErrorException when there is an unexpected error detected in cars
      * @throws PropertyAccessDeniedSecurityException when cars denied the access of the
-     * property.
+     * property
      * @throws PropertyNotAvailableAndRetryException when the property is temporarily
-     * not available and likely that retrying will be successful.
+     * not available and likely that retrying will be successful
      * @throws PropertyNotAvailableException when the property is not available and might be
      * unavailable for a while.
-     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported for U and
+     * later client.
      *
      * @return the value of a property
      */
@@ -1869,7 +2012,18 @@ public class CarPropertyManager extends CarManagerBase {
                     + ", areaId: 0x" + toHexString(areaId));
         }
 
-        assertPropertyIdIsSupported(propertyId);
+        assertNotUserHalProperty(propertyId);
+
+        try {
+            assertPropertyIdIsSupported(propertyId);
+        } catch (IllegalArgumentException e) {
+            if (mAppTargetSdk >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                throw e;
+            } else {
+                // Return null for pre-U unsupported [propertyId, areaId].
+                return null;
+            }
+        }
 
         Trace.beginSection("getProperty-" + propertyId + "/" + areaId);
         try {
@@ -1891,6 +2045,13 @@ public class CarPropertyManager extends CarManagerBase {
                 }
             }
             return carPropertyValue;
+        } catch (IllegalArgumentException e) {
+            if (mAppTargetSdk >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                throw e;
+            } else {
+                // Return null for pre-U unsupported [propertyId, areaId].
+                return null;
+            }
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, null);
         } catch (ServiceSpecificException e) {
@@ -1927,7 +2088,7 @@ public class CarPropertyManager extends CarManagerBase {
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
      * or later than {@link Build.VERSION_CODES#R} will receive the following exceptions when
-     * request is failed.
+     * request failed.
      * <ul>
      *     <li>{@link CarInternalErrorException}
      *     <li>{@link PropertyAccessDeniedSecurityException}
@@ -1937,7 +2098,7 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion}
      * earlier than {@link Build.VERSION_CODES#R} will receive the following exceptions when request
-     * is failed.
+     * failed.
      * <ul>
      *     <li>{@link RuntimeException} when the property is temporarily not available.
      *     <li>{@link IllegalStateException} when there is an error detected in cars, or when
@@ -1969,6 +2130,8 @@ public class CarPropertyManager extends CarManagerBase {
             Log.d(TAG, "setProperty, propertyId: " + VehiclePropertyIds.toString(propertyId)
                     + ", areaId: 0x" + toHexString(areaId) + ", class: " + clazz + ", val: " + val);
         }
+
+        assertNotUserHalProperty(propertyId);
 
         assertPropertyIdIsSupported(propertyId);
 
@@ -2471,4 +2634,35 @@ public class CarPropertyManager extends CarManagerBase {
         }
         return requestIds;
     }
+
+    /**
+     * Checks if the given property ID is one of the user HAL property.
+     *
+     * <p>Properties related to user management should only be manipulated by
+     * {@code UserHalService} and should not be used by directly by the client.
+     *
+     * <p>This check is no longer necessary for clients after U, but this logic exists before U so
+     * we still need this to keep backward compatibility for clients before U.
+     *
+     * @param propId property to be checked
+     *
+     * @throws IllegalArgumentException if the property is not supported.
+     */
+    private void assertNotUserHalProperty(int propId) {
+        if (mAppTargetSdk >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // After Android U, we treat this the same as other unsupported property IDs and this
+            // special logic is no longer required.
+            return;
+        }
+        switch (propId) {
+            case VehiclePropertyIds.INITIAL_USER_INFO:
+            case VehiclePropertyIds.SWITCH_USER:
+            case VehiclePropertyIds.CREATE_USER:
+            case VehiclePropertyIds.REMOVE_USER:
+            case VehiclePropertyIds.USER_IDENTIFICATION_ASSOCIATION:
+                throw new IllegalArgumentException("Unsupported property: "
+                        + VehiclePropertyIds.toString(propId) + " (" + propId + ")");
+        }
+    }
+
 }
