@@ -1337,6 +1337,43 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_CAR_DYNAMICS_STATE))
     public static final int ELECTRONIC_STABILITY_CONTROL_ENABLED = 287310862;
     /**
+     * Electronic Stability Control (ESC) state.
+     *
+     * <p>Returns the current state of ESC. This property will always return a valid state defined
+     * in {@link android.car.hardware.property.ElectronicStabilityControlState} or {@link
+     * android.car.hardware.property.ErrorState}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.ElectronicStabilityControlState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_DYNAMICS_STATE} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link android.car.hardware.property.ElectronicStabilityControlState}
+     * @data_enum {@link ErrorState}
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE))
+    public static final int ELECTRONIC_STABILITY_CONTROL_STATE = 289408015;
+    /**
      * Fan speed setting.
      *
      * <p>Property Config:
@@ -4344,6 +4381,214 @@ public final class VehiclePropertyIds {
      */
     @RequiresPermission(ACCESS_FINE_LOCATION)
     public static final int LOCATION_CHARACTERIZATION = 289410064;
+
+    /**
+     * Static data for the position of each ultrasonic sensor installed on the vehicle.
+     *
+     * <p>Each individual sensor is identified by its unique {@link AreaIdConfig#getAreaId()} and
+     * returns the sensor's position formatated as [x, y, z] where:
+     *
+     * <ul>
+     *  <li>x is the position of the sensor along the x-axis relative to the origin of the Android
+     *  Automotive sensor coordinate frame in millimeters.
+     *  <li>y is the position of the sensor along the y-axis relative to the origin of the Android
+     *  Automotive sensor coordinate frame in millimeters.
+     *  <li>z is the position of the sensor along the z-axis relative to the origin of the Android
+     *  Automotive sensor coordinate frame in millimeters.
+     * </ul>
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_VENDOR}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ULTRASONICS_SENSOR_DATA} to
+     *  read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
+    public static final int ULTRASONICS_SENSOR_POSITION = 406916128;
+
+    /**
+     * Static data for the orientation of each ultrasonic sensor installed on the vehicle.
+     *
+     * <p>Each individual sensor is identified by its {@link AreaIdConfig#getAreaId()} and returns
+     * the sensor's orientation formatted as [qw, qx, qy, qz] where:
+     *
+     * <ul>
+     *  <li>qw is the quaternion coefficient w within the quaterinion (w + xi + yj + zk) describing
+     *  the rotation of the sensor relative to the Android Automotive sensor coordinate frame.
+     *  <li>qx is the quaternion coefficient x within the quaterinion (w + xi + yj + zk) describing
+     *  the rotation of the sensor relative to the Android Automotive sensor coordinate frame.
+     *  <li>qy is the quaternion coefficient y within the quaterinion (w + xi + yj + zk) describing
+     *  the rotation of the sensor relative to the Android Automotive sensor coordinate frame.
+     *  <li>qz is the quaternion coefficient z within the quaterinion (w + xi + yj + zk) describing
+     *  the rotation of the sensor relative to the Android Automotive sensor coordinate frame.
+     * </ul>
+     *
+     * <p>This assumes each sensor uses the same axes conventions as Android Automotive.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_VENDOR}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ULTRASONICS_SENSOR_DATA} to
+     *  read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
+    public static final int ULTRASONICS_SENSOR_ORIENTATION = 406916129;
+
+    /**
+     * Static data for the field of view of each ultrasonic sensor in degrees.
+     *
+     * <p>Each individual sensor is identified by its {@link AreaIdConfig#getAreaId()} and returns
+     * the sensor's field of view formatted as [horizontal, vertical] where:
+     *
+     * <ul>
+     *  <li>horizontal is the horizontal field of view for the specified ultrasonic sensor in
+     *  degrees.
+     *  <li>vertical is the vertical field of view for the associated specified ultrasonic sensor in
+     *  degrees.
+     * </ul>
+     *
+     * <p>This assumes each sensor uses the same axes conventions as Android Automotive.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_VENDOR}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ULTRASONICS_SENSOR_DATA} to
+     *  read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
+    public static final int ULTRASONICS_SENSOR_FIELD_OF_VIEW = 406916130;
+
+    /**
+     * Static data for the detection range of each ultrasonic sensor in millimeters.
+     *
+     * <p>Each individual sensor is identified by its {@link AreaIdConfig#getAreaId()} and returns
+     * the sensor's detection range formatted as [minimum, maximum] where:
+     *
+     * <ul>
+     *  <li>minimum is the minimum range detectable by the ultrasonic sensor in millimeters.
+     *  <li>maximum is the maximum range detectable by the ultrasonic sensor in millimeters.
+     * </ul>
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_VENDOR}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ULTRASONICS_SENSOR_DATA} to
+     *  read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
+    public static final int ULTRASONICS_SENSOR_DETECTION_RANGE = 406916131;
+
+    /**
+     * Static data for the supported ranges of each ultrasonic sensor in millimeters.
+     *
+     * <p>For ultrasonic sensors that only support readings within a specific range. For example, if
+     * an ultrasonic sensor detects an object at 700mm, but can only report that an object has been
+     * detected between 500mm and 1000mm.
+     *
+     * <p>Each individual sensor is identified by its {@link AreaIdConfig#getAreaId()} and returns
+     * the sensor's supported ranges formatted as [range_min_1, range_max_1, range_min_2,
+     * range_max_2, ...] where:
+     *
+     * <ul>
+     *  <li>range_min_1 is the minimum of one supported range by the specified sensor in
+     *  millimeters, inclusive.
+     *  <li>range_max_1 is the maximum of one supported range by the specified sensor in
+     *  millimeters, inclusive.
+     *  <li> range_min_2 is the minimum of another supported range by the specified sensor in
+     *  millimeters, inclusive.
+     *  <li> range_max_2 is the maximum of another supported range by the specified sensor in
+     *  millimeters, inclusive.
+     * </ul>
+     *
+     * <p>For example, if an ultrasonic sensor supports the ranges 150mm to  499mm, 500mm to 999mm,
+     * and 1000mm to 1500mm, then the property should be set to:
+     * <ul>
+     *  <li>value[0] = 150
+     *  <li>value[1] = 499
+     *  <li>value[2] = 500
+     *  <li>value[3] = 999
+     *  <li>value[4] = 1000
+     *  <li>value[5] = 1500
+     * </ul>
+     *
+     * <p>If this property is not defined, all the values within the
+     * {@link #ULTRASONICS_SENSOR_DETECTION_RANGE} for the specified sensor are assumed to be
+     * supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_VENDOR}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ULTRASONICS_SENSOR_DATA} to
+     *  read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
+    public static final int ULTRASONICS_SENSOR_SUPPORTED_RANGES = 406916132;
+
     /**
      * OBD2 Live Sensor Data.
      *
@@ -6922,6 +7167,82 @@ public final class VehiclePropertyIds {
     @SystemApi
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LOW_SPEED_COLLISION_WARNING_STATE = 289411106;
+
+    /**
+     * Enable or disable Cross Traffic Monitoring.
+     *
+     * <p>Returns true if Cross Traffic Monitoring is enabled and false if Cross Traffic Monitoring
+     * is disabled. When Cross Traffic Monitoring is enabled, the ADAS system in the vehicle should
+     * be turned on and monitoring for potential sideways collisions.
+     *
+     * <p>This property is defined as read_write, but OEMs have the option to implement it as read
+     * only.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
+     *  {@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Boolean} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_SETTINGS} or
+     *  Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to read
+     *  property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
+     *  property.
+     * </ul>
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
+            Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
+    public static final int CROSS_TRAFFIC_MONITORING_ENABLED = 287313955;
+
+    /**
+     * Cross Traffic Monitoring Warning state.
+     *
+     * <p>Returns the current state of Cross Traffic Monitoring Warning. This property will always
+     * return a valid state defined in {@link
+     * android.car.hardware.property.CrossTrafficMonitoringWarningState} or {@link
+     * android.car.hardware.property.ErrorState}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
+     * {@link android.car.hardware.CarPropertyConfig#getAreaIdConfig(int)} specifies which states
+     * from {@link android.car.hardware.property.CrossTrafficMonitoringWarningState} and {@link
+     * android.car.hardware.property.ErrorState} are supported.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_ADAS_STATES} to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link android.car.hardware.property.CrossTrafficMonitoringWarningState}
+     * @data_enum {@link ErrorState}
+     *
+     * @hide
+     */
+    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
+    @SystemApi
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
+    public static final int CROSS_TRAFFIC_MONITORING_WARNING_STATE = 289411108;
 
     /**
      * @deprecated to prevent others from instantiating this class
