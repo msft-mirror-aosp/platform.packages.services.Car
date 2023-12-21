@@ -86,5 +86,7 @@
         <item>android.server.wm.cts/android.server.wm.LayoutTests$TestActivity</item>
         <!-- Add activity to full screen due to some issue with focus. -->
         <item>android.server.wm.cts/android.server.wm.WindowUntrustedTouchTest$TestActivity</item>
+        <!-- Add activity to full screen due to slow animations  -->
+        <item>android.server.wm.cts/android.server.wm.DisplayHashManagerTest$TestActivity</item>
     </string-array>
 </resources>
