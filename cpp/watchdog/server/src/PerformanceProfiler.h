@@ -83,12 +83,13 @@ public:
         std::vector<ProcessValue> topNProcesses = {};
     };
     struct ProcCpuStatsView {
-        uint64_t cpuTime = 0;
-        uint64_t cpuCycles = 0;
+        // TODO(b/286434452): Rename to cpuTimeMs
+        int64_t cpuTime = 0;
+        int64_t cpuCycles = 0;
         struct ProcessCpuValue {
             std::string comm = "";
-            uint64_t cpuTime = 0;
-            uint64_t cpuCycles = 0;
+            int64_t cpuTime = 0;
+            int64_t cpuCycles = 0;
         };
         std::vector<ProcessCpuValue> topNProcesses = {};
     };
