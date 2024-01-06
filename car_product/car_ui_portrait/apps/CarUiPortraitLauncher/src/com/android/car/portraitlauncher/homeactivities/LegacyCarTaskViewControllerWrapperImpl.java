@@ -39,7 +39,7 @@ final class LegacyCarTaskViewControllerWrapperImpl extends TaskViewControllerWra
 
     LegacyCarTaskViewControllerWrapperImpl(Activity activity) {
         super();
-        mTaskViewManager = new TaskViewManager(activity, activity.getMainThreadHandler());
+        mTaskViewManager = TaskViewManager.create(activity, activity.getMainThreadHandler());
     }
 
     private static void logIfDebuggable(String message) {
