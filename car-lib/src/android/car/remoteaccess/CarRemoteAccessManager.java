@@ -47,7 +47,7 @@ import java.util.concurrent.Executor;
  * System is not running.
  *
  * <p>The remote task client registers to {@link CarRemoteAccessManager} to listen to remote access
- * events. At {@link RemoteTaskClientCallback#onClientRegistered} it is required to share
+ * events. At {@link RemoteTaskClientCallback#onRegistrationUpdated} it is required to share
  * {@code serviceId}, {@code deviceId} and {@code clientId} with the cloud service which will use
  * the IDs to wake the vehicle. At {@link RemoteTaskClientCallback#onRemoteTaskRequested}, it starts
  * executing the given task. It is supposed to call {@link #reportRemoteTaskDone(String)} when it
@@ -238,7 +238,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
          * This is called when the remote task client is successfully registered or the client ID is
          * updated by AAOS.
          *
-         * @param info {@link RemoteTaskClientRegistrationIfno} which contains wake-up service ID,
+         * @param info {@link RemoteTaskClientRegistrationInfo} which contains wake-up service ID,
          *             vehicle ID, processor ID and client ID.
          */
         @ApiRequirements(minCarVersion = CarVersion.UPSIDE_DOWN_CAKE_0,
