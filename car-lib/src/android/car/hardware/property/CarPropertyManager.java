@@ -489,7 +489,7 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         /**
-         * Get the property value to set.
+         * Gets the property value to set.
          */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
@@ -655,24 +655,36 @@ public class CarPropertyManager extends CarManagerBase {
         private final long mTimestampNanos;
         private final T mValue;
 
+        /**
+         * Returns the unique ID for the {@link GetPropertyRequest} this result is for.
+         */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         public int getRequestId() {
             return mRequestId;
         }
 
+        /**
+         * Returns the property ID for this result.
+         */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         public int getPropertyId() {
             return mPropertyId;
         }
 
+        /**
+         * Returns the area ID for this result.
+         */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         public int getAreaId() {
             return mAreaId;
         }
 
+        /**
+         * Returns the property's value.
+         */
         @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
                          minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
@@ -1569,8 +1581,8 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#U} will receive the following exceptions when
-     * request failed.
+     * or later than {@link Build.VERSION_CODES#UPSIDE_DOWN_CAKE} will receive the following
+     * exceptions when request failed.
      * <ul>
      *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
      *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
@@ -1584,7 +1596,8 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#R}, before {@link Build.VERSION_CODES#U} will
+     * or later than {@link Build.VERSION_CODES#R}, before
+     * {@link Build.VERSION_CODES#UPSIDE_DOWN_CAKE} will
      * receive the following exceptions or {@code false} when request failed.
      * <ul>
      *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
@@ -1811,8 +1824,8 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#U} will receive the following exceptions when
-     * request failed.
+     * or later than {@link Build.VERSION_CODES#UPSIDE_DOWN_CAKE} will receive the following
+     * exceptions when request failed.
      * <ul>
      *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
      *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
@@ -1826,7 +1839,8 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#R}, before {@link Build.VERSION_CODES#U} will
+     * or later than {@link Build.VERSION_CODES#R}, before
+     * {@link Build.VERSION_CODES#UPSIDE_DOWN_CAKE} will
      * receive the following exceptions or {@code null} when request failed.
      * <ul>
      *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
@@ -1928,8 +1942,8 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#U} will receive the following exceptions when
-     * request failed.
+     * or later than {@link Build.VERSION_CODES#UPSIDE_DOWN_CAKE} will receive the following
+     * exceptions when request failed.
      * <ul>
      *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
      *     <li>{@link PropertyAccessDeniedSecurityException} when cars denied the access of the
@@ -1942,7 +1956,8 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>Clients that declare a {@link android.content.pm.ApplicationInfo#targetSdkVersion} equal
-     * or later than {@link Build.VERSION_CODES#R}, before {@link Build.VERSION_CODES#U} will
+     * or later than {@link Build.VERSION_CODES#R}, before
+     * {@link Build.VERSION_CODES#UPSIDE_DOWN_CAKE} will
      * receive the following exceptions or {@code null} when request failed.
      * <ul>
      *     <li>{@link CarInternalErrorException} when there is an unexpected error detected in cars
