@@ -89,14 +89,10 @@ public class DistantDisplayStatusIconController extends StatusIconController imp
             return;
         }
 
-        boolean profilePanelDisabledWhileDriving = mContext.getResources().getBoolean(
-                R.bool.config_profile_panel_disabled_while_driving);
-        mDistantDisplayPanelController = new StatusIconPanelController(
-                mContext, mUserTracker,
-                mCarServiceProvider, mBroadcastDispatcher, mConfigurationController,
-                mQCViewControllerProvider, profilePanelDisabledWhileDriving);
-        mDistantDisplayPanelController.attachPanel(mDistantDisplayButton, getPanelContentLayout(),
-                R.dimen.car_profile_quick_controls_panel_width, Gravity.TOP | Gravity.END);
+        mDistantDisplayPanelController = mPanelControllerBuilderProvider.get()
+                .setGravity(Gravity.TOP | Gravity.END).build(mDistantDisplayButton,
+                        getPanelContentLayout(), R.dimen.car_profile_quick_controls_panel_width);
+        mDistantDisplayPanelController.init();
         registerIconView(mDistantDisplayButton);
         mDistantDisplayController.setDistantDisplayControlStatusInfoListener(this);
     }
@@ -120,6 +116,7 @@ public class DistantDisplayStatusIconController extends StatusIconController imp
             unregisterIconView(mDistantDisplayButton);
         }
         mDistantDisplayController.removeDistantDisplayControlStatusInfoListener();
+        mDistantDisplayButton = null;
     }
 
     @Override
