@@ -40,6 +40,10 @@
 
 #include <utility>
 
+#include <carwatchdog_daemon_dump.proto.h>
+#include <health_check_client_info.proto.h>
+#include <performance_stats.proto.h>
+
 namespace android {
 namespace automotive {
 namespace watchdog {

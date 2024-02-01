@@ -28,34 +28,33 @@ genrule {
     out: ["com/android/car/CarStatsLog.java"],
 }
 
-gensrcs {
-    name: "dump-cppstream-protos",
-
+genrule {
+    name: "gen-native-dump-cppstream-proto-headers",
     tools: [
         "aprotoc",
         "protoc-gen-cppstream",
     ],
-
     cmd: "mkdir -p $(genDir) " +
             "&& $(location aprotoc) " +
             "  --plugin=$(location protoc-gen-cppstream) " +
-            "  --cppstream_out=$(genDir)/packages/services/Car/service/proto/android/car/watchdog " +
+            "  --cppstream_out=$(genDir) " +
             "  --cppstream_opt=experimental_allow_proto3_optional " +
             "  -Iexternal/protobuf/src " +
-            "  -Ipackages/services/Car/service/proto/android/car/watchdog" +
+            "  -Ipackages/services/Car/service/proto/android/car/watchdog " +
             "  $(in) ",
-
     srcs: [
-        "proto/android/car/watchdog/carwatchdog_daemon_dump.proto",
-        "proto/android/car/watchdog/performance_stats.proto",
-        "proto/android/car/watchdog/health_check_client_info.proto",
+        ":native-dump-proto-srcs",
     ],
 
-    output_extension: "proto.h",
+    out: [
+        "carwatchdog_daemon_dump.proto.h",
+        "performance_stats.proto.h",
+        "health_check_client_info.proto.h",
+    ],
 }
 
 genrule {
-    name: "watchdog-protos-headers",
+    name: "gen-native-dump-proto-headers",
     tools: [
         "aprotoc",
     ],
@@ -66,9 +65,7 @@ genrule {
             "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
             "  $(in) ",
     srcs: [
-        "proto/android/car/watchdog/carwatchdog_daemon_dump.proto",
-        "proto/android/car/watchdog/performance_stats.proto",
-        "proto/android/car/watchdog/health_check_client_info.proto",
+        ":native-dump-proto-srcs",
     ],
     out: [
         "carwatchdog_daemon_dump.pb.h",
@@ -78,7 +75,7 @@ genrule {
 }
 
 genrule {
-    name: "watchdog-protos-srcs",
+    name: "gen-native-dump-proto-srcs",
     tools: [
         "aprotoc",
     ],
@@ -89,9 +86,7 @@ genrule {
             "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
             "  $(in) ",
     srcs: [
-        "proto/android/car/watchdog/carwatchdog_daemon_dump.proto",
-        "proto/android/car/watchdog/performance_stats.proto",
-        "proto/android/car/watchdog/health_check_client_info.proto",
+        ":native-dump-proto-srcs",
     ],
     out: [
         "carwatchdog_daemon_dump.pb.cc",
@@ -105,6 +100,15 @@ filegroup {
     srcs: [
         "proto/android/car/telemetry/*.proto",
         "proto/android/car/watchdog/atoms.proto",
+    ],
+}
+
+filegroup {
+    name: "native-dump-proto-srcs",
+    srcs: [
+       "proto/android/car/watchdog/*_daemon_dump.proto",
+       "proto/android/car/watchdog/performance_stats.proto",
+       "proto/android/car/watchdog/health_check_client_info.proto",
     ],
 }
 
