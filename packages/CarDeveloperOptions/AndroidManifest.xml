@@ -25,6 +25,9 @@
     <uses-permission android:name="android.permission.CONTROL_UI_TRACING"
                      tools:node="remove" />
 
+    <uses-permission android:name="android.permission.RECOVERY"
+                     tools:node="remove" />
+
     <application android:label="@string/development_settings_title"
                  android:theme="@style/Theme.CDOBaseTheme"
                  tools:node="merge"
@@ -314,6 +317,14 @@
             <intent-filter tools:node="removeAll"/>
         </activity>
 
+        <activity android:name="com.android.settings.Settings$FingerprintSettingsActivityV2"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
         <activity
             android:name="com.android.settings.bluetooth.DevicePickerActivity"
             android:enabled="false"
@@ -424,6 +435,15 @@
 
         <activity
             android:name="com.android.settings.Settings$LanguageSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$NavigationModeSettingsActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -704,6 +724,14 @@
 
         <activity
             android:name="com.android.settings.Settings$ManageApplicationsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity android:name="com.android.settings.Settings$UserAspectRatioAppListActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -1843,7 +1871,7 @@
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
-            tools:replace="android:exported">
+            tools:replace="android:exported, android:enabled">
             <intent-filter tools:node="removeAll"/>
         </activity>
 
@@ -1858,6 +1886,15 @@
 
         <activity
             android:name="com.android.settings.Settings$DreamSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$CommunalSettingsActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
