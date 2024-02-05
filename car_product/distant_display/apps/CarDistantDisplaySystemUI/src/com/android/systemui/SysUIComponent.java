@@ -19,7 +19,6 @@ package com.android.systemui;
 import com.android.systemui.dagger.DependencyProvider;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.SystemUIModule;
-import com.android.systemui.scene.ShadelessSceneContainerFrameworkModule;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 
 import dagger.BindsInstance;
@@ -37,8 +36,7 @@ import java.util.Optional;
         SystemUIModule.class,
         CarSystemUIModule.class,
         CarSystemUICoreStartableModule.class,
-        SystemUIBinder.class,
-        ShadelessSceneContainerFrameworkModule.class})
+        SystemUIBinder.class})
 public interface SysUIComponent extends CarSysUIComponent {
     /**
      * Builder for a CarSysUIComponent.
