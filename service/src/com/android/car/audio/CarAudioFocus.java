@@ -454,17 +454,16 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
                 (audioFocusInfo.getGainRequest() == AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
         boolean allowDelayedFocus = canReceiveDelayedFocus(audioFocusInfo);
 
-        int requestedContext =
-                mCarAudioContext.getContextForAttributes(audioFocusInfo.getAttributes());
+        int requestedUsage = audioFocusInfo.getAttributes().getSystemUsage();
         FocusEvaluation holdersEvaluation = evaluateAgainstFocusHoldersLocked(replacedCurrentEntry,
-                requestedContext, allowDucking, allowDelayedFocus);
+                requestedUsage, allowDucking, allowDelayedFocus);
 
         if (holdersEvaluation.equals(FocusEvaluation.FOCUS_EVALUATION_FAILED)) {
             return OemCarAudioFocusResult.EMPTY_OEM_CAR_AUDIO_FOCUS_RESULTS;
         }
 
         FocusEvaluation losersEvaluation = evaluateAgainstFocusLosersLocked(replacedCurrentEntry,
-                requestedContext, allowDucking, allowDelayedFocus);
+                requestedUsage, allowDucking, allowDelayedFocus);
 
         if (losersEvaluation.equals(FocusEvaluation.FOCUS_EVALUATION_FAILED)) {
             return OemCarAudioFocusResult.EMPTY_OEM_CAR_AUDIO_FOCUS_RESULTS;
@@ -476,9 +475,11 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
         int results = delayFocus ? AUDIOFOCUS_REQUEST_DELAYED : AUDIOFOCUS_REQUEST_GRANTED;
 
         AudioFocusEntry focusEntry =
-                new AudioFocusEntry.Builder(audioFocusInfo, requestedContext,
-                getVolumeGroupForAttribute(audioFocusInfo.getAttributes()),
-                AudioManager.AUDIOFOCUS_GAIN).build();
+                new AudioFocusEntry.Builder(audioFocusInfo,
+                        mCarAudioContext.getContextForAudioAttribute(
+                                audioFocusInfo.getAttributes()),
+                        getVolumeGroupForAttribute(audioFocusInfo.getAttributes()),
+                        AudioManager.AUDIOFOCUS_GAIN).build();
 
         return new OemCarAudioFocusResult.Builder(
                 convertAudioFocusEntries(holdersEvaluation.mChangedEntries),
@@ -560,26 +561,25 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
 
     @GuardedBy("mLock")
     private FocusEvaluation evaluateAgainstFocusLosersLocked(
-            FocusEntry replacedBlockedEntry, int requestedContext, boolean allowDucking,
+            FocusEntry replacedBlockedEntry, int requestedUsage, boolean allowDucking,
             boolean allowDelayedFocus) {
         Slogf.i(TAG, "Scanning those who've already lost focus...");
         return evaluateAgainstFocusArrayLocked(mFocusLosers, replacedBlockedEntry,
-                requestedContext, allowDucking, allowDelayedFocus);
+                requestedUsage, allowDucking, allowDelayedFocus);
     }
 
     @GuardedBy("mLock")
     private FocusEvaluation evaluateAgainstFocusHoldersLocked(
-            FocusEntry replacedCurrentEntry, int requestedContext, boolean allowDucking,
+            FocusEntry replacedCurrentEntry, int requestedUsage, boolean allowDucking,
             boolean allowDelayedFocus) {
         Slogf.i(TAG, "Scanning focus holders...");
         return evaluateAgainstFocusArrayLocked(mFocusHolders, replacedCurrentEntry,
-                requestedContext, allowDucking, allowDelayedFocus);
+                requestedUsage, allowDucking, allowDelayedFocus);
     }
 
     @GuardedBy("mLock")
-    private FocusEvaluation evaluateAgainstFocusArrayLocked(
-            ArrayMap<String, FocusEntry> focusArray,
-            FocusEntry replacedEntry, int requestedContext, boolean allowDucking,
+    private FocusEvaluation evaluateAgainstFocusArrayLocked(ArrayMap<String, FocusEntry> focusArray,
+            FocusEntry replacedEntry, int requestedUsage, boolean allowDucking,
             boolean allowDelayedFocus) {
         boolean delayFocusForCurrentRequest = false;
         ArrayList<FocusEntry> changedEntries = new ArrayList<FocusEntry>();
@@ -591,9 +591,8 @@ class CarAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
                 continue;
             }
 
-            int interactionResult = mFocusInteraction
-                    .evaluateRequest(requestedContext, entry, allowDucking, allowDelayedFocus,
-                            changedEntries);
+            int interactionResult = mFocusInteraction.evaluateRequest(requestedUsage, entry,
+                    allowDucking, allowDelayedFocus, changedEntries);
             if (interactionResult == AUDIOFOCUS_REQUEST_FAILED) {
                 return FocusEvaluation.FOCUS_EVALUATION_FAILED;
             }
