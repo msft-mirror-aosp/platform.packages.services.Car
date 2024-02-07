@@ -19,6 +19,7 @@ package android.car;
 import static android.car.Car.CAR_SERVICE_BINDER_SERVICE_NAME;
 import static android.car.feature.Flags.FLAG_DISPLAY_COMPATIBILITY;
 import static android.car.feature.Flags.FLAG_PERSIST_AP_SETTINGS;
+import static android.car.feature.Flags.FLAG_CREATE_CAR_USE_NOTIFICATIONS;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -56,6 +57,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.platform.test.ravenwood.RavenwoodRule;
@@ -310,7 +312,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_ServiceConnection_Handler() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_ServiceConnection_Handler_oldLogic() {
+        createCar_Context_ServiceConnection_Handler();
+    }
+
+    private void createCar_Context_ServiceConnection_Handler() {
         Car car = Car.createCar(mContext, mServiceConnectionListener, mEventHandler);
 
         assertThat(car).isNotNull();
@@ -331,7 +338,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_ServiceConnection_DefaultHandler() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_ServiceConnection_DefaultHandler_oldLogic() {
+        createCar_Context_ServiceConnection_DefaultHandler();
+    }
+
+    private void createCar_Context_ServiceConnection_DefaultHandler() {
         Car car = Car.createCar(mContext, mServiceConnectionListener);
 
         assertThat(car).isNotNull();
@@ -352,7 +364,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_ServiceConnection_Handler_CarServiceRegistered() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_ServiceConnection_Handler_CarServiceRegistered_oldLogic() {
+        createCar_Context_ServiceConnection_Handler_CarServiceRegistered();
+    }
+
+    private void createCar_Context_ServiceConnection_Handler_CarServiceRegistered() {
         setCarServiceRegistered();
 
         Car car = Car.createCar(mContext, mServiceConnectionListener, mEventHandler);
@@ -370,7 +387,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_ServiceConnection_Handler_Disconnect_Reconnect() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_ServiceConnection_Handler_Disconnect_Reconnect_oldLogic() {
+        createCar_Context_ServiceConnection_Handler_Disconnect_Reconnect();
+    }
+
+    private void createCar_Context_ServiceConnection_Handler_Disconnect_Reconnect() {
         setCarServiceRegistered();
 
         Car car = Car.createCar(mContext, mServiceConnectionListener, mEventHandler);
@@ -388,7 +410,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_ServiceConnection_Handler_Disconnect_IgnoreCallback() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_SC_Handler_Disconnect_IgnoreCallback_oldLogic() {
+        createCar_Context_ServiceConnection_Handler_Disconnect_IgnoreCallback();
+    }
+
+    private void createCar_Context_ServiceConnection_Handler_Disconnect_IgnoreCallback() {
         Car car = Car.createCar(mContext, mServiceConnectionListener, mEventHandler);
         car.connect();
         car.disconnect();
@@ -407,13 +434,23 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_ServiceConnection_Handler_ContextIsNull() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_ServiceConnection_Handler_ContextIsNull_oldLogic() {
+        createCar_Context_ServiceConnection_Handler_ContextIsNull();
+    }
+
+    private void createCar_Context_ServiceConnection_Handler_ContextIsNull() {
         assertThrows(NullPointerException.class, () -> Car.createCar(
                 /* context= */ null, mServiceConnectionListener, mEventHandler));
     }
 
     @Test
-    public void testCreateCar_Context_ServiceConnection_Handler_NoAutoFeature() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_ServiceConnection_Handler_NoAutoFeature_oldLogic() {
+        createCar_Context_ServiceConnection_Handler_NoAutoFeature();
+    }
+
+    private void createCar_Context_ServiceConnection_Handler_NoAutoFeature() {
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)).thenReturn(false);
 
         Car car = Car.createCar(mContext, mServiceConnectionListener, mEventHandler);
@@ -422,7 +459,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceRegistered() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceRegistered_oldLogic() throws Exception {
+        createCar_Context_CarServiceRegistered();
+    }
+
+    private void createCar_Context_CarServiceRegistered() throws Exception {
         setCarServiceRegistered();
 
         Car car = mCarBuilder.createCar(mContext);
@@ -440,7 +482,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceRegistered_DisconnectReconnect() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceRegistered_DisconnectReconnect_oldLogic()
+            throws Exception {
+        createCar_Context_CarServiceRegistered_DisconnectReconnect();
+    }
+
+    private void createCar_Context_CarServiceRegistered_DisconnectReconnect() throws Exception {
         setCarServiceRegistered();
 
         Car car = mCarBuilder.createCar(mContext);
@@ -467,7 +515,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceNeverRegistered_Timeout() {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceNeverRegistered_Timeout_oldLogic() {
+        createCar_Context_CarServiceNeverRegistered_Timeout();
+    }
+
+    private void createCar_Context_CarServiceNeverRegistered_Timeout() {
         // This should timeout.
         Car car = mCarBuilder.createCar(mContext);
 
@@ -475,7 +528,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceRegisteredLater_BeforeTimeout() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceRegisteredLater_BeforeTimeout_oldLogic()
+            throws Exception {
+        createCar_Context_CarServiceRegisteredLater_BeforeTimeout();
+    }
+
+    private void createCar_Context_CarServiceRegisteredLater_BeforeTimeout() throws Exception {
         // Car service is registered after 200ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 200);
 
@@ -496,7 +555,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_InvokeFromMain() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_InvokeFromMain_oldLogic() throws Exception {
+        createCar_Context_InvokeFromMain();
+    }
+
+    private void createCar_Context_InvokeFromMain() throws Exception {
         // Car service is registered after 200ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 200);
 
@@ -514,7 +578,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceCrash_killClient() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceCrash_killClient_oldLogic() throws Exception {
+        createCar_Context_CarServiceCrash_killClient();
+    }
+
+    private void createCar_Context_CarServiceCrash_killClient() throws Exception {
         setCarServiceRegistered();
         mCarBuilder.createCar(mContext);
 
@@ -525,7 +594,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceCrash_killClientService() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceCrash_killClientService_oldLogic()
+            throws Exception {
+        createCar_Context_CarServiceCrash_killClientService();
+    }
+
+    private void createCar_Context_CarServiceCrash_killClientService() throws Exception {
         Service serviceContext = mock(Service.class);
         setupFakeServiceManager(serviceContext);
         setCarServiceRegistered();
@@ -540,7 +615,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceCrash_stopClientActivity() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceCrash_stopClientActivity_oldLogic()
+            throws Exception {
+        createCar_Context_CarServiceCrash_stopClientActivity();
+    }
+
+    private void createCar_Context_CarServiceCrash_stopClientActivity() throws Exception {
         Activity activityContext = mock(Activity.class);
         setupFakeServiceManager(activityContext);
         setCarServiceRegistered();
@@ -556,7 +637,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_NullBaseContext() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_NullBaseContext_oldLogic() throws Exception {
+        createCar_Context_NullBaseContext();
+    }
+
+    private void createCar_Context_NullBaseContext() throws Exception {
         // Base context is null.
         Service serviceContext = mock(Service.class);
 
@@ -564,7 +650,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_bindServiceFailed() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_bindServiceFailed_oldLogic() throws Exception {
+        createCar_Context_bindServiceFailed();
+    }
+
+    private void createCar_Context_bindServiceFailed() throws Exception {
         when(mContext.bindService(any(), any(), anyInt())).thenReturn(false);
         when(mServiceManager.getService(CAR_SERVICE_BINDER_SERVICE_NAME))
                 .thenReturn(mService);
@@ -576,7 +667,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_bindService_retry_success() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_bindService_retry_success_oldLogic() throws Exception {
+        createCar_Context_bindService_retry_success();
+    }
+
+    private void createCar_Context_bindService_retry_success() throws Exception {
         when(mContext.bindService(any(), any(), anyInt())).thenReturn(false).thenReturn(true);
         when(mServiceManager.getService(CAR_SERVICE_BINDER_SERVICE_NAME))
                 .thenReturn(mService);
@@ -588,7 +684,12 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_CarServiceCrashAfterDisconnect() throws Exception {
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceCrashAfterDisconnect_oldLogic() throws Exception {
+        createCar_Context_CarServiceCrashAfterDisconnect();
+    }
+
+    private void createCar_Context_CarServiceCrashAfterDisconnect() throws Exception {
         setCarServiceRegistered();
         Car car = mCarBuilder.createCar(mContext);
 
@@ -605,7 +706,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_WaitForever_Lclistener_CarServiceRegisteredLater()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_WaitForever_Lclistener_CarServiceRegisteredLater_oldLogic()
+            throws Exception {
+        createCar_Context_WaitForever_Lclistener_CarServiceRegisteredLater();
+    }
+
+    private void createCar_Context_WaitForever_Lclistener_CarServiceRegisteredLater()
             throws Exception {
         // Car service is registered after 200ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 200);
@@ -633,7 +740,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_WaitForever_Lclistener_ConnectCrashRestart()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_WaitForever_Lclistener_ConnectCrashRestart_oldLogic()
+            throws Exception {
+        createCar_Context_WaitForever_Lclistener_ConnectCrashRestart();
+    }
+
+    private void createCar_Context_WaitForever_Lclistener_ConnectCrashRestart()
             throws Exception {
         // Car service is registered after 100ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 100);
@@ -664,7 +777,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_WaitForever_Lclistener_CarServiceAlreadyRegistered()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_WaitForever_Lclistener_CSAlreadyRegistered_oldLogic()
+            throws Exception {
+        createCar_Context_WaitForever_Lclistener_CarServiceAlreadyRegistered();
+    }
+
+    private void createCar_Context_WaitForever_Lclistener_CarServiceAlreadyRegistered()
             throws Exception {
         setCarServiceRegistered();
 
@@ -682,7 +801,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_WaitForever_Lclistener_ManagerNotTheSameAfterReconnect()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_WaitForever_Lclistener_MgrNotTheSameAfterReconnect_oldLogic()
+            throws Exception {
+        createCar_Context_WaitForever_Lclistener_ManagerNotTheSameAfterReconnect();
+    }
+
+    private void createCar_Context_WaitForever_Lclistener_ManagerNotTheSameAfterReconnect()
             throws Exception {
         setCarServiceRegistered();
 
@@ -711,7 +836,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_DoNotWait_CarServiceRegistered()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_CarServiceRegistere_oldLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_CarServiceRegistered();
+    }
+
+    private void createCar_Context_DoNotWait_CarServiceRegistered()
             throws Exception {
         setCarServiceRegistered();
 
@@ -727,7 +858,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_DoNotWait_CarServiceCrash_Restore()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_CarServiceCrash_Restore_oldLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_CarServiceCrash_Restore();
+    }
+
+    private void createCar_Context_DoNotWait_CarServiceCrash_Restore()
             throws Exception {
         setCarServiceRegistered();
 
@@ -753,7 +890,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_DoNotWait_InvokeFromMain_CarServiceRegistered()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_InvokeFromMain_CarSvcRegistered_oldLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_InvokeFromMain_CarServiceRegistered();
+    }
+
+    private void createCar_Context_DoNotWait_InvokeFromMain_CarServiceRegistered()
             throws Exception {
         setCarServiceRegistered();
 
@@ -770,7 +913,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_DoNotWait_CarServiceRegisteredLater()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_CarServiceRegisteredLater_oldLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_CarServiceRegisteredLater();
+    }
+
+    private void createCar_Context_DoNotWait_CarServiceRegisteredLater()
             throws Exception {
         Car car = mCarBuilder.createCar(mContext, null,
                 Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT, mLifecycleListener);
@@ -786,7 +935,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_DoNotWait_CarServiceRegisteredAfterDisconnect()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_CarSvcRegisteredAfterDisconnect_oldLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_CarServiceRegisteredAfterDisconnect();
+    }
+
+    private void createCar_Context_DoNotWait_CarServiceRegisteredAfterDisconnect()
             throws Exception {
         Car car = mCarBuilder.createCar(mContext, null,
                 Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT, mLifecycleListener);
@@ -811,7 +966,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_DoNotWait_InvokeFromMain_CarServiceRegisteredLater()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_InvokeFromMain_CarSvcRegisteredLater_oldLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_InvokeFromMain_CarServiceRegisteredLater();
+    }
+
+    private void createCar_Context_DoNotWait_InvokeFromMain_CarServiceRegisteredLater()
             throws Exception {
         setCarServiceRegistered();
 
@@ -828,7 +989,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_WithTimeout_InvokeFromMain_CarServiceRegisteredLater()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_WithTimeout_InvokeFromMain_CarSvcRegisteredLater_oldLogic()
+            throws Exception {
+        createCar_Context_WithTimeout_InvokeFromMain_CarServiceRegisteredLater();
+    }
+
+    private void createCar_Context_WithTimeout_InvokeFromMain_CarServiceRegisteredLater()
             throws Exception {
         // Car service is registered after 200ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 200);
@@ -845,7 +1012,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_WithTimeout_CarServiceRegisteredAfterTimeout()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_WithTimeout_CarSvcRegisteredAfterTimeout_oldLogic()
+            throws Exception {
+        createCar_Context_WithTimeout_CarServiceRegisteredAfterTimeout();
+    }
+
+    private void createCar_Context_WithTimeout_CarServiceRegisteredAfterTimeout()
             throws Exception {
         // Car service is registered after 200ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 200);
@@ -862,7 +1035,13 @@ public final class CarUnitTest {
     }
 
     @Test
-    public void testCreateCar_Context_WaitForever_InvokeFromMain_CarServiceRegisteredLater()
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_WaitForever_InvokeFromMain_CarSvcRegisteredLater_oldLogic()
+            throws Exception {
+        createCar_Context_WaitForever_InvokeFromMain_CarServiceRegisteredLater();
+    }
+
+    private void createCar_Context_WaitForever_InvokeFromMain_CarServiceRegisteredLater()
             throws Exception {
         // Car service is registered after 200ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 200);
