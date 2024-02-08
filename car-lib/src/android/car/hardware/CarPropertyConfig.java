@@ -359,9 +359,7 @@ public final class CarPropertyConfig<T> implements Parcelable {
     }
 
     /**
-     *
-     * @param areaId
-     * @return true if areaId is existing.
+     * Verify if the areaId passed as a parameter exists.
      * @hide
      */
     @AddedInOrBefore(majorVersion = 33)
@@ -372,8 +370,8 @@ public final class CarPropertyConfig<T> implements Parcelable {
     /**
      * @deprecated - use {@link #getAreaIdConfigs()} or {@link #getAreaIdConfig(int)} instead.
      *
-     * @param areaId
-     * @return Min value in given areaId. Null if not have min value in given area.
+     * @param areaId the area ID
+     * @return min value in given areaId. Null if not have min value in given area
      */
     @Deprecated
     @Nullable
@@ -386,8 +384,8 @@ public final class CarPropertyConfig<T> implements Parcelable {
     /**
      * @deprecated - use {@link #getAreaIdConfigs()} or {@link #getAreaIdConfig(int)} instead.
      *
-     * @param areaId
-     * @return Max value in given areaId. Null if not have max value in given area.
+     * @param areaId the area ID
+     * @return max value in given areaId. Null if not have max value in given area
      */
     @Deprecated
     @Nullable
