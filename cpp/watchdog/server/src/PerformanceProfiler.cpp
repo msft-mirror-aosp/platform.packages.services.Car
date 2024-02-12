@@ -146,7 +146,6 @@ Result<void> checkDataCollectors(const sp<UidStatsCollectorInterface>& uidStatsC
     }
     return Error() << "Invalid data collectors: " << error;
 }
-
 }  // namespace
 
 UserPackageStats::UserPackageStats(MetricType metricType, const UidStats& uidStats) {
@@ -168,8 +167,9 @@ UserPackageStats::UserPackageStats(ProcStatType procStatType, const UidStats& ui
     uid = uidStats.uid();
     genericPackageName = uidStats.genericPackageName();
     if (procStatType == CPU_TIME) {
-        statsView = UserPackageStats::ProcCpuStatsView{.cpuTime = value,
-                                                       .cpuCycles = uidStats.procStats.cpuCycles};
+        statsView = UserPackageStats::ProcCpuStatsView{.cpuTime = static_cast<int64_t>(value),
+                                                       .cpuCycles = static_cast<int64_t>(
+                                                               uidStats.procStats.cpuCycles)};
         auto& procCpuStatsView = std::get<UserPackageStats::ProcCpuStatsView>(statsView);
         procCpuStatsView.topNProcesses.resize(topNProcessCount);
         cacheTopNProcessCpuStats(uidStats, topNProcessCount, &procCpuStatsView.topNProcesses);
@@ -277,7 +277,7 @@ void UserPackageStats::cacheTopNProcessCpuStats(
         std::vector<UserPackageStats::ProcCpuStatsView::ProcessCpuValue>* topNProcesses) {
     int cachedProcessCount = 0;
     for (const auto& [_, processStats] : uidStats.procStats.processStatsByPid) {
-        uint64_t cpuTime = processStats.cpuTimeMillis;
+        int64_t cpuTime = processStats.cpuTimeMillis;
         if (cpuTime == 0) {
             continue;
         }
@@ -287,7 +287,8 @@ void UserPackageStats::cacheTopNProcessCpuStats(
                                       UserPackageStats::ProcCpuStatsView::ProcessCpuValue{
                                               .comm = processStats.comm,
                                               .cpuTime = cpuTime,
-                                              .cpuCycles = processStats.totalCpuCycles,
+                                              .cpuCycles = static_cast<int64_t>(
+                                                      processStats.totalCpuCycles),
                                       });
                 topNProcesses->pop_back();
                 ++cachedProcessCount;
