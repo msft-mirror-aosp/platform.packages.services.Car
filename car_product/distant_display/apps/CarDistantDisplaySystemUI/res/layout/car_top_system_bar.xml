@@ -42,8 +42,8 @@
             android:id="@+id/clock_container"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:paddingStart="@dimen/car_padding_4"
-            android:paddingEnd="@dimen/car_padding_4"
+            android:paddingStart="@dimen/car_padding_2"
+            android:paddingEnd="@dimen/car_padding_2"
             android:layout_centerInParent="true">
             <com.android.systemui.statusbar.policy.Clock
                 android:id="@+id/clock"
@@ -80,7 +80,6 @@
         />
 
         <FrameLayout
-            xmlns:android="http://schemas.android.com/apk/res/android"
             android:id="@+id/distant_display_nav_container"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
@@ -102,11 +101,13 @@
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true">
+            android:layout_centerVertical="true"
+            android:layout_marginTop="@dimen/car_padding_2"
+        >
             <com.android.systemui.car.systembar.CarSystemBarButton
                 android:id="@+id/user_name"
                 android:layout_width="wrap_content"
-                android:layout_height="@dimen/car_system_bar_user_name_button_height"
+                android:layout_height="match_parent"
                 android:layout_marginEnd="@dimen/car_padding_2"
                 android:background="@drawable/status_icon_background"
                 android:layout_gravity="center_vertical">

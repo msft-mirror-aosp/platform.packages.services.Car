@@ -147,15 +147,13 @@ public class DistantDisplayController {
     private final UserTracker.Callback mUserChangedCallback = new UserTracker.Callback() {
         @Override
         public void onUserChanged(int newUser, @NonNull Context userContext) {
+
+            mMediaSessionManager.removeOnActiveSessionsChangedListener(
+                    mOnActiveSessionsChangedListener);
+
             mMediaSessionManager.addOnActiveSessionsChangedListener(null,
                     mUserTracker.getUserHandle(),
                     mContext.getMainExecutor(), mOnActiveSessionsChangedListener);
-        }
-
-        @Override
-        public void onBeforeUserSwitching(int newUser) {
-            mMediaSessionManager.removeOnActiveSessionsChangedListener(
-                    mOnActiveSessionsChangedListener);
         }
     };
 

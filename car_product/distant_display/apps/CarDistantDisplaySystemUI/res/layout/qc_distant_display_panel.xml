@@ -34,7 +34,7 @@
             <ScrollView
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginBottom="@dimen/car_quick_controls_footer_button_margin_top"
+                android:layout_marginBottom="22dp"
                 app:layout_constraintHeight_default="wrap"
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
