@@ -57,11 +57,11 @@ import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemN
 import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
 import android.hardware.automotive.vehicle.VehicleApPowerStateShutdownParam;
 import android.os.UserManager;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.util.AtomicFile;
 import android.util.Log;
 import android.util.SparseBooleanArray;
 
+import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.car.R;
@@ -450,8 +450,8 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 new AtomicFile(mComponentStateFile.getFile()));
         mService = new CarPowerManagementService(mContext, mResources, mPowerHal, mSystemInterface,
                 mUserManager, mCarUserService, mPowerPolicyDaemon, mPowerComponentHandler,
-                /* silentModeHwStatePath= */ null, /* silentModeKernelStatePath= */ null,
-                /* bootReason= */ null);
+                /* screenOffHandler= */ null, /* silentModeHwStatePath= */ null,
+                /* silentModeKernelStatePath= */ null, /* bootReason= */ null);
         mService.init();
         mService.setShutdownTimersForTest(0, 0);
         assertStateReceived(PowerHalService.SET_WAIT_FOR_VHAL, 0);
@@ -711,7 +711,8 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         }
 
         @Override
-        public void scheduleActionForBootCompleted(Runnable action, Duration delay) {}
+        public void scheduleActionForBootCompleted(Runnable action, Duration delay,
+                Duration delayRange) {}
 
         @Override
         public boolean isWakeupCausedByTimer() {

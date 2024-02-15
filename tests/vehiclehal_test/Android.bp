@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -37,10 +38,10 @@ android_test {
     static_libs: [
         "vehicle-hal-support-lib",
         "androidx.test.rules",
-        "android.hardware.automotive.vehicle-V2-java",
-        "android.hardware.automotive.vehicle.property-V2-java",
+        "android.hardware.automotive.vehicle-V3-java",
+        "android.hardware.automotive.vehicle.property-V3-java",
         "compatibility-device-util-axt",
-        "truth-prebuilt",
+        "truth",
     ],
 
     libs: [

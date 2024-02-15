@@ -29,7 +29,7 @@ filegroup {
 filegroup {
     name: "cartelemetryservice-proto-srcs",
     srcs: [
-        "src/android/car/telemetry/telemetry.proto"
+        "src/android/car/telemetry/telemetry.proto",
     ],
 }
 
@@ -45,7 +45,7 @@ java_library {
         "com.android.car.framework",
     ],
     static_libs: ["libprotobuf-java-lite"],
-    srcs: ["src/android/car/navigation/navigation_state.proto"]
+    srcs: ["src/android/car/navigation/navigation_state.proto"],
 }
 
 filegroup {
@@ -57,11 +57,15 @@ filegroup {
     visibility: [
         "//packages/services/Car/car-lib",
         "//packages/services/Car/car-lib-module",
+        "//packages/services/Car/tests/CarLibHostUnitTest",
     ],
 }
 
-java_library {
-    name: "android.car",
+java_defaults {
+    name: "android.car-defaults",
+    defaults: [
+        "car-framework-aconfig-libraries",
+    ],
     srcs: [
         ":android.car-full-src",
     ],
@@ -73,18 +77,25 @@ java_library {
     libs: [
         "android.car.builtin",
         "framework-annotations-lib",
-        "modules-utils-preconditions",
         "framework-wifi",
         "framework-bluetooth",
+        "framework-location",
+        "modules-utils-preconditions",
     ],
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
     installable: true,
-    min_sdk_version: "33",
+    // TODO(b/288271411): enable it when car mainline module is supported
+    // min_sdk_version: "33",
     sdk_version: "module_current",
+}
+
+java_library {
+    name: "android.car",
+    defaults: [
+        "android.car-defaults",
+    ],
+    static_libs: [
+        "com.android.car.internal.dep",
+    ],
 }
 
 // TODO(b/248635421): these annotations are part of android.car, but
@@ -92,10 +103,10 @@ java_library {
 java_library_static {
     name: "android.car.annotations.compile-only",
     srcs: [
-       "src/android/car/annotation/*",
-       "src/android/car/ApiVersion.java",
-       "src/android/car/CarVersion.java",
-       "src/android/car/PlatformVersion.java",
+        "src/android/car/annotation/*",
+        "src/android/car/ApiVersion.java",
+        "src/android/car/CarVersion.java",
+        "src/android/car/PlatformVersion.java",
     ],
 }
 
@@ -107,11 +118,6 @@ stubs_defaults {
     libs: [
         "android.car",
     ],
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }
 
 genrule {
@@ -139,8 +145,9 @@ genrule {
 droidstubs {
     name: "android.car-stubs-docs",
     defaults: ["android.car-docs-default"],
-    args: "--hide UnavailableSymbol --stub-packages android.car* " +
-        "--hide-package com.android.internal --hide-package com.android.car.internal ",
+    args: "--hide UnavailableSymbol --hide HiddenSuperclass --stub-packages android.car* " +
+        "--hide-package com.android.internal --hide-package com.android.car.internal " +
+        "--error UnflaggedApi",
     installable: false,
     check_api: {
         last_released: {
@@ -160,7 +167,7 @@ droidstubs {
         api_lint: {
             enabled: true,
             baseline_file: "api/lint-baseline.txt",
-        }
+        },
     },
 }
 
@@ -171,7 +178,7 @@ droidstubs {
     args: "--hide CallbackInterface --hide UnavailableSymbol --hide HiddenSuperclass " +
         "--stub-packages android.car* " +
         "--show-annotation android.annotation.SystemApi --hide-package com.android.internal " +
-        "--hide-package com.android.car.internal ",
+        "--hide-package com.android.car.internal --error UnflaggedApi",
     installable: false,
     check_api: {
         last_released: {
@@ -191,7 +198,7 @@ droidstubs {
         api_lint: {
             enabled: true,
             baseline_file: "api/system-lint-baseline.txt",
-        }
+        },
     },
 }
 
@@ -207,8 +214,8 @@ droidstubs {
             api_file: "api/test-current.txt",
             removed_api_file: "api/test-removed.txt",
             args: " -error 2 -error 3 -error 4 -error 5 -error 6 -error 7 -error 8 -error 9 -error 10 -error 11 " +
-                  " -error 12 -error 13 -error 14 -error 15 -error 16 -error 17 -error 18 -error 19 -error 20 " +
-                  " -error 21 -error 23 -error 24 -error 25 -hide 113 ",
+                " -error 12 -error 13 -error 14 -error 15 -error 16 -error 17 -error 18 -error 19 -error 20 " +
+                " -error 21 -error 23 -error 24 -error 25 -hide 113 ",
         },
     },
 }
@@ -224,11 +231,6 @@ droidstubs {
     api_filename: "api.txt",
     args: "--hide HiddenSuperclass --hide UnavailableSymbol --stub-packages android.car* ",
     installable: false,
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }
 
 // Generates stubs for API documentation.
@@ -254,13 +256,13 @@ droidstubs {
     ],
     // Add --verbose to print metalava details.
     args: "--manifest $(location AndroidManifest.xml) " +
-          "--error UnhiddenSystemApi " +
-          "--hide RequiresPermission " +
-          "--hide CallbackInterface " +
-          "--hide MissingPermission " +
-          "--hide HiddenSuperclass --hide DeprecationMismatch --hide UnavailableSymbol " +
-          "--hide SdkConstant --hide HiddenTypeParameter " +
-          "--hide Todo --hide Typo ",
+        "--error UnhiddenSystemApi " +
+        "--hide RequiresPermission " +
+        "--hide CallbackInterface " +
+        "--hide MissingPermission " +
+        "--hide HiddenSuperclass --hide DeprecationMismatch --hide UnavailableSymbol " +
+        "--hide SdkConstant --hide HiddenTypeParameter " +
+        "--hide Todo ",
     write_sdk_values: true,
 }
 
@@ -306,21 +308,11 @@ java_defaults {
     name: "android.car-stubs.jar_defaults",
     java_version: "1.8",
     installable: false,
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }
 
 java_defaults {
     name: "android.car-stubs-dex.jar_defaults",
     compile_dex: true,
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }
 
 java_library {
@@ -377,7 +369,7 @@ java_library {
     sdk_version: "test_current",
     dist: {
         targets: ["dist_files"],
-    }
+    },
 }
 
 // Export the api/system-current.txt file.
@@ -401,4 +393,3 @@ filegroup {
         "api/system-removed.txt",
     ],
 }
-

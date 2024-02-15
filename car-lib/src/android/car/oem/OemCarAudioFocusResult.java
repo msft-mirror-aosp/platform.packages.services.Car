@@ -16,20 +16,25 @@
 
 package android.car.oem;
 
+import static android.car.feature.Flags.FLAG_CAR_AUDIO_FADE_MANAGER_CONFIGURATION;
+import static android.car.feature.Flags.carAudioFadeManagerConfiguration;
 import static android.media.AudioManager.AUDIOFOCUS_REQUEST_FAILED;
 
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.car.annotation.ApiRequirements;
+import android.media.AudioAttributes;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.ArrayMap;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -38,26 +43,29 @@ import java.util.Objects;
  * @hide
  */
 @SystemApi
-@ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-        minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
 public final class OemCarAudioFocusResult implements Parcelable {
     private final @Nullable AudioFocusEntry mAudioFocusEntry;
     private final @NonNull List<AudioFocusEntry> mNewlyLostAudioFocusEntries;
     private final @NonNull List<AudioFocusEntry> mNewlyBlockedAudioFocusEntries;
+    private final @NonNull Map<AudioAttributes,
+            CarAudioFadeConfiguration> mAttrsToCarAudioFadeConfig;
     private final int mAudioFocusResult;
 
     OemCarAudioFocusResult(
             @Nullable AudioFocusEntry audioFocusEntry,
             @NonNull List<AudioFocusEntry> newlyLostAudioFocusEntries,
-            @NonNull List<AudioFocusEntry> newlyBlockedAudioFocusEntries, int audioFocusResult) {
+            @NonNull List<AudioFocusEntry> newlyBlockedAudioFocusEntries, int audioFocusResult,
+            @NonNull Map<AudioAttributes, CarAudioFadeConfiguration> attrsToCarAudioFadeConfig) {
         Preconditions.checkArgument(newlyLostAudioFocusEntries != null,
                 "Newly lost focus entries can not be null");
         Preconditions.checkArgument(newlyBlockedAudioFocusEntries != null,
                 "Newly blocked focus entries can not be null");
-        this.mAudioFocusEntry = audioFocusEntry;
-        this.mNewlyLostAudioFocusEntries = newlyLostAudioFocusEntries;
-        this.mNewlyBlockedAudioFocusEntries = newlyBlockedAudioFocusEntries;
-        this.mAudioFocusResult = audioFocusResult;
+        mAudioFocusEntry = audioFocusEntry;
+        mNewlyLostAudioFocusEntries = newlyLostAudioFocusEntries;
+        mNewlyBlockedAudioFocusEntries = newlyBlockedAudioFocusEntries;
+        mAudioFocusResult = audioFocusResult;
+        mAttrsToCarAudioFadeConfig = Objects.requireNonNull(attrsToCarAudioFadeConfig,
+                "Audio attributes to car audio fade configuration can not be null");
     }
 
     /**
@@ -68,8 +76,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
      * re-evaluated once any of the current focus holders abandons focus. For failed request,
      * the car audio focus stack will not change and the current request will not gain focus.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public @Nullable AudioFocusEntry getAudioFocusEntry() {
         return new AudioFocusEntry.Builder(mAudioFocusEntry).build();
     }
@@ -82,8 +88,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
      * For transient losses, the new entry will be added as a blocker but will only receive
      * transient focus loss.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public @NonNull List<AudioFocusEntry> getNewlyLostAudioFocusEntries() {
         return new ArrayList<>(mNewlyLostAudioFocusEntries);
     }
@@ -96,8 +100,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
      * For transient losses, the new entry will be added as a blocker but will only receive
      * transient focus loss.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public @NonNull List<AudioFocusEntry> getNewlyBlockedAudioFocusEntries() {
         return new ArrayList<>(mNewlyBlockedAudioFocusEntries);
     }
@@ -107,26 +109,56 @@ public final class OemCarAudioFocusResult implements Parcelable {
      * {@link AudioManager.AUDIOFOCUS_LOSS}, {@link AudioManager.AUDIOFOCUS_LOSS_TRANSIENT},
      * {@link AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK}
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public int getAudioFocusResult() {
         return mAudioFocusResult;
     }
 
+    /**
+     * Returns the map of transient {@link CarAudioFadeConfiguration}
+     *
+     * @return Map of {@link android.media.AudioAttributes} to
+     *     {@link CarAudioFadeConfiguration} when set through {@link Builder} or an empty array if
+     *     not set.
+     */
+    @FlaggedApi(FLAG_CAR_AUDIO_FADE_MANAGER_CONFIGURATION)
+    @NonNull
+    public Map<AudioAttributes,
+            CarAudioFadeConfiguration> getAudioAttributesToCarAudioFadeConfigurationMap() {
+        ensureCarAudioFadeManagerConfigIsEnabled();
+        return mAttrsToCarAudioFadeConfig;
+    }
+
+    /**
+     * Returns the {@link CarAudioFadeConfiguration} corresponding to the
+     * {@link android.media.AudioAttributes}
+     *
+     * @param audioAttributes The {@link android.media.AudioAttributes} to get the car audio
+     *      fade configuration
+     * @return {@link CarAudioFadeConfiguration} if one is available for the
+     *     {@link android.media.AudioAttributes} or {@code null} if none is assigned
+     */
+    @FlaggedApi(FLAG_CAR_AUDIO_FADE_MANAGER_CONFIGURATION)
+    @Nullable
+    public CarAudioFadeConfiguration getCarAudioFadeConfigurationForAudioAttributes(
+            @NonNull AudioAttributes audioAttributes) {
+        ensureCarAudioFadeManagerConfigIsEnabled();
+        Objects.requireNonNull(audioAttributes, "Audio attributes can not be null");
+        return mAttrsToCarAudioFadeConfig.get(audioAttributes);
+    }
+
     @Override
     public String toString() {
-        return new StringBuilder().append("OemCarAudioFocusResult { audioFocusEntry = ")
-                .append(mAudioFocusEntry)
+        return new StringBuilder()
+                .append("OemCarAudioFocusResult { audioFocusEntry = ").append(mAudioFocusEntry)
                 .append(", mNewlyLostAudioFocusEntries = ").append(mNewlyLostAudioFocusEntries)
                 .append(", mNewlyBlockedAudioFocusEntries = ")
                 .append(mNewlyBlockedAudioFocusEntries)
                 .append(", mAudioFocusResult = ").append(mAudioFocusResult)
+                .append(convertAttrsToCarAudioFadeConfigurationMap())
                 .append(" }").toString();
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void writeToParcel(@NonNull Parcel dest, int flags) {
         byte flg = 0;
         if (mAudioFocusEntry != null) {
@@ -139,12 +171,13 @@ public final class OemCarAudioFocusResult implements Parcelable {
         dest.writeParcelableList(mNewlyLostAudioFocusEntries, flags);
         dest.writeParcelableList(mNewlyBlockedAudioFocusEntries, flags);
         dest.writeInt(mAudioFocusResult);
+        if (carAudioFadeManagerConfiguration()) {
+            dest.writeMap(mAttrsToCarAudioFadeConfig);
+        }
     }
 
     // TODO(b/260757994): Remove ApiRequirements for overridden methods
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public int describeContents() {
         return 0;
     }
@@ -163,21 +196,27 @@ public final class OemCarAudioFocusResult implements Parcelable {
         in.readParcelableList(audioFocusBlocked, AudioFocusEntry.class.getClassLoader(),
                 AudioFocusEntry.class);
         int audioFocusResult = in.readInt();
+        ArrayMap<AudioAttributes,
+                CarAudioFadeConfiguration> audioAttributesCarAudioFadeConfig = new ArrayMap<>();
+        if (carAudioFadeManagerConfiguration()) {
+            in.readMap(audioAttributesCarAudioFadeConfig, getClass().getClassLoader(),
+                    AudioAttributes.class, CarAudioFadeConfiguration.class);
+        }
 
-        this.mAudioFocusEntry = audioFocusEntry;
-        this.mNewlyLostAudioFocusEntries = audioFocusLosers;
-        this.mNewlyBlockedAudioFocusEntries = audioFocusBlocked;
-        this.mAudioFocusResult = audioFocusResult;
+        mAudioFocusEntry = audioFocusEntry;
+        mNewlyLostAudioFocusEntries = audioFocusLosers;
+        mNewlyBlockedAudioFocusEntries = audioFocusBlocked;
+        mAudioFocusResult = audioFocusResult;
+        mAttrsToCarAudioFadeConfig = audioAttributesCarAudioFadeConfig;
     }
 
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @NonNull
     public static final OemCarAudioFocusResult EMPTY_OEM_CAR_AUDIO_FOCUS_RESULTS =
             new OemCarAudioFocusResult(null,
                     /* newlyLostAudioFocusEntries= */ new ArrayList<>(/* initialCapacity= */ 0),
                     /* newlyBlockedAudioFocusEntries= */ new ArrayList<>(/* initialCapacity= */ 0),
-                    AUDIOFOCUS_REQUEST_FAILED);
+                    AUDIOFOCUS_REQUEST_FAILED,
+                    /* attrsToCarAudioFadeConfig= */ new ArrayMap<>(/* initialCapacity= */ 0));
 
     @Override
     public boolean equals(Object o) {
@@ -195,17 +234,18 @@ public final class OemCarAudioFocusResult implements Parcelable {
                 && mAudioFocusResult == that.mAudioFocusResult
                 && mNewlyBlockedAudioFocusEntries.equals(
                 that.mNewlyBlockedAudioFocusEntries)
-                && mNewlyLostAudioFocusEntries.equals(that.mNewlyLostAudioFocusEntries);
+                && mNewlyLostAudioFocusEntries.equals(that.mNewlyLostAudioFocusEntries)
+                && Objects.equals(getAttrsToCarAudioFadeConfigMap(),
+                that.getAttrsToCarAudioFadeConfigMap());
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(mAudioFocusEntry, mAudioFocusResult,
-                mNewlyBlockedAudioFocusEntries, mNewlyLostAudioFocusEntries);
+                mNewlyBlockedAudioFocusEntries, mNewlyLostAudioFocusEntries,
+                getAttrsToCarAudioFadeConfigMap());
     }
 
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @NonNull
     public static final Parcelable.Creator<OemCarAudioFocusResult> CREATOR =
             new Parcelable.Creator<OemCarAudioFocusResult>() {
@@ -219,6 +259,20 @@ public final class OemCarAudioFocusResult implements Parcelable {
             return new OemCarAudioFocusResult(in);
         }
     };
+
+    private Map<AudioAttributes, CarAudioFadeConfiguration> getAttrsToCarAudioFadeConfigMap() {
+        return carAudioFadeManagerConfiguration() ? mAttrsToCarAudioFadeConfig : null;
+    }
+
+    private String convertAttrsToCarAudioFadeConfigurationMap() {
+        return carAudioFadeManagerConfiguration()
+                ? ", mAttrsToCarAudioFadeConfig = " + mAttrsToCarAudioFadeConfig : "";
+    }
+
+    private static void ensureCarAudioFadeManagerConfigIsEnabled() {
+        Preconditions.checkState(carAudioFadeManagerConfiguration(),
+                "Car audio fade manager configuration not supported");
+    }
 
     /**
      * A builder for {@link OemCarAudioFocusResult}
@@ -235,6 +289,8 @@ public final class OemCarAudioFocusResult implements Parcelable {
         private @NonNull List<AudioFocusEntry> mNewlyLostAudioFocusEntries;
         private @NonNull List<AudioFocusEntry> mNewlyBlockedAudioFocusEntries;
         private int mAudioFocusResult;
+        private final @NonNull Map<AudioAttributes,
+                CarAudioFadeConfiguration> mAttrsToCarAudioFadeConfig = new ArrayMap<>();
 
         private long mBuilderFieldsSet = 0L;
 
@@ -252,8 +308,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
         }
 
         /** @see OemCarAudioFocusResult#getAudioFocusEntry */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
         public Builder setAudioFocusEntry(@NonNull AudioFocusEntry focusEntry) {
             Preconditions.checkArgument(focusEntry != null,
@@ -265,8 +319,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
         }
 
         /** @see OemCarAudioFocusResult#getNewlyLostAudioFocusEntries */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
         public Builder setNewlyLostAudioFocusEntries(
                 @NonNull List<AudioFocusEntry> newlyLostAudioFocusEntries) {
@@ -279,8 +331,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
         }
 
         /** @see #setNewlyLostAudioFocusEntries */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
         public Builder addNewlyLostAudioFocusEntry(@NonNull AudioFocusEntry lossEntry) {
             Preconditions.checkArgument(lossEntry != null,
@@ -293,8 +343,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
         }
 
         /** @see OemCarAudioFocusResult#getNewlyBlockedAudioFocusEntries */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
         public Builder setNewlyBlockedAudioFocusEntries(
                 @NonNull List<AudioFocusEntry> newlyBlockedAudioFocusEntries) {
@@ -307,8 +355,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
         }
 
         /** @see #setNewlyBlockedAudioFocusEntries */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
         public Builder addNewlyBlockedAudioFocusEntry(
                 @NonNull AudioFocusEntry blockedEntry) {
@@ -322,8 +368,6 @@ public final class OemCarAudioFocusResult implements Parcelable {
         }
 
         /** @see OemCarAudioFocusResult#getAudioFocusResult */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
         public Builder setAudioFocusResult(int audioFocusResult) {
             mBuilderFieldsSet |= FOCUS_RESULT_FIELDS_SET;
@@ -331,9 +375,20 @@ public final class OemCarAudioFocusResult implements Parcelable {
             return this;
         }
 
+        /** @see OemCarAudioFocusResult#getAudioAttributesToCarAudioFadeConfigurationMap() **/
+        @FlaggedApi(FLAG_CAR_AUDIO_FADE_MANAGER_CONFIGURATION)
+        @NonNull
+        public Builder setAudioAttributesToCarAudioFadeConfigurationMap(@NonNull
+                Map<AudioAttributes, CarAudioFadeConfiguration> attrsToCarAudioFadeConfig) {
+            ensureCarAudioFadeManagerConfigIsEnabled();
+            Objects.requireNonNull(attrsToCarAudioFadeConfig,
+                    "Audio attributes to car audio fade configuration map can not be null");
+            mAttrsToCarAudioFadeConfig.clear();
+            mAttrsToCarAudioFadeConfig.putAll(attrsToCarAudioFadeConfig);
+            return this;
+        }
+
         /** Builds the instance. This builder should not be touched after calling this! */
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_3,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         @NonNull
         public OemCarAudioFocusResult build() {
             checkNotUsed();
@@ -343,7 +398,8 @@ public final class OemCarAudioFocusResult implements Parcelable {
                     mAudioFocusEntry,
                     mNewlyLostAudioFocusEntries,
                     mNewlyBlockedAudioFocusEntries,
-                    mAudioFocusResult);
+                    mAudioFocusResult,
+                    mAttrsToCarAudioFadeConfig);
             return o;
         }
 

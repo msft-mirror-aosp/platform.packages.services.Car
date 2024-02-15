@@ -31,7 +31,7 @@ using ::android::hardware::automotive::vehicle::toInt;
 AidlHalPropConfig::AidlHalPropConfig(VehiclePropConfig&& config) {
     mPropConfig = std::move(config);
     for (VehicleAreaConfig& areaConfig : mPropConfig.areaConfigs) {
-        mAreaConfigs.emplace_back(std::move(areaConfig));
+        mAreaConfigs.push_back(std::make_unique<AidlHalAreaConfig>(std::move(areaConfig)));
     }
 }
 
@@ -45,10 +45,6 @@ int32_t AidlHalPropConfig::getAccess() const {
 
 int32_t AidlHalPropConfig::getChangeMode() const {
     return toInt(mPropConfig.changeMode);
-}
-
-const IHalAreaConfig* AidlHalPropConfig::getAreaConfigs() const {
-    return &(mAreaConfigs[0]);
 }
 
 size_t AidlHalPropConfig::getAreaConfigSize() const {
@@ -77,6 +73,10 @@ AidlHalAreaConfig::AidlHalAreaConfig(VehicleAreaConfig&& areaConfig) {
 
 int32_t AidlHalAreaConfig::getAreaId() const {
     return mAreaConfig.areaId;
+}
+
+int32_t AidlHalAreaConfig::getAccess() const {
+    return toInt(mAreaConfig.access);
 }
 
 int32_t AidlHalAreaConfig::getMinInt32Value() const {

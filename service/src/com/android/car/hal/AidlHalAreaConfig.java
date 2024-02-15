@@ -29,6 +29,14 @@ public final class AidlHalAreaConfig extends HalAreaConfig {
     }
 
     /**
+     * Get the access mode.
+     */
+    @Override
+    public int getAccess() {
+        return mConfig.access;
+    }
+
+    /**
      * Get the area ID.
      */
     @Override
@@ -90,5 +98,13 @@ public final class AidlHalAreaConfig extends HalAreaConfig {
     @Override
     public long[] getSupportedEnumValues() {
         return mConfig.supportedEnumValues == null ? new long[0] : mConfig.supportedEnumValues;
+    }
+
+    /**
+     * Returns whether variable update rate is supported.
+     */
+    @Override
+    public boolean isVariableUpdateRateSupported() {
+        return mConfig.supportVariableUpdateRate;
     }
 }

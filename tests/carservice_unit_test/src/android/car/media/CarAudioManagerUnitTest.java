@@ -17,6 +17,7 @@
 package android.car.media;
 
 import static android.car.media.CarAudioManager.AUDIO_FEATURE_DYNAMIC_ROUTING;
+import static android.car.media.CarAudioManager.CONFIG_STATUS_CHANGED;
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE;
 import static android.media.AudioAttributes.USAGE_GAME;
@@ -61,7 +62,9 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(MockitoJUnitRunner.class)
 public final class CarAudioManagerUnitTest extends AbstractExpectableTestCase {
@@ -145,9 +148,10 @@ public final class CarAudioManagerUnitTest extends AbstractExpectableTestCase {
     private AudioZonesMirrorStatusCallback mAudioZonesMirrorStatusCallback;
 
     private CarAudioManager mCarAudioManager;
+    private TestAudioZoneConfigurationsChangeCallback mTestConfigCallback;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         when(mBinderMock.queryLocalInterface(anyString())).thenReturn(mServiceMock);
         when(mCar.getContext()).thenReturn(mContextMock);
         when(mCar.getEventHandler()).thenReturn(mHandler);
@@ -155,6 +159,8 @@ public final class CarAudioManagerUnitTest extends AbstractExpectableTestCase {
         mCarAudioManager = new CarAudioManager(mCar, mBinderMock);
         doAnswer(invocation -> invocation.getArgument(1)).when(mCar)
                 .handleRemoteExceptionFromCarService(any(RemoteException.class), any());
+        mTestConfigCallback = new TestAudioZoneConfigurationsChangeCallback();
+        when(mServiceMock.registerAudioZoneConfigsChangeCallback(any())).thenReturn(true);
     }
 
     @Test
@@ -835,13 +841,14 @@ public final class CarAudioManagerUnitTest extends AbstractExpectableTestCase {
 
     @Test
     public void onCarDisconnected() throws Exception {
-        ArgumentCaptor<IBinder> captor = ArgumentCaptor.forClass(IBinder.class);
-        mCarAudioManager.registerCarVolumeCallback(mVolumeCallbackMock1);
-        verify(mServiceMock).registerVolumeCallback(captor.capture());
+        ICarVolumeCallback serviceVolCallback = getCarVolumeCallbackImpl(mVolumeCallbackMock1);
+        ICarVolumeEventCallback serviceVolEventCallback = getCarVolumeEventCallbackImpl(
+                mVolumeGroupEventCallbackMock1);
 
         mCarAudioManager.onCarDisconnected();
 
-        verify(mServiceMock).unregisterVolumeCallback(captor.getValue());
+        verify(mServiceMock).unregisterVolumeCallback(serviceVolCallback.asBinder());
+        verify(mServiceMock).unregisterCarVolumeEventCallback(serviceVolEventCallback);
     }
 
     @Test
@@ -977,6 +984,96 @@ public final class CarAudioManagerUnitTest extends AbstractExpectableTestCase {
                 mSwitchCallbackMock);
 
         verify(mCar).handleRemoteExceptionFromCarService(mRemoteException);
+    }
+
+    @Test
+    public void setAudioZoneConfigsChangeCallback_withNullExecutor_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class, () ->
+                mCarAudioManager.setAudioZoneConfigsChangeCallback(/* executor= */ null,
+                        mTestConfigCallback));
+
+        expectWithMessage("Null audio zone config callback executor exception").that(thrown)
+                .hasMessageThat().contains("Executor");
+    }
+
+    @Test
+    public void setAudioZoneConfigsChangeCallback_withNullCallback_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class, () ->
+                mCarAudioManager.setAudioZoneConfigsChangeCallback(DIRECT_EXECUTOR,
+                        /* callback= */ null));
+
+        expectWithMessage("Null audio zone config callback exception").that(thrown)
+                .hasMessageThat().contains("Audio zone configs change callback");
+    }
+
+    @Test
+    public void setAudioZoneConfigsChangeCallback() throws Exception {
+        boolean registered = mCarAudioManager.setAudioZoneConfigsChangeCallback(DIRECT_EXECUTOR,
+                mTestConfigCallback);
+
+        expectWithMessage("Audio zone configs callback registered status").that(registered)
+                .isTrue();
+        verify(mServiceMock).registerAudioZoneConfigsChangeCallback(any());
+    }
+
+    @Test
+    public void setAudioZoneConfigsChangeCallback_multipleTimes_fails() {
+        mCarAudioManager.setAudioZoneConfigsChangeCallback(DIRECT_EXECUTOR, mTestConfigCallback);
+
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () ->
+                mCarAudioManager.setAudioZoneConfigsChangeCallback(DIRECT_EXECUTOR,
+                        mTestConfigCallback));
+
+        expectWithMessage("Audio zone configs callback re-registered exception").that(thrown)
+                .hasMessageThat().contains("already set");
+    }
+
+    @Test
+    public void onAudioZoneConfigurationsChanged_onRegisteredCallback() throws Exception {
+        mCarAudioManager.setAudioZoneConfigsChangeCallback(DIRECT_EXECUTOR,
+                mTestConfigCallback);
+        ArgumentCaptor<IAudioZoneConfigurationsChangeCallback> captor =
+                ArgumentCaptor.forClass(IAudioZoneConfigurationsChangeCallback.class);
+        verify(mServiceMock).registerAudioZoneConfigsChangeCallback(captor.capture());
+        IAudioZoneConfigurationsChangeCallback remoteCallback = captor.getValue();
+
+        remoteCallback.onAudioZoneConfigurationsChanged(
+                List.of(mZoneConfigInfoMock1, mZoneConfigInfoMock2), CONFIG_STATUS_CHANGED);
+
+        mTestConfigCallback.waitForCallback();
+        expectWithMessage("Triggered callback configs").that(mTestConfigCallback.mInfos)
+                .containsExactly(mZoneConfigInfoMock1, mZoneConfigInfoMock2);
+        expectWithMessage("Triggered callback status").that(mTestConfigCallback.mStatus)
+                .isEqualTo(CONFIG_STATUS_CHANGED);
+    }
+
+    @Test
+    public void clearAudioZoneConfigsCallback() throws Exception {
+        mCarAudioManager.setAudioZoneConfigsChangeCallback(DIRECT_EXECUTOR,
+                mTestConfigCallback);
+
+        mCarAudioManager.clearAudioZoneConfigsCallback();
+
+        verify(mServiceMock).unregisterAudioZoneConfigsChangeCallback(any());
+    }
+
+    @Test
+    public void clearAudioZoneConfigsCallback_withNoRegisteredCallback() throws Exception {
+        mCarAudioManager.clearAudioZoneConfigsCallback();
+
+        verify(mServiceMock, never()).unregisterAudioZoneConfigsChangeCallback(any());
+    }
+
+    @Test
+    public void setAudioZoneConfigsChangeCallback_withServiceException_fails() throws Exception {
+        RemoteException remoteException = new RemoteException("Register failed!");
+        when(mServiceMock.registerAudioZoneConfigsChangeCallback(any())).thenThrow(remoteException);
+
+        boolean registered = mCarAudioManager.setAudioZoneConfigsChangeCallback(DIRECT_EXECUTOR,
+                mTestConfigCallback);
+
+        expectWithMessage("Audio zone configs callback registered status after service exception")
+                .that(registered).isFalse();
     }
 
     @Test
@@ -1709,6 +1806,7 @@ public final class CarAudioManagerUnitTest extends AbstractExpectableTestCase {
 
     private ICarVolumeEventCallback getCarVolumeEventCallbackImpl(CarVolumeGroupEventCallback
             callbackMock) throws Exception {
+        when(mServiceMock.registerCarVolumeEventCallback(any())).thenReturn(true);
         mCarAudioManager.registerCarVolumeGroupEventCallback(DIRECT_EXECUTOR, callbackMock);
         ArgumentCaptor<ICarVolumeEventCallback> captor = ArgumentCaptor.forClass(
                 ICarVolumeEventCallback.class);
@@ -1736,5 +1834,26 @@ public final class CarAudioManagerUnitTest extends AbstractExpectableTestCase {
                 mAudioZonesMirrorStatusCallback);
         verify(mServiceMock).registerAudioZonesMirrorStatusCallback(captor.capture());
         return captor.getValue();
+    }
+
+    private static final class  TestAudioZoneConfigurationsChangeCallback
+            implements AudioZoneConfigurationsChangeCallback {
+
+        private static final long TEST_CALLBACK_TIMEOUT_MS = 500;
+        private List<CarAudioZoneConfigInfo> mInfos;
+        private int mStatus;
+
+        private CountDownLatch mStatusLatch = new CountDownLatch(1);
+        @Override
+        public void onAudioZoneConfigurationsChanged(List<CarAudioZoneConfigInfo> configs,
+                int status) {
+            mInfos = configs;
+            mStatus = status;
+            mStatusLatch.countDown();
+        }
+
+        private void waitForCallback() throws Exception {
+            mStatusLatch.await(TEST_CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
     }
 }

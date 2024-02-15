@@ -51,12 +51,22 @@ PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/cpp/telemetry/cartelemetr
 PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/cartelemetry
 endif
 
+ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+# SEPolicy for test apps/services
+PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
+endif
+
 ifeq ($(DISABLE_CAR_PRODUCT_CONFIG_OVERLAY),)
-PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/car_product/overlay
+PRODUCT_PACKAGES += \
+    CarFrameworkResConfigRRO \
+    CarCertInstallerConfigRRO \
+    CarSettingsProviderConfigRRO \
+    CarTelecommConfigRRO
 endif
 
 ifeq ($(DISABLE_CAR_PRODUCT_VISUAL_OVERLAY),)
 PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/car_product/overlay-visual
+PRODUCT_PACKAGES += CarFrameworkResVisualRRO
 endif
 
 # CarSystemUIPassengerOverlay is an RRO package required for enabling unique look
@@ -65,4 +75,9 @@ ifeq ($(ENABLE_PASSENGER_SYSTEMUI_RRO), true)
 PRODUCT_PACKAGES += CarSystemUIPassengerOverlay
 endif  # ENABLE_PASSENGER_SYSTEMUI_RRO
 
+ifneq (,$(filter true,$(ENABLE_EVS_SAMPLE) $(ENABLE_SAMPLE_EVS_APP)))
+include packages/services/Car/cpp/evs/apps/sepolicy/evsapp.mk
+endif
+
 $(call inherit-product, device/sample/products/location_overlay.mk)
+$(call inherit-product, packages/services/Car/car_product/rro/ThemeSamples/product.mk)

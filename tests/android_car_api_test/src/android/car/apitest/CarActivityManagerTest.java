@@ -22,12 +22,11 @@ import static org.junit.Assert.assertThrows;
 
 import android.car.Car;
 import android.car.app.CarActivityManager;
-import android.car.test.ApiCheckerRule.Builder;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.util.Log;
 import android.view.Display;
+
+import androidx.test.filters.MediumTest;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -45,13 +44,6 @@ public final class CarActivityManagerTest extends CarApiTestBase {
     private CarActivityManager mCarActivityManager;
 
     private final ComponentName mTestActivity = new ComponentName("test.pkg", "test.activity");
-
-    // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
-    @Override
-    protected void configApiCheckerRule(Builder builder) {
-        Log.w(TAG, "Disabling API requirements check");
-        builder.disableAnnotationsCheck();
-    }
 
     @Before
     public void setUp() throws Exception {

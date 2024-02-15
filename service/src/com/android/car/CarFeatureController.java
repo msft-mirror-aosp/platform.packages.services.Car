@@ -25,11 +25,14 @@ import android.car.CarFeatures;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.util.AtomicFileHelper;
 import android.car.builtin.util.Slogf;
+import android.car.feature.Flags;
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.ArrayMap;
 import android.util.AtomicFile;
 import android.util.Pair;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -52,7 +55,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-
+import java.util.Map;
 /**
  * Component controlling the feature of car.
  */
@@ -80,6 +83,7 @@ public final class CarFeatureController implements CarServiceBase {
             Car.CAR_USER_SERVICE,
             Car.CAR_UX_RESTRICTION_SERVICE,
             Car.CAR_WATCHDOG_SERVICE,
+            Car.CAR_WIFI_SERVICE,
             Car.INFO_SERVICE,
             Car.PACKAGE_SERVICE,
             Car.POWER_SERVICE,
@@ -113,6 +117,9 @@ public final class CarFeatureController implements CarServiceBase {
             Car.CAR_INSTRUMENT_CLUSTER_SERVICE
     ));
 
+    private static final Map<String, Boolean> FLAGGED_FEATURES =
+            new ArrayMap<>(1);
+
     // This is a feature still under development and cannot be enabled in user build.
     private static final HashSet<String> NON_USER_ONLY_FEATURES = new HashSet<>();
 
@@ -131,6 +138,12 @@ public final class CarFeatureController implements CarServiceBase {
     // This hash is generated using the featured enabled via config.xml file of resources. Whenever
     // feature are updated in resource file, we should regenerate {@code FEATURE_CONFIG_FILE_NAME}.
     private static final String CONFIG_FILE_HASH_MARKER = "Hash:";
+
+    static {
+        FLAGGED_FEATURES.put(Car.CAR_DISPLAY_COMPAT_SERVICE, Flags.displayCompatibility());
+        // Note: if a new entry is added here, the capacity of FLAGGED_FEATURES should also
+        // be increased
+    }
 
     // Set once in constructor and not updated. Access it without lock so that it can be accessed
     // quickly.
@@ -217,6 +230,71 @@ public final class CarFeatureController implements CarServiceBase {
             writer.println(" mAvailableExperimentalFeatures:" + mAvailableExperimentalFeatures);
             writer.println(" mPendingEnabledFeatures:" + mPendingEnabledFeatures);
             writer.println(" mPendingDisabledFeatures:" + mPendingDisabledFeatures);
+            dumpConfigFile(writer);
+        }
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    private void dumpConfigFile(IndentingPrintWriter writer) {
+        writer.println(" mFeatureConfigFile:");
+        FileInputStream fis;
+        try {
+            synchronized (mLock) {
+                fis = mFeatureConfigFile.openRead();
+            }
+        } catch (FileNotFoundException e) {
+            Slogf.i(TAG, "Feature config file not found");
+            return;
+        }
+        writer.increaseIndent();
+        try (BufferedReader reader =
+                     new BufferedReader(new InputStreamReader(fis, StandardCharsets.UTF_8))) {
+            while (true) {
+                String line = reader.readLine();
+                if (line == null) {
+                    break;
+                }
+                writer.println(line);
+            }
+        } catch (IOException e) {
+            Slogf.w(TAG, "Cannot read config file", e);
+        } finally {
+            try {
+                fis.close();
+            } catch (IOException e) {
+                Slogf.e(TAG, "Couldn't close FileInputStream");
+            }
+        }
+        writer.decreaseIndent();
+    }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {
+        for (String enabledFeature : mEnabledFeatures) {
+            proto.write(CarFeatureControlDumpProto.ENABLED_FEATURES, enabledFeature);
+        }
+        for (String defaultEnabledFeature : mDefaultEnabledFeaturesFromConfig) {
+            proto.write(CarFeatureControlDumpProto.DEFAULT_ENABLED_FEATURES_FROM_CONFIG,
+                    defaultEnabledFeature);
+        }
+        for (String disabledFeature : mDisabledFeaturesFromVhal) {
+            proto.write(CarFeatureControlDumpProto.DISABLED_FEATURES_FROM_VHAL,
+                    disabledFeature);
+        }
+        synchronized (mLock) {
+            for (String experimentalFeature : mAvailableExperimentalFeatures) {
+                proto.write(CarFeatureControlDumpProto.AVAILABLE_EXPERIMENTAL_FEATURES,
+                        experimentalFeature);
+            }
+            for (String pendingEnabledFeature : mPendingEnabledFeatures) {
+                proto.write(CarFeatureControlDumpProto.PENDING_ENABLED_FEATURES,
+                        pendingEnabledFeature);
+            }
+            for (String pendingDisabledFeature : mPendingDisabledFeatures) {
+                proto.write(CarFeatureControlDumpProto.PENDING_DISABLED_FEATURES,
+                        pendingDisabledFeature);
+            }
         }
     }
 
@@ -510,6 +588,10 @@ public final class CarFeatureController implements CarServiceBase {
             } else if (NON_USER_ONLY_FEATURES.contains(feature)) {
                 Slogf.e(TAG, "config_default_enabled_optional_car_features including "
                         + "user build only feature, will be ignored:" + feature);
+            } else if (FLAGGED_FEATURES.containsKey(feature)) {
+                if (FLAGGED_FEATURES.get(feature)) {
+                    mEnabledFeatures.add(feature);
+                }
             } else {
                 throw new IllegalArgumentException(
                         "config_default_enabled_optional_car_features include non-optional "

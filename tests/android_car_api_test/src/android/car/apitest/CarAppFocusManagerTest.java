@@ -24,15 +24,14 @@ import static org.junit.Assert.assertThrows;
 
 import android.car.Car;
 import android.car.CarAppFocusManager;
-import android.car.test.ApiCheckerRule.Builder;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
-import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Log;
 
 import androidx.test.filters.FlakyTest;
+import androidx.test.filters.MediumTest;
 import androidx.test.filters.RequiresDevice;
 
 import org.junit.After;
@@ -51,13 +50,6 @@ public final class CarAppFocusManagerTest extends CarApiTestBase {
     private CarAppFocusManager mManager;
 
     private final LooperThread mEventThread = new LooperThread();
-
-    // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
-    @Override
-    protected void configApiCheckerRule(Builder builder) {
-        Log.w(TAG, "Disabling API requirements check");
-        builder.disableAnnotationsCheck();
-    }
 
     @Before
     public void setUp() throws Exception {
@@ -275,7 +267,7 @@ public final class CarAppFocusManagerTest extends CarApiTestBase {
     public void testGetAppTypeOwner() throws Exception {
         CarAppFocusManager manager = createManager(getContext(), mEventThread);
 
-        assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION)).isNull();
+        assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION)).isEmpty();
 
         FocusOwnershipCallback owner = new FocusOwnershipCallback();
         assertThat(manager.requestAppFocus(APP_FOCUS_TYPE_NAVIGATION, owner))
@@ -287,7 +279,7 @@ public final class CarAppFocusManagerTest extends CarApiTestBase {
 
         manager.abandonAppFocus(owner, APP_FOCUS_TYPE_NAVIGATION);
 
-        assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION)).isNull();
+        assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION)).isEmpty();
     }
 
     private CarAppFocusManager createManager() throws InterruptedException {

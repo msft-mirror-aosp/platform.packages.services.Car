@@ -37,6 +37,8 @@ public:
 
     int32_t getAreaId() const override;
 
+    int32_t getAccess() const override;
+
     int32_t getMinInt32Value() const override;
 
     int32_t getMaxInt32Value() const override;
@@ -64,8 +66,6 @@ public:
 
     int32_t getChangeMode() const override;
 
-    const IHalAreaConfig* getAreaConfigs() const override;
-
     size_t getAreaConfigSize() const override;
 
     std::vector<int32_t> getConfigArray() const override;
@@ -78,7 +78,6 @@ public:
 
 private:
     ::aidl::android::hardware::automotive::vehicle::VehiclePropConfig mPropConfig;
-    std::vector<AidlHalAreaConfig> mAreaConfigs;
 };
 
 }  // namespace vhal

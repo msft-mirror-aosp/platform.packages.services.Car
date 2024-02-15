@@ -157,7 +157,6 @@ PRODUCT_PACKAGES += \
     BasicDreams \
     CaptivePortalLogin \
     CertInstaller \
-    DocumentsUI \
     DownloadProviderUi \
     FusedLocation \
     InputDevices \
@@ -238,6 +237,9 @@ PRODUCT_PACKAGES += \
 # RROs
 PRODUCT_PACKAGES += \
     CarPermissionControllerRRO \
+    CarSystemUIRRO
+
+$(call inherit-product-if-exists, packages/apps/Car/SystemUI/samples/systemui_sample_rros.mk)
 
 # System Server components
 # Order is important: if X depends on Y, then Y should precede X on the list.
@@ -246,7 +248,7 @@ PRODUCT_SYSTEM_SERVER_JARS += car-frameworks-service
 PRODUCT_BOOT_JARS += \
     android.car.builtin
 
-USE_CAR_FRAMEWORK_APEX ?= true
+USE_CAR_FRAMEWORK_APEX ?= false
 
 ifeq ($(USE_CAR_FRAMEWORK_APEX),true)
     PRODUCT_PACKAGES += com.android.car.framework
@@ -254,13 +256,12 @@ ifeq ($(USE_CAR_FRAMEWORK_APEX),true)
     PRODUCT_APEX_BOOT_JARS += com.android.car.framework:android.car-module
     PRODUCT_APEX_SYSTEM_SERVER_JARS += com.android.car.framework:car-frameworks-service-module
 
-    $(call soong_config_set,AUTO,car_bootclasspath_fragment,true)
+    $(call soong_config_set,bootclasspath,car_bootclasspath_fragment,true)
 
     PRODUCT_HIDDENAPI_STUBS := android.car-module.stubs
     PRODUCT_HIDDENAPI_STUBS_SYSTEM := android.car-module.stubs.system
     PRODUCT_HIDDENAPI_STUBS_TEST := android.car-module.stubs.test
 else # !USE_CAR_FRAMEWORK_APEX
-    $(warning NOT using CarFramework APEX)
     PRODUCT_BOOT_JARS += android.car
     PRODUCT_PACKAGES += android.car CarServiceUpdatableNonModule car-frameworks-service-module
     PRODUCT_SYSTEM_SERVER_JARS += car-frameworks-service-module
@@ -269,3 +270,7 @@ else # !USE_CAR_FRAMEWORK_APEX
     PRODUCT_HIDDENAPI_STUBS_SYSTEM := android.car-system-stubs-dex
     PRODUCT_HIDDENAPI_STUBS_TEST := android.car-test-stubs-dex
 endif # USE_CAR_FRAMEWORK_APEX
+
+# Disable Dynamic System Update for automotive targets
+PRODUCT_NO_DYNAMIC_SYSTEM_UPDATE := true
+

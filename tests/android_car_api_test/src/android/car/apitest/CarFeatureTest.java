@@ -20,9 +20,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.car.Car;
 import android.car.CarFeatures;
-import android.car.test.ApiCheckerRule.Builder;
-import android.test.suitebuilder.annotation.SmallTest;
-import android.util.Log;
+
+import androidx.test.filters.SmallTest;
 
 import org.junit.Test;
 
@@ -46,6 +45,7 @@ public final class CarFeatureTest extends CarApiTestBase {
             Car.CAR_OCCUPANT_ZONE_SERVICE,
             Car.CAR_USER_SERVICE,
             Car.CAR_UX_RESTRICTION_SERVICE,
+            Car.CAR_WIFI_SERVICE,
             Car.INFO_SERVICE,
             Car.PACKAGE_SERVICE,
             Car.POWER_SERVICE,
@@ -69,13 +69,6 @@ public final class CarFeatureTest extends CarApiTestBase {
     );
 
     private static final String NON_EXISTING_FEATURE = "ThisFeatureDoesNotExist";
-
-    // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
-    @Override
-    protected void configApiCheckerRule(Builder builder) {
-        Log.w(TAG, "Disabling API requirements check");
-        builder.disableAnnotationsCheck();
-    }
 
     @Test
     public void checkMandatoryFeatures() {

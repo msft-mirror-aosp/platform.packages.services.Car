@@ -161,7 +161,7 @@ public class PowerHalService extends HalServiceBase {
     public static final class PowerState {
 
         @IntDef({SHUTDOWN_TYPE_UNDEFINED, SHUTDOWN_TYPE_POWER_OFF, SHUTDOWN_TYPE_DEEP_SLEEP,
-                SHUTDOWN_TYPE_HIBERNATION})
+                SHUTDOWN_TYPE_HIBERNATION, SHUTDOWN_TYPE_EMERGENCY})
         @Retention(RetentionPolicy.SOURCE)
         public @interface ShutdownType {}
 
@@ -169,6 +169,7 @@ public class PowerHalService extends HalServiceBase {
         public static final int SHUTDOWN_TYPE_POWER_OFF = 1;
         public static final int SHUTDOWN_TYPE_DEEP_SLEEP = 2;
         public static final int SHUTDOWN_TYPE_HIBERNATION = 3;
+        public static final int SHUTDOWN_TYPE_EMERGENCY = 4;
         /**
          * One of STATE_*
          */
@@ -192,7 +193,8 @@ public class PowerHalService extends HalServiceBase {
             }
             return (mParam != VehicleApPowerStateShutdownParam.SHUTDOWN_IMMEDIATELY
                     && mParam != VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY
-                    && mParam != VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY);
+                    && mParam != VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY
+                    && mParam != VehicleApPowerStateShutdownParam.EMERGENCY_SHUTDOWN);
         }
 
         /**
@@ -230,6 +232,8 @@ public class PowerHalService extends HalServiceBase {
             } else if (mParam == VehicleApPowerStateShutdownParam.CAN_HIBERNATE
                     || mParam == VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY) {
                 result = SHUTDOWN_TYPE_HIBERNATION;
+            } else if (mParam == VehicleApPowerStateShutdownParam.EMERGENCY_SHUTDOWN) {
+                result = SHUTDOWN_TYPE_EMERGENCY;
             }
 
             return result;
@@ -563,7 +567,7 @@ public class PowerHalService extends HalServiceBase {
             for (int i = 0; i < mProperties.size(); i++) {
                 HalPropConfig config = mProperties.valueAt(i);
                 if (VehicleHal.isPropertySubscribable(config)) {
-                    mHal.subscribeProperty(this, config.getPropId());
+                    mHal.subscribePropertySafe(this, config.getPropId());
                 }
             }
             HalPropConfig brightnessProperty = mProperties.get(PER_DISPLAY_BRIGHTNESS);

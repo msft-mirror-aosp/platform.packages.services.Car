@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -52,7 +53,7 @@ android_test {
         "car-service-builtin-test-static-lib",
         "com.android.car.test.lib",
         "mockito-target-extended",
-        "truth-prebuilt",
+        "truth",
         "compatibility-device-util-axt",
         "vehicle-hal-support-lib",
     ],
@@ -76,4 +77,6 @@ android_test {
         "automotive-tests",
         "automotive-general-tests",
     ],
+    // TODO(b/319708040): re-enable use_resource_processor
+    use_resource_processor: false,
 }

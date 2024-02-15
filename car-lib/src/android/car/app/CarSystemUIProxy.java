@@ -18,7 +18,6 @@ package android.car.app;
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
-import android.car.annotation.ApiRequirements;
 
 /**
  * A blueprint for the system ui proxy which is meant to host all the system ui interaction that is
@@ -30,10 +29,20 @@ public interface CarSystemUIProxy {
     /**
      * Creates the host side of the task view and links the provided {@code carTaskViewClient}
      * to the same.
+     * This method will be deprecated in Android 15. Please use
+     * {@link CarSystemUIProxy#createCarTaskView(CarTaskViewClient)} instead.
      * @return a handle to the host side of task view.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull
     CarTaskViewHost createControlledCarTaskView(@NonNull CarTaskViewClient carTaskViewClient);
+
+    /**
+     * Creates the host side of the task view and links the provided {@code
+     * carTaskViewClient} to the same.
+     * @return a handle to the host side of task view.
+     *
+     * @hide
+     */
+    @NonNull
+    CarTaskViewHost createCarTaskView(@NonNull CarTaskViewClient carTaskViewClient);
 }

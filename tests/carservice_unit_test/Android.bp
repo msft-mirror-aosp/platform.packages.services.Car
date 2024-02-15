@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -22,14 +23,18 @@ android_test {
     name: "CarServiceUnitTest",
 
     srcs: [
-            "src/**/*.java",
-            "src/**/*.aidl",
-        ],
+        "src/**/*.java",
+        "src/**/*.aidl",
+        ":car-service-dump-proto-srcs",
+    ],
+    proto: {
+        type: "lite",
+    },
 
     aidl: {
-            include_dirs: [
-                "packages/services/Car/car-lib/src",
-            ],
+        include_dirs: [
+            "packages/services/Car/car-lib/src",
+        ],
     },
 
     aaptflags: [
@@ -67,6 +72,10 @@ android_test {
         "framework-res",
     ],
 
+    defaults: [
+        "car-framework-aconfig-libraries",
+    ],
+
     static_libs: [
         "android.car.testapi",
         "android.car.test.utils",
@@ -79,11 +88,12 @@ android_test {
         "com.android.car.test.lib",
         "compatibility-device-util-axt",
         "frameworks-base-testutils",
+        "flag-junit",
         "mockito-target-extended",
         "SettingsLib",
         "servicestests-utils",
-        "truth-prebuilt",
-        "WindowManager-Shell",  // for CarActivityServiceTaskMonitorUnitTest
+        "truth",
+        "WindowManager-Shell", // for CarActivityServiceTaskMonitorUnitTest
         "vehicle-hal-support-lib",
     ],
 
@@ -100,4 +110,6 @@ android_test {
         "libdexmakerjvmtiagent",
         "libstaticjvmtiagent",
     ],
+    // TODO(b/319708040): re-enable use_resource_processor
+    use_resource_processor: false,
 }
