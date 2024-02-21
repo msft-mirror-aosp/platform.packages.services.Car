@@ -16,13 +16,14 @@
 package com.android.systemui.car.distantdisplay.activity.window;
 
 import android.content.Context;
-import android.content.IntentFilter;
 import android.os.Build;
+import android.util.Log;
 
-import androidx.core.content.ContextCompat;
-
-import com.android.systemui.car.distantdisplay.common.DistantDisplayReceiver;
+import com.android.systemui.R;
+import com.android.systemui.car.CarDeviceProvisionedController;
+import com.android.systemui.car.CarDeviceProvisionedListener;
 import com.android.systemui.car.distantdisplay.common.TaskViewController;
+import com.android.systemui.car.distantdisplay.common.UserUnlockReceiver;
 import com.android.systemui.dagger.SysUISingleton;
 
 import javax.inject.Inject;
@@ -36,14 +37,36 @@ import javax.inject.Inject;
 @SysUISingleton
 public class ActivityWindowController {
     public static final String TAG = ActivityWindowController.class.getSimpleName();
+    private final UserUnlockReceiver mUserUnlockReceiver = new UserUnlockReceiver();
     private static final boolean DEBUG = Build.IS_ENG || Build.IS_USERDEBUG;
     private final Context mContext;
+    private final int mDistantDisplayId;
+    private final CarDeviceProvisionedController mCarDeviceProvisionedController;
     private final TaskViewController mTaskViewController;
+    private boolean mUserSetupInProgress;
+    private boolean mIsUserUnlocked;
+    private boolean mDistantDisplayActivityStarted;
+
+    private final CarDeviceProvisionedListener mCarDeviceProvisionedListener =
+            new CarDeviceProvisionedListener() {
+                @Override
+                public void onUserSetupInProgressChanged() {
+                    mUserSetupInProgress = mCarDeviceProvisionedController
+                            .isCurrentUserSetupInProgress();
+
+                    startDistantDisplayActivity();
+                }
+            };
 
     @Inject
     public ActivityWindowController(Context context,
+            CarDeviceProvisionedController deviceProvisionedController,
             TaskViewController taskViewController) {
         mContext = context;
+        mDistantDisplayId =
+                mContext.getResources().getInteger(R.integer.config_distantDisplayId);
+        mCarDeviceProvisionedController = deviceProvisionedController;
+        mCarDeviceProvisionedController.addCallback(mCarDeviceProvisionedListener);
         mTaskViewController = taskViewController;
     }
 
@@ -51,20 +74,33 @@ public class ActivityWindowController {
      * Initializes the window / activity to host TaskViews.
      */
     public void initialize() {
-        if (DEBUG) {
-            // TODO(b/319879239): remove the broadcast receiver once the binder service is
-            //  implemented.
-            setupDebuggingThroughAdb();
-        }
+        registerUserUnlockReceiver();
     }
 
-    private void setupDebuggingThroughAdb() {
-        IntentFilter filter = new IntentFilter(DistantDisplayReceiver.DISTANT_DISPLAY);
-        DistantDisplayReceiver receiver = new DistantDisplayReceiver();
-        receiver.register(displayId -> {
-            mTaskViewController.unregister();
-            mTaskViewController.initialize(displayId);
-        });
-        ContextCompat.registerReceiver(mContext, receiver, filter, ContextCompat.RECEIVER_EXPORTED);
+    private void registerUserUnlockReceiver() {
+        UserUnlockReceiver.Callback callback = () -> {
+            mIsUserUnlocked = true;
+            startDistantDisplayActivity();
+        };
+        mUserUnlockReceiver.register(mContext, callback);
+    }
+
+    private void startDistantDisplayActivity() {
+        if (mUserSetupInProgress) {
+            Log.w(TAG, "user unlocked but suw still in progress, can't launch activity");
+            return;
+        }
+        if (!mIsUserUnlocked) {
+            Log.w(TAG, "user is NOT unlocked, can't launch activity");
+            return;
+        }
+        // check if the activity is already started.
+        if (mDistantDisplayActivityStarted) {
+            Log.w(TAG, "distant display activity already started");
+            return;
+        }
+        mTaskViewController.unregister();
+        mTaskViewController.initialize(mDistantDisplayId);
+        mDistantDisplayActivityStarted = true;
     }
 }

@@ -76,13 +76,5 @@
                 <action android:name="com.android.systemui.car.intent.action.MOVE_TASK"/>
             </intent-filter>
         </receiver>
-        <receiver
-            android:name=".car.distantdisplay.common.DistantDisplayReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.android.systemui.car.intent.action.DISTANT_DISPLAY"/>
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>
