@@ -17,4 +17,5 @@
 <resources>
     <!-- Specifies that the app theme has a light background with dark text on top -->
     <bool name="car_ui_is_light_theme">true</bool>
+    <bool name="car_ui_toolbar_nav_icon_reserve_space">false</bool>
 </resources>
