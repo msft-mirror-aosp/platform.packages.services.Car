@@ -50,7 +50,6 @@ import javax.inject.Inject;
 public class DistantDisplayController {
     public static final String TAG = DistantDisplayController.class.getSimpleName();
 
-    private final int mDistantDisplayId;
     private final PackageManager mPackageManager;
     private final MediaSessionManager mMediaSessionManager;
     private final Context mContext;
@@ -85,11 +84,13 @@ public class DistantDisplayController {
             new TaskViewController.Callback() {
                 @Override
                 public void topAppOnDisplayChanged(int displayId, String packageName) {
+                    int distantDisplayId = mTaskViewController.getDistantDisplayId();
                     if (displayId == Display.DEFAULT_DISPLAY) {
                         mTopPackageOnDefaultDisplay = packageName;
                         updateButtonState();
 
-                    } else if (displayId == mDistantDisplayId) {
+                    } else if (distantDisplayId != Display.INVALID_DISPLAY
+                            && displayId == distantDisplayId) {
                         mTopPackageOnDistantDisplay = packageName;
                         updateButtonState();
                     }
@@ -121,7 +122,6 @@ public class DistantDisplayController {
         mUserTracker = userTracker;
         mTaskViewController = taskViewController;
         mPackageManager = context.getPackageManager();
-        mDistantDisplayId = mContext.getResources().getInteger(R.integer.config_distantDisplayId);
         mDistantDisplayDrawable = mContext.getResources().getDrawable(
                 R.drawable.ic_distant_display_nav, /* theme= */ null);
         mDefaultDisplayDrawable = mContext.getResources().getDrawable(
@@ -241,7 +241,10 @@ public class DistantDisplayController {
         if (mStatusChangeListener == null) return;
 
         if (isVideoApp(mTopPackageOnDistantDisplay)) {
-            mStatusChangeListener.onDisplayChanged(mDistantDisplayId);
+            int distantDisplayId = mTaskViewController.getDistantDisplayId();
+            if (distantDisplayId != Display.INVALID_DISPLAY) {
+                mStatusChangeListener.onDisplayChanged(distantDisplayId);
+            }
             mStatusChangeListener.onVisibilityChanged(true);
         } else if (isVideoApp(mTopPackageOnDefaultDisplay)) {
             mStatusChangeListener.onDisplayChanged(Display.DEFAULT_DISPLAY);

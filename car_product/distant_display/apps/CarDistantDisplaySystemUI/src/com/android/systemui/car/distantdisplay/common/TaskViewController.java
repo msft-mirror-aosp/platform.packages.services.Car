@@ -26,19 +26,19 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
+import android.view.Display;
 
 import androidx.annotation.Nullable;
 
 import com.android.car.ui.utils.CarUxRestrictionsUtil;
 import com.android.systemui.R;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.car.distantdisplay.activity.DistantDisplayActivity;
 import com.android.systemui.car.distantdisplay.activity.MoveTaskReceiver;
-import com.android.systemui.car.distantdisplay.activity.RootTaskViewWallpaperActivity;
 import com.android.systemui.car.distantdisplay.util.AppCategoryDetector;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.settings.UserTracker;
@@ -69,14 +69,15 @@ public class TaskViewController {
     private final BroadcastDispatcher mBroadcastDispatcher;
     private final UserTracker mUserTracker;
     private final UserManager mUserManager;
-    private final DisplayManager mDisplayManager;
     private final List<Callback> mCallbacks = new ArrayList<>();
+
     private boolean mInitialized;
-    private int mDistantDisplayId;
+    private int mDistantDisplayId = Display.INVALID_DISPLAY;
     private final DistantDisplayForegroundTaskMap mForegroundTasks =
             new DistantDisplayForegroundTaskMap();
     private int mDistantDisplayRootWallpaperTaskId = INVALID_TASK_ID;
     private MoveTaskReceiver mMoveTaskReceiver;
+    private boolean mDistantDisplayActivityLaunched = false;
 
     private final CarUxRestrictionsUtil.OnUxRestrictionsChangedListener
             mOnUxRestrictionsChangedListener = carUxRestrictions -> {
@@ -91,8 +92,17 @@ public class TaskViewController {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (Objects.equals(intent.getAction(), Intent.ACTION_USER_UNLOCKED)) {
-                launchActivity(mDistantDisplayId,
-                        RootTaskViewWallpaperActivity.createIntent(mContext));
+                launchDistantDisplayActivity();
+            }
+        }
+    };
+
+    private final BroadcastReceiver mDistantDisplayActivityReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Objects.equals(intent.getAction(), "DistantDisplay_RootTaskViewDisplayId")) {
+                mDistantDisplayId = intent.getIntExtra("display_id", Display.INVALID_DISPLAY);
+                Log.i(TAG, "Update DistantDisplayId : " + mDistantDisplayId);
             }
         }
     };
@@ -135,8 +145,8 @@ public class TaskViewController {
                 // old task being moved away) - notify listeners
                 notifyListeners(DEFAULT_DISPLAY_ID);
             }
-            if (newDisplayId == mDistantDisplayId || (oldData != null
-                    && oldData.mDisplayId == mDistantDisplayId)) {
+            if (newDisplayId == mDistantDisplayId
+                    || (oldData != null && oldData.mDisplayId == mDistantDisplayId)) {
                 // Task on the distant display has changed  (by either a new task being added or an
                 // old task being moved away) - notify listeners
                 notifyListeners(mDistantDisplayId);
@@ -151,8 +161,7 @@ public class TaskViewController {
         mBroadcastDispatcher = broadcastDispatcher;
         mUserTracker = userTracker;
         mUserManager = context.getSystemService(UserManager.class);
-        mDisplayManager = context.getSystemService(DisplayManager.class);
-        mDistantDisplayId = mContext.getResources().getInteger(R.integer.config_distantDisplayId);
+        mDistantDisplayId = Display.INVALID_DISPLAY;
     }
 
     /**
@@ -160,12 +169,10 @@ public class TaskViewController {
      * Can only be called once - if reinitialization is required, {@link #unregister} must be called
      * before initialize is called again.
      */
-    public void initialize(int distantDisplayId) {
+    public void initialize() {
         if (mInitialized) return;
 
         mInitialized = true;
-        mDistantDisplayId = distantDisplayId;
-
         TaskStackChangeListeners.getInstance().registerTaskStackListener(mTaskStackChangeLister);
         CarUxRestrictionsUtil carUxRestrictionsUtil = CarUxRestrictionsUtil.getInstance(mContext);
         carUxRestrictionsUtil.register(mOnUxRestrictionsChangedListener);
@@ -176,14 +183,31 @@ public class TaskViewController {
 
             if (mUserManager.isUserUnlocked()) {
                 // User is already unlocked - immediately launch wallpaper activity
-                launchActivity(mDistantDisplayId,
-                        RootTaskViewWallpaperActivity.createIntent(mContext));
+                launchDistantDisplayActivity();
             }
             // Register user unlock receiver for future user switches and unlocks
             mBroadcastDispatcher.registerReceiver(mUserEventReceiver,
                     new IntentFilter(Intent.ACTION_USER_UNLOCKED),
                     /* executor= */ null, UserHandle.ALL);
         }
+    }
+
+    private void launchDistantDisplayActivity() {
+        if (mDistantDisplayActivityLaunched) {
+            Log.i(TAG, "DistantDisplayActivity was already launched");
+            return;
+        }
+        Log.i(TAG, "Starting DistantDisplayActivity");
+        ActivityOptions options = ActivityOptions.makeCustomAnimation(mContext, 0, 0);
+        int displayId = mContext.getResources().getInteger(R.integer.config_distantDisplayId);
+        options.setLaunchDisplayId(displayId);
+        mContext.startActivityAsUser(DistantDisplayActivity.createIntent(mContext),
+                options.toBundle(), UserHandle.CURRENT);
+
+        mBroadcastDispatcher.registerReceiver(mDistantDisplayActivityReceiver,
+                new IntentFilter("DistantDisplay_RootTaskViewDisplayId"),
+                /* executor= */ null, UserHandle.ALL);
+        mDistantDisplayActivityLaunched = true;
     }
 
     /** Unregister listeners - call before re-initialization. */
@@ -199,6 +223,7 @@ public class TaskViewController {
             mContext.unregisterReceiver(mMoveTaskReceiver);
             mMoveTaskReceiver = null;
             mBroadcastDispatcher.unregisterReceiver(mUserEventReceiver);
+            mBroadcastDispatcher.unregisterReceiver(mDistantDisplayActivityReceiver);
         }
     }
 
@@ -246,8 +271,7 @@ public class TaskViewController {
         Log.i(TAG, "Handling movement command : " + movement);
         if (movement.equals(MoveTaskReceiver.MOVE_FROM_DISTANT_DISPLAY)
                 && !mForegroundTasks.isEmpty()) {
-            TaskData data = mForegroundTasks.getTopTaskOnDisplay(
-                    mDistantDisplayId);
+            TaskData data = mForegroundTasks.getTopTaskOnDisplay(mDistantDisplayId);
             if (data == null || data.mTaskId == mDistantDisplayRootWallpaperTaskId) return;
             moveTaskToDisplay(data.mTaskId, DEFAULT_DISPLAY_ID);
         } else if (movement.equals(MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY)
@@ -282,20 +306,6 @@ public class TaskViewController {
                 packageName);
     }
 
-    /**
-     * Provides a DisplayManager.
-     * This method will be called from the SurfaceHolderCallback to create a virtual display.
-     */
-    public DisplayManager getDisplayManager() {
-        return mDisplayManager;
-    }
-
-    private void launchActivity(int displayId, Intent intent) {
-        ActivityOptions options = ActivityOptions.makeCustomAnimation(mContext, 0, 0);
-        options.setLaunchDisplayId(displayId);
-        mContext.startActivityAsUser(intent, options.toBundle(), mUserTracker.getUserHandle());
-    }
-
     @Nullable
     private String getPackageNameFromBaseIntent(Intent intent) {
         if (intent == null || intent.getComponent() == null) {
@@ -320,7 +330,9 @@ public class TaskViewController {
     }
 
     private void notifyListeners(int displayId) {
-        if (displayId != DEFAULT_DISPLAY_ID && displayId != mDistantDisplayId) return;
+        if (displayId != DEFAULT_DISPLAY_ID && displayId != mDistantDisplayId) {
+            return;
+        }
         String pkg;
         TaskData data = mForegroundTasks.getTopTaskOnDisplay(displayId);
         if (data != null) {
@@ -328,7 +340,6 @@ public class TaskViewController {
         } else {
             pkg = null;
         }
-
         notifyListeners(displayId, pkg);
     }
 
@@ -338,6 +349,11 @@ public class TaskViewController {
                 callback.topAppOnDisplayChanged(displayId, pkg);
             }
         }
+    }
+
+    /** Get the displayId of DistantDisplay. */
+    public int getDistantDisplayId() {
+        return mDistantDisplayId;
     }
 
     /** Callback to listen to task changes on the default and distant displays. */

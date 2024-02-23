@@ -19,7 +19,6 @@ import android.content.Context;
 import android.os.Build;
 import android.util.Log;
 
-import com.android.systemui.R;
 import com.android.systemui.car.CarDeviceProvisionedController;
 import com.android.systemui.car.CarDeviceProvisionedListener;
 import com.android.systemui.car.distantdisplay.common.TaskViewController;
@@ -40,7 +39,6 @@ public class ActivityWindowController {
     private final UserUnlockReceiver mUserUnlockReceiver = new UserUnlockReceiver();
     private static final boolean DEBUG = Build.IS_ENG || Build.IS_USERDEBUG;
     private final Context mContext;
-    private final int mDistantDisplayId;
     private final CarDeviceProvisionedController mCarDeviceProvisionedController;
     private final TaskViewController mTaskViewController;
     private boolean mUserSetupInProgress;
@@ -63,8 +61,6 @@ public class ActivityWindowController {
             CarDeviceProvisionedController deviceProvisionedController,
             TaskViewController taskViewController) {
         mContext = context;
-        mDistantDisplayId =
-                mContext.getResources().getInteger(R.integer.config_distantDisplayId);
         mCarDeviceProvisionedController = deviceProvisionedController;
         mCarDeviceProvisionedController.addCallback(mCarDeviceProvisionedListener);
         mTaskViewController = taskViewController;
@@ -100,7 +96,7 @@ public class ActivityWindowController {
             return;
         }
         mTaskViewController.unregister();
-        mTaskViewController.initialize(mDistantDisplayId);
+        mTaskViewController.initialize();
         mDistantDisplayActivityStarted = true;
     }
 }

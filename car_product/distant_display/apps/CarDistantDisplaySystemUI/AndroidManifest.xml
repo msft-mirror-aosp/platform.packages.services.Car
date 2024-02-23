@@ -58,10 +58,32 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".car.distantdisplay.activity.NavigationTaskViewWallpaperActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:documentLaunchMode="always"
+            android:excludeFromRecents="true">
+            <meta-data android:name="distractionOptimized" android:value="true"/>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".car.distantdisplay.activity.RootTaskViewWallpaperActivity"
             android:exported="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
-            android:documentLaunchMode="never"
+            android:documentLaunchMode="always"
+            android:excludeFromRecents="true">
+            <meta-data android:name="distractionOptimized" android:value="true"/>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".car.distantdisplay.activity.DistantDisplayActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:documentLaunchMode="always"
             android:excludeFromRecents="true">
             <meta-data android:name="distractionOptimized" android:value="true"/>
             <intent-filter>
