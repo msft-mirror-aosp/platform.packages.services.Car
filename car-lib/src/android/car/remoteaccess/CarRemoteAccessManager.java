@@ -28,6 +28,9 @@ import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarManagerBase;
+import android.car.feature.FeatureFlags;
+import android.car.feature.FeatureFlagsImpl;
+import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -35,6 +38,7 @@ import android.util.Log;
 
 import com.android.car.internal.ICarBase;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
 import java.lang.annotation.ElementType;
@@ -138,8 +142,47 @@ public final class CarRemoteAccessManager extends CarManagerBase {
     @Target({ElementType.TYPE_USE})
     public @interface NextPowerState {}
 
+    /**
+     * Custom task. The task data is opaque to framework.
+     *
+     * @hide
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
+    public static final int TASK_TYPE_CUSTOM = 0;
+
+    /**
+     * Schedule to enter garage mode if the vehicle is off.
+     *
+     * taskData is ignore for this type.
+     *
+     * @hide
+     */
+    @SystemApi
+    @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
+    public static final int TASK_TYPE_ENTER_GARAGE_MODE = 1;
+
+    /** @hide */
+    @IntDef(prefix = {"TASK_TYPE_"}, value = {
+            TASK_TYPE_CUSTOM,
+            TASK_TYPE_ENTER_GARAGE_MODE,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface TaskType {}
+
     private final ICarRemoteAccessService mService;
     private final Object mLock = new Object();
+    private FeatureFlags mFeatureFlags = new FeatureFlagsImpl();
+
+    /**
+     * Sets fake feature flag for unit testing.
+     *
+     * @hide
+     */
+    @VisibleForTesting
+    public void setFeatureFlags(FeatureFlags fakeFeatureFlags) {
+        mFeatureFlags = fakeFeatureFlags;
+    }
 
     private final class CarRemoteAccessCallback extends ICarRemoteAccessCallback.Stub {
         @Override
@@ -156,6 +199,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                 callback = mRemoteTaskClientCallback;
                 executor = mExecutor;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() -> callback.onRegistrationUpdated(registrationInfo));
         }
 
@@ -173,7 +217,13 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                 callback = mRemoteTaskClientCallback;
                 executor = mExecutor;
             }
-            executor.execute(() -> callback.onServerlessClientRegistered());
+            if (mFeatureFlags.serverlessRemoteAccess()) {
+                Binder.clearCallingIdentity();
+                executor.execute(() -> callback.onServerlessClientRegistered());
+            } else {
+                Log.e(TAG, "Serverless remote access flag is not enabled, "
+                        + "the callback must not be called");
+            }
         }
 
         @Override
@@ -189,6 +239,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                 callback = mRemoteTaskClientCallback;
                 executor = mExecutor;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() -> callback.onRegistrationFailed());
         }
 
@@ -211,6 +262,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                         + "registered");
                 return;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() -> callback.onRemoteTaskRequested(taskId, data,
                     taskMaxDurationInSec));
         }
@@ -230,6 +282,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                         + "registered");
                 return;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() ->
                     callback.onShutdownStarting(new MyCompletableRemoteTaskFuture(clientId)));
         }
@@ -297,6 +350,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
          * <p>The serverless remote task client is configured via including a runtime config file
          * at {@code /vendor/etc/}
          */
+        @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
         default void onServerlessClientRegistered() {
             Log.i(TAG, "onServerlessClientRegistered called");
         }
@@ -569,11 +623,12 @@ public final class CarRemoteAccessManager extends CarManagerBase {
         @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
         public static final class Builder {
             private String mScheduleId;
-            private byte[] mTaskData;
+            private @TaskType int mTaskType;
+            private byte[] mTaskData = new byte[0];
             // By default the task is to be executed once.
             private int mCount = 1;
             private long mStartTimeInEpochSeconds;
-            private Duration mPeriodic;
+            private Duration mPeriodic = Duration.ZERO;
             private boolean mBuilderUsed;
 
             /**
@@ -603,8 +658,6 @@ public final class CarRemoteAccessManager extends CarManagerBase {
              *
              * @param scheduleId A unique ID to identify this scheduling. Must be unique among all
              *      pending schedules for this client.
-             * @param taskData The opaque task data that will be sent back via
-             *      {@link onRemoteTaskRequested} when the task is to be executed.
              * @param mStartTimeInEpochSeconds When the task is scheduled to be executed in epoch
              *      seconds. It is not guaranteed that the task will be executed exactly at this
              *      time (or be executed at all). Typically the task will be executed at a time
@@ -612,15 +665,33 @@ public final class CarRemoteAccessManager extends CarManagerBase {
              *      system and starting the remote task client.
              */
             @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
-            public Builder(@NonNull String scheduleId, @NonNull byte[] taskData,
+            public Builder(@NonNull String scheduleId, @TaskType int taskType,
                     long startTimeInEpochSeconds) {
                 Preconditions.checkArgument(scheduleId != null, "scheduleId must not be null");
-                Preconditions.checkArgument(taskData != null, "taskData must not be null");
+                Preconditions.checkArgument(
+                        taskType == TASK_TYPE_CUSTOM || taskType == TASK_TYPE_ENTER_GARAGE_MODE,
+                        "unsupported task type: " + taskType);
                 Preconditions.checkArgument(startTimeInEpochSeconds > 0,
                         "startTimeInEpochSeconds must > 0");
                 mScheduleId = scheduleId;
-                mTaskData = taskData;
+                mTaskType = taskType;
                 mStartTimeInEpochSeconds = startTimeInEpochSeconds;
+            }
+
+            /**
+             * Sets the task data.
+             *
+             * @param taskData The opaque task data that will be sent back via
+             *      {@link onRemoteTaskRequested} when the task is to be executed. This field is
+             *      ignored if task type is ENTER_GARAGE_MODE. If this is not set, task data is
+             *      empty.
+             */
+            @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
+            @NonNull
+            public Builder setTaskData(@NonNull byte[] taskData) {
+                Preconditions.checkArgument(taskData != null, "taskData must not be null");
+                mTaskData = taskData.clone();
+                return this;
             }
 
             /**
@@ -676,12 +747,12 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                 if (mCount == 1) {
                     mPeriodic = Duration.ZERO;
                 }
-                return new ScheduleInfo(mScheduleId, mTaskData, mCount, mStartTimeInEpochSeconds,
-                        mPeriodic);
+                return new ScheduleInfo(this);
             }
         };
 
         private String mScheduleId;
+        private @TaskType int mTaskType;
         private byte[] mTaskData;
         private int mCount;
         private long mStartTimeInEpochSeconds;
@@ -691,6 +762,11 @@ public final class CarRemoteAccessManager extends CarManagerBase {
         @NonNull
         public String getScheduleId() {
             return mScheduleId;
+        }
+
+        @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
+        public @TaskType int getTaskType() {
+            return mTaskType;
         }
 
         @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
@@ -715,13 +791,17 @@ public final class CarRemoteAccessManager extends CarManagerBase {
             return mPeriodic;
         }
 
-        private ScheduleInfo(@NonNull String scheduleId, @NonNull byte[] taskData, int count,
-                long startTimeInEpochSeconds, @NonNull Duration periodic) {
-            mScheduleId = scheduleId;
-            mTaskData = taskData;
-            mCount = count;
-            mStartTimeInEpochSeconds = startTimeInEpochSeconds;
-            mPeriodic = periodic;
+        private ScheduleInfo(Builder builder) {
+            mScheduleId = builder.mScheduleId;
+            mTaskType = builder.mTaskType;
+            if (builder.mTaskData != null) {
+                mTaskData = builder.mTaskData;
+            } else {
+                mTaskData = new byte[0];
+            }
+            mCount = builder.mCount;
+            mStartTimeInEpochSeconds = builder.mStartTimeInEpochSeconds;
+            mPeriodic = builder.mPeriodic;
         }
     };
 
@@ -758,6 +838,22 @@ public final class CarRemoteAccessManager extends CarManagerBase {
          * Please use {@link getInVehicleTaskScheduler} to create.
          */
         private InVehicleTaskScheduler() {}
+
+        /**
+         * Gets supported schedule task type.
+         *
+         * @return a list of supported task types as defined by {@link TaskType}.
+         * @throws InVehicleTaskSchedulerException if unable to get supported schedule task type.
+         *
+         * @hide
+         */
+        @SystemApi
+        @FlaggedApi(FLAG_SERVERLESS_REMOTE_ACCESS)
+        @RequiresPermission(Car.PERMISSION_CONTROL_REMOTE_ACCESS)
+        public @NonNull int[] getSupportedTaskTypes() throws InVehicleTaskSchedulerException {
+            // TODO(b/326134123): Implement this.
+            return new int[]{TASK_TYPE_CUSTOM};
+        }
 
         /**
          * Schedules a task to be executed later even when the vehicle is off.
@@ -925,20 +1021,20 @@ public final class CarRemoteAccessManager extends CarManagerBase {
         }
 
         private static ScheduleInfo fromTaskScheduleInfo(TaskScheduleInfo taskScheduleInfo) {
-            return new ScheduleInfo.Builder(taskScheduleInfo.scheduleId, taskScheduleInfo.taskData,
-                    taskScheduleInfo.startTimeInEpochSeconds).setCount(taskScheduleInfo.count)
+            return new ScheduleInfo.Builder(taskScheduleInfo.scheduleId,
+                    taskScheduleInfo.taskType, taskScheduleInfo.startTimeInEpochSeconds)
+                    .setTaskData(taskScheduleInfo.taskData).setCount(taskScheduleInfo.count)
                     .setPeriodic(Duration.ofSeconds(taskScheduleInfo.periodicInSeconds)).build();
         }
 
         private static TaskScheduleInfo toTaskScheduleInfo(ScheduleInfo scheduleInfo) {
             TaskScheduleInfo taskScheduleInfo = new TaskScheduleInfo();
+            taskScheduleInfo.taskType = scheduleInfo.getTaskType();
             taskScheduleInfo.scheduleId = scheduleInfo.getScheduleId();
             taskScheduleInfo.taskData = scheduleInfo.getTaskData();
             taskScheduleInfo.count = scheduleInfo.getCount();
             taskScheduleInfo.startTimeInEpochSeconds = scheduleInfo.getStartTimeInEpochSeconds();
-            if (scheduleInfo.getPeriodic() != null) {
-                taskScheduleInfo.periodicInSeconds = scheduleInfo.getPeriodic().getSeconds();
-            }
+            taskScheduleInfo.periodicInSeconds = scheduleInfo.getPeriodic().getSeconds();
             return taskScheduleInfo;
         }
     }

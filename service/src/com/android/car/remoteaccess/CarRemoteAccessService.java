@@ -29,6 +29,8 @@ import android.app.ActivityManager;
 import android.car.Car;
 import android.car.builtin.os.HandlerHelper;
 import android.car.builtin.util.Slogf;
+import android.car.feature.FeatureFlags;
+import android.car.feature.FeatureFlagsImpl;
 import android.car.hardware.power.CarPowerManager;
 import android.car.hardware.power.ICarPowerStateListener;
 import android.car.remoteaccess.CarRemoteAccessManager;
@@ -51,6 +53,7 @@ import android.content.pm.ServiceInfo;
 import android.content.res.XmlResourceParser;
 import android.hardware.automotive.remoteaccess.IRemoteAccess;
 import android.hardware.automotive.remoteaccess.ScheduleInfo;
+import android.hardware.automotive.remoteaccess.TaskType;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Handler;
@@ -178,6 +181,16 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
 
     private final RemoteAccessStorage mRemoteAccessStorage;
 
+    private FeatureFlags mFeatureFlags = new FeatureFlagsImpl();
+
+    /**
+     * Sets fake feature flag for unit testing.
+     */
+    @VisibleForTesting
+    public void setFeatureFlags(FeatureFlags fakeFeatureFlags) {
+        mFeatureFlags = fakeFeatureFlags;
+    }
+
     private final ICarPowerStateListener mCarPowerStateListener =
             new ICarPowerStateListener.Stub() {
         @Override
@@ -289,7 +302,7 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
             }
             if (serviceInfo == null) {
                 Slogf.w(TAG, "Notifying task is delayed: the remote client service information "
-                        + "for %s is not registered yet", uidName);
+                        + "for %s is not registered yet", clientId);
                 // We don't have to start the service explicitly because it will be started
                 // after searching for remote task client service is done.
                 return;
@@ -540,6 +553,8 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
             printMap(writer, mClientServiceInfoByUid);
             writer.println("mUidAByName:");
             printMap(writer, mUidByName);
+            writer.println("mUidByClientId:");
+            printMap(writer, mUidByClientId);
             writer.println("mServerlessClientIdsByPackageName:");
             printMap(writer, mServerlessClientIdsByPackageName);
             writer.println("mTasksToBeNotifiedByClientId");
@@ -612,7 +627,33 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
         synchronized (mLock) {
             uidName = getNameForUidLocked(callingUid);
             Slogf.i(TAG, "addCarRemoteTaskClient from uid: %s", uidName);
+
+            String packageName = getPackageNameForCallingUid(callingUid);
+            boolean isServerless = mServerlessClientIdsByPackageName.containsKey(packageName);
+
+            if (isServerless) {
+                Slogf.i(TAG, "addCarRemoteTaskClient called from a serverless remote access "
+                        + "client: " + packageName);
+            }
+
             token = mClientTokenByUidName.get(uidName);
+
+            if (isServerless && token != null
+                    && !(token.getClientId().equals(
+                            mServerlessClientIdsByPackageName.get(packageName)))) {
+                Slogf.w(TAG, "client: " + packageName + " is a serverless remote access client "
+                        + "but has a different client ID, clear the previous client ID record");
+                // In a rare case if the same client was previously not configured as a serverless
+                // client, hence had a different client ID. But now it has become a serverless
+                // remote access client. We must clear the previous record.
+                mUidByClientId.remove(token.getClientId());
+                mClientTokenByUidName.remove(uidName);
+                if (token.getCallback() != null) {
+                    token.getCallback().asBinder().unlinkToDeath(token, /* flags= */ 0);
+                }
+                token = null;
+            }
+
             if (token != null) {
                 // This is an already registered client.
                 ICarRemoteAccessCallback oldCallback = token.getCallback();
@@ -621,17 +662,13 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
                 }
             } else {
                 // This is a new client.
-                String packageName = getPackageNameForCallingUid(callingUid);
                 String clientId;
-                boolean isServerless;
-                if (mServerlessClientIdsByPackageName.containsKey(packageName)) {
+                if (isServerless) {
                     // This is a serverless remote task client. Use the preconfigured client ID.
                     clientId = mServerlessClientIdsByPackageName.get(packageName);
-                    isServerless = true;
                 } else {
                     // For regular remote task client, create a new random client ID.
                     clientId = generateNewClientId();
-                    isServerless = false;
                 }
                 // Creates a new client token with a null callback. The callback will be registered
                 // in postRegistrationUpdated.
@@ -828,6 +865,17 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
         ScheduleInfo halScheduleInfo = new ScheduleInfo();
         String clientId = getServerlessCallerClientId();
         halScheduleInfo.clientId = clientId;
+        switch (scheduleInfo.taskType) {
+            case CarRemoteAccessManager.TASK_TYPE_CUSTOM:
+                halScheduleInfo.taskType = TaskType.CUSTOM;
+                break;
+            case CarRemoteAccessManager.TASK_TYPE_ENTER_GARAGE_MODE:
+                halScheduleInfo.taskType = TaskType.ENTER_GARAGE_MODE;
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported task type: "
+                        + scheduleInfo.taskType);
+        }
         halScheduleInfo.scheduleId = scheduleInfo.scheduleId;
         halScheduleInfo.taskData = scheduleInfo.taskData;
         halScheduleInfo.count = scheduleInfo.count;
@@ -911,6 +959,19 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
                 taskScheduleInfo.count = halScheduleInfo.count;
                 taskScheduleInfo.startTimeInEpochSeconds = halScheduleInfo.startTimeInEpochSeconds;
                 taskScheduleInfo.periodicInSeconds = halScheduleInfo.periodicInSeconds;
+                switch (halScheduleInfo.taskType) {
+                    case TaskType.CUSTOM:
+                        taskScheduleInfo.taskType = CarRemoteAccessManager.TASK_TYPE_CUSTOM;
+                        break;
+                    case TaskType.ENTER_GARAGE_MODE:
+                        taskScheduleInfo.taskType =
+                                CarRemoteAccessManager.TASK_TYPE_ENTER_GARAGE_MODE;
+                        break;
+                    default:
+                        Slogf.e(TAG, "Unknown task type returned by remote access HAL for: "
+                                + taskScheduleInfo + ", default to TASK_TYPE_CUSTOM");
+                        taskScheduleInfo.taskType = CarRemoteAccessManager.TASK_TYPE_CUSTOM;
+                }
                 taskScheduleInfoList.add(taskScheduleInfo);
             }
             return taskScheduleInfoList;
@@ -1046,6 +1107,13 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
 
     private ArrayMap<String, String> parseServerlessClientIdsByPackageName() {
         ArrayMap<String, String> clientIdsByPackageName = new ArrayMap<>();
+
+        if (!mFeatureFlags.serverlessRemoteAccess()) {
+            Slogf.i(TAG, "Serverless remote access flag is disabled, skip parsing "
+                    + "remote_access_serverless_client_map.xml");
+            return clientIdsByPackageName;
+        }
+
         try (XmlResourceParser parser = mContext.getResources().getXml(
                 R.xml.remote_access_serverless_client_map)) {
             // Get to the first start tag.

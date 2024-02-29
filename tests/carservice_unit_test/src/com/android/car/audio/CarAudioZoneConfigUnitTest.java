@@ -22,6 +22,8 @@ import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_MUTE_CHANGED;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE;
 import static android.media.AudioAttributes.USAGE_ASSISTANT;
 import static android.media.AudioAttributes.USAGE_MEDIA;
+import static android.media.FadeManagerConfiguration.FADE_STATE_DISABLED;
+import static android.media.audiopolicy.Flags.FLAG_ENABLE_FADE_MANAGER_CONFIGURATION;
 
 import static com.android.car.audio.CarAudioContext.AudioContext;
 
@@ -37,14 +39,19 @@ import static java.util.Collections.EMPTY_LIST;
 import android.car.media.CarAudioZoneConfigInfo;
 import android.car.media.CarVolumeGroupEvent;
 import android.car.media.CarVolumeGroupInfo;
+import android.car.oem.CarAudioFadeConfiguration;
 import android.car.test.AbstractExpectableTestCase;
 import android.hardware.automotive.audiocontrol.AudioGainConfigInfo;
 import android.hardware.automotive.audiocontrol.Reasons;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.FadeManagerConfiguration;
+import android.platform.test.flag.junit.SetFlagsRule;
+import android.util.ArrayMap;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -52,6 +59,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.List;
+import java.util.Map;
 
 @RunWith(MockitoJUnitRunner.class)
 public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase {
@@ -67,8 +75,8 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     private static final String TEST_VOICE_GROUP_NAME = "Voice group name";
     private static final int TEST_ZONE_ID = 0;
     private static final int TEST_MUSIC_GROUP_ID = 0;
-    private static final int TEST_NAV_GROUP_ID = 20;
-    private static final int TEST_VOICE_GROUP_ID = 30;
+    private static final int TEST_NAV_GROUP_ID = 1;
+    private static final int TEST_VOICE_GROUP_ID = 2;
 
     private static final AudioAttributes TEST_MEDIA_ATTRIBUTE =
             CarAudioContext.getAudioAttributeFromUsage(USAGE_MEDIA);
@@ -89,6 +97,10 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     @AudioContext
     private static final int TEST_NAVIGATION_CONTEXT =
             TEST_CAR_AUDIO_CONTEXT.getContextForAudioAttribute(TEST_NAVIGATION_ATTRIBUTE);
+    private static final FadeManagerConfiguration TEST_FADE_MANAGER_CONFIG_DISABLED =
+            new FadeManagerConfiguration.Builder().setFadeState(FADE_STATE_DISABLED).build();
+    private static final FadeManagerConfiguration TEST_FADE_MANAGER_CONFIG_ENABLED =
+            new FadeManagerConfiguration.Builder().build();
 
     @Mock
     private CarVolumeGroup mMockMusicGroup;
@@ -101,6 +113,9 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
 
     private CarAudioZoneConfig.Builder mTestAudioZoneConfigBuilder;
 
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
+
     @Before
     public void setUp() {
         mTestAudioZoneConfigBuilder = new CarAudioZoneConfig.Builder(TEST_ZONE_CONFIG_NAME,
@@ -108,19 +123,25 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
 
         mMockMusicGroup = new VolumeGroupBuilder().setName(TEST_MUSIC_GROUP_NAME)
                 .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS)
-                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_MUSIC_GROUP_ID).build();
+                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_MUSIC_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_MEDIA, MUSIC_ADDRESS).build();
 
         mMockInactiveMusicGroup = new VolumeGroupBuilder().setName(TEST_MUSIC_GROUP_NAME)
                 .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS)
-                .setZoneId(TEST_ZONE_ID).setIsActive(false).setGroupId(TEST_MUSIC_GROUP_ID).build();
+                .setZoneId(TEST_ZONE_ID).setIsActive(false).setGroupId(TEST_MUSIC_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_MEDIA, MUSIC_ADDRESS).build();
 
         mMockNavGroup = new VolumeGroupBuilder().setName(TEST_NAV_GROUP_NAME)
                 .addDeviceAddressAndContexts(TEST_NAVIGATION_CONTEXT, NAV_ADDRESS)
-                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_NAV_GROUP_ID).build();
+                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_NAV_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE, NAV_ADDRESS)
+                .build();
 
         mMockVoiceGroup = new VolumeGroupBuilder().setName(TEST_VOICE_GROUP_NAME)
                 .addDeviceAddressAndContexts(TEST_ASSISTANT_CONTEXT, VOICE_ADDRESS)
-                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_VOICE_GROUP_ID).build();
+                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_VOICE_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_ASSISTANT, VOICE_ADDRESS)
+                .build();
     }
 
     @Test
@@ -592,6 +613,26 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
+    public void getVolumeGroupForAudioAttributes() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+
+        expectWithMessage("Audio attributes in car audio zone config")
+                .that(zoneConfig.getVolumeGroupForAudioAttributes(TEST_NAVIGATION_ATTRIBUTE))
+                .isEqualTo(mMockNavGroup);
+    }
+
+    @Test
+    public void getVolumeGroupForAudioAttributes_withAttributeNotFound() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+
+        expectWithMessage("Audio attributes not in car audio zone config")
+                .that(zoneConfig.getVolumeGroupForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE))
+                .isNull();
+    }
+
+    @Test
     public void getAudioDeviceInfosSupportingDynamicMix() {
         AudioDeviceInfo musicAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
         AudioDeviceAttributes musicDeviceAttributes =
@@ -774,6 +815,184 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
 
         expectWithMessage("Audio devices removed null devices exception").that(thrown)
                 .hasMessageThat().contains("Audio devices");
+    }
+
+    @Test
+    public void setDefaultCarAudioFadeConfiguration_forNullAudioFadeConfigurtion_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioZoneConfig.Builder zoneConfigBuilder = mTestAudioZoneConfigBuilder;
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfigBuilder.setDefaultCarAudioFadeConfiguration(
+                        /* carAudioFadeConfiguration= */ null));
+
+        expectWithMessage("Set car audio fade configuration for default with null config exception")
+                .that(thrown).hasMessageThat()
+                .contains("Car audio fade configuration for default");
+    }
+
+    @Test
+    public void setCarAudioFadeConfigurationForAudioAttributes_withNullConfig_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioZoneConfig.Builder zoneConfigBuilder = mTestAudioZoneConfigBuilder;
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfigBuilder.setCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_MEDIA_ATTRIBUTE, /* carAudioFadeConfiguration= */ null));
+
+        expectWithMessage("Set car audio fade configuration with null config exception")
+                .that(thrown).hasMessageThat()
+                .contains("Car audio fade configuration for audio attributes");
+    }
+
+    @Test
+    public void setCarAudioFadeConfigurationForAudioAttributes_forNullAudioAttributes_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioZoneConfig.Builder zoneConfigBuilder = mTestAudioZoneConfigBuilder;
+        CarAudioFadeConfiguration carAudioFadeConfiguration =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfigBuilder.setCarAudioFadeConfigurationForAudioAttributes(
+                        /* audioAttributes= */ null, carAudioFadeConfiguration));
+
+        expectWithMessage("Set car audio fade configuration for null audio attributes exception")
+                .that(thrown).hasMessageThat().contains("Audio attributes");
+    }
+
+    @Test
+    public void getDefaultCarAudioFadeConfiguration_whenFeatureEnabled_matches() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration carAudioFadeConfiguration =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setDefaultCarAudioFadeConfiguration(carAudioFadeConfiguration).build();
+
+        expectWithMessage("Default car audio fade configuration when feature is enabled")
+                .that(zoneConfig.getDefaultCarAudioFadeConfiguration())
+                .isEqualTo(carAudioFadeConfiguration);
+    }
+
+    @Test
+    public void getDefaultCarAudioFadeConfiguration_whenFeatureDisabled_returnsNull() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ false)
+                .setDefaultCarAudioFadeConfiguration(afcEnabled).build();
+
+        expectWithMessage("Default car audio fade configuration when feature is disabled")
+                .that(zoneConfig.getDefaultCarAudioFadeConfiguration()).isNull();
+    }
+
+    @Test
+    public void getCarAudioFadeConfigurationForAudioAttributes_forNullAudioAttributes_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        /* audioAttributes= */ null));
+
+        expectWithMessage("Get car audio fade configuration for null audio attributes exception")
+                .that(thrown).hasMessageThat().contains("Audio attributes cannot");
+    }
+
+    @Test
+    public void getCarAudioFadeConfigurationForAudioAttributes_whenFeatureEnabled_matches() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Car audio fade configuration for media when feature is enabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_MEDIA_ATTRIBUTE))
+                .isEqualTo(afcEnabled);
+        expectWithMessage("Car audio fade configuration for assistant when feature is enabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_ASSISTANT_ATTRIBUTE))
+                .isEqualTo(afcDisabled);
+    }
+
+    @Test
+    public void getCarAudioFadeConfigurationForAudioAttributes_whenFeatureDisabled_returnsNull() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ false)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Car audio fade configuration for media when feature is disabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_MEDIA_ATTRIBUTE)).isNull();
+        expectWithMessage("Car audio fade configuration for assistant when feature is disabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_ASSISTANT_ATTRIBUTE)).isNull();
+    }
+
+    @Test
+    public void getAllTransientCarAudioFadeConfigurations_whenFeatureEnabled_matches() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        Map<AudioAttributes, CarAudioFadeConfiguration> transientConfigs = new ArrayMap<>();
+        transientConfigs.put(TEST_MEDIA_ATTRIBUTE, afcEnabled);
+        transientConfigs.put(TEST_ASSISTANT_ATTRIBUTE, afcDisabled);
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Transient car audio fade configurations when feature is enabled")
+                .that(zoneConfig.getAllTransientCarAudioFadeConfigurations())
+                .isEqualTo(transientConfigs);
+    }
+
+    @Test
+    public void getAllTransientCarAudioFadeConfigurations_whenFeatureDisabled_returnsEmpty() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ false)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Transient car audio fade configurations when feature is disabled")
+                .that(zoneConfig.getAllTransientCarAudioFadeConfigurations()).isEmpty();
     }
 
     private CarAudioZoneConfig buildZoneConfig(List<CarVolumeGroup> volumeGroups) {
