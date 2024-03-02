@@ -36,6 +36,7 @@
 
     <!-- Permission to get car driving state -->
     <uses-permission android:name="android.car.permission.CAR_DRIVING_STATE"/>
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL"/>
 
     <!-- Permission to get outside temperature -->
     <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT"/>
@@ -57,10 +58,21 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".car.distantdisplay.activity.NavigationTaskViewWallpaperActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:documentLaunchMode="always"
+            android:excludeFromRecents="true">
+            <meta-data android:name="distractionOptimized" android:value="true"/>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".car.distantdisplay.activity.RootTaskViewWallpaperActivity"
             android:exported="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
-            android:documentLaunchMode="never"
+            android:documentLaunchMode="always"
             android:excludeFromRecents="true">
             <meta-data android:name="distractionOptimized" android:value="true"/>
             <intent-filter>
@@ -71,7 +83,7 @@
             android:name=".car.distantdisplay.activity.DistantDisplayActivity"
             android:exported="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
-            android:documentLaunchMode="never"
+            android:documentLaunchMode="always"
             android:excludeFromRecents="true">
             <meta-data android:name="distractionOptimized" android:value="true"/>
             <intent-filter>
