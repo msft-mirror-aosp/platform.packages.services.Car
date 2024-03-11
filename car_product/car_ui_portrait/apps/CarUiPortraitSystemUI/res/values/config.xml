@@ -65,4 +65,7 @@
     <string name="config_VoiceAssistantActivity" translatable="false">
         com.google.android.carassistant/com.google.android.apps.gsa.binaries.auto.app.voiceplate.VoicePlateActivity
     </string>
+
+    <!-- Blocking activity feature flag -->
+    <bool name="config_enableAppBlockingActivities">false</bool>
 </resources>
