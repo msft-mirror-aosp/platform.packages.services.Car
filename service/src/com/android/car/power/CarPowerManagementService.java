@@ -35,7 +35,6 @@ import android.automotive.powerpolicy.internal.PowerPolicyInitData;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
 import android.car.ICarResultReceiver;
-import android.car.PlatformVersion;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.HandlerHelper;
@@ -1871,6 +1870,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      */
     @Override
     public void applyPowerPolicy(String policyId) {
+        Slogf.i(TAG, "applyPowerPolicy(%s) from binder", policyId);
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CONTROL_CAR_POWER_POLICY);
         Preconditions.checkArgument(policyId != null, "policyId cannot be null");
         Preconditions.checkArgument(!policyId.startsWith(PolicyReader.SYSTEM_POWER_POLICY_PREFIX),
@@ -1889,6 +1889,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      */
     @Override
     public void setPowerPolicyGroup(String policyGroupId) throws RemoteException {
+        Slogf.i(TAG, "setPowerPolicyGroup(%s)", policyGroupId);
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CONTROL_CAR_POWER_POLICY);
         Preconditions.checkArgument(policyGroupId != null, "policyGroupId cannot be null");
         if (mFeatureFlags.carPowerPolicyRefactoring()) {
@@ -2454,6 +2455,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void cancelPreemptivePowerPolicy() {
+        Slogf.i(TAG, "Canceling preemptive power policy");
         String policyId;
         synchronized (mLock) {
             if (!mIsPowerPolicyLocked) {
@@ -3252,6 +3254,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             return false;
         }
         int status;
+        Slogf.i(TAG, "Applying power policy(%s) from shell command", powerPolicyId);
         if (mFeatureFlags.carPowerPolicyRefactoring()) {
             status = applyPowerPolicy(powerPolicyId, /* delayNotification= */ false,
                     /* upToDaemon= */ false, /* force= */ false);
@@ -3429,6 +3432,26 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     public void setSilentMode(String silentMode) {
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CAR_POWER);
         mSilentModeHandler.setSilentMode(silentMode);
+        if (mFeatureFlags.carPowerPolicyRefactoring()) {
+            ICarPowerPolicyDelegate daemon;
+            synchronized (mLock) {
+                daemon = mRefactoredCarPowerPolicyDaemon;
+            }
+            if (daemon != null) {
+                try {
+                    daemon.setSilentMode(silentMode);
+                } catch (RemoteException e) {
+                    Slogf.e(TAG, e, "Failed to notify car power policy daemon of the new silent "
+                            + "mode(%s)", silentMode);
+                    return;
+                }
+            } else {
+                Slogf.w(TAG, "Failed to notify the new silent mode, car power policy daemon"
+                                + " is not available");
+                return;
+            }
+            Slogf.i(TAG, "Set the new silent mode(%s) to CPPD", silentMode);
+        }
     }
 
     /**
@@ -3623,7 +3646,6 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      * Utility method to help with memory freeing before entering Suspend-To-Disk
      */
     static void freeMemory() {
-        PlatformVersion platformVersion = Car.getPlatformVersion();
         ActivityManagerHelper.killAllBackgroundProcesses();
     }
 

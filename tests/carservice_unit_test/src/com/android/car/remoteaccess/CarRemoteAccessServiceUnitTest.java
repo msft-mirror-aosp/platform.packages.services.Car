@@ -304,9 +304,9 @@ public final class CarRemoteAccessServiceUnitTest extends AbstractExpectableTest
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
         mService.release();
-        CarServiceUtils.finishAllHandlerTasks();
+        CarServiceUtils.quitHandlerThreads();
 
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
         CarLocalServices.addService(CarPowerManagementService.class, mOldCarPowerManagementService);
@@ -1678,6 +1678,34 @@ public final class CarRemoteAccessServiceUnitTest extends AbstractExpectableTest
         ServiceSpecificException e = assertThrows(ServiceSpecificException.class, () ->
                 mService.getAllPendingScheduledTasks());
         assertThat(e.errorCode).isEqualTo(SERVICE_ERROR_CODE_GENERAL);
+    }
+
+    @Test
+    public void testGetSupportedTaskTypesForScheduling() throws Exception {
+        prepareTaskSchedule();
+        when(mRemoteAccessHalWrapper.getSupportedTaskTypesForScheduling()).thenReturn(
+                new int[]{TaskType.CUSTOM, TaskType.ENTER_GARAGE_MODE});
+
+        assertThat(mService.getSupportedTaskTypesForScheduling()).isEqualTo(
+                new int[]{TASK_TYPE_CUSTOM, TASK_TYPE_ENTER_GARAGE_MODE});
+    }
+
+    @Test
+    public void testGetSupportedTaskTypesForScheduling_unsupportedTypeIgnored() throws Exception {
+        prepareTaskSchedule();
+        when(mRemoteAccessHalWrapper.getSupportedTaskTypesForScheduling()).thenReturn(
+                new int[]{TaskType.CUSTOM, -1234});
+
+        assertThat(mService.getSupportedTaskTypesForScheduling()).isEqualTo(
+                new int[]{TASK_TYPE_CUSTOM});
+    }
+
+    @Test
+    public void testGetSupportedTaskTypesForScheduling_taskScheduleNotSupported() throws Exception {
+        mService.init();
+
+        assertThat(mService.getSupportedTaskTypesForScheduling()).isEmpty();
+        verify(mRemoteAccessHalWrapper, never()).getSupportedTaskTypesForScheduling();
     }
 
     @Test

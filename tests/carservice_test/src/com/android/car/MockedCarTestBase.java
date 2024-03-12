@@ -230,7 +230,7 @@ public class MockedCarTestBase {
      *
      * <p> Subclass that intend to apply spyOn() to the service under testing should override this.
      * <pre class="prettyprint">
-     * @Override
+     * {@literal @}Override
      * protected void spyOnBeforeCarImplInit() {
      *     mServiceUnderTest = CarLocalServices.getService(CarXXXService.class);
      *     ExtendedMockito.spyOn(mServiceUnderTest);
@@ -407,7 +407,7 @@ public class MockedCarTestBase {
                 mCarImpl.release();
                 mCarImpl = null;
             }
-            CarServiceUtils.finishAllHandlerTasks();
+            CarServiceUtils.quitHandlerThreads();
             mMockIOInterface.tearDown();
             mHidlMockedVehicleHal = null;
             mAidlMockedVehicleHal = null;
@@ -442,7 +442,6 @@ public class MockedCarTestBase {
         return mCarImpl.getCarService(service);
     }
 
-    @GuardedBy("mLock")
     private void initMockedHal() throws Exception {
         synchronized (mLock) {
             for (Map.Entry<HidlVehiclePropConfigBuilder,
