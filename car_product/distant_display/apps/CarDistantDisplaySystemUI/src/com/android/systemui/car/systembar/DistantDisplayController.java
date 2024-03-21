@@ -17,6 +17,7 @@
 package com.android.systemui.car.systembar;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
@@ -58,11 +59,12 @@ public class DistantDisplayController {
     private final Drawable mDistantDisplayDrawable;
     private final Drawable mDefaultDisplayDrawable;
     @Nullable
-    private String mTopPackageOnDefaultDisplay;
+    private Intent mTopIntentOnDefaultDisplay;
     @Nullable
-    private String mTopPackageOnDistantDisplay;
+    private Intent mTopIntentOnDistantDisplay;
     private StatusChangeListener mStatusChangeListener;
     private DistantDisplayControlsUpdateListener mDistantDisplayControlsUpdateListener;
+    private AppCategoryDetector mAppCategoryDetector;
 
     /**
      * Interface for listeners to register for status changes based on Media Session and TaskStack
@@ -83,15 +85,15 @@ public class DistantDisplayController {
     private final TaskViewController.Callback mTaskViewControllerCallback =
             new TaskViewController.Callback() {
                 @Override
-                public void topAppOnDisplayChanged(int displayId, String packageName) {
+                public void topAppOnDisplayChanged(int displayId, Intent intent) {
                     int distantDisplayId = mTaskViewController.getDistantDisplayId();
                     if (displayId == Display.DEFAULT_DISPLAY) {
-                        mTopPackageOnDefaultDisplay = packageName;
+                        mTopIntentOnDefaultDisplay = intent;
                         updateButtonState();
 
                     } else if (distantDisplayId != Display.INVALID_DISPLAY
                             && displayId == distantDisplayId) {
-                        mTopPackageOnDistantDisplay = packageName;
+                        mTopIntentOnDistantDisplay = intent;
                         updateButtonState();
                     }
                 }
@@ -132,6 +134,7 @@ public class DistantDisplayController {
                 mContext.getMainExecutor(), mOnActiveSessionsChangedListener);
         mUserTracker.addCallback(mUserChangedCallback, context.getMainExecutor());
         mTaskViewController.addCallback(mTaskViewControllerCallback);
+        mAppCategoryDetector = new AppCategoryDetector(mContext);
     }
 
     /**
@@ -190,14 +193,14 @@ public class DistantDisplayController {
      * {@link com.android.systemui.car.distantdisplay.common.DistantDisplayQcItem}
      */
     public DistantDisplayQcItem getControls() {
-        if (isVideoApp(mTopPackageOnDistantDisplay)) {
+        if (!isComponentRestricted(mTopIntentOnDistantDisplay)) {
             return new DistantDisplayQcItem.Builder()
                     .setTitle(mContext.getString(R.string.qc_bring_back_to_default_display_title))
                     .setIcon(mDefaultDisplayDrawable)
                     .setActionHandler((item, context, intent) ->
                             mTaskViewController.moveTaskFromDistantDisplay())
                     .build();
-        } else if (isVideoApp(mTopPackageOnDefaultDisplay)) {
+        } else if (!isComponentRestricted(mTopIntentOnDefaultDisplay)) {
             return new DistantDisplayQcItem.Builder()
                     .setTitle(mContext.getString(R.string.qc_send_to_pano_title))
                     .setIcon(mDistantDisplayDrawable)
@@ -210,17 +213,16 @@ public class DistantDisplayController {
     }
 
     private Optional<MediaController> getMediaControllerFromActiveMediaSession() {
-
         String foregroundMediaPackage;
-        if (isVideoApp(mTopPackageOnDistantDisplay)) {
-            foregroundMediaPackage = mTopPackageOnDistantDisplay;
-        } else if (isVideoApp(mTopPackageOnDefaultDisplay)) {
-            foregroundMediaPackage = mTopPackageOnDefaultDisplay;
+        if (!isComponentRestricted(mTopIntentOnDistantDisplay)
+                && isVideoApp(mTopIntentOnDistantDisplay)) {
+            foregroundMediaPackage = mTopIntentOnDistantDisplay.getPackage();
+        } else if (!isComponentRestricted(mTopIntentOnDefaultDisplay)
+                && isVideoApp(mTopIntentOnDefaultDisplay)) {
+            foregroundMediaPackage = mTopIntentOnDefaultDisplay.getPackage();
         } else {
-            foregroundMediaPackage = null;
+            return Optional.empty();
         }
-
-        if (foregroundMediaPackage == null) return Optional.empty();
 
         return mMediaSessionManager.getActiveSessionsForUser(/* notificationListener= */ null,
                         mUserTracker.getUserHandle())
@@ -231,22 +233,27 @@ public class DistantDisplayController {
                 .findFirst();
     }
 
-    private boolean isVideoApp(String packageName) {
-        if (packageName == null) return false;
+    private boolean isVideoApp(Intent intent) {
+        if (intent == null || intent.getPackage() == null) return false;
         return AppCategoryDetector.isVideoApp(mUserTracker.getUserContext().getPackageManager(),
-                packageName);
+                intent.getPackage());
+    }
+
+    private boolean isComponentRestricted(@Nullable Intent intent) {
+        if (intent == null) return true;
+        return mAppCategoryDetector.isComponentRestricted(intent.getComponent());
     }
 
     private void updateButtonState() {
         if (mStatusChangeListener == null) return;
 
-        if (isVideoApp(mTopPackageOnDistantDisplay)) {
+        if (!isComponentRestricted(mTopIntentOnDistantDisplay)) {
             int distantDisplayId = mTaskViewController.getDistantDisplayId();
             if (distantDisplayId != Display.INVALID_DISPLAY) {
                 mStatusChangeListener.onDisplayChanged(distantDisplayId);
             }
             mStatusChangeListener.onVisibilityChanged(true);
-        } else if (isVideoApp(mTopPackageOnDefaultDisplay)) {
+        } else if (!isComponentRestricted(mTopIntentOnDefaultDisplay)) {
             mStatusChangeListener.onDisplayChanged(Display.DEFAULT_DISPLAY);
             mStatusChangeListener.onVisibilityChanged(true);
         } else {

@@ -78,6 +78,7 @@ public class TaskViewController {
     private int mDistantDisplayRootWallpaperTaskId = INVALID_TASK_ID;
     private MoveTaskReceiver mMoveTaskReceiver;
     private boolean mDistantDisplayActivityLaunched = false;
+    private AppCategoryDetector mAppCategoryDetector;
 
     private final CarUxRestrictionsUtil.OnUxRestrictionsChangedListener
             mOnUxRestrictionsChangedListener = carUxRestrictions -> {
@@ -162,6 +163,7 @@ public class TaskViewController {
         mUserTracker = userTracker;
         mUserManager = context.getSystemService(UserManager.class);
         mDistantDisplayId = Display.INVALID_DISPLAY;
+        mAppCategoryDetector = new AppCategoryDetector(mContext);
     }
 
     /**
@@ -279,10 +281,11 @@ public class TaskViewController {
             TaskData data = mForegroundTasks.getTopTaskOnDisplay(
                     DEFAULT_DISPLAY_ID);
             if (data == null) return;
-            String pkgName = getPackageNameFromBaseIntent(data.mBaseIntent);
-            if (pkgName != null && isVideoApp(pkgName)) {
-                moveTaskToDisplay(data.mTaskId, mDistantDisplayId);
+            if (mAppCategoryDetector.isComponentRestricted(data.mBaseIntent.getComponent())) {
+                Log.w(TAG, "restricted activity: " + data.mBaseIntent.getComponent());
+                return;
             }
+            moveTaskToDisplay(data.mTaskId, mDistantDisplayId);
         }
     }
 
@@ -292,18 +295,6 @@ public class TaskViewController {
         } catch (Exception e) {
             Log.e(TAG, "Error moving task " + taskId + " to display " + displayId, e);
         }
-    }
-
-    private boolean isVideoApp(@Nullable String packageName) {
-        if (packageName == null) {
-            Log.w(TAG, "package name is null");
-            return false;
-        }
-
-        Context userContext = mContext.createContextAsUser(
-                mUserTracker.getUserHandle(), /* flags= */ 0);
-        return AppCategoryDetector.isVideoApp(userContext.getPackageManager(),
-                packageName);
     }
 
     @Nullable
@@ -333,20 +324,20 @@ public class TaskViewController {
         if (displayId != DEFAULT_DISPLAY_ID && displayId != mDistantDisplayId) {
             return;
         }
-        String pkg;
+        Intent intent;
         TaskData data = mForegroundTasks.getTopTaskOnDisplay(displayId);
         if (data != null) {
-            pkg = getPackageNameFromBaseIntent(data.mBaseIntent);
+            intent = data.mBaseIntent;
         } else {
-            pkg = null;
+            intent = null;
         }
-        notifyListeners(displayId, pkg);
+        notifyListeners(displayId, intent);
     }
 
-    private void notifyListeners(int displayId, String pkg) {
+    private void notifyListeners(int displayId, Intent intent) {
         synchronized (mCallbacks) {
             for (Callback callback : mCallbacks) {
-                callback.topAppOnDisplayChanged(displayId, pkg);
+                callback.topAppOnDisplayChanged(displayId, intent);
             }
         }
     }
@@ -363,6 +354,6 @@ public class TaskViewController {
          * display id and package name. Note that this will only be called for the default and the
          * configured distant display ids.
          */
-        void topAppOnDisplayChanged(int displayId, @Nullable String packageName);
+        void topAppOnDisplayChanged(int displayId, @Nullable Intent intent);
     }
 }
