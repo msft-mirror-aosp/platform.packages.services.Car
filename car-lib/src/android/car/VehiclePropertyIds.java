@@ -101,6 +101,8 @@ public final class VehiclePropertyIds {
     /**
      * Manufacturer of vehicle.
      *
+     * <p>This property communicates the vehicle's public brand name.
+     *
      * <p>Property Config:
      * <ul>
      *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
@@ -119,6 +121,8 @@ public final class VehiclePropertyIds {
     public static final int INFO_MAKE = 286261505;
     /**
      * Model of vehicle.
+     *
+     * <p>This property communicates the vehicle's public model name.
      *
      * <p>Property Config:
      * <ul>
@@ -5725,9 +5729,12 @@ public final class VehiclePropertyIds {
     /**
      * Charging state of the car.
      *
-     * <p>Returns the current charging state of the car. See
-     * {@link android.car.hardware.property.EvChargeState} for possible values for
-     * {@code EV_CHARGE_STATE}.
+     * <p>Returns the current charging state of the car. See {@link
+     * android.car.hardware.property.EvChargeState} for possible values for {@code EV_CHARGE_STATE}.
+     *
+     * <p>If the vehicle has a target charge percentage other than 100, this property will return
+     * {@link EvChargeState#STATE_FULLY_CHARGED} when the battery charge level has reached the
+     * target level. See {@link #EV_CHARGE_PERCENT_LIMIT} for more context.
      *
      * <p>Property Config:
      * <ul>
@@ -5826,10 +5833,13 @@ public final class VehiclePropertyIds {
     public static final int EV_REGENERATIVE_BRAKING_STATE = 289410884;
 
     /**
-     * Vehicle’s curb weight.
+     * Vehicle’s curb weight in kilograms.
      *
-     * <p>Returns the vehicle's curb weight in kilograms. configArray[0] specifies the vehicle’s
-     * gross weight in kilograms.
+     * <p>Returns the vehicle's curb weight in kilograms. This is the total weight of a vehicle,
+     * inclusive of standard equipment and necessary operating fluids such as motor oil,
+     * transmission oil and brake fluid, but without passengers or cargo. configArray[0] specifies
+     * the vehicle’s gross weight in kilograms. This is the vehicle curb weight plus the maximum
+     * payload (passengers + cargo) the vehicle can support.
      *
      * <p>Property Config:
      * <ul>
