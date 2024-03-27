@@ -398,7 +398,6 @@ class GarageMode {
         }
         broadcastSignalToJobScheduler(false);
         EventLogHelper.writeGarageModeEvent(GARAGE_MODE_EVENT_LOG_FINISH);
-        CarStatsLogHelper.logGarageModeStop();
         mGarageModeRecorder.finishSession();
         cleanupGarageMode(() -> {
             Slogf.i(TAG, "GarageMode is completed normally");
@@ -460,6 +459,7 @@ class GarageMode {
             mBackgroundUserStopCompletor = completor;
         }
         stopMonitoringThread();
+        CarStatsLogHelper.logGarageModeStop();
         Slogf.i(TAG, "Stopping of background user queued. Total background users to stop: "
                     + "%d", mStartedBackgroundUsers.size());
         mHandler.removeCallbacks(mStopUserCheckRunnable);
