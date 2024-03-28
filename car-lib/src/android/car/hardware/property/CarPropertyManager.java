@@ -1876,7 +1876,7 @@ public class CarPropertyManager extends CarManagerBase {
      *
      * <p>For pre-U client, the returned {@link CarPropertyValue} might contain unavailable or
      * error status. Client must use {@link CarPropertyValue#getStatus} to check. If the returned
-     * status is not {@link CarPropertyValue.STATUS_AVAILABLE}, then the value returned via
+     * status is not {@link CarPropertyValue#STATUS_AVAILABLE}, then the value returned via
      * {@link CarPropertyValue#getValue} is undefined.
      *
      * <p>For U and later client, when the [propertyId, areaId] is not supported, this is
@@ -1884,11 +1884,11 @@ public class CarPropertyManager extends CarManagerBase {
      * {@code null}.
      *
      * <p>For U and later client, if the property's status is
-     * {@link CarPropertyValue.STATUS_UNAVAILABLE}, then {@link PropertyNotAvailableException} will
-     * be thrown. If the property's status is {@link CarPropertyValue.STATUS_ERROR}, then
+     * {@link CarPropertyValue#STATUS_UNAVAILABLE}, then {@link PropertyNotAvailableException} will
+     * be thrown. If the property's status is {@link CarPropertyValue#STATUS_ERROR}, then
      * {@link CarInternalErrorException} will be thrown. If no exception is thrown, the returned
      * {@link CarPropertyValue#getStatus} is guaranteed to be
-     * {@link CarPropertyValue.STATUS_AVAILABLE} so client do not need to check.
+     * {@link CarPropertyValue#STATUS_AVAILABLE} so client do not need to check.
      *
      * @param clazz the class object for the CarPropertyValue
      * @param propertyId the property ID to get
@@ -1989,7 +1989,7 @@ public class CarPropertyManager extends CarManagerBase {
      *
      * <p>For pre-U client, the returned {@link CarPropertyValue} might contain unavailable or
      * error status. Client must use {@link CarPropertyValue#getStatus} to check. If the returned
-     * status is not {@link CarPropertyValue.STATUS_AVAILABLE}, then the value returned via
+     * status is not {@link CarPropertyValue#STATUS_AVAILABLE}, then the value returned via
      * {@link CarPropertyValue#getValue} is undefined.
      *
      * <p>For U and later client, when the [propertyId, areaId] is not supported, this is
@@ -1997,11 +1997,11 @@ public class CarPropertyManager extends CarManagerBase {
      * {@code null}.
      *
      * <p>For U and later client, if the property's status is
-     * {@link CarPropertyValue.STATUS_UNAVAILABLE}, then {@link PropertyNotAvailableException} will
-     * be thrown. If the property's status is {@link CarPropertyValue.STATUS_ERROR}, then
+     * {@link CarPropertyValue#STATUS_UNAVAILABLE}, then {@link PropertyNotAvailableException} will
+     * be thrown. If the property's status is {@link CarPropertyValue#STATUS_ERROR}, then
      * {@link CarInternalErrorException} will be thrown. If no exception is thrown, the returned
      * {@link CarPropertyValue#getStatus} is guaranteed to be
-     * {@link CarPropertyValue.STATUS_AVAILABLE} so client do not need to check.
+     * {@link CarPropertyValue#STATUS_AVAILABLE} so client do not need to check.
      *
      * @param propertyId the property ID to get
      * @param areaId the area ID of the property to get
