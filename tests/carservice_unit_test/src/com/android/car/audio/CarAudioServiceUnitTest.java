@@ -2211,7 +2211,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         callback.onAudioServerDown();
 
-        verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+        verify(mAudioControlWrapperAidl, never()).onDevicesToMuteChange(any());
         // Routing policy is not unregistered on audio server going down
         verify(mAudioManager, times(AUDIO_SERVICE_POLICY_REGISTRATIONS - 1))
                 .unregisterAudioPolicy(any());
@@ -2223,7 +2223,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         verify(mAudioControlWrapperAidl).clearModuleChangeCallback();
         verify(mMockOccupantZoneService).unregisterCallback(occupantZoneCallback);
         verify(mMockCarInputService).unregisterKeyEventListener(keyInputListener);
-        verify(mAudioControlWrapperAidl).unlinkToDeath();
+        verify(mAudioControlWrapperAidl, never()).unlinkToDeath();
     }
 
     @Test
@@ -2238,7 +2238,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         callback.onAudioServerDown();
 
-        verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+        verify(mAudioControlWrapperAidl, never()).onDevicesToMuteChange(any());
         // Routing policy is not unregistered on audio server going down
         verify(mAudioManager, times(AUDIO_SERVICE_POLICY_REGISTRATIONS_WITH_FADE_MANAGER - 1))
                 .unregisterAudioPolicy(any());
@@ -2250,7 +2250,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         verify(mAudioControlWrapperAidl).clearModuleChangeCallback();
         verify(mMockOccupantZoneService).unregisterCallback(occupantZoneCallback);
         verify(mMockCarInputService).unregisterKeyEventListener(keyInputListener);
-        verify(mAudioControlWrapperAidl).unlinkToDeath();
+        verify(mAudioControlWrapperAidl, never()).unlinkToDeath();
     }
 
     @Test
@@ -2265,7 +2265,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         callback.onAudioServerDown();
 
-        verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+        verify(mAudioControlWrapperAidl, never()).onDevicesToMuteChange(any());
         // Routing policy is not unregistered on audio server going down
         verify(mAudioManager, times(AUDIO_SERVICE_POLICY_REGISTRATIONS - 1))
                 .unregisterAudioPolicy(any());
@@ -2277,7 +2277,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         verify(mAudioControlWrapperAidl).clearModuleChangeCallback();
         verify(mMockOccupantZoneService).unregisterCallback(occupantZoneCallback);
         verify(mMockCarInputService).unregisterKeyEventListener(keyInputListener);
-        verify(mAudioControlWrapperAidl).unlinkToDeath();
+        verify(mAudioControlWrapperAidl, never()).unlinkToDeath();
     }
 
     @Test
@@ -2383,6 +2383,34 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 .registerKeyEventListener(any(), any());
         verify(mAudioControlWrapperAidl, times(2 * AUDIO_SERVICE_CALLBACKS_REGISTRATION))
                 .linkToDeath(any());
+    }
+
+    @Test
+    public void onAudioServerUp_forUserIdAssignments() throws Exception {
+        CarAudioService service = setUpAudioService();
+        AudioServerStateCallback callback = getAudioServerStateCallback();
+        callback.onAudioServerDown();
+
+        callback.onAudioServerUp();
+
+        expectWithMessage("Re-initialized Car Audio Service Zones")
+                .that(service.getAudioZoneIds()).asList()
+                .containsExactly(PRIMARY_AUDIO_ZONE, TEST_REAR_LEFT_ZONE_ID,
+                        TEST_REAR_RIGHT_ZONE_ID, TEST_FRONT_ZONE_ID, TEST_REAR_ROW_3_ZONE_ID);
+        expectWithMessage("Primary user id after server recovery")
+                .that(service.getUserIdForZone(PRIMARY_AUDIO_ZONE)).isEqualTo(TEST_DRIVER_USER_ID);
+        expectWithMessage("Rear left user id after server recovery")
+                .that(service.getUserIdForZone(TEST_REAR_LEFT_ZONE_ID))
+                .isEqualTo(TEST_REAR_LEFT_USER_ID);
+        expectWithMessage("Rear right user id after server recovery")
+                .that(service.getUserIdForZone(TEST_REAR_RIGHT_ZONE_ID))
+                .isEqualTo(TEST_REAR_RIGHT_USER_ID);
+        expectWithMessage("Rear front user id after server recovery")
+                .that(service.getUserIdForZone(TEST_FRONT_ZONE_ID))
+                .isEqualTo(TEST_FRONT_PASSENGER_USER_ID);
+        expectWithMessage("Rear row 3 user id after server recovery")
+                .that(service.getUserIdForZone(TEST_REAR_ROW_3_ZONE_ID))
+                .isEqualTo(TEST_REAR_ROW_3_PASSENGER_USER_ID);
     }
 
     @Test

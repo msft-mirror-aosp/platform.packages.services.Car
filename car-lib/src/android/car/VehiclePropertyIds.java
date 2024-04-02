@@ -248,6 +248,9 @@ public final class VehiclePropertyIds {
     /**
      * List of {@link android.car.hardware.property.EvChargingConnectorType}s this vehicle may use.
      *
+     * <p>If the vehicle has multiple charging ports, this property will return all possible
+     * connector types that can be used by at least one charging port on the vehicle.
+     *
      * <p>Property Config:
      * <ul>
      *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
@@ -817,6 +820,9 @@ public final class VehiclePropertyIds {
     /**
      * EV charge port open.
      *
+     * <p>If the vehicle has multiple charging ports, this property will return true if any of the
+     * charge ports are open.
+     *
      * <p>Property Config:
      * <ul>
      *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
@@ -840,6 +846,9 @@ public final class VehiclePropertyIds {
     public static final int EV_CHARGE_PORT_OPEN = 287310602;
     /**
      * EV charge port connected.
+     *
+     * <p>If the vehicle has multiple charging ports, this property will return true if any of the
+     * charge ports are connected.
      *
      * <p>Property Config:
      * <ul>
@@ -5729,9 +5738,12 @@ public final class VehiclePropertyIds {
     /**
      * Charging state of the car.
      *
-     * <p>Returns the current charging state of the car. See
-     * {@link android.car.hardware.property.EvChargeState} for possible values for
-     * {@code EV_CHARGE_STATE}.
+     * <p>Returns the current charging state of the car. See {@link
+     * android.car.hardware.property.EvChargeState} for possible values for {@code EV_CHARGE_STATE}.
+     *
+     * <p>If the vehicle has a target charge percentage other than 100, this property will return
+     * {@link EvChargeState#STATE_FULLY_CHARGED} when the battery charge level has reached the
+     * target level. See {@link #EV_CHARGE_PERCENT_LIMIT} for more context.
      *
      * <p>Property Config:
      * <ul>

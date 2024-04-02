@@ -53,7 +53,7 @@ public class CarAudioServerStateCallbackTest extends AbstractExpectableTestCase 
     public void onAudioServerDown() {
         mAudioServerStateCallback.onAudioServerDown();
 
-        verify(mMockCarAudioService).setAudioEnabled(false);
+        verify(mMockCarAudioService).releaseAudioCallbacks(/* isAudioServerDown= */ true);
     }
 
     @Test
@@ -62,5 +62,6 @@ public class CarAudioServerStateCallbackTest extends AbstractExpectableTestCase 
 
         verify(mMockCarAudioService).release();
         verify(mMockCarAudioService).init();
+        verify(mMockCarAudioService).handleOccupantZoneUserChanged();
     }
 }
