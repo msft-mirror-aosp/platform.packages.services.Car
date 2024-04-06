@@ -2041,9 +2041,10 @@ public final class CarAudioManager extends CarManagerBase {
          * <ul>
          *     <li>If both {@link CarVolumeCallback} and {@code CarVolumeGroupEventCallback}
          *     are registered by the same app, then volume group index changes are <b>only</b>
-         *     propagated through CarVolumeGroupEventCallback (until it is unregistered)</li>
+         *     propagated through {@code CarVolumeGroupEventCallback}
+         *     (until it is unregistered)</li>
          *     <li>Apps are encouraged to migrate to the new callback
-         *     {@link CarVolumeGroupInfoCallback}</li>
+         *     {@code CarVolumeGroupEventCallback}</li>
          * </ul>
          *
          * @param zoneId Id of the audio zone that volume change happens
@@ -2083,9 +2084,10 @@ public final class CarAudioManager extends CarManagerBase {
          *     trigger {@link #onMasterMuteChanged(int, int)}</li>
          *     <li>If both {@link CarVolumeCallback} and {@code CarVolumeGroupEventCallback}
          *     are registered by the same app, then volume group mute changes are <b>only</b>
-         *     propagated through CarVolumeGroupEventCallback (until it is unregistered)</li>
+         *     propagated through {@code CarVolumeGroupEventCallback}
+         *     (until it is unregistered)</li>
          *     <li>Apps are encouraged to migrate to the new callback
-         *     {@link CarVolumeGroupInfoCallback}</li>
+         *     {@code CarVolumeGroupEventCallback}</li>
          * </ul>
          *
          * @param zoneId Id of the audio zone that volume change happens

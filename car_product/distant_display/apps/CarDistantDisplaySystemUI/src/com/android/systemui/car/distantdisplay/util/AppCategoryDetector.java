@@ -16,12 +16,19 @@
 
 package com.android.systemui.car.distantdisplay.util;
 
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.content.res.XmlResourceParser;
 import android.text.TextUtils;
+import android.util.ArraySet;
 import android.util.Log;
+
+import androidx.annotation.Nullable;
+
+import com.android.systemui.R;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -29,7 +36,9 @@ import org.xmlpull.v1.XmlPullParserException;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Util class that contains helper method used by System Bar button.
@@ -43,8 +52,13 @@ public class AppCategoryDetector {
     // Max no. of uses tags in automotiveApp XML. This is an arbitrary limit to be defensive
     // to bad input.
     private static final int MAX_APP_TYPES = 64;
+    private Context mContext;
+    private Set<ComponentName> mRestrictedActivities;
 
-    private AppCategoryDetector() {
+    public AppCategoryDetector(Context context) {
+        mContext = context;
+        mRestrictedActivities = new HashSet<>(convertToComponentNames(mContext.getResources()
+                .getStringArray(R.array.config_restrictedActivities)));
     }
 
     /**
@@ -52,6 +66,14 @@ public class AppCategoryDetector {
      */
     public static boolean isVideoApp(PackageManager packageManager, String packageName) {
         return getAutomotiveAppTypes(packageManager, packageName).contains(TYPE_VIDEO);
+    }
+
+    /**
+     * Returns whether app identified by {@code component} is restrcted to move to distant display.
+     */
+    public boolean isComponentRestricted(@Nullable ComponentName component) {
+        if (component == null) return true;
+        return mRestrictedActivities.contains(component);
     }
 
     /**
@@ -153,4 +175,11 @@ public class AppCategoryDetector {
         }
     }
 
+    private static ArraySet<ComponentName> convertToComponentNames(String[] componentStrings) {
+        ArraySet<ComponentName> componentNames = new ArraySet<>(componentStrings.length);
+        for (int i = componentStrings.length - 1; i >= 0; i--) {
+            componentNames.add(ComponentName.unflattenFromString(componentStrings[i]));
+        }
+        return componentNames;
+    }
 }

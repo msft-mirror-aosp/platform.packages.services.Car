@@ -78,6 +78,7 @@
     <item target="layout/car_ui_base_layout_toolbar" value="@layout/car_ui_base_layout_toolbar"/>
 
     <item target="bool/car_ui_toolbar_logo_fills_nav_icon_space" value="@bool/car_ui_toolbar_logo_fills_nav_icon_space" />
+    <item target="bool/car_ui_toolbar_nav_icon_reserve_space" value="@bool/car_ui_toolbar_nav_icon_reserve_space" />
     <item target="bool/car_ui_toolbar_tab_flexible_layout" value="@bool/car_ui_toolbar_tab_flexible_layout" />
 
     <item target="id/car_ui_toolbar_nav_icon_container" value="@id/car_ui_toolbar_nav_icon_container" />

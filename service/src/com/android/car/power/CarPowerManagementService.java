@@ -851,9 +851,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         int intervalMs;
         synchronized (mLock) {
             intervalMs = mShutdownPollingIntervalMs;
-            Slogf.i(TAG,
-                    mGarageModeShouldExitImmediately ? "starting shutdown prepare with Garage Mode"
-                            : "starting shutdown prepare without Garage Mode");
+            Slogf.i(TAG, mGarageModeShouldExitImmediately
+                    ? "starting shutdown prepare without Garage Mode"
+                    : "starting shutdown prepare with Garage Mode");
         }
 
         long timeoutMs = getPreShutdownPrepareTimeoutConfig();

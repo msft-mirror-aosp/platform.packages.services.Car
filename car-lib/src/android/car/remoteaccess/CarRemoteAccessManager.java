@@ -30,6 +30,7 @@ import android.car.annotation.ApiRequirements;
 import android.car.annotation.ApiRequirements.CarVersion;
 import android.car.annotation.ApiRequirements.PlatformVersion;
 import android.car.builtin.util.Slogf;
+import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 
@@ -128,6 +129,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                 callback = mRemoteTaskClientCallback;
                 executor = mExecutor;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() -> callback.onRegistrationUpdated(registrationInfo));
         }
 
@@ -144,6 +146,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                 callback = mRemoteTaskClientCallback;
                 executor = mExecutor;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() -> callback.onRegistrationFailed());
         }
 
@@ -166,6 +169,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                         + "registered");
                 return;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() -> callback.onRemoteTaskRequested(taskId, data,
                     taskMaxDurationInSec));
         }
@@ -185,6 +189,7 @@ public final class CarRemoteAccessManager extends CarManagerBase {
                         + "registered");
                 return;
             }
+            Binder.clearCallingIdentity();
             executor.execute(() ->
                     callback.onShutdownStarting(new MyCompletableRemoteTaskFuture(clientId)));
         }

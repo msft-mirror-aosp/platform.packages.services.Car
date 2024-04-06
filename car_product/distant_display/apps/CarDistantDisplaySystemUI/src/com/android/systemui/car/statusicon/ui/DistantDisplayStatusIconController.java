@@ -120,6 +120,7 @@ public class DistantDisplayStatusIconController extends StatusIconController imp
             unregisterIconView(mDistantDisplayButton);
         }
         mDistantDisplayController.removeDistantDisplayControlStatusInfoListener();
+        mDistantDisplayButton = null;
     }
 
     @Override
