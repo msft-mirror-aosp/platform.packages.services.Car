@@ -155,10 +155,19 @@ public class VirtualDisplayController {
     }
 
     /**
+     * Removes an existing SurfaceHolder from the virtual display map.
+     */
+    public VirtualDisplay removeVirtualDisplay(SurfaceHolder holder) {
+        Log.i(TAG, "removeVirtualDisplay for SurfaceHolder [" + holder + "]");
+        return sVirtualDisplays.remove(holder);
+    }
+
+    /**
      * Builds a DB with SurfaceHolder and mapped VirtualDisplay.
      */
     public void putVirtualDisplay(SurfaceHolder holder, VirtualDisplay display) {
         if (sVirtualDisplays.get(holder) == null) {
+            Log.i(TAG, "putVirtualDisplay for SurfaceHolder [" + holder + "]: [" + display + "]");
             sVirtualDisplays.put(holder, display);
         } else {
             Log.w(TAG, "surface holder with VD already exists.");
@@ -242,6 +251,8 @@ public class VirtualDisplayController {
             VirtualDisplay virtualDisplay = mController.getVirtualDisplay(holder);
             if (virtualDisplay != null) {
                 virtualDisplay.setSurface(null);
+                virtualDisplay.release();
+                mController.removeVirtualDisplay(holder);
             }
         }
 
