@@ -40,6 +40,7 @@ import android.os.HandlerThread;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.util.Log;
 import android.util.SparseBooleanArray;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -58,7 +59,7 @@ import java.util.List;
  */
 public class CarDrivingStateService extends ICarDrivingState.Stub implements CarServiceBase {
     private static final String TAG = CarLog.tagFor(CarDrivingStateService.class);
-    private static final boolean DBG = false;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
     private static final int MAX_TRANSITION_LOG_SIZE = 20;
     private static final int PROPERTY_UPDATE_RATE = 5; // Update rate in Hz
     private final Context mContext;
@@ -349,35 +350,57 @@ public class CarDrivingStateService extends ICarDrivingState.Stub implements Car
             return;
         }
         CarPropertyValue value = event.getCarPropertyValue();
+        long curTimestamp = value.getTimestamp();
         if (DBG) {
             Slogf.d(TAG, "Property Changed: " + value);
         }
         switch (value.getPropertyId()) {
             case VehicleProperty.PERF_VEHICLE_SPEED:
-                mLastSpeed = value;
                 if (DBG) {
                     Slogf.d(TAG, "mLastSpeed: " + mLastSpeed);
+                }
+                // Ignore older timestamp values since this class interacts with
+                // CarPropertyService and not CarPropertyManager where the older timestamps are
+                // filtered out.
+                if (mLastSpeed == null || curTimestamp > mLastSpeed.getTimestamp()) {
+                    mLastSpeed = value;
+                } else if (DBG) {
+                    Slogf.d(TAG, "Ignoring speed with older timestamp:" + curTimestamp);
                 }
                 break;
             case VehicleProperty.GEAR_SELECTION:
                 if (mSupportedGears == null) {
                     mSupportedGears = getSupportedGears();
                 }
-                mLastGear = value;
                 if (DBG) {
                     Slogf.d(TAG, "mLastGear: " + mLastGear);
                 }
+                if (mLastGear == null || curTimestamp > mLastGear.getTimestamp()) {
+                    mLastGear = value;
+                } else if (DBG) {
+                    Slogf.d(TAG, "Ignoring Gear with older timestamp:" + curTimestamp);
+                }
                 break;
             case VehicleProperty.PARKING_BRAKE_ON:
-                mLastParkingBrake = value;
                 if (DBG) {
                     Slogf.d(TAG, "mLastParkingBrake: " + mLastParkingBrake);
                 }
+                if (mLastParkingBrake == null || curTimestamp > mLastParkingBrake.getTimestamp()) {
+                    mLastParkingBrake = value;
+                } else if (DBG) {
+                    Slogf.d(TAG, "Ignoring Parking Brake status with an older timestamp:"
+                            + curTimestamp);
+                }
                 break;
             case VehicleProperty.IGNITION_STATE:
-                mLastIgnitionState = value;
                 if (DBG) {
                     Slogf.d(TAG, "mLastIgnitionState: " + mLastIgnitionState);
+                }
+                if (mLastIgnitionState == null
+                        || curTimestamp > mLastIgnitionState.getTimestamp()) {
+                    mLastIgnitionState = value;
+                } else if (DBG) {
+                    Slogf.d(TAG, "Ignoring Ignition State with older timestamp:" + curTimestamp);
                 }
                 break;
             default:
