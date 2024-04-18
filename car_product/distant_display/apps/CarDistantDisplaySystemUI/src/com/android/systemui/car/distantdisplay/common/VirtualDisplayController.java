@@ -58,6 +58,7 @@ public class VirtualDisplayController {
     private SurfaceHolder mRootSurfaceHolder;
 
     private static ArrayMap<SurfaceHolder, VirtualDisplay> sVirtualDisplays = new ArrayMap<>();
+    private static ArrayMap<String, String> sUniqueIds = new ArrayMap<>();
 
     private int getVirtualDisplayId(SurfaceHolder holder) {
         VirtualDisplay display = getVirtualDisplay(holder);
@@ -99,6 +100,12 @@ public class VirtualDisplayController {
         mRootSurfaceHolder = view1.getHolder();
         mRootSurfaceHolder.addCallback(mRootViewCallback);
         rootVeiwLayout.addView(rootView);
+
+        // The uniqueId will be passed when creating a virtual display. It will be used for
+        // displayUniqueId in config_occupant_zones as virtual:com.android.systemui:${uniqueId}
+        // like virtual:com.android.systemui:DistantDisplay
+        sUniqueIds.put(ROOT_SURFACE, "DistantDisplay");
+        sUniqueIds.put(NAVIGATION_SURFACE, "NavigationDisplay");
     }
 
     /**
@@ -258,14 +265,19 @@ public class VirtualDisplayController {
 
         private VirtualDisplay createVirtualDisplay(Surface surface, int width, int height) {
             DisplayMetrics metrics = mController.getDisplayMetrics();
+            String mUniqueId = sUniqueIds.get(mSurfaceName);
+            if (mUniqueId == null) {
+                mUniqueId = "DistantDisplay-" + mSurfaceName;
+            }
             Log.i(TAG, "createVirtualDisplay, surface: " + surface + ", width: " + width
-                    + "x" + height + " density: " + metrics.densityDpi);
+                    + "x" + height + " density: " + metrics.densityDpi
+                    + ", uniqueId: " + mUniqueId);
             return mController.getDisplayManager().createVirtualDisplay(
                     /* projection= */ null, "DistantDisplay-" + mSurfaceName + "-VD",
                     width, height, metrics.densityDpi, surface,
                     VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY | VIRTUAL_DISPLAY_FLAG_SECURE,
                     /* callback= */
-                    null, /* handler= */ null, "DistantDisplay-" + mSurfaceName);
+                    null, /* handler= */ null, mUniqueId);
         }
 
         private void notifyDisplayId(String action, int displayId) {
