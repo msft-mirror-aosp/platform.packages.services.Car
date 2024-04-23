@@ -21,10 +21,14 @@ import android.content.res.Configuration;
 
 import com.android.systemui.car.dagger.CarSysUIDynamicOverride;
 import com.android.systemui.car.displayarea.CarDisplayAreaController;
+import com.android.systemui.car.systembar.element.CarSystemBarElementController;
 import com.android.systemui.dagger.SysUISingleton;
 
+import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import dagger.multibindings.ClassKey;
+import dagger.multibindings.IntoMap;
 
 /**
  * Dagger injection module for {@link CarSystemBar} in CarUiPortraitSystemUI.
@@ -57,4 +61,11 @@ public abstract class CarUiPortraitSystemBarModule {
 
         return new CarUiPortraitButtonSelectionStateController(context);
     }
+
+    /** Injects CarUiPortraitDockViewControllerWrapper */
+    @Binds
+    @IntoMap
+    @ClassKey(CarUiPortraitDockViewControllerWrapper.class)
+    public abstract CarSystemBarElementController.Factory bindPortraitDockViewControllerWrapper(
+            CarUiPortraitDockViewControllerWrapper.Factory factory);
 }

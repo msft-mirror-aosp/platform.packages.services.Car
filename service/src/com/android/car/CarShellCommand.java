@@ -163,6 +163,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -456,8 +457,6 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
     private static final ArrayMap<String, Integer> CUSTOM_INPUT_FUNCTION_ARGS;
 
-    private static final String INVALID_DISPLAY_ARGUMENTS =
-            "Error: Invalid arguments for display ID.";
     private static final int DEFAULT_DEVICE_ID = 0;
     private static final float DEFAULT_PRESSURE = 1.0f;
     private static final float NO_PRESSURE = 0.0f;
@@ -1218,7 +1217,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 if (args.length != 2) {
                     return showInvalidArguments(writer);
                 }
-                String pkgName = args[1].toLowerCase();
+                String pkgName = args[1].toLowerCase(Locale.US);
                 if (mCarPackageManagerService != null) {
                     String[] doActivities =
                             mCarPackageManagerService.getDistractionOptimizedActivities(
@@ -2087,7 +2086,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
         // Processing the last remaining argument. Argument is expected one of the tem functions
         // ('f1', 'f2', ..., 'f10') or just a plain integer representing the custom input event.
-        String eventValue = args[argIdx].toLowerCase();
+        String eventValue = args[argIdx].toLowerCase(Locale.US);
         Integer inputCode;
         if (eventValue.startsWith("f")) {
             inputCode = CUSTOM_INPUT_FUNCTION_ARGS.get(eventValue);
@@ -2199,7 +2198,6 @@ final class CarShellCommand extends BasicShellCommandHandler {
             Thread.currentThread().interrupt();
             writer.println("Interrupted waiting for HAL");
         }
-        return;
     }
 
     private void switchUser(String[] args, IndentingPrintWriter writer) {
@@ -3047,11 +3045,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private void emulateDrive() {
         Slogf.i(TAG, "Emulating driving mode (speed=80mph, gear=8)");
         mHal.injectVhalEvent(VehiclePropertyIds.PERF_VEHICLE_SPEED,
-                /* zone= */ 0, /* value= */ "80", /* delayTime= */ 2000);
+                /* areaId= */ 0, /* value= */ "80", /* delayTimeSeconds= */ 2000);
         mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
-                /* zone= */ 0, Integer.toString(VehicleGear.GEAR_8), /* delayTime= */ 0);
+                /* areaId= */ 0, Integer.toString(VehicleGear.GEAR_8), /* delayTimeSeconds= */ 0);
         mHal.injectVhalEvent(VehiclePropertyIds.PARKING_BRAKE_ON,
-                /* zone= */ 0, /* value= */ "false", /* delayTime= */ 0);
+                /* areaId= */ 0, /* value= */ "false", /* delayTimeSeconds= */ 0);
     }
 
     /**
@@ -3061,11 +3059,12 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private void emulateReverse() {
         Slogf.i(TAG, "Emulating reverse driving mode (speed=5mph)");
         mHal.injectVhalEvent(VehiclePropertyIds.PERF_VEHICLE_SPEED,
-                /* zone= */ 0, /* value= */ "5", /* delayTime= */ 2000);
+                /* areaId= */ 0, /* value= */ "5", /* delayTimeSeconds= */ 2000);
         mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
-                /* zone= */ 0, Integer.toString(VehicleGear.GEAR_REVERSE), /* delayTime= */ 0);
+                /* areaId= */ 0, Integer.toString(VehicleGear.GEAR_REVERSE),
+                /* delayTimeSeconds= */ 0);
         mHal.injectVhalEvent(VehiclePropertyIds.PARKING_BRAKE_ON,
-                /* zone= */ 0, /* value= */ "false", /* delayTime= */ 0);
+                /* areaId= */ 0, /* value= */ "false", /* delayTimeSeconds= */ 0);
     }
 
     /**
@@ -3075,9 +3074,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private void emulatePark() {
         Slogf.i(TAG, "Emulating parking mode");
         mHal.injectVhalEvent(VehiclePropertyIds.PERF_VEHICLE_SPEED,
-                /* zone= */ 0, /* value= */ "0", /* delayTime= */ 0);
+                /* areaId= */ 0, /* value= */ "0", /* delayTimeSeconds= */ 0);
         mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
-                /* zone= */ 0, Integer.toString(VehicleGear.GEAR_PARK), /* delayTime= */ 0);
+                /* areaId= */ 0, Integer.toString(VehicleGear.GEAR_PARK),
+                /* delayTimeSeconds= */ 0);
     }
 
     /**
@@ -3087,11 +3087,12 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private void emulateNeutral() {
         Slogf.i(TAG, "Emulating neutral driving mode");
         mHal.injectVhalEvent(VehiclePropertyIds.PERF_VEHICLE_SPEED,
-                /* zone= */ 0, /* value= */ "0", /* delayTime= */ 0);
+                /* areaId= */ 0, /* value= */ "0", /* delayTimeSeconds= */ 0);
         mHal.injectVhalEvent(VehiclePropertyIds.GEAR_SELECTION,
-                /* zone= */ 0, Integer.toString(VehicleGear.GEAR_NEUTRAL), /* delayTime= */ 0);
+                /* areaId= */ 0, Integer.toString(VehicleGear.GEAR_NEUTRAL),
+                /* delayTimeSeconds= */ 0);
         mHal.injectVhalEvent(VehiclePropertyIds.PARKING_BRAKE_ON,
-                /* zone= */ 0, /* value= */ "true", /* delayTime= */ 0);
+                /* areaId= */ 0, /* value= */ "true", /* delayTimeSeconds= */ 0);
     }
 
     private int definePowerPolicy(String[] args, IndentingPrintWriter writer) {
@@ -4293,14 +4294,6 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private void getTetheringCapability(IndentingPrintWriter writer) {
         writer.printf("Persist tethering capabilities enabled: %b\n",
                 mCarWifiService.canControlPersistTetheringSettings());
-    }
-
-    // Check if the given property is global
-    private static boolean isPropertyAreaTypeGlobal(@Nullable String property) {
-        if (property == null) {
-            return false;
-        }
-        return isPropertyAreaTypeGlobal(Integer.decode(property));
     }
 
     private static boolean isPropertyAreaTypeGlobal(int propertyId) {

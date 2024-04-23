@@ -298,6 +298,11 @@ public final class VehiclePropertyIds {
     /**
      * {@link PortLocationType} for the EV port location.
      *
+     * <p>This property communicates the location of the charging port on the EV. If there are
+     * multiple ports on the vehicle, this will communicate the port that enables the fastest
+     * charging on the vehicle. See {@link #INFO_MULTI_EV_PORT_LOCATIONS} to get information on all
+     * port locations.
+     *
      * <p>Property Config:
      * <ul>
      *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
@@ -1151,13 +1156,13 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_POWERTRAIN)
     public static final int PARKING_BRAKE_AUTO_APPLY = 287310851;
     /**
-     * Regenerative braking level of a electronic vehicle.
+     * Regenerative braking level of an electronic vehicle.
      *
-     * <p>Returns the current regenerative braking level. Larger values mean more energy regenerated
-     * from braking while smaller values mean less energy regenerated from braking. 0 means no
-     * regenerative braking. See {@link android.car.hardware.property.AreaIdConfig#getMaxValue()}
-     * and {@link android.car.hardware.property.AreaIdConfig#getMinValue()} for the range of
-     * possible values.
+     * <p>Returns the current setting for the regenerative braking level. Larger setting values mean
+     * more energy regenerated from braking while smaller setting values mean less energy
+     * regenerated from braking. 0 means the setting for no regenerative braking. See {@link
+     * android.car.hardware.property.AreaIdConfig#getMaxValue()} and {@link
+     * android.car.hardware.property.AreaIdConfig#getMinValue()} for the range of possible values.
      *
      * <p>Property Config:
      * <ul>
@@ -2419,6 +2424,8 @@ public final class VehiclePropertyIds {
     /**
      * Door lock.
      *
+     * <p>True indicates that the door is locked.
+     *
      * <p>Property Config:
      * <ul>
      *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
@@ -2592,6 +2599,8 @@ public final class VehiclePropertyIds {
     public static final int MIRROR_Y_MOVE = 339741507;
     /**
      * Mirror Lock.
+     *
+     * <p>True indicates all mirror positions are locked and not changeable.
      *
      * <p>Property Config:
      * <ul>
@@ -4098,7 +4107,9 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WINDOWS)
     public static final int WINDOW_MOVE = 322964417;
     /**
-     * Window Lock.
+     * Window Child Lock.
+     *
+     * <p>True indicates that the window is child-locked.
      *
      * <p>Property Config:
      * <ul>
@@ -5815,12 +5826,15 @@ public final class VehiclePropertyIds {
     public static final int EV_CHARGE_TIME_REMAINING = 289410883;
 
     /**
-     * Regenerative braking or one-pedal drive state of the car.
+     * Regenerative braking or one-pedal drive setting on the car.
      *
      * <p>Returns the current state associated with the regenerative braking
-     * setting in the car. See
-     * {@link android.car.hardware.property.EvRegenerativeBrakingState} for possible values for
-     * {@code EV_REGENERATIVE_BRAKING_STATE}.
+     * setting in the car. See {@link android.car.hardware.property.EvRegenerativeBrakingState} for
+     * possible values for {@code EV_REGENERATIVE_BRAKING_STATE}.
+     *
+     * <p>If the {@link #EV_BRAKE_REGENERATION_LEVEL} property has been implemented, it is likely
+     * that the OEM supports a more granular set of regeneration levels than those provided by this
+     * property through {@link EvRegenerativeBrakingState}.
      *
      * <p>Property Config:
      * <ul>

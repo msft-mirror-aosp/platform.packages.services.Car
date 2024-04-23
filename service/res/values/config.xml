@@ -114,6 +114,14 @@
           the focus requests should interact only if the requests are for the same audio zone.-->
     <bool name="audioUseIsolatedAudioFocusForDynamicDevices">false</bool>
 
+    <!--  Configuration to enable volume key events affecting volume changes on dynamic devices.
+          If this is set to true, volume changes via key events will also consider volume groups
+          containing dynamic devices for the volume/mute change. The actual volume group selected
+          will be determined by the volume priority list configured with
+          audioVolumeAdjustmentContextsVersion. Otherwise, the volume group selection via key events
+          will not consider volume groups containing dynamic devices. -->
+    <bool name="audioEnableVolumeKeyEventsToDynamicDevices">false</bool>
+
     <!-- Whether to block other audio while media audio is muted with display off. When set to true,
          other sounds cannot be played either while display is off. If false, only media is muted
          and other sounds can be still played. -->
@@ -154,10 +162,10 @@
     <!--  Activity to be presented when un-safe activity is launched. Take a look at the javadoc of the
           default implementation. -->
     <string name="activityBlockingActivity" translatable="false">
-        com.android.systemui/com.android.systemui.car.activity.ActivityBlockingActivity
+        com.android.systemui/com.android.systemui.car.wm.activity.ActivityBlockingActivity
     </string>
     <string name="continuousBlankActivity" translatable="false">
-        com.android.systemui/com.android.systemui.car.activity.ContinuousBlankActivity
+        com.android.systemui/com.android.systemui.car.wm.activity.ContinuousBlankActivity
     </string>
     <!--  Comma separated list of activities that need to be exempted from getting
           blocked in a UX restricted state.

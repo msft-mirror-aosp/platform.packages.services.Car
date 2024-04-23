@@ -52,7 +52,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -461,12 +460,12 @@ public final class CarFeatureController implements CarServiceBase {
 
     /** Returns currently enabled experimental features */
     public @NonNull List<String> getEnabledExperimentalFeatures() {
+        ArrayList<String> experimentalFeature = new ArrayList<>();
         if (BuildHelper.isUserBuild()) {
             Slogf.e(TAG, "getEnabledExperimentalFeatures called in USER build",
                     new RuntimeException());
-            return Collections.emptyList();
+            return experimentalFeature;
         }
-        ArrayList<String> experimentalFeature = new ArrayList<>();
         for (int i = 0; i < mEnabledFeatures.size(); i++) {
             String enabledFeature = mEnabledFeatures.valueAt(i);
             if (MANDATORY_FEATURES.contains(enabledFeature)) {
@@ -619,24 +618,27 @@ public final class CarFeatureController implements CarServiceBase {
                 Slogf.e(TAG, "config_default_enabled_optional_car_features including "
                         + "user build only feature, will be ignored:" + defaultEnabledFeature);
             } else {
-                throw new IllegalArgumentException(
-                        "config_default_enabled_optional_car_features include non-optional "
-                                + "features:" + defaultEnabledFeature);
+                Slogf.e(TAG, "config_default_enabled_optional_car_features include "
+                                + "non-optional features:" + defaultEnabledFeature);
             }
         }
         Slogf.i(TAG, "Loaded default features:" + mEnabledFeatures);
     }
 
     private static void addSupportFeatures(Collection<String> features) {
-        SUPPORT_FEATURES.stream()
-                .filter(entry -> features.contains(entry.first))
-                .forEach(entry -> features.add(entry.second));
+        for (int index = 0; index < SUPPORT_FEATURES.size(); index++) {
+            if (features.contains(SUPPORT_FEATURES.get(index).first)) {
+                features.add(SUPPORT_FEATURES.get(index).second);
+            }
+        }
     }
 
     private static void removeSupportFeatures(Collection<String> features) {
-        SUPPORT_FEATURES.stream()
-                .filter(entry -> features.contains(entry.first))
-                .forEach(entry -> features.remove(entry.second));
+        for (int index = 0; index < SUPPORT_FEATURES.size(); index++) {
+            if (features.contains(SUPPORT_FEATURES.get(index).first)) {
+                features.remove(SUPPORT_FEATURES.get(index).second);
+            }
+        }
     }
 
     private static ArraySet<String> combineFeatures(List<String> features,

@@ -486,8 +486,7 @@ public class ICarImpl extends ICar.Stub {
         }
 
         mCarWifiService = constructWithTrace(t, CarWifiService.class,
-                () -> new CarWifiService(mContext, mCarPowerManagementService,
-                        mCarUserService), allServices);
+                () -> new CarWifiService(mContext), allServices);
 
         // Always put mCarExperimentalFeatureServiceController in last.
         if (!BuildHelper.isUserBuild()) {
@@ -1150,7 +1149,14 @@ public class ICarImpl extends ICar.Stub {
 
         @Override
         public void setInitialUser(UserHandle user) {
+            assertCallingFromSystemProcess();
             mCarUserService.setInitialUserFromSystemServer(user);
+        }
+
+        @Override
+        public void notifyFocusChanged(int pid, int uid) {
+            assertCallingFromSystemProcess();
+            mSystemActivityMonitoringService.handleFocusChanged(pid, uid);
         }
     }
 
