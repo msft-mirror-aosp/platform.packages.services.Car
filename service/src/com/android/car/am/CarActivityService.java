@@ -60,6 +60,7 @@ import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
 import android.util.SparseArray;
+import android.util.SparseIntArray;
 import android.view.Display;
 import android.view.SurfaceControl;
 
@@ -119,19 +120,36 @@ public final class CarActivityService extends ICarActivityService.Stub
     @GuardedBy("mLock")
     private final RemoteCallbackList<ICarSystemUIProxyCallback> mCarSystemUIProxyCallbacks =
             new RemoteCallbackList<ICarSystemUIProxyCallback>();
+    /**
+     * Mapping between the task ID and the last known display ID.
+     */
+    @GuardedBy("mLock")
+    private final SparseIntArray mLastKnownDisplayIdForTask = new SparseIntArray();
 
     private IBinder mCurrentMonitor;
 
-    public interface ActivityLaunchListener {
+    /**
+     * Listener for activity callbacks.
+     */
+    public interface ActivityListener {
         /**
-         * Notify launch of activity.
+         * Notify coming of an activity on the top of the stack.
          *
          * @param topTask Task information for what is currently launched.
          */
-        void onActivityLaunch(TaskInfo topTask);
+        void onActivityCameOnTop(TaskInfo topTask);
+
+        /**
+         * Notify change or vanish of an activity in the backstack.
+         *
+         * @param taskInfo           task information for what is currently changed or vanished.
+         * @param lastKnownDisplayId the last known display id where the task changed or vanished.
+         */
+        void onActivityChangedInBackstack(TaskInfo taskInfo, int lastKnownDisplayId);
     }
+
     @GuardedBy("mLock")
-    private ActivityLaunchListener mActivityLaunchListener;
+    private ActivityListener mActivityListener;
 
     private final HandlerThread mMonitorHandlerThread = CarServiceUtils.getHandlerThread(
             SystemActivityMonitoringService.class.getSimpleName());
@@ -152,7 +170,9 @@ public final class CarActivityService extends ICarActivityService.Stub
     public void init() {}
 
     @Override
-    public void release() {}
+    public void release() {
+        mActivityListener = null;
+    }
 
     @Override
     public int setPersistentActivity(ComponentName activity, int displayId, int featureId) throws
@@ -180,9 +200,14 @@ public final class CarActivityService extends ICarActivityService.Stub
         return UserManagerHelper.getUserId(Binder.getCallingUid());
     }
 
-    public void registerActivityLaunchListener(ActivityLaunchListener listener) {
+    /**
+     * Register an {@link ActivityListener}
+     *
+     * @param listener listener to register.
+     */
+    public void registerActivityListener(ActivityListener listener) {
         synchronized (mLock) {
-            mActivityLaunchListener = listener;
+            mActivityListener = listener;
         }
     }
 
@@ -213,6 +238,7 @@ public final class CarActivityService extends ICarActivityService.Stub
         }
     }
 
+    /** Ensure permission is granted. */
     private void ensurePermission(String permission) {
         if (mContext.checkCallingOrSelfPermission(permission)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -248,22 +274,34 @@ public final class CarActivityService extends ICarActivityService.Stub
                 return;
             }
             mTasks.put(taskInfo.taskId, taskInfo);
+            mLastKnownDisplayIdForTask.put(taskInfo.taskId, TaskInfoHelper.getDisplayId(taskInfo));
             if (leash != null) {
                 mTaskToSurfaceMap.put(taskInfo.taskId, leash);
             }
         }
         if (TaskInfoHelper.isVisible(taskInfo)) {
-            mHandler.post(() -> notifyActivityLaunch(taskInfo));
+            mHandler.post(() -> notifyActivityCameOnTop(taskInfo));
         }
     }
 
-    private void notifyActivityLaunch(TaskInfo taskInfo) {
-        ActivityLaunchListener listener;
+    private void notifyActivityCameOnTop(TaskInfo taskInfo) {
+        ActivityListener listener;
         synchronized (mLock) {
-            listener = mActivityLaunchListener;
+            listener = mActivityListener;
         }
         if (listener != null) {
-            listener.onActivityLaunch(taskInfo);
+            listener.onActivityCameOnTop(taskInfo);
+        }
+    }
+
+    private void notifyActivityChangedInBackStack(TaskInfo taskInfo) {
+        ActivityListener listener;
+        synchronized (mLock) {
+            listener = mActivityListener;
+        }
+        if (listener != null) {
+            listener.onActivityChangedInBackstack(taskInfo,
+                    mLastKnownDisplayIdForTask.get(taskInfo.taskId));
         }
     }
 
@@ -290,8 +328,13 @@ public final class CarActivityService extends ICarActivityService.Stub
             if (!isAllowedToUpdateLocked(token)) {
                 return;
             }
+            // Do not remove the taskInfo from the mLastKnownDisplayIdForTask array since when
+            // the task vanishes, the display ID becomes -1. We want to preserve this information
+            // to finish the blocking ui for that display ID. mTasks and
+            // mLastKnownDisplayIdForTask come in sync when the blocking ui is finished.
             mTasks.remove(taskInfo.taskId);
             mTaskToSurfaceMap.remove(taskInfo.taskId);
+            mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
         }
     }
 
@@ -309,11 +352,39 @@ public final class CarActivityService extends ICarActivityService.Stub
             // LinkedHashMap.
             TaskInfo oldTaskInfo = mTasks.remove(taskInfo.taskId);
             mTasks.put(taskInfo.taskId, taskInfo);
+            mLastKnownDisplayIdForTask.put(taskInfo.taskId, TaskInfoHelper.getDisplayId(taskInfo));
             if ((oldTaskInfo == null || !TaskInfoHelper.isVisible(oldTaskInfo)
                     || !Objects.equals(oldTaskInfo.topActivity, taskInfo.topActivity))
                     && TaskInfoHelper.isVisible(taskInfo)) {
-                mHandler.post(() -> notifyActivityLaunch(taskInfo));
+                mHandler.post(() -> notifyActivityCameOnTop(taskInfo));
+            } else {
+                mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
             }
+        }
+    }
+
+    /**
+     * Removes the task from {@code mLastKnownDisplayIdForTask} if it is not present in
+     * {@code mTasks}.
+     */
+    public void cleanUpLastKnownDisplayIdForTask(TaskInfo taskInfo) {
+        synchronized (mLock) {
+            //This can happen since the tasks are removed from mTasks but not from
+            // mLastKnownDisplayIdForTask when the task vanishes in onTaskVanished.
+            if (!mTasks.containsKey(taskInfo.taskId) && mLastKnownDisplayIdForTask.get(
+                    taskInfo.taskId, Display.INVALID_DISPLAY) != Display.INVALID_DISPLAY) {
+                mLastKnownDisplayIdForTask.removeAt(
+                        mLastKnownDisplayIdForTask.indexOfKey(taskInfo.taskId));
+            }
+        }
+    }
+
+    /**
+     * Returns the array {@code mLastKnownDisplayIdForTask}.
+     */
+    public int getLastKnownDisplayIdForTask(int taskId) {
+        synchronized (mLock) {
+            return mLastKnownDisplayIdForTask.get(taskId);
         }
     }
 

@@ -99,4 +99,11 @@
         <item>android.server.wm.cts/android.server.wm.ActivityTransitionTests$TransitionActivity</item>
         <!-- END -->
     </string-array>
+
+    <!--
+        Config for allowing NDO apps to be opened while driving if they contain an active media
+        session
+        TODO(b/310687870): Add RB to testing plan
+    -->
+    <bool name="config_enableMediaSessionAppsWhileDriving">false</bool>
 </resources>
