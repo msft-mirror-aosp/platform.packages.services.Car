@@ -18,12 +18,10 @@ package com.android.systemui.car.distantdisplay.common;
 import static android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY;
 import static android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_SECURE;
 
-import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
-import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -39,8 +37,6 @@ import android.widget.FrameLayout;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import com.android.systemui.R;
-import com.android.systemui.car.distantdisplay.activity.NavigationTaskViewWallpaperActivity;
-import com.android.systemui.car.distantdisplay.activity.RootTaskViewWallpaperActivity;
 
 /**
  * VirtualDisplay controller that manages the implementation and management of virtual displays.
@@ -125,36 +121,6 @@ public class VirtualDisplayController {
     }
 
     /**
-     * Launches activity with given display id and intent
-     */
-    public void launchActivity(int displayId, Intent intent) {
-        if (displayId == Display.INVALID_DISPLAY) {
-            Log.e(TAG, "Invalid display Id");
-            return;
-        }
-        ActivityOptions options = ActivityOptions.makeCustomAnimation(mContext, 0, 0);
-        options.setLaunchDisplayId(displayId);
-        mContext.startActivityAsUser(intent, options.toBundle(), UserHandle.CURRENT);
-    }
-
-    /**
-     * Launches the wallpaper activity on a virtuall display which belongs to a surface.
-     * This method will be called when a virtual display is created from the SrufaceHolderCallback.
-     */
-    public void launchWallpaper(String surface) {
-        Log.i(TAG, "launchWallpaper");
-        if (surface.equals(ROOT_SURFACE)) {
-            launchActivity(getRootTaskDisplayId(),
-                    RootTaskViewWallpaperActivity.createIntent(mContext));
-        } else if (surface.equals(NAVIGATION_SURFACE)) {
-            launchActivity(getNavigationTaskDisplayId(),
-                    NavigationTaskViewWallpaperActivity.createIntent(mContext));
-        } else {
-            Log.e(TAG, "Invalid surfacename : " + surface);
-        }
-    }
-
-    /**
      * Gets a SurfaceHolder object and returns a VirtualDisplay it belongs to.
      */
     public VirtualDisplay getVirtualDisplay(SurfaceHolder holder) {
@@ -236,18 +202,14 @@ public class VirtualDisplayController {
             VirtualDisplay virtualDisplay = mController.getVirtualDisplay(holder);
             if (virtualDisplay == null) {
                 virtualDisplay = createVirtualDisplay(holder.getSurface(), width, height);
-                mController.putVirtualDisplay(holder, virtualDisplay);
                 int displayId = virtualDisplay.getDisplay().getDisplayId();
                 Log.i(TAG, "Created a virtual display for " + mSurfaceName + ". ID: " + displayId);
-                mController.launchWallpaper(mSurfaceName);
+                notifyDisplayId(mSurfaceName, displayId);
+                mController.putVirtualDisplay(holder, virtualDisplay);
             } else {
                 Log.i(TAG, "SetSurface display_id: " + virtualDisplay.getDisplay().getDisplayId()
                         + ", surface name:" + mSurfaceName);
                 virtualDisplay.setSurface(holder.getSurface());
-            }
-            int rootTaskDisplayId = mController.getRootTaskDisplayId();
-            if (rootTaskDisplayId != Display.INVALID_DISPLAY) {
-                notifyDisplayId("DistantDisplay_RootTaskViewDisplayId", rootTaskDisplayId);
             }
         }
 
@@ -280,8 +242,13 @@ public class VirtualDisplayController {
                     null, /* handler= */ null, mUniqueId);
         }
 
-        private void notifyDisplayId(String action, int displayId) {
-            Intent intent = new Intent(action);
+        private void notifyDisplayId(String surfaceName, int displayId) {
+            if (!surfaceName.equals(ROOT_SURFACE) && !surfaceName.equals(NAVIGATION_SURFACE)) {
+                Log.e(TAG, "Invalid surfaceName: " + surfaceName);
+                return;
+            }
+            Intent intent = new Intent("DistantDisplay_DisplayId");
+            intent.putExtra("surface_name", surfaceName);
             intent.putExtra("display_id", displayId);
             mContext.sendBroadcast(intent);
         }
