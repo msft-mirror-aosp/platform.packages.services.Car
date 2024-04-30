@@ -307,6 +307,19 @@ public final class CarServiceHelperWrapper {
         return INVALID_PID;
     }
 
+    /**
+     * See {@code ICarServiceHelper}.
+     */
+    public boolean requiresDisplayCompat(String packageName, int userId) {
+        try {
+            return waitForCarServiceHelper().requiresDisplayCompat(packageName, userId);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+        return false;
+    }
+
+
     private CarServiceHelperWrapper(long carServiceHelperWaitTimeoutMs) {
         mCarServiceHelperWaitTimeoutMs = carServiceHelperWaitTimeoutMs;
     }

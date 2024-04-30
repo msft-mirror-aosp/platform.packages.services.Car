@@ -17,6 +17,8 @@
 package com.android.car.pm;
 
 import static android.Manifest.permission.QUERY_ALL_PACKAGES;
+import static android.car.Car.PERMISSION_CONTROL_CAR_APP_LAUNCH;
+import static android.car.CarOccupantZoneManager.DISPLAY_TYPE_MAIN;
 import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_BLOCKED_ACTIVITY_NAME;
 import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_BLOCKED_TASK_ID;
 import static android.car.content.pm.CarPackageManager.BLOCKING_INTENT_EXTRA_DISPLAY_ID;
@@ -100,6 +102,7 @@ import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarOccupantZoneService;
 import com.android.car.CarServiceBase;
+import com.android.car.CarServiceHelperWrapper;
 import com.android.car.CarUxRestrictionsManagerService;
 import com.android.car.R;
 import com.android.car.am.CarActivityService;
@@ -108,6 +111,8 @@ import com.android.car.internal.util.DebugUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.LocalLog;
 import com.android.car.internal.util.Sets;
+import com.android.car.SystemActivityMonitoringService;
+import com.android.car.internal.ICarServiceHelper;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
@@ -290,7 +295,6 @@ public final class CarPackageManagerService extends ICarPackageManager.Stub
         mTemplateActivityClassName = res.getString(R.string.config_template_activity_class_name);
         mBlockingUiCommandListenerMediator = new BlockingUiCommandListenerMediator();
     }
-
 
     @Override
     public void setAppBlockingPolicy(String packageName, CarAppBlockingPolicy policy, int flags) {
@@ -1739,6 +1743,21 @@ public final class CarPackageManagerService extends ICarPackageManager.Stub
         } catch (NameNotFoundException e) {
             return null;
         }
+    }
+
+    @Override
+    public boolean requiresDisplayCompat(String packageName, @UserIdInt int userId) {
+        if (!callerCanQueryPackage(packageName)) {
+            throw new SecurityException("requires permission " + QUERY_ALL_PACKAGES);
+        }
+        int callingUid = Binder.getCallingUid();
+        if (!hasPermissionGranted(PERMISSION_CONTROL_CAR_APP_LAUNCH, callingUid)) {
+            throw new SecurityException("requires permission "
+                    + PERMISSION_CONTROL_CAR_APP_LAUNCH);
+        }
+
+        return CarServiceHelperWrapper.getInstance().requiresDisplayCompat(
+            Objects.requireNonNull(packageName, "packageName cannot be Null"), userId);
     }
 
     private String[] findDistractionOptimizedActivitiesAsUser(String pkgName, int userId)

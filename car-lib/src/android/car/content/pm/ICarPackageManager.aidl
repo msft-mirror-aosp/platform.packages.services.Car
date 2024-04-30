@@ -40,4 +40,5 @@ interface ICarPackageManager {
     CarVersion getSelfTargetCarVersion(in String packageName) = 11;
     void registerBlockingUiCommandListener(in ICarBlockingUiCommandListener listener, int displayId) = 12;
     void unregisterBlockingUiCommandListener(in ICarBlockingUiCommandListener listener) = 13;
+    boolean requiresDisplayCompat(in String packageName, int userId) = 14;
 }
