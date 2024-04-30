@@ -320,6 +320,7 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
     constexpr int64_t kThreshold = 16'000;  // ms
     unsigned frameDeliveries = 0;
     std::deque<FrameRequest> currentRequests;
+    std::deque<FrameRequest> puntedRequests;
     {
         std::lock_guard<std::mutex> lock(mFrameMutex);
         currentRequests.insert(currentRequests.end(),
@@ -341,6 +342,7 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
             // Skip current frame because it arrives too soon.
             LOG(DEBUG) << "Skips a frame from " << getId();
             mUsageStats->framesSkippedToSync();
+            puntedRequests.push_back(req);
             continue;
         }
 
@@ -379,6 +381,14 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
             mFrames[i].frameId = buffers[0].bufferId;
         }
         mFrames[i].refCount = frameDeliveries;
+    }
+
+    {
+        // Adding skipped capture requests back to the queue.
+        std::lock_guard<std::mutex> lock(mFrameMutex);
+        mNextRequests.insert(mNextRequests.end(),
+                             std::make_move_iterator(puntedRequests.begin()),
+                             std::make_move_iterator(puntedRequests.end()));
     }
 
     return ScopedAStatus::ok();
