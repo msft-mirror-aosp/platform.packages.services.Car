@@ -81,6 +81,7 @@
             android:layout_height="match_parent"
             android:layout_toLeftOf="@id/user_name_container"
             style="@style/TopBarButton"
+            systemui:controller="com.android.systemui.car.statusicon.ui.DistantDisplayStatusIconPanelController"
             systemui:panelLayoutRes="@layout/qc_distant_display_panel"
             systemui:panelWidthRes="@dimen/car_profile_quick_controls_panel_width"
             systemui:gravity="top|end"
