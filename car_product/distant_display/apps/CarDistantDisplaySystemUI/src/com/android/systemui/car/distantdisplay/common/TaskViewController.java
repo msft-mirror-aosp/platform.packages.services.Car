@@ -39,6 +39,8 @@ import com.android.systemui.R;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.car.distantdisplay.activity.DistantDisplayActivity;
 import com.android.systemui.car.distantdisplay.activity.MoveTaskReceiver;
+import com.android.systemui.car.distantdisplay.activity.NavigationTaskViewWallpaperActivity;
+import com.android.systemui.car.distantdisplay.activity.RootTaskViewWallpaperActivity;
 import com.android.systemui.car.distantdisplay.util.AppCategoryDetector;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.settings.UserTracker;
@@ -98,12 +100,21 @@ public class TaskViewController {
         }
     };
 
-    private final BroadcastReceiver mDistantDisplayActivityReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver mDistantDisplayIdReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (Objects.equals(intent.getAction(), "DistantDisplay_RootTaskViewDisplayId")) {
-                mDistantDisplayId = intent.getIntExtra("display_id", Display.INVALID_DISPLAY);
-                Log.i(TAG, "Update DistantDisplayId : " + mDistantDisplayId);
+            if (Objects.equals(intent.getAction(), "DistantDisplay_DisplayId")) {
+                Intent wallpaperIntent = null;
+                String surfaceName = intent.getStringExtra("surface_name");
+                int displayId = intent.getIntExtra("display_id", Display.INVALID_DISPLAY);
+                if (surfaceName.equals("NavigationViewSurface")) {
+                    wallpaperIntent = NavigationTaskViewWallpaperActivity.createIntent(mContext);
+                } else if (surfaceName.equals("RootViewSurface")) {
+                    wallpaperIntent = RootTaskViewWallpaperActivity.createIntent(mContext);
+                    mDistantDisplayId = displayId;
+                }
+                launchWallpaperActivity(displayId, wallpaperIntent);
+                Log.i(TAG, "displayId : " + displayId + ", surfaceName: " + surfaceName);
             }
         }
     };
@@ -206,8 +217,8 @@ public class TaskViewController {
         mContext.startActivityAsUser(DistantDisplayActivity.createIntent(mContext),
                 options.toBundle(), UserHandle.CURRENT);
 
-        mBroadcastDispatcher.registerReceiver(mDistantDisplayActivityReceiver,
-                new IntentFilter("DistantDisplay_RootTaskViewDisplayId"),
+        mBroadcastDispatcher.registerReceiver(mDistantDisplayIdReceiver,
+                new IntentFilter("DistantDisplay_DisplayId"),
                 /* executor= */ null, UserHandle.ALL);
         mDistantDisplayActivityLaunched = true;
     }
@@ -225,7 +236,7 @@ public class TaskViewController {
             mContext.unregisterReceiver(mMoveTaskReceiver);
             mMoveTaskReceiver = null;
             mBroadcastDispatcher.unregisterReceiver(mUserEventReceiver);
-            mBroadcastDispatcher.unregisterReceiver(mDistantDisplayActivityReceiver);
+            mBroadcastDispatcher.unregisterReceiver(mDistantDisplayIdReceiver);
         }
     }
 
@@ -340,6 +351,15 @@ public class TaskViewController {
                 callback.topAppOnDisplayChanged(displayId, intent);
             }
         }
+    }
+
+    private void launchWallpaperActivity(int displayId, Intent intent) {
+        if (displayId == Display.INVALID_DISPLAY || intent == null) {
+            return;
+        }
+        ActivityOptions options = ActivityOptions.makeCustomAnimation(mContext, 0, 0);
+        options.setLaunchDisplayId(displayId);
+        mContext.startActivityAsUser(intent, options.toBundle(), UserHandle.CURRENT);
     }
 
     /** Get the displayId of DistantDisplay. */
