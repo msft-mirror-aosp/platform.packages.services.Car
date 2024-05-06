@@ -60,7 +60,6 @@ import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
 import android.util.SparseArray;
-import android.util.SparseIntArray;
 import android.view.Display;
 import android.view.SurfaceControl;
 
@@ -120,11 +119,6 @@ public final class CarActivityService extends ICarActivityService.Stub
     @GuardedBy("mLock")
     private final RemoteCallbackList<ICarSystemUIProxyCallback> mCarSystemUIProxyCallbacks =
             new RemoteCallbackList<ICarSystemUIProxyCallback>();
-    /**
-     * Mapping between the task ID and the last known display ID.
-     */
-    @GuardedBy("mLock")
-    private final SparseIntArray mLastKnownDisplayIdForTask = new SparseIntArray();
 
     private IBinder mCurrentMonitor;
 
@@ -142,10 +136,9 @@ public final class CarActivityService extends ICarActivityService.Stub
         /**
          * Notify change or vanish of an activity in the backstack.
          *
-         * @param taskInfo           task information for what is currently changed or vanished.
-         * @param lastKnownDisplayId the last known display id where the task changed or vanished.
+         * @param taskInfo task information for what is currently changed or vanished.
          */
-        void onActivityChangedInBackstack(TaskInfo taskInfo, int lastKnownDisplayId);
+        void onActivityChangedInBackstack(TaskInfo taskInfo);
     }
 
     @GuardedBy("mLock")
@@ -274,7 +267,6 @@ public final class CarActivityService extends ICarActivityService.Stub
                 return;
             }
             mTasks.put(taskInfo.taskId, taskInfo);
-            mLastKnownDisplayIdForTask.put(taskInfo.taskId, TaskInfoHelper.getDisplayId(taskInfo));
             if (leash != null) {
                 mTaskToSurfaceMap.put(taskInfo.taskId, leash);
             }
@@ -300,8 +292,7 @@ public final class CarActivityService extends ICarActivityService.Stub
             listener = mActivityListener;
         }
         if (listener != null) {
-            listener.onActivityChangedInBackstack(taskInfo,
-                    mLastKnownDisplayIdForTask.get(taskInfo.taskId));
+            listener.onActivityChangedInBackstack(taskInfo);
         }
     }
 
@@ -352,7 +343,6 @@ public final class CarActivityService extends ICarActivityService.Stub
             // LinkedHashMap.
             TaskInfo oldTaskInfo = mTasks.remove(taskInfo.taskId);
             mTasks.put(taskInfo.taskId, taskInfo);
-            mLastKnownDisplayIdForTask.put(taskInfo.taskId, TaskInfoHelper.getDisplayId(taskInfo));
             if ((oldTaskInfo == null || !TaskInfoHelper.isVisible(oldTaskInfo)
                     || !Objects.equals(oldTaskInfo.topActivity, taskInfo.topActivity))
                     && TaskInfoHelper.isVisible(taskInfo)) {
@@ -360,31 +350,6 @@ public final class CarActivityService extends ICarActivityService.Stub
             } else {
                 mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
             }
-        }
-    }
-
-    /**
-     * Removes the task from {@code mLastKnownDisplayIdForTask} if it is not present in
-     * {@code mTasks}.
-     */
-    public void cleanUpLastKnownDisplayIdForTask(TaskInfo taskInfo) {
-        synchronized (mLock) {
-            //This can happen since the tasks are removed from mTasks but not from
-            // mLastKnownDisplayIdForTask when the task vanishes in onTaskVanished.
-            if (!mTasks.containsKey(taskInfo.taskId) && mLastKnownDisplayIdForTask.get(
-                    taskInfo.taskId, Display.INVALID_DISPLAY) != Display.INVALID_DISPLAY) {
-                mLastKnownDisplayIdForTask.removeAt(
-                        mLastKnownDisplayIdForTask.indexOfKey(taskInfo.taskId));
-            }
-        }
-    }
-
-    /**
-     * Returns the array {@code mLastKnownDisplayIdForTask}.
-     */
-    public int getLastKnownDisplayIdForTask(int taskId) {
-        synchronized (mLock) {
-            return mLastKnownDisplayIdForTask.get(taskId);
         }
     }
 
