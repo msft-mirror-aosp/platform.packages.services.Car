@@ -30,6 +30,7 @@ import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArrayMap;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.Listeners.ClientWithRate;
 import com.android.car.hal.DiagnosticHalService;
@@ -304,6 +305,8 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
                     return true;
                 }
                 break;
+            default:
+                break;
         }
         return false;
     }
@@ -372,6 +375,8 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
                     if (mFreezeFrameDiagnosticRecords.disableIfNeeded()) {
                         diagnosticHal.requestDiagnosticStop(CarDiagnosticManager.FRAME_TYPE_FREEZE);
                     }
+                    break;
+                default:
                     break;
             }
         }
@@ -497,9 +502,15 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof DiagnosticClient
-                && mListener.asBinder()
-                == ((DiagnosticClient) o).mListener.asBinder();
+            if (this == o) return true;
+            if (!(o instanceof DiagnosticClient)) return false;
+            DiagnosticClient that = (DiagnosticClient) o;
+            return mListener.asBinder() == (that.mListener.asBinder());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(mListener.asBinder());
         }
 
         boolean isHoldingListenerBinder(IBinder listenerBinder) {
@@ -679,4 +690,8 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
             }
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 }

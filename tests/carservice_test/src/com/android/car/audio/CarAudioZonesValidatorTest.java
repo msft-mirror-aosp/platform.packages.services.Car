@@ -20,20 +20,17 @@ import static android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC;
 import static android.media.AudioDeviceInfo.TYPE_BUS;
 import static android.media.AudioDeviceInfo.TYPE_FM_TUNER;
 
-import static com.google.common.truth.Truth.assertThat;
-
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.testng.Assert.expectThrows;
 
+import android.car.test.AbstractExpectableTestCase;
 import android.media.AudioDeviceAttributes;
 import android.util.SparseArray;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
@@ -41,16 +38,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
-public class CarAudioZonesValidatorTest {
-    @Rule
-    public final ExpectedException thrown = ExpectedException.none();
+public class CarAudioZonesValidatorTest extends AbstractExpectableTestCase {
 
     @Test
     public void validate_thereIsAtLeastOneZone() {
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(new SparseArray<CarAudioZone>()));
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> CarAudioZonesValidator.validate(new SparseArray<CarAudioZone>(),
+                        /* useCoreAudioRouting= */ false));
 
-        assertThat(exception).hasMessageThat().contains("At least one zone should be defined");
+        expectWithMessage("Empty zones exception").that(exception).hasMessageThat()
+                .contains("At least one zone should be defined");
 
     }
 
@@ -60,10 +57,11 @@ public class CarAudioZonesValidatorTest {
         SparseArray<CarAudioZone> zones = new SparseArray<>();
         zones.put(zone.getId(), zone);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> CarAudioZonesValidator.validate(zones));
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false));
 
-        assertThat(exception).hasMessageThat().contains("Primary Zone Input Devices");
+        expectWithMessage("Empty input devices exception").that(exception).hasMessageThat()
+                .contains("Primary Zone Input Devices");
     }
 
     @Test
@@ -72,10 +70,11 @@ public class CarAudioZonesValidatorTest {
         SparseArray<CarAudioZone> zones = new SparseArray<>();
         zones.put(zone.getId(), zone);
 
-        NullPointerException exception = expectThrows(NullPointerException.class,
-                () -> CarAudioZonesValidator.validate(zones));
+        NullPointerException exception = assertThrows(NullPointerException.class,
+                () -> CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false));
 
-        assertThat(exception).hasMessageThat().contains("Primary Zone Input Devices");
+        expectWithMessage("Null input devices exception").that(exception).hasMessageThat()
+                .contains("Primary Zone Input Devices");
     }
 
     @Test
@@ -86,59 +85,103 @@ public class CarAudioZonesValidatorTest {
         SparseArray<CarAudioZone> zones = new SparseArray<>();
         zones.put(zone.getId(), zone);
 
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(zones));
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false));
 
-        assertThat(exception).hasMessageThat().contains("Primary Zone must have");
+        expectWithMessage("Missing microphone exception").that(exception).hasMessageThat()
+                .contains("Primary Zone must have");
     }
 
     @Test
-    public void validate_volumeGroupsForEachZone() {
+    public void validate_zoneConfigsForEachZone() {
         SparseArray<CarAudioZone> zones = generateAudioZonesWithPrimary();
         CarAudioZone zoneOne = new MockBuilder()
-                .withInvalidVolumeGroups()
+                .withInvalidZoneConfigs()
                 .withZoneId(1)
                 .build();
         zones.put(zoneOne.getId(), zoneOne);
 
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(zones));
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false));
 
-        assertThat(exception).hasMessageThat()
-                .contains("Invalid volume groups configuration for zone " + 1);
+        expectWithMessage("Invalid zone config exception").that(exception).hasMessageThat()
+                .contains("Invalid zone configurations for zone " + 1);
     }
 
     @Test
-    public void validate_eachAddressAppearsInOnlyOneZone() {
+    public void validate_addressesCanNotRepeatAcrossZones() {
         CarVolumeGroup mockVolumeGroup = generateVolumeGroup(List.of("one", "two", "three"));
-
-        CarAudioZone primaryZone = new MockBuilder()
+        CarAudioZoneConfig primaryZoneConfig = new MockConfigBuilder()
                 .withVolumeGroups(new CarVolumeGroup[]{mockVolumeGroup})
                 .build();
-
+        CarAudioZone primaryZone = new MockBuilder()
+                .withZoneConfigs(List.of(primaryZoneConfig))
+                .build();
         CarVolumeGroup mockSecondaryVolumeGroup = generateVolumeGroup(
                 List.of("three", "four", "five"));
-
+        CarAudioZoneConfig secondaryZoneConfig = new MockConfigBuilder()
+                .withVolumeGroups(new CarVolumeGroup[]{mockSecondaryVolumeGroup})
+                .build();
         CarAudioZone secondaryZone = new MockBuilder()
                 .withZoneId(1)
-                .withVolumeGroups(new CarVolumeGroup[]{mockSecondaryVolumeGroup})
+                .withZoneConfigs(List.of(secondaryZoneConfig))
                 .build();
         SparseArray<CarAudioZone> zones = new SparseArray<>();
         zones.put(primaryZone.getId(), primaryZone);
         zones.put(secondaryZone.getId(), secondaryZone);
 
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> CarAudioZonesValidator.validate(zones));
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false));
 
-        assertThat(exception).hasMessageThat().contains(
-                "Device with address three appears in multiple volume groups or audio zones");
+        expectWithMessage("Repeating addresses in zones exception").that(exception)
+                .hasMessageThat().contains("repeats among multiple zones");
+    }
+
+    @Test
+    public void validate_addressesCanNotRepeatAcrossConfigs() {
+        CarVolumeGroup mockVolumeGroup1 = generateVolumeGroup(List.of("one", "two", "three"));
+        CarVolumeGroup mockVolumeGroup2 = generateVolumeGroup(List.of("three", "four", "five"));
+        CarAudioZoneConfig primaryZoneConfig = new MockConfigBuilder()
+                .withVolumeGroups(new CarVolumeGroup[]{mockVolumeGroup1, mockVolumeGroup2})
+                .build();
+        CarAudioZone primaryZone = new MockBuilder()
+                .withZoneConfigs(List.of(primaryZoneConfig))
+                .build();
+        SparseArray<CarAudioZone> zones = new SparseArray<>();
+        zones.put(primaryZone.getId(), primaryZone);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false));
+
+        expectWithMessage("Repeating addresses in same config exception").that(exception)
+                .hasMessageThat().contains("multiple volume groups in the same configuration");
     }
 
     @Test
     public void validate_passesWithoutExceptionForValidZoneConfiguration() {
         SparseArray<CarAudioZone> zones = generateAudioZonesWithPrimary();
 
-        CarAudioZonesValidator.validate(zones);
+        CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false);
+    }
+
+    @Test
+    public void validate_passesWithoutExceptionForRepeatAddressInDifferentConfigs() {
+        CarVolumeGroup mockVolumeGroup1 = generateVolumeGroup(List.of("BT", "two", "three"));
+        CarVolumeGroup mockVolumeGroup2 = generateVolumeGroup(List.of("BT", "four", "five"));
+        CarAudioZoneConfig primaryZoneConfig1 = new MockConfigBuilder()
+                .withVolumeGroups(new CarVolumeGroup[]{mockVolumeGroup1})
+                .build();
+        CarAudioZoneConfig primaryZoneConfig2 = new MockConfigBuilder()
+                .withVolumeGroups(new CarVolumeGroup[]{mockVolumeGroup2})
+                .build();
+        CarAudioZone primaryZone = new MockBuilder()
+                .withInputDevices(getValidInputDevices())
+                .withZoneConfigs(List.of(primaryZoneConfig1, primaryZoneConfig2))
+                .build();
+        SparseArray<CarAudioZone> zones = new SparseArray<>();
+        zones.put(primaryZone.getId(), primaryZone);
+
+        CarAudioZonesValidator.validate(zones, /* useCoreAudioRouting= */ false);
     }
 
     private SparseArray<CarAudioZone> generateAudioZonesWithPrimary() {
@@ -160,22 +203,26 @@ public class CarAudioZonesValidatorTest {
                 generateInputAudioDeviceAttributeInfo("bus", TYPE_BUS));
     }
     private static class MockBuilder {
-        private boolean mHasValidVolumeGroups = true;
+        private boolean mHasValidZoneConfigs = true;
         private int mZoneId = PRIMARY_AUDIO_ZONE;
-        private CarVolumeGroup[] mVolumeGroups = new CarVolumeGroup[0];
+
+        private List<CarAudioZoneConfig> mZoneConfigs = new ArrayList<>();
         private List<AudioDeviceAttributes> mInputDevices = new ArrayList<>();
 
         CarAudioZone build() {
             CarAudioZone zoneMock = Mockito.mock(CarAudioZone.class);
             when(zoneMock.getId()).thenReturn(mZoneId);
-            when(zoneMock.validateVolumeGroups()).thenReturn(mHasValidVolumeGroups);
-            when(zoneMock.getVolumeGroups()).thenReturn(mVolumeGroups);
+            when(zoneMock.validateZoneConfigs(/* useCoreAudioRouting= */ false))
+                    .thenReturn(mHasValidZoneConfigs);
+            when(zoneMock.validateCanUseDynamicMixRouting(/* useCoreAudioRouting= */ false))
+                    .thenReturn(mHasValidZoneConfigs);
+            when(zoneMock.getAllCarAudioZoneConfigs()).thenReturn(mZoneConfigs);
             when(zoneMock.getInputAudioDevices()).thenReturn(mInputDevices);
             return zoneMock;
         }
 
-        MockBuilder withInvalidVolumeGroups() {
-            mHasValidVolumeGroups = false;
+        MockBuilder withInvalidZoneConfigs() {
+            mHasValidZoneConfigs = false;
             return this;
         }
 
@@ -184,13 +231,27 @@ public class CarAudioZonesValidatorTest {
             return this;
         }
 
-        MockBuilder withVolumeGroups(CarVolumeGroup[] volumeGroups) {
-            mVolumeGroups = volumeGroups;
+        MockBuilder withZoneConfigs(List<CarAudioZoneConfig> zoneConfigs) {
+            mZoneConfigs = zoneConfigs;
             return this;
         }
 
         MockBuilder withInputDevices(List<AudioDeviceAttributes> inputDevices) {
             mInputDevices = inputDevices;
+            return this;
+        }
+    }
+    private static class MockConfigBuilder {
+        private CarVolumeGroup[] mVolumeGroups = new CarVolumeGroup[0];
+
+        CarAudioZoneConfig build() {
+            CarAudioZoneConfig zoneConfigMock = Mockito.mock(CarAudioZoneConfig.class);
+            when(zoneConfigMock.getVolumeGroups()).thenReturn(mVolumeGroups);
+            return zoneConfigMock;
+        }
+
+        MockConfigBuilder withVolumeGroups(CarVolumeGroup[] volumeGroups) {
+            mVolumeGroups = volumeGroups;
             return this;
         }
     }

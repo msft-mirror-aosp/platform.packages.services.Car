@@ -14,6 +14,7 @@
 
 // Unit tests for the experimental car service
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -38,8 +39,8 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.rules",
         "mockito-target-extended",
-        "truth-prebuilt",
-        "experimentalcar-service-test-static-lib"
+        "truth",
+        "experimentalcar-service-test-static-lib",
     ],
 
     jni_libs: [
@@ -49,7 +50,10 @@ android_test {
 
     instrumentation_for: "ExperimentalCarService",
 
-    test_suites: ["device-tests"],
+    test_suites: [
+        "device-tests",
+        "automotive-tests",
+    ],
 
     compile_multilib: "both",
 }

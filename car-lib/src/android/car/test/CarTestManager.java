@@ -20,9 +20,10 @@ import android.annotation.RequiresPermission;
 import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.os.IBinder;
 import android.os.RemoteException;
+
+import java.util.List;
 
 /**
  * API for testing only. Allows mocking vehicle hal.
@@ -49,7 +50,6 @@ public final class CarTestManager extends CarManagerBase {
      * @hide
      */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // test will fail. nothing to do.
     }
@@ -64,7 +64,6 @@ public final class CarTestManager extends CarManagerBase {
      */
     @TestApi
     @RequiresPermission(Car.PERMISSION_CAR_TEST_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void stopCarService(@NonNull IBinder token) {
         try {
             mService.stopCarService(token);
@@ -82,12 +81,55 @@ public final class CarTestManager extends CarManagerBase {
      */
     @TestApi
     @RequiresPermission(Car.PERMISSION_CAR_TEST_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void startCarService(@NonNull IBinder token) {
         try {
             mService.startCarService(token);
         } catch (RemoteException e) {
             handleRemoteExceptionFromCarService(e);
         }
+    }
+
+    /**
+     * Dumps VHAL information or debug VHAL.
+     *
+     * {@code waitTimeoutMs} specifies the longest time CarTestService will wait to receive all
+     * dumped information from VHAL before timeout. A correctly implemented VHAL should finish
+     * dumping all the info before returning. As a result, {@code waitTimeoutMs} is used to regulate
+     * how long CarTestService would wait before it determines that VHAL is dead or stuck and
+     * returns error.
+     *
+     * @hide
+     */
+    @TestApi
+    @RequiresPermission(Car.PERMISSION_CAR_TEST_SERVICE)
+    public String dumpVhal(List<String> options, long waitTimeoutMs) {
+        try {
+            return mService.dumpVhal(options, waitTimeoutMs);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+            return "";
+        }
+    }
+
+    /**
+     * Returns whether AIDL VHAL is used for VHAL backend.
+     *
+     * @hide
+     */
+    @TestApi
+    @RequiresPermission(Car.PERMISSION_CAR_TEST_SERVICE)
+    public boolean hasAidlVhal() throws RemoteException {
+        return mService.hasAidlVhal();
+    }
+
+    /**
+     * Returns OEM service name.
+     *
+     * @hide
+     */
+    @TestApi
+    @RequiresPermission(Car.PERMISSION_CAR_TEST_SERVICE)
+    public String getOemServiceName() throws RemoteException {
+        return mService.getOemServiceName();
     }
 }

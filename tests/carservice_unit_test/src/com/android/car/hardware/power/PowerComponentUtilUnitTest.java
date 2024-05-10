@@ -15,6 +15,9 @@
  */
 package com.android.car.power;
 
+import static android.car.hardware.power.PowerComponentUtil.powerComponentToString;
+import static android.car.hardware.power.PowerComponentUtil.powerComponentsToStrings;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -26,17 +29,27 @@ import android.car.hardware.power.PowerComponentUtil;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public final class PowerComponentUtilUnitTest {
-    private final Field[] mComponentFields =
-            android.car.hardware.power.PowerComponent.class.getFields();
+    private final Field[] mPowerComponentFields = (Field[])
+            Arrays.stream(PowerComponent.class.getFields()).filter(field -> {
+                try {
+                    return field.getInt(null) < PowerComponent.MINIMUM_CUSTOM_COMPONENT_VALUE;
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }).toArray(Field[]::new);
 
     @Test
     public void isValidPowerComponent() throws Exception {
-        int wrongPowerComponent = 9999;
+        int wrongPowerComponent = 9999; // this ID belongs to Custom power component
 
-        for (int i = 0; i < mComponentFields.length; i++) {
-            int component = mComponentFields[i].getInt(null);
+        for (int i = 0; i < mPowerComponentFields.length; i++) {
+            int component = mPowerComponentFields[i].getInt(null);
+
             assertWithMessage("%s is a valid power component", component)
                     .that(PowerComponentUtil.isValidPowerComponent(component))
                     .isTrue();
@@ -48,9 +61,9 @@ public final class PowerComponentUtilUnitTest {
 
     @Test
     public void testLastComponent() {
-        assertWithMessage("LAST_POWER_COMPONENT should be %s", mComponentFields.length)
+        assertWithMessage("LAST_POWER_COMPONENT should be %s", mPowerComponentFields.length)
                 .that(PowerComponentUtil.LAST_POWER_COMPONENT)
-                .isEqualTo(mComponentFields.length);
+                .isEqualTo(mPowerComponentFields.length);
     }
 
     @Test
@@ -74,30 +87,82 @@ public final class PowerComponentUtilUnitTest {
 
     @Test
     public void testToPowerComponent() throws Exception {
-        for (int i = 0; i < mComponentFields.length; i++) {
-            String componentName = mComponentFields[i].getName();
-            int expectedValue = mComponentFields[i].getInt(null);
+        for (int i = 0; i < mPowerComponentFields.length; i++) {
+            String componentName = mPowerComponentFields[i].getName();
+            int expectedValue = mPowerComponentFields[i].getInt(null);
             assertWithMessage("%s should be convected to %s", componentName, expectedValue)
                     .that(PowerComponentUtil.toPowerComponent(componentName, false))
                     .isEqualTo(expectedValue);
         }
-        for (int i = 0; i < mComponentFields.length; i++) {
-            String componentName = "POWER_COMPONENT_" + mComponentFields[i].getName();
-            int expectedValue = mComponentFields[i].getInt(null);
+        for (int i = 0; i < mPowerComponentFields.length; i++) {
+            String componentName = "POWER_COMPONENT_" + mPowerComponentFields[i].getName();
+            int expectedValue = mPowerComponentFields[i].getInt(null);
             assertWithMessage("%s should be convected to %s", componentName, expectedValue)
                     .that(PowerComponentUtil.toPowerComponent(componentName, true))
-                    .isEqualTo(mComponentFields[i].getInt(null));
+                    .isEqualTo(mPowerComponentFields[i].getInt(null));
         }
     }
 
     @Test
     public void testPowerComponentToString() throws Exception {
-        for (int i = 0; i < mComponentFields.length; i++) {
-            int component = mComponentFields[i].getInt(null);
-            String expectedName = mComponentFields[i].getName();
+        for (int i = 0; i < mPowerComponentFields.length; i++) {
+            int component = mPowerComponentFields[i].getInt(null);
+            String expectedName = mPowerComponentFields[i].getName();
             assertWithMessage("%s should be converted to %s", component, expectedName)
                     .that(PowerComponentUtil.powerComponentToString(component))
                     .isEqualTo(expectedName);
+        }
+    }
+    @Test
+    public void testPowerComponentsToStrings() {
+        List<Integer> components = List.of(PowerComponent.AUDIO, PowerComponent.BLUETOOTH,
+                PowerComponent.CELLULAR, PowerComponent.CPU, PowerComponent.DISPLAY,
+                PowerComponent.ETHERNET, PowerComponent.INPUT, PowerComponent.LOCATION,
+                PowerComponent.MEDIA, PowerComponent.MICROPHONE, PowerComponent.NFC,
+                PowerComponent.PROJECTION, PowerComponent.TRUSTED_DEVICE_DETECTION,
+                PowerComponent.VISUAL_INTERACTION, PowerComponent.VOICE_INTERACTION,
+                PowerComponent.WIFI);
+
+        List<String> componentStrings = powerComponentsToStrings(components);
+
+        assertComponentStringsMatchExpected(components, componentStrings);
+    }
+
+    @Test
+    public void testPowerComponentsToStrings_empty() {
+        List<Integer> components = new ArrayList<>();
+
+        List<String> componentStrings = powerComponentsToStrings(components);
+
+        assertWithMessage("Component strings of empty components list")
+                .that(componentStrings).containsAtLeastElementsIn(new ArrayList<>());
+    }
+
+    @Test
+    public void testPowerComponentsToStrings_unknownComponent() {
+        List<Integer> components = List.of(PowerComponent.AUDIO, PowerComponent.BLUETOOTH, 42);
+
+        List<String> componentStrings = powerComponentsToStrings(components);
+
+        assertComponentStringsMatchExpected(components, componentStrings);
+    }
+
+    @Test
+    public void testPowerComponentsToStrings_customComponent() {
+        List<Integer> components = List.of(PowerComponent.AUDIO, PowerComponent.BLUETOOTH,
+                PowerComponent.MINIMUM_CUSTOM_COMPONENT_VALUE + 42);
+
+        List<String> componentStrings = powerComponentsToStrings(components);
+
+        assertComponentStringsMatchExpected(components, componentStrings);
+    }
+
+    private void assertComponentStringsMatchExpected(List<Integer> components,
+            List<String> componentStrings) {
+        for (int i = 0; i < componentStrings.size(); i++) {
+            int component = components.get(i);
+            assertWithMessage("Component string for component int " + component)
+                    .that(componentStrings.get(i)).isEqualTo(powerComponentToString(component));
         }
     }
 }

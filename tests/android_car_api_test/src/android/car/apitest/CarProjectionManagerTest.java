@@ -17,7 +17,7 @@ package android.car.apitest;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.testng.Assert.assertThrows;
+import static org.junit.Assert.assertThrows;
 
 import android.app.Service;
 import android.car.Car;
@@ -30,6 +30,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.Before;
 import org.junit.Test;
+
 
 public final class CarProjectionManagerTest extends CarApiTestBase {
     private static final String TAG = CarProjectionManagerTest.class.getSimpleName();
@@ -47,7 +48,7 @@ public final class CarProjectionManagerTest extends CarApiTestBase {
             sBound = bound;
         }
 
-        public static synchronized boolean getBound() {
+        public static synchronized boolean isBound() {
             return sBound;
         }
 
@@ -55,7 +56,7 @@ public final class CarProjectionManagerTest extends CarApiTestBase {
         public IBinder onBind(Intent intent) {
             setBound(true);
             synchronized (mLock) {
-                mLock.notify();
+                mLock.notifyAll();
             }
             return mBinder;
         }
@@ -84,7 +85,7 @@ public final class CarProjectionManagerTest extends CarApiTestBase {
     public void testRegisterProjectionRunner() throws Exception {
         Intent intent = new Intent(
                 InstrumentationRegistry.getInstrumentation().getContext(), TestService.class);
-        assertThat(TestService.getBound()).isFalse();
+        assertThat(TestService.isBound()).isFalse();
         mManager.registerProjectionRunner(intent);
         synchronized (TestService.mLock) {
             try {
@@ -93,7 +94,7 @@ public final class CarProjectionManagerTest extends CarApiTestBase {
                 // Do nothing
             }
         }
-        assertThat(TestService.getBound()).isTrue();
+        assertThat(TestService.isBound()).isTrue();
         mManager.unregisterProjectionRunner(intent);
     }
 }

@@ -21,8 +21,8 @@
                  android:layout_height="wrap_content"
                  android:minHeight="?android:attr/listPreferredItemHeightSmall"
                  android:textAppearance="?android:attr/textAppearanceMedium"
-                 android:textColor="@color/alert_dialog_message_text_color"
+                 android:textColor="@color/car_alert_dialog_message_text_color"
                  android:gravity="center_vertical"
                  android:paddingEnd="?android:attr/dialogPreferredPadding"
-                 android:drawableStart="?android:attr/listChoiceIndicatorMultiple"
+                 android:drawableStart="@drawable/car_checkbox"
                  android:ellipsize="marquee" />

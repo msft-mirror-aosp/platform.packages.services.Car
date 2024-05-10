@@ -20,7 +20,6 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedInOrBefore;
 import android.car.builtin.os.ParcelHelper;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -61,7 +60,7 @@ public final class VmsAvailableLayers implements Parcelable {
         mAssociatedLayers = Collections.unmodifiableSet(mAssociatedLayers);
     }
 
-    private void parcelAssociatedLayers(Parcel dest, int flags) {
+    private void parcelAssociatedLayers(Parcel dest) {
         ParcelHelper.writeArraySet(dest, new ArraySet<>(mAssociatedLayers));
     }
 
@@ -92,7 +91,6 @@ public final class VmsAvailableLayers implements Parcelable {
      * @deprecated Use {@link #getSequenceNumber()} instead
      */
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public int getSequence() {
         return mSequenceNumber;
     }
@@ -119,7 +117,6 @@ public final class VmsAvailableLayers implements Parcelable {
     /**
      * Sequence number of the availability state
      */
-    @AddedInOrBefore(majorVersion = 33)
     public int getSequenceNumber() {
         return mSequenceNumber;
     }
@@ -127,13 +124,11 @@ public final class VmsAvailableLayers implements Parcelable {
     /**
      * Set of layers available for subscription
      */
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull Set<VmsAssociatedLayer> getAssociatedLayers() {
         return mAssociatedLayers;
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -145,7 +140,6 @@ public final class VmsAvailableLayers implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public boolean equals(@android.annotation.Nullable Object o) {
         // You can override field equality logic by defining either of the methods like:
         // boolean fieldNameEquals(VmsAvailableLayers other) { ... }
@@ -162,7 +156,6 @@ public final class VmsAvailableLayers implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public int hashCode() {
         // You can override field hashCode logic by defining methods like:
         // int fieldNameHashCode() { ... }
@@ -174,18 +167,16 @@ public final class VmsAvailableLayers implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
 
         dest.writeInt(mSequenceNumber);
-        parcelAssociatedLayers(dest, flags);
+        parcelAssociatedLayers(dest);
     }
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -205,7 +196,6 @@ public final class VmsAvailableLayers implements Parcelable {
         onConstructed();
     }
 
-    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<VmsAvailableLayers> CREATOR
             = new Parcelable.Creator<VmsAvailableLayers>() {
         @Override

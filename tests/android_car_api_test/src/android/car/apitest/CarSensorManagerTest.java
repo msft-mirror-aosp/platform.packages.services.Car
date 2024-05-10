@@ -16,11 +16,11 @@
 
 package android.car.apitest;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import android.car.Car;
 import android.car.hardware.CarSensorManager;
 import android.test.suitebuilder.annotation.MediumTest;
-
-import static com.google.common.truth.Truth.assertThat;
 
 import org.junit.Test;
 

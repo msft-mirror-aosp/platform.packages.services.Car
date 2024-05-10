@@ -18,7 +18,7 @@ package com.android.car.pm;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.testng.Assert.assertThrows;
+import static org.junit.Assert.assertThrows;
 
 import android.content.ComponentName;
 
@@ -28,6 +28,7 @@ import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
 public class VendorServiceInfoTest {
+    private static final int MAX_RETRIES = 23;
     private static final String SERVICE_NAME = "com.andorid.car/.MyService";
 
     @Test
@@ -51,6 +52,12 @@ public class VendorServiceInfoTest {
     public void invalidComponentName() {
         assertThrows(IllegalArgumentException.class,
                 () -> VendorServiceInfo.parse("invalidComponentName"));
+    }
+
+    @Test
+    public void testParse_maxRetriesValueNotANumber() {
+        assertThrows(IllegalArgumentException.class,
+                () -> VendorServiceInfo.parse(SERVICE_NAME + "#maxRetries=seven"));
     }
 
     @Test
@@ -115,6 +122,13 @@ public class VendorServiceInfoTest {
     }
 
     @Test
+    public void triggerResume() {
+        VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME + "#trigger=resume");
+
+        assertThat(info.shouldStartOnResume()).isTrue();
+    }
+
+    @Test
     public void triggerUnknown() {
         assertThrows(IllegalArgumentException.class,
                 () -> VendorServiceInfo.parse(SERVICE_NAME + "#trigger=whenever"));
@@ -124,24 +138,55 @@ public class VendorServiceInfoTest {
     public void userScopeForeground() {
         VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME + "#user=foreground");
 
+        assertThat(info.isAllUserService()).isFalse();
         assertThat(info.isForegroundUserService()).isTrue();
         assertThat(info.isSystemUserService()).isFalse();
+        assertThat(info.isVisibleUserService()).isFalse();
+        assertThat(info.isBackgroundVisibleUserService()).isFalse();
     }
 
     @Test
     public void userScopeSystem() {
         VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME + "#user=system");
 
+        assertThat(info.isAllUserService()).isFalse();
         assertThat(info.isForegroundUserService()).isFalse();
         assertThat(info.isSystemUserService()).isTrue();
+        assertThat(info.isVisibleUserService()).isFalse();
+        assertThat(info.isBackgroundVisibleUserService()).isFalse();
+    }
+
+    @Test
+    public void userScopeVisible() {
+        VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME + "#user=visible");
+
+        assertThat(info.isAllUserService()).isFalse();
+        assertThat(info.isForegroundUserService()).isFalse();
+        assertThat(info.isSystemUserService()).isFalse();
+        assertThat(info.isVisibleUserService()).isTrue();
+        assertThat(info.isBackgroundVisibleUserService()).isFalse();
+    }
+
+    @Test
+    public void userScopeBackgroundVisible() {
+        VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME + "#user=backgroundVisible");
+
+        assertThat(info.isAllUserService()).isFalse();
+        assertThat(info.isForegroundUserService()).isFalse();
+        assertThat(info.isSystemUserService()).isFalse();
+        assertThat(info.isVisibleUserService()).isFalse();
+        assertThat(info.isBackgroundVisibleUserService()).isTrue();
     }
 
     @Test
     public void userScopeAll() {
         VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME + "#user=all");
 
+        assertThat(info.isAllUserService()).isTrue();
         assertThat(info.isForegroundUserService()).isTrue();
         assertThat(info.isSystemUserService()).isTrue();
+        assertThat(info.isVisibleUserService()).isTrue();
+        assertThat(info.isBackgroundVisibleUserService()).isTrue();
     }
 
     @Test
@@ -151,9 +196,24 @@ public class VendorServiceInfoTest {
     }
 
     @Test
+    public void testGetMaxRetries() {
+        VendorServiceInfo info =
+                VendorServiceInfo.parse(SERVICE_NAME + "#maxRetries=" + MAX_RETRIES);
+
+        assertThat(info.getMaxRetries()).isEqualTo(MAX_RETRIES);
+    }
+
+    @Test
+    public void testGetMaxRetries_defaultMaxRetries() {
+        VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME);
+
+        assertThat(info.getMaxRetries()).isEqualTo(VendorServiceInfo.DEFAULT_MAX_RETRIES);
+    }
+
+    @Test
     public void allArgs() {
         VendorServiceInfo info = VendorServiceInfo.parse(SERVICE_NAME
-                + "#bind=bind,user=foreground,trigger=userUnlocked");
+                + "#bind=bind,user=foreground,trigger=userUnlocked,maxRetries=" + MAX_RETRIES);
 
         assertThat(info.getIntent().getComponent())
                 .isEqualTo(ComponentName.unflattenFromString(SERVICE_NAME));
@@ -162,16 +222,68 @@ public class VendorServiceInfoTest {
         assertThat(info.isSystemUserService()).isFalse();
         assertThat(info.shouldStartOnUnlock()).isTrue();
         assertThat(info.shouldStartAsap()).isFalse();
+        assertThat(info.getMaxRetries()).isEqualTo(MAX_RETRIES);
     }
 
     @Test
-    public void testToString() {
+    public void testToString_bindForegroundUserPostUnlocked() {
         String result = VendorServiceInfo.parse(SERVICE_NAME
-                + "#bind=bind,user=foreground,trigger=userPostUnlocked").toString();
+                + "#bind=bind,user=backgroundVisible,trigger=asap").toString();
 
         assertThat(result).contains("component=" + SERVICE_NAME);
         assertThat(result).contains("bind=BIND");
-        assertThat(result).contains("userScope=FOREGROUND");
-        assertThat(result).contains("trigger=POST_UNLOCKED");
+        assertThat(result).contains("userScope=BACKGROUND_VISIBLE");
+        assertThat(result).contains("trigger=ASAP");
+    }
+
+    @Test
+    public void testToString_bindBackgroundVisibleUserAsap() {
+        String result = VendorServiceInfo.parse(SERVICE_NAME
+                + "#bind=start,user=visible,trigger=userUnlocked").toString();
+
+        assertThat(result).contains("component=" + SERVICE_NAME);
+        assertThat(result).contains("bind=START");
+        assertThat(result).contains("userScope=VISIBLE");
+        assertThat(result).contains("trigger=UNLOCKED");
+    }
+
+    @Test
+    public void testToString_startVisibleUserUnlocked() {
+        String result = VendorServiceInfo.parse(SERVICE_NAME
+                + "#bind=start,user=visible,trigger=userUnlocked").toString();
+
+        assertThat(result).contains("component=" + SERVICE_NAME);
+        assertThat(result).contains("bind=START");
+        assertThat(result).contains("userScope=VISIBLE");
+        assertThat(result).contains("trigger=UNLOCKED");
+    }
+
+    @Test
+    public void testToString_startSystemUserResume() {
+        String result = VendorServiceInfo.parse(SERVICE_NAME
+                + "#bind=start,user=system,trigger=resume").toString();
+
+        assertThat(result).contains("component=" + SERVICE_NAME);
+        assertThat(result).contains("bind=START");
+        assertThat(result).contains("userScope=SYSTEM");
+        assertThat(result).contains("trigger=RESUME");
+    }
+
+    @Test
+    public void testToString_maxRetries() {
+        String result = VendorServiceInfo.parse(SERVICE_NAME + "#maxRetries=" + MAX_RETRIES)
+                .toString();
+
+        assertThat(result).contains("component=" + SERVICE_NAME);
+        assertThat(result).contains("maxRetries=" + MAX_RETRIES);
+    }
+
+    @Test
+    public void testToString_defaultMaxRetries() {
+        String result = VendorServiceInfo.parse(SERVICE_NAME)
+                .toString();
+
+        assertThat(result).contains("component=" + SERVICE_NAME);
+        assertThat(result).doesNotContain("maxRetries=");
     }
 }

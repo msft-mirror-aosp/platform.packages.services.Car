@@ -22,17 +22,24 @@ import static org.junit.Assert.fail;
 import android.platform.test.annotations.Presubmit;
 import android.text.TextUtils;
 
+import com.android.compatibility.common.util.NonApiTest;
+
 import org.junit.Test;
 
 @Presubmit
-public final class PreInstalledPackagesTest {
+public final class PreInstalledPackagesTest extends CarLessApiTestBase {
+
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Testing package allowlist, which is not "
+            + "an API or CDD requirement")
     public void testNoCriticalErrors_currentMode() {
         assertNoCriticalErrors(/* enforceMode= */ false);
     }
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Testing package allowlist, which is not "
+            + "an API or CDD requirement")
     public void testNoCriticalErrors_enforceMode() {
         assertNoCriticalErrors(/* enforceMode= */ true);
     }
@@ -42,7 +49,8 @@ public final class PreInstalledPackagesTest {
         String mode =  enforceMode ? " --mode 1" : "";
         String result = runShellCommand(cmd, mode);
         if (!TextUtils.isEmpty(result)) {
-            fail("Command '" + String.format(cmd, mode) + "' reported errors:\n" + result);
+            fail("Command '" + String.format(cmd, mode) + "' reported errors:\n" + result
+                    + "\nPlease check go/aaos-packages-allowlisting to fix the test!");
         }
     }
 }

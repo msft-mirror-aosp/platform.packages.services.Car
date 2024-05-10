@@ -21,6 +21,7 @@ import static com.google.common.truth.Truth.assertThat;
 import android.car.hardware.CarPropertyValue;
 import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.VehiclePropConfig;
+import android.hardware.automotive.vehicle.VehiclePropertyStatus;
 import android.hardware.automotive.vehicle.VehiclePropertyType;
 
 import org.junit.Test;
@@ -30,7 +31,7 @@ public final class HalPropValueTest {
     private static final long TEST_TIMESTAMP = 1;
     private static final int TEST_AREA_ID = 2;
     private static final int TEST_PROP = 3;
-    private static final int TEST_STATUS = 4;
+    private static final int TEST_STATUS = VehiclePropertyStatus.AVAILABLE;
     private static final int TEST_INT32_VALUE = 5;
     private static final float TEST_FLOAT_VALUE = 6.0f;
     private static final long TEST_INT64_VALUE = 7;
@@ -868,6 +869,150 @@ public final class HalPropValueTest {
         assertThat((Byte) content[5]).isEqualTo(TEST_BYTE_VALUE);
     }
 
+    private HalPropValue createTestHalPropValueWithStatus(int status) {
+        android.hardware.automotive.vehicle.VehiclePropValue aidlValue =
+                new android.hardware.automotive.vehicle.VehiclePropValue();
+        aidlValue.prop = TEST_BOOL_PROP;
+        aidlValue.areaId = TEST_AREA_ID;
+        aidlValue.status = status;
+        aidlValue.timestamp = TEST_TIMESTAMP;
+        aidlValue.value = new RawPropValues();
+        aidlValue.value.int32Values = new int[] {1};
+        return new HalPropValueBuilder(/*isAidl=*/true).build(aidlValue);
+    }
+
+    @Test
+    public void testToCarPropertyValueUnavailableStatus() {
+        HalPropValue value = createTestHalPropValueWithStatus(VehiclePropertyStatus.UNAVAILABLE);
+
+        assertThat(value.toCarPropertyValue(TEST_MGR_PROP,
+                new AidlHalPropConfig(new VehiclePropConfig()))).isEqualTo(
+                new CarPropertyValue<>(TEST_MGR_PROP, TEST_AREA_ID,
+                        CarPropertyValue.STATUS_UNAVAILABLE, TEST_TIMESTAMP, Boolean.TRUE));
+    }
+
+    @Test
+    public void testToCarPropertyValueInternalErrorStatus() {
+        HalPropValue value = createTestHalPropValueWithStatus(VehiclePropertyStatus.ERROR);
+
+        assertThat(value.toCarPropertyValue(TEST_MGR_PROP,
+                new AidlHalPropConfig(new VehiclePropConfig()))).isEqualTo(
+                new CarPropertyValue<>(TEST_MGR_PROP, TEST_AREA_ID, CarPropertyValue.STATUS_ERROR,
+                        TEST_TIMESTAMP, Boolean.TRUE));
+    }
+
+    // Creates an empty HalPropValue that does not have any value.
+    private HalPropValue createTestHalPropValueWithNoValue(int prop) {
+        android.hardware.automotive.vehicle.VehiclePropValue aidlValue =
+                new android.hardware.automotive.vehicle.VehiclePropValue();
+        aidlValue.prop = prop;
+        aidlValue.value = new RawPropValues();
+        return new HalPropValueBuilder(/*isAidl=*/true).build(aidlValue);
+    }
+
+    @Test
+    public void testToCarPropertyValueInvalidBoolProp() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_BOOL_PROP);
+
+        assertThat(value.toCarPropertyValue(TEST_MGR_PROP,
+                new AidlHalPropConfig(new VehiclePropConfig()))).isEqualTo(
+                new CarPropertyValue<>(TEST_MGR_PROP, /*areaId=*/0,
+                        CarPropertyValue.STATUS_ERROR, /*timestampNanos=*/0, Boolean.FALSE));
+    }
+
+    @Test
+    public void testToCarPropertyValueInvalidInt32Prop() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_INT32_PROP);
+
+        assertThat(value.toCarPropertyValue(TEST_MGR_PROP,
+                new AidlHalPropConfig(new VehiclePropConfig()))).isEqualTo(
+                new CarPropertyValue<>(TEST_MGR_PROP, /*areaId=*/0,
+                        CarPropertyValue.STATUS_ERROR, /*timestampNanos=*/0, Integer.valueOf(0)));
+    }
+
+    @Test
+    public void testToCarPropertyValueInvalidInt64Prop() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_INT64_PROP);
+
+        assertThat(value.toCarPropertyValue(TEST_MGR_PROP,
+                new AidlHalPropConfig(new VehiclePropConfig()))).isEqualTo(
+                new CarPropertyValue<>(TEST_MGR_PROP, /*areaId=*/0,
+                        CarPropertyValue.STATUS_ERROR, /*timestampNanos=*/0, Long.valueOf(0)));
+    }
+
+    @Test
+    public void testToCarPropertyValueInvalidFloatProp() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_FLOAT_PROP);
+
+        assertThat(value.toCarPropertyValue(TEST_MGR_PROP,
+                new AidlHalPropConfig(new VehiclePropConfig()))).isEqualTo(
+                new CarPropertyValue<>(TEST_MGR_PROP, /*areaId=*/0,
+                        CarPropertyValue.STATUS_ERROR, /*timestampNanos=*/0, Float.valueOf(0)));
+    }
+
+    // For int32_vec property, an empty array is considered a valid return value.
+    @Test
+    public void testToCarPropertyValueEmptyInt32VecProp() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_INT32_VEC_PROP);
+
+        CarPropertyValue carPropValue = value.toCarPropertyValue(
+                TEST_MGR_PROP, new AidlHalPropConfig(new VehiclePropConfig()));
+        assertThat(carPropValue.getValue()).isEqualTo(new Integer[0]);
+    }
+
+    // For int64_vec property, an empty array is considered a valid return value.
+    @Test
+    public void testToCarPropertyValueEmptyInt64VecProp() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_INT64_VEC_PROP);
+
+        CarPropertyValue carPropValue = value.toCarPropertyValue(
+                TEST_MGR_PROP, new AidlHalPropConfig(new VehiclePropConfig()));
+        assertThat(carPropValue.getValue()).isEqualTo(new Long[0]);
+    }
+
+    // For float_vec property, an empty array is considered a valid return value.
+    @Test
+    public void testToCarPropertyValueEmptyFloatVecProp() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_FLOAT_VEC_PROP);
+
+        CarPropertyValue carPropValue = value.toCarPropertyValue(
+                TEST_MGR_PROP, new AidlHalPropConfig(new VehiclePropConfig()));
+        assertThat(carPropValue.getValue()).isEqualTo(new Float[0]);
+    }
+
+    // For string property, an empty string is considered a valid return value.
+    @Test
+    public void testToCarPropertyValueEmptyStringProp() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_STRING_PROP);
+
+        CarPropertyValue carPropValue = value.toCarPropertyValue(
+                TEST_MGR_PROP, new AidlHalPropConfig(new VehiclePropConfig()));
+        assertThat(carPropValue.getValue()).isEqualTo(new String());
+    }
+
+    // For bytes property, an empty byte array is considered a valid return value.
+    @Test
+    public void testToCarPropertyValueEmptyBytesProp() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_BYTES_PROP);
+
+        CarPropertyValue carPropValue = value.toCarPropertyValue(
+                TEST_MGR_PROP, new AidlHalPropConfig(new VehiclePropConfig()));
+        assertThat(carPropValue.getValue()).isEqualTo(new byte[0]);
+    }
+
+    @Test
+    public void testToCarPropertyValueMixedPropNoValidBoolean() {
+        HalPropValue value = createTestHalPropValueWithNoValue(TEST_MIXED_PROP);
+        VehiclePropConfig config = new VehiclePropConfig();
+        // We only care about the second element, which indicates containing boolean value.
+        config.configArray = new int[] {1, 1, 1, 0, 1, 0, 1, 0, 1};
+
+        CarPropertyValue<Object[]> carPropertyValue = value.toCarPropertyValue(
+                TEST_MGR_PROP, new AidlHalPropConfig(config));
+        assertThat(carPropertyValue.getPropertyId()).isEqualTo(TEST_MGR_PROP);
+        assertThat(carPropertyValue.getStatus()).isEqualTo(CarPropertyValue.STATUS_ERROR);
+    }
+
     @Test
     public void testBuildFromCarPropertyValueBoolHidl() {
         CarPropertyValue propValue =
@@ -1272,7 +1417,8 @@ public final class HalPropValueTest {
 
         assertThat(value1.equals(value5)).isFalse();
 
-        HalPropValue value6 = builder.build(TEST_PROP, TEST_AREA_ID, TEST_TIMESTAMP, 0,
+        HalPropValue value6 = builder.build(TEST_PROP, TEST_AREA_ID, TEST_TIMESTAMP,
+                VehiclePropertyStatus.UNAVAILABLE,
                 new int[] {TEST_INT32_VALUE}, new float[] {TEST_FLOAT_VALUE},
                 new long[] {TEST_INT64_VALUE}, TEST_STRING_VALUE, new byte[] {TEST_BYTE_VALUE});
 
@@ -1337,7 +1483,7 @@ public final class HalPropValueTest {
 
         android.hardware.automotive.vehicle.V2_0.VehiclePropValue hidlValue6 =
                 getTestHidlPropValue();
-        hidlValue6.status = 0;
+        hidlValue6.status = VehiclePropertyStatus.UNAVAILABLE;
 
         assertThat(value1.hashCode()).isNotEqualTo(builder.build(hidlValue6).hashCode());
 
@@ -1400,7 +1546,7 @@ public final class HalPropValueTest {
 
         android.hardware.automotive.vehicle.VehiclePropValue aidlValue6 =
                 getTestAidlPropValue();
-        aidlValue6.status = 0;
+        aidlValue6.status = VehiclePropertyStatus.UNAVAILABLE;
 
         assertThat(value1.hashCode()).isNotEqualTo(builder.build(aidlValue6).hashCode());
 

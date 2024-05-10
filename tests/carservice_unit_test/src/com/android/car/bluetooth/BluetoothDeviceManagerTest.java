@@ -48,10 +48,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
-import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
@@ -66,9 +64,7 @@ import java.util.List;
  * atest BluetoothDeviceManagerTest
  */
 @RequiresDevice
-@RunWith(MockitoJUnitRunner.class)
 public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetoothTestCase {
-    private static final int CONNECT_LATENCY_MS = 100;
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int ADAPTER_STATE_ANY = 0;
     private static final int ADAPTER_STATE_OFF = 1;
@@ -103,8 +99,14 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
     BluetoothDeviceManager mDeviceManager;
 
     // Tests assume the auto connecting devices only support MAP
-    private final String mConnectionAction =
+    private static final String MAP_CLIENT_ACTION =
             "android.bluetooth.mapmce.profile.action.CONNECTION_STATE_CHANGED";
+
+    private static final String PAN_ACTION =
+            "android.bluetooth.pan.profile.action.CONNECTION_STATE_CHANGED";
+
+    private ParcelUuid[] mLocalUuids = new ParcelUuid[] {
+            BluetoothUuid.MAP, BluetoothUuid.MNS};
     private ParcelUuid[] mUuids = new ParcelUuid[] {
             BluetoothUuid.MAS};
 
@@ -131,6 +133,7 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
 
         mMockContext.addMockedSystemService(BluetoothManager.class, mMockBluetoothManager);
         when(mMockBluetoothManager.getAdapter()).thenReturn(mMockBluetoothAdapter);
+        when(mMockBluetoothAdapter.getUuidsList()).thenReturn(Arrays.asList(mLocalUuids));
 
         /**
          * Mocks {@link BluetoothAdapter#getRemoteDevice(boolean)}
@@ -182,8 +185,7 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
 
     private String getSettingsDeviceList() {
         String devices = Settings.Secure.getString(mMockContext.getContentResolver(), mSettingsKey);
-        if (devices == null) devices = "";
-        return devices;
+        return devices == null ? "" : devices;
     }
 
     private ArrayList<BluetoothDevice> makeDeviceList(List<String> addresses) {
@@ -248,23 +250,15 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
         mMockContext.sendBroadcast(intent);
     }
 
-    private void sendDeviceUuids(BluetoothDevice device, ParcelUuid[] uuids) {
+    private void sendConnectionStateChanged(String profile, BluetoothDevice device, int newState) {
         Assert.assertTrue(mMockContext != null);
-        Intent intent = new Intent(BluetoothDevice.ACTION_UUID);
-        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
-        intent.putExtra(BluetoothDevice.EXTRA_UUID, uuids);
-        mMockContext.sendBroadcast(intent);
-    }
-
-    private void sendConnectionStateChanged(BluetoothDevice device, int newState) {
-        Assert.assertTrue(mMockContext != null);
-        Intent intent = new Intent(mConnectionAction);
+        Intent intent = new Intent(profile);
         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
         intent.putExtra(BluetoothProfile.EXTRA_STATE, newState);
         mMockContext.sendBroadcast(intent);
     }
 
-    private synchronized void assertSettingsContains(String expected) {
+    private void assertSettingsContains(String expected) {
         Assert.assertTrue(expected != null);
         String settings = getSettingsDeviceList();
         if (settings == null) settings = "";
@@ -558,7 +552,6 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
     @Test
     public void testGetConnectionPriority_prioritiesReturned() {
         setPreconditionsAndStart(ADAPTER_STATE_ANY, EMPTY_SETTINGS_STRING, SMALL_DEVICE_LIST);
-        ArrayList<BluetoothDevice> devices = makeDeviceList(SMALL_DEVICE_LIST);
         for (int i = 0; i < mDeviceList.size(); i++) {
             BluetoothDevice device = mDeviceList.get(i);
             int priority = mDeviceManager.getDeviceConnectionPriority(device);
@@ -814,13 +807,16 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
 
         mDeviceManager.beginAutoConnecting();
 
-        sendConnectionStateChanged(mDeviceList.get(0), BluetoothProfile.STATE_CONNECTED);
+        sendConnectionStateChanged(MAP_CLIENT_ACTION, mDeviceList.get(0),
+                BluetoothProfile.STATE_CONNECTED);
         verify(mDeviceList.get(0), timeout(CONNECT_TIMEOUT_MS).times(1)).connect();
 
-        sendConnectionStateChanged(mDeviceList.get(1), BluetoothProfile.STATE_CONNECTED);
+        sendConnectionStateChanged(MAP_CLIENT_ACTION, mDeviceList.get(1),
+                BluetoothProfile.STATE_CONNECTED);
         verify(mDeviceList.get(1), timeout(CONNECT_TIMEOUT_MS).times(1)).connect();
 
-        sendConnectionStateChanged(mDeviceList.get(2), BluetoothProfile.STATE_CONNECTED);
+        sendConnectionStateChanged(MAP_CLIENT_ACTION, mDeviceList.get(2),
+                BluetoothProfile.STATE_CONNECTED);
         verify(mDeviceList.get(2), timeout(CONNECT_TIMEOUT_MS).times(1)).connect();
     }
 
@@ -840,12 +836,32 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
      * - The device is added to the list. Related/configured trigger profiles are connected.
      */
     @Test
-    public void testReceiveDeviceConnection_deviceAdded() throws Exception {
+    public void testReceiveDeviceConnectionProfileNotPan_deviceAdded() throws Exception {
         setPreconditionsAndStart(ADAPTER_STATE_ANY, EMPTY_SETTINGS_STRING, EMPTY_DEVICE_LIST);
         BluetoothDevice device = createDevice(SINGLE_DEVICE_LIST.get(0));
-        sendConnectionStateChanged(device, BluetoothProfile.STATE_CONNECTED);
+        sendConnectionStateChanged(MAP_CLIENT_ACTION, device, BluetoothProfile.STATE_CONNECTED);
         assertDeviceList(SINGLE_DEVICE_LIST);
         verify(device, times(1)).connect();
+    }
+
+    /**
+     * Preconditions:
+     * - The device manager is initialized, there are no devices in the list.
+     *
+     * Actions:
+     * - A connection action comes in for the PAN profile and the device's priority is
+     *   CONNECTION_POLICY_ALLOWED.
+     *
+     * Outcome:
+     * - The device is added to the list. Related/configured trigger profiles are *not* connected.
+     */
+    @Test
+    public void testReceiveDeviceConnectionProfilePan_deviceAdded() throws Exception {
+        setPreconditionsAndStart(ADAPTER_STATE_ANY, EMPTY_SETTINGS_STRING, EMPTY_DEVICE_LIST);
+        BluetoothDevice device = createDevice(SINGLE_DEVICE_LIST.get(0));
+        sendConnectionStateChanged(PAN_ACTION, device, BluetoothProfile.STATE_CONNECTED);
+        assertDeviceList(SINGLE_DEVICE_LIST);
+        verify(device, never()).connect();
     }
 
     /**
@@ -863,7 +879,7 @@ public class BluetoothDeviceManagerTest extends AbstractExtendedMockitoBluetooth
     public void testReceiveDeviceDisconnection_listUnchanged() throws Exception {
         setPreconditionsAndStart(ADAPTER_STATE_ANY, EMPTY_SETTINGS_STRING, SINGLE_DEVICE_LIST);
         BluetoothDevice device = mDeviceList.get(0);
-        sendConnectionStateChanged(device, BluetoothProfile.STATE_DISCONNECTED);
+        sendConnectionStateChanged(MAP_CLIENT_ACTION, device, BluetoothProfile.STATE_DISCONNECTED);
         assertDeviceList(SINGLE_DEVICE_LIST);
     }
 

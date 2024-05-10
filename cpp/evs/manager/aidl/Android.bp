@@ -15,11 +15,13 @@
 //
 
 package {
+    default_team: "trendy_team_automotive",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 cc_defaults {
     name: "evsmanagerd_defaults",
+    defaults: ["android.hardware.graphics.common-ndk_static"],
     shared_libs: [
         "android.hardware.automotive.evs@1.0",
         "android.hardware.automotive.evs@1.1",
@@ -34,9 +36,8 @@ cc_defaults {
         "libutils",
     ],
     static_libs: [
-        "android.hardware.automotive.evs-V1-ndk",
+        "android.hardware.automotive.evs-V2-ndk",
         "android.hardware.common-V2-ndk",
-        "android.hardware.graphics.common-V4-ndk",
         "libaidlcommonsupport",
         "libc++fs",
         "libcutils",
@@ -56,18 +57,16 @@ cc_defaults {
         "-Wthread-safety",
     ],
     export_include_dirs: [
-        "include",
-    ],
-    local_include_dirs: [
-        "include",
-        "stats/include",
-        "wrappers/include",
+        ".",
+        "./include",
+        "./stats/include",
+        "./wrappers/include",
     ],
     product_variables: {
         debuggable: {
             cflags: [
                 "-DEVS_DEBUG",
-            ]
+            ],
         },
     },
 }
@@ -75,42 +74,108 @@ cc_defaults {
 filegroup {
     name: "evsmanagerd_sources",
     srcs: [
-        "**/*.cpp",
+        "wrappers/src/HidlCameraStream.cpp",
+        "wrappers/src/AidlDisplay.cpp",
+        "wrappers/src/AidlCamera.cpp",
+        "wrappers/src/HidlEnumerator.cpp",
+        "wrappers/src/AidlCameraStream.cpp",
+        "wrappers/src/AidlEnumerator.cpp",
+        "wrappers/src/HidlDisplay.cpp",
+        "wrappers/src/HidlCamera.cpp",
+        "stats/src/CameraUsageStats.cpp",
+        "stats/src/StatsCollector.cpp",
+        "stats/src/LooperWrapper.cpp",
+        "utils/src/Utils.cpp",
+        "src/HalDisplay.cpp",
+        "src/VirtualCamera.cpp",
+        "src/Enumerator.cpp",
+        "src/HalCamera.cpp",
+    ],
+}
+
+cc_library_static {
+    name : "libevsmanagerd_static",
+    defaults : ["evsmanagerd_defaults"],
+    srcs : [":evsmanagerd_sources"],
+    export_include_dirs : [
+        "./include",
+        "./stats/include",
+        "./wrappers/include"
     ],
 }
 
 cc_binary {
     name: "evsmanagerd",
     defaults: ["evsmanagerd_defaults"],
-    srcs: [":evsmanagerd_sources"],
+    static_libs: ["libevsmanagerd_static"],
+    srcs: ["src/service.cpp"],
     init_rc: ["evsmanagerd.rc"],
     vintf_fragments: ["manifest_evsmanagerd.xml"],
 }
 
-cc_library {
-    name: "libevsutils",
-    srcs: ["utils/src/*.cpp"],
+cc_test {
+    name: "evsmanagerd_test",
+    defaults: ["evsmanagerd_defaults"],
+    test_suites: [
+        "general-tests",
+        "automotive-tests",
+    ],
+    srcs: [
+        ":evsmanagerd_sources",
+        "tests/unit/**/*.cpp"
+    ],
+    local_include_dirs: ["tests/unit/include"],
+    shared_libs: [
+        "libcamera_client",
+        "libnativewindow",
+        "libui",
+    ],
+    static_libs: [
+        "libgmock",
+        "libgtest",
+        "libevsmanagerd_static",
+    ],
+}
+
+cc_test_library {
+    name: "libmockevshal",
+    defaults: ["android.hardware.graphics.common-ndk_static"],
+    local_include_dirs: [
+        "include",
+        "tests/unit/include"
+    ],
+    export_include_dirs: ["tests/unit/include"],
+    srcs: [
+        "tests/unit/src/MockEvsHal.cpp",
+        "tests/unit/src/MockHidlEvsHal.cpp",
+        "tests/unit/src/MockHidlEvsHal_1_0.cpp",
+    ],
     shared_libs: [
         "android.hardware.automotive.evs@1.0",
         "android.hardware.automotive.evs@1.1",
         "libbase",
         "libbinder_ndk",
+        "libcamera_client",
         "libcamera_metadata",
         "libcutils",
         "libhidlbase",
+        "libnativewindow",
+        "libui",
+        "libutils",
     ],
     static_libs: [
-        "android.hardware.automotive.evs-V1-ndk",
+        "android.hardware.automotive.evs-V2-ndk",
         "android.hardware.common-V2-ndk",
-        "android.hardware.graphics.common-V4-ndk",
         "libaidlcommonsupport",
+        "libgmock",
+        "libgtest",
     ],
-    header_libs: [
-        "libarect_headers",
-        "libnativewindow_headers",
-    ],
-    local_include_dirs: ["utils/include"],
-    export_include_dirs: ["utils/include"],
+    cflags: ["-DLOG_TAG=\"MockEVS\""],
+}
+
+cc_library_headers {
+    name: "libmockevshal_headers",
+    export_include_dirs: ["tests/unit/include"],
 }
 
 cc_library {
@@ -131,7 +196,7 @@ genrule {
     name: "statslog_evsmanagerd.h",
     tools: ["stats-log-api-gen"],
     cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_evsmanagerd.h --module evs" +
-         " --namespace aidl,android,automotive,evs,stats --bootstrap",
+        " --namespace aidl,android,automotive,evs,stats --bootstrap",
     out: [
         "statslog_evsmanagerd.h",
     ],
@@ -141,8 +206,8 @@ genrule {
     name: "statslog_evsmanagerd.cpp",
     tools: ["stats-log-api-gen"],
     cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_evsmanagerd.cpp --module evs" +
-         " --namespace aidl,android,automotive,evs,stats --importHeader statslog_evsmanagerd.h" +
-         " --bootstrap",
+        " --namespace aidl,android,automotive,evs,stats --importHeader statslog_evsmanagerd.h" +
+        " --bootstrap",
     out: [
         "statslog_evsmanagerd.cpp",
     ],

@@ -13,11 +13,13 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_automotive",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 cc_defaults {
     name: "cartelemetryd_defaults",
+    cpp_std: "gnu++17",
     cflags: [
         "-Werror",
         "-Wall",
@@ -25,21 +27,21 @@ cc_defaults {
     ],
     shared_libs: [
         "android.automotive.telemetry.internal-V2-ndk",
-        "android.frameworks.automotive.telemetry-V1-ndk",
+        "android.frameworks.automotive.telemetry-V2-ndk",
         "libbase",
         "libbinder_ndk",
         "liblog",
         "libutils",
     ],
     header_libs: [
-        "libgtest_prod_headers",  // for FRIEND_TEST
+        "libgtest_prod_headers", // for FRIEND_TEST
     ],
     product_variables: {
         debuggable: {
             cflags: [
                 "-DCARTELEMETRYD_DEBUG=true",
-            ]
-        }
+            ],
+        },
     },
 }
 
@@ -74,7 +76,7 @@ cc_test {
     static_libs: [
         "android.automotive.telemetryd@1.0-impl",
         "android.automotive.telemetry.internal-V2-ndk",
-        "android.frameworks.automotive.telemetry-V1-ndk",
+        "android.frameworks.automotive.telemetry-V2-ndk",
         "libgmock",
         "libgtest",
     ],
@@ -86,11 +88,11 @@ cc_binary {
         "cartelemetryd_defaults",
     ],
     srcs: [
-        "src/main.cpp"
+        "src/main.cpp",
     ],
     init_rc: ["android.automotive.telemetryd@1.0.rc"],
     vintf_fragments: ["android.automotive.telemetryd@1.0.xml"],
     shared_libs: [
-        "android.automotive.telemetryd@1.0-impl"
+        "android.automotive.telemetryd@1.0-impl",
     ],
 }

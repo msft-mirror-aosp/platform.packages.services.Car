@@ -36,8 +36,10 @@ import static org.mockito.Mockito.when;
 import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
+import android.car.SyncResultCallback;
 import android.car.admin.CarDevicePolicyManager;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
+import android.car.user.UserCreationRequest;
 import android.car.user.UserCreationResult;
 import android.car.user.UserRemovalResult;
 import android.car.user.UserStartResult;
@@ -51,9 +53,11 @@ import android.content.pm.UserInfo;
 import android.content.pm.UserInfo.UserInfoFlag;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.util.Log;
 
 import com.android.car.BuiltinPackageDependency;
 import com.android.car.CarServiceUtils;
+import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.user.CarUserService;
 
 import org.junit.Before;
@@ -62,7 +66,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 public final class CarDevicePolicyServiceTest extends AbstractExtendedMockitoTestCase {
-
+    private static final String TAG = CarDevicePolicyServiceTest.class.getSimpleName();
     @Mock
     private CarUserService mCarUserService;
 
@@ -86,9 +90,14 @@ public final class CarDevicePolicyServiceTest extends AbstractExtendedMockitoTes
 
     private CarDevicePolicyService mService;
 
-    private AndroidFuture<UserRemovalResult> mUserRemovalResult = new AndroidFuture<>();
+    private final ResultCallbackImpl<UserRemovalResult> mUserRemovalResultCallbackImpl =
+            new ResultCallbackImpl<>(Runnable::run, new SyncResultCallback<>());
 
-    private AndroidFuture<UserCreationResult> mUserCreationResult = new AndroidFuture<>();
+    private final SyncResultCallback<UserCreationResult> mSyncResultCallbackForCreateUser =
+            new SyncResultCallback<>();
+
+    private final ResultCallbackImpl<UserCreationResult> mUserCreationResultCallbackImpl =
+            new ResultCallbackImpl<>(Runnable::run, mSyncResultCallbackForCreateUser);
 
     private AndroidFuture<UserStartResult> mUserStartResult = new AndroidFuture<>();
 
@@ -121,10 +130,10 @@ public final class CarDevicePolicyServiceTest extends AbstractExtendedMockitoTes
 
     @Test
     public void testRemoveUser() {
-        mService.removeUser(42, mUserRemovalResult);
+        mService.removeUser(42, mUserRemovalResultCallbackImpl);
 
         verify(mCarUserService).removeUser(eq(42), /* hasCallerRestrictions= */ eq(true),
-                eq(mUserRemovalResult));
+                eq(mUserRemovalResultCallbackImpl));
     }
 
     @Test
@@ -135,8 +144,8 @@ public final class CarDevicePolicyServiceTest extends AbstractExtendedMockitoTes
 
     private void invalidCreateUserTypeTest(@CarDevicePolicyManager.UserType int type)
             throws Exception {
-        mService.createUser("name", type, mUserCreationResult);
-        UserCreationResult result = mUserCreationResult.get();
+        mService.createUser("name", type, mUserCreationResultCallbackImpl);
+        UserCreationResult result = mSyncResultCallbackForCreateUser.get();
         assertThat(result).isNotNull();
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getStatus()).isEqualTo(UserCreationResult.STATUS_INVALID_REQUEST);
@@ -163,10 +172,32 @@ public final class CarDevicePolicyServiceTest extends AbstractExtendedMockitoTes
 
     private void createUserOkTest(@UserInfoFlag int flags,
             @CarDevicePolicyManager.UserType int carDpmUserType, @NonNull String userType) {
-        mService.createUser("name", carDpmUserType, mUserCreationResult);
+        mService.createUser("name", carDpmUserType, mUserCreationResultCallbackImpl);
+        UserCreationRequest.Builder userCreationRequestBuilder =
+                new UserCreationRequest.Builder().setName("name");
+        switch(carDpmUserType) {
+            case CarDevicePolicyManager.USER_TYPE_REGULAR:
+                break;
+            case CarDevicePolicyManager.USER_TYPE_ADMIN:
+                userCreationRequestBuilder.setAdmin();
+                break;
+            case CarDevicePolicyManager.USER_TYPE_GUEST:
+                userCreationRequestBuilder.setGuest();
+                break;
+            default:
+                Log.d(TAG, "CarUserService.createUser(): invalid carDpmUserType (" + carDpmUserType
+                        + ")");
+                break;
+        }
+        UserCreationRequest userCreationRequest = userCreationRequestBuilder.build();
 
-        verify(mCarUserService).createUser(eq("name"), eq(userType), eq(flags),
-                /* timeoutMs= */ anyInt(), eq(mUserCreationResult));
+        ArgumentCaptor<UserCreationRequest> argument = ArgumentCaptor.forClass(
+                UserCreationRequest.class);
+        verify(mCarUserService).createUser(argument.capture(), /* timeoutMs= */
+                anyInt(), eq(mUserCreationResultCallbackImpl));
+        assertWithMessage("UserCreationRequest").that(argument.getValue().toString()).isEqualTo(
+                userCreationRequest.toString());
+
     }
 
     @Test
@@ -191,7 +222,7 @@ public final class CarDevicePolicyServiceTest extends AbstractExtendedMockitoTes
                 .thenReturn(true);
         BroadcastReceiver receiver = callInit();
 
-        sendShowNewUserDisclaimerBroadcast(receiver, userId);
+        sendShowNewUserDisclaimerBroadcast(receiver);
 
         verify(mNotificationHelper).showUserDisclaimerNotification(UserHandle.of(userId));
         assertStatusString(userId, NEW_USER_DISCLAIMER_STATUS_NOTIFICATION_SENT);
@@ -231,7 +262,7 @@ public final class CarDevicePolicyServiceTest extends AbstractExtendedMockitoTes
         return receiver;
     }
 
-    private void sendShowNewUserDisclaimerBroadcast(BroadcastReceiver receiver, int userId) {
+    private void sendShowNewUserDisclaimerBroadcast(BroadcastReceiver receiver) {
         receiver.onReceive(mContext, new Intent(ACTION_SHOW_NEW_USER_DISCLAIMER));
     }
 

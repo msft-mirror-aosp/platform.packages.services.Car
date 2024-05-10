@@ -19,18 +19,17 @@ package android.car.hardware.property;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.NonNull;
-import android.car.annotation.AddedInOrBefore;
 import android.car.hardware.CarPropertyValue;
 import android.os.Parcel;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
+import java.util.Objects;
+
 /** @hide */
 public class CarPropertyEvent implements Parcelable {
-    @AddedInOrBefore(majorVersion = 33)
     public static final int PROPERTY_EVENT_PROPERTY_CHANGE = 0;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int PROPERTY_EVENT_ERROR = 1;
     /**
      * EventType of this message
@@ -49,7 +48,6 @@ public class CarPropertyEvent implements Parcelable {
     /**
      * @return EventType field
      */
-    @AddedInOrBefore(majorVersion = 33)
     public int getEventType() {
         return mEventType;
     }
@@ -57,27 +55,23 @@ public class CarPropertyEvent implements Parcelable {
     /**
      * Returns {@link CarPropertyValue} associated with this event.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public CarPropertyValue<?> getCarPropertyValue() {
         return mCarPropertyValue;
     }
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(mEventType);
         dest.writeInt(mErrorCode);
         dest.writeParcelable(mCarPropertyValue, flags);
     }
 
-    @AddedInOrBefore(majorVersion = 33)
     public static final Parcelable.Creator<CarPropertyEvent> CREATOR =
             new Parcelable.Creator<CarPropertyEvent>() {
 
@@ -115,20 +109,21 @@ public class CarPropertyEvent implements Parcelable {
     /**
      * Constructor for {@link CarPropertyEvent} when it is an error event.
      *
-     * The status of {@link CarPropertyValue} should be {@link CarPropertyValue#STATUS_ERROR}.
-     * In {@link CarPropertyManager}, the value of {@link CarPropertyValue} will be dropped.
+     * The {@link CarPropertyValue} in the event is only used to pass property ID and area ID to
+     * {@link CarPropertyManager}. In {@link CarPropertyManager}, the value of
+     * {@link CarPropertyValue} will be dropped.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static CarPropertyEvent createErrorEventWithErrorCode(int propertyId, int areaId,
             @CarPropertyManager.CarSetPropertyErrorCode int errorCode) {
+        // We don't care about about timestamp and value here. We are only using the
+        // CarPropertyValue to pass propertyId and areaId.
         CarPropertyValue<Integer> valueWithErrorCode = new CarPropertyValue<>(propertyId, areaId,
-                CarPropertyValue.STATUS_ERROR, 0, ERROR_EVENT_VALUE);
+                /* timestampNanos= */ 0, ERROR_EVENT_VALUE);
         CarPropertyEvent event = new CarPropertyEvent(PROPERTY_EVENT_ERROR, valueWithErrorCode,
                 errorCode);
         return event;
     }
 
-    @AddedInOrBefore(majorVersion = 33)
     public @CarPropertyManager.CarSetPropertyErrorCode int getErrorCode() {
         return mErrorCode;
     }
@@ -140,12 +135,32 @@ public class CarPropertyEvent implements Parcelable {
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         return "CarPropertyEvent{"
                 + "mEventType=" + mEventType
                 + ", mErrorCode=" + mErrorCode
                 + ", mCarPropertyValue=" + mCarPropertyValue
                 + '}';
+    }
+
+    /** Checks equality with passed {@code object}. */
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        }
+        if (!(object instanceof CarPropertyEvent)) {
+            return false;
+        }
+        CarPropertyEvent carPropertyEvent = (CarPropertyEvent) object;
+        return mEventType == carPropertyEvent.mEventType
+                && mErrorCode == carPropertyEvent.mErrorCode && mCarPropertyValue.equals(
+                carPropertyEvent.mCarPropertyValue);
+    }
+
+    /** Generates hash code for this instance. */
+    @Override
+    public int hashCode() {
+        return Objects.hash(mEventType, mErrorCode, mCarPropertyValue);
     }
 }

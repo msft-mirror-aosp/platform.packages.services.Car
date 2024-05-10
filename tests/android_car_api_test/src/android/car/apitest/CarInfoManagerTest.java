@@ -16,17 +16,17 @@
 
 package android.car.apitest;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import android.car.Car;
 import android.car.CarInfoManager;
 import android.test.suitebuilder.annotation.SmallTest;
-
-import static com.google.common.truth.Truth.assertThat;
 
 import org.junit.Before;
 import org.junit.Test;
 
 @SmallTest
-public class CarInfoManagerTest extends CarApiTestBase {
+public final class CarInfoManagerTest extends CarApiTestBase {
 
     private CarInfoManager mInfoManager;
 

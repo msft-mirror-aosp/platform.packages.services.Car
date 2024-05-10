@@ -22,6 +22,8 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.text.TextUtils;
 
+import com.android.internal.annotations.VisibleForTesting;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -30,29 +32,40 @@ import java.lang.annotation.RetentionPolicy;
  * immutable object to store only service configuration.
  */
 final class VendorServiceInfo {
+
+    @VisibleForTesting
+    static final int DEFAULT_MAX_RETRIES = 6;
+
     private static final String KEY_BIND = "bind";
     private static final String KEY_USER_SCOPE = "user";
     private static final String KEY_TRIGGER = "trigger";
+    private static final String KEY_MAX_RETRIES = "maxRetries";
 
     private static final int USER_SCOPE_ALL = 0;
     private static final int USER_SCOPE_SYSTEM = 1;
     private static final int USER_SCOPE_FOREGROUND = 2;
+    private static final int USER_SCOPE_VISIBLE = 3;
+    private static final int USER_SCOPE_BACKGROUND_VISIBLE = 4;
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({
             USER_SCOPE_ALL,
             USER_SCOPE_FOREGROUND,
             USER_SCOPE_SYSTEM,
+            USER_SCOPE_VISIBLE,
+            USER_SCOPE_BACKGROUND_VISIBLE,
     })
     @interface UserScope {}
 
     private static final int TRIGGER_ASAP = 0;
     private static final int TRIGGER_UNLOCKED = 1;
     private static final int TRIGGER_POST_UNLOCKED = 2;
+    private static final int TRIGGER_RESUME = 3;
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({
             TRIGGER_ASAP,
             TRIGGER_UNLOCKED,
             TRIGGER_POST_UNLOCKED,
+            TRIGGER_RESUME,
     })
     @interface Trigger {}
 
@@ -70,15 +83,21 @@ final class VendorServiceInfo {
     private final @Bind int mBind;
     private final @UserScope int mUserScope;
     private final @Trigger int mTrigger;
+    private final int mMaxRetries;
     @Nullable
     private final ComponentName mComponentName;
 
     private VendorServiceInfo(@Nullable ComponentName componentName, @Bind int bind,
-            @UserScope int userScope, @Trigger int trigger) {
+            @UserScope int userScope, @Trigger int trigger, int maxRetries) {
         mComponentName = componentName;
         mUserScope = userScope;
         mTrigger = trigger;
         mBind = bind;
+        mMaxRetries = maxRetries;
+    }
+
+    boolean isAllUserService() {
+        return mUserScope == USER_SCOPE_ALL;
     }
 
     boolean isSystemUserService() {
@@ -89,12 +108,24 @@ final class VendorServiceInfo {
         return mUserScope == USER_SCOPE_ALL || mUserScope == USER_SCOPE_FOREGROUND;
     }
 
+    boolean isVisibleUserService() {
+        return mUserScope == USER_SCOPE_ALL || mUserScope == USER_SCOPE_VISIBLE;
+    }
+
+    boolean isBackgroundVisibleUserService() {
+        return mUserScope == USER_SCOPE_ALL || mUserScope == USER_SCOPE_BACKGROUND_VISIBLE;
+    }
+
     boolean shouldStartOnUnlock() {
         return mTrigger == TRIGGER_UNLOCKED;
     }
 
     boolean shouldStartOnPostUnlock() {
         return mTrigger == TRIGGER_POST_UNLOCKED;
+    }
+
+    boolean shouldStartOnResume() {
+        return mTrigger == TRIGGER_RESUME;
     }
 
     boolean shouldStartAsap() {
@@ -107,6 +138,10 @@ final class VendorServiceInfo {
 
     boolean shouldBeStartedInForeground() {
         return mBind == START_FOREGROUND;
+    }
+
+    int getMaxRetries() {
+        return mMaxRetries;
     }
 
     Intent getIntent() {
@@ -132,6 +167,7 @@ final class VendorServiceInfo {
         int bind = START;
         int userScope = USER_SCOPE_ALL;
         int trigger = TRIGGER_UNLOCKED;
+        int maxRetries = DEFAULT_MAX_RETRIES;
 
         if (serviceParamTokens.length == 2) {
             for (String keyValueStr : serviceParamTokens[1].split(",")) {
@@ -170,6 +206,12 @@ final class VendorServiceInfo {
                             case "foreground":
                                 userScope = USER_SCOPE_FOREGROUND;
                                 break;
+                            case "visible":
+                                userScope = USER_SCOPE_VISIBLE;
+                                break;
+                            case "backgroundVisible":
+                                userScope = USER_SCOPE_BACKGROUND_VISIBLE;
+                                break;
                             default:
                                 throw new IllegalArgumentException("Unexpected user scope: " + val);
                         }
@@ -185,8 +227,20 @@ final class VendorServiceInfo {
                             case "userPostUnlocked":
                                 trigger = TRIGGER_POST_UNLOCKED;
                                 break;
+                            case "resume":
+                                trigger = TRIGGER_RESUME;
+                                break;
                             default:
                                 throw new IllegalArgumentException("Unexpected trigger: " + val);
+                        }
+                        break;
+                    case KEY_MAX_RETRIES:
+                        try {
+                            maxRetries = Integer.parseInt(val);
+                        } catch (NumberFormatException e) {
+                            throw new IllegalArgumentException(
+                                    "Cannot parse the specified `maxRetries` into an integer: "
+                                            + val);
                         }
                         break;
                     default:
@@ -195,7 +249,7 @@ final class VendorServiceInfo {
             }
         }
 
-        return new VendorServiceInfo(cn, bind, userScope, trigger);
+        return new VendorServiceInfo(cn, bind, userScope, trigger, maxRetries);
     }
 
     @Override
@@ -205,6 +259,7 @@ final class VendorServiceInfo {
                 + ", bind=" + bindToString(mBind)
                 + ", trigger=" + triggerToString(mTrigger)
                 + ", userScope=" + userScopeToString(mUserScope)
+                + (mMaxRetries == DEFAULT_MAX_RETRIES ? "" : ", maxRetries=" + mMaxRetries)
                 + '}';
     }
 
@@ -235,6 +290,8 @@ final class VendorServiceInfo {
                 return "UNLOCKED";
             case TRIGGER_POST_UNLOCKED:
                 return "POST_UNLOCKED";
+            case TRIGGER_RESUME:
+                return "RESUME";
             default:
                 return "INVALID-" + trigger;
         }
@@ -248,6 +305,10 @@ final class VendorServiceInfo {
                 return "FOREGROUND";
             case USER_SCOPE_SYSTEM:
                 return "SYSTEM";
+            case USER_SCOPE_VISIBLE:
+                return "VISIBLE";
+            case USER_SCOPE_BACKGROUND_VISIBLE:
+                return "BACKGROUND_VISIBLE";
             default:
                 return "INVALID-" + userScope;
         }

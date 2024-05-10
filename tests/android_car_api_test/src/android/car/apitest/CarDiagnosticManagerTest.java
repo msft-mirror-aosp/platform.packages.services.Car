@@ -29,7 +29,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 @MediumTest
-public class CarDiagnosticManagerTest extends CarApiTestBase {
+public final class CarDiagnosticManagerTest extends CarApiTestBase {
+
+    private static final String TAG = CarDiagnosticManagerTest.class.getSimpleName();
 
     private CarDiagnosticManager mCarDiagnosticManager;
 

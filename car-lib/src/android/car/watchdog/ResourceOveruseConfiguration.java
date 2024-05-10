@@ -23,7 +23,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.StringDef;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -46,32 +45,32 @@ public final class ResourceOveruseConfiguration implements Parcelable {
     /**
      * System component.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @ComponentType
     public static final int COMPONENT_TYPE_SYSTEM = 1;
 
     /**
      * Vendor component.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @ComponentType
     public static final int COMPONENT_TYPE_VENDOR = 2;
 
     /**
      * Third party component.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @ComponentType
     public static final int COMPONENT_TYPE_THIRD_PARTY = 3;
 
     /**
      * Map applications.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @ApplicationCategoryType
     public static final String APPLICATION_CATEGORY_TYPE_MAPS =
             "android.car.watchdog.app.category.MAPS";
 
     /**
      * Media applications.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @ApplicationCategoryType
     public static final String APPLICATION_CATEGORY_TYPE_MEDIA =
             "android.car.watchdog.app.category.MEDIA";
 
@@ -131,6 +130,7 @@ public final class ResourceOveruseConfiguration implements Parcelable {
     //
     // To regenerate run:
     // $ codegen $ANDROID_BUILD_TOP/packages/services/Car/car-lib/src/android/car/watchdog/ResourceOveruseConfiguration.java
+    // Added AddedInOrBefore or ApiRequirement Annotation manually
     //
     // To exclude the generated code from IntelliJ auto-formatting enable (one-time):
     //   Settings > Editor > Code Style > Formatter Control
@@ -149,7 +149,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public static String componentTypeToString(@ComponentType int value) {
         switch (value) {
             case COMPONENT_TYPE_SYSTEM:
@@ -208,7 +207,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
      * Component type of the I/O overuse configuration.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @ComponentType int getComponentType() {
         return mComponentType;
     }
@@ -222,7 +220,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
      * <p>Vendor components must provide only safe-to-kill vendor packages in this list.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull List<String> getSafeToKillPackages() {
         return mSafeToKillPackages;
     }
@@ -238,7 +235,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
      * the beginning.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull List<String> getVendorPackagePrefixes() {
         return mVendorPackagePrefixes;
     }
@@ -255,7 +251,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
      * specifying shared package names, the package names should contain the prefix 'shared:'.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull Map<String,String> getPackagesToAppCategoryTypes() {
         return mPackagesToAppCategoryTypes;
     }
@@ -265,14 +260,12 @@ public final class ResourceOveruseConfiguration implements Parcelable {
      * {@link ResourceOveruseConfiguration#getComponentType}.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @Nullable IoOveruseConfiguration getIoOveruseConfiguration() {
         return mIoOveruseConfiguration;
     }
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -288,7 +281,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -306,7 +298,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -353,7 +344,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
     }
 
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<ResourceOveruseConfiguration> CREATOR
             = new Parcelable.Creator<ResourceOveruseConfiguration>() {
         @Override
@@ -446,7 +436,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
          * Component type of the I/O overuse configuration.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setComponentType(@ComponentType int value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
@@ -463,7 +452,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
          * <p>Vendor components must provide only safe-to-kill vendor packages in this list.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setSafeToKillPackages(@NonNull List<String> value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x2;
@@ -473,7 +461,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
 
         /** @see #setSafeToKillPackages */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder addSafeToKillPackages(@NonNull String value) {
             // You can refine this method's name by providing item's singular name, e.g.:
             // @DataClass.PluralOf("item")) mItems = ...
@@ -494,7 +481,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
          * the beginning.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setVendorPackagePrefixes(@NonNull List<String> value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x4;
@@ -504,7 +490,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
 
         /** @see #setVendorPackagePrefixes */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder addVendorPackagePrefixes(@NonNull String value) {
             // You can refine this method's name by providing item's singular name, e.g.:
             // @DataClass.PluralOf("item")) mItems = ...
@@ -526,7 +511,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
          * specifying shared package names, the package names should contain the prefix 'shared:'.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setPackagesToAppCategoryTypes(@NonNull Map<String,String> value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x8;
@@ -536,7 +520,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
 
         /** @see #setPackagesToAppCategoryTypes */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder addPackagesToAppCategoryTypes(@NonNull String key, @NonNull String value) {
             // You can refine this method's name by providing item's singular name, e.g.:
             // @DataClass.PluralOf("item")) mItems = ...
@@ -551,7 +534,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
          * {@link ResourceOveruseConfiguration#getComponentType}.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setIoOveruseConfiguration(@NonNull IoOveruseConfiguration value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x10;
@@ -560,7 +542,6 @@ public final class ResourceOveruseConfiguration implements Parcelable {
         }
 
         /** Builds the instance. This builder should not be touched after calling this! */
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull ResourceOveruseConfiguration build() {
             checkNotUsed();
             mBuilderFieldsSet |= 0x20; // Mark builder used
@@ -586,10 +567,10 @@ public final class ResourceOveruseConfiguration implements Parcelable {
     }
 
     @DataClass.Generated(
-            time = 1628099327759L,
+            time = 1673057073656L,
             codegenVersion = "1.0.23",
             sourceFile = "packages/services/Car/car-lib/src/android/car/watchdog/ResourceOveruseConfiguration.java",
-            inputSignatures = "public static final  int COMPONENT_TYPE_SYSTEM\npublic static final  int COMPONENT_TYPE_VENDOR\npublic static final  int COMPONENT_TYPE_THIRD_PARTY\npublic static final  java.lang.String APPLICATION_CATEGORY_TYPE_MAPS\npublic static final  java.lang.String APPLICATION_CATEGORY_TYPE_MEDIA\nprivate @android.car.watchdog.ResourceOveruseConfiguration.ComponentType int mComponentType\nprivate @android.annotation.NonNull java.util.List<java.lang.String> mSafeToKillPackages\nprivate @android.annotation.NonNull java.util.List<java.lang.String> mVendorPackagePrefixes\nprivate @android.annotation.NonNull java.util.Map<java.lang.String,java.lang.String> mPackagesToAppCategoryTypes\nprivate @android.annotation.Nullable android.car.watchdog.IoOveruseConfiguration mIoOveruseConfiguration\nclass ResourceOveruseConfiguration extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genBuilder=true, genHiddenConstDefs=true)")
+            inputSignatures = "public static final @android.car.watchdog.ResourceOveruseConfiguration.ComponentType @android.car.annotation.AddedInOrBefore int COMPONENT_TYPE_SYSTEM\npublic static final @android.car.watchdog.ResourceOveruseConfiguration.ComponentType @android.car.annotation.AddedInOrBefore int COMPONENT_TYPE_VENDOR\npublic static final @android.car.watchdog.ResourceOveruseConfiguration.ComponentType @android.car.annotation.AddedInOrBefore int COMPONENT_TYPE_THIRD_PARTY\npublic static final @android.car.watchdog.ResourceOveruseConfiguration.ApplicationCategoryType @android.car.annotation.AddedInOrBefore java.lang.String APPLICATION_CATEGORY_TYPE_MAPS\npublic static final @android.car.watchdog.ResourceOveruseConfiguration.ApplicationCategoryType @android.car.annotation.AddedInOrBefore java.lang.String APPLICATION_CATEGORY_TYPE_MEDIA\nprivate @android.car.watchdog.ResourceOveruseConfiguration.ComponentType int mComponentType\nprivate @android.annotation.NonNull java.util.List<java.lang.String> mSafeToKillPackages\nprivate @android.annotation.NonNull java.util.List<java.lang.String> mVendorPackagePrefixes\nprivate @android.annotation.NonNull java.util.Map<java.lang.String,java.lang.String> mPackagesToAppCategoryTypes\nprivate @android.annotation.Nullable android.car.watchdog.IoOveruseConfiguration mIoOveruseConfiguration\nclass ResourceOveruseConfiguration extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genBuilder=true, genHiddenConstDefs=true)")
     @Deprecated
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     private void __metadata() {}

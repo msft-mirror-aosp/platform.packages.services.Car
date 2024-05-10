@@ -15,7 +15,15 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+prebuilt_etc {
+    name: "default-permissions-com.google.android.car.kitchensink.xml",
+    sub_dir: "default-permissions",
+    src: "default-permissions-com.google.android.car.kitchensink.xml",
+    filename_from_src: true,
 }
 
 android_app {
@@ -55,16 +63,15 @@ android_app {
         "guava",
         "android.car.cluster.navigation",
         "car-experimental-api-static-lib",
+        "concurrent.hotword.lib",
+        "car-broadcastradio-support",
     ],
 
-    libs: ["android.car"],
+    libs: [
+        "android.car"
+    ],
 
-    required: ["allowed_privapp_com.google.android.car.kitchensink"],
-
-    product_variables: {
-        pdk: {
-            //disble build in PDK, missing ui-lib breaks build
-            enabled: false,
-        },
-    },
+    required: ["allowed_privapp_com.google.android.car.kitchensink",
+               "default-permissions-com.google.android.car.kitchensink.xml",
+              ],
 }

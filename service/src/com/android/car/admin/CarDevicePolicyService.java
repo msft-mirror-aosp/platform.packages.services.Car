@@ -29,6 +29,7 @@ import android.car.admin.CarDevicePolicyManager;
 import android.car.admin.ICarDevicePolicyService;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.car.user.UserCreationRequest;
 import android.car.user.UserCreationResult;
 import android.car.user.UserRemovalResult;
 import android.car.user.UserStartResult;
@@ -42,11 +43,13 @@ import android.content.pm.PackageManager;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.SparseIntArray;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.BuiltinPackageDependency;
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.car.internal.os.CarSystemProperties;
 import com.android.car.internal.util.DebugUtils;
@@ -92,7 +95,7 @@ public final class CarDevicePolicyService extends ICarDevicePolicyService.Stub
     })
     public @interface NewUserDisclaimerStatus {}
 
-    @GuardedBy("sLock")
+    @GuardedBy("mLock")
     private final SparseIntArray mUserDisclaimerStatusPerUser = new SparseIntArray();
 
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
@@ -142,13 +145,15 @@ public final class CarDevicePolicyService extends ICarDevicePolicyService.Stub
     }
 
     @Override
-    public void removeUser(@UserIdInt int userId, AndroidFuture<UserRemovalResult> receiver) {
-        mCarUserService.removeUser(userId, /* hasCallerRestrictions= */ true, receiver);
+    public void removeUser(@UserIdInt int userId, ResultCallbackImpl<UserRemovalResult> callback) {
+        mCarUserService.removeUser(userId, /* hasCallerRestrictions= */ true, callback);
     }
 
     @Override
-    public void createUser(@Nullable String name,
-            @CarDevicePolicyManager.UserType int type, AndroidFuture<UserCreationResult> receiver) {
+    public void createUser(@Nullable String name, @CarDevicePolicyManager.UserType int type,
+            ResultCallbackImpl<UserCreationResult> callback) {
+        UserCreationRequest.Builder userCreationRequestBuilder =
+                new UserCreationRequest.Builder().setName(name);
         int userInfoFlags = 0;
         String userType = UserManager.USER_TYPE_FULL_SECONDARY;
         switch(type) {
@@ -156,14 +161,16 @@ public final class CarDevicePolicyService extends ICarDevicePolicyService.Stub
                 break;
             case CarDevicePolicyManager.USER_TYPE_ADMIN:
                 userInfoFlags = UserManagerHelper.FLAG_ADMIN;
+                userCreationRequestBuilder.setAdmin();
                 break;
             case CarDevicePolicyManager.USER_TYPE_GUEST:
                 userType = UserManager.USER_TYPE_FULL_GUEST;
+                userCreationRequestBuilder.setGuest();
                 break;
             default:
                 Slogf.d(TAG, "createUser(): invalid userType (%s) / flags (%08x) "
                         + "combination", userType, userInfoFlags);
-                receiver.complete(
+                callback.complete(
                         new UserCreationResult(UserCreationResult.STATUS_INVALID_REQUEST));
                 return;
         }
@@ -171,7 +178,8 @@ public final class CarDevicePolicyService extends ICarDevicePolicyService.Stub
         Slogf.d(TAG, "calling createUser(%s, %s, %d, %d)",
                 UserHelperLite.safeName(name), userType, userInfoFlags, HAL_TIMEOUT_MS);
 
-        mCarUserService.createUser(name, userType, userInfoFlags, HAL_TIMEOUT_MS, receiver);
+        mCarUserService.createUser(userCreationRequestBuilder.build(), HAL_TIMEOUT_MS,
+                callback);
     }
 
     @Override
@@ -205,6 +213,10 @@ public final class CarDevicePolicyService extends ICarDevicePolicyService.Stub
 
         writer.printf("HAL_TIMEOUT_MS: %d\n", HAL_TIMEOUT_MS);
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     /**
      * Updates the internal state with the disclaimer status as shown.

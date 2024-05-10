@@ -23,18 +23,28 @@ import static java.lang.Integer.toHexString;
 import android.annotation.Nullable;
 import android.car.VehicleAreaType;
 import android.car.VehiclePropertyType;
+import android.car.feature.Flags;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.ICarProperty;
 import android.car.hardware.property.ICarPropertyEventListener;
 import android.os.RemoteException;
+import android.util.ArraySet;
 
 import com.android.car.internal.PropertyPermissionMapping;
+import com.android.car.internal.property.AsyncPropertyServiceRequest;
+import com.android.car.internal.property.AsyncPropertyServiceRequestList;
+import com.android.car.internal.property.CarPropertyConfigList;
+import com.android.car.internal.property.CarSubscription;
+import com.android.car.internal.property.GetSetValueResult;
+import com.android.car.internal.property.GetSetValueResultList;
+import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.util.PairSparseArray;
+import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,39 +65,52 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
     // Contains a list of values that were set from the manager.
     private final ArrayList<CarPropertyValue<?>> mValuesSet = new ArrayList<>();
 
-    // Mapping between propertyId and a set of listeners.
-    private final Map<Integer, Set<ListenerInfo>> mListeners = new HashMap<>();
+    private final Object mLock = new Object();
+
+    // Mapping between [propId, areaId] and a set of listeners.
+    @GuardedBy("mLock")
+    private final PairSparseArray<Set<ListenerInfo>> mListenersByPropIdAreaId =
+            new PairSparseArray<>();
 
     @Override
-    public void registerListener(int propId, float rate, ICarPropertyEventListener listener)
-            throws RemoteException {
-        Set<ListenerInfo> propListeners = mListeners.get(propId);
-        if (propListeners == null) {
-            propListeners = new HashSet<>();
-            mListeners.put(propId, propListeners);
-        }
+    public void registerListener(List<CarSubscription> subscriptions,
+            ICarPropertyEventListener listener) {
+        synchronized (mLock) {
+            for (int i = 0; i < subscriptions.size(); i++) {
+                int propId = subscriptions.get(i).propertyId;
+                for (int areaId : subscriptions.get(i).areaIds) {
+                    Set<ListenerInfo> propListeners = mListenersByPropIdAreaId.get(propId, areaId);
+                    if (propListeners == null) {
+                        propListeners = new ArraySet<>();
+                        mListenersByPropIdAreaId.put(propId, areaId, propListeners);
+                    }
 
-        propListeners.add(new ListenerInfo(listener));
-    }
-
-    @Override
-    public void unregisterListener(int propId, ICarPropertyEventListener listener)
-            throws RemoteException {
-        Set<ListenerInfo> propListeners = mListeners.get(propId);
-        if (propListeners != null && propListeners.remove(new ListenerInfo(listener))) {
-            if (propListeners.isEmpty()) {
-                mListeners.remove(propId);
+                    propListeners.add(new ListenerInfo(listener));
+                }
             }
         }
     }
 
     @Override
-    public List<CarPropertyConfig> getPropertyList() throws RemoteException {
-        return new ArrayList<>(mConfigs.values());
+    public void unregisterListener(int propId, ICarPropertyEventListener listener)
+            throws RemoteException {
+        synchronized (mLock) {
+            for (int areaId : mListenersByPropIdAreaId.getSecondKeysForFirstKey(propId)) {
+                Set<ListenerInfo> propListeners = mListenersByPropIdAreaId.get(propId, areaId);
+                if (propListeners.remove(new ListenerInfo(listener)) && propListeners.isEmpty()) {
+                    mListenersByPropIdAreaId.remove(propId, areaId);
+                }
+            }
+        }
     }
 
     @Override
-    public List<CarPropertyConfig> getPropertyConfigList(int[] propIds) {
+    public CarPropertyConfigList getPropertyList() throws RemoteException {
+        return new CarPropertyConfigList(new ArrayList<>(mConfigs.values()));
+    }
+
+    @Override
+    public CarPropertyConfigList getPropertyConfigList(int[] propIds) {
         List<CarPropertyConfig> configs = new ArrayList<>(propIds.length);
         for (int prop : propIds) {
             CarPropertyConfig cfg = mConfigs.get(prop);
@@ -95,7 +118,42 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
                 configs.add(cfg);
             }
         }
-        return configs;
+        return new CarPropertyConfigList(configs);
+    }
+
+    @Override
+    public void getPropertiesAsync(AsyncPropertyServiceRequestList asyncPropertyServiceRequests,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback, long timeoutInMs)
+            throws RemoteException {
+        List<AsyncPropertyServiceRequest> asyncPropertyServiceRequestList =
+                asyncPropertyServiceRequests.getList();
+        List<GetSetValueResult> getValueResults = new ArrayList<>();
+        for (int i = 0; i < asyncPropertyServiceRequestList.size(); i++) {
+            AsyncPropertyServiceRequest asyncPropertyServiceRequest =
+                    asyncPropertyServiceRequestList.get(i);
+            getValueResults.add(GetSetValueResult.newGetValueResult(
+                    asyncPropertyServiceRequest.getRequestId(),
+                    getProperty(asyncPropertyServiceRequest.getPropertyId(),
+                            asyncPropertyServiceRequest.getAreaId())));
+        }
+        asyncPropertyResultCallback.onGetValueResults(new GetSetValueResultList(getValueResults));
+    }
+
+    @Override
+    public void setPropertiesAsync(AsyncPropertyServiceRequestList asyncPropertyServiceRequests,
+            IAsyncPropertyResultCallback asyncPropertyResultCallback, long timeoutInMs)
+            throws RemoteException {
+        List<AsyncPropertyServiceRequest> asyncPropertyServiceRequestList =
+                asyncPropertyServiceRequests.getList();
+        List<GetSetValueResult> setValueResults = new ArrayList<>();
+        for (int i = 0; i < asyncPropertyServiceRequestList.size(); i++) {
+            AsyncPropertyServiceRequest asyncPropertyServiceRequest =
+                    asyncPropertyServiceRequestList.get(i);
+            setProperty(asyncPropertyServiceRequest.getCarPropertyValue(), /* listener= */ null);
+            setValueResults.add(GetSetValueResult.newSetValueResult(
+                    asyncPropertyServiceRequest.getRequestId(), /* updateTimestampNanos= */ 0));
+        }
+        asyncPropertyResultCallback.onSetValueResults(new GetSetValueResultList(setValueResults));
     }
 
     @Override
@@ -109,6 +167,11 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
         mValues.put(PropKey.of(prop), prop);
         mValuesSet.add(prop);
         sendEvent(prop);
+    }
+
+    @Override
+    public void cancelRequests(int[] serviceRequestIds) {
+        // Do nothing.
     }
 
     @Override
@@ -156,16 +219,19 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
     }
 
     private void sendEvent(CarPropertyValue v) {
-        Set<ListenerInfo> listeners = mListeners.get(v.getPropertyId());
-        if (listeners != null) {
-            for (ListenerInfo listenerInfo : listeners) {
-                List<CarPropertyEvent> events = new ArrayList<>();
-                events.add(new CarPropertyEvent(PROPERTY_EVENT_PROPERTY_CHANGE, v));
-                try {
-                    listenerInfo.mListener.onEvent(events);
-                } catch (RemoteException e) {
-                    // This is impossible as the code runs within the same process in test.
-                    throw new RuntimeException(e);
+        synchronized (mLock) {
+            Set<ListenerInfo> listeners = mListenersByPropIdAreaId.get(v.getPropertyId(),
+                    v.getAreaId());
+            if (listeners != null) {
+                for (ListenerInfo listenerInfo : listeners) {
+                    List<CarPropertyEvent> events = new ArrayList<>();
+                    events.add(new CarPropertyEvent(PROPERTY_EVENT_PROPERTY_CHANGE, v));
+                    try {
+                        listenerInfo.mListener.onEvent(events);
+                    } catch (RemoteException e) {
+                        // This is impossible as the code runs within the same process in test.
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }
@@ -284,18 +350,24 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
             case VehicleArea.WHEEL:
                 return VehicleAreaType.VEHICLE_AREA_TYPE_WHEEL;
             default:
+                if (Flags.androidVicVehicleProperties()) {
+                    if (halArea == VehicleArea.VENDOR) {
+                        return VehicleAreaType.VEHICLE_AREA_TYPE_VENDOR;
+                    }
+                }
                 throw new RuntimeException("Unsupported area type " + halArea);
         }
     }
 
     /** Copy from VHAL generated file VehicleArea.java */
     private static final class VehicleArea {
-        static final int GLOBAL = 16777216 /* 0x01000000 */;
-        static final int WINDOW = 50331648 /* 0x03000000 */;
-        static final int MIRROR = 67108864 /* 0x04000000 */;
-        static final int SEAT = 83886080 /* 0x05000000 */;
-        static final int DOOR = 100663296 /* 0x06000000 */;
-        static final int WHEEL = 117440512 /* 0x07000000 */;
-        static final int MASK = 251658240 /* 0x0f000000 */;
+        static final int GLOBAL = 0x01000000;
+        static final int WINDOW = 0x03000000;
+        static final int MIRROR = 0x04000000;
+        static final int SEAT = 0x05000000;
+        static final int DOOR = 0x06000000;
+        static final int WHEEL = 0x07000000;
+        static final int VENDOR = 0x08000000;
+        static final int MASK = 0x0f000000;
     }
 }

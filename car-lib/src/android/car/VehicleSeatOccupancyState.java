@@ -15,7 +15,6 @@
  */
 package android.car;
 
-import android.car.annotation.AddedInOrBefore;
 
 /**
  * Used by seat occupancy to enumerate the current occupancy state of the seat.
@@ -23,12 +22,9 @@ import android.car.annotation.AddedInOrBefore;
  * set and get this VHAL property.
  * @hide
  */
-public class VehicleSeatOccupancyState {
-    @AddedInOrBefore(majorVersion = 33)
+public final class VehicleSeatOccupancyState {
     public static final int UNKNOWN = 0;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VACANT = 1;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int OCCUPIED = 2;
 
     private VehicleSeatOccupancyState() {}

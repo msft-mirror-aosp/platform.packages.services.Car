@@ -15,31 +15,35 @@
   ~ limitations under the License.
   -->
 <resources xmlns:android="http://schemas.android.com/apk/res/android">
-    <color name="car_nav_icon_fill_color">#FFFFFF</color>
-    <color name="car_nav_icon_background_color">#282A2D</color>
+    <color name="car_nav_icon_fill_color">@color/car_on_surface</color>
+    <color name="car_nav_icon_background_color">#12FFFFFF</color>
+    <color name="car_nav_icon_background_color_selected">@color/car_neutral_100</color>
     <color name="car_nav_minimize_icon_fill_color">@android:color/black</color>
 
-    <drawable name="system_bar_background">#000000</drawable>
-    <color name="system_bar_text_color">#E8EAED</color>
-    <color name="hvac_temperature_adjust_button_color">#282A2D</color>
-    <color name="hvac_temperature_decrease_arrow_color">#E8EAED</color>
-    <color name="hvac_temperature_increase_arrow_color">#E8EAED</color>
-    <color name="system_bar_background_pill_color">#fff</color>
-    <color name="status_icon_panel_bg_color">#fff</color>
-    <color name="status_icon_not_highlighted_color">#202124</color>
-    <color name="status_icon_selected_button_color">#6BF0FF</color>
+    <drawable name="system_bar_background">@color/car_neutral_0</drawable>
+    <color name="system_bar_text_color">@color/car_neutral_90</color>
+    <color name="hvac_temperature_adjust_button_color">@color/car_neutral_0</color>
+    <color name="hvac_temperature_decrease_arrow_color">@color/car_neutral_90</color>
+    <color name="hvac_temperature_increase_arrow_color">@color/car_neutral_90</color>
+    <color name="system_bar_background_pill_color">@color/car_surface_3</color>
 
-    <color name="status_bar_background_color">#00000000</color>
+    <color name="status_icon_highlighted_color">@color/car_on_primary</color>
+    <color name="status_icon_not_highlighted_color">@color/car_on_surface</color>
+    <color name="status_icon_selected_button_color">@color/car_primary</color>
+    <color name="status_icon_panel_bg_color">@android:color/transparent</color>
+    <color name="qc_panel_bg_color">@color/car_surface_2</color>
+
+    <color name="status_bar_background_color">@android:color/transparent</color>
     <drawable name="status_bar_background">@color/status_bar_background_color</drawable>
 
-    <color name="hvac_background_color">#202124</color>
+    <color name="hvac_background_color">@color/car_background</color>
     <color name="hvac_master_switch_color">@color/car_nav_icon_fill_color</color>
-    <color name="hvac_on_icon_fill_color">@android:color/black</color>
-    <color name="hvac_off_icon_fill_color">@android:color/white</color>
+    <color name="hvac_on_icon_fill_color">@color/car_on_primary</color>
+    <color name="hvac_off_icon_fill_color">@color/car_on_secondary_container</color>
     <color name="hvac_on_cooling_background_color">#6BF0FF</color>
-    <color name="hvac_on_heating_background_color">#EE675C</color>
-    <color name="hvac_on_background_color">#6BF0FF</color>
-    <color name="hvac_off_background_color">#3C4043</color>
+    <color name="hvac_on_heating_background_color">@color/car_red_color</color>
+    <color name="hvac_on_background_color">@color/car_primary</color>
+    <color name="hvac_off_background_color">@color/car_secondary_container</color>
     <color name="hvac_panel_handle_bar_color">#3C4043</color>
 
     <color name="dark_mode_icon_color_single_tone">@color/car_nav_icon_fill_color</color>
@@ -49,6 +53,44 @@
     <color name="title_bar_display_area_background_color">#ffffff</color>
     <color name="immersive_chevron_icon_color">@color/title_bar_display_area_handle_bar_color</color>
 
-    <color name="privacy_chip_light_icon_color">#000000</color>
-    <color name="privacy_chip_dark_icon_color">#ffffff</color>
+    <color name="privacy_chip_light_icon_color">@color/car_on_surface</color>
+    <color name="privacy_chip_dark_icon_color">@color/car_inverse_on_surface</color>
+
+    <color name="car_quick_controls_footer_button_color">@color/car_secondary_container</color>
+    <color name="car_quick_controls_footer_button_text_color">@color/car_on_secondary_container</color>
+
+    <color name="car_volume_dialog_background_color">@color/car_surface</color>
+    <color name="car_volume_dialog_tint">@color/car_on_surface</color>
+
+    <color name="car_user_switcher_add_user_background_color">@color/car_secondary_container</color>
+    <color name="car_user_switcher_add_user_add_sign_color">@color/car_on_secondary_container</color>
+    <color name="car_user_switching_dialog_background_color">@color/car_neutral_0</color>
+    <color name="car_user_switching_dialog_loading_text_color">@color/car_neutral_90</color>
+
+    <!-- ****** Alert dialog colors ***** -->
+    <color name="car_alert_dialog_action_button_color">@color/car_secondary_container</color>
+    <color name="car_alert_dialog_background_color">@color/car_surface_2</color>
+    <color name="car_alert_dialog_message_text_color">@color/car_on_surface</color>
+    <color name="car_alert_dialog_button_text_color">@color/car_on_secondary_container</color>
+    <color name="car_alert_dialog_button1_text_color">@color/car_on_primary</color>
+
+    <!-- ****** Toggle button colors ***** -->
+    <color name="car_button_toggle_background_checked">@color/car_primary</color>
+    <color name="car_button_toggle_background_unchecked">@color/car_secondary_container</color>
+    <color name="car_button_toggle_foreground_checked">@color/car_on_primary</color>
+    <color name="car_button_toggle_foreground_unchecked">@color/car_on_secondary_container</color>
+
+    <!-- ****** Button colors ***** -->
+    <color name="car_button_background">@color/car_primary_container</color>
+    <color name="car_button_foreground">@color/car_on_primary_container</color>
+
+    <!-- ****** Switch colors ***** -->
+    <color name="car_switch_thumb_checked">@color/car_primary_container</color>
+    <color name="car_switch_thumb_unchecked">@color/car_secondary_container</color>
+    <color name="car_switch_track_checked">@color/car_primary</color>
+    <color name="car_switch_track_unchecked">@color/car_secondary</color>
+
+    <!-- Quick Controls -->
+    <color name="qc_start_icon_color">@color/car_on_surface</color>
+
 </resources>

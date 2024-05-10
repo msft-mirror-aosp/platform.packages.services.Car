@@ -28,7 +28,10 @@ import java.util.Arrays;
 import java.util.List;
 
 @SmallTest
-public class CarFeatureTest extends CarApiTestBase  {
+public final class CarFeatureTest extends CarApiTestBase {
+
+    private static final String TAG = CarFeatureTest.class.getSimpleName();
+
     private static final String BLUETOOTH_SERVICE = "car_bluetooth";
 
     // List in CarFeatureController should be inline with this.

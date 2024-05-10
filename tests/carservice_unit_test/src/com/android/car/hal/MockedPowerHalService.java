@@ -18,27 +18,49 @@ package com.android.car.hal;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.car.test.mocks.JavaMockitoHelper;
 import android.content.Context;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
 import android.util.Log;
+import android.util.SparseIntArray;
+import android.view.Display;
 
 import com.android.car.CarServiceUtils;
 import com.android.car.VehicleStub;
+import com.android.internal.annotations.GuardedBy;
 
 import java.util.LinkedList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeoutException;
 
 public class MockedPowerHalService extends PowerHalService {
     private static final String TAG = MockedPowerHalService.class.getSimpleName();
 
     private final boolean mIsPowerStateSupported;
-    private final boolean mIsDeepSleepAllowed;
-    private final boolean mIsHibernationAllowed;
     private final boolean mIsTimedWakeupAllowed;
+
+    private final Object mLock = new Object();
+    private final CountDownLatch mBrightnessSendLatch = new CountDownLatch(1);
+
+    @GuardedBy("mLock")
     private PowerState mCurrentPowerState = new PowerState(VehicleApPowerStateReq.ON, 0);
+
+    @GuardedBy("mLock")
     private PowerEventListener mListener;
+
+    @GuardedBy("mLock")
     private SignalListener mSignalListener;
 
+    @GuardedBy("mLock")
     private final LinkedList<int[]> mSentStates = new LinkedList<>();
+
+    @GuardedBy("mLock")
+    private final SparseIntArray mDisplayBrightnessSet = new SparseIntArray();
+
+    private boolean mIsDeepSleepAllowed;
+    private boolean mIsHibernationAllowed;
+    @PowerState.ShutdownType
+    private int mRequestedShutdownPowerState = PowerState.SHUTDOWN_TYPE_UNDEFINED;
 
     public interface SignalListener {
         void sendingSignal(int signal);
@@ -58,7 +80,6 @@ public class MockedPowerHalService extends PowerHalService {
                 mock(DiagnosticHalService.class),
                 mock(ClusterHalService.class),
                 mock(TimeHalService.class),
-                mock(HalClient.class),
                 CarServiceUtils.getHandlerThread(VehicleHal.class.getSimpleName()),
                 vehicleStub);
 
@@ -67,7 +88,7 @@ public class MockedPowerHalService extends PowerHalService {
 
     public MockedPowerHalService(boolean isPowerStateSupported, boolean isDeepSleepAllowed,
             boolean isHibernationAllowed, boolean isTimedWakeupAllowed) {
-        super(createVehicleHalWithMockedServices());
+        super(mock(Context.class), createVehicleHalWithMockedServices());
         mIsPowerStateSupported = isPowerStateSupported;
         mIsDeepSleepAllowed = isDeepSleepAllowed;
         mIsHibernationAllowed = isHibernationAllowed;
@@ -75,13 +96,17 @@ public class MockedPowerHalService extends PowerHalService {
     }
 
     @Override
-    public synchronized void setListener(PowerEventListener listener) {
-        mListener = listener;
+    public void setListener(PowerEventListener listener) {
+        synchronized (mLock) {
+            mListener = listener;
+        }
     }
 
     // For testing purposes only
-    public synchronized void setSignalListener(SignalListener listener) {
-        mSignalListener =  listener;
+    public void setSignalListener(SignalListener listener) {
+        synchronized (mLock) {
+            mSignalListener = listener;
+        }
     }
 
     @Override
@@ -144,24 +169,69 @@ public class MockedPowerHalService extends PowerHalService {
         doSendState(SET_HIBERNATION_EXIT, 0);
     }
 
-    public synchronized int[] waitForSend(long timeoutMs) throws Exception {
-        if (mSentStates.size() == 0) {
-            wait(timeoutMs);
-        }
-        return mSentStates.removeFirst();
+    @Override
+    public void sendDisplayBrightness(int brightness) {
+        sendDisplayBrightness(Display.DEFAULT_DISPLAY, brightness);
     }
 
-    private synchronized void doSendState(int state, int param) {
+    @Override
+    public void sendDisplayBrightness(int displayId, int brightness) {
+        synchronized (mLock) {
+            mDisplayBrightnessSet.put(displayId, brightness);
+        }
+        mBrightnessSendLatch.countDown();
+    }
+
+    public int getDisplayBrightness(int displayId) {
+        synchronized (mLock) {
+            return mDisplayBrightnessSet.get(displayId, -1);
+        }
+    }
+
+    public void waitForBrightnessSent(int displayId, int brightness, long timeoutMs)
+            throws Exception {
+        if (getDisplayBrightness(displayId) == brightness) {
+            return;
+        }
+        JavaMockitoHelper.await(mBrightnessSendLatch, timeoutMs);
+    }
+
+    @Override
+    public void requestShutdownAp(@PowerState.ShutdownType int powerState, boolean runGarageMode) {
+        mRequestedShutdownPowerState = powerState;
+    }
+
+    public int getRequestedShutdownPowerState() {
+        return mRequestedShutdownPowerState;
+    }
+
+    public int[] waitForSend(long timeoutMs) throws Exception {
+        long now = System.currentTimeMillis();
+        long deadline = now + timeoutMs;
+        synchronized (mLock) {
+            while (mSentStates.isEmpty() && now < deadline) {
+                mLock.wait(deadline - now);
+                now = System.currentTimeMillis();
+            }
+            if (mSentStates.isEmpty()) {
+                throw new TimeoutException("mSentStates is still empty "
+                        + "(monitor was not notified in " + timeoutMs + " ms)");
+            }
+            return mSentStates.removeFirst();
+        }
+    }
+
+    private void doSendState(int state, int param) {
+        int[] toSend = new int[] {state, param};
         SignalListener listener;
-        synchronized (this) {
+        synchronized (mLock) {
             listener = mSignalListener;
+            mSentStates.addLast(toSend);
+            mLock.notifyAll();
         }
         if (listener != null) {
             listener.sendingSignal(state);
         }
-        int[] toSend = new int[] {state, param};
-        mSentStates.addLast(toSend);
-        notifyAll();
     }
 
     @Override
@@ -185,8 +255,18 @@ public class MockedPowerHalService extends PowerHalService {
     }
 
     @Override
-    public synchronized PowerState getCurrentPowerState() {
-        return mCurrentPowerState;
+    public PowerState getCurrentPowerState() {
+        synchronized (mLock) {
+            return mCurrentPowerState;
+        }
+    }
+
+    public void setDeepSleepEnabled(boolean enabled) {
+        mIsDeepSleepAllowed = enabled;
+    }
+
+    public void setHibernationEnabled(boolean enabled) {
+        mIsHibernationAllowed = enabled;
     }
 
     public void setCurrentPowerState(PowerState state) {
@@ -195,7 +275,7 @@ public class MockedPowerHalService extends PowerHalService {
 
     public void setCurrentPowerState(PowerState state, boolean notify) {
         PowerEventListener listener;
-        synchronized (this) {
+        synchronized (mLock) {
             mCurrentPowerState = state;
             listener = mListener;
         }

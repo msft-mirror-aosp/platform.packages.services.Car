@@ -23,6 +23,7 @@
         <!-- Text styles -->
         <!-- TODO clean up -->
 
+        <item name="android:textAppearanceButton">@style/TextAppearance.DeviceDefault.Widget.Button</item>
         <item name="android:textAppearanceListItem">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSmall">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSecondary">@*android:style/TextAppearance.DeviceDefault.Small</item>
@@ -31,20 +32,28 @@
         <item name="android:buttonBarButtonStyle">@*android:style/Widget.DeviceDefault.Button.ButtonBar.AlertDialog</item>
         <item name="android:buttonStyle">@*android:style/Widget.DeviceDefault.Button</item>
 
-
         <item name="android:listPreferredItemHeightSmall">@*android:dimen/car_single_line_list_item_height</item>
 
-
-        <item name="android:selectableItemBackground">@*android:drawable/item_background</item>
+        <item name="android:selectableItemBackground">@drawable/selectable_item_background</item>
 
         <item name="android:actionBarSize">@*android:dimen/car_app_bar_height</item>
 
         <!-- Color palette -->
         <item name="android:colorBackgroundFloating">@color/floating_background_color</item>
-        <item name="android:statusBarColor">@android:color/black</item>
-        <item name="android:colorButtonNormal">@color/btn_device_default_dark</item>
-        <item name="android:colorControlHighlight">@color/btn_device_default_dark</item>
-        <item name="android:colorControlNormal">@color/btn_device_default_dark</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:colorButtonNormal">@color/btn_device_default</item>
+        <item name="android:colorAccent">@color/car_primary</item>
+        <item name="android:colorActivatedHighlight">@color/car_control_highlight</item>
+        <item name="android:colorBackground">@color/car_background</item>
+        <item name="android:colorControlHighlight">@color/car_control_highlight</item>
+        <item name="android:colorControlNormal">@color/btn_device_default</item>
+        <item name="android:colorFocusedHighlight">@color/car_control_highlight</item>
+        <item name="android:textColorPrimary">@color/car_on_background</item>
+        <item name="android:textColorPrimaryInverse">@color/car_background</item>
+        <item name="android:textColorSecondary">@color/car_secondary</item>
+        <item name="android:textColorSecondaryInverse">@color/car_on_secondary</item>
+        <item name="android:textColorTertiary">@color/car_secondary</item>
+        <item name="android:textColorTertiaryInverse">@color/car_on_secondary</item>
 
         <item name="android:listDivider">@color/list_divider_color</item>
         <item name="android:alertDialogTheme">@android:style/Theme.DeviceDefault.Dialog.Alert</item>
@@ -60,15 +69,19 @@
         <item name="android:textAppearanceListItem">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSmall">@*android:style/TextAppearance.DeviceDefault.Large</item>
         <item name="android:textAppearanceListItemSecondary">@*android:style/TextAppearance.DeviceDefault.Small</item>
-        <item name="android:textAppearanceButton">@*android:style/Widget.DeviceDefault.Button</item>
+        <item name="android:textAppearanceButton">@*android:style/TextAppearance.DeviceDefault.Widget.Button</item>
         <item name="android:borderlessButtonStyle">@*android:style/Widget.DeviceDefault.Button.Borderless.Colored</item>
         <item name="android:buttonBarButtonStyle">@*android:style/Widget.DeviceDefault.Button.ButtonBar.AlertDialog</item>
         <item name="android:buttonStyle">@*android:style/Widget.DeviceDefault.Button</item>
+        <item name="android:buttonBarPositiveButtonStyle">@*android:style/Widget.DeviceDefault.Button.Colored</item>
+        <item name="android:buttonBarNegativeButtonStyle">@*android:style/Widget.DeviceDefault.Button</item>
+        <item name="android:buttonBarNeutralButtonStyle">@*android:style/Widget.DeviceDefault.Button</item>
         <item name="android:selectableItemBackground">@*android:drawable/item_background</item>
         <item name="android:windowTitleStyle">?android:attr/textAppearanceLarge</item>
         <!-- Color palette -->
-        <item name="android:colorButtonNormal">@color/btn_device_default_dark</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorButtonNormal">@color/btn_device_default</item>
+        <item name="android:colorBackground">@color/car_surface</item>
+        <item name="android:colorBackgroundFloating">@color/car_surface</item>
     </style>
 
     <style name="Theme.DeviceDefault.Dialog.NoActionBar" parent="android:Theme.DeviceDefault.Dialog">
@@ -92,11 +105,18 @@
         <item name="android:textAppearanceListItemSecondary">@*android:style/TextAppearance.DeviceDefault.Small</item>
         <item name="android:windowTitleStyle">?android:attr/textAppearanceLarge</item>
         <!-- Color palette -->
-        <item name="android:colorButtonNormal">@color/btn_device_default_dark</item>
+        <item name="android:colorButtonNormal">@color/btn_device_default</item>
         <item name="android:background">@android:color/transparent</item>
-        <item name="android:textColorPrimary">@color/alert_dialog_message_text_color</item>
+        <item name="android:textColorPrimary">@color/car_alert_dialog_message_text_color</item>
+        <item name="android:textColorSecondary">@color/car_alert_dialog_message_text_color</item>
+        <item name="android:textColorTertiary">@color/car_alert_dialog_message_text_color</item>
 
         <item name="android:windowBackground">@android:color/transparent</item>
+
+        <!-- Checkbox styling -->
+        <item name="android:listPreferredItemHeightSmall">@*android:dimen/car_single_line_list_item_height</item>
+        <item name="android:colorControlNormal">@color/btn_device_default</item>
+        <item name="android:colorControlActivated">@color/car_control_highlight</item>
     </style>
 
     <style name="Theme.DeviceDefault.Settings.Dialog" parent="android:Theme.DeviceDefault.Dialog.Alert">
@@ -159,7 +179,7 @@
         <item name="android:buttonStyle">@*android:style/Widget.DeviceDefault.Button</item>
 
         <!-- Color palette -->
-        <item name="android:colorButtonNormal">@color/btn_device_default_dark</item>
+        <item name="android:colorButtonNormal">@color/btn_device_default</item>
 
         <!-- Progress bar attributes -->
         <item name="*android:colorProgressBackgroundNormal">@*android:color/config_progress_background_tint</item>
@@ -263,4 +283,9 @@
     </style>
 
     <style name="Theme.DeviceDefault.Light.Panel" parent="android:Theme.DeviceDefault.Panel"/>
+
+    <style name="Theme.DeviceDefault.SystemUI" parent="android:Theme.DeviceDefault.Light">
+        <item name="android:colorPrimary">@color/car_background</item>
+        <item name="*android:colorSurface">@color/car_on_background</item>
+    </style>
 </resources>

@@ -24,8 +24,11 @@ import android.car.builtin.util.Slogf;
 import android.hardware.automotive.audiocontrol.MutingInfo;
 import android.util.Log;
 import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarLog;
+import com.android.car.audio.CarAudioDumpProto.CarVolumeGroupMutingProto;
+import com.android.car.audio.CarAudioDumpProto.CarVolumeGroupMutingProto.CarMutingInfo;
 import com.android.car.audio.hal.AudioControlWrapper;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -137,6 +140,7 @@ final class CarVolumeGroupMuting {
         writer.decreaseIndent();
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     private void dumpCarMutingInfo(IndentingPrintWriter writer, MutingInfo info) {
         writer.printf("Zone ID: %d\n", info.zoneId);
 
@@ -151,9 +155,41 @@ final class CarVolumeGroupMuting {
         writer.decreaseIndent();
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     private static void dumpDeviceAddresses(IndentingPrintWriter writer, String[] devices) {
         for (int index = 0; index < devices.length; index++) {
             writer.printf("%d %s\n", index, devices[index]);
+        }
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    void dumpProto(ProtoOutputStream proto) {
+        long carVolumeGroupMutingToken = proto.start(CarAudioDumpProto.CAR_VOLUME_GROUP_MUTING);
+        synchronized (mLock) {
+            proto.write(CarVolumeGroupMutingProto.IS_MUTING_RESTRICTED, mIsMutingRestricted);
+            for (int index = 0; index < mLastMutingInformation.size(); index++) {
+                dumpProtoCarMutingInfo(mLastMutingInformation.get(index), proto);
+            }
+        }
+        proto.end(carVolumeGroupMutingToken);
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    private void dumpProtoCarMutingInfo(MutingInfo info, ProtoOutputStream proto) {
+        long lastMutingInfoToken = proto.start(CarVolumeGroupMutingProto.LAST_MUTING_INFORMATION);
+        proto.write(CarMutingInfo.ZONE_ID, info.zoneId);
+        dumpProtoDeviceAddresses(info.deviceAddressesToMute, CarMutingInfo.DEVICE_ADDRESSES_TO_MUTE,
+                proto);
+        dumpProtoDeviceAddresses(info.deviceAddressesToUnmute,
+                CarMutingInfo.DEVICE_ADDRESSES_TO_UNMUTE, proto);
+        proto.end(lastMutingInfoToken);
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    private static void dumpProtoDeviceAddresses(String[] devices, long fieldId,
+            ProtoOutputStream proto) {
+        for (int index = 0; index < devices.length; index++) {
+            proto.write(fieldId, devices[index]);
         }
     }
 
@@ -165,7 +201,7 @@ final class CarVolumeGroupMuting {
 
         List<String> mutedDevices = new ArrayList<>();
         List<String> unMutedDevices = new ArrayList<>();
-        CarVolumeGroup[] groups = audioZone.getVolumeGroups();
+        CarVolumeGroup[] groups = audioZone.getCurrentVolumeGroups();
 
         for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
             CarVolumeGroup group = groups[groupIndex];

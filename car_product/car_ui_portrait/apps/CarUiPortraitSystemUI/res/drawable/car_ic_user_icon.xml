@@ -16,11 +16,13 @@
   -->
 
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="@dimen/system_bar_user_icon_drawing_size"
-    android:height="@dimen/system_bar_user_icon_drawing_size"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-  <path
-      android:fillColor="@color/system_bar_icon_color"
-      android:pathData="M12,5.9c1.16,0 2.1,0.94 2.1,2.1s-0.94,2.1 -2.1,2.1S9.9,9.16 9.9,8s0.94,-2.1 2.1,-2.1m0,9c2.97,0 6.1,1.46 6.1,2.1v1.1L5.9,18.1L5.9,17c0,-0.64 3.13,-2.1 6.1,-2.1M12,4C9.79,4 8,5.79 8,8s1.79,4 4,4 4,-1.79 4,-4 -1.79,-4 -4,-4zM12,13c-2.67,0 -8,1.34 -8,4v3h16v-3c0,-2.66 -5.33,-4 -8,-4z"/>
+        android:width="@dimen/top_system_bar_icon_drawing_size"
+        android:height="@dimen/top_system_bar_icon_drawing_size"
+        android:viewportWidth="48"
+        android:viewportHeight="48">
+    <path
+        android:fillColor="@color/car_on_surface"
+        android:pathData="M24,23.6q-3.65,0 -5.925,-2.3T15.8,15.4q0,-3.65 2.275,-5.925T24,7.2q3.65,0 5.925,2.275T32.2,15.4q0,3.6 -2.275,5.9Q27.65,23.6 24,23.6ZM7.15,41.5v-5.55q0,-2.05 1.05,-3.575 1.05,-1.525 2.7,-2.275 3.4,-1.6 6.625,-2.375Q20.75,26.95 24,26.95q3.25,0 6.45,0.8t6.6,2.35q1.7,0.75 2.75,2.25t1.05,3.6v5.55ZM11.05,37.65h25.9L36.95,36q0,-0.8 -0.425,-1.475t-1.075,-0.975q-3.2,-1.55 -5.875,-2.15 -2.675,-0.6 -5.575,-0.6 -2.9,0 -5.625,0.625T12.55,33.55q-0.7,0.3 -1.1,0.975 -0.4,0.675 -0.4,1.475ZM24,19.7q1.85,0 3.075,-1.225T28.3,15.4q0,-1.85 -1.225,-3.1T24,11.05q-1.85,0 -3.075,1.25T19.7,15.4q0,1.85 1.225,3.075T24,19.7ZM24,15.4ZM24,37.65Z"
+    />
 </vector>
+

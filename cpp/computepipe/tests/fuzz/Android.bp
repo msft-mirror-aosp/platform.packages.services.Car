@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_automotive",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -81,6 +82,9 @@ cc_defaults {
         componentid: 162915,
         // aae-fuzz-bugs
         hotlists: ["1986127"],
+        libfuzzer_options: [
+            "timeout=120",
+        ],
     },
 }
 
@@ -91,7 +95,7 @@ cc_fuzz {
         "PixelMemHandleFuzzer.cpp",
     ],
     shared_libs: [
-         "libprotobuf-cpp-full",
+        "libprotobuf-cpp-full",
     ],
     static_libs: [
         "libcomputepipeprotosfuzz",
@@ -106,7 +110,7 @@ cc_fuzz {
         "PixelStreamManagerFuzzer.cpp",
     ],
     shared_libs: [
-         "libprotobuf-cpp-full",
+        "libprotobuf-cpp-full",
     ],
     static_libs: [
         "libcomputepipeprotosfuzz",
@@ -125,21 +129,21 @@ cc_fuzz {
 cc_fuzz {
     name: "video_input_manager_fuzzer",
     defaults: ["libcomputepipefuzz-defaults"],
-    cppflags:[
+    cppflags: [
         "-fexceptions",
     ],
     srcs: [
         "VideoInputManagerFuzzer.cpp",
     ],
     data: [
-        "corpus/video_input_manager/*"
+        "corpus/video_input_manager/*",
     ],
 }
 
 cc_fuzz {
     name: "local_prebuild_graph_fuzzer",
     defaults: ["libcomputepipefuzz-defaults"],
-    cppflags:[
+    cppflags: [
         "-fexceptions",
     ],
     static_libs: [
@@ -160,15 +164,14 @@ cc_fuzz {
 cc_fuzz {
     name: "grpc_graph_fuzzer",
     defaults: ["libcomputepipefuzz-defaults"],
-    cppflags:[
+    cppflags: [
         "-fexceptions",
     ],
     static_libs: [
         "computepipe_grpc_graph_proto",
+        "computepipe_grpc_graph",
     ],
     shared_libs: [
-        "computepipe_grpc_graph",
-        "libcomputepipeprotos",
         "libgrpc++",
         "libprotobuf-cpp-full",
     ],

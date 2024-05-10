@@ -20,6 +20,8 @@ import static android.car.builtin.media.AudioManagerHelper.usageToString;
 import static android.car.builtin.media.AudioManagerHelper.usageToXsdString;
 import static android.car.builtin.media.AudioManagerHelper.xsdStringToUsage;
 
+import static com.android.car.audio.CarHalAudioUtils.usageToMetadata;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
@@ -32,7 +34,9 @@ import android.hardware.automotive.audiocontrol.DuckingInfo;
 import android.hardware.automotive.audiocontrol.IAudioControl;
 import android.hardware.automotive.audiocontrol.IAudioGainCallback;
 import android.hardware.automotive.audiocontrol.IFocusListener;
+import android.hardware.automotive.audiocontrol.IModuleChangeCallback;
 import android.hardware.automotive.audiocontrol.MutingInfo;
+import android.media.audio.common.AudioPort;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
@@ -49,7 +53,8 @@ import com.android.internal.util.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /** Wrapper for AIDL interface for AudioControl HAL */
 public final class AudioControlWrapperAidl implements AudioControlWrapper, IBinder.DeathRecipient {
@@ -59,13 +64,17 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
             "android.hardware.automotive.audiocontrol.IAudioControl/default";
 
     private static final int AIDL_AUDIO_CONTROL_VERSION_1 = 1;
+    private static final int AIDL_AUDIO_CONTROL_VERSION_2 = 2;
 
     private IBinder mBinder;
     private IAudioControl mAudioControl;
     private boolean mListenerRegistered = false;
     private boolean mGainCallbackRegistered = false;
+    private boolean mModuleChangeCallbackRegistered;
 
     private AudioControlDeathRecipient mDeathRecipient;
+
+    private Executor mExecutor = Executors.newSingleThreadExecutor();
 
     public static @Nullable IBinder getService() {
         return ServiceManagerHelper.waitForDeclaredService(AUDIO_CONTROL_SERVICE);
@@ -77,6 +86,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public void unregisterFocusListener() {
         // Focus listener will be unregistered by HAL automatically
     }
@@ -95,7 +105,14 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
                 } catch (RemoteException e) {
                     Slogf.w("supportsFeature Failed to get version for feature: " + feature, e);
                 }
-                // Fallthrough
+                return false;
+            case AUDIOCONTROL_FEATURE_AUDIO_MODULE_CALLBACK:
+                try {
+                    return mAudioControl.getInterfaceVersion() > AIDL_AUDIO_CONTROL_VERSION_2;
+                } catch (RemoteException e) {
+                    Slogf.w("supportsFeature Failed to get version for feature: " + feature, e);
+                }
+                return false;
             default:
                 return false;
         }
@@ -138,10 +155,23 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
     }
 
     @Override
-    public void onAudioFocusChange(@AttributeUsage int usage, int zoneId, int focusChange) {
+    public void onAudioFocusChange(PlaybackTrackMetadata metaData, int zoneId, int focusChange) {
         if (Slogf.isLoggable(TAG, Log.DEBUG)) {
-            Slogf.d(TAG, "onAudioFocusChange: usage " + usageToString(usage)
-                    + ", zoneId " + zoneId + ", focusChange " + focusChange);
+            Slogf.d(TAG, "onAudioFocusChange: metadata %s, zoneId %d, focusChanged %d", metaData,
+                    zoneId, focusChange);
+        }
+        try {
+            mAudioControl.onAudioFocusChangeWithMetaData(metaData, zoneId, focusChange);
+        } catch (RemoteException e) {
+            Slogf.d(TAG, "onAudioFocusChange: failed with metadata, retry with usage.");
+            onAudioFocusChange(metaData.usage, zoneId, focusChange);
+        }
+    }
+
+    private void onAudioFocusChange(@AttributeUsage int usage, int zoneId, int focusChange) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "onAudioFocusChange: usage %s, zoneId %d, focusChanged %d",
+                    usageToString(usage), zoneId, focusChange);
         }
         try {
             String usageName = usageToXsdString(usage);
@@ -164,6 +194,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
         }
         writer.printf("Focus listener registered on HAL? %b\n", mListenerRegistered);
         writer.printf("Audio Gain Callback registered on HAL? %b\n", mGainCallbackRegistered);
+        writer.printf("Module change Callback set on HAL? %b\n", mModuleChangeCallbackRegistered);
 
         writer.println("Supported Features");
         writer.increaseIndent();
@@ -172,6 +203,9 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
         if (supportsFeature(AUDIOCONTROL_FEATURE_AUDIO_FOCUS_WITH_METADATA)) {
             writer.println("- AUDIOCONTROL_FEATURE_AUDIO_FOCUS_WITH_METADATA");
             writer.println("- AUDIOCONTROL_FEATURE_AUDIO_GAIN_CALLBACK");
+        }
+        if (supportsFeature(AUDIOCONTROL_FEATURE_AUDIO_MODULE_CALLBACK)) {
+            writer.println("- AUDIOCONTROL_FEATURE_AUDIO_MODULE_CALLBACK");
         }
         writer.decreaseIndent();
 
@@ -226,6 +260,60 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
     }
 
     @Override
+    public void setModuleChangeCallback(HalAudioModuleChangeCallback moduleChangeCallback) {
+        Objects.requireNonNull(moduleChangeCallback, "Module change callback can not be null");
+
+        IModuleChangeCallback callback = new ModuleChangeCallbackWrapper(moduleChangeCallback);
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    mAudioControl.setModuleChangeCallback(callback);
+                    mModuleChangeCallbackRegistered = true;
+                } catch (RemoteException e) {
+                    throw new IllegalStateException(
+                            "IAudioControl#setModuleChangeCallback failed", e);
+                } catch (UnsupportedOperationException e) {
+                    Slogf.w(TAG, "Failed to set module change callback, feature not supported");
+                } catch (IllegalStateException e) {
+                    // we hit this if car service crashed and restarted. lets clear callbacks and
+                    // try again one more time.
+                    Slogf.w(TAG, "Module change callback already set, retry after clearing");
+                    try {
+                        mAudioControl.clearModuleChangeCallback();
+                        mAudioControl.setModuleChangeCallback(callback);
+                        mModuleChangeCallbackRegistered = true;
+                    } catch (RemoteException ex) {
+                        throw new IllegalStateException(
+                                "IAudioControl#setModuleChangeCallback failed (after retry)", ex);
+                    } catch (IllegalStateException ex) {
+                        Slogf.e(TAG, ex, "Failed to set module change callback (after retry)");
+                        // lets  not throw any exception since it may lead to car service failure
+                    }
+                }
+            }
+        });
+    }
+
+    @Override
+    public void clearModuleChangeCallback() {
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    mAudioControl.clearModuleChangeCallback();
+                    mModuleChangeCallbackRegistered = false;
+                } catch (RemoteException e) {
+                    throw new IllegalStateException(
+                            "IAudioControl#clearModuleChangeCallback failed", e);
+                } catch (UnsupportedOperationException e) {
+                    Slogf.w(TAG, "Failed to clear module change callback, feature not supported");
+                }
+            }
+        });
+    }
+
+    @Override
     public void linkToDeath(@Nullable AudioControlDeathRecipient deathRecipient) {
         try {
             mBinder.linkToDeath(this, 0);
@@ -244,11 +332,19 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
     @Override
     public void binderDied() {
         Slogf.w(TAG, "AudioControl HAL died. Fetching new handle");
+        mBinder.unlinkToDeath(this, 0);
         mListenerRegistered = false;
         mGainCallbackRegistered = false;
+        mModuleChangeCallbackRegistered = false;
         mBinder = AudioControlWrapperAidl.getService();
         mAudioControl = IAudioControl.Stub.asInterface(mBinder);
-        linkToDeath(mDeathRecipient);
+        // TODO(b/284043199): Refactor the retry logic out and add delay between retry.
+        try {
+            mBinder.linkToDeath(this, 0);
+        } catch (RemoteException e) {
+            // Avoid crashing the binder thread.
+            Slogf.e(TAG, "Call to IAudioControl#linkToDeath failed", e);
+        }
         if (mDeathRecipient != null) {
             mDeathRecipient.serviceDied();
         }
@@ -262,11 +358,13 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public int getInterfaceVersion() {
             return this.VERSION;
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public String getInterfaceHash() {
             return this.HASH;
         }
@@ -274,35 +372,42 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
         @Override
         public void requestAudioFocus(String usage, int zoneId, int focusGain) {
             @AttributeUsage int usageValue = xsdStringToUsage(usage);
-            mListener.requestAudioFocus(usageValue, zoneId, focusGain);
+            requestAudioFocus(usageValue, zoneId, focusGain);
         }
 
         @Override
         public void abandonAudioFocus(String usage, int zoneId) {
             @AttributeUsage int usageValue = xsdStringToUsage(usage);
-            mListener.abandonAudioFocus(usageValue, zoneId);
+            abandonAudioFocus(usageValue, zoneId);
         }
 
         @Override
         public void requestAudioFocusWithMetaData(
                 PlaybackTrackMetadata playbackMetaData, int zoneId, int focusGain) {
             if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slogf.d(TAG, "requestAudioFocusWithMetaData metadata=" + playbackMetaData
-                        + ", zoneId=" + zoneId + ", focusGain=" + focusGain);
+                Slogf.d(TAG, "requestAudioFocusWithMetaData metadata=%s, zoneId=%d, focusGain=%d",
+                        playbackMetaData, zoneId, focusGain);
             }
-            // TODO(b/224885748): Add missing focus management
+            mListener.requestAudioFocus(playbackMetaData, zoneId, focusGain);
         }
 
         @Override
         public void abandonAudioFocusWithMetaData(
                 PlaybackTrackMetadata playbackMetaData, int zoneId) {
             if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slogf.d(TAG, "abandonAudioFocusWithMetaData metadata=" + playbackMetaData
-                        + ", zoneId=" + zoneId);
+                Slogf.d(TAG, "abandonAudioFocusWithMetaData metadata=%s, zoneId=%d",
+                        playbackMetaData, zoneId);
             }
-            // TODO(b/224885748): Add missing focus management
+            mListener.abandonAudioFocus(playbackMetaData, zoneId);
         }
 
+        private void abandonAudioFocus(int usage, int zoneId) {
+            abandonAudioFocusWithMetaData(usageToMetadata(usage), zoneId);
+        }
+
+        private void requestAudioFocus(int usage, int zoneId, int focusGain) {
+            requestAudioFocusWithMetaData(usageToMetadata(usage), zoneId, focusGain);
+        }
     }
 
     private static final class AudioGainCallbackWrapper extends IAudioGainCallback.Stub {
@@ -313,11 +418,13 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public int getInterfaceVersion() {
             return VERSION;
         }
 
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         public String getInterfaceHash() {
             return HASH;
         }
@@ -342,14 +449,17 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
                 reasonsList.add(halReason);
             }
             if (Log.isLoggable(TAG, Log.DEBUG)) {
-                String gainsLiteral =
-                        carAudioGainConfigs.stream()
-                                .map(gain -> gain.toString())
-                                .collect(Collectors.joining(","));
-                String reasonsLiteral =
-                        reasonsList.stream()
-                                .map(HalAudioGainCallback::reasonToString)
-                                .collect(Collectors.joining(","));
+                List<String> gainsString = new ArrayList<>();
+                for (int i = 0; i < carAudioGainConfigs.size(); i++) {
+                    gainsString.add(carAudioGainConfigs.get(i).toString());
+                }
+                String gainsLiteral = String.join(",", gainsString);
+
+                List<String> reasonsString = new ArrayList<>();
+                for (int i = 0; i < reasonsString.size(); i++) {
+                    reasonsString.add(HalAudioGainCallback.reasonToString(reasonsList.get(i)));
+                }
+                String reasonsLiteral = String.join(",", reasonsString);
                 Slogf.d(
                         TAG,
                         "onAudioDeviceGainsChanged for reasons=[%s], gains=[%s]",
@@ -357,6 +467,36 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
                         gainsLiteral);
             }
             mCallback.onAudioDeviceGainsChanged(reasonsList, carAudioGainConfigs);
+        }
+    }
+
+    private static final class ModuleChangeCallbackWrapper extends IModuleChangeCallback.Stub {
+        private final HalAudioModuleChangeCallback mCallback;
+
+        ModuleChangeCallbackWrapper(HalAudioModuleChangeCallback callback) {
+            mCallback = callback;
+        }
+
+        @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+        public int getInterfaceVersion() {
+            return this.VERSION;
+        }
+
+        @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+        public String getInterfaceHash() {
+            return this.HASH;
+        }
+
+        @Override
+        public void onAudioPortsChanged(AudioPort[] audioPorts) {
+            List<HalAudioDeviceInfo> halAudioDeviceInfos = new ArrayList<>();
+            for (int index = 0; index < audioPorts.length; index++) {
+                AudioPort port = audioPorts[index];
+                halAudioDeviceInfos.add(new HalAudioDeviceInfo(port));
+            }
+            mCallback.onAudioPortsChanged(halAudioDeviceInfos);
         }
     }
 }

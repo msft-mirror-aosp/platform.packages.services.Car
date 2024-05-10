@@ -15,6 +15,7 @@
 // Privapp permission allowlist files
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -143,6 +144,7 @@ prebuilt_etc {
     sub_dir: "permissions",
     src: "com.android.car.bugreport.xml",
     filename_from_src: true,
+    system_ext_specific: true,
 }
 
 prebuilt_etc {
@@ -156,6 +158,20 @@ prebuilt_etc {
     name: "allowed_privapp_com.google.android.car.adaslocation",
     sub_dir: "permissions",
     src: "com.google.android.car.adaslocation.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.test.car.one.hotworddetectionservice",
+    sub_dir: "permissions",
+    src: "com.android.car.test.one.hotworddetectionservice.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.car.oemcarservice.testapp",
+    sub_dir: "permissions",
+    src: "com.android.car.oemcarservice.testapp.xml",
     filename_from_src: true,
 }
 
@@ -178,13 +194,6 @@ prebuilt_etc {
     name: "allowed_privapp_com.android.car.rotary",
     sub_dir: "permissions",
     src: "com.android.car.rotary.xml",
-    filename_from_src: true,
-}
-
-prebuilt_etc {
-    name: "allowed_privapp_com.android.car.ui.paintbooth",
-    sub_dir: "permissions",
-    src: "com.android.car.ui.paintbooth.xml",
     filename_from_src: true,
 }
 
@@ -235,5 +244,40 @@ prebuilt_etc {
     name: "allowed_privapp_com.android.car.messenger",
     sub_dir: "permissions",
     src: "com.android.car.messenger.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.car.multidisplay",
+    sub_dir: "permissions",
+    src: "com.android.car.multidisplay.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.car.multidisplay.controlcenter",
+    sub_dir: "permissions",
+    src: "com.android.car.multidisplay.controlcenter.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.car.multidisplay.passenger",
+    sub_dir: "permissions",
+    src: "com.android.car.multidisplay.passenger.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.google.android.car.multidisplaytest",
+    sub_dir: "permissions",
+    src: "com.google.android.car.multidisplaytest.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.car.appgrid.test",
+    sub_dir: "permissions",
+    src: "com.android.car.appgrid.test.xml",
     filename_from_src: true,
 }

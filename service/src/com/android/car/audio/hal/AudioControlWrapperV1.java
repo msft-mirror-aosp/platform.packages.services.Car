@@ -21,6 +21,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DU
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
+import android.hardware.audio.common.PlaybackTrackMetadata;
 import android.hardware.automotive.audiocontrol.MutingInfo;
 import android.hardware.automotive.audiocontrol.V1_0.IAudioControl;
 import android.os.RemoteException;
@@ -93,7 +94,7 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
     }
 
     @Override
-    public void onAudioFocusChange(int usage, int zoneId, int focusChange) {
+    public void onAudioFocusChange(PlaybackTrackMetadata metaData, int zoneId, int focusChange) {
         throw new UnsupportedOperationException(
                 "Focus listener is unsupported for IAudioControl@1.0");
     }
@@ -131,6 +132,18 @@ public final class AudioControlWrapperV1 implements AudioControlWrapper {
     @Override
     public void onDevicesToMuteChange(@NonNull List<MutingInfo> carZonesMutingInfo) {
         throw new UnsupportedOperationException("HAL muting is unsupported for IAudioControl@1.0");
+    }
+
+    @Override
+    public void setModuleChangeCallback(HalAudioModuleChangeCallback moduleChangeCallback) {
+        throw new UnsupportedOperationException("Module change callback is unsupported for"
+                + " IAudioControl@1.0");
+    }
+
+    @Override
+    public void clearModuleChangeCallback() {
+        throw new UnsupportedOperationException("Module change callback is unsupported for"
+                + " IAudioControl@1.0");
     }
 
     /**

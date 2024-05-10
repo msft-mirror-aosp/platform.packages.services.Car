@@ -18,9 +18,10 @@ package com.android.car.garagemode;
 
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 
+import static com.android.car.CarServiceUtils.isEventOfType;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.util.Utils.isEventOfType;
 
+import android.app.job.JobInfo;
 import android.car.builtin.job.JobSchedulerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
@@ -92,8 +93,6 @@ class GarageMode {
     private int mAdditionalChecksToDo = ADDITIONAL_CHECKS_TO_DO;
     @GuardedBy("mLock")
     private boolean mIdleCheckerIsRunning;
-    @GuardedBy("mLock")
-    private List<String> mPendingJobs = new ArrayList<>();
 
     private final GarageModeRecorder mGarageModeRecorder;
 
@@ -109,7 +108,7 @@ class GarageMode {
                 finish();
                 return;
             }
-            int numberRunning = JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext);
+            int numberRunning = JobSchedulerHelper.getRunningJobsAtIdle(mContext).size();
             if (numberRunning > 0) {
                 Slogf.d(TAG, "%d jobs are still running. Need to wait more ...", numberRunning);
                 synchronized (mLock) {
@@ -118,7 +117,7 @@ class GarageMode {
             } else {
                 // No idle-mode jobs are running.
                 // Are there any scheduled idle jobs that could run now?
-                int numberReadyToRun = JobSchedulerHelper.getNumberOfPendingJobs(mContext);
+                int numberReadyToRun = JobSchedulerHelper.getPendingJobs(mContext).size();
                 if (numberReadyToRun == 0) {
                     Slogf.d(TAG, "No jobs are running. No jobs are pending. Exiting Garage Mode.");
                     finish();
@@ -169,7 +168,7 @@ class GarageMode {
                 userToStop = mStartedBackgroundUsers.valueAt(0);
             }
             // All jobs done or stopped.
-            if (JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext) == 0) {
+            if (JobSchedulerHelper.getRunningJobsAtIdle(mContext).size() == 0) {
                 // Keep user until job scheduling is stopped. Otherwise, it can crash jobs.
                 if (userToStop != UserHandle.SYSTEM.getIdentifier()) {
                     CarLocalServices.getService(CarUserService.class)
@@ -267,20 +266,29 @@ class GarageMode {
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     void dump(IndentingPrintWriter writer) {
         synchronized (mLock) {
+            writer.printf("GarageMode is %sactive\n", (mGarageModeActive ? "" : "not "));
             mGarageModeRecorder.dump(writer);
-            if (!mGarageModeActive) { //TODO(b/217739337) print value of mGarageModeActive
+            if (!mGarageModeActive) {
                 return;
             }
             writer.printf("GarageMode idle checker is %srunning\n",
                     (mIdleCheckerIsRunning ? "" : "not "));
         }
 
-        int numJobs = JobSchedulerHelper.getNumberOfRunningJobsAtIdle(mContext);
-        if (numJobs > 0) {
-            writer.printf("GarageMode is waiting for %d jobs:\n", numJobs);
+        List<JobInfo> jobs = JobSchedulerHelper.getRunningJobsAtIdle(mContext);
+        if (jobs.size() > 0) {
+            writer.printf("GarageMode is waiting for %d jobs:\n", jobs.size());
+            for (int idx = 0; idx < jobs.size(); idx++) {
+                JobInfo jobinfo = jobs.get(idx);
+                writer.printf("   %d: %s\n", idx + 1, jobinfo);
+            }
         } else {
-            numJobs = JobSchedulerHelper.getNumberOfPendingJobs(mContext);
-            writer.printf("GarageMode is waiting for %d pending idle jobs:\n", numJobs);
+            jobs = JobSchedulerHelper.getPendingJobs(mContext);
+            writer.printf("GarageMode is waiting for %d pending idle jobs:\n", jobs.size());
+            for (int idx = 0; idx < jobs.size(); idx++) {
+                JobInfo jobinfo = jobs.get(idx);
+                writer.printf("   %d: %s\n", idx + 1, jobinfo);
+            }
         }
     }
 

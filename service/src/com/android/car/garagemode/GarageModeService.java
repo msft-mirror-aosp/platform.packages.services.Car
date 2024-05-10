@@ -20,6 +20,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DU
 
 import android.content.Context;
 import android.os.Looper;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarServiceBase;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -32,16 +33,14 @@ import com.android.internal.annotations.VisibleForTesting;
  */
 public class GarageModeService implements CarServiceBase {
 
-    private final Context mContext;
     private final Controller mController;
 
     public GarageModeService(Context context) {
-        this(context, null);
+        this(context, /* controller= */ null);
     }
 
     @VisibleForTesting
     protected GarageModeService(Context context, Controller controller) {
-        mContext = context;
         mController = (controller != null ? controller
                 : new Controller(context, Looper.myLooper()));
     }
@@ -73,6 +72,10 @@ public class GarageModeService implements CarServiceBase {
         writer.println("GarageModeInProgress " + isActive);
         mController.dump(writer);
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     /**
      * @return whether GarageMode is in progress. Used by {@link com.android.car.ICarImpl}.

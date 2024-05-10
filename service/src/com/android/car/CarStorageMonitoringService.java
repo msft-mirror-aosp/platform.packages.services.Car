@@ -40,6 +40,7 @@ import android.os.RemoteException;
 import android.util.JsonWriter;
 import android.util.Log;
 import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.internal.CarPermission;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -232,6 +233,7 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
     @Override
     public void init() {
         Slogf.d(TAG, "CarStorageMonitoringService init()");
+        mOnShutdownReboot.init();
         synchronized (mLock) {
             mUptimeTracker = new UptimeTracker(mUptimeTrackerFile,
                     mConfiguration.uptimeIntervalBetweenUptimeDataWriteMs,
@@ -548,6 +550,10 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
             }
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     // ICarStorageMonitoring implementation
 

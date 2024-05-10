@@ -19,7 +19,6 @@ package android.car.watchdog;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.NonNull;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -83,6 +82,7 @@ public final class IoOveruseStats implements Parcelable {
     //
     // To regenerate run:
     // $ codegen $ANDROID_BUILD_TOP/packages/services/Car/car-lib/src/android/car/watchdog/IoOveruseStats.java
+    // Added AddedInOrBefore or ApiRequirement Annotation manually
     //
     // To exclude the generated code from IntelliJ auto-formatting enable (one-time):
     //   Settings > Editor > Code Style > Formatter Control
@@ -115,7 +115,6 @@ public final class IoOveruseStats implements Parcelable {
      * Start time, in epoch seconds, for the below stats.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public long getStartTime() {
         return mStartTime;
     }
@@ -124,7 +123,6 @@ public final class IoOveruseStats implements Parcelable {
      * Duration, in seconds, for the below stats.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public long getDurationInSeconds() {
         return mDurationInSeconds;
     }
@@ -134,7 +132,6 @@ public final class IoOveruseStats implements Parcelable {
      * period.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public long getTotalOveruses() {
         return mTotalOveruses;
     }
@@ -143,7 +140,6 @@ public final class IoOveruseStats implements Parcelable {
      * Total times the package was killed during the given period due to disk I/O overuse.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public long getTotalTimesKilled() {
         return mTotalTimesKilled;
     }
@@ -152,7 +148,6 @@ public final class IoOveruseStats implements Parcelable {
      * Aggregated number of bytes written to disk by the package during the given period.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public long getTotalBytesWritten() {
         return mTotalBytesWritten;
     }
@@ -160,10 +155,9 @@ public final class IoOveruseStats implements Parcelable {
     /**
      * Package may be killed on disk I/O overuse.
      *
-     * <p>Disk I/O overuse is triggered on exceeding {@link #mRemainingWriteBytes}.
+     * <p>Disk I/O overuse is triggered on exceeding {@link #getRemainingWriteBytes()}.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isKillableOnOveruse() {
         return mKillableOnOveruse;
     }
@@ -172,19 +166,17 @@ public final class IoOveruseStats implements Parcelable {
      * Number of write bytes remaining in each application or system state.
      *
      * <p>On exceeding these limit in at least one system or application state, the package may be
-     * killed if {@link #mKillableOnOveruse} is {@code true}.
+     * killed if {@link #isKillableOnOveruse()} is {@code true}.
      *
      * <p>The above period does not apply to this field.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull PerStateBytes getRemainingWriteBytes() {
         return mRemainingWriteBytes;
     }
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -202,7 +194,6 @@ public final class IoOveruseStats implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -221,7 +212,6 @@ public final class IoOveruseStats implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -254,7 +244,6 @@ public final class IoOveruseStats implements Parcelable {
     }
 
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<IoOveruseStats> CREATOR
             = new Parcelable.Creator<IoOveruseStats>() {
         @Override
@@ -305,7 +294,6 @@ public final class IoOveruseStats implements Parcelable {
          * Start time, in epoch seconds, for the below stats.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setStartTime(long value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
@@ -317,7 +305,6 @@ public final class IoOveruseStats implements Parcelable {
          * Duration, in seconds, for the below stats.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setDurationInSeconds(long value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x2;
@@ -330,7 +317,6 @@ public final class IoOveruseStats implements Parcelable {
          * period.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setTotalOveruses(long value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x4;
@@ -342,7 +328,6 @@ public final class IoOveruseStats implements Parcelable {
          * Total times the package was killed during the given period due to disk I/O overuse.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setTotalTimesKilled(long value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x8;
@@ -354,7 +339,6 @@ public final class IoOveruseStats implements Parcelable {
          * Aggregated number of bytes written to disk by the package during the given period.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setTotalBytesWritten(long value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x10;
@@ -368,7 +352,6 @@ public final class IoOveruseStats implements Parcelable {
          * <p>Disk I/O overuse is triggered on exceeding {@link #mRemainingWriteBytes}.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setKillableOnOveruse(boolean value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x20;
@@ -385,7 +368,6 @@ public final class IoOveruseStats implements Parcelable {
          * <p>The above period does not apply to this field.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setRemainingWriteBytes(@NonNull PerStateBytes value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x40;
@@ -394,7 +376,6 @@ public final class IoOveruseStats implements Parcelable {
         }
 
         /** Builds the instance. This builder should not be touched after calling this! */
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull IoOveruseStats build() {
             checkNotUsed();
             mBuilderFieldsSet |= 0x80; // Mark builder used

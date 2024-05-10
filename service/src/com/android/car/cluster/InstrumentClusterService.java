@@ -19,6 +19,7 @@ import static android.car.builtin.app.ActivityManagerHelper.createActivityOption
 import static android.car.cluster.renderer.InstrumentClusterRenderingService.EXTRA_BUNDLE_KEY_FOR_INSTRUMENT_CLUSTER_HELPER;
 import static android.car.settings.CarSettings.Global.DISABLE_INSTRUMENTATION_SERVICE;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEPRECATED_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.SystemApi;
@@ -40,10 +41,12 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.proto.ProtoOutputStream;
 import android.view.KeyEvent;
 
 import com.android.car.CarInputService;
@@ -82,6 +85,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
     private final Context mContext;
     private final CarInputService mCarInputService;
     private final ClusterNavigationService mClusterNavigationService;
+    private final long mRendererServiceWaitTimeoutMs;
     /**
      * TODO(b/121277787): Remove this on main.
      *
@@ -110,8 +114,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
     @Override
     public void onNavigationStateChanged(Bundle bundle) {
         // No retry here as new events will be sent later.
-        IInstrumentClusterNavigation navigationBinder = getNavigationBinder(
-                /* retryOnFail= */ false);
+        IInstrumentClusterNavigation navigationBinder = getNavigationBinder();
         if (navigationBinder == null) {
             Slogf.e(TAG, "onNavigationStateChanged failed, renderer not ready, Bundle:" + bundle);
             return;
@@ -128,8 +131,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
         // Failure in this call leads into an issue in the client, so throw exception
         // when it cannot be recovered / retried.
         for (int i = 0; i < RENDERER_WAIT_MAX_RETRY; i++) {
-            IInstrumentClusterNavigation navigationBinder = getNavigationBinder(
-                    /* retryOnFail= */ true);
+            IInstrumentClusterNavigation navigationBinder = getNavigationBinder();
             if (navigationBinder == null) {
                 continue;
             }
@@ -214,27 +216,37 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
 
     public InstrumentClusterService(Context context, ClusterNavigationService navigationService,
             CarInputService carInputService) {
+        this(context, navigationService, carInputService, RENDERER_SERVICE_WAIT_TIMEOUT_MS);
+    }
+
+    @VisibleForTesting
+    InstrumentClusterService(Context context, ClusterNavigationService navigationService,
+            CarInputService carInputService, long rendererServiceWaitTimeoutMs) {
         mContext = context;
         mClusterNavigationService = navigationService;
         mCarInputService = carInputService;
         mRenderingServiceConfig = mContext.getString(R.string.instrumentClusterRendererService);
         mDeferredRebinder = new DeferredRebinder(this);
+        mRendererServiceWaitTimeoutMs = rendererServiceWaitTimeoutMs;
     }
 
     @GuardedBy("mLock")
     private IInstrumentCluster waitForRendererLocked() {
-        if (mRendererService == null) {
-            try {
-                mLock.wait(RENDERER_SERVICE_WAIT_TIMEOUT_MS);
-            } catch (InterruptedException e) {
-                Slogf.d(TAG, "waitForRenderer, interrupted", e);
-                Thread.currentThread().interrupt();
+        long remainingTime = mRendererServiceWaitTimeoutMs;
+        long endTime = SystemClock.uptimeMillis() + remainingTime;
+        try {
+            while (mRendererService == null && remainingTime > 0) {
+                mLock.wait(remainingTime);
+                remainingTime = endTime - SystemClock.uptimeMillis();
             }
+        } catch (InterruptedException e) {
+            Slogf.d(TAG, "waitForRenderer, interrupted", e);
+            Thread.currentThread().interrupt();
         }
         return mRendererService;
     }
 
-    private IInstrumentClusterNavigation getNavigationBinder(boolean retryOnFail) {
+    private IInstrumentClusterNavigation getNavigationBinder() {
         IInstrumentCluster renderer;
         synchronized (mLock) {
             if (mIInstrumentClusterNavigationFromRenderer != null) {
@@ -247,6 +259,9 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
             if (renderer == null) {
                 synchronized (mLock) {
                     renderer = waitForRendererLocked();
+                }
+                if (renderer == null) {
+                    continue;
                 }
             }
             try {
@@ -318,6 +333,10 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
         }
     }
 
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
+
     private static void notifyNavContextOwnerChanged(IInstrumentCluster service,
             ContextOwner owner) {
         try {
@@ -362,6 +381,7 @@ public class InstrumentClusterService implements CarServiceBase, KeyEventListene
     /**
      * @deprecated {@link android.car.cluster.CarInstrumentClusterManager} is now deprecated.
      */
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
     @Deprecated
     public IInstrumentClusterManagerService.Stub getManagerService() {
         return mClusterManagerService;

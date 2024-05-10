@@ -19,7 +19,6 @@ package android.car.hardware.power;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.NonNull;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -49,6 +48,7 @@ public final class CarPowerPolicyFilter implements Parcelable {
     //
     // To regenerate run:
     // $ codegen $ANDROID_BUILD_TOP/packages/services/Car/car-lib/src/android/car/hardware/power/CarPowerPolicyFilter.java
+    // Added AddedInOrBefore or ApiRequirement Annotation manually
     //
     // To exclude the generated code from IntelliJ auto-formatting enable (one-time):
     //   Settings > Editor > Code Style > Formatter Control
@@ -70,14 +70,12 @@ public final class CarPowerPolicyFilter implements Parcelable {
      * {@code android.frameworks.automotive.powerpolicy.PowerComponent}.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull int[] getComponents() {
         return mComponents;
     }
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -88,7 +86,6 @@ public final class CarPowerPolicyFilter implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -108,7 +105,6 @@ public final class CarPowerPolicyFilter implements Parcelable {
     }
 
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<CarPowerPolicyFilter> CREATOR
             = new Parcelable.Creator<CarPowerPolicyFilter>() {
         @Override
@@ -141,7 +137,6 @@ public final class CarPowerPolicyFilter implements Parcelable {
          * {@code android.frameworks.automotive.powerpolicy.PowerComponent}.
          */
         @DataClass.Generated.Member
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull Builder setComponents(@NonNull int... value) {
             checkNotUsed();
             mBuilderFieldsSet |= 0x1;
@@ -150,7 +145,6 @@ public final class CarPowerPolicyFilter implements Parcelable {
         }
 
         /** Builds the instance. This builder should not be touched after calling this! */
-        @AddedInOrBefore(majorVersion = 33)
         public @NonNull CarPowerPolicyFilter build() {
             checkNotUsed();
             mBuilderFieldsSet |= 0x2; // Mark builder used

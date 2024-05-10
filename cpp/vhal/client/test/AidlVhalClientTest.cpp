@@ -35,7 +35,6 @@ namespace vhal {
 namespace aidl_test {
 
 using ::android::hardware::automotive::vehicle::toInt;
-using ::android::hardware::automotive::vehicle::VhalResult;
 
 using ::aidl::android::hardware::automotive::vehicle::BnVehicle;
 using ::aidl::android::hardware::automotive::vehicle::GetValueRequest;
@@ -263,6 +262,7 @@ protected:
     constexpr static int32_t TEST_PROP_ID = 1;
     constexpr static int32_t TEST_AREA_ID = 2;
     constexpr static int32_t TEST_PROP_ID_2 = 3;
+    constexpr static int32_t TEST_AREA_ID_2 = 4;
     constexpr static int64_t TEST_TIMEOUT_IN_MS = 100;
 
     void SetUp() override {
@@ -319,13 +319,14 @@ TEST_F(AidlVhalClientTest, testGetValueNormal) {
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
     std::mutex lock;
     std::condition_variable cv;
-    VhalResult<std::unique_ptr<IHalPropValue>> result;
-    VhalResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>> result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
     bool gotResult = false;
     bool* gotResultPtr = &gotResult;
 
     auto callback = std::make_shared<AidlVhalClient::GetValueCallbackFunc>(
-            [&lock, &cv, resultPtr, gotResultPtr](VhalResult<std::unique_ptr<IHalPropValue>> r) {
+            [&lock, &cv, resultPtr,
+             gotResultPtr](VhalClientResult<std::unique_ptr<IHalPropValue>> r) {
                 {
                     std::lock_guard<std::mutex> lockGuard(lock);
                     *resultPtr = std::move(r);
@@ -371,7 +372,7 @@ TEST_F(AidlVhalClientTest, testGetValueSync) {
     });
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<std::unique_ptr<IHalPropValue>> result = getClient()->getValueSync(propValue);
+    VhalClientResult<std::unique_ptr<IHalPropValue>> result = getClient()->getValueSync(propValue);
 
     ASSERT_EQ(getVhal()->getGetValueRequests(),
               std::vector<GetValueRequest>({GetValueRequest{.requestId = 0, .prop = testProp}}));
@@ -408,13 +409,14 @@ TEST_F(AidlVhalClientTest, testGetValueTimeout) {
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
     std::mutex lock;
     std::condition_variable cv;
-    VhalResult<std::unique_ptr<IHalPropValue>> result;
-    VhalResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>> result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
     bool gotResult = false;
     bool* gotResultPtr = &gotResult;
 
     auto callback = std::make_shared<AidlVhalClient::GetValueCallbackFunc>(
-            [&lock, &cv, resultPtr, gotResultPtr](VhalResult<std::unique_ptr<IHalPropValue>> r) {
+            [&lock, &cv, resultPtr,
+             gotResultPtr](VhalClientResult<std::unique_ptr<IHalPropValue>> r) {
                 {
                     std::lock_guard<std::mutex> lockGuard(lock);
                     *resultPtr = std::move(r);
@@ -431,7 +433,7 @@ TEST_F(AidlVhalClientTest, testGetValueTimeout) {
     ASSERT_EQ(getVhal()->getGetValueRequests(),
               std::vector<GetValueRequest>({GetValueRequest{.requestId = 0, .prop = testProp}}));
     ASSERT_FALSE(result.ok());
-    ASSERT_EQ(result.error().code(), StatusCode::TRY_AGAIN);
+    ASSERT_EQ(result.error().code(), ErrorCode::TIMEOUT);
 }
 
 TEST_F(AidlVhalClientTest, testGetValueErrorStatus) {
@@ -442,19 +444,19 @@ TEST_F(AidlVhalClientTest, testGetValueErrorStatus) {
     getVhal()->setStatus(StatusCode::INTERNAL_ERROR);
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<std::unique_ptr<IHalPropValue>> result;
-    VhalResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>> result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
 
     getClient()->getValue(propValue,
                           std::make_shared<AidlVhalClient::GetValueCallbackFunc>(
-                                  [resultPtr](VhalResult<std::unique_ptr<IHalPropValue>> r) {
+                                  [resultPtr](VhalClientResult<std::unique_ptr<IHalPropValue>> r) {
                                       *resultPtr = std::move(r);
                                   }));
 
     ASSERT_EQ(getVhal()->getGetValueRequests(),
               std::vector<GetValueRequest>({GetValueRequest{.requestId = 0, .prop = testProp}}));
     ASSERT_FALSE(result.ok());
-    ASSERT_EQ(result.error().code(), StatusCode::INTERNAL_ERROR);
+    ASSERT_EQ(result.error().code(), ErrorCode::INTERNAL_ERROR_FROM_VHAL);
 }
 
 TEST_F(AidlVhalClientTest, testGetValueNonOkayResult) {
@@ -470,19 +472,19 @@ TEST_F(AidlVhalClientTest, testGetValueNonOkayResult) {
     });
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<std::unique_ptr<IHalPropValue>> result;
-    VhalResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>> result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
 
     getClient()->getValue(propValue,
                           std::make_shared<AidlVhalClient::GetValueCallbackFunc>(
-                                  [resultPtr](VhalResult<std::unique_ptr<IHalPropValue>> r) {
+                                  [resultPtr](VhalClientResult<std::unique_ptr<IHalPropValue>> r) {
                                       *resultPtr = std::move(r);
                                   }));
 
     ASSERT_EQ(getVhal()->getGetValueRequests(),
               std::vector<GetValueRequest>({GetValueRequest{.requestId = 0, .prop = testProp}}));
     ASSERT_FALSE(result.ok());
-    ASSERT_EQ(result.error().code(), StatusCode::INTERNAL_ERROR);
+    ASSERT_EQ(result.error().code(), ErrorCode::INTERNAL_ERROR_FROM_VHAL);
 }
 
 TEST_F(AidlVhalClientTest, testGetValueIgnoreInvalidRequestId) {
@@ -512,12 +514,12 @@ TEST_F(AidlVhalClientTest, testGetValueIgnoreInvalidRequestId) {
     });
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<std::unique_ptr<IHalPropValue>> result;
-    VhalResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>> result;
+    VhalClientResult<std::unique_ptr<IHalPropValue>>* resultPtr = &result;
 
     getClient()->getValue(propValue,
                           std::make_shared<AidlVhalClient::GetValueCallbackFunc>(
-                                  [resultPtr](VhalResult<std::unique_ptr<IHalPropValue>> r) {
+                                  [resultPtr](VhalClientResult<std::unique_ptr<IHalPropValue>> r) {
                                       *resultPtr = std::move(r);
                                   }));
 
@@ -546,13 +548,13 @@ TEST_F(AidlVhalClientTest, testSetValueNormal) {
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
     std::mutex lock;
     std::condition_variable cv;
-    VhalResult<void> result;
-    VhalResult<void>* resultPtr = &result;
+    VhalClientResult<void> result;
+    VhalClientResult<void>* resultPtr = &result;
     bool gotResult = false;
     bool* gotResultPtr = &gotResult;
 
     auto callback = std::make_shared<AidlVhalClient::SetValueCallbackFunc>(
-            [&lock, &cv, resultPtr, gotResultPtr](VhalResult<void> r) {
+            [&lock, &cv, resultPtr, gotResultPtr](VhalClientResult<void> r) {
                 {
                     std::lock_guard<std::mutex> lockGuard(lock);
                     *resultPtr = std::move(r);
@@ -585,7 +587,7 @@ TEST_F(AidlVhalClientTest, testSetValueSync) {
     });
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<void> result = getClient()->setValueSync(propValue);
+    VhalClientResult<void> result = getClient()->setValueSync(propValue);
 
     ASSERT_EQ(getVhal()->getSetValueRequests(),
               std::vector<SetValueRequest>({SetValueRequest{.requestId = 0, .value = testProp}}));
@@ -609,13 +611,13 @@ TEST_F(AidlVhalClientTest, testSetValueTimeout) {
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
     std::mutex lock;
     std::condition_variable cv;
-    VhalResult<void> result;
-    VhalResult<void>* resultPtr = &result;
+    VhalClientResult<void> result;
+    VhalClientResult<void>* resultPtr = &result;
     bool gotResult = false;
     bool* gotResultPtr = &gotResult;
 
     auto callback = std::make_shared<AidlVhalClient::SetValueCallbackFunc>(
-            [&lock, &cv, resultPtr, gotResultPtr](VhalResult<void> r) {
+            [&lock, &cv, resultPtr, gotResultPtr](VhalClientResult<void> r) {
                 {
                     std::lock_guard<std::mutex> lockGuard(lock);
                     *resultPtr = std::move(r);
@@ -632,7 +634,7 @@ TEST_F(AidlVhalClientTest, testSetValueTimeout) {
     ASSERT_EQ(getVhal()->getSetValueRequests(),
               std::vector<SetValueRequest>({SetValueRequest{.requestId = 0, .value = testProp}}));
     ASSERT_FALSE(result.ok());
-    ASSERT_EQ(result.error().code(), StatusCode::TRY_AGAIN);
+    ASSERT_EQ(result.error().code(), ErrorCode::TIMEOUT);
 }
 
 TEST_F(AidlVhalClientTest, testSetValueErrorStatus) {
@@ -643,17 +645,19 @@ TEST_F(AidlVhalClientTest, testSetValueErrorStatus) {
     getVhal()->setStatus(StatusCode::INTERNAL_ERROR);
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<void> result;
-    VhalResult<void>* resultPtr = &result;
+    VhalClientResult<void> result;
+    VhalClientResult<void>* resultPtr = &result;
 
     getClient()->setValue(propValue,
                           std::make_shared<AidlVhalClient::SetValueCallbackFunc>(
-                                  [resultPtr](VhalResult<void> r) { *resultPtr = std::move(r); }));
+                                  [resultPtr](VhalClientResult<void> r) {
+                                      *resultPtr = std::move(r);
+                                  }));
 
     ASSERT_EQ(getVhal()->getSetValueRequests(),
               std::vector<SetValueRequest>({SetValueRequest{.requestId = 0, .value = testProp}}));
     ASSERT_FALSE(result.ok());
-    ASSERT_EQ(result.error().code(), StatusCode::INTERNAL_ERROR);
+    ASSERT_EQ(result.error().code(), ErrorCode::INTERNAL_ERROR_FROM_VHAL);
 }
 
 TEST_F(AidlVhalClientTest, testSetValueNonOkayResult) {
@@ -669,17 +673,19 @@ TEST_F(AidlVhalClientTest, testSetValueNonOkayResult) {
     });
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<void> result;
-    VhalResult<void>* resultPtr = &result;
+    VhalClientResult<void> result;
+    VhalClientResult<void>* resultPtr = &result;
 
     getClient()->setValue(propValue,
                           std::make_shared<AidlVhalClient::SetValueCallbackFunc>(
-                                  [resultPtr](VhalResult<void> r) { *resultPtr = std::move(r); }));
+                                  [resultPtr](VhalClientResult<void> r) {
+                                      *resultPtr = std::move(r);
+                                  }));
 
     ASSERT_EQ(getVhal()->getSetValueRequests(),
               std::vector<SetValueRequest>({SetValueRequest{.requestId = 0, .value = testProp}}));
     ASSERT_FALSE(result.ok());
-    ASSERT_EQ(result.error().code(), StatusCode::INTERNAL_ERROR);
+    ASSERT_EQ(result.error().code(), ErrorCode::INTERNAL_ERROR_FROM_VHAL);
 }
 
 TEST_F(AidlVhalClientTest, testSetValueIgnoreInvalidRequestId) {
@@ -700,12 +706,14 @@ TEST_F(AidlVhalClientTest, testSetValueIgnoreInvalidRequestId) {
     });
 
     AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
-    VhalResult<void> result;
-    VhalResult<void>* resultPtr = &result;
+    VhalClientResult<void> result;
+    VhalClientResult<void>* resultPtr = &result;
 
     getClient()->setValue(propValue,
                           std::make_shared<AidlVhalClient::SetValueCallbackFunc>(
-                                  [resultPtr](VhalResult<void> r) { *resultPtr = std::move(r); }));
+                                  [resultPtr](VhalClientResult<void> r) {
+                                      *resultPtr = std::move(r);
+                                  }));
 
     ASSERT_EQ(getVhal()->getSetValueRequests(),
               std::vector<SetValueRequest>({SetValueRequest{.requestId = 0, .value = testProp}}));
@@ -760,10 +768,15 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
             VehiclePropConfig{
                     .prop = TEST_PROP_ID,
                     .areaConfigs = {{
-                            .areaId = TEST_AREA_ID,
-                            .minInt32Value = 0,
-                            .maxInt32Value = 1,
-                    }},
+                                            .areaId = TEST_AREA_ID,
+                                            .minInt32Value = 0,
+                                            .maxInt32Value = 1,
+                                    },
+                                    {
+                                            .areaId = TEST_AREA_ID_2,
+                                            .minInt32Value = 2,
+                                            .maxInt32Value = 3,
+                                    }},
             },
             VehiclePropConfig{
                     .prop = TEST_PROP_ID_2,
@@ -777,12 +790,17 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
 
     ASSERT_EQ(configs.size(), static_cast<size_t>(2));
     ASSERT_EQ(configs[0]->getPropId(), TEST_PROP_ID);
-    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(1));
+    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(2));
 
-    const IHalAreaConfig* areaConfig = configs[0]->getAreaConfigs();
-    ASSERT_EQ(areaConfig->getAreaId(), TEST_AREA_ID);
-    ASSERT_EQ(areaConfig->getMinInt32Value(), 0);
-    ASSERT_EQ(areaConfig->getMaxInt32Value(), 1);
+    const std::unique_ptr<IHalAreaConfig>& areaConfig0 = configs[0]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig0->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(areaConfig0->getMinInt32Value(), 0);
+    ASSERT_EQ(areaConfig0->getMaxInt32Value(), 1);
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig1 = configs[0]->getAreaConfigs()[1];
+    ASSERT_EQ(areaConfig1->getAreaId(), TEST_AREA_ID_2);
+    ASSERT_EQ(areaConfig1->getMinInt32Value(), 2);
+    ASSERT_EQ(areaConfig1->getMaxInt32Value(), 3);
 
     ASSERT_EQ(configs[1]->getPropId(), TEST_PROP_ID_2);
     ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(0));
@@ -794,7 +812,7 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigsError) {
     auto result = getClient()->getAllPropConfigs();
 
     ASSERT_FALSE(result.ok());
-    ASSERT_EQ(result.error().code(), StatusCode::INTERNAL_ERROR);
+    ASSERT_EQ(result.error().code(), ErrorCode::INTERNAL_ERROR_FROM_VHAL);
 }
 
 TEST_F(AidlVhalClientTest, testGetPropConfigs) {
@@ -802,10 +820,15 @@ TEST_F(AidlVhalClientTest, testGetPropConfigs) {
             VehiclePropConfig{
                     .prop = TEST_PROP_ID,
                     .areaConfigs = {{
-                            .areaId = TEST_AREA_ID,
-                            .minInt32Value = 0,
-                            .maxInt32Value = 1,
-                    }},
+                                            .areaId = TEST_AREA_ID,
+                                            .minInt32Value = 0,
+                                            .maxInt32Value = 1,
+                                    },
+                                    {
+                                            .areaId = TEST_AREA_ID_2,
+                                            .minInt32Value = 2,
+                                            .maxInt32Value = 3,
+                                    }},
             },
             VehiclePropConfig{
                     .prop = TEST_PROP_ID_2,
@@ -821,12 +844,17 @@ TEST_F(AidlVhalClientTest, testGetPropConfigs) {
 
     ASSERT_EQ(configs.size(), static_cast<size_t>(2));
     ASSERT_EQ(configs[0]->getPropId(), TEST_PROP_ID);
-    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(1));
+    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(2));
 
-    const IHalAreaConfig* areaConfig = configs[0]->getAreaConfigs();
-    ASSERT_EQ(areaConfig->getAreaId(), TEST_AREA_ID);
-    ASSERT_EQ(areaConfig->getMinInt32Value(), 0);
-    ASSERT_EQ(areaConfig->getMaxInt32Value(), 1);
+    const std::unique_ptr<IHalAreaConfig>& areaConfig0 = configs[0]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig0->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(areaConfig0->getMinInt32Value(), 0);
+    ASSERT_EQ(areaConfig0->getMaxInt32Value(), 1);
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig1 = configs[0]->getAreaConfigs()[1];
+    ASSERT_EQ(areaConfig1->getAreaId(), TEST_AREA_ID_2);
+    ASSERT_EQ(areaConfig1->getMinInt32Value(), 2);
+    ASSERT_EQ(areaConfig1->getMaxInt32Value(), 3);
 
     ASSERT_EQ(configs[1]->getPropId(), TEST_PROP_ID_2);
     ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(0));

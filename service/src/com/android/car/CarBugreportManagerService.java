@@ -41,6 +41,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -77,8 +78,10 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
     /**
      * The services are defined in {@code packages/services/Car/cpp/bugreport/carbugreportd.rc}.
      */
-    private static final String BUGREPORTD_SERVICE = "carbugreportd";
-    private static final String DUMPSTATEZ_SERVICE = "cardumpstatez";
+    @VisibleForTesting
+    static final String BUGREPORTD_SERVICE = "carbugreportd";
+    @VisibleForTesting
+    static final String DUMPSTATEZ_SERVICE = "cardumpstatez";
 
     // The socket definitions must match the actual socket names defined in car_bugreportd service
     // definition.
@@ -96,7 +99,8 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
     private final HandlerThread mHandlerThread = CarServiceUtils.getHandlerThread(
             getClass().getSimpleName());
     private final Handler mHandler = new Handler(mHandlerThread.getLooper());
-    private final AtomicBoolean mIsServiceRunning = new AtomicBoolean(false);
+    @VisibleForTesting
+    final AtomicBoolean mIsServiceRunning = new AtomicBoolean(false);
     private boolean mIsDumpstateDryRun = false;
 
     /**
@@ -122,7 +126,8 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
 
     @Override
     public void release() {
-        // nothing to do
+        // To stop any pending tasks in HandlerThread
+        mIsServiceRunning.set(false);
     }
 
     @Override
@@ -212,7 +217,7 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
                 }
             }
         }
-        throw new SecurityException("Caller " +  pm.getNameForUid(callingUid)
+        throw new SecurityException("Caller " + pm.getNameForUid(callingUid)
                 + " is not a designated bugreport app");
     }
 
@@ -370,6 +375,10 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
     public void dump(IndentingPrintWriter writer) {
         // TODO(sgurun) implement
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     @Nullable
     private LocalSocket connectSocket(@NonNull String socketName) {

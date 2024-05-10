@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_automotive",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -50,6 +51,11 @@ cc_test {
         "packages/services/Car/cpp/computepipe",
         "packages/services/Car/cpp/computepipe/runner/graph",
     ],
+    arch: {
+        riscv64: {
+            enabled: false,
+        },
+    },
 }
 
 cc_test {

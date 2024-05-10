@@ -18,7 +18,7 @@ package android.car.apitest;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.testng.Assert.assertThrows;
+import static org.junit.Assert.assertThrows;
 
 import android.car.Car;
 import android.car.CarVersion;
@@ -26,25 +26,21 @@ import android.car.ICar;
 import android.car.PlatformVersion;
 import android.car.hardware.CarSensorManager;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.ServiceConnection;
 import android.os.Build;
 import android.os.IBinder;
 import android.test.suitebuilder.annotation.SmallTest;
-
-import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.Test;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+// NOTE: not really "CarLess", but it's handling the Car connection itself
 @SmallTest
-public class CarTest {
+public final class CarTest extends CarLessApiTestBase {
     private static final long DEFAULT_WAIT_TIMEOUT_MS = 3000;
-
-    private final Context mContext = InstrumentationRegistry.getInstrumentation()
-            .getTargetContext();
+    private static final String CODENAME_REL = "REL";
 
     private final Semaphore mConnectionWait = new Semaphore(0);
 
@@ -120,25 +116,29 @@ public class CarTest {
     public void testApiVersion_deprecated() throws Exception {
         int ApiVersionTooHigh = 1000000;
         int MinorApiVersionTooHigh = 1000000;
-        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT)).isTrue();
-        assertThat(Car.isApiVersionAtLeast(ApiVersionTooHigh)).isFalse();
+        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT)).isTrue();
+        expectThat(Car.isApiVersionAtLeast(ApiVersionTooHigh)).isFalse();
 
-        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT - 1,
+        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT - 1,
                 MinorApiVersionTooHigh)).isTrue();
-        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
                 Car.API_VERSION_MINOR_INT)).isTrue();
-        assertThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
                 MinorApiVersionTooHigh)).isFalse();
-        assertThat(Car.isApiVersionAtLeast(ApiVersionTooHigh, 0)).isFalse();
+        expectThat(Car.isApiVersionAtLeast(ApiVersionTooHigh, 0)).isFalse();
 
-        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+        expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
                 Build.VERSION.SDK_INT)).isTrue();
-        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Build.VERSION.SDK_INT + 1)).isFalse();
-        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+        expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
                 Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT)).isTrue();
-        assertThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT + 1)).isFalse();
+
+        // SDK + 1 only works for released platform.
+        if (CODENAME_REL.equals(Build.VERSION.CODENAME)) {
+            expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                    Build.VERSION.SDK_INT + 1)).isFalse();
+            expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+                    Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT + 1)).isFalse();
+        }
     }
 
     @Test
@@ -156,7 +156,9 @@ public class CarTest {
         PlatformVersion platformVersion = Car.getPlatformVersion();
 
         assertThat(platformVersion).isNotNull();
-        assertThat(platformVersion.getMajorVersion()).isEqualTo(Build.VERSION.SDK_INT);
+        assertThat(platformVersion.getMajorVersion()).isEqualTo(
+                CODENAME_REL.equals(Build.VERSION.CODENAME) ? Build.VERSION.SDK_INT
+                        : Build.VERSION_CODES.CUR_DEVELOPMENT);
         assertThat(platformVersion.getMinorVersion()).isAtLeast(0);
     }
 }

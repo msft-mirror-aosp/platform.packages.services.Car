@@ -26,8 +26,8 @@ constexpr const char kCallbackThreadName[] = "EvsCallbackThread";
 
 namespace android::automotive::evs {
 
-EvsCallbackThread::EvsCallbackThread(JavaVM* vm) :
-      mVm(vm), mRunning(true), mThread(&EvsCallbackThread::threadLoop, this) {
+EvsCallbackThread::EvsCallbackThread(JavaVM* vm) : mVm(vm), mRunning(true) {
+    mThread = std::thread(&EvsCallbackThread::threadLoop, this);
     LOG(DEBUG) << "Started the native callback handler thread = " << this;
 }
 
@@ -50,6 +50,7 @@ void EvsCallbackThread::threadLoop() {
         Task task;
         {
             std::unique_lock<std::mutex> lock(mLock);
+            android::base::ScopedLockAssertion lock_assertion(mLock);
             if (!mRunning) {
                 break;
             }
@@ -80,13 +81,16 @@ void EvsCallbackThread::threadLoop() {
         }
     }
 
-    auto res = mVm->DetachCurrentThread();
-    if (res != JNI_OK) {
-        LOG(WARNING) << "Failed to be detached from the VM.";
-    }
+    {
+        std::lock_guard lock(mLock);
+        auto res = mVm->DetachCurrentThread();
+        if (res != JNI_OK) {
+            LOG(WARNING) << "Failed to be detached from the VM.";
+        }
 
-    if (!mTaskQueue.empty()) {
-        LOG(WARNING) << mTaskQueue.size() << " tasks are ignored.";
+        if (!mTaskQueue.empty()) {
+            LOG(WARNING) << mTaskQueue.size() << " tasks are ignored.";
+        }
     }
 
     LOG(DEBUG) << "Exiting a callback handler thread.";

@@ -17,21 +17,25 @@
 #ifndef CPP_WATCHDOG_SERVER_SRC_PACKAGEINFORESOLVER_H_
 #define CPP_WATCHDOG_SERVER_SRC_PACKAGEINFORESOLVER_H_
 
+#include "LooperWrapper.h"
 #include "WatchdogServiceHelper.h"
 
+#include <aidl/android/automotive/watchdog/internal/ApplicationCategoryType.h>
+#include <aidl/android/automotive/watchdog/internal/PackageInfo.h>
 #include <android-base/result.h>
-#include <android/automotive/watchdog/internal/ApplicationCategoryType.h>
-#include <android/automotive/watchdog/internal/PackageInfo.h>
-#include <binder/IBinder.h>
 #include <gtest/gtest_prod.h>
+#include <utils/Looper.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
 #include <utils/StrongPointer.h>
 
 #include <pwd.h>
 
+#include <atomic>
 #include <functional>
+#include <queue>
 #include <shared_mutex>
+#include <thread>  // NOLINT(build/c++11)
 #include <unordered_map>
 #include <unordered_set>
 
@@ -50,11 +54,12 @@ class PackageInfoResolverPeer;
 
 }  // namespace internal
 
-class PackageInfoResolverInterface : public android::RefBase {
+class PackageInfoResolverInterface : virtual public android::RefBase {
 public:
-    virtual std::unordered_map<uid_t, std::string> getPackageNamesForUids(
-            const std::vector<uid_t>& uids) = 0;
-    virtual std::unordered_map<uid_t, android::automotive::watchdog::internal::PackageInfo>
+    virtual void asyncFetchPackageNamesForUids(
+            const std::vector<uid_t>& uids,
+            const std::function<void(std::unordered_map<uid_t, std::string>)>& callback) = 0;
+    virtual std::unordered_map<uid_t, aidl::android::automotive::watchdog::internal::PackageInfo>
     getPackageInfosForUids(const std::vector<uid_t>& uids) = 0;
 
 protected:
@@ -63,7 +68,8 @@ protected:
     virtual void setPackageConfigurations(
             const std::unordered_set<std::string>& vendorPackagePrefixes,
             const std::unordered_map<
-                    std::string, android::automotive::watchdog::internal::ApplicationCategoryType>&
+                    std::string,
+                    aidl::android::automotive::watchdog::internal::ApplicationCategoryType>&
                     packagesToAppCategories) = 0;
 
 private:
@@ -73,7 +79,7 @@ private:
 };
 
 /*
- * PackageInfoResolver maintains a cache of the UID to PackageInfo mapping in the CarWatchdog
+ * PackageInfoResolver maintains a cache of the UID to PackageInfo mapping in the car watchdog
  * daemon. PackageInfoResolver is a singleton and must be accessed only via the public static
  * methods.
  *
@@ -92,7 +98,7 @@ public:
      * Initializes the PackageInfoResolver's singleton instance only on the first call. Main thread
      * should make the first call as this method doesn't offer multi-threading protection.
      */
-    static sp<PackageInfoResolverInterface> getInstance();
+    static android::sp<PackageInfoResolverInterface> getInstance();
 
     android::base::Result<void> initWatchdogServiceHelper(
             const android::sp<WatchdogServiceHelperInterface>& watchdogServiceHelper);
@@ -100,33 +106,55 @@ public:
     static void terminate();
 
     /*
-     * Resolves the given |uids| and returns a mapping of uids to package names. If the mapping
-     * doesn't exist in the local cache, queries the car watchdog service for application uids and
-     * getpwuid for native uids. Logs any error observed during this process.
+     * Resolves the given |uids| and returns a mapping of uids to package names via callback. If the
+     * mapping doesn't exist in the local cache, queries the car watchdog service for application
+     * uids and getpwuid for native uids. Logs any error observed during this process.
      */
-    std::unordered_map<uid_t, std::string> getPackageNamesForUids(const std::vector<uid_t>& uids);
+    void asyncFetchPackageNamesForUids(
+            const std::vector<uid_t>& uids,
+            const std::function<void(std::unordered_map<uid_t, std::string>)>& callback);
 
     /*
-     * Similar to getPackageNamesForUids, resolves the given |uids| and returns a mapping of uids to
-     * package infos.
+     * Similar to asyncFetchPackageNamesForUids, resolves the given |uids| and returns a mapping of
+     * uids to package infos.
      */
-    std::unordered_map<uid_t, android::automotive::watchdog::internal::PackageInfo>
+    std::unordered_map<uid_t, aidl::android::automotive::watchdog::internal::PackageInfo>
     getPackageInfosForUids(const std::vector<uid_t>& uids);
 
     virtual void setPackageConfigurations(
             const std::unordered_set<std::string>& vendorPackagePrefixes,
             const std::unordered_map<
-                    std::string, android::automotive::watchdog::internal::ApplicationCategoryType>&
+                    std::string,
+                    aidl::android::automotive::watchdog::internal::ApplicationCategoryType>&
                     packagesToAppCategories);
+
+    class MessageHandlerImpl final : public MessageHandler {
+    public:
+        explicit MessageHandlerImpl(PackageInfoResolver* service) : kService(service) {}
+
+        void handleMessage(const Message& message) override;
+
+    private:
+        PackageInfoResolver* kService;
+    };
 
 private:
     // PackageInfoResolver instance can only be obtained via |getInstance|.
     PackageInfoResolver() :
           mWatchdogServiceHelper(nullptr),
           mUidToPackageInfoMapping({}),
-          mVendorPackagePrefixes({}) {}
+          mVendorPackagePrefixes({}),
+          mShouldTerminateLooper(false),
+          mHandlerLooper(android::sp<LooperWrapper>::make()),
+          mMessageHandler(android::sp<MessageHandlerImpl>::make(this)) {
+        startLooper();
+    }
 
     void updatePackageInfos(const std::vector<uid_t>& uids);
+
+    void resolvePackageName();
+
+    void startLooper();
 
     // Singleton instance.
     static android::sp<PackageInfoResolver> sInstance;
@@ -136,18 +164,26 @@ private:
     /*
      * ServiceManager::startServices initializes PackageInfoResolver. However, between the
      * |getInstance| and |initWatchdogServiceHelper| calls it initializes few other services, which
-     * may call |getPackageNamesForUids| or |getPackageInfosForUids| simultaneously on a separate
-     * thread. In order to avoid a race condition between |initWatchdogServiceHelper| and
+     * may call |asyncFetchPackageNamesForUids| or |getPackageInfosForUids| simultaneously on a
+     * separate thread. In order to avoid a race condition between |initWatchdogServiceHelper| and
      * |getPackage*ForUids| calls, mWatchdogServiceHelper is guarded by a read-write lock.
      */
     android::sp<WatchdogServiceHelperInterface> mWatchdogServiceHelper GUARDED_BY(mRWMutex);
-    std::unordered_map<uid_t, android::automotive::watchdog::internal::PackageInfo>
+    std::unordered_map<uid_t, aidl::android::automotive::watchdog::internal::PackageInfo>
             mUidToPackageInfoMapping GUARDED_BY(mRWMutex);
     std::vector<std::string> mVendorPackagePrefixes GUARDED_BY(mRWMutex);
     std::unordered_map<std::string,
-                       android::automotive::watchdog::internal::ApplicationCategoryType>
+                       aidl::android::automotive::watchdog::internal::ApplicationCategoryType>
             mPackagesToAppCategories GUARDED_BY(mRWMutex);
+    std::atomic<bool> mShouldTerminateLooper;
+    std::thread mHandlerThread;
+    android::sp<LooperWrapper> mHandlerLooper;
+    android::sp<MessageHandlerImpl> mMessageHandler;
+    std::vector<std::pair<std::vector<uid_t>,
+                          std::function<void(std::unordered_map<uid_t, std::string>)>>>
+            mPendingPackageNames GUARDED_BY(mRWMutex);
 
+    // Required to instantiate the class in |getInstance|.
     friend class android::sp<PackageInfoResolver>;
 
     // For unit tests.

@@ -18,14 +18,19 @@ package com.android.car.audio;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
-import android.annotation.NonNull;
+import android.car.media.CarVolumeGroupInfo;
+import android.car.oem.OemCarAudioVolumeRequest;
+import android.media.AudioAttributes;
 import android.media.AudioFocusInfo;
 import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 
+import com.android.car.CarLocalServices;
 import com.android.car.audio.CarZonesAudioFocus.CarFocusCallback;
 import com.android.car.audio.hal.AudioControlWrapper;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.oem.CarOemProxyService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -43,10 +48,11 @@ final class CarDucking implements CarFocusCallback {
     @GuardedBy("mLock")
     private final SparseArray<CarDuckingInfo> mCurrentDuckingInfo = new SparseArray<>();
 
-    CarDucking(@NonNull SparseArray<CarAudioZone> carAudioZones,
-            @NonNull AudioControlWrapper audioControlWrapper) {
-        mCarAudioZones = Objects.requireNonNull(carAudioZones);
-        mAudioControlWrapper = Objects.requireNonNull(audioControlWrapper);
+    CarDucking(SparseArray<CarAudioZone> carAudioZones, AudioControlWrapper audioControlWrapper) {
+        mCarAudioZones = Objects.requireNonNull(carAudioZones, "Car audio zones can not be null");
+        mAudioControlWrapper = Objects.requireNonNull(audioControlWrapper,
+                        "Audio control wrapper can not be null");
+
         for (int i = 0; i < carAudioZones.size(); i++) {
             int zoneId = carAudioZones.keyAt(i);
             mCurrentDuckingInfo.put(
@@ -65,7 +71,7 @@ final class CarDucking implements CarFocusCallback {
 
     @Override
     public void onFocusChange(int[] audioZoneIds,
-            @NonNull SparseArray<List<AudioFocusInfo>> focusHoldersByZoneId) {
+            SparseArray<List<AudioFocusInfo>> focusHoldersByZoneId) {
         synchronized (mLock) {
             List<CarDuckingInfo> newDuckingInfos = new ArrayList<>(audioZoneIds.length);
             for (int i = 0; i < audioZoneIds.length; i++) {
@@ -100,12 +106,60 @@ final class CarDucking implements CarFocusCallback {
         writer.decreaseIndent();
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {
+        long carDuckingProto = proto.start(CarAudioDumpProto.CAR_DUCKING);
+        synchronized (mLock) {
+            for (int i = 0; i < mCurrentDuckingInfo.size(); i++) {
+                mCurrentDuckingInfo.valueAt(i).dumpProto(proto);
+            }
+        }
+        proto.end(carDuckingProto);
+    }
+
     @GuardedBy("mLock")
     private CarDuckingInfo generateNewDuckingInfoLocked(CarDuckingInfo oldDuckingInfo,
             List<AudioFocusInfo> focusHolders) {
         int zoneId = oldDuckingInfo.mZoneId;
         CarAudioZone zone = mCarAudioZones.get(zoneId);
 
-        return CarDuckingUtils.generateDuckingInfo(oldDuckingInfo, focusHolders, zone);
+        List<CarVolumeGroupInfo> groupInfos = zone.getCurrentVolumeGroupInfos();
+
+        List<AudioAttributes> attributesHoldingFocus =
+                CarDuckingUtils.getAudioAttributesHoldingFocus(focusHolders);
+
+        OemCarAudioVolumeRequest request = new OemCarAudioVolumeRequest.Builder(zoneId)
+                .setActivePlaybackAttributes(attributesHoldingFocus)
+                .setCarVolumeGroupInfos(groupInfos).build();
+
+        List<AudioAttributes> audioAttributesToDuck = evaluateAttributesToDuck(request);
+
+        return CarDuckingUtils.generateDuckingInfo(oldDuckingInfo, audioAttributesToDuck,
+                attributesHoldingFocus, zone);
+    }
+
+    private List<AudioAttributes> evaluateAttributesToDuck(OemCarAudioVolumeRequest requestInfo)  {
+        return isOemDuckingServiceAvailable() ? evaluateAttributesToDuckExternally(requestInfo) :
+                evaluateAttributesToDuckInternally(requestInfo);
+    }
+
+    private List<AudioAttributes> evaluateAttributesToDuckExternally(
+            OemCarAudioVolumeRequest requestInfo) {
+        return CarLocalServices.getService(CarOemProxyService.class).getCarOemAudioDuckingService()
+                .evaluateAttributesToDuck(requestInfo);
+    }
+
+    private List<AudioAttributes> evaluateAttributesToDuckInternally(
+            OemCarAudioVolumeRequest requestInfo) {
+        return CarAudioContext.evaluateAudioAttributesToDuck(
+                requestInfo.getActivePlaybackAttributes());
+    }
+
+    private boolean isOemDuckingServiceAvailable() {
+        CarOemProxyService carService = CarLocalServices.getService(CarOemProxyService.class);
+
+        return carService != null
+                && carService.isOemServiceEnabled() && carService.isOemServiceReady()
+                && carService.getCarOemAudioDuckingService() != null;
     }
 }

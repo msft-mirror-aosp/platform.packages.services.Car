@@ -16,21 +16,25 @@
 
 package com.android.car.audio;
 
+import static android.car.builtin.media.AudioManagerHelper.addTagToAudioAttributes;
+import static android.car.builtin.media.AudioManagerHelper.getTags;
 import static android.car.builtin.media.AudioManagerHelper.usageToXsdString;
 
-import android.annotation.Nullable;
 import android.hardware.audio.common.PlaybackTrackMetadata;
 import android.hardware.automotive.audiocontrol.DuckingInfo;
+import android.media.AudioAttributes;
 import android.media.audio.common.AudioChannelLayout;
 import android.media.audio.common.AudioDevice;
 import android.media.audio.common.AudioDeviceAddress;
 import android.media.audio.common.AudioDeviceDescription;
 
+import com.android.car.audio.CarAudioContext.AudioAttributesWrapper;
 import com.android.car.internal.annotation.AttributeUsage;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /** Car HAL audio Utils */
 public final class CarHalAudioUtils {
@@ -58,28 +62,60 @@ public final class CarHalAudioUtils {
     }
 
     /**
-     * Converts the {@link AttributeUsage} into a metadate for a particular
+     * Converts the {@link AttributeUsage} into a metadata for a particular
      * audio zone.
      *
      */
-    public static PlaybackTrackMetadata usageToMetadata(
-            @AttributeUsage int usage, @Nullable CarAudioZone zone) {
+    public static PlaybackTrackMetadata audioAttributeToMetadata(
+            AudioAttributes audioAttributes, CarAudioZone zone) {
+        Objects.requireNonNull(zone, "Car audio zone can not be null");
+        int carAudioContextId = zone.getCarAudioContext()
+                .getContextForAudioAttribute(audioAttributes);
+        String address = zone.getAddressForContext(carAudioContextId);
+        return audioAttributeToMetadata(audioAttributes, address);
+    }
+
+    public static PlaybackTrackMetadata audioAttributeToMetadata(AudioAttributes audioAttributes) {
+        return audioAttributeToMetadata(audioAttributes, /* deviceAddress= */ "");
+    }
+
+    private static PlaybackTrackMetadata audioAttributeToMetadata(
+            AudioAttributes audioAttributes, String deviceAddress) {
+        Objects.requireNonNull(audioAttributes, "Audio Attributes can not be null");
+        Objects.requireNonNull(deviceAddress, "Device Address can not be null");
+
         PlaybackTrackMetadata playbackTrackMetadata = new PlaybackTrackMetadata();
-        playbackTrackMetadata.usage = usage;
-        playbackTrackMetadata.tags = new String[0];
+        playbackTrackMetadata.usage = audioAttributes.getSystemUsage();
+        playbackTrackMetadata.contentType = audioAttributes.getContentType();
+        Set<String> tags = getTags(audioAttributes);
+        String[] tagsArray = new String[tags.size()];
+        playbackTrackMetadata.tags = tags.toArray(tagsArray);
         playbackTrackMetadata.channelMask = AudioChannelLayout.none(0);
         AudioDeviceDescription audioDeviceDescription = new AudioDeviceDescription();
-        audioDeviceDescription.connection = new String();
+        audioDeviceDescription.connection = "";
         AudioDevice audioDevice = new AudioDevice();
         audioDevice.type = audioDeviceDescription;
-        audioDevice.address =
-                AudioDeviceAddress.id(
-                        zone != null
-                                ? zone.getAddressForContext(
-                                        CarAudioContext.getContextForUsage(usage))
-                                : new String(""));
+        audioDevice.address = AudioDeviceAddress.id(deviceAddress);
         playbackTrackMetadata.sourceDevice = audioDevice;
         return playbackTrackMetadata;
+    }
+
+    public static PlaybackTrackMetadata usageToMetadata(
+            @AttributeUsage int usage, CarAudioZone zone) {
+        Objects.requireNonNull(zone, "Car audio zone can not be null");
+        AudioAttributes attributes = CarAudioContext.getAudioAttributeFromUsage(usage);
+        return audioAttributeToMetadata(attributes, zone);
+    }
+
+    public static PlaybackTrackMetadata usageToMetadata(@AttributeUsage int usage) {
+        AudioAttributes attributes = CarAudioContext.getAudioAttributeFromUsage(usage);
+        return audioAttributeToMetadata(attributes);
+    }
+
+    public static PlaybackTrackMetadata audioAttributesWrapperToMetadata(
+            AudioAttributesWrapper audioAttributesWrapper) {
+        Objects.requireNonNull(audioAttributesWrapper, "Audio Attributes Wrapper can not be null");
+        return audioAttributeToMetadata(audioAttributesWrapper.getAudioAttributes());
     }
 
     /**
@@ -87,39 +123,60 @@ public final class CarHalAudioUtils {
      * Playback metadata for a particular zone.
      *
      */
-    public static List<PlaybackTrackMetadata> usagesToMetadatas(
-            @AttributeUsage int[] usages, @Nullable CarAudioZone zone) {
-        List<PlaybackTrackMetadata> playbackTrackMetadataList = new ArrayList<>(usages.length);
-        for (int index = 0; index < usages.length; index++) {
-            int usage = usages[index];
-            playbackTrackMetadataList.add(usageToMetadata(usage, zone));
+    public static List<PlaybackTrackMetadata> audioAttributesToMetadatas(
+            List<AudioAttributes> audioAttributes, CarAudioZone zone) {
+        Objects.requireNonNull(zone, "Car audio zone can not be null");
+        List<PlaybackTrackMetadata> playbackTrackMetadataList =
+                new ArrayList<>(audioAttributes.size());
+        for (int index = 0; index < audioAttributes.size(); index++) {
+            playbackTrackMetadataList.add(audioAttributeToMetadata(audioAttributes.get(index),
+                    zone));
         }
         return playbackTrackMetadataList;
     }
 
-    /**
-     * Converts a playback track metadata into the corresponding
-     * audio usages.
-     *
-     */
-    public static @AttributeUsage int metadataToUsage(
-            PlaybackTrackMetadata playbackTrackMetadataList) {
-        return playbackTrackMetadataList.usage;
+    public static List<PlaybackTrackMetadata> audioAttributesToMetadatas(
+            List<AudioAttributes> audioAttributes) {
+        List<PlaybackTrackMetadata> metadataList = new ArrayList<>(audioAttributes.size());
+        for (int index = 0; index < audioAttributes.size(); index++) {
+            metadataList.add(audioAttributeToMetadata(audioAttributes.get(index)));
+        }
+        return metadataList;
     }
 
     /**
-     * Converts a list playback track metadata into an array
-     * of audio usages.
+     * Converts a playback track metadata into the corresponding audio attribute
      *
      */
-    public static @AttributeUsage int[] metadatasToUsages(
-            List<PlaybackTrackMetadata> playbackTrackMetadataList) {
-        @AttributeUsage int[] usagesForMetadata = new int[playbackTrackMetadataList.size()];
-        for (int index = 0; index < playbackTrackMetadataList.size(); index++) {
-            PlaybackTrackMetadata playbackTrackMetadata = playbackTrackMetadataList.get(index);
-            usagesForMetadata[index] = playbackTrackMetadata.usage;
+    public static AudioAttributes metadataToAudioAttribute(PlaybackTrackMetadata metadata) {
+        AudioAttributes.Builder builder = new AudioAttributes.Builder();
+        if (AudioAttributes.isSystemUsage(metadata.usage)) {
+            builder.setSystemUsage(metadata.usage);
+        } else {
+            builder.setUsage(metadata.usage);
         }
-        return usagesForMetadata;
+        builder.setContentType(metadata.contentType);
+        if (metadata.tags != null) {
+            for (int i = 0; i < metadata.tags.length; i++) {
+                addTagToAudioAttributes(builder, metadata.tags[i]);
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Converts a list playback track metadata into list of audio attributes
+     *
+     */
+    public static List<AudioAttributes> metadataToAudioAttributes(
+            List<PlaybackTrackMetadata> playbackTrackMetadataList) {
+        List<AudioAttributes> audioAttributesForMetadata =
+                new ArrayList<>(playbackTrackMetadataList.size());
+        for (int index = 0; index < playbackTrackMetadataList.size(); index++) {
+            audioAttributesForMetadata.add(
+                    metadataToAudioAttribute(playbackTrackMetadataList.get(index)));
+        }
+        return audioAttributesForMetadata;
     }
 
     /**

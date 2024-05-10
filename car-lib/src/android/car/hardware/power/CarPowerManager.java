@@ -18,6 +18,7 @@ package android.car.hardware.power;
 
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
+
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -27,7 +28,7 @@ import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
+import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArrayMap;
@@ -49,14 +50,9 @@ import java.util.concurrent.Executor;
  * API to receive power policy change notifications.
  */
 public class CarPowerManager extends CarManagerBase {
-    private static final boolean DBG = false;
 
     /** @hide */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String TAG = CarPowerManager.class.getSimpleName();
-
-    private static final int FIRST_POWER_COMPONENT = PowerComponentUtil.FIRST_POWER_COMPONENT;
-    private static final int LAST_POWER_COMPONENT = PowerComponentUtil.LAST_POWER_COMPONENT;
 
     private final Object mLock = new Object();
     private final ICarPower mService;
@@ -71,7 +67,9 @@ public class CarPowerManager extends CarManagerBase {
         @Override
         public void onPolicyChanged(CarPowerPolicy appliedPolicy,
                 CarPowerPolicy accumulatedPolicy) {
+            long identityToken = Binder.clearCallingIdentity();
             notifyPowerPolicyListeners(appliedPolicy, accumulatedPolicy);
+            Binder.restoreCallingIdentity(identityToken);
         }
     };
 
@@ -94,7 +92,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_INVALID = 0;
 
     /**
@@ -104,7 +101,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_WAIT_FOR_VHAL = 1;
 
     /**
@@ -117,7 +113,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_SUSPEND_ENTER = 2;
 
     /**
@@ -126,7 +121,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_SUSPEND_EXIT = 3;
 
     /**
@@ -139,7 +133,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_SHUTDOWN_ENTER = 5;
 
     /**
@@ -148,7 +141,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_ON = 6;
 
     /**
@@ -161,7 +153,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_SHUTDOWN_PREPARE = 7;
 
     /**
@@ -170,7 +161,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_SHUTDOWN_CANCELLED = 8;
 
     /**
@@ -183,7 +173,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_HIBERNATION_ENTER = 9;
 
     /**
@@ -192,7 +181,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_HIBERNATION_EXIT = 10;
 
     /**
@@ -206,7 +194,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_PRE_SHUTDOWN_PREPARE = 11;
 
     /**
@@ -220,7 +207,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_POST_SUSPEND_ENTER = 12;
 
     /**
@@ -234,7 +220,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_POST_SHUTDOWN_ENTER = 13;
 
     /**
@@ -248,7 +233,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATE_POST_HIBERNATION_ENTER = 14;
 
     /** @hide */
@@ -286,7 +270,6 @@ public class CarPowerManager extends CarManagerBase {
          * Tells {@link CarPowerManager} that the listener completed the task to handle the power
          * state change.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void complete();
 
         /**
@@ -294,7 +277,6 @@ public class CarPowerManager extends CarManagerBase {
          *
          * <p>The timestamp is system elapsed time in milliseconds.
          */
-        @AddedInOrBefore(majorVersion = 33)
         long getExpirationTime();
     }
 
@@ -310,7 +292,6 @@ public class CarPowerManager extends CarManagerBase {
          *
          * @param state New power state of the system.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onStateChanged(@CarPowerState int state);
     }
 
@@ -348,7 +329,6 @@ public class CarPowerManager extends CarManagerBase {
          *               In the case {@code state} doesn't allow for completion, {@code future} is
          *               {@code null}.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onStateChanged(@CarPowerState int state,
                 @Nullable CompletablePowerStateChangeFuture future);
     }
@@ -361,11 +341,10 @@ public class CarPowerManager extends CarManagerBase {
      */
     public interface CarPowerPolicyListener {
         /**
-         * Called with {@link #CarPowerPolicy} when power policy changes.
+         * Called with {@link CarPowerPolicy} when power policy changes.
          *
          * @param policy The current power policy.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onPolicyChanged(@NonNull CarPowerPolicy policy);
     }
 
@@ -387,7 +366,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
-    @AddedInOrBefore(majorVersion = 33)
     public void requestShutdownOnNextSuspend() {
         try {
             mService.requestShutdownOnNextSuspend();
@@ -402,7 +380,6 @@ public class CarPowerManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
-    @AddedInOrBefore(majorVersion = 33)
     public void scheduleNextWakeupTime(int seconds) {
         try {
             mService.scheduleNextWakeupTime(seconds);
@@ -420,7 +397,6 @@ public class CarPowerManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
-    @AddedInOrBefore(majorVersion = 33)
     public @CarPowerState int getPowerState() {
         try {
             return mService.getPowerState();
@@ -443,7 +419,6 @@ public class CarPowerManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
-    @AddedInOrBefore(majorVersion = 33)
     public void setListener(@NonNull @CallbackExecutor Executor executor,
             @NonNull CarPowerStateListener listener) {
         checkArgument(executor != null, "excutor cannot be null");
@@ -477,7 +452,6 @@ public class CarPowerManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_SHUTDOWN_PROCESS)
-    @AddedInOrBefore(majorVersion = 33)
     public void setListenerWithCompletion(@NonNull @CallbackExecutor Executor executor,
             @NonNull CarPowerStateListenerWithCompletion listener) {
         checkArgument(executor != null, "executor cannot be null");
@@ -500,7 +474,6 @@ public class CarPowerManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CAR_POWER)
-    @AddedInOrBefore(majorVersion = 33)
     public void clearListener() {
         ICarPowerStateListener listenerToService;
         synchronized (mLock) {
@@ -537,7 +510,6 @@ public class CarPowerManager extends CarManagerBase {
      */
     @RequiresPermission(Car.PERMISSION_READ_CAR_POWER_POLICY)
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public CarPowerPolicy getCurrentPowerPolicy() {
         try {
             return mService.getCurrentPowerPolicy();
@@ -550,8 +522,9 @@ public class CarPowerManager extends CarManagerBase {
      * Applies the given power policy.
      *
      * <p>Power components are turned on or off as specified in the given power policy. Power
-     * policies are defined at {@code /vendor/etc/power_policy.xml}. If the given power policy
-     * doesn't exist, this method throws {@link java.lang.IllegalArgumentException}.
+     * policies are defined at {@code /vendor/etc/automotive/power_policy.xml}.
+     * If the given power policy doesn't exist, this method throws
+     * {@link java.lang.IllegalArgumentException}.
      *
      * @param policyId ID of power policy.
      * @throws IllegalArgumentException if {@code policyId} is null.
@@ -560,7 +533,6 @@ public class CarPowerManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_POWER_POLICY)
-    @AddedInOrBefore(majorVersion = 33)
     public void applyPowerPolicy(@NonNull String policyId) {
         checkArgument(policyId != null, "Null policyId");
         try {
@@ -586,7 +558,6 @@ public class CarPowerManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_POWER_POLICY)
-    @AddedInOrBefore(majorVersion = 33)
     public void setPowerPolicyGroup(@NonNull String policyGroupId) {
         checkArgument(policyGroupId != null, "Null policyGroupId");
         try {
@@ -609,7 +580,6 @@ public class CarPowerManager extends CarManagerBase {
      *                                  null.
      */
     @RequiresPermission(Car.PERMISSION_READ_CAR_POWER_POLICY)
-    @AddedInOrBefore(majorVersion = 33)
     public void addPowerPolicyListener(@NonNull @CallbackExecutor Executor executor,
             @NonNull CarPowerPolicyFilter filter, @NonNull CarPowerPolicyListener listener) {
         assertPermission(Car.PERMISSION_READ_CAR_POWER_POLICY);
@@ -650,7 +620,6 @@ public class CarPowerManager extends CarManagerBase {
      * @throws IllegalArgumentException if {@code listener} is null.
      */
     @RequiresPermission(Car.PERMISSION_READ_CAR_POWER_POLICY)
-    @AddedInOrBefore(majorVersion = 33)
     public void removePowerPolicyListener(@NonNull CarPowerPolicyListener listener) {
         assertPermission(Car.PERMISSION_READ_CAR_POWER_POLICY);
         checkArgument(listener != null, "Null listener");
@@ -682,12 +651,47 @@ public class CarPowerManager extends CarManagerBase {
     }
 
     /**
+     * Turns on or off the individual display.
+     *
+     * <p>Changing the driver display is not allowed.
+     *
+     * @param displayId ID of the display
+     * @param enable Display power state to set
+     * @throws UnsupportedOperationException When trying to change the driver display power state.
+     *
+     * @hide
+     */
+    @SystemApi
+    @RequiresPermission(Car.PERMISSION_CAR_POWER)
+    public void setDisplayPowerState(int displayId, boolean enable) {
+        try {
+            mService.setDisplayPowerState(displayId, enable);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
+    }
+
+    /**
+     * Notifies that user activity has happened in the given display.
+     *
+     * @param displayId ID of the display
+     * @hide
+     */
+    @RequiresPermission(Car.PERMISSION_CAR_POWER)
+    public void notifyUserActivity(int displayId) {
+        try {
+            mService.notifyUserActivity(displayId);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
+    }
+
+    /**
      * Returns whether listen completion is allowed for {@code state}.
      *
      * @hide
      */
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public static boolean isCompletionAllowed(@CarPowerState int state) {
         switch (state) {
             case CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE:
@@ -725,8 +729,13 @@ public class CarPowerManager extends CarManagerBase {
                         }
                         // Notifies the user that the state has changed and supply a future.
                         if (listenerWithCompletion != null && executor != null) {
-                            executor.execute(
-                                    () -> listenerWithCompletion.onStateChanged(state, future));
+                            long identityToken = Binder.clearCallingIdentity();
+                            try {
+                                executor.execute(
+                                        () -> listenerWithCompletion.onStateChanged(state, future));
+                            } finally {
+                                Binder.restoreCallingIdentity(identityToken);
+                            }
                         }
                     } else {
                         CarPowerStateListener listener;
@@ -737,7 +746,12 @@ public class CarPowerManager extends CarManagerBase {
                         }
                         // Notifies the user without supplying a future.
                         if (listener != null && executor != null) {
-                            executor.execute(() -> listener.onStateChanged(state));
+                            long identityToken = Binder.clearCallingIdentity();
+                            try {
+                                executor.execute(() -> listener.onStateChanged(state));
+                            } finally {
+                                Binder.restoreCallingIdentity(identityToken);
+                            }
                         }
                     }
                 }
@@ -844,7 +858,6 @@ public class CarPowerManager extends CarManagerBase {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         synchronized (mLock) {
             mListener = null;

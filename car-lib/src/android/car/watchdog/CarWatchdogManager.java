@@ -24,7 +24,6 @@ import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -65,7 +64,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int TIMEOUT_CRITICAL = 0;
 
     /**
@@ -74,7 +72,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int TIMEOUT_MODERATE = 1;
 
     /**
@@ -83,7 +80,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int TIMEOUT_NORMAL = 2;
 
     /** @hide */
@@ -143,7 +139,6 @@ public final class CarWatchdogManager extends CarManagerBase {
          *         the client should call {@link CarWatchdogManager#tellClientAlive} later to tell
          *         that it is alive.
          */
-        @AddedInOrBefore(majorVersion = 33)
         public boolean onCheckHealthStatus(int sessionId, @TimeoutLengthEnum int timeout) {
             return false;
         }
@@ -154,7 +149,6 @@ public final class CarWatchdogManager extends CarManagerBase {
          * <p>The callback method is called at the Executor which is specified in {@link
          * CarWatchdogManager#registerClient}.
          */
-        @AddedInOrBefore(majorVersion = 33)
         public void onPrepareProcessTermination() {}
     }
 
@@ -186,7 +180,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_WATCHDOG)
-    @AddedInOrBefore(majorVersion = 33)
     public void registerClient(@NonNull @CallbackExecutor Executor executor,
             @NonNull CarWatchdogClientCallback client, @TimeoutLengthEnum int timeout) {
         Objects.requireNonNull(client, "Client must be non-null");
@@ -224,7 +217,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_WATCHDOG)
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterClient(@NonNull CarWatchdogClientCallback client) {
         Objects.requireNonNull(client, "Client must be non-null");
         synchronized (mLock) {
@@ -257,7 +249,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_WATCHDOG)
-    @AddedInOrBefore(majorVersion = 33)
     public void tellClientAlive(@NonNull CarWatchdogClientCallback client, int sessionId) {
         Objects.requireNonNull(client, "Client must be non-null");
         boolean shouldReport;
@@ -267,8 +258,8 @@ public final class CarWatchdogManager extends CarManagerBase {
                         "Cannot report client status. The client has not been registered.");
             }
             Preconditions.checkArgument(sessionId != -1 && mSession.currentId == sessionId,
-                    "Cannot report client status. "
-                    + "The given session id doesn't match the current one.");
+                    "Cannot report client status. Received session id (" + sessionId
+                            + ") doesn't match the current one (" + mSession.currentId + ").");
             if (mSession.lastReportedId == sessionId) {
                 Log.w(TAG, "The given session id is already reported.");
                 return;
@@ -320,21 +311,15 @@ public final class CarWatchdogManager extends CarManagerBase {
     /**
      * Constants that define the stats period in days.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATS_PERIOD_CURRENT_DAY = 1;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATS_PERIOD_PAST_3_DAYS = 2;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATS_PERIOD_PAST_7_DAYS = 3;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATS_PERIOD_PAST_15_DAYS = 4;
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATS_PERIOD_PAST_30_DAYS = 5;
 
     /**
      * Constants that define the type of resource overuse.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_RESOURCE_OVERUSE_IO = 1 << 0;
 
     /**
@@ -345,25 +330,20 @@ public final class CarWatchdogManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_MINIMUM_STATS_IO_1_MB = 1 << 0;
     /** @hide */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_MINIMUM_STATS_IO_100_MB = 1 << 1;
     /** @hide */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_MINIMUM_STATS_IO_1_GB = 1 << 2;
 
     // Return codes used to indicate the result of a request.
     /** @hide */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int RETURN_CODE_SUCCESS = 0;
     /** @hide */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static final int RETURN_CODE_ERROR = -1;
 
     /**
@@ -379,7 +359,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      *         only for the period returned in the individual resource overuse stats.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public ResourceOveruseStats getResourceOveruseStats(
             @ResourceOveruseFlag int resourceOveruseFlag,
             @StatsPeriod int maxStatsPeriod) {
@@ -414,7 +393,6 @@ public final class CarWatchdogManager extends CarManagerBase {
     @SystemApi
     @RequiresPermission(Car.PERMISSION_COLLECT_CAR_WATCHDOG_METRICS)
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public List<ResourceOveruseStats> getAllResourceOveruseStats(
             @ResourceOveruseFlag int resourceOveruseFlag,
             @MinimumStatsFlag int minimumStatsFlag,
@@ -446,7 +424,6 @@ public final class CarWatchdogManager extends CarManagerBase {
     @SystemApi
     @RequiresPermission(Car.PERMISSION_COLLECT_CAR_WATCHDOG_METRICS)
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public ResourceOveruseStats getResourceOveruseStatsForUserPackage(
             @NonNull String packageName, @NonNull UserHandle userHandle,
             @ResourceOveruseFlag int resourceOveruseFlag,
@@ -472,11 +449,11 @@ public final class CarWatchdogManager extends CarManagerBase {
          *
          * <p>The listener is called at the executor which is specified in {@link
          * CarWatchdogManager#addResourceOveruseListener} or
-         * {@link CarWatchdogManager#addResourceOveruseListenerForSystem}.
+         * {@code addResourceOveruseListenerForSystem}.
          *
          * <p>The listener is called only on overusing one of the resources specified at the
          * {@code resourceOveruseFlag} in {@link CarWatchdogManager#addResourceOveruseListener} or
-         * {@link CarWatchdogManager#addResourceOveruseListenerForSystem}.
+         * {@code addResourceOveruseListenerForSystem}.
          *
          * @param resourceOveruseStats Resource overuse stats containing stats only for resources
          *                             overuse types that are either overused or about to be
@@ -484,7 +461,6 @@ public final class CarWatchdogManager extends CarManagerBase {
          *                             value in each resource overuse stats before reading the
          *                             stats.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onOveruse(@NonNull ResourceOveruseStats resourceOveruseStats);
     }
 
@@ -498,7 +474,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      *
      * @throws IllegalStateException if (@code listener} is already added.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void addResourceOveruseListener(
             @NonNull @CallbackExecutor Executor executor,
             @ResourceOveruseFlag int resourceOveruseFlag,
@@ -533,7 +508,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      *
      * @param listener Listener implementing {@link ResourceOveruseListener} interface.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void removeResourceOveruseListener(@NonNull ResourceOveruseListener listener) {
         Objects.requireNonNull(listener, "Listener must be non-null");
         boolean shouldRemoveFromService;
@@ -580,7 +554,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_COLLECT_CAR_WATCHDOG_METRICS)
-    @AddedInOrBefore(majorVersion = 33)
     public void addResourceOveruseListenerForSystem(
             @NonNull @CallbackExecutor Executor executor,
             @ResourceOveruseFlag int resourceOveruseFlag,
@@ -620,7 +593,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_COLLECT_CAR_WATCHDOG_METRICS)
-    @AddedInOrBefore(majorVersion = 33)
     public void removeResourceOveruseListenerForSystem(
             @NonNull ResourceOveruseListener listener) {
         Objects.requireNonNull(listener, "Listener must be non-null");
@@ -672,7 +644,6 @@ public final class CarWatchdogManager extends CarManagerBase {
      */
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG)
-    @AddedInOrBefore(majorVersion = 33)
     public void setKillablePackageAsUser(@NonNull String packageName,
             @NonNull UserHandle userHandle, boolean isKillable) {
         try {
@@ -694,7 +665,6 @@ public final class CarWatchdogManager extends CarManagerBase {
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG)
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public List<PackageKillableState> getPackageKillableStatesAsUser(
             @NonNull UserHandle userHandle) {
         try {
@@ -727,7 +697,6 @@ public final class CarWatchdogManager extends CarManagerBase {
     @SystemApi
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG)
     @ReturnCode
-    @AddedInOrBefore(majorVersion = 33)
     public int setResourceOveruseConfigurations(
             @NonNull List<ResourceOveruseConfiguration> configurations,
             @ResourceOveruseFlag int resourceOveruseFlag) {
@@ -759,7 +728,6 @@ public final class CarWatchdogManager extends CarManagerBase {
     @RequiresPermission(anyOf = {Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG,
             Car.PERMISSION_COLLECT_CAR_WATCHDOG_METRICS})
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public List<ResourceOveruseConfiguration> getResourceOveruseConfigurations(
             @ResourceOveruseFlag int resourceOveruseFlag) {
         try {
@@ -771,7 +739,6 @@ public final class CarWatchdogManager extends CarManagerBase {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // nothing to do
     }
@@ -827,6 +794,7 @@ public final class CarWatchdogManager extends CarManagerBase {
         }
     }
 
+    @GuardedBy("mLock")
     private boolean checkConditionLocked() {
         if (mRemainingConditions < 0) {
             Log.wtf(TAG, "Remaining condition is less than zero: should not happen");
@@ -837,6 +805,9 @@ public final class CarWatchdogManager extends CarManagerBase {
     private void reportToService(int sessionId) {
         try {
             mService.tellClientAlive(mClientImpl, sessionId);
+            if (DEBUG) {
+                Log.d(TAG, "Informed CarService that client is alive");
+            }
         } catch (RemoteException e) {
             handleRemoteExceptionFromCarService(e);
         }
@@ -1046,12 +1017,14 @@ public final class CarWatchdogManager extends CarManagerBase {
         }
 
         public int resourceOveruseFlag() {
-            int flag = 0;
-            for (int i = 0; i < mNumListenersByResource.size(); ++i) {
-                flag |= mNumListenersByResource.valueAt(i) > 0 ? mNumListenersByResource.keyAt(i)
-                        : 0;
+            synchronized (mLock) {
+                int flag = 0;
+                for (int i = 0; i < mNumListenersByResource.size(); ++i) {
+                    flag |= mNumListenersByResource.valueAt(i) > 0 ? mNumListenersByResource.keyAt(
+                            i) : 0;
+                }
+                return flag;
             }
-            return flag;
         }
     }
 
@@ -1077,7 +1050,16 @@ public final class CarWatchdogManager extends CarManagerBase {
                 return false;
             }
             ResourceOveruseListenerInfo listenerInfo = (ResourceOveruseListenerInfo) obj;
+            // The ResourceOveruseListenerInfo equality is solely based on the listener because
+            // the clients shouldn't register the same listener multiple times. When checking
+            // whether a listener is previously registered, this equality check is used.
             return listenerInfo.listener == listener;
+        }
+
+        @Override
+        public int hashCode() {
+            // Similar to equality check, the hash generator uses only the listener.
+            return Objects.hash(listener);
         }
     }
 }

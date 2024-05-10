@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_security",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -37,12 +38,13 @@ cc_test {
     name: "vehicle_binding_integration_test",
     test_suites: [
         "device-tests",
+        "automotive-tests",
     ],
     require_root: true,
     defaults: ["vehicle_binding_util_defaults"],
     tidy: false,
     srcs: [
-        "VehicleBindingIntegrationTest.cpp"
+        "VehicleBindingIntegrationTest.cpp",
     ],
     shared_libs: [
         "android.hardware.automotive.vehicle@2.0",
@@ -62,6 +64,6 @@ cc_test {
     },
     sanitize: {
         address: false,
-        recover: [ "all" ],
+        recover: ["all"],
     },
 }

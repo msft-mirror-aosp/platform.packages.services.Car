@@ -60,14 +60,14 @@ class SilentModeHandlerPeer {
 public:
     explicit SilentModeHandlerPeer(SilentModeHandler* handler) : mHandler(handler) {}
 
-    ~SilentModeHandlerPeer() {
-        mHandler->stopMonitoringSilentModeHwState(/*shouldWaitThread=*/true);
-    }
+    ~SilentModeHandlerPeer() { mHandler->stopMonitoringSilentModeHwState(); }
 
     void init() {
+        mHandler->init();
+        mHandler->stopMonitoringSilentModeHwState();
         mHandler->mSilentModeHwStateFilename = mFileSilentModeHwState.path;
         mHandler->mKernelSilentModeFilename = mFileKernelSilentMode.path;
-        mHandler->init();
+        mHandler->startMonitoringSilentModeHwState();
     }
 
     void injectBootReason(const std::string& bootReason) { mHandler->mBootReason = bootReason; }
@@ -106,6 +106,8 @@ public:
                 (override));
     MOCK_METHOD(ScopedAStatus, unregisterPowerPolicyChangeCallback,
                 (const std::shared_ptr<ICarPowerPolicyChangeCallback>& callback), (override));
+    MOCK_METHOD(ScopedAStatus, applyPowerPolicy, (const std::string& policyId), (override));
+    MOCK_METHOD(ScopedAStatus, setPowerPolicyGroup, (const std::string& policyGroupId), (override));
     MOCK_METHOD(void, notifySilentModeChange, (const bool silent), (override));
 };
 

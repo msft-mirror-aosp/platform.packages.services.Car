@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_automotive",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -86,14 +87,6 @@ cc_fuzz {
     name: "evs_haldisplay_fuzzer",
     srcs: [
         "HalDisplayFuzzer.cpp",
-    ],
-    defaults: ["evs_fuzz_default"],
-}
-
-cc_fuzz {
-    name: "evs_enumerator_fuzzer",
-    srcs: [
-        "EnumeratorFuzzer.cpp",
     ],
     defaults: ["evs_fuzz_default"],
 }

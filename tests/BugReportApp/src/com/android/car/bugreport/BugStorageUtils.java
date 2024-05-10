@@ -49,6 +49,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -119,7 +120,7 @@ final class BugStorageUtils {
             throws FileNotFoundException {
         ContentResolver r = context.getContentResolver();
         return r.openOutputStream(BugStorageProvider.buildUriWithSegment(
-                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_BUGREPORT_FILE));
+                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_BUGREPORT_FILE), "wt");
     }
 
     /** Returns an output stream to write the audio message file to. */
@@ -128,7 +129,7 @@ final class BugStorageUtils {
             throws FileNotFoundException {
         ContentResolver r = context.getContentResolver();
         return r.openOutputStream(BugStorageProvider.buildUriWithSegment(
-                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_AUDIO_FILE));
+                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_AUDIO_FILE), "wt");
     }
 
     /**
@@ -363,7 +364,7 @@ final class BugStorageUtils {
             return "No error";
         } else if (t instanceof TokenResponseException) {
             TokenResponseException ex = (TokenResponseException) t;
-            if (ex.getDetails().getError().equals(INVALID_GRANT)
+            if (Objects.equals(ex.getDetails().getError(), INVALID_GRANT)
                     && ex.getDetails().getErrorDescription().contains(CLOCK_SKEW_ERROR)) {
                 return "Auth error. Check if time & time-zone is correct.";
             }

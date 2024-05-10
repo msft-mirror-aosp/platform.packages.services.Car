@@ -44,12 +44,26 @@ import android.widget.LinearLayout;
 
 import androidx.annotation.GuardedBy;
 
+import com.android.car.internal.evs.CarEvsGLSurfaceView;
+import com.android.car.internal.evs.GLES20CarEvsBufferRenderer;
+
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class CarEvsCameraPreviewActivity extends Activity {
+public class CarEvsCameraPreviewActivity extends Activity
+        implements CarEvsGLSurfaceView.BufferCallback {
+
     private static final String TAG = CarEvsCameraPreviewActivity.class.getSimpleName();
+    /**
+     * ActivityManagerService encodes the reason for a request to close system dialogs with this
+     * key.
+     */
+    private final static String EXTRA_DIALOG_CLOSE_REASON = "reason";
+    /** This string literal is from com.android.systemui.car.systembar.CarSystemBarButton class. */
+    private final static String DIALOG_CLOSE_REASON_CAR_SYSTEMBAR_BUTTON = "carsystembarbutton";
+    /** This string literal is from com.android.server.policy.PhoneWindowManager class. */
+    private final static String DIALOG_CLOSE_REASON_HOME_KEY = "homekey";
 
     /**
      * Defines internal states.
@@ -58,6 +72,15 @@ public class CarEvsCameraPreviewActivity extends Activity {
     private final static int STREAM_STATE_VISIBLE = 1;
     private final static int STREAM_STATE_INVISIBLE = 2;
     private final static int STREAM_STATE_LOST = 3;
+
+    private final static float DEFAULT_1X1_POSITION[][] = {
+        {
+            -1.0f,  1.0f, 0.0f,
+             1.0f,  1.0f, 0.0f,
+            -1.0f, -1.0f, 0.0f,
+             1.0f, -1.0f, 0.0f,
+        },
+    };
 
     private static String streamStateToString(int state) {
         switch (state) {
@@ -88,7 +111,7 @@ public class CarEvsCameraPreviewActivity extends Activity {
     private final ExecutorService mCallbackExecutor = Executors.newFixedThreadPool(1);
 
     /** GL backed surface view to render the camera preview */
-    private CarEvsCameraGLSurfaceView mEvsView;
+    private CarEvsGLSurfaceView mEvsView;
     private ViewGroup mRootView;
     private LinearLayout mPreviewContainer;
 
@@ -112,6 +135,7 @@ public class CarEvsCameraPreviewActivity extends Activity {
     private IBinder mSessionToken;
 
     private boolean mUseSystemWindow;
+    private int mServiceType;
 
     /** Callback to listen to EVS stream */
     private final CarEvsManager.CarEvsStreamCallback mStreamHandler =
@@ -133,7 +157,7 @@ public class CarEvsCameraPreviewActivity extends Activity {
                 if (mStreamState == STREAM_STATE_INVISIBLE) {
                     // When the activity becomes invisible (e.g. goes background), we immediately
                     // returns received frame buffers instead of stopping a video stream.
-                    returnBufferLocked(buffer);
+                    doneWithBufferLocked(buffer);
                 } else {
                     // Enqueues a new frame and posts a rendering job
                     mBufferQueue.add(buffer);
@@ -199,6 +223,17 @@ public class CarEvsCameraPreviewActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(intent.getAction())) {
+                Bundle extras = intent.getExtras();
+                if (extras != null) {
+                    String reason = extras.getString(EXTRA_DIALOG_CLOSE_REASON);
+                    if (!DIALOG_CLOSE_REASON_CAR_SYSTEMBAR_BUTTON.equals(reason) &&
+                        !DIALOG_CLOSE_REASON_HOME_KEY.equals(reason)) {
+                        Log.i(TAG, "Ignore a request to close the system dialog with a reason = " +
+                                   reason);
+                        return;
+                    }
+                    Log.d(TAG, "Requested to close the dialog, reason = " + reason);
+                }
                 finish();
             } else {
                 Log.e(TAG, "Unexpected intent " + intent);
@@ -213,7 +248,7 @@ public class CarEvsCameraPreviewActivity extends Activity {
         // Need to register the receiver for all users, because we want to receive the Intent after
         // the user is changed.
         registerReceiverForAllUsers(mBroadcastReceiver, filter, /* broadcastPermission= */ null,
-                /* scheduler= */ null, Context.RECEIVER_NOT_EXPORTED);
+                /* scheduler= */ null, Context.RECEIVER_EXPORTED);
     }
 
     @Override
@@ -235,7 +270,12 @@ public class CarEvsCameraPreviewActivity extends Activity {
         Car.createCar(getApplicationContext(), /* handler = */ null,
                 Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER, mCarServiceLifecycleListener);
 
-        mEvsView = new CarEvsCameraGLSurfaceView(getApplication(), this);
+        // Packaging parameters to create CarEvsGLSurfaceView.
+        ArrayList callbacks = new ArrayList<>(1);
+        callbacks.add(CarEvsManager.SERVICE_TYPE_REARVIEW, this);
+        mEvsView = CarEvsGLSurfaceView.create(getApplication(), callbacks, getApplicationContext()
+                .getResources().getInteger(R.integer.config_evsRearviewCameraInPlaneRotationAngle),
+                DEFAULT_1X1_POSITION);
         mRootView = (ViewGroup) LayoutInflater.from(this).inflate(
                 R.layout.evs_preview_activity, /* root= */ null);
         mPreviewContainer = mRootView.findViewById(R.id.evs_preview_container);
@@ -248,7 +288,7 @@ public class CarEvsCameraPreviewActivity extends Activity {
         mPreviewContainer.addView(mEvsView, 0);
         View closeButton = mRootView.findViewById(R.id.close_button);
         if (closeButton != null) {
-            closeButton.setOnClickListener(v -> finish());
+            closeButton.setOnClickListener(v -> handleCloseButtonTriggered());
         }
 
         int width = WindowManager.LayoutParams.MATCH_PARENT;
@@ -284,10 +324,14 @@ public class CarEvsCameraPreviewActivity extends Activity {
         Bundle extras = intent.getExtras();
         if (extras == null) {
             mSessionToken = null;
+            mServiceType = CarEvsManager.SERVICE_TYPE_REARVIEW;
+            mUseSystemWindow = false;
             return;
         }
+
         mSessionToken = extras.getBinder(CarEvsManager.EXTRA_SESSION_TOKEN);
         mUseSystemWindow = mSessionToken != null;
+        mServiceType = extras.getShort(Integer.toString(CarEvsManager.SERVICE_TYPE_REARVIEW));
     }
 
     @Override
@@ -304,10 +348,10 @@ public class CarEvsCameraPreviewActivity extends Activity {
     protected void onStop() {
         Log.d(TAG, "onStop");
         try {
-            if (mUseSystemWindow) {
+            if (mUseSystemWindow && mEvsView.getWindowVisibility() == View.VISIBLE) {
                 // When a new activity is launched, this activity will become the background
                 // activity and, however, likely still visible to the users if it is using the
-                // system window.  Therefore, we should not transition to the INVISIBLE state.
+                // system window.  Therefore, we should not transition to the STOPPED state.
                 //
                 // Similarly, this activity continues previewing the camera when the user triggers
                 // the home button.  If the users want to manually close the preview window, they
@@ -316,7 +360,7 @@ public class CarEvsCameraPreviewActivity extends Activity {
             }
 
             synchronized (mLock) {
-                handleVideoStreamLocked(STREAM_STATE_INVISIBLE);
+                handleVideoStreamLocked(STREAM_STATE_STOPPED);
             }
         } finally {
             super.onStop();
@@ -341,7 +385,7 @@ public class CarEvsCameraPreviewActivity extends Activity {
             mDisplayManager.unregisterDisplayListener(mDisplayListener);
             if (mUseSystemWindow) {
                 WindowManager wm = getSystemService(WindowManager.class);
-                wm.removeView(mRootView);
+                wm.removeViewImmediate(mRootView);
             }
 
             unregisterReceiver(mBroadcastReceiver);
@@ -374,8 +418,8 @@ public class CarEvsCameraPreviewActivity extends Activity {
             case STREAM_STATE_VISIBLE:
                 // Starts a video stream
                 if (mEvsManager != null) {
-                    int result = mEvsManager.startVideoStream(CarEvsManager.SERVICE_TYPE_REARVIEW,
-                            mSessionToken, mCallbackExecutor, mStreamHandler);
+                    int result = mEvsManager.startVideoStream(mServiceType, mSessionToken,
+                            mCallbackExecutor, mStreamHandler);
                     if (result != ERROR_NONE) {
                         Log.e(TAG, "Failed to start a video stream, error = " + result);
                     } else {
@@ -419,8 +463,8 @@ public class CarEvsCameraPreviewActivity extends Activity {
         return state;
     }
 
-    /** Get a new frame */
-    CarEvsBufferDescriptor getNewFrame() {
+    @Override
+    public CarEvsBufferDescriptor onBufferRequested() {
         synchronized (mLock) {
             if (mBufferQueue.isEmpty()) {
                 return null;
@@ -435,19 +479,27 @@ public class CarEvsCameraPreviewActivity extends Activity {
         }
     }
 
-    /** Request to return a buffer we're done with */
-    void returnBuffer(CarEvsBufferDescriptor buffer) {
+    @Override
+    public void onBufferProcessed(CarEvsBufferDescriptor buffer) {
         synchronized (mLock) {
-            returnBufferLocked(buffer);
+            doneWithBufferLocked(buffer);
         }
     }
 
     @GuardedBy("mLock")
-    private void returnBufferLocked(CarEvsBufferDescriptor buffer) {
+    private void doneWithBufferLocked(CarEvsBufferDescriptor buffer) {
         try {
             mEvsManager.returnFrameBuffer(buffer);
         } catch (Exception e) {
             Log.w(TAG, "CarEvsService is not available.");
         }
+    }
+
+    private void handleCloseButtonTriggered() {
+        // It is possible that we've been stopped but a video stream is still active.
+        synchronized (mLock) {
+            handleVideoStreamLocked(STREAM_STATE_STOPPED);
+        }
+        finish();
     }
 }

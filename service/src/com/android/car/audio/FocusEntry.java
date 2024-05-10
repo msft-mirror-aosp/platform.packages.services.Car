@@ -15,8 +15,6 @@
  */
 package com.android.car.audio;
 
-import static android.car.builtin.media.AudioManagerHelper.usageToString;
-
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
@@ -26,8 +24,10 @@ import android.content.pm.PackageManager;
 import android.media.AudioFocusInfo;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.audio.CarAudioContext.AudioContext;
+import com.android.car.audio.CarAudioDumpProto.CarAudioZoneFocusProto.CarAudioFocusProto;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 
@@ -110,13 +110,54 @@ final class FocusEntry {
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
-        writer.printf("%s - %s\n", getClientId(),
-                usageToString(mAudioFocusInfo.getAttributes().getUsage()));
+        writer.printf("%s - %s\n", getClientId(), mAudioFocusInfo.getAttributes());
         writer.increaseIndent();
         // Prints in single line
         writer.printf("Receives Duck Events: %b, ", receivesDuckEvents());
         writer.printf("Wants Pause Instead of Ducking: %b, ", wantsPauseInsteadOfDucking());
         writer.printf("Is Ducked: %b\n", isDucked());
+        writer.printf("Is Unblocked: %b\n", isUnblocked());
+        writer.increaseIndent();
+        for (int index = 0; index < mBlockers.size(); index++) {
+            writer.printf("Blocker[%d]: %s\n", index, mBlockers.get(index));
+        }
         writer.decreaseIndent();
+        writer.decreaseIndent();
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(long fieldId, ProtoOutputStream proto) {
+        long token = proto.start(fieldId);
+        proto.write(CarAudioFocusProto.FocusEntryProto.CLIENT_ID, getClientId());
+        CarAudioContextInfo.dumpCarAudioAttributesProto(mAudioFocusInfo.getAttributes(),
+                CarAudioFocusProto.FocusEntryProto.ATTRIBUTES, proto);
+        proto.write(CarAudioFocusProto.FocusEntryProto.RECEIVES_DUCK_EVENTS, receivesDuckEvents());
+        proto.write(CarAudioFocusProto.FocusEntryProto.WANTS_PAUSE_INSTEAD_OF_DUCKING,
+                wantsPauseInsteadOfDucking());
+        proto.write(CarAudioFocusProto.FocusEntryProto.IS_DUCKED, isDucked());
+        proto.write(CarAudioFocusProto.FocusEntryProto.IS_UNBLOCKED, isUnblocked());
+        for (int index = 0; index < mBlockers.size(); index++) {
+            mBlockers.get(index).dumpProto(CarAudioFocusProto.FocusEntryProto.BLOCKERS, proto);
+        }
+        proto.end(token);
+    }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public String toString() {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("Focus Entry: client id ");
+        stringBuilder.append(getClientId());
+        stringBuilder.append(", attributes ");
+        stringBuilder.append(mAudioFocusInfo.getAttributes());
+        stringBuilder.append(", can duck ");
+        stringBuilder.append(receivesDuckEvents());
+        stringBuilder.append(", wants pause ");
+        stringBuilder.append(wantsPauseInsteadOfDucking());
+        stringBuilder.append(", is ducked ");
+        stringBuilder.append(isDucked());
+        stringBuilder.append(", is unblocked ");
+        stringBuilder.append(isUnblocked());
+        return stringBuilder.toString();
     }
 }

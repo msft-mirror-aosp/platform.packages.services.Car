@@ -1,5 +1,7 @@
 package com.google.android.car.kitchensink.notification;
 
+import static android.app.Notification.FLAG_FOREGROUND_SERVICE;
+
 import android.annotation.Nullable;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -16,6 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.NumberPicker;
 
+import androidx.annotation.DrawableRes;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationCompat.Action;
 import androidx.core.app.NotificationCompat.MessagingStyle;
@@ -46,7 +49,6 @@ public class NotificationFragment extends Fragment {
     private NotificationManager mManager;
     private Context mContext;
     private Handler mHandler = new Handler();
-    private int mCount = 0;
     private HashMap<Integer, Runnable> mUpdateRunnables = new HashMap<>();
 
     @Override
@@ -93,6 +95,7 @@ public class NotificationFragment extends Fragment {
         initImportanceLowButton(view);
         initImportanceMinButton(view);
 
+        initIncomingButton(view);
         initOngoingButton(view);
         initMessagingStyleButtonForDiffPerson(view);
         initMessagingStyleButtonForSamePerson(view);
@@ -101,14 +104,25 @@ public class NotificationFragment extends Fragment {
         initMessagingStyleButtonWithMuteAction(view);
         initTestMessagesButton(view);
         initProgressButton(view);
+        initProgressColorizedButton(view);
         initNavigationButton(view);
         initMediaButton(view);
         initCallButton(view);
         initCustomGroupSummaryButton(view);
         initGroupWithoutSummaryButton(view);
         initCustomizableMessageButton(view);
+        initButtonWithCustomActionIcon(view);
 
         return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        View view = getView();
+        if (view != null) {
+            view.post(() -> view.scrollTo(0, view.findViewById(R.id.fragment_top).getTop()));
+        }
     }
 
     private PendingIntent createServiceIntent(int notificationId, String action) {
@@ -233,6 +247,59 @@ public class NotificationFragment extends Fragment {
                     .setContentText("No heads-up; Below Importance Low; Groups")
                     .setSmallIcon(R.drawable.car_ic_mode)
                     .build();
+            mManager.notify(mCurrentNotificationId++, notification);
+        });
+    }
+
+    private Notification.Action getAction(String text, @DrawableRes int actionIcon) {
+        Icon icon = Icon.createWithResource(mContext, actionIcon);
+        Intent intent = new Intent(mContext, KitchenSinkActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                mContext,
+                /* requestCode= */ 0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return new Notification.Action.Builder(icon, text, pendingIntent).build();
+    }
+
+    private void initIncomingButton(View view) {
+        view.findViewById(R.id.incoming_notificationbuilder_button).setOnClickListener(v -> {
+            Notification notification = new Notification.Builder(mContext, IMPORTANCE_HIGH_ID)
+                    .setSmallIcon(R.drawable.car_ic_mode)
+                    .setContentTitle("Unknown number")
+                    .setContentText("Incoming call")
+                    .setOngoing(true)
+                    .setActions(
+                            getAction("Answer", R.drawable.ic_answer_icon),
+                            getAction("Decline", R.drawable.ic_decline_icon))
+                    .build();
+
+            mManager.notify(mCurrentNotificationId++, notification);
+        });
+
+        view.findViewById(R.id.incoming_forIncomingCall_button).setOnClickListener(v -> {
+
+            android.app.Person caller = new android.app.Person.Builder()
+                    .setName("Chuck Norris")
+                    .setImportant(true)
+                    .build();
+            // Creating the call notification style
+            int declineId = mCurrentNotificationId++;
+            int answerId = mCurrentNotificationId++;
+            PendingIntent declineIntent = createServiceIntent(declineId, "Decline");
+            PendingIntent answerIntent = createServiceIntent(answerId, "Answer");
+            Notification.CallStyle notificationStyle =
+                    Notification.CallStyle.forIncomingCall(caller, declineIntent, answerIntent);
+
+            Notification notification = new Notification.Builder(mContext, IMPORTANCE_HIGH_ID)
+                    .setSmallIcon(R.drawable.car_ic_mode)
+                    .setContentTitle("Incoming call")
+                    .setContentText("Incoming call from Chuck Norris")
+                    .setStyle(notificationStyle)
+                    .setOngoing(true)
+                    .setCategory(Notification.CATEGORY_CALL)
+                    .build();
+            notification.flags = notification.flags | FLAG_FOREGROUND_SERVICE;
             mManager.notify(mCurrentNotificationId++, notification);
         });
     }
@@ -649,42 +716,72 @@ public class NotificationFragment extends Fragment {
             Notification notification = new Notification
                     .Builder(mContext, IMPORTANCE_DEFAULT_ID)
                     .setContentTitle("Progress")
-                    .setOngoing(true)
+                    .setOngoing(/* ongoing= */ true)
                     .setContentText(
                             "Doesn't show heads-up; Importance Default; Groups; Ongoing (cannot "
                                     + "be dismissed)")
-                    .setProgress(100, 0, false)
+                    .setProgress(/* max= */ 100, /* progress= */ 0, /* indeterminate= */ false)
+                    .setContentInfo("0%")
+                    .setSmallIcon(R.drawable.car_ic_mode)
+                    .build();
+            mManager.notify(id, notification);
+
+            int progress = 0;
+            Runnable runnable = getProgressNotifUpdateRunnable(id, progress, /* isColorized= */
+                    false);
+            mUpdateRunnables.put(id, runnable);
+            mHandler.post(runnable);
+        });
+    }
+
+    private void initProgressColorizedButton(View view) {
+        view.findViewById(R.id.progress_button_colorized).setOnClickListener(v -> {
+            int id = mCurrentNotificationId++;
+
+            Notification notification = new Notification
+                    .Builder(mContext, IMPORTANCE_DEFAULT_ID)
+                    .setContentTitle("Progress (Colorized)")
+                    .setOngoing(/* ongoing= */ true)
+                    .setContentText(
+                            "Doesn't show heads-up; Importance Default; Groups; Ongoing (cannot "
+                                    + "be dismissed)")
+                    .setProgress(/* max= */ 100, /* progress= */ 0, /* indeterminate= */ false)
                     .setColor(mContext.getColor(android.R.color.holo_purple))
                     .setContentInfo("0%")
                     .setSmallIcon(R.drawable.car_ic_mode)
                     .build();
             mManager.notify(id, notification);
 
-            Runnable runnable = new Runnable() {
-                int mProgress = 0;
-
-                @Override
-                public void run() {
-                    Notification updateNotification = new Notification
-                            .Builder(mContext, IMPORTANCE_DEFAULT_ID)
-                            .setContentTitle("Progress")
-                            .setContentText("Doesn't show heads-up; Importance Default; Groups")
-                            .setProgress(100, mProgress, false)
-                            .setOngoing(true)
-                            .setColor(mContext.getColor(android.R.color.holo_purple))
-                            .setContentInfo(mProgress + "%")
-                            .setSmallIcon(R.drawable.car_ic_mode)
-                            .build();
-                    mManager.notify(id, updateNotification);
-                    mProgress += 5;
-                    if (mProgress <= 100) {
-                        mHandler.postDelayed(this, 1000);
-                    }
-                }
-            };
+            int progress = 0;
+            Runnable runnable = getProgressNotifUpdateRunnable(id, progress, /* isColorized= */
+                    true);
             mUpdateRunnables.put(id, runnable);
             mHandler.post(runnable);
         });
+    }
+
+    private Runnable getProgressNotifUpdateRunnable(int id, int progress, boolean isColorized) {
+        Runnable runnable = () -> {
+            Notification.Builder builder = new Notification
+                    .Builder(mContext, IMPORTANCE_DEFAULT_ID)
+                    .setContentTitle("Progress")
+                    .setContentText("Doesn't show heads-up; Importance Default; Groups")
+                    .setProgress(/* max= */ 100, progress, /* indeterminate= */ false)
+                    .setOngoing(/* ongoing= */ true)
+                    .setContentInfo(progress + "%")
+                    .setSmallIcon(R.drawable.car_ic_mode);
+            if (isColorized) {
+                builder.setColor(mContext.getColor(android.R.color.holo_purple));
+            }
+            Notification updateNotification = builder.build();
+            mManager.notify(id, updateNotification);
+            if (progress + 5 <= 100) {
+                mHandler.postDelayed(getProgressNotifUpdateRunnable(id, progress + 5, isColorized),
+                        /* delayMillis= */ 1000);
+            }
+        };
+        mUpdateRunnables.put(id, runnable);
+        return runnable;
     }
 
     private void initNavigationButton(View view) {
@@ -853,5 +950,37 @@ public class NotificationFragment extends Fragment {
                 mHandler.post(() -> mManager.notify(mCurrentNotificationId++, notification));
             }
         });
+    }
+
+    private void initButtonWithCustomActionIcon(View view) {
+        Intent intent = new Intent(mContext, KitchenSinkActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent,
+                PendingIntent.FLAG_IMMUTABLE);
+
+        Notification notification = new Notification
+                .Builder(mContext, IMPORTANCE_HIGH_ID)
+                .setContentTitle("Notification with custom button icon")
+                .setContentText(
+                        "Icons should be shown in the action buttons")
+                .setSmallIcon(R.drawable.car_ic_mode)
+                .addAction(
+                        new Notification.Action.Builder(
+                                R.drawable.architecture, "architecture", pendingIntent)
+                                .build())
+                .addAction(
+                        new Notification.Action.Builder(
+                                Icon.createWithResource(this.getContext(), R.drawable.archive),
+                                "archive", pendingIntent).build())
+                .addAction(
+                        new Notification.Action.Builder(
+                                Icon.createWithResource(this.getContext().getPackageName(),
+                                        R.drawable.audiotrack),
+                                "audio-track", pendingIntent).build())
+                .setColor(mContext.getColor(android.R.color.holo_red_light))
+                .build();
+
+        view.findViewById(R.id.actions_with_icons).setOnClickListener(
+                v -> mManager.notify(mCurrentNotificationId++, notification)
+        );
     }
 }

@@ -641,8 +641,6 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
 
     @Test
     public void testIntentOnExcessiveWrite() throws Exception {
-        final Duration intentDeliveryDeadline = Duration.ofSeconds(5);
-
         UidIoRecord record = new UidIoRecord(0,
             0,
             5120,
@@ -665,8 +663,6 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
 
     @Test
     public void testIntentOnExcessiveFsync() throws Exception {
-        final Duration intentDeliveryDeadline = Duration.ofSeconds(5);
-
         UidIoRecord record = new UidIoRecord(0,
             0,
             0,
@@ -773,7 +769,7 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
                 Log.d(TAG, "listener " + mName + " received event " + event);
                 // We're going to hold a reference to this object
                 mLastEvent = event;
-                mSync.notify();
+                mSync.notifyAll();
             }
         }
 
@@ -915,7 +911,8 @@ public class CarStorageMonitoringTest extends MockedCarTestBase {
         }
 
         @Override
-        public void scheduleActionForBootCompleted(Runnable action, Duration delay) {
+        public void scheduleActionForBootCompleted(Runnable action, Duration delay,
+                Duration delayRange) {
             mActionsList.add(Pair.create(action, delay));
             mActionsList.sort(Comparator.comparing(d -> d.second));
         }

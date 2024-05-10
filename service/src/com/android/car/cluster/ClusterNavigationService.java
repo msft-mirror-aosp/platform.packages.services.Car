@@ -15,6 +15,7 @@
  */
 package com.android.car.cluster;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.car.Car;
@@ -29,6 +30,7 @@ import android.content.Context;
 import android.os.Binder;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.AppFocusService;
 import com.android.car.AppFocusService.FocusOwnershipCallback;
@@ -141,6 +143,10 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
+
+    @Override
     public void onFocusAcquired(int appType, int uid, int pid) {
         changeNavContextOwner(appType, uid, pid, true);
     }
@@ -238,6 +244,7 @@ public class ClusterNavigationService extends IInstrumentClusterNavigation.Stub
             return uid == that.uid && pid == that.pid;
         }
 
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         @Override
         public int hashCode() {
             return Objects.hash(uid, pid);

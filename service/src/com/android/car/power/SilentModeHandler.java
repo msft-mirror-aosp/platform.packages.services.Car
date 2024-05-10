@@ -23,10 +23,12 @@ import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
 import android.os.FileObserver;
 import android.os.SystemProperties;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarLog;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.power.CarPowerDumpProto.SilentModeHandlerProto;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -36,15 +38,17 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Objects;
 
 /**
  * Class to handle Silent Mode and Non-Silent Mode.
  *
- * <p>This monitors {@code /sys/power/pm_silentmode_hw_state} to figure out when to switch to Silent
- * Mode and updates {@code /sys/power/pm_silentmode_kernel_state} to tell early-init services about
- * Silent Mode change. Also, it handles forced Silent Mode for testing purpose, which is given
- * through reboot reason.
+ * <p>This monitors {@code /sys/kernel/silent_boot/pm_silentmode_hw_state} to figure out when to
+ * switch to Silent Mode and updates {@code /sys/kernel/silent_boot/pm_silentmode_kernel_state} to
+ * tell early-init services about Silent Mode change. Also, it handles forced Silent Mode for
+ * testing purpose, which is given through reboot reason.
  */
 final class SilentModeHandler {
     static final String SILENT_MODE_FORCED_SILENT = "forced-silent";
@@ -53,10 +57,23 @@ final class SilentModeHandler {
 
     private static final String TAG = CarLog.tagFor(SilentModeHandler.class);
 
-    private static final String SYSFS_FILENAME_HW_STATE_MONITORING =
-            "/sys/power/pm_silentmode_hw_state";
-    private static final String SYSFS_FILENAME_KERNEL_SILENTMODE =
-            "/sys/power/pm_silentmode_kernel_state";
+    /**
+     * The folders that are searched for sysfs files.
+     *
+     * <p>The sysfs files for Silent Mode are searched in the following order:
+     * <ol>
+     *   <li>/sys/kernel/silent_boot
+     *   <li>/sys/power
+     * </ol>
+     *
+     * <p>Placing the sysfs files in {@code /sys/power} is deprecated, but for backwad
+     * compatibility, we fallback to the folder when the files don't exist in
+     * {@code /sys/kernel/silent_boot}.
+     */
+    private static final String[] SYSFS_DIRS_FOR_SILENT_MODE =
+            new String[]{"/sys/kernel/silent_boot", "/sys/power"};
+    private static final String SYSFS_FILENAME_HW_STATE_MONITORING = "pm_silentmode_hw_state";
+    private static final String SYSFS_FILENAME_KERNEL_SILENTMODE = "pm_silentmode_kernel_state";
     private static final String VALUE_SILENT_MODE = "1";
     private static final String VALUE_NON_SILENT_MODE = "0";
     private static final String SYSTEM_BOOT_REASON = "sys.boot.reason";
@@ -81,16 +98,16 @@ final class SilentModeHandler {
             @Nullable String bootReason) {
         Objects.requireNonNull(service, "CarPowerManagementService must not be null");
         mService = service;
+        String sysfsDir = searchForSysfsDir();
         mHwStateMonitoringFileName = hwStateMonitoringFileName == null
-                ? SYSFS_FILENAME_HW_STATE_MONITORING
-                : hwStateMonitoringFileName;
+                ? sysfsDir + SYSFS_FILENAME_HW_STATE_MONITORING : hwStateMonitoringFileName;
         mKernelSilentModeFileName = kernelSilentModeFileName == null
-                ? SYSFS_FILENAME_KERNEL_SILENTMODE
-                : kernelSilentModeFileName;
-        if (bootReason == null) {
-            bootReason = SystemProperties.get(SYSTEM_BOOT_REASON);
+                ? sysfsDir + SYSFS_FILENAME_KERNEL_SILENTMODE : kernelSilentModeFileName;
+        String reason = bootReason;
+        if (reason == null) {
+            reason = SystemProperties.get(SYSTEM_BOOT_REASON);
         }
-        switch (bootReason) {
+        switch (reason) {
             case FORCED_SILENT:
                 Slogf.i(TAG, "Starting in forced silent mode");
                 mForcedMode = true;
@@ -132,9 +149,28 @@ final class SilentModeHandler {
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     void dump(IndentingPrintWriter writer) {
         synchronized (mLock) {
+            writer.printf("mHwStateMonitoringFileName: %s\n", mHwStateMonitoringFileName);
+            writer.printf("mKernelSilentModeFileName: %s\n", mKernelSilentModeFileName);
             writer.printf("Monitoring HW state signal: %b\n", mFileObserver != null);
             writer.printf("Silent mode by HW state signal: %b\n", mSilentModeByHwState);
             writer.printf("Forced silent mode: %b\n", mForcedMode);
+        }
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    void dumpProto(ProtoOutputStream proto) {
+        synchronized (mLock) {
+            long silentModeHandlerToken = proto.start(
+                    CarPowerDumpProto.SILENT_MODE_HANDLER);
+            proto.write(SilentModeHandlerProto.HW_STATE_MONITORING_FILE_NAME,
+                    mHwStateMonitoringFileName);
+            proto.write(SilentModeHandlerProto.KERNEL_SILENT_MODE_FILE_NAME,
+                    mKernelSilentModeFileName);
+            proto.write(
+                    SilentModeHandlerProto.IS_MONITORING_HW_STATE_SIGNAL, mFileObserver != null);
+            proto.write(SilentModeHandlerProto.SILENT_MODE_BY_HW_STATE, mSilentModeByHwState);
+            proto.write(SilentModeHandlerProto.FORCED_SILENT_MODE, mForcedMode);
+            proto.end(silentModeHandlerToken);
         }
     }
 
@@ -231,9 +267,8 @@ final class SilentModeHandler {
                 boolean newSilentMode;
                 boolean oldSilentMode;
                 synchronized (mLock) {
-                    // FileObserver can report events even after stopWatching is called. To ignore
-                    // such events, check the current internal state.
-                    if (mForcedMode) {
+                    // FileObserver can report events even after stopWatching is called.
+                    if (mForcedMode || mFileObserver == null) {
                         return;
                     }
                     oldSilentMode = mSilentModeByHwState;
@@ -269,5 +304,14 @@ final class SilentModeHandler {
             mFileObserver.stopWatching();
             mFileObserver = null;
         }
+    }
+
+    private static String searchForSysfsDir() {
+        for (String dir : SYSFS_DIRS_FOR_SILENT_MODE) {
+            if (Files.isDirectory(Paths.get(dir))) {
+                return dir + "/";
+            }
+        }
+        return SYSFS_DIRS_FOR_SILENT_MODE[0] + "/";
     }
 }

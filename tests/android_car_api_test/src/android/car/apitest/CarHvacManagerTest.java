@@ -18,8 +18,6 @@ package android.car.apitest;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assert.fail;
-
 import android.car.Car;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.hvac.CarHvacManager;
@@ -36,7 +34,7 @@ import java.util.List;
 import java.util.Set;
 
 @MediumTest
-public class CarHvacManagerTest extends CarApiTestBase {
+public final class CarHvacManagerTest extends CarApiTestBase {
     private static final String TAG = CarHvacManagerTest.class.getSimpleName();
 
     private CarHvacManager mHvacManager;
@@ -108,6 +106,8 @@ public class CarHvacManagerTest extends CarApiTestBase {
             case CarHvacManager.ID_ZONED_HVAC_POWER_ON:
             case CarHvacManager.ID_WINDOW_DEFROSTER_ON:
                 checkTypeAndGlobal(Boolean.class, false, property);
+                break;
+            default:
                 break;
         }
     }

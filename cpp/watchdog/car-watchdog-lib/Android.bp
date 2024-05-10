@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -40,18 +41,12 @@ java_library {
         "com.android.car.framework"
     ],
     static_libs: [
-        "android.automotive.watchdog.internal-V2-java",
+        "android.automotive.watchdog.internal-V3-java",
     ],
 
     libs: [
         "android.car.builtin",
         "framework-annotations-lib",
     ],
-
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
     installable: true,
 }

@@ -21,7 +21,6 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BO
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Parcelable;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -39,19 +38,19 @@ public final class PackageKillableState implements Parcelable {
     /**
      * A package is killable.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @KillableState
     public static final int KILLABLE_STATE_YES = 1;
 
     /**
      * A package is not killable.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @KillableState
     public static final int KILLABLE_STATE_NO = 2;
 
     /**
      * A package is never killable i.e., it's setting cannot be updated.
      */
-    @AddedInOrBefore(majorVersion = 33)
+    @KillableState
     public static final int KILLABLE_STATE_NEVER = 3;
 
     /**
@@ -78,6 +77,7 @@ public final class PackageKillableState implements Parcelable {
     //
     // To regenerate run:
     // $ codegen $ANDROID_BUILD_TOP/packages/services/Car/car-lib/src/android/car/watchdog/PackageKillableState.java
+    // Added AddedInOrBefore or ApiRequirement Annotation manually
     //
     // To exclude the generated code from IntelliJ auto-formatting enable (one-time):
     //   Settings > Editor > Code Style > Formatter Control
@@ -96,7 +96,6 @@ public final class PackageKillableState implements Parcelable {
 
     /** @hide */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public static String killableStateToString(@KillableState int value) {
         switch (value) {
             case KILLABLE_STATE_YES:
@@ -151,7 +150,6 @@ public final class PackageKillableState implements Parcelable {
      * Name of the package.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @NonNull String getPackageName() {
         return mPackageName;
     }
@@ -160,7 +158,6 @@ public final class PackageKillableState implements Parcelable {
      * Id of the user.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @UserIdInt int getUserId() {
         return mUserId;
     }
@@ -169,14 +166,12 @@ public final class PackageKillableState implements Parcelable {
      * Killable state of the user's package.
      */
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public @KillableState int getKillableState() {
         return mKillableState;
     }
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public String toString() {
         // You can override field toString logic by defining methods like:
         // String fieldNameToString() { ... }
@@ -190,7 +185,6 @@ public final class PackageKillableState implements Parcelable {
 
     @Override
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(@NonNull android.os.Parcel dest, int flags) {
         // You can override field parcelling by defining methods like:
         // void parcelFieldName(Parcel dest, int flags) { ... }
@@ -203,7 +197,6 @@ public final class PackageKillableState implements Parcelable {
     @Override
     @DataClass.Generated.Member
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() { return 0; }
 
     /** @hide */
@@ -240,7 +233,6 @@ public final class PackageKillableState implements Parcelable {
     }
 
     @DataClass.Generated.Member
-    @AddedInOrBefore(majorVersion = 33)
     public static final @NonNull Parcelable.Creator<PackageKillableState> CREATOR
             = new Parcelable.Creator<PackageKillableState>() {
         @Override
@@ -255,10 +247,10 @@ public final class PackageKillableState implements Parcelable {
     };
 
     @DataClass.Generated(
-            time = 1628099314740L,
+            time = 1673057615349L,
             codegenVersion = "1.0.23",
             sourceFile = "packages/services/Car/car-lib/src/android/car/watchdog/PackageKillableState.java",
-            inputSignatures = "public static final  int KILLABLE_STATE_YES\npublic static final  int KILLABLE_STATE_NO\npublic static final  int KILLABLE_STATE_NEVER\nprivate @android.annotation.NonNull java.lang.String mPackageName\nprivate @android.annotation.UserIdInt int mUserId\nprivate @android.car.watchdog.PackageKillableState.KillableState int mKillableState\nclass PackageKillableState extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genHiddenConstructor=true, genHiddenConstDefs=true)")
+            inputSignatures = "public static final @android.car.watchdog.PackageKillableState.KillableState @android.car.annotation.AddedInOrBefore int KILLABLE_STATE_YES\npublic static final @android.car.watchdog.PackageKillableState.KillableState @android.car.annotation.AddedInOrBefore int KILLABLE_STATE_NO\npublic static final @android.car.watchdog.PackageKillableState.KillableState @android.car.annotation.AddedInOrBefore int KILLABLE_STATE_NEVER\nprivate @android.annotation.NonNull java.lang.String mPackageName\nprivate @android.annotation.UserIdInt int mUserId\nprivate @android.car.watchdog.PackageKillableState.KillableState int mKillableState\nclass PackageKillableState extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genHiddenConstructor=true, genHiddenConstDefs=true)")
     @Deprecated
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     private void __metadata() {}

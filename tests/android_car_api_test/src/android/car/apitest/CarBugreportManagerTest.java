@@ -17,8 +17,7 @@ package android.car.apitest;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.junit.Assert.fail;
-import static org.testng.Assert.expectThrows;
+import static org.junit.Assert.assertThrows;
 
 import android.Manifest;
 import android.annotation.FloatRange;
@@ -27,7 +26,6 @@ import android.car.CarBugreportManager;
 import android.car.CarBugreportManager.CarBugreportManagerCallback;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
-import android.os.SystemProperties;
 import android.test.suitebuilder.annotation.LargeTest;
 
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -55,7 +53,7 @@ import java.util.zip.ZipFile;
 
 @RunWith(AndroidJUnit4.class)
 @LargeTest
-public class CarBugreportManagerTest extends CarApiTestBase {
+public final class CarBugreportManagerTest extends CarApiTestBase {
     private static final String TAG = CarBugreportManagerTest.class.getSimpleName();
 
     // Note that most of the test environments have 600s time limit, and in some cases the time
@@ -104,7 +102,7 @@ public class CarBugreportManagerTest extends CarApiTestBase {
         dropPermissions();
 
         SecurityException expected =
-                expectThrows(SecurityException.class,
+                assertThrows(SecurityException.class,
                         () -> mManager.requestBugreportForTesting(
                             mOutput, mExtraOutput, mFakeCallback));
         assertThat(expected).hasMessageThat().contains(
@@ -205,12 +203,9 @@ public class CarBugreportManagerTest extends CarApiTestBase {
                     continue;
                 }
                 try (InputStream entryStream = zipFile.getInputStream(entry)) {
-                    String data = streamToText(entryStream, /* maxSizeBytes= */ 1024);
+                    String data = streamToText(entryStream, /* maxSizeBytes= */  51200);
                     assertThat(data).contains("== dumpstate: ");
-                    // TODO(b/244668890): Delete this isCuttlefish check after the bug is fixed.
-                    if (!isCuttlefish(SystemProperties.get("ro.product.name"))) {
-                        assertThat(data).contains("dry_run=1");
-                    }
+                    assertThat(data).contains("dry_run=1");
                     assertThat(data).contains("Build fingerprint: ");
                 }
                 return;
@@ -239,14 +234,6 @@ public class CarBugreportManagerTest extends CarApiTestBase {
         return ParcelFileDescriptor.open(
                 new File("/dev/null"),
                 ParcelFileDescriptor.MODE_WRITE_ONLY | ParcelFileDescriptor.MODE_APPEND);
-    }
-
-    private static boolean isCuttlefish(String productName) {
-        return (null != productName)
-                && (productName.startsWith("aosp_cf_x86")
-                || productName.startsWith("aosp_cf_arm")
-                || productName.startsWith("cf_x86")
-                || productName.startsWith("cf_arm"));
     }
 
     /**

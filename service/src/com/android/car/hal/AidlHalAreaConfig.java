@@ -83,4 +83,20 @@ public final class AidlHalAreaConfig extends HalAreaConfig {
     public float getMaxFloatValue() {
         return mConfig.maxFloatValue;
     }
+
+    /**
+     * Get the supported enum values.
+     */
+    @Override
+    public long[] getSupportedEnumValues() {
+        return mConfig.supportedEnumValues == null ? new long[0] : mConfig.supportedEnumValues;
+    }
+
+    /**
+     * Returns whether variable update rate is supported.
+     */
+    @Override
+    public boolean isVariableUpdateRateSupported() {
+        return mConfig.supportVariableUpdateRate;
+    }
 }

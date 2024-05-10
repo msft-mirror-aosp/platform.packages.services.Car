@@ -19,6 +19,12 @@ props {
     prop_name: "ro.carwatchdog.post_system_event_duration"
   }
   prop {
+    api_name: "wakeUpEventDuration"
+    type: Integer
+    scope: Internal
+    prop_name: "ro.carwatchdog.wake_up_event_duration"
+  }
+  prop {
     api_name: "periodicCollectionBufferSize"
     type: Integer
     scope: Internal
@@ -47,5 +53,11 @@ props {
     type: Integer
     scope: Internal
     prop_name: "ro.carwatchdog.max_user_switch_events"
+  }
+  prop {
+    api_name: "systemEventDataCacheDuration"
+    type: Integer
+    scope: Internal
+    prop_name: "ro.carwatchdog.system_event_data_cache_duration"
   }
 }

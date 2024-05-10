@@ -16,9 +16,13 @@
 
 package com.android.car.hal;
 
+import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyValue;
+import android.hardware.automotive.vehicle.VehiclePropertyStatus;
 import android.hardware.automotive.vehicle.VehiclePropertyType;
 import android.util.Log;
+
+import com.android.car.internal.property.CarPropertyHelper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -168,7 +172,8 @@ public abstract class HalPropValue {
      *
      * @param mgrPropId The property ID used in {@link android.car.VehiclePropertyIds}.
      * @param config The config for the property.
-     * @return A CarPropertyValue that could be passed to upper layer.
+     * @return A CarPropertyValue that could be passed to upper layer
+     * @throws IllegalStateException If property has unsupported type
      */
     public CarPropertyValue toCarPropertyValue(int mgrPropId, HalPropConfig config) {
         if (isMixedTypeProperty(getPropId())) {
@@ -259,52 +264,74 @@ public abstract class HalPropValue {
     private CarPropertyValue<?> toCarPropertyValue(int propertyId) {
         Class<?> clazz = CarPropertyUtils.getJavaClass(getPropId() & VehiclePropertyType.MASK);
         int areaId = getAreaId();
-        int status = getStatus();
-        long timestamp = getTimestamp();
+        int status = vehiclePropertyStatusToCarPropertyStatus(getStatus());
+        long timestampNanos = getTimestamp();
+        Object value = null;
 
-        // Handles each return value from {@link getJavaClass}.
         if (Boolean.class == clazz) {
-            return new CarPropertyValue<>(
-                    propertyId, areaId, status, timestamp, getInt32Value(0) == 1);
+            if (getInt32ValuesSize() > 0) {
+                value = Boolean.valueOf(getInt32Value(0) == 1);
+            } else if (status == CarPropertyValue.STATUS_AVAILABLE) {
+                status = CarPropertyValue.STATUS_ERROR;
+            }
         } else if (Float.class == clazz) {
-            return new CarPropertyValue<>(propertyId, areaId, status, timestamp, getFloatValue(0));
+            if (getFloatValuesSize() > 0) {
+                value = Float.valueOf(getFloatValue(0));
+            } else if (status == CarPropertyValue.STATUS_AVAILABLE) {
+                status = CarPropertyValue.STATUS_ERROR;
+            }
         } else if (Integer.class == clazz) {
-            return new CarPropertyValue<>(propertyId, areaId, status, timestamp, getInt32Value(0));
+            if (getInt32ValuesSize() > 0) {
+                value = Integer.valueOf(getInt32Value(0));
+            } else if (status == CarPropertyValue.STATUS_AVAILABLE) {
+                status = CarPropertyValue.STATUS_ERROR;
+            }
         } else if (Long.class == clazz) {
-            return new CarPropertyValue<>(propertyId, areaId, status, timestamp, getInt64Value(0));
+            if (getInt64ValuesSize() > 0) {
+                value = Long.valueOf(getInt64Value(0));
+            } else if (status == CarPropertyValue.STATUS_AVAILABLE) {
+                status = CarPropertyValue.STATUS_ERROR;
+            }
         } else if (Float[].class == clazz) {
-            return new CarPropertyValue<>(
-                    propertyId, areaId, status, timestamp, getFloatContainerArray());
+            value = getFloatContainerArray();
         } else if (Integer[].class == clazz) {
-            return new CarPropertyValue<>(
-                    propertyId, areaId, status, timestamp, getInt32ContainerArray());
+            value = getInt32ContainerArray();
         } else if (Long[].class == clazz) {
-            return new CarPropertyValue<>(
-                    propertyId, areaId, status, timestamp, getInt64ContainerArray());
+            value = getInt64ContainerArray();
         } else if (String.class == clazz) {
-            return new CarPropertyValue<>(propertyId, areaId, status, timestamp, getStringValue());
+            value = getStringValue();
         } else if (byte[].class == clazz) {
-            return new CarPropertyValue<>(propertyId, areaId, status, timestamp, getByteArray());
+            value = getByteArray();
         } else {
-            throw new IllegalArgumentException("Unexpected type in: " + propertyId);
+            throw new IllegalStateException(
+                    "Unexpected type " + clazz + " - propertyId: " + VehiclePropertyIds.toString(
+                            propertyId));
         }
+        if (value == null) {
+            value = CarPropertyHelper.getDefaultValue(clazz);
+        }
+        return new CarPropertyValue<>(propertyId, areaId, status, timestampNanos, value);
     }
 
     private CarPropertyValue<?> toMixedCarPropertyValue(
             int propertyId, boolean containBoolean, boolean containString) {
         int areaId = getAreaId();
-        int status = getStatus();
-        long timestamp = getTimestamp();
+        int status = vehiclePropertyStatusToCarPropertyStatus(getStatus());
+        long timestampNanos = getTimestamp();
 
         List<Object> valuesList = new ArrayList<>();
         if (containString) {
             valuesList.add(getStringValue());
         }
         if (containBoolean) {
-            boolean boolValue = getInt32Value(0) == 1;
-            valuesList.add(boolValue);
-            for (int i = 1; i < getInt32ValuesSize(); i++) {
-                valuesList.add(getInt32Value(i));
+            if (getInt32ValuesSize() > 0) {
+                boolean boolValue = getInt32Value(0) == 1;
+                valuesList.add(boolValue);
+                for (int i = 1; i < getInt32ValuesSize(); i++) {
+                    valuesList.add(getInt32Value(i));
+                }
+            } else if (status == CarPropertyValue.STATUS_AVAILABLE) {
+                status = CarPropertyValue.STATUS_ERROR;
             }
         } else {
             for (int i = 0; i < getInt32ValuesSize(); i++) {
@@ -320,7 +347,8 @@ public abstract class HalPropValue {
         for (int i = 0; i < getByteValuesSize(); i++) {
             valuesList.add(getByteValue(i));
         }
-        return new CarPropertyValue<>(propertyId, areaId, status, timestamp, valuesList.toArray());
+        return new CarPropertyValue<>(propertyId, areaId, status, timestampNanos,
+                valuesList.toArray());
     }
 
     private boolean equalInt32Values(HalPropValue argument) {
@@ -357,5 +385,18 @@ public abstract class HalPropValue {
             }
         }
         return true;
+    }
+
+    private static @CarPropertyValue.PropertyStatus int vehiclePropertyStatusToCarPropertyStatus(
+            @VehiclePropertyStatus int status) {
+        switch (status) {
+            case VehiclePropertyStatus.AVAILABLE:
+                return CarPropertyValue.STATUS_AVAILABLE;
+            case VehiclePropertyStatus.ERROR:
+                return CarPropertyValue.STATUS_ERROR;
+            case VehiclePropertyStatus.UNAVAILABLE:
+                return CarPropertyValue.STATUS_UNAVAILABLE;
+        }
+        return CarPropertyValue.STATUS_ERROR;
     }
 }

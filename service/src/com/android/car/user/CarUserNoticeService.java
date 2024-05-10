@@ -19,9 +19,10 @@ package com.android.car.user;
 import static android.car.hardware.power.CarPowerManager.CarPowerStateListener;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
+import static com.android.car.CarServiceUtils.getCommonHandlerThread;
+import static com.android.car.CarServiceUtils.getContentResolverForUser;
+import static com.android.car.CarServiceUtils.isEventOfType;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.util.Utils.getContentResolverForUser;
-import static com.android.car.util.Utils.isEventOfType;
 
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -53,11 +54,11 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
-import com.android.car.CarServiceUtils;
 import com.android.car.R;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -225,7 +226,7 @@ public final class CarUserNoticeService implements CarServiceBase {
     };
 
     public CarUserNoticeService(Context context) {
-        this(context, new Handler(CarServiceUtils.getCommonHandlerThread().getLooper()));
+        this(context, new Handler(getCommonHandlerThread().getLooper()));
     }
 
     @VisibleForTesting
@@ -251,13 +252,18 @@ public final class CarUserNoticeService implements CarServiceBase {
     }
 
     private boolean checkKeyguardLockedWithPolling() {
-        mCommonThreadHandler.removeCallbacks(mKeyguardPollingRunnable);
+        removeCallbacks();
         boolean locked = KeyguardManagerHelper.isKeyguardLocked();
         if (locked) {
             mCommonThreadHandler.postDelayed(mKeyguardPollingRunnable,
                     KEYGUARD_POLLING_INTERVAL_MS);
         }
         return locked;
+    }
+
+    @VisibleForTesting
+    void removeCallbacks() {
+        mCommonThreadHandler.removeCallbacks(mKeyguardPollingRunnable);
     }
 
     private boolean isNoticeScreenEnabledInSetting(@UserIdInt int userId) {
@@ -372,7 +378,7 @@ public final class CarUserNoticeService implements CarServiceBase {
     }
 
     private void stopUi(boolean clearUiShown) {
-        mCommonThreadHandler.removeCallbacks(mKeyguardPollingRunnable);
+        removeCallbacks();
         boolean serviceBound;
         synchronized (mLock) {
             mUiService = null;
@@ -456,4 +462,8 @@ public final class CarUserNoticeService implements CarServiceBase {
                     + ", Ignore User: " + mIgnoreUserId);
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 }

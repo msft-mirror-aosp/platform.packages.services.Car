@@ -22,10 +22,8 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
-import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.RequiredFeature;
 import android.car.builtin.util.Slogf;
 import android.os.Bundle;
@@ -57,7 +55,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @RequiredFeature(Car.CAR_TELEMETRY_SERVICE)
 @SystemApi
-@TestApi
 public final class CarTelemetryManager extends CarManagerBase {
 
     private static final boolean DEBUG = false;
@@ -69,39 +66,33 @@ public final class CarTelemetryManager extends CarManagerBase {
     private final AtomicReference<ReportReadyListener> mReportReadyListener;
 
     /** Status to indicate that MetricsConfig was added successfully. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ADD_METRICS_CONFIG_SUCCEEDED = 0;
 
     /**
      * Status to indicate that add MetricsConfig failed because the same MetricsConfig of the same
      * name and version already exists.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ADD_METRICS_CONFIG_ALREADY_EXISTS = 1;
 
     /**
      * Status to indicate that add MetricsConfig failed because a newer version of the MetricsConfig
      * exists.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ADD_METRICS_CONFIG_VERSION_TOO_OLD = 2;
 
     /**
      * Status to indicate that add MetricsConfig failed because CarTelemetryService is unable to
      * parse the given byte array into a MetricsConfig.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ADD_METRICS_CONFIG_PARSE_FAILED = 3;
 
     /**
      * Status to indicate that add MetricsConfig failed because of failure to verify the signature
      * of the MetricsConfig.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ADD_METRICS_CONFIG_SIGNATURE_VERIFICATION_FAILED = 4;
 
     /** Status to indicate that add MetricsConfig failed because of a general error in cars. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ADD_METRICS_CONFIG_UNKNOWN = 5;
 
     /** @hide */
@@ -119,26 +110,21 @@ public final class CarTelemetryManager extends CarManagerBase {
     public @interface MetricsConfigStatus {}
 
     /** Status to indicate that MetricsConfig produced a report. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_GET_METRICS_CONFIG_FINISHED = 0;
 
     /**
      * Status to indicate a MetricsConfig exists but has produced neither interim/final report nor
      * runtime execution errors.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_GET_METRICS_CONFIG_PENDING = 1;
 
     /** Status to indicate a MetricsConfig exists and produced interim results. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_GET_METRICS_CONFIG_INTERIM_RESULTS = 2;
 
     /** Status to indicate the MetricsConfig produced a runtime execution error. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_GET_METRICS_CONFIG_RUNTIME_ERROR = 3;
 
     /** Status to indicate a MetricsConfig does not exist and hence no report can be found. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_GET_METRICS_CONFIG_DOES_NOT_EXIST = 4;
 
     /** @hide */
@@ -161,7 +147,6 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     public interface AddMetricsConfigCallback {
         /**
          * Sends the {@link #addMetricsConfig(String, byte[], Executor, AddMetricsConfigCallback)}
@@ -170,7 +155,6 @@ public final class CarTelemetryManager extends CarManagerBase {
          * @param metricsConfigName name of the MetricsConfig that the status is associated with.
          * @param statusCode See {@link MetricsConfigStatus}.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onAddMetricsConfigStatus(
                 @NonNull String metricsConfigName, @MetricsConfigStatus int statusCode);
     }
@@ -183,7 +167,6 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     public interface MetricsReportCallback {
         /**
          * Provides the metrics report associated with metricsConfigName. If there is a metrics
@@ -200,7 +183,6 @@ public final class CarTelemetryManager extends CarManagerBase {
          *     error.
          * @param status of the metrics report. See {@link MetricsReportStatus}.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onResult(
                 @NonNull String metricsConfigName,
                 @Nullable PersistableBundle report,
@@ -217,14 +199,12 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     public interface ReportReadyListener {
         /**
          * Sends the report ready notification to the client.
          *
          * @param metricsConfigName name of the MetricsConfig whose report is ready.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onReady(@NonNull String metricsConfigName);
     }
 
@@ -251,7 +231,6 @@ public final class CarTelemetryManager extends CarManagerBase {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {}
 
     /**
@@ -277,9 +256,7 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void addMetricsConfig(
             @NonNull String metricsConfigName,
             @NonNull byte[] metricsConfig,
@@ -310,9 +287,7 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void removeMetricsConfig(@NonNull String metricsConfigName) {
         try {
             mService.removeMetricsConfig(metricsConfigName);
@@ -328,9 +303,7 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void removeAllMetricsConfigs() {
         try {
             mService.removeAllMetricsConfigs();
@@ -351,9 +324,7 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void getFinishedReport(
             @NonNull String metricsConfigName,
             @CallbackExecutor @NonNull Executor executor,
@@ -377,9 +348,7 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void getAllFinishedReports(
             @CallbackExecutor @NonNull Executor executor, @NonNull MetricsReportCallback callback) {
         try {
@@ -407,9 +376,7 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void setReportReadyListener(
             @CallbackExecutor @NonNull Executor executor, @NonNull ReportReadyListener listener) {
         if (mReportReadyListener.get() != null) {
@@ -430,9 +397,7 @@ public final class CarTelemetryManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @TestApi
     @RequiresPermission(Car.PERMISSION_USE_CAR_TELEMETRY_SERVICE)
-    @AddedInOrBefore(majorVersion = 33)
     public void clearReportReadyListener() {
         mReportReadyListenerExecutor.set(null);
         mReportReadyListener.set(null);

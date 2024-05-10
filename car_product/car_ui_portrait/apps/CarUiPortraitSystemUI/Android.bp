@@ -25,10 +25,12 @@ android_app {
 
     static_libs: [
         "CarSystemUI-core",
+        "car-portrait-ui-common"
     ],
 
     libs: [
         "android.car-system-stubs",
+        "android.car",
     ],
 
     manifest: "AndroidManifest.xml",
@@ -42,6 +44,10 @@ android_app {
     certificate: "platform",
     privileged: true,
 
+    // TODO(b/301283770): Compiling CarSystemUI should not require -J-Xmx8192M
+    javacflags: [
+        "-J-Xmx8192M",
+    ],
     optimize: {
         proguard_flags_files: [
             "proguard.flags",
@@ -67,10 +73,12 @@ android_library {
 
     libs: [
         "android.car-system-stubs",
+        "android.car",
     ],
 
     static_libs: [
         "CarSystemUI-tests",
+        "car-portrait-ui-common",
     ],
 
     plugins: ["dagger2-compiler"],

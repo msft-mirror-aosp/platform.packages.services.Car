@@ -31,7 +31,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 @MediumTest
-public class CarActivityManagerTest extends CarApiTestBase {
+public final class CarActivityManagerTest extends CarApiTestBase {
     private static final String TAG = CarActivityManagerTest.class.getSimpleName();
 
     // Comes from android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER

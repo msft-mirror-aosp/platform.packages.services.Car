@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -25,7 +26,11 @@ android_app {
 
     srcs: ["src/**/*.java"],
 
-    sdk_version: "system_current",
+    platform_apis: true,
+
+    // Needed to get MANAGE_USERS and INTERACT_ACROSS_USERS_FULL permissions
+    certificate: "platform",
+    privileged: true,
 }
 
 // "Cloned" app used to make sure events are received by apps with shared uid
@@ -40,5 +45,9 @@ android_app {
 
     srcs: ["src/**/*.java"],
 
-    sdk_version: "system_current",
+    platform_apis: true,
+
+    // Needed to get MANAGE_USERS and INTERACT_ACROSS_USERS_FULL permissions
+    certificate: "platform",
+    privileged: true,
 }

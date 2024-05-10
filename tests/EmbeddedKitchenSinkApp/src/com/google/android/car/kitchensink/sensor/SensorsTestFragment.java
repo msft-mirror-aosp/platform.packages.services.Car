@@ -24,6 +24,7 @@ import android.car.VehiclePropertyType;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyManager;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -39,7 +40,7 @@ import android.widget.TextView;
 
 import androidx.fragment.app.Fragment;
 
-import com.google.android.car.kitchensink.KitchenSinkActivity;
+import com.google.android.car.kitchensink.KitchenSinkHelper;
 import com.google.android.car.kitchensink.R;
 
 import java.util.ArrayList;
@@ -127,7 +128,8 @@ public class SensorsTestFragment extends Fragment {
 
     private final Handler mHandler = new Handler();
     private final Map<Integer, CarPropertyValue> mValueMap = new ConcurrentHashMap<>();
-    private KitchenSinkActivity mActivity;
+    private Context mContext;
+    private KitchenSinkHelper mKitchenSinkHelper;
     private CarPropertyManager mCarPropertyManager;
     private LocationListeners mLocationListener;
     private String mNaString;
@@ -144,6 +146,7 @@ public class SensorsTestFragment extends Fragment {
     private TextView mGyroLimitedAxesInfo;
     private TextView mAccelLimitedAxesUncalInfo;
     private TextView mGyroLimitedAxesUncalInfo;
+    private TextView mHeadingInfo;
 
     @Nullable
     @Override
@@ -154,7 +157,12 @@ public class SensorsTestFragment extends Fragment {
         }
 
         View view = inflater.inflate(R.layout.sensors, container, false);
-        mActivity = (KitchenSinkActivity) getHost();
+        mContext = getActivity();
+        if (!(mContext instanceof KitchenSinkHelper)) {
+            throw new IllegalStateException(
+                    "context does not implement " + KitchenSinkHelper.class.getSimpleName());
+        }
+        mKitchenSinkHelper = (KitchenSinkHelper) mContext;
         mCarSensorInfo = (TextView) view.findViewById(R.id.car_sensor_info);
         mCarSensorInfo.setMovementMethod(new ScrollingMovementMethod());
         mLocationInfo = (TextView) view.findViewById(R.id.location_info);
@@ -169,6 +177,7 @@ public class SensorsTestFragment extends Fragment {
         mAccelLimitedAxesUncalInfo =
                 (TextView) view.findViewById(R.id.accel_limited_axes_uncal_info);
         mGyroLimitedAxesUncalInfo = (TextView) view.findViewById(R.id.gyro_limited_axes_uncal_info);
+        mHeadingInfo = (TextView) view.findViewById(R.id.heading_info);
 
         mNaString = getContext().getString(R.string.sensor_na);
         return view;
@@ -189,7 +198,7 @@ public class SensorsTestFragment extends Fragment {
             return;
         }
 
-        ((KitchenSinkActivity) getActivity()).requestRefreshManager(
+        mKitchenSinkHelper.requestRefreshManager(
                 this::initSensors, new Handler(getContext().getMainLooper()));
     }
 
@@ -216,7 +225,7 @@ public class SensorsTestFragment extends Fragment {
 
     private void initCarSensor() {
         if (mCarPropertyManager == null) {
-            mCarPropertyManager = ((KitchenSinkActivity) getActivity()).getPropertyManager();
+            mCarPropertyManager = mKitchenSinkHelper.getPropertyManager();
         }
         mCarPropertyConfigs = mCarPropertyManager.getPropertyList(SENSORS_SET);
 
@@ -249,7 +258,7 @@ public class SensorsTestFragment extends Fragment {
     private Set<String> checkExistingPermissions() {
         Set<String> missingPermissions = new HashSet<String>();
         for (String permission : REQUIRED_PERMISSIONS) {
-            if (mActivity.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+            if (mContext.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
                 missingPermissions.add(permission);
             }
         }
@@ -386,6 +395,10 @@ public class SensorsTestFragment extends Fragment {
 
         public void setGyroLimitedAxesUncalField(String value) {
             setTimestampedTextField(mGyroLimitedAxesUncalInfo, value);
+        }
+
+        public void setHeadingField(String value) {
+            setTimestampedTextField(mHeadingInfo, value);
         }
 
         private void setTimestampedTextField(TextView text, String value) {

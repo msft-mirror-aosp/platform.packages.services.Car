@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -47,11 +48,6 @@ android_app {
     dex_preopt: {
         enabled: false,
     },
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }
 
 android_test {
@@ -67,7 +63,7 @@ android_test {
         "androidx.test.core",
         "androidx.test.ext.junit",
         "androidx.test.rules",
-        "truth-prebuilt",
+        "truth",
     ],
     libs: [
         "android.car-system-stubs",
@@ -87,5 +83,9 @@ android_test {
     },
     aaptflags: [
         "--extra-packages com.android.car.custominput.sample",
+    ],
+    test_suites: [
+        "automotive-tests",
+        "automotive-general-tests",
     ],
 }

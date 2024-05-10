@@ -19,6 +19,7 @@ package com.android.car.internal.common;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.IntDef;
+import android.annotation.UserIdInt;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
@@ -48,9 +49,17 @@ public final class CommonConstants {
     public static final int USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED = 7;
     public static final int USER_LIFECYCLE_EVENT_TYPE_CREATED = 8;
     public static final int USER_LIFECYCLE_EVENT_TYPE_REMOVED = 9;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_VISIBLE = 10;
+    public static final int USER_LIFECYCLE_EVENT_TYPE_INVISIBLE = 11;
 
     // CarService Constants
     public static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
+
+    public static final int INVALID_GID = -1;
+    public static final int INVALID_PID = -1;
+
+    // Represents an invalid user id. This must have the same value as UserHandle#USER_NULL.
+    public static final @UserIdInt int INVALID_USER_ID = -10000;
 
     @IntDef(prefix = { "USER_LIFECYCLE_EVENT_TYPE_" }, value = {
             USER_LIFECYCLE_EVENT_TYPE_STARTING,
@@ -62,7 +71,15 @@ public final class CommonConstants {
             USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED,
             USER_LIFECYCLE_EVENT_TYPE_CREATED,
             USER_LIFECYCLE_EVENT_TYPE_REMOVED,
+            USER_LIFECYCLE_EVENT_TYPE_VISIBLE,
+            USER_LIFECYCLE_EVENT_TYPE_INVISIBLE,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface UserLifecycleEventType{}
+
+    /** Empty arrays */
+    public static final int[] EMPTY_INT_ARRAY = new int[0];
+    public static final long[] EMPTY_LONG_ARRAY = new long[0];
+    public static final float[] EMPTY_FLOAT_ARRAY = new float[0];
+    public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 }

@@ -1,3 +1,5 @@
+# Bug component: 1316886
+
 # ActivityManager
 per-file src/android/car/apitest/CarActivityManagerTest.java = ycheo@google.com
 
@@ -12,6 +14,10 @@ per-file src/android/car/apitest/CarNavigationManagerTest.java = ycheo@google.co
 
 # PackageManager
 per-file src/android/car/apitest/CarPackageManagerTest.java = ycheo@google.com
+
+# Property
+per-file src/android/car/apitest/CarProperty* = ericjeong@google.com, tylertrephan@google.com, shanyu@google.com
+per-file src/android/car/apitest/VehiclePropertyIdsTest.java = ericjeong@google.com, tylertrephan@google.com, shanyu@google.com
 
 # System
 per-file src/com/android/car/internal/* = ericjeong@google.com

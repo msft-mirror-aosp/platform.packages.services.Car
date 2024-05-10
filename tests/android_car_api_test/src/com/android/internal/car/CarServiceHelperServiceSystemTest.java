@@ -62,6 +62,10 @@ public final class CarServiceHelperServiceSystemTest extends CarApiTestBase {
                     .contains("Safe to run device policy operations: false"));
         } finally {
             executeShellCommand("cmd car_service emulate-driving-state park");
+            // Assert that state is changed back
+            eventually(()-> assertWithMessage("CarServiceHelperService dump")
+                    .that(dumpCarServiceHelper())
+                    .contains("Safe to run device policy operations: true"));
         }
     }
 
@@ -91,6 +95,10 @@ public final class CarServiceHelperServiceSystemTest extends CarApiTestBase {
                     .contains("Operation REBOOT is UNSAFE. Reason: DRIVING_DISTRACTION"));
         } finally {
             executeShellCommand("cmd car_service emulate-driving-state park");
+            // Assert that state is changed back
+            eventually(()-> assertWithMessage("CarServiceHelperService dump")
+                    .that(dumpCarServiceHelper("--is-operation-safe", "7"))
+                    .contains("Operation REBOOT is SAFE. Reason: NONE"));
         }
     }
 

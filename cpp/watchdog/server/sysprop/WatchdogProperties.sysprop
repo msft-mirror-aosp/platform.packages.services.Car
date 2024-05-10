@@ -42,6 +42,15 @@ prop {
     prop_name: "ro.carwatchdog.post_system_event_duration"
 }
 
+# Duration in seconds of data collection for a system wake up event.
+prop {
+    api_name: "wakeUpEventDuration"
+    type: Integer
+    scope: Internal
+    access: Readonly
+    prop_name: "ro.carwatchdog.wake_up_event_duration"
+}
+
 # Maximum number of periodically collected records to be cached in memory.
 prop {
     api_name: "periodicCollectionBufferSize"
@@ -105,6 +114,15 @@ prop {
     prop_name: "ro.carwatchdog.max_user_switch_events"
 }
 
+# Duration in seconds that a system event's data is cached.
+prop {
+    api_name: "systemEventDataCacheDuration"
+    type: Integer
+    scope: Internal
+    access: Readonly
+    prop_name: "ro.carwatchdog.system_event_data_cache_duration"
+}
+
 # Percentage of I/O overuse threshold.
 prop {
     api_name: "ioOveruseWarnPercentage"
@@ -112,4 +130,13 @@ prop {
     scope: Internal
     access: Readonly
     prop_name: "ro.carwatchdog.io_overuse_warn_percentage"
+}
+
+# Flag for sending resource usage stats from daemon to CarService.
+prop {
+    api_name: "syncResourceUsageStatsWithCarServiceEnabled"
+    type: Boolean
+    scope: Internal
+    access: Writeonce
+    prop_name: "carwatchdog.sync_resource_usage_stats_with_carservice.enabled"
 }

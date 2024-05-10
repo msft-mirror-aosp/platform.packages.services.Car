@@ -24,6 +24,9 @@ import android.util.SparseArray;
 
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.ApiTest;
+import com.android.compatibility.common.util.NonApiTest;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -31,26 +34,32 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
 @SmallTest
-public class VehiclePropertyIdsTest {
+public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
     // IDs that only exist in CarPropertyManager, not VHAL.
-    private static final List<String> MISSING_VHAL_IDS = List.of(
-                    "GENERAL_SAFETY_REGULATION_COMPLIANCE");
+    private static final List<String> MISSING_VHAL_IDS = List.of();
 
     // IDs that only exist in VHAL, not exposed by CarPropertyManager.
     private static final List<String> MISSING_VEHICLE_PROPERTY_IDS = List.of(
                     "EXTERNAL_CAR_TIME",
                     "DISABLED_OPTIONAL_FEATURES",
                     "EVS_SERVICE_REQUEST",
+                    "HW_KEY_INPUT_V2",
+                    "HW_MOTION_INPUT",
                     "HW_CUSTOM_INPUT",
                     "HW_ROTARY_INPUT",
-                    "SUPPORT_CUSTOMIZE_VENDOR_PERMISSION");
-
+                    "SUPPORT_CUSTOMIZE_VENDOR_PERMISSION",
+                    "SUPPORTED_PROPERTY_IDS",
+                    "STORAGE_ENCRYPTION_BINDING_SEED",
+                    "SHUTDOWN_REQUEST",
+                    "VEHICLE_IN_USE");
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Large number of constant fields")
     public void testMatchingVehiclePropertyNamesInVehicleHal() {
         List<String> carServiceNames = getListOfConstantNames(VehiclePropertyIds.class);
         List<String> vhalNames = getListOfConstantNames(VehicleProperty.class);
@@ -62,9 +71,14 @@ public class VehiclePropertyIdsTest {
             if (MISSING_VEHICLE_PROPERTY_IDS.contains(vhalName)) {
                 continue;
             }
-            if (vhalName.equals("ANDROID_EPOCH_TIME")) {
+            if (Objects.equals(vhalName, "ANDROID_EPOCH_TIME")) {
                 // This is renamed in AIDL VHAL.
                 expectedCarServiceNames.add("EPOCH_TIME");
+                continue;
+            }
+            if (Objects.equals(vhalName, "GENERAL_SAFETY_REGULATION_COMPLIANCE_REQUIREMENT")) {
+                // We renamed this property in Car Service.
+                expectedCarServiceNames.add("GENERAL_SAFETY_REGULATION_COMPLIANCE");
                 continue;
             }
             expectedCarServiceNames.add(vhalName);
@@ -77,6 +91,7 @@ public class VehiclePropertyIdsTest {
     }
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Large number of constant fields")
     public void testMatchingVehiclePropertyValuesInVehicleHal() {
         List<String> carServiceNames = getListOfConstantNames(VehiclePropertyIds.class);
         List<String> vhalNames = getListOfConstantNames(VehicleProperty.class);
@@ -96,9 +111,15 @@ public class VehiclePropertyIdsTest {
             }
 
             String carServiceName = vhalName;
-            if (carServiceName.equals("ANDROID_EPOCH_TIME")) {
+            if (Objects.equals(carServiceName, "ANDROID_EPOCH_TIME")) {
                 // This is renamed in AIDL VHAL.
                 carServiceName = "EPOCH_TIME";
+            }
+            if (Objects.equals(carServiceName,
+                    "GENERAL_SAFETY_REGULATION_COMPLIANCE_REQUIREMENT")) {
+                // We renamed this property in Car Service.
+                carServiceName = "GENERAL_SAFETY_REGULATION_COMPLIANCE";
+                continue;
             }
             int carServicePropId = getValue(VehiclePropertyIds.class, carServiceName);
 
@@ -111,6 +132,7 @@ public class VehiclePropertyIdsTest {
     }
 
     @Test
+    @ApiTest(apis = {"android.car.VehiclePropertyIds#toString"})
     public void testToString() {
         SparseArray<String> propsToString = new SparseArray<>();
 
@@ -291,8 +313,6 @@ public class VehiclePropertyIdsTest {
         propsToString.put(VehiclePropertyIds.CLUSTER_REQUEST_DISPLAY, "CLUSTER_REQUEST_DISPLAY");
         propsToString.put(VehiclePropertyIds.CLUSTER_NAVIGATION_STATE, "CLUSTER_NAVIGATION_STATE");
         propsToString.put(VehiclePropertyIds.EPOCH_TIME, "EPOCH_TIME");
-        propsToString.put(VehiclePropertyIds.STORAGE_ENCRYPTION_BINDING_SEED,
-                "STORAGE_ENCRYPTION_BINDING_SEED");
         propsToString.put(VehiclePropertyIds.ELECTRONIC_TOLL_COLLECTION_CARD_STATUS,
                 "ELECTRONIC_TOLL_COLLECTION_CARD_STATUS");
         propsToString.put(VehiclePropertyIds.ELECTRONIC_TOLL_COLLECTION_CARD_TYPE,

@@ -26,6 +26,7 @@ import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Log;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -34,7 +35,7 @@ import java.util.List;
 import java.util.Set;
 
 @MediumTest
-public class CarCabinManagerTest extends CarApiTestBase {
+public final class CarCabinManagerTest extends CarApiTestBase {
     private static final String TAG = CarCabinManagerTest.class.getSimpleName();
 
     private CarCabinManager mCabinManager;
@@ -46,6 +47,7 @@ public class CarCabinManagerTest extends CarApiTestBase {
     }
 
     @Test
+    @Ignore("b/256244980-ID_WINDOW_LOCK is incorrect")
     public void testAllCabinProperties() throws Exception {
         List<CarPropertyConfig> properties = mCabinManager.getPropertyList();
         Set<Class> supportedTypes = new HashSet<>(Arrays.asList(

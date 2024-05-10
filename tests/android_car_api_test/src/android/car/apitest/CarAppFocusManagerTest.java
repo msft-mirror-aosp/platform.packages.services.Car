@@ -20,13 +20,14 @@ import static android.car.CarAppFocusManager.APP_FOCUS_TYPE_NAVIGATION;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.testng.Assert.assertThrows;
+import static org.junit.Assert.assertThrows;
 
 import android.car.Car;
 import android.car.CarAppFocusManager;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Log;
 
@@ -41,7 +42,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 @MediumTest
-public class CarAppFocusManagerTest extends CarApiTestBase {
+public final class CarAppFocusManagerTest extends CarApiTestBase {
     private static final String TAG = CarAppFocusManagerTest.class.getSimpleName();
 
     private static final long NEGATIVE_CASE_WAIT_TIMEOUT_MS = 100L;
@@ -272,8 +273,9 @@ public class CarAppFocusManagerTest extends CarApiTestBase {
         assertThat(manager.requestAppFocus(APP_FOCUS_TYPE_NAVIGATION, owner))
                 .isEqualTo(APP_FOCUS_REQUEST_SUCCEEDED);
 
+        String[] myPackages = getContext().getPackageManager().getPackagesForUid(Process.myUid());
         assertThat(manager.getAppTypeOwner(APP_FOCUS_TYPE_NAVIGATION))
-                .containsExactly("android.car.apitest");
+                .containsExactlyElementsIn(myPackages);
 
         manager.abandonAppFocus(owner, APP_FOCUS_TYPE_NAVIGATION);
 

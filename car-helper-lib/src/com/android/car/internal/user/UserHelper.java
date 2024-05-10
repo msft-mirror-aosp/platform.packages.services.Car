@@ -15,7 +15,9 @@
  */
 package com.android.car.internal.user;
 
+import android.annotation.ColorInt;
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.content.Context;
 import android.content.pm.UserInfo;
@@ -26,7 +28,6 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
-import com.android.internal.util.UserIcons;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -116,7 +117,7 @@ public final class UserHelper {
      *
      * @hide
      */
-    @NonNull
+    @Nullable
     public static Bitmap assignDefaultIcon(@NonNull Context context, @NonNull UserHandle user) {
         Preconditions.checkArgument(context != null, "Context cannot be null");
         Preconditions.checkArgument(user != null, "User cannot be null");
@@ -125,10 +126,41 @@ public final class UserHelper {
         if (userInfo == null) {
             return null;
         }
-        int idForIcon = userInfo.isGuest() ? UserHandle.USER_NULL : user.getIdentifier();
-        Bitmap bitmap = UserIcons.convertToBitmap(
-                UserIcons.getDefaultUserIcon(context.getResources(), idForIcon, false));
+        Bitmap bitmap = CarUserIconProvider.getDefaultUserIcon(context, userInfo);
         userManager.setUserIcon(user.getIdentifier(), bitmap);
         return bitmap;
+    }
+    /**
+     * Returns the default user icon for guest users.
+     *
+     * @param context Current application context
+     * @return Bitmap of the user icon.
+     *
+     * @hide
+     */
+    @NonNull
+    public static Bitmap getGuestDefaultIcon(@NonNull Context context) {
+        Preconditions.checkArgument(context != null, "Context cannot be null");
+        return CarUserIconProvider.getGuestDefaultUserIcon(context.getResources());
+    }
+    /**
+     * Get the user icon color for a given user id. This should not be the guest user.
+     *
+     * @param context Current application context
+     * @param user Non-guest user to get the user icon color
+     * @return ColorInt of the icon.
+     *
+     * @hide
+     */
+    @ColorInt
+    public static int getUserNameIconColor(@NonNull Context context, @NonNull UserHandle user) {
+        Preconditions.checkArgument(context != null, "Context cannot be null");
+        Preconditions.checkArgument(user != null, "User cannot be null");
+        UserManager userManager = context.getSystemService(UserManager.class);
+        UserInfo userInfo = userManager.getUserInfo(user.getIdentifier());
+        if (userInfo == null) {
+            throw new IllegalArgumentException("Invalid UserHandle - could not get UserInfo");
+        }
+        return CarUserIconProvider.getUserNameIconColor(context, userInfo);
     }
 }

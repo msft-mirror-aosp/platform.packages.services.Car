@@ -18,6 +18,7 @@ package com.android.car.internal.test;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.car.apitest.CarLessApiTestBase;
 import android.car.apitest.StableAIDLTestLargeParcelable;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -25,32 +26,43 @@ import android.os.Parcelable;
 import androidx.test.filters.SmallTest;
 
 import com.android.car.internal.LargeParcelable;
+import com.android.compatibility.common.util.NonApiTest;
 
 import org.junit.Test;
 
 @SmallTest
-public final class LargeParcelableJavaStableAIDLCompTest {
+public final class LargeParcelableJavaStableAIDLCompTest extends CarLessApiTestBase {
+
+    private static final String TAG = LargeParcelableJavaStableAIDLCompTest.class.getSimpleName();
 
     private static final int ARRAY_LENGTH_SMALL = 2048;
     // The current threshold is 4096.
     private static final int ARRAY_LENGTH_BIG = 4099;
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Testing large parcelable, which is a "
+            + "hidden API")
     public void testTestLargeParcelableToStableAIDLTestLargeParcelableSmall() throws Exception {
         doTestTestLargeParcelableToStableAIDLTestLargeParcelable(ARRAY_LENGTH_SMALL);
     }
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Testing large parcelable, which is a "
+            + "hidden API")
     public void testTestLargeParcelableToStableAIDLTestLargeParcelableBig() throws Exception {
         doTestTestLargeParcelableToStableAIDLTestLargeParcelable(ARRAY_LENGTH_BIG);
     }
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Testing large parcelable, which is a "
+            + "hidden API")
     public void testStableAIDLTestLargeParcelableToTestLargeParcelableSmall() throws Exception {
         doTestStableAIDLTestLargeParcelableToTestLargeParcelable(ARRAY_LENGTH_SMALL);
     }
 
     @Test
+    @NonApiTest(exemptionReasons = {}, justification = "Testing large parcelable, which is a "
+            + "hidden API")
     public void testStableAIDLTestLargeParcelableToTestLargeParcelableBig() throws Exception {
         doTestStableAIDLTestLargeParcelableToTestLargeParcelable(ARRAY_LENGTH_BIG);
     }
