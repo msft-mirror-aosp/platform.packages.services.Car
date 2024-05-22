@@ -55,6 +55,21 @@ flag {
   }
 }
 
+flag {
+  name: "car_power_cancel_shell_command"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Controls whether --cancel-after flag can be used in suspend command"
+  bug: "337063842"
+}
+
+flag {
+  name: "stop_process_before_suspend_to_disk"
+  namespace: "car_framework"
+  description: "Controls whether processes need to be stopped before suspend to disk"
+  bug: "324593655"
+}
+
 # CarAudioManager
 flag {
   name: "car_audio_dynamic_devices"
