@@ -44,6 +44,8 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static junit.framework.Assert.assertEquals;
+
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.any;
@@ -87,13 +89,17 @@ import android.os.Looper;
 import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.UserHandle;
-import android.view.Display;
 import android.util.Log;
+import android.util.SparseArray;
+import android.util.SparseIntArray;
+import android.view.Display;
 
 import com.android.car.BuiltinPackageDependency;
 import com.android.car.CarPropertyService;
 import com.android.car.CarServiceUtils;
 import com.android.car.hal.EvsHalService;
+import com.android.car.internal.evs.CarEvsUtils;
+import com.android.car.user.CarUserService;
 
 import org.junit.After;
 import org.junit.Before;
@@ -106,6 +112,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -1305,8 +1312,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         // properly.
         mCarEvsService.stopVideoStream(spiedFrontviewCallback);
         assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
-        assertThat(spiedFrontviewCallback.waitForEvent(CarEvsManager.STREAM_EVENT_STREAM_STOPPED))
-                .isTrue();
+        assertThat(spiedFrontviewCallback.waitForEvent(SERVICE_TYPE_FRONTVIEW,
+                CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         verify(spiedStatusListener, times(2)).onStatusChanged(argThat(
                 received -> received.getState() == CarEvsManager.SERVICE_STATE_INACTIVE &&
                         (received.getServiceType() == SERVICE_TYPE_REARVIEW ||
@@ -1379,27 +1386,61 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         // Stop a video stream for the first clients and verify that the services still in the
         // active state.
         mCarEvsService.stopVideoStream(spiedRearviewCallback0);
-        assertThat(spiedRearviewCallback0.waitForEvent(CarEvsManager.STREAM_EVENT_STREAM_STOPPED))
-                .isTrue();
+        assertThat(spiedRearviewCallback0.waitForEvent(SERVICE_TYPE_REARVIEW,
+                CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         mCarEvsService.stopVideoStream(spiedLeftviewCallback0);
-        assertThat(spiedLeftviewCallback0.waitForEvent(CarEvsManager.STREAM_EVENT_STREAM_STOPPED))
-                .isTrue();
+        assertThat(spiedLeftviewCallback0.waitForEvent(SERVICE_TYPE_LEFTVIEW,
+                CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
 
         // Stop a video stream for the second clients and verify that the services entered the
         // inactive state.
         mCarEvsService.stopVideoStream(spiedRearviewCallback1);
-        assertThat(spiedRearviewCallback1.waitForEvent(CarEvsManager.STREAM_EVENT_STREAM_STOPPED))
-                .isTrue();
+        assertThat(spiedRearviewCallback1.waitForEvent(SERVICE_TYPE_REARVIEW,
+                CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         mCarEvsService.stopVideoStream(spiedLeftviewCallback1);
-        assertThat(spiedLeftviewCallback1.waitForEvent(CarEvsManager.STREAM_EVENT_STREAM_STOPPED))
-                .isTrue();
+        assertThat(spiedLeftviewCallback1.waitForEvent(SERVICE_TYPE_LEFTVIEW,
+                CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
         verify(spiedStatusListener, times(2)).onStatusChanged(argThat(
                 received -> received.getState() == CarEvsManager.SERVICE_STATE_INACTIVE &&
                         (received.getServiceType() == SERVICE_TYPE_REARVIEW ||
                                 received.getServiceType() ==
                                         SERVICE_TYPE_LEFTVIEW)));
+    }
+
+    @Test
+    public void testStartAndStopVideoStreamFromManuallyEnabledServiceType() throws Exception {
+        // Create a buffer to circulate
+        HardwareBuffer buffer =
+                HardwareBuffer.create(/* width= */ 64, /* height= */ 32,
+                                      /* format= */ HardwareBuffer.RGBA_8888,
+                                      /* layers= */ 1,
+                                      /* usage= */ HardwareBuffer.USAGE_CPU_READ_OFTEN);
+        EvsStreamCallbackImpl spiedCallback = spy(new EvsStreamCallbackImpl());
+
+        int[] types = {SERVICE_TYPE_FRONTVIEW, SERVICE_TYPE_LEFTVIEW, SERVICE_TYPE_RIGHTVIEW};
+        String[] typeStrings = {"FRONTVIEW", "LEFTVIEW", "RIGHTVIEW"};
+        String[] cameraIds = {DEFAULT_FRONTVIEW_CAMERA_ID, DEFAULT_LEFTVIEW_CAMERA_ID,
+                DEFAULT_RIGHTVIEW_CAMERA_ID};
+
+        for (int i = 0; i < types.length; i++) {
+            int bufferId = mRandom.nextInt() & DATA_MASK;
+
+            assertThat(mCarEvsService.enableServiceTypeFromCommand(typeStrings[i], cameraIds[i]))
+                    .isTrue();
+            assertThat(mCarEvsService.isServiceTypeEnabledFromCommand(typeStrings[i])).isTrue();
+            assertThat(mCarEvsService.startVideoStream(types[i], /* token= */ null, spiedCallback))
+                    .isEqualTo(ERROR_NONE);
+
+            mHalCallbackCaptor.getValue().onFrameEvent(bufferId, buffer);
+            assertThat(spiedCallback.waitForFrames(/* from= */ types[i], /* expected= */ 1))
+                  .isTrue();
+            verify(spiedCallback)
+                    .onNewFrame(argThat(
+                            received -> CarEvsUtils.getValue(received.getId()) == bufferId));
+            mCarEvsService.stopVideoStream(spiedCallback);
+        }
     }
 
     private void mockEvsHalService() throws Exception {
@@ -1464,34 +1505,79 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
      * {@link android.hardware.automotive.evs.IEvsCameraStream}.
      */
     private final static class EvsStreamCallbackImpl extends ICarEvsStreamCallback.Stub {
+        private static final int MAX_WAIT_FOR_EVENTS_AGAIN = 5;
+        private static final int KEY_NOT_EXIST = Integer.MIN_VALUE;
         private final Semaphore mFrameSemaphore = new Semaphore(0);
         private final Semaphore mEventSemaphore = new Semaphore(0);
+        private final Object mLock = new Object();
 
-        private int mLastEvent = CarEvsManager.STREAM_EVENT_NONE;
+        private final CarEvsService mCarEvsService;
+        private SparseIntArray mLastEvents = new SparseIntArray();
+        private SparseArray mLastFrames = new SparseArray<ArrayList<CarEvsBufferDescriptor>>();
+
+        public EvsStreamCallbackImpl() {
+            this(null);
+        }
+
+        public EvsStreamCallbackImpl(CarEvsService svc) {
+            mCarEvsService = svc;
+        }
 
         @Override
-        public void onStreamEvent(@CarEvsStreamEvent int event) {
-            Log.i(TAG, "Received stream event 0x" + Integer.toHexString(event));
-            mLastEvent = event & DATA_MASK;
+        public void onStreamEvent(@CarEvsStreamEvent int msg) {
+            int origin = CarEvsUtils.getTag(msg);
+            int event = CarEvsUtils.getValue(msg);
+            Log.i(TAG, "Received stream event 0x" + Integer.toHexString(event) +
+                    " from " + origin);
+            synchronized (mLock) {
+                mLastEvents.append(origin, event);
+            }
             mEventSemaphore.release();
         }
 
         @Override
         public void onNewFrame(CarEvsBufferDescriptor buffer) {
             // Return a buffer immediately
-            Log.i(TAG, "Received buffer 0x" + Integer.toHexString(buffer.getId()));
+            int from = CarEvsUtils.getTag(buffer.getId());
+            int id = CarEvsUtils.getValue(buffer.getId());
+            Log.i(TAG, "Received buffer " + id + " from " + from);
+            synchronized (mLock) {
+                ArrayList<CarEvsBufferDescriptor> queue =
+                        (ArrayList<CarEvsBufferDescriptor>) mLastFrames.get(from);
+                if (queue != null) {
+                    queue.add(buffer);
+                } else {
+                    mLastFrames.put(from, new ArrayList<>(Arrays.asList(buffer)));
+                }
+            }
             mFrameSemaphore.release();
         }
 
         public boolean waitForEvent(int expected) {
-            return waitForEvent(expected, DEFAULT_TIMEOUT_IN_MS);
+            return waitForEvent(SERVICE_TYPE_REARVIEW, expected, DEFAULT_TIMEOUT_IN_MS);
         }
 
-        public boolean waitForEvent(int expected, int timeout) {
+        public boolean waitForEvent(int from, int expected) {
+            return waitForEvent(from, expected, DEFAULT_TIMEOUT_IN_MS);
+        }
+
+        public boolean waitForEvent(int from, int expected, int timeout) {
             try {
-                while (true) {
+                int retry = 0;
+                while (retry++ < MAX_WAIT_FOR_EVENTS_AGAIN) {
                     JavaMockitoHelper.await(mEventSemaphore, timeout);
-                    if (expected == mLastEvent) {
+
+                    int event;
+                    synchronized (mLock) {
+                        event = mLastEvents.get(from, KEY_NOT_EXIST);
+                        if (event == KEY_NOT_EXIST) {
+                            // No event has arrived from a target origin.
+                            continue;
+                        }
+                        mLastEvents.delete(from);
+                    }
+
+                    if (expected == event) {
                         return true;
                     }
                 }
@@ -1499,20 +1585,53 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
                 Log.d(TAG, "Failure to wait for an event " + expected);
                 return false;
             }
+
+            return false;
         }
 
         public boolean waitForFrames(int expected) {
-            return waitForFrames(expected, DEFAULT_TIMEOUT_IN_MS);
+            return waitForFrames(SERVICE_TYPE_REARVIEW, expected);
         }
 
-        public boolean waitForFrames(int expected, int timeout) {
+        public boolean waitForFrames(int from, int expected) {
+            return waitForFrames(new int[] { from }, new int[] { expected },
+                    DEFAULT_TIMEOUT_IN_MS);
+        }
+
+        public boolean waitForFrames(int from, int expected, int timeout) {
+            return waitForFrames(new int[] { from }, new int[] { expected }, timeout);
+        }
+
+        public boolean waitForFrames(int[] from, int[] expected, int timeout) {
+            assertEquals(from.length, expected.length);
             try {
-                while (expected > 0) {
+                boolean done = false;
+                do {
                     JavaMockitoHelper.await(mFrameSemaphore, timeout);
-                    expected -= 1;
-                }
+
+                    done = true;
+                    synchronized (mLock) {
+                        for (int i = 0; i < from.length; i++) {
+                            ArrayList<CarEvsBufferDescriptor> queue =
+                                    (ArrayList<CarEvsBufferDescriptor>) mLastFrames.get(from[i]);
+                            if (queue == null) {
+                                continue;
+                            }
+
+                            expected[i] -= queue.size();
+                            done = done && (expected[i] < 1);
+                            if (mCarEvsService == null) {
+                                continue;
+                            }
+
+                            while (!queue.isEmpty()) {
+                                mCarEvsService.returnFrameBuffer(queue.remove(0));
+                            }
+                        }
+                    }
+                } while (!done);
             } catch (IllegalStateException | InterruptedException e) {
-                Log.d(TAG, "Failure to wait for " + expected + " frames.");
+                Log.d(TAG, "Failure to wait for " + Arrays.toString(expected) + " frames.");
                 return false;
             }
 
