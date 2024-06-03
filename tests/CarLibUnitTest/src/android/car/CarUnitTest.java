@@ -21,6 +21,7 @@ import static android.car.feature.Flags.FLAG_DISPLAY_COMPATIBILITY;
 import static android.car.feature.Flags.FLAG_PERSIST_AP_SETTINGS;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,6 +29,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -35,8 +38,10 @@ import static org.mockito.Mockito.when;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import android.app.Activity;
+import android.app.Service;
 import android.car.Car.CarBuilder;
-import android.car.Car.CarBuilder.ServiceManager;
+import android.car.Car.Deps;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.ICarProperty;
 import android.content.ComponentName;
@@ -57,6 +62,8 @@ import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Pair;
 
 import com.android.car.internal.ICarServiceHelper;
+import com.android.car.internal.os.Process;
+import com.android.car.internal.os.ServiceManager;
 import com.android.internal.annotations.GuardedBy;
 
 import org.junit.After;
@@ -82,6 +89,7 @@ public final class CarUnitTest {
     private static final String TAG = CarUnitTest.class.getSimpleName();
     private static final String PKG_NAME = "Bond.James.Bond";
     private static final int DEFAULT_TIMEOUT_MS = 1000;
+    private static final int MY_PID = 1234;
 
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
@@ -99,6 +107,8 @@ public final class CarUnitTest {
     private PackageManager mPackageManager;
     @Mock
     private ServiceManager mServiceManager;
+    @Mock
+    private Process mFakeProcess;
     @Mock
     private ICarProperty.Stub mICarProperty;
     @Mock
@@ -218,8 +228,11 @@ public final class CarUnitTest {
         mEventHandlerThread.start();
         mEventHandler = new Handler(mEventHandlerThread.getLooper());
         mMainHandler = new Handler(Looper.getMainLooper());
-        // Inject mServiceManager as a dependency for creating Car.
-        mCarBuilder = new CarBuilder().setServiceManager(mServiceManager);
+        // Inject fake dependencies.
+        mCarBuilder = new CarBuilder().setFakeDeps(new Deps(
+                mServiceManager, mFakeProcess, /* carServiceBindRetryIntervalMs= */ 10,
+                /* carServiceBindMaxRetry= */ 2));
+        when(mFakeProcess.myPid()).thenReturn(MY_PID);
 
         when(mContext.getPackageName()).thenReturn(PKG_NAME);
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
@@ -237,7 +250,11 @@ public final class CarUnitTest {
     }
 
     private void setupFakeServiceManager() {
-        when(mContext.bindService(any(), any(), anyInt())).thenAnswer((inv) -> {
+        setupFakeServiceManager(mContext);
+    }
+
+    private void setupFakeServiceManager(Context context) {
+        when(context.bindService(any(), any(), anyInt())).thenAnswer((inv) -> {
             ServiceConnection serviceConnection = inv.getArgument(1);
 
             synchronized (mLock) {
@@ -257,7 +274,7 @@ public final class CarUnitTest {
                 mBindServiceConnections.remove(serviceConnection);
             }
             return null;
-        }).when(mContext).unbindService(any());
+        }).when(context).unbindService(any());
 
         when(mServiceManager.getService(CAR_SERVICE_BINDER_SERVICE_NAME))
                 .thenAnswer((inv) -> {
@@ -494,6 +511,97 @@ public final class CarUnitTest {
             car.disconnect();
             assertThat(car.isConnected()).isFalse();
         });
+    }
+
+    @Test
+    public void testCreateCar_Context_CarServiceCrash_killClient() throws Exception {
+        setCarServiceRegistered();
+        mCarBuilder.createCar(mContext);
+
+        // Simulate car service crash.
+        setCarServiceDisconnected();
+
+        verify(mFakeProcess, timeout(DEFAULT_TIMEOUT_MS)).killProcess(MY_PID);
+    }
+
+    @Test
+    public void testCreateCar_Context_CarServiceCrash_killClientService() throws Exception {
+        Service serviceContext = mock(Service.class);
+        setupFakeServiceManager(serviceContext);
+        setCarServiceRegistered();
+        when(serviceContext.getBaseContext()).thenReturn(mContext);
+        when(serviceContext.getPackageName()).thenReturn("package");
+        mCarBuilder.createCar(serviceContext);
+
+        // Simulate car service crash.
+        setCarServiceDisconnected();
+
+        verify(mFakeProcess, timeout(DEFAULT_TIMEOUT_MS)).killProcess(MY_PID);
+    }
+
+    @Test
+    public void testCreateCar_Context_CarServiceCrash_stopClientActivity() throws Exception {
+        Activity activityContext = mock(Activity.class);
+        setupFakeServiceManager(activityContext);
+        setCarServiceRegistered();
+        when(activityContext.getBaseContext()).thenReturn(mContext);
+        when(activityContext.isFinishing()).thenReturn(false);
+        mCarBuilder.createCar(activityContext);
+
+        // Simulate car service crash.
+        setCarServiceDisconnected();
+
+        verify(activityContext, timeout(DEFAULT_TIMEOUT_MS)).finish();
+        verify(mFakeProcess, never()).killProcess(anyInt());
+    }
+
+    @Test
+    public void testCreateCar_Context_NullBaseContext() throws Exception {
+        // Base context is null.
+        Service serviceContext = mock(Service.class);
+
+        assertThrows(NullPointerException.class, () -> mCarBuilder.createCar(serviceContext));
+    }
+
+    @Test
+    public void testCreateCar_Context_bindServiceFailed() throws Exception {
+        when(mContext.bindService(any(), any(), anyInt())).thenReturn(false);
+        when(mServiceManager.getService(CAR_SERVICE_BINDER_SERVICE_NAME))
+                .thenReturn(mService);
+
+        mCarBuilder.createCar(mContext);
+
+        // bindService failures will cause onServiceDisconnected which will kill the client.
+        verify(mFakeProcess, timeout(DEFAULT_TIMEOUT_MS)).killProcess(MY_PID);
+    }
+
+    @Test
+    public void testCreateCar_Context_bindService_retry_success() throws Exception {
+        when(mContext.bindService(any(), any(), anyInt())).thenReturn(false).thenReturn(true);
+        when(mServiceManager.getService(CAR_SERVICE_BINDER_SERVICE_NAME))
+                .thenReturn(mService);
+
+        mCarBuilder.createCar(mContext);
+
+        Thread.sleep(DEFAULT_TIMEOUT_MS);
+        verify(mFakeProcess, never()).killProcess(anyInt());
+    }
+
+    @Test
+    public void testCreateCar_Context_CarServiceCrashAfterDisconnect() throws Exception {
+        setCarServiceRegistered();
+        Car car = mCarBuilder.createCar(mContext);
+
+        // In the legacy implementation, createCar will bind to car service and cause an
+        // onServiceConnected callback to be invoked later. We must make sure this callback is
+        // invoked before disconnect, otherwise, the callback will set isConnected to true again.
+        finishTasksOnMain();
+        car.disconnect();
+
+        setCarServiceDisconnected();
+        finishTasksOnMain();
+
+        verify(mFakeProcess, never()).killProcess(anyInt());
     }
 
     @Test
@@ -771,11 +879,29 @@ public final class CarUnitTest {
 
     private void runOnMain(Runnable runnable) throws InterruptedException {
         var cdLatch = new CountDownLatch(1);
+        // Use a list to be effectively final. We only store one exception.
+        List<RuntimeException> exceptions = new ArrayList<>();
+        List<AssertionError> assertionErrors = new ArrayList<>();
         mMainHandler.post(() -> {
-            runnable.run();
-            cdLatch.countDown();
+            try {
+                runnable.run();
+            } catch (RuntimeException e) {
+                exceptions.add(e);
+            } catch (AssertionError e) {
+                assertionErrors.add(e);
+            } finally {
+                cdLatch.countDown();
+            }
         });
-        cdLatch.await(DEFAULT_TIMEOUT_MS, MILLISECONDS);
+        assertWithMessage("Main thread not finish before: " + DEFAULT_TIMEOUT_MS + " ms").that(
+                cdLatch.await(DEFAULT_TIMEOUT_MS, MILLISECONDS)).isTrue();
+        // Rethrow the caught errors to fail the test, if any.
+        if (!exceptions.isEmpty()) {
+            throw exceptions.get(0);
+        }
+        if (!assertionErrors.isEmpty()) {
+            throw assertionErrors.get(0);
+        }
     }
 
     private void finishTasksOnMain() throws InterruptedException {
