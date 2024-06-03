@@ -40,15 +40,14 @@ import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
-import android.car.feature.Flags;
+import android.car.builtin.util.TimingsTraceLog;
+import android.car.feature.FeatureFlags;
+import android.car.feature.FeatureFlagsImpl;
 import android.car.user.CarUserManager;
 import android.content.Context;
 import android.content.om.OverlayInfo;
 import android.content.om.OverlayManager;
 import android.content.pm.PackageManager;
-import android.content.res.Resources;
-import android.hardware.automotive.vehicle.VehicleProperty;
-import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -74,11 +73,12 @@ import com.android.car.cluster.ClusterNavigationService;
 import com.android.car.cluster.InstrumentClusterService;
 import com.android.car.evs.CarEvsService;
 import com.android.car.garagemode.GarageModeService;
-import com.android.car.hal.HalPropValue;
 import com.android.car.hal.VehicleHal;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
+import com.android.car.internal.StaticBinderInterface;
+import com.android.car.internal.SystemStaticBinder;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.occupantconnection.CarOccupantConnectionService;
 import com.android.car.occupantconnection.CarRemoteDeviceService;
@@ -94,7 +94,6 @@ import com.android.car.telemetry.CarTelemetryService;
 import com.android.car.user.CarUserNoticeService;
 import com.android.car.user.CarUserService;
 import com.android.car.user.ExperimentalCarUserService;
-import com.android.car.util.LimitedTimingsTraceLog;
 import com.android.car.vms.VmsBrokerService;
 import com.android.car.watchdog.CarWatchdogService;
 import com.android.car.wifi.CarWifiService;
@@ -121,8 +120,6 @@ public class ICarImpl extends ICar.Stub {
     @VisibleForTesting
     static final String TAG = CarLog.tagFor(ICarImpl.class);
 
-    private static final int INITIAL_VHAL_GET_RETRY = 2;
-
     private final Context mContext;
     private final Context mCarServiceBuiltinPackageContext;
     private final VehicleHal mHal;
@@ -132,6 +129,8 @@ public class ICarImpl extends ICar.Stub {
     private final CarFeatureController mFeatureController;
 
     private final SystemInterface mSystemInterface;
+
+    private final FeatureFlags mFeatureFlags;
 
     private final CarOemProxyService mCarOemService;
     private final SystemActivityMonitoringService mSystemActivityMonitoringService;
@@ -207,12 +206,19 @@ public class ICarImpl extends ICar.Stub {
             (FileDescriptor in, FileDescriptor out, FileDescriptor err, String[] args) ->
                     newCarShellCommand().exec(ICarImpl.this, in, out, err, args);
 
+    // A static Binder class implementation. Faked during unit tests.
+    private final StaticBinderInterface mStaticBinder;
+
     private ICarImpl(Builder builder) {
-        LimitedTimingsTraceLog t = new LimitedTimingsTraceLog(
+        TimingsTraceLog t = new TimingsTraceLog(
                 CAR_SERVICE_INIT_TIMING_TAG, TraceHelper.TRACE_TAG_CAR_SERVICE,
                 CAR_SERVICE_INIT_TIMING_MIN_DURATION_MS);
         t.traceBegin("ICarImpl.constructor");
 
+        mStaticBinder = Objects.requireNonNullElseGet(builder.mStaticBinder,
+                () -> new SystemStaticBinder());
+        mFeatureFlags = Objects.requireNonNullElseGet(builder.mFeatureFlags,
+                () -> new FeatureFlagsImpl());
         mDoPriorityInitInConstruction = builder.mDoPriorityInitInConstruction;
 
         mContext = builder.mContext;
@@ -235,30 +241,16 @@ public class ICarImpl extends ICar.Stub {
         mHal = constructWithTrace(t, VehicleHal.class,
                 () -> new VehicleHal(mContext, builder.mVehicle), allServices);
 
-        HalPropValue disabledOptionalFeatureValue = mHal.getIfSupportedOrFailForEarlyStage(
-                VehicleProperty.DISABLED_OPTIONAL_FEATURES, INITIAL_VHAL_GET_RETRY);
-
-        String[] disabledFeaturesFromVhal = null;
-        if (disabledOptionalFeatureValue != null) {
-            String disabledFeatures = disabledOptionalFeatureValue.getStringValue();
-            if (disabledFeatures != null && !disabledFeatures.isEmpty()) {
-                disabledFeaturesFromVhal = disabledFeatures.split(",");
-            }
-        }
-        if (disabledFeaturesFromVhal == null) {
-            disabledFeaturesFromVhal = new String[0];
-        }
-        Resources res = mContext.getResources();
-        String[] defaultEnabledFeatures = res.getStringArray(
-                R.array.config_allowed_optional_car_features);
-        final String[] disabledFromVhal = disabledFeaturesFromVhal;
         mFeatureController = constructWithTrace(t, CarFeatureController.class,
-                () -> new CarFeatureController(mContext, defaultEnabledFeatures,
-                        disabledFromVhal, mSystemInterface.getSystemCarDir()), allServices);
+                () -> new CarFeatureController(
+                        mContext, mSystemInterface.getSystemCarDir(), mHal), allServices);
         mVehicleInterfaceName = builder.mVehicleInterfaceName;
         mCarPropertyService = constructWithTrace(
                 t, CarPropertyService.class,
-                () -> new CarPropertyService(mContext, mHal.getPropertyHal()), allServices);
+                () -> new CarPropertyService.Builder()
+                        .setContext(mContext)
+                        .setPropertyHalService(mHal.getPropertyHal())
+                        .build(), allServices);
         mCarDrivingStateService = constructWithTrace(
                 t, CarDrivingStateService.class,
                 () -> new CarDrivingStateService(mContext, mCarPropertyService), allServices);
@@ -309,10 +301,18 @@ public class ICarImpl extends ICar.Stub {
         mSystemActivityMonitoringService = constructWithTrace(
                 t, SystemActivityMonitoringService.class,
                 () -> new SystemActivityMonitoringService(mContext), allServices);
+
         mCarPowerManagementService = constructWithTrace(
                 t, CarPowerManagementService.class,
-                () -> new CarPowerManagementService(mContext, mHal.getPowerHal(), mSystemInterface,
-                        mCarUserService, builder.mPowerPolicyDaemon), allServices);
+                () -> new CarPowerManagementService.Builder()
+                        .setContext(mContext)
+                        .setPowerHalService(mHal.getPowerHal())
+                        .setSystemInterface(mSystemInterface)
+                        .setCarUserService(mCarUserService)
+                        .setPowerPolicyDaemon(builder.mPowerPolicyDaemon)
+                        .setFeatureFlags(mFeatureFlags)
+                        .build(),
+                allServices);
         if (mFeatureController.isFeatureEnabled(CarFeatures.FEATURE_CAR_USER_NOTICE_SERVICE)) {
             mCarUserNoticeService = constructWithTrace(
                     t, CarUserNoticeService.class, () -> new CarUserNoticeService(mContext),
@@ -467,8 +467,7 @@ public class ICarImpl extends ICar.Stub {
         }
 
         mCarWifiService = constructWithTrace(t, CarWifiService.class,
-                () -> new CarWifiService(mContext, mCarPowerManagementService,
-                        mCarUserService), allServices);
+                () -> new CarWifiService(mContext), allServices);
 
         // Always put mCarExperimentalFeatureServiceController in last.
         if (!BuildHelper.isUserBuild()) {
@@ -506,7 +505,7 @@ public class ICarImpl extends ICar.Stub {
 
     @MainThread
     void init() {
-        LimitedTimingsTraceLog t = new LimitedTimingsTraceLog(CAR_SERVICE_INIT_TIMING_TAG,
+        TimingsTraceLog t = new TimingsTraceLog(CAR_SERVICE_INIT_TIMING_TAG,
                 TraceHelper.TRACE_TAG_CAR_SERVICE, CAR_SERVICE_INIT_TIMING_MIN_DURATION_MS);
 
         t.traceBegin("ICarImpl.init");
@@ -551,7 +550,7 @@ public class ICarImpl extends ICar.Stub {
             ICarResultReceiver resultReceiver) {
         Bundle bundle;
         try {
-            EventLogHelper.writeCarServiceSetCarServiceHelper(Binder.getCallingPid());
+            EventLogHelper.writeCarServiceSetCarServiceHelper(mStaticBinder.getCallingPid());
             assertCallingFromSystemProcess();
 
             mCarServiceHelperWrapper.setCarServiceHelper(carServiceHelper);
@@ -615,8 +614,9 @@ public class ICarImpl extends ICar.Stub {
         return mCarExperimentalFeatureServiceController.getCarManagerClassForFeature(featureName);
     }
 
-    static void assertCallingFromSystemProcess() {
-        int uid = Binder.getCallingUid();
+
+    private void assertCallingFromSystemProcess() {
+        int uid = mStaticBinder.getCallingUid();
         if (uid != Process.SYSTEM_UID) {
             throw new SecurityException("Only allowed from system");
         }
@@ -718,12 +718,12 @@ public class ICarImpl extends ICar.Stub {
             default:
                 // CarDisplayCompatManager does not need a new service but the Car class
                 // doesn't allow a new Manager class without a service.
-                if (Flags.displayCompatibility()) {
+                if (mFeatureFlags.displayCompatibility()) {
                     if (serviceName.equals(CAR_DISPLAY_COMPAT_SERVICE)) {
                         return mCarActivityService;
                     }
                 }
-                if (Flags.persistApSettings()) {
+                if (mFeatureFlags.persistApSettings()) {
                     if (serviceName.equals(Car.CAR_WIFI_SERVICE)) {
                         return mCarWifiService;
                     }
@@ -752,7 +752,7 @@ public class ICarImpl extends ICar.Stub {
         if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP)
                 != PackageManager.PERMISSION_GRANTED) {
             writer.println("Permission Denial: can't dump CarService from from pid="
-                    + Binder.getCallingPid() + ", uid=" + Binder.getCallingUid()
+                    + mStaticBinder.getCallingPid() + ", uid=" + mStaticBinder.getCallingUid()
                     + " without permission " + android.Manifest.permission.DUMP);
             return;
         }
@@ -798,7 +798,7 @@ public class ICarImpl extends ICar.Stub {
                 String[] services = new String[length];
                 System.arraycopy(args, 1, services, 0, length);
                 if (dumpToProto) {
-                    if (!Flags.carDumpToProto()) {
+                    if (!mFeatureFlags.carDumpToProto()) {
                         writer.println("Cannot dump " + services[0]
                                 + " to proto since FLAG_CAR_DUMP_TO_PROTO is disabled");
                         return;
@@ -1054,9 +1054,12 @@ public class ICarImpl extends ICar.Stub {
 
     @Nullable
     private CarSystemService getCarServiceBySubstring(String className) {
-        return Arrays.asList(mAllServicesInInitOrder).stream()
-                .filter(s -> s.getClass().getSimpleName().equals(className))
-                .findFirst().orElse(null);
+        for (int i = 0; i < mAllServicesInInitOrder.length; i++) {
+            if (Objects.equals(mAllServicesInInitOrder[i].getClass().getSimpleName(), className)) {
+                return mAllServicesInInitOrder[i];
+            }
+        }
+        return null;
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
@@ -1073,7 +1076,7 @@ public class ICarImpl extends ICar.Stub {
         newCarShellCommand().exec(args, writer);
     }
 
-    private <T extends CarSystemService> T constructWithTrace(LimitedTimingsTraceLog t,
+    private <T extends CarSystemService> T constructWithTrace(TimingsTraceLog t,
             Class<T> cls, Callable<T> callable, List<CarSystemService> allServices) {
         t.traceBegin(cls.getSimpleName());
         T constructed;
@@ -1105,21 +1108,6 @@ public class ICarImpl extends ICar.Stub {
         }
 
         @Override
-        public void initBootUser() throws RemoteException {
-            // TODO(b/277271542). Remove this code path.
-        }
-
-        // TODO(235524989): Remove this method as on user removed will now go through
-        // onUserLifecycleEvent due to changes in CarServiceProxy and CarUserService.
-        @Override
-        public void onUserRemoved(UserHandle user) throws RemoteException {
-            assertCallingFromSystemProcess();
-            EventLogHelper.writeCarServiceOnUserRemoved(user.getIdentifier());
-            if (DBG) Slogf.d(TAG, "onUserRemoved(): " + user);
-            mCarUserService.onUserRemoved(user);
-        }
-
-        @Override
         public void onFactoryReset(ICarResultReceiver callback) {
             assertCallingFromSystemProcess();
 
@@ -1130,7 +1118,14 @@ public class ICarImpl extends ICar.Stub {
 
         @Override
         public void setInitialUser(UserHandle user) {
+            assertCallingFromSystemProcess();
             mCarUserService.setInitialUserFromSystemServer(user);
+        }
+
+        @Override
+        public void notifyFocusChanged(int pid, int uid) {
+            assertCallingFromSystemProcess();
+            mSystemActivityMonitoringService.handleFocusChanged(pid, uid);
         }
     }
 
@@ -1162,6 +1157,8 @@ public class ICarImpl extends ICar.Stub {
         CarTelemetryService mCarTelemetryService;
         CarRemoteAccessService mCarRemoteAccessService;
         boolean mDoPriorityInitInConstruction;
+        StaticBinderInterface mStaticBinder;
+        FeatureFlags mFeatureFlags;
 
         /**
          * Builds the ICarImpl object represented by this builder object
@@ -1300,6 +1297,23 @@ public class ICarImpl extends ICar.Stub {
          */
         public Builder setDoPriorityInitInConstruction(boolean doPriorityInitInConstruction) {
             mDoPriorityInitInConstruction = doPriorityInitInConstruction;
+            return this;
+        }
+
+        /**
+         * Sets the calling Uid, only used for testing.
+         */
+        @VisibleForTesting
+        public Builder setTestStaticBinder(StaticBinderInterface testStaticBinder) {
+            mStaticBinder = testStaticBinder;
+            return this;
+        }
+
+        /**
+         * Sets the feature flags.
+         */
+        public Builder setFeatureFlags(FeatureFlags featureFlags) {
+            mFeatureFlags = featureFlags;
             return this;
         }
     }

@@ -120,8 +120,8 @@ std::tuple<int64_t, int64_t> calculateStartAndDuration(struct tm currentTm) {
     startTm.tm_min = 0;
     startTm.tm_hour = 0;
 
-    int64_t startTime = static_cast<int64_t>(mktime(&startTm));
-    int64_t currentEpochSeconds = static_cast<int64_t>(mktime(&currentTm));
+    int64_t startTime = static_cast<int64_t>(timegm(&startTm));
+    int64_t currentEpochSeconds = static_cast<int64_t>(timegm(&currentTm));
     return std::make_tuple(startTime, currentEpochSeconds - startTime);
 }
 
@@ -219,9 +219,12 @@ Result<void> IoOveruseMonitor::init() {
 }
 
 void IoOveruseMonitor::terminate() {
-    std::unique_lock writeLock(mRwMutex);
-
     ALOGW("Terminating %s", name().c_str());
+    if (mWriteToDiskThread.joinable()) {
+        mWriteToDiskThread.join();
+        ALOGI("Write to disk has completed. Proceeding with termination");
+    }
+    std::unique_lock writeLock(mRwMutex);
     mWatchdogServiceHelper.clear();
     mIoOveruseConfigs.clear();
     mSystemWideWrittenBytes.clear();
@@ -538,7 +541,23 @@ Result<void> IoOveruseMonitor::updateResourceOveruseConfigurations(
     if (const auto result = mIoOveruseConfigs->update(configs); !result.ok()) {
         return result;
     }
-    std::thread writeToDiskThread([&]() {
+    // When mWriteToDiskThread is already active, don't create a new thread to perform the same
+    // work. This thread writes to disk only after acquiring the mRwMutex write lock and the below
+    // check is performed after acquiring the same write lock. Thus, if the thread is still active
+    // and mIsWriteToDiskPending is true at this point, it indicates the thread hasn't performed
+    // the write and will write the latest updated configs when it executes.
+    if (bool isJoinable = mWriteToDiskThread.joinable(); isJoinable && mIsWriteToDiskPending) {
+        ALOGW("Skipping resource overuse configs write to disk due to ongoing write");
+        return {};
+    } else if (isJoinable) {
+        // At this point we know the thread has completed execution. Join the thread before
+        // creating a new one. Failure to join can lead to a crash since std::thread cannot
+        // destruct a thread object without first calling join.
+        mWriteToDiskThread.join();
+    }
+    mIsWriteToDiskPending = true;
+    mWriteToDiskThread = std::thread([&]() {
+        ALOGI("Writing resource overuse configs to disk");
         if (set_sched_policy(0, SP_BACKGROUND) != 0) {
             ALOGW("Failed to set background scheduling priority for writing resource overuse "
                   "configs to disk");
@@ -549,15 +568,15 @@ Result<void> IoOveruseMonitor::updateResourceOveruseConfigurations(
         std::unique_lock writeLock(mRwMutex);
         if (mIoOveruseConfigs == nullptr) {
             ALOGE("IoOveruseConfigs instance is null");
-            return;
-        }
-        if (const auto result = mIoOveruseConfigs->writeToDisk(); !result.ok()) {
+        } else if (const auto result = mIoOveruseConfigs->writeToDisk(); !result.ok()) {
             ALOGE("Failed to write resource overuse configs to disk: %s",
                   result.error().message().c_str());
+        } else {
+            ALOGI("Successfully wrote resource overuse configs to disk");
         }
+        mIsWriteToDiskPending = false;
     });
 
-    writeToDiskThread.detach();
     return {};
 }
 

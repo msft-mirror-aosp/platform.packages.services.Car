@@ -1,4 +1,5 @@
 package: "android.car.feature"
+container: "system"
 
 # CarUserManager
 flag {
@@ -42,6 +43,31 @@ flag {
   namespace: "car_framework"
   description: "Controls whether refactored car power policy daemon handles power policy change request"
   bug: "286303350"
+}
+
+flag {
+  name: "per_display_max_brightness"
+  namespace: "car_framework"
+  description: "Use per display max brightness defined by VHAL"
+  bug: "336831738"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "car_power_cancel_shell_command"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Controls whether --cancel-after flag can be used in suspend command"
+  bug: "337063842"
+}
+
+flag {
+  name: "stop_process_before_suspend_to_disk"
+  namespace: "car_framework"
+  description: "Controls whether processes need to be stopped before suspend to disk"
+  bug: "324593655"
 }
 
 # CarAudioManager
@@ -195,4 +221,13 @@ flag {
   namespace: "car_framework"
   description: "Enables use of new property status API"
   bug: "326109669"
+}
+
+# CarAppCard
+flag {
+  name: "car_app_card"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Enables use of Car App Card APIs"
+  bug: "331282711"
 }

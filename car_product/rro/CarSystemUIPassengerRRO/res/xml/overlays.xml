@@ -16,6 +16,7 @@
 
 <overlay>
     <item target="layout/car_bottom_system_bar" value="@layout/car_passenger_bottom_system_bar"/>
+    <item target="layout/car_bottom_system_bar_dock" value="@layout/car_passenger_bottom_system_bar"/>
 
     <item target="bool/config_enableTopSystemBar" value="false"/>
     <item target="string/config_notificationPanelViewMediator" value="@string/config_notificationPanelViewMediator" />
@@ -128,7 +129,6 @@
     <item target="dimen/car_padding_2" value="@dimen/car_padding_2"/>
     <item target="dimen/car_padding_3" value="@dimen/car_padding_3"/>
     <item target="dimen/car_padding_4" value="@dimen/car_padding_4"/>
-    <item target="string/qc_icon_tag" value="@string/qc_icon_tag"/>
     <item target="style/TextAppearance.SystemBar.ClockWithSelection" value="@style/TextAppearance.SystemBar.ClockWithSelection"/>
     <item target="style/TextAppearance.SystemBar.Username" value="@style/TextAppearance.SystemBar.Username"/>
 </overlay>

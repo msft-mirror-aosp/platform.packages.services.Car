@@ -35,7 +35,7 @@ import java.util.Optional;
 public class IoStatsTracker {
 
     // NOTE: this class is not thread safe
-    private abstract class Lazy<T> {
+    private abstract static class Lazy<T> {
         protected Optional<T> mLazy = Optional.empty();
 
         protected abstract T supply();
@@ -101,9 +101,12 @@ public class IoStatsTracker {
                     if (oldRecord.representsSameMetrics(newRecord)) {
                         // if no new I/O happened, try to figure out if any process on behalf
                         // of this user has happened, and use that to update the runtime metrics
-                        if (processTable.get().stream().anyMatch(pi -> pi.uid == uid)) {
-                            newStats = new IoStatsEntry(newRecord.delta(oldRecord),
-                                    oldRecord.runtimeMillis + mSampleWindowMs);
+                        for (int index = 0; index < processTable.get().size(); index++) {
+                            if (processTable.get().get(index).uid == uid) {
+                                newStats = new IoStatsEntry(newRecord.delta(oldRecord),
+                                        oldRecord.runtimeMillis + mSampleWindowMs);
+                                break;
+                            }
                         }
                         // if no new I/O happened and no process is running for this user
                         // then do not prepare a new sample, as nothing has changed

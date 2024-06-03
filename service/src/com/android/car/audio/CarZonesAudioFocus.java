@@ -70,7 +70,7 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
 
     private final SparseArray<CarAudioFocus> mFocusZones;
 
-    public static CarZonesAudioFocus createCarZonesAudioFocus(AudioManager audioManager,
+    public static CarZonesAudioFocus createCarZonesAudioFocus(AudioManagerWrapper audioManager,
             PackageManager packageManager, SparseArray<CarAudioZone> carAudioZones,
             CarAudioSettings carAudioSettings, CarFocusCallback carFocusCallback,
             CarVolumeInfoWrapper carVolumeInfoWrapper, @Nullable CarAudioFeaturesInfo features) {
@@ -353,8 +353,10 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
     }
 
     public void updateUserForZoneId(int audioZoneId, @UserIdInt int userId) {
-        Preconditions.checkArgument(mCarAudioService.isAudioZoneIdValid(audioZoneId),
-                "Invalid zoneId %d", audioZoneId);
+        synchronized (mLock) {
+            Preconditions.checkArgument(mCarAudioService.isAudioZoneIdValid(audioZoneId),
+                    "Invalid zoneId %d", audioZoneId);
+        }
         mFocusZones.get(audioZoneId).getFocusInteraction().setUserIdForSettings(userId);
     }
 

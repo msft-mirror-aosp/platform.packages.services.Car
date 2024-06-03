@@ -88,7 +88,6 @@ public final class CarActivityService extends ICarActivityService.Stub
     private static final String TAG = CarLog.TAG_AM;
     private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
-    private static final int MAX_RUNNING_TASKS_TO_GET = 100;
     private static final long MIRRORING_TOKEN_TIMEOUT_MS = 10 * 60 * 1000;  // 10 mins
 
     private final Context mContext;
@@ -120,16 +119,27 @@ public final class CarActivityService extends ICarActivityService.Stub
 
     private IBinder mCurrentMonitor;
 
-    public interface ActivityLaunchListener {
+    /**
+     * Listener for activity callbacks.
+     */
+    public interface ActivityListener {
         /**
-         * Notify launch of activity.
+         * Notify coming of an activity on the top of the stack.
          *
          * @param topTask Task information for what is currently launched.
          */
-        void onActivityLaunch(TaskInfo topTask);
+        void onActivityCameOnTop(TaskInfo topTask);
+
+        /**
+         * Notify change or vanish of an activity in the backstack.
+         *
+         * @param taskInfo task information for what is currently changed or vanished.
+         */
+        void onActivityChangedInBackstack(TaskInfo taskInfo);
     }
+
     @GuardedBy("mLock")
-    private final ArrayList<ActivityLaunchListener> mActivityLaunchListeners = new ArrayList<>();
+    private final ArrayList<ActivityListener> mActivityListeners = new ArrayList<>();
 
     private final HandlerThread mMonitorHandlerThread = CarServiceUtils.getHandlerThread(
             SystemActivityMonitoringService.class.getSimpleName());
@@ -152,7 +162,7 @@ public final class CarActivityService extends ICarActivityService.Stub
     @Override
     public void release() {
         synchronized (mLock) {
-            mActivityLaunchListeners.clear();
+            mActivityListeners.clear();
         }
     }
 
@@ -182,15 +192,25 @@ public final class CarActivityService extends ICarActivityService.Stub
         return UserManagerHelper.getUserId(Binder.getCallingUid());
     }
 
-    public void registerActivityLaunchListener(@NonNull ActivityLaunchListener listener) {
+    /**
+     * Register an {@link ActivityListener}
+     *
+     * @param listener listener to register.
+     */
+    public void registerActivityListener(@NonNull ActivityListener listener) {
         synchronized (mLock) {
-            mActivityLaunchListeners.add(listener);
+            mActivityListeners.add(listener);
         }
     }
 
-    public void unregisterActivityLaunchListener(@NonNull ActivityLaunchListener listener) {
+    /**
+     * Unregister an {@link ActivityListener}.
+     *
+     * @param listener listener to unregister.
+     */
+    public void unregisterActivityListener(@NonNull ActivityListener listener) {
         synchronized (mLock) {
-            mActivityLaunchListeners.remove(listener);
+            mActivityListeners.remove(listener);
         }
     }
 
@@ -221,6 +241,7 @@ public final class CarActivityService extends ICarActivityService.Stub
         }
     }
 
+    /** Ensure permission is granted. */
     private void ensurePermission(String permission) {
         if (mContext.checkCallingOrSelfPermission(permission)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -261,14 +282,22 @@ public final class CarActivityService extends ICarActivityService.Stub
             }
         }
         if (TaskInfoHelper.isVisible(taskInfo)) {
-            mHandler.post(() -> notifyActivityLaunch(taskInfo));
+            mHandler.post(() -> notifyActivityCameOnTop(taskInfo));
         }
     }
 
-    private void notifyActivityLaunch(TaskInfo taskInfo) {
+    private void notifyActivityCameOnTop(TaskInfo taskInfo) {
         synchronized (mLock) {
-            for (int i = 0, size = mActivityLaunchListeners.size(); i < size; ++i) {
-                mActivityLaunchListeners.get(i).onActivityLaunch(taskInfo);
+            for (int i = 0, size = mActivityListeners.size(); i < size; ++i) {
+                mActivityListeners.get(i).onActivityCameOnTop(taskInfo);
+            }
+        }
+    }
+
+    private void notifyActivityChangedInBackStack(TaskInfo taskInfo) {
+        synchronized (mLock) {
+            for (int i = 0, size = mActivityListeners.size(); i < size; ++i) {
+                mActivityListeners.get(i).onActivityChangedInBackstack(taskInfo);
             }
         }
     }
@@ -296,8 +325,13 @@ public final class CarActivityService extends ICarActivityService.Stub
             if (!isAllowedToUpdateLocked(token)) {
                 return;
             }
+            // Do not remove the taskInfo from the mLastKnownDisplayIdForTask array since when
+            // the task vanishes, the display ID becomes -1. We want to preserve this information
+            // to finish the blocking ui for that display ID. mTasks and
+            // mLastKnownDisplayIdForTask come in sync when the blocking ui is finished.
             mTasks.remove(taskInfo.taskId);
             mTaskToSurfaceMap.remove(taskInfo.taskId);
+            mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
         }
     }
 
@@ -318,7 +352,9 @@ public final class CarActivityService extends ICarActivityService.Stub
             if ((oldTaskInfo == null || !TaskInfoHelper.isVisible(oldTaskInfo)
                     || !Objects.equals(oldTaskInfo.topActivity, taskInfo.topActivity))
                     && TaskInfoHelper.isVisible(taskInfo)) {
-                mHandler.post(() -> notifyActivityLaunch(taskInfo));
+                mHandler.post(() -> notifyActivityCameOnTop(taskInfo));
+            } else {
+                mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
             }
         }
     }
@@ -698,7 +734,7 @@ public final class CarActivityService extends ICarActivityService.Stub
                 writer.println("  " + TaskInfoHelper.toString(taskInfo));
             }
             writer.println(" Surfaces: " + mTaskToSurfaceMap.toString());
-            writer.println(" ActivityLaunchListeners: " + mActivityLaunchListeners.toString());
+            writer.println(" ActivityListeners: " + mActivityListeners.toString());
         }
     }
 

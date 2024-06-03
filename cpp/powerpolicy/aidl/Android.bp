@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -40,4 +41,12 @@ aidl_interface {
     imports: [
         "android.frameworks.automotive.powerpolicy-V3",
     ],
+    versions_with_info: [
+        {
+            version: "1",
+            imports: ["android.frameworks.automotive.powerpolicy-V3"],
+        },
+    ],
+    frozen: true,
+
 }

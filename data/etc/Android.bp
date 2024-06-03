@@ -15,6 +15,7 @@
 // Privapp permission allowlist files
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -86,6 +87,13 @@ prebuilt_etc {
     name: "allowed_privapp_com.android.car.dialer",
     sub_dir: "permissions",
     src: "com.android.car.dialer.xml",
+    filename_from_src: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.car.documentsui",
+    sub_dir: "permissions",
+    src: "com.android.car.documentsui.xml",
     filename_from_src: true,
 }
 
