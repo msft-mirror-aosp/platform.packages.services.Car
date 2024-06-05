@@ -30,6 +30,7 @@ import android.widget.ImageButton;
 
 import androidx.constraintlayout.motion.widget.MotionLayout;
 
+import com.android.car.apps.common.RoundedDrawable;
 import com.android.car.apps.common.util.ViewUtils;
 import com.android.car.carlauncher.homescreen.audio.media.MediaIntentRouter;
 import com.android.car.media.common.MediaItemMetadata;
@@ -172,6 +173,13 @@ public class ControlBarMediaController extends PlaybackCardController {
             mSubtitle.setVisibility(View.GONE);
             mDescription.setVisibility(View.GONE);
         }
+    }
+
+    @Override
+    protected void updateAlbumCoverWithDrawable(Drawable drawable) {
+        RoundedDrawable roundedDrawable = new RoundedDrawable(drawable, mView.getResources()
+                .getFloat(R.dimen.control_bar_media_card_album_art_drawable_corner_ratio));
+        super.updateAlbumCoverWithDrawable(roundedDrawable);
     }
 
     @Override
