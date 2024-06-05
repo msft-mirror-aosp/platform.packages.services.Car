@@ -22,6 +22,8 @@
 #include "PerformanceProfiler.h"
 
 #include <android/binder_interface_utils.h>
+#include <log/log.h>
+#include <utils/SystemClock.h>
 
 namespace android {
 namespace automotive {
@@ -30,6 +32,7 @@ namespace watchdog {
 using ::android::sp;
 using ::android::base::Error;
 using ::android::base::Result;
+using ::android::car::feature::car_watchdog_memory_profiling;
 using ::ndk::SharedRefBase;
 
 Result<void> ServiceManager::startServices(const sp<Looper>& mainLooper) {
@@ -38,10 +41,10 @@ Result<void> ServiceManager::startServices(const sp<Looper>& mainLooper) {
         return Error(INVALID_OPERATION) << "Cannot start services more than once";
     }
     /*
-     * PackageInfoResolver must be initialized first time on the main thread before starting any
-     * other thread as the getInstance method isn't thread safe. Thus initialize PackageInfoResolver
-     * by calling the getInstance method before starting other services as they may access
-     * PackageInfoResolver's instance during initialization.
+     * PackageInfoResolver must be initialized first on the main thread before starting any other
+     * thread because the PackageInfoResolver::getInstance method isn't thread safe. Thus initialize
+     * PackageInfoResolver by calling the PackageInfoResolver::getInstance method before starting
+     * other services as they may access PackageInfoResolver's instance during initialization.
      */
     sp<PackageInfoResolverInterface> packageInfoResolver = PackageInfoResolver::getInstance();
     if (auto result = startWatchdogProcessService(mainLooper); !result.ok()) {
@@ -50,6 +53,11 @@ Result<void> ServiceManager::startServices(const sp<Looper>& mainLooper) {
     mWatchdogServiceHelper = sp<WatchdogServiceHelper>::make();
     if (auto result = mWatchdogServiceHelper->init(mWatchdogProcessService); !result.ok()) {
         return Error() << "Failed to initialize watchdog service helper: " << result.error();
+    }
+    if (car_watchdog_memory_profiling()) {
+        if (auto result = startPressureMonitor(); !result.ok()) {
+            ALOGE("%s", result.error().message().c_str());
+        }
     }
     if (auto result = startWatchdogPerfService(mWatchdogServiceHelper); !result.ok()) {
         return result;
@@ -87,6 +95,10 @@ void ServiceManager::terminateServices() {
         mWatchdogServiceHelper->terminate();
         mWatchdogServiceHelper.clear();
     }
+    if (mPressureMonitor != nullptr) {
+        mPressureMonitor->terminate();
+        mPressureMonitor.clear();
+    }
     mIoOveruseMonitor.clear();
     PackageInfoResolver::terminate();
 }
@@ -100,10 +112,22 @@ Result<void> ServiceManager::startWatchdogProcessService(const sp<Looper>& mainL
     return {};
 }
 
+Result<void> ServiceManager::startPressureMonitor() {
+    mPressureMonitor = sp<PressureMonitor>::make();
+    if (auto result = mPressureMonitor->init(); !result.ok()) {
+        return Error() << "Failed to initialize pressure monitor: " << result.error();
+    }
+    if (auto result = mPressureMonitor->start(); !result.ok()) {
+        return Error() << "Failed to start pressure monitor: " << result.error();
+    }
+    return {};
+}
+
 Result<void> ServiceManager::startWatchdogPerfService(
         const sp<WatchdogServiceHelperInterface>& watchdogServiceHelper) {
-    mWatchdogPerfService = sp<WatchdogPerfService>::make(watchdogServiceHelper);
-    if (auto result = mWatchdogPerfService->registerDataProcessor(sp<PerformanceProfiler>::make());
+    mWatchdogPerfService = sp<WatchdogPerfService>::make(watchdogServiceHelper, elapsedRealtime);
+    if (auto result = mWatchdogPerfService->registerDataProcessor(
+                sp<PerformanceProfiler>::make(mPressureMonitor));
         !result.ok()) {
         return Error() << "Failed to register performance profiler: " << result.error();
     }

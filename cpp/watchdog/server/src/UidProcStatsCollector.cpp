@@ -47,6 +47,8 @@ using ::android::base::Split;
 using ::android::base::StartsWith;
 using ::android::base::StringAppendF;
 using ::android::base::Trim;
+using ::android::meminfo::MemUsage;
+using ::android::meminfo::ProcMemInfo;
 
 namespace {
 
@@ -55,10 +57,13 @@ constexpr uint64_t kMaxUint64 = std::numeric_limits<uint64_t>::max();
 constexpr const char* kProcPidStatFileFormat = "/proc/%" PRIu32 "/stat";
 constexpr const char* kProcPidStatusFileFormat = "/proc/%" PRIu32 "/status";
 
-enum ReadError {
-    ERR_INVALID_FILE = 0,
-    ERR_FILE_OPEN_READ = 1,
-    NUM_ERRORS = 2,
+enum ReadStatus {
+    // Default value is an error for backwards compatibility with the Result::ErrorCode.
+    READ_ERROR = 0,
+    // PIDs may disappear between scanning and reading directory/files. Use |READ_WARNING| in these
+    // instances to return the missing directory/file for logging purposes.
+    READ_WARNING = 1,
+    NUM_READ_STATUS = 2,
 };
 
 uint64_t addUint64(const uint64_t& l, const uint64_t& r) {
@@ -121,15 +126,15 @@ bool parsePidStatLine(const std::string& line, PidStat* pidStat) {
 Result<PidStat> readPidStatFile(const std::string& path, int32_t millisPerClockTick) {
     std::string buffer;
     if (!ReadFileToString(path, &buffer)) {
-        return Error(ERR_FILE_OPEN_READ) << "ReadFileToString failed for " << path;
+        return Error(READ_WARNING) << "ReadFileToString failed for " << path;
     }
     std::vector<std::string> lines = Split(std::move(buffer), "\n");
     if (lines.size() != 1 && (lines.size() != 2 || !lines[1].empty())) {
-        return Error(ERR_INVALID_FILE) << path << " contains " << lines.size() << " lines != 1";
+        return Error(READ_ERROR) << path << " contains " << lines.size() << " lines != 1";
     }
     PidStat pidStat;
     if (!parsePidStatLine(std::move(lines[0]), &pidStat)) {
-        return Error(ERR_INVALID_FILE) << "Failed to parse the contents of " << path;
+        return Error(READ_ERROR) << "Failed to parse the contents of " << path;
     }
     pidStat.startTimeMillis = pidStat.startTimeMillis * millisPerClockTick;
     pidStat.cpuTimeMillis = pidStat.cpuTimeMillis * millisPerClockTick;
@@ -167,7 +172,7 @@ Result<std::unordered_map<std::string, std::string>> readKeyValueFile(
         const std::vector<std::string>& tags) {
     std::string buffer;
     if (!ReadFileToString(path, &buffer)) {
-        return Error(ERR_FILE_OPEN_READ) << "ReadFileToString failed for " << path;
+        return Error(READ_WARNING) << "ReadFileToString failed for " << path;
     }
     std::vector<std::string> lines = getLinesWithTags(buffer, tags);
     std::unordered_map<std::string, std::string> contents;
@@ -177,14 +182,14 @@ Result<std::unordered_map<std::string, std::string>> readKeyValueFile(
         }
         std::vector<std::string> elements = Split(lines[i], delimiter);
         if (elements.size() < 2) {
-            return Error(ERR_INVALID_FILE)
+            return Error(READ_ERROR)
                     << "Line \"" << lines[i] << "\" doesn't contain the delimiter \"" << delimiter
                     << "\" in file " << path;
         }
         std::string key = elements[0];
         std::string value = Trim(lines[i].substr(key.length() + delimiter.length()));
         if (contents.find(key) != contents.end()) {
-            return Error(ERR_INVALID_FILE)
+            return Error(READ_ERROR)
                     << "Duplicate " << key << " line: \"" << lines[i] << "\" in file " << path;
         }
         contents[key] = value;
@@ -208,16 +213,16 @@ Result<std::tuple<uid_t, pid_t>> readPidStatusFile(const std::string& path) {
     }
     auto contents = result.value();
     if (contents.empty()) {
-        return Error(ERR_INVALID_FILE) << "Empty file " << path;
+        return Error(READ_ERROR) << "Empty file " << path;
     }
     int64_t uid = 0;
     int64_t tgid = 0;
     if (contents.find("Uid") == contents.end() ||
         !ParseInt(Split(contents["Uid"], "\t")[0], &uid)) {
-        return Error(ERR_INVALID_FILE) << "Failed to read 'UID' from file " << path;
+        return Error(READ_ERROR) << "Failed to read 'UID' from file " << path;
     }
     if (contents.find("Tgid") == contents.end() || !ParseInt(contents["Tgid"], &tgid)) {
-        return Error(ERR_INVALID_FILE) << "Failed to read 'Tgid' from file " << path;
+        return Error(READ_ERROR) << "Failed to read 'Tgid' from file " << path;
     }
     return std::make_tuple(uid, tgid);
 }
@@ -249,7 +254,7 @@ Result<uint64_t> readTimeInStateFile(const std::string& path) {
 
     std::string buffer;
     if (!ReadFileToString(path, &buffer)) {
-        return Error(ERR_FILE_OPEN_READ) << "ReadFileToString failed for " << path;
+        return Error(READ_WARNING) << "ReadFileToString failed for " << path;
     }
     std::string delimiter = " ";
     uint64_t oneTenthCpuCycles = 0;
@@ -261,14 +266,14 @@ Result<uint64_t> readTimeInStateFile(const std::string& path) {
         }
         std::vector<std::string> elements = Split(lines[i], delimiter);
         if (elements.size() < 2) {
-            return Error(ERR_INVALID_FILE)
+            return Error(READ_ERROR)
                     << "Line \"" << lines[i] << "\" doesn't contain the delimiter \"" << delimiter
                     << "\" in file " << path;
         }
         uint64_t freqKHz;
         uint64_t clockTicks;
         if (!ParseUint(elements[0], &freqKHz) || !ParseUint(Trim(elements[1]), &clockTicks)) {
-            return Error(ERR_INVALID_FILE)
+            return Error(READ_ERROR)
                     << "Line \"" << lines[i] << "\" has invalid format in file " << path;
         }
         oneTenthCpuCycles = addUint64(oneTenthCpuCycles, mul(freqKHz, clockTicks));
@@ -277,6 +282,34 @@ Result<uint64_t> readTimeInStateFile(const std::string& path) {
     // one has to scale the frequency by 1000 to obtain Hz and the time by 1/sysconf(_SC_CLK_TCK)
     // to obtain seconds which results in scaling the result by |cyclesPerKHzClockTicks|.
     return mul(oneTenthCpuCycles, cyclesPerKHzClockTicks);
+}
+
+/**
+ * Returns the RSS and Shared pages from the given /proc/PID/statm file.
+ *
+ * /proc/PID/statm format:
+ * <Total program size> <Resident pages> <Shared pages> <Text pages> 0 <Data pages> 0
+ * Example: 2969783 1481 938 530 0 5067 0
+ */
+Result<std::tuple<uint64_t, uint64_t>> readPidStatmFile(const std::string& path) {
+    std::string buffer;
+    if (!ReadFileToString(path, &buffer)) {
+        return Error(READ_WARNING) << "ReadFileToString failed for " << path;
+    }
+    std::vector<std::string> lines = Split(std::move(buffer), "\n");
+    if (lines.size() != 1 && (lines.size() != 2 || !lines[1].empty())) {
+        return Error(READ_ERROR) << path << " contains " << lines.size() << " lines != 1";
+    }
+    std::vector<std::string> fields = Split(std::move(lines[0]), " ");
+    if (fields.size() < 6) {
+        return Error(READ_ERROR) << path << " contains insufficient entries";
+    }
+    uint64_t rssPages = 0;
+    uint64_t sharedPages = 0;
+    if (!ParseUint(fields[1], &rssPages) || !ParseUint(fields[2], &sharedPages)) {
+        return Error(READ_ERROR) << "Failed to parse fields from " << path;
+    }
+    return std::make_tuple(rssPages, sharedPages);
 }
 
 }  // namespace
@@ -292,7 +325,11 @@ std::string ProcessStats::toString() const {
     for (const auto& [tid, cpuCycles] : cpuCyclesByTid) {
         StringAppendF(&buffer, "{tid: %d, cpuCycles: %" PRIu64 "},", tid, cpuCycles);
     }
-    StringAppendF(&buffer, "}");
+    buffer.erase(buffer.length() - 1);
+    StringAppendF(&buffer,
+                  "}, rssKb: %" PRIu64 ", pssKb: %" PRIu64 ", ussKb: %" PRIu64
+                  ", swapPsskb: %" PRIu64 "} ",
+                  rssKb, pssKb, ussKb, swapPssKb);
     return buffer;
 }
 
@@ -301,14 +338,27 @@ std::string UidProcStats::toString() const {
     StringAppendF(&buffer,
                   "UidProcStats{cpuTimeMillis: %" PRIu64 ", cpuCycles: %" PRIu64
                   ", totalMajorFaults: %" PRIu64 ", totalTasksCount: %d, ioBlockedTasksCount: %d"
-                  ", processStatsByPid: {",
-                  cpuTimeMillis, cpuCycles, totalMajorFaults, totalTasksCount, ioBlockedTasksCount);
+                  ", totalRssKb: %" PRIu64 ", totalPssKb: %" PRIu64 ", processStatsByPid: {",
+                  cpuTimeMillis, cpuCycles, totalMajorFaults, totalTasksCount, ioBlockedTasksCount,
+                  totalRssKb, totalPssKb);
     for (const auto& [pid, processStats] : processStatsByPid) {
         StringAppendF(&buffer, "{pid: %" PRIi32 ", processStats: %s},", pid,
                       processStats.toString().c_str());
     }
-    StringAppendF(&buffer, "}");
+    buffer.erase(buffer.length() - 1);
+    StringAppendF(&buffer, "}}");
     return buffer;
+}
+
+UidProcStatsCollector::UidProcStatsCollector(const std::string& path, bool isSmapsRollupSupported) :
+      mIsMemoryProfilingEnabled(::android::car::feature::car_watchdog_memory_profiling()),
+      mMillisPerClockTick(1000 / sysconf(_SC_CLK_TCK)),
+      mPath(path),
+      mLatestStats({}),
+      mDeltaStats({}) {
+    mIsSmapsRollupSupported = isSmapsRollupSupported;
+    mPageSizeKb =
+            sysconf(_SC_PAGESIZE) > 1024 ? static_cast<size_t>(sysconf(_SC_PAGESIZE) / 1024) : 1;
 }
 
 void UidProcStatsCollector::init() {
@@ -316,30 +366,64 @@ void UidProcStatsCollector::init() {
     // dependent classes would call the constructor before mocking and get killed due to
     // sepolicy violation.
     std::string pidStatPath = StringPrintf((mPath + kStatFileFormat).c_str(), PID_FOR_INIT);
+    bool isPidStatPathAccessible = access(pidStatPath.c_str(), R_OK) == 0;
+
     std::string tidStatPath = StringPrintf((mPath + kTaskDirFormat + kStatFileFormat).c_str(),
                                            PID_FOR_INIT, PID_FOR_INIT);
+    bool isTidStatPathAccessible = access(tidStatPath.c_str(), R_OK) == 0;
+
     std::string pidStatusPath = StringPrintf((mPath + kStatusFileFormat).c_str(), PID_FOR_INIT);
+    bool isPidStatusPathAccessible = access(pidStatusPath.c_str(), R_OK) == 0;
+
     std::string tidTimeInStatePath =
-            StringPrintf((mPath + kTaskDirFormat + kTimeInStateFormat).c_str(), PID_FOR_INIT,
+            StringPrintf((mPath + kTaskDirFormat + kTimeInStateFileFormat).c_str(), PID_FOR_INIT,
                          PID_FOR_INIT);
+    bool isTidTimeInStatePathAccessible = access(tidTimeInStatePath.c_str(), R_OK) == 0;
+
+    bool isStatmPathAccessible;
+    std::string statmPath = StringPrintf((mPath + kStatmFileFormat).c_str(), PID_FOR_INIT);
+    if (mIsMemoryProfilingEnabled) {
+        isStatmPathAccessible = access(statmPath.c_str(), R_OK) == 0;
+    }
 
     Mutex::Autolock lock(mMutex);
-    mEnabled = access(pidStatPath.c_str(), R_OK) == 0 && access(tidStatPath.c_str(), R_OK) == 0 &&
-            access(pidStatusPath.c_str(), R_OK) == 0;
-
-    mTimeInStateEnabled = access(tidTimeInStatePath.c_str(), R_OK) == 0;
-    if (mTimeInStateEnabled) {
-        auto tidCpuCycles = readTimeInStateFile(tidTimeInStatePath);
-        mTimeInStateEnabled = tidCpuCycles.ok() && *tidCpuCycles > 0;
+    mIsEnabled = isPidStatPathAccessible && isTidStatPathAccessible && isPidStatusPathAccessible;
+    if (mIsMemoryProfilingEnabled) {
+        mIsEnabled &= isStatmPathAccessible || mIsSmapsRollupSupported;
     }
-    if (!mTimeInStateEnabled) {
-        ALOGW("Time in state files are not enabled. Missing time in state file at path: %s",
+
+    if (isTidTimeInStatePathAccessible) {
+        auto tidCpuCycles = readTimeInStateFile(tidTimeInStatePath);
+        mIsTimeInStateEnabled = tidCpuCycles.ok() && *tidCpuCycles > 0;
+    }
+
+    if (!mIsTimeInStateEnabled) {
+        ALOGW("Time in state collection is not enabled. Missing time in state file at path: %s",
               tidTimeInStatePath.c_str());
+    }
+
+    if (!mIsEnabled) {
+        std::string inaccessiblePaths;
+        if (!isPidStatPathAccessible) {
+            StringAppendF(&inaccessiblePaths, "%s, ", pidStatPath.c_str());
+        }
+        if (!isTidStatPathAccessible) {
+            StringAppendF(&inaccessiblePaths, "%s, ", pidStatPath.c_str());
+        }
+        if (!isPidStatusPathAccessible) {
+            StringAppendF(&inaccessiblePaths, "%s, ", pidStatusPath.c_str());
+        }
+        if (mIsMemoryProfilingEnabled && !isStatmPathAccessible) {
+            StringAppendF(&inaccessiblePaths, "%s, ", statmPath.c_str());
+        }
+        ALOGE("Disabling UidProcStatsCollector because access to the following files are not "
+              "available: '%s'",
+              inaccessiblePaths.substr(0, inaccessiblePaths.length() - 2).c_str());
     }
 }
 
 Result<void> UidProcStatsCollector::collect() {
-    if (!mEnabled) {
+    if (!mIsEnabled) {
         return Error() << "Can not access PID stat files under " << kProcDirPath;
     }
 
@@ -359,6 +443,8 @@ Result<void> UidProcStatsCollector::collect() {
         UidProcStats deltaUidStats = {
                 .totalTasksCount = currUidStats.totalTasksCount,
                 .ioBlockedTasksCount = currUidStats.ioBlockedTasksCount,
+                .totalRssKb = currUidStats.totalRssKb,
+                .totalPssKb = currUidStats.totalPssKb,
         };
         // Generate the delta stats since the previous collection. Delta stats are generated by
         // calculating the difference between the |prevUidStats| and the |currUidStats|.
@@ -415,18 +501,15 @@ Result<std::unordered_map<uid_t, UidProcStats>> UidProcStatsCollector::readUidPr
         }
         auto result = readProcessStatsLocked(pid);
         if (!result.ok()) {
-            if (result.error().code() != ERR_FILE_OPEN_READ) {
+            if (result.error().code() != READ_WARNING) {
                 return Error() << result.error();
             }
-            /* |ERR_FILE_OPEN_READ| is a soft-error because PID may disappear between scanning and
-             * reading directory/files.
-             */
             if (DEBUG) {
                 ALOGD("%s", result.error().message().c_str());
             }
             continue;
         }
-        uid_t uid = std::get<0>(*result);
+        uid_t uid = std::get<uid_t>(*result);
         ProcessStats processStats = std::get<ProcessStats>(*result);
         if (uidProcStatsByUid.find(uid) == uidProcStatsByUid.end()) {
             uidProcStatsByUid[uid] = {};
@@ -437,6 +520,8 @@ Result<std::unordered_map<uid_t, UidProcStats>> UidProcStatsCollector::readUidPr
         uidProcStats->totalMajorFaults += processStats.totalMajorFaults;
         uidProcStats->totalTasksCount += processStats.totalTasksCount;
         uidProcStats->ioBlockedTasksCount += processStats.ioBlockedTasksCount;
+        uidProcStats->totalRssKb += processStats.rssKb;
+        uidProcStats->totalPssKb += processStats.pssKb;
         uidProcStats->processStatsByPid[pid] = std::move(processStats);
     }
     return uidProcStatsByUid;
@@ -458,7 +543,7 @@ Result<std::tuple<uid_t, ProcessStats>> UidProcStatsCollector::readProcessStatsL
     uid_t uid = -1;
     path = StringPrintf((mPath + kStatusFileFormat).c_str(), pid);
     if (auto result = readPidStatusFile(path); !result.ok()) {
-        if (result.error().code() != ERR_FILE_OPEN_READ) {
+        if (result.error().code() != READ_WARNING) {
             return Error() << "Failed to read pid status for pid " << pid << ": "
                            << result.error().message().c_str();
         }
@@ -477,7 +562,7 @@ Result<std::tuple<uid_t, ProcessStats>> UidProcStatsCollector::readProcessStatsL
     }
 
     if (uid == static_cast<uid_t>(-1) || tgid != pid) {
-        return Error(ERR_FILE_OPEN_READ)
+        return Error(READ_WARNING)
                 << "Skipping PID '" << pid << "' because either Tgid != PID or invalid UID";
     }
 
@@ -486,16 +571,35 @@ Result<std::tuple<uid_t, ProcessStats>> UidProcStatsCollector::readProcessStatsL
             .startTimeMillis = pidStat->startTimeMillis,
             .cpuTimeMillis = pidStat->cpuTimeMillis,
             .totalCpuCycles = 0,
-            .totalTasksCount = 1,
             /* Top-level process stats has the aggregated major page faults count and this should be
              * persistent across thread creation/termination. Thus use the value from this field.
              */
             .totalMajorFaults = pidStat->majorFaults,
+            .totalTasksCount = 1,
             .ioBlockedTasksCount = pidStat->state == "D" ? 1 : 0,
             .cpuCyclesByTid = {},
     };
 
-    // 3. Read per-thread stats.
+    // 3. Read memory usage summary.
+    if (mIsMemoryProfilingEnabled && !readSmapsRollup(pid, &processStats)) {
+        path = StringPrintf((mPath + kStatmFileFormat).c_str(), pid);
+        if (auto result = readPidStatmFile(path); !result.ok()) {
+            if (result.error().code() != READ_WARNING) {
+                return Error() << result.error();
+            }
+            if (DEBUG) {
+                ALOGD("%s", result.error().message().c_str());
+            }
+        } else {
+            processStats.rssKb = std::get<0>(*result) * mPageSizeKb;
+            // RSS pages - Shared pages = USS pages.
+            uint64_t ussKb = processStats.rssKb - (std::get<1>(*result) * mPageSizeKb);
+            // Check for overflow and correct the result.
+            processStats.ussKb = ussKb < processStats.rssKb ? ussKb : 0;
+        }
+    }
+
+    // 4. Read per-thread stats.
     std::string taskDir = StringPrintf((mPath + kTaskDirFormat).c_str(), pid);
     bool didReadMainThread = false;
     auto taskDirp = std::unique_ptr<DIR, int (*)(DIR*)>(opendir(taskDir.c_str()), closedir);
@@ -510,7 +614,7 @@ Result<std::tuple<uid_t, ProcessStats>> UidProcStatsCollector::readProcessStatsL
             path = StringPrintf((taskDir + kStatFileFormat).c_str(), tid);
             auto tidStat = readPidStatFile(path, mMillisPerClockTick);
             if (!tidStat.ok()) {
-                if (tidStat.error().code() != ERR_FILE_OPEN_READ) {
+                if (tidStat.error().code() != READ_WARNING) {
                     return Error() << "Failed to read per-thread stat file: "
                                    << tidStat.error().message().c_str();
                 }
@@ -524,14 +628,15 @@ Result<std::tuple<uid_t, ProcessStats>> UidProcStatsCollector::readProcessStatsL
             processStats.totalTasksCount += 1;
         }
 
-        if (!mTimeInStateEnabled) {
+        if (!mIsTimeInStateEnabled) {
             continue;
         }
 
-        path = StringPrintf((taskDir + kTimeInStateFormat).c_str(), tid);
+        // 5. Read time-in-state stats only when the corresponding file is accessible.
+        path = StringPrintf((taskDir + kTimeInStateFileFormat).c_str(), tid);
         auto tidCpuCycles = readTimeInStateFile(path);
         if (!tidCpuCycles.ok() || *tidCpuCycles <= 0) {
-            if (!tidCpuCycles.ok() && tidCpuCycles.error().code() != ERR_FILE_OPEN_READ) {
+            if (!tidCpuCycles.ok() && tidCpuCycles.error().code() != READ_WARNING) {
                 return Error() << "Failed to read per-thread time_in_state file: "
                                << tidCpuCycles.error().message().c_str();
             }
@@ -557,6 +662,22 @@ Result<PidStat> UidProcStatsCollector::readStatFileForPid(pid_t pid) {
 Result<std::tuple<uid_t, pid_t>> UidProcStatsCollector::readPidStatusFileForPid(pid_t pid) {
     std::string path = StringPrintf(kProcPidStatusFileFormat, pid);
     return readPidStatusFile(path);
+}
+
+bool UidProcStatsCollector::readSmapsRollup(pid_t pid, ProcessStats* processStatsOut) const {
+    if (!mIsSmapsRollupSupported) {
+        return false;
+    }
+    MemUsage memUsage;
+    std::string path = StringPrintf((mPath + kSmapsRollupFileFormat).c_str(), pid);
+    if (!SmapsOrRollupFromFile(path, &memUsage)) {
+        return false;
+    }
+    processStatsOut->pssKb = memUsage.pss;
+    processStatsOut->rssKb = memUsage.rss;
+    processStatsOut->ussKb = memUsage.uss;
+    processStatsOut->swapPssKb = memUsage.swap_pss;
+    return memUsage.pss > 0 && memUsage.rss > 0 && memUsage.uss > 0;
 }
 
 }  // namespace watchdog

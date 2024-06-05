@@ -483,7 +483,13 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
 
     protected void switchUser(@UserIdInt int userId, int timeoutMs,
             @NonNull ResultCallbackImpl<UserSwitchResult> callback) {
-        mCarUserService.switchUser(userId, timeoutMs, callback);
+        mCarUserService.switchUser(userId, timeoutMs, callback, /* ignoreUxRestriction= */ false);
+        waitForHandlerThreadToFinish();
+    }
+
+    protected void switchUserIgnoringUxRestriction(@UserIdInt int userId, int timeoutMs,
+            @NonNull ResultCallbackImpl<UserSwitchResult> callback) {
+        mCarUserService.switchUser(userId, timeoutMs, callback, /* ignoreUxRestriction= */ true);
         waitForHandlerThreadToFinish();
     }
 
@@ -628,7 +634,8 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
                 mInitialUserSetter,
                 mCarUxRestrictionService,
                 mHandler,
-                mCarPackageManagerService);
+                mCarPackageManagerService,
+                mCarOccupantZoneService);
     }
 
     /**
@@ -1025,7 +1032,7 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
             i++;
         }
         Preconditions.checkArgument(foundCurrentUser,
-                "no user with id " + currentUserId + " on " + mExistingUsers);
+                "no user with id %d on %s", currentUserId, mExistingUsers);
         return infos;
     }
 

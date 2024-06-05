@@ -15,11 +15,12 @@
  */
 package com.android.car.bugreport;
 
-import android.annotation.NonNull;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.text.TextUtils;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import com.google.api.client.extensions.android.http.AndroidHttp;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
@@ -38,11 +39,12 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.zip.ZipOutputStream;
 
@@ -123,14 +125,6 @@ class SimpleUploaderAsyncTask extends AsyncTask<Void, Void, Boolean> {
         return gcsBucket;
     }
 
-    private static void deleteFileQuietly(File file) {
-        try {
-            Files.delete(file.toPath());
-        } catch (IOException | SecurityException e) {
-            Log.w(TAG, "Failed to delete " + file + ". Ignoring the error.", e);
-        }
-    }
-
     private void upload(MetaBugReport bugReport) throws IOException {
         GoogleCredential credential = GoogleCredential
                 .fromStream(mContext.getResources().openRawResource(R.raw.gcs_credentials))
@@ -142,27 +136,44 @@ class SimpleUploaderAsyncTask extends AsyncTask<Void, Void, Boolean> {
         Storage storage = new Storage.Builder(httpTransport, jsonFactory, credential)
                 .setApplicationName("Bugreportupload/1.0").build();
 
-        File tmpBugReportFile = zipBugReportFiles(bugReport);
+        File zipFileToUpload = zipBugReportFiles(bugReport);
         String uploadName = bugReport.getBugReportFileName();
-        Log.d(TAG, "Uploading file " + tmpBugReportFile + " as " + uploadName);
-        try (FileInputStream inputStream = new FileInputStream(tmpBugReportFile)) {
+        Log.d(TAG, "Uploading file " + zipFileToUpload + " as " + uploadName);
+        try (FileInputStream inputStream = new FileInputStream(zipFileToUpload)) {
             StorageObject object = uploadSimple(storage, bugReport, uploadName, inputStream);
             Log.v(TAG, "finished uploading object " + object.getName());
             File pendingDir = FileUtils.getPendingDir(mContext);
             // Delete only after successful upload; the files are needed for retry.
             if (!Strings.isNullOrEmpty(bugReport.getAudioFileName())) {
                 Log.v(TAG, "Deleting file " + bugReport.getAudioFileName());
-                deleteFileQuietly(new File(pendingDir, bugReport.getAudioFileName()));
+                FileUtils.deleteFileQuietly(new File(pendingDir, bugReport.getAudioFileName()));
             }
             if (!Strings.isNullOrEmpty(bugReport.getBugReportFileName())) {
                 Log.v(TAG, "Deleting file " + bugReport.getBugReportFileName());
-                deleteFileQuietly(new File(pendingDir, bugReport.getBugReportFileName()));
+                FileUtils.deleteFileQuietly(new File(pendingDir, bugReport.getBugReportFileName()));
             }
         } finally {
-            Log.v(TAG, "Deleting file " + tmpBugReportFile);
             // No need to throw exception even if it fails to delete the file, as the task
             // shouldn't retry the upload again.
-            deleteFileQuietly(tmpBugReportFile);
+            Log.v(TAG, "Deleting file " + zipFileToUpload);
+            FileUtils.deleteFileQuietly(zipFileToUpload);
+
+            // Deletes replaced wav files because of re-recording.
+            String lookupCode = FileUtils.extractLookupCode(bugReport);
+            File pendingDir = FileUtils.getPendingDir(mContext);
+
+            // Do not delete the current bug report and audio files in MetaBugReport because they
+            // should be deleted only when uploading is completed successfully in the try clause
+            // above.
+            FilenameFilter filter = (folder, name) -> name.toLowerCase(Locale.ROOT).contains(
+                    lookupCode.toLowerCase(Locale.ROOT)) && !name.equals(
+                    bugReport.getBugReportFileName()) && !name.equals(bugReport.getAudioFileName());
+
+            File[] filesToDelete = pendingDir.listFiles(filter);
+            for (File file : filesToDelete) {
+                Log.v(TAG, "Deleting file " + file.getName());
+                FileUtils.deleteFileQuietly(file);
+            }
         }
     }
 

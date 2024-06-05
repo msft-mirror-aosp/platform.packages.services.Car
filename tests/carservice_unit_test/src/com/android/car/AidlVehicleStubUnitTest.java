@@ -18,7 +18,7 @@ package com.android.car;
 
 import static android.car.VehiclePropertyIds.HVAC_TEMPERATURE_SET;
 
-import static com.android.car.internal.property.CarPropertyHelper.STATUS_OK;
+import static com.android.car.internal.property.CarPropertyErrorCodes.STATUS_OK;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -70,6 +70,7 @@ import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
 import com.android.car.hal.VehicleHalCallback;
 import com.android.car.internal.LargeParcelable;
+import com.android.car.internal.property.CarPropertyErrorCodes;
 import com.android.compatibility.common.util.PollingCheck;
 
 import org.junit.After;
@@ -95,8 +96,6 @@ public final class AidlVehicleStubUnitTest {
     private static final int TEST_VALUE = 3;
     private static final int TEST_AREA = 4;
     private static final int TEST_STATUS = 5;
-
-    private static final int VHAL_PROP_SUPPORTED_PROPERTY_IDS = 0x11410F48;
 
     private static final HalPropValue HVAC_PROP_VALUE;
     private static final HalPropValue TEST_PROP_VALUE;
@@ -303,7 +302,6 @@ public final class AidlVehicleStubUnitTest {
                     LargeParcelable.reconstructStableAIDLParcelable(
                             requests, /*keepSharedMemory=*/false);
             assertThat(requests.payloads.length).isEqualTo(1);
-            GetValueRequest request = requests.payloads[0];
 
             GetValueResults results = createGetValueResults(StatusCode.OK, requests.payloads);
 
@@ -510,7 +508,7 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
         assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
-                VehicleStub.STATUS_TRY_AGAIN);
+                CarPropertyErrorCodes.STATUS_TRY_AGAIN);
     }
 
     @Test
@@ -784,7 +782,9 @@ public final class AidlVehicleStubUnitTest {
 
         HalPropValue value = HVAC_PROP_VALUE;
 
-        long timeoutUptimeMs = SystemClock.uptimeMillis() + 10;
+        // Requests will timeout after 100ms from this point. Don't make this too short otherwise
+        // the okay result will timeout.
+        long timeoutUptimeMs = SystemClock.uptimeMillis() + 100;
         AsyncGetSetRequest getVehicleStubAsyncRequest1 = new AsyncGetSetRequest(
                 /* serviceRequestId= */ 0, value, timeoutUptimeMs);
         AsyncGetSetRequest getVehicleStubAsyncRequest2 = new AsyncGetSetRequest(
@@ -1126,7 +1126,7 @@ public final class AidlVehicleStubUnitTest {
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
         assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
-                VehicleStub.STATUS_TRY_AGAIN);
+                CarPropertyErrorCodes.STATUS_TRY_AGAIN);
     }
 
     @Test

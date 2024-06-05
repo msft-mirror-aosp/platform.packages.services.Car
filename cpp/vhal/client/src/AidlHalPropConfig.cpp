@@ -25,13 +25,25 @@ namespace vhal {
 
 using ::aidl::android::hardware::automotive::vehicle::VehicleAreaConfig;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfig;
+using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyAccess;
 
 using ::android::hardware::automotive::vehicle::toInt;
 
 AidlHalPropConfig::AidlHalPropConfig(VehiclePropConfig&& config) {
     mPropConfig = std::move(config);
-    for (VehicleAreaConfig& areaConfig : mPropConfig.areaConfigs) {
-        mAreaConfigs.emplace_back(std::move(areaConfig));
+    if (mPropConfig.areaConfigs.size() == 0) {
+        VehicleAreaConfig globalAreaConfig;
+        globalAreaConfig.areaId = 0;
+        mAreaConfigs.push_back(std::make_unique<AidlHalAreaConfig>(std::move(globalAreaConfig),
+                                                                   toInt(mPropConfig.access)));
+    } else {
+        for (VehicleAreaConfig& areaConfig : mPropConfig.areaConfigs) {
+            int32_t access = (areaConfig.access == VehiclePropertyAccess::NONE)
+                    ? toInt(mPropConfig.access)
+                    : toInt(areaConfig.access);
+            mAreaConfigs.push_back(
+                    std::make_unique<AidlHalAreaConfig>(std::move(areaConfig), access));
+        }
     }
 }
 
@@ -45,10 +57,6 @@ int32_t AidlHalPropConfig::getAccess() const {
 
 int32_t AidlHalPropConfig::getChangeMode() const {
     return toInt(mPropConfig.changeMode);
-}
-
-const IHalAreaConfig* AidlHalPropConfig::getAreaConfigs() const {
-    return &(mAreaConfigs[0]);
 }
 
 size_t AidlHalPropConfig::getAreaConfigSize() const {
@@ -71,12 +79,17 @@ float AidlHalPropConfig::getMaxSampleRate() const {
     return mPropConfig.maxSampleRate;
 }
 
-AidlHalAreaConfig::AidlHalAreaConfig(VehicleAreaConfig&& areaConfig) {
+AidlHalAreaConfig::AidlHalAreaConfig(VehicleAreaConfig&& areaConfig, int32_t access) {
     mAreaConfig = std::move(areaConfig);
+    mAccess = access;
 }
 
 int32_t AidlHalAreaConfig::getAreaId() const {
     return mAreaConfig.areaId;
+}
+
+int32_t AidlHalAreaConfig::getAccess() const {
+    return mAccess;
 }
 
 int32_t AidlHalAreaConfig::getMinInt32Value() const {
@@ -101,6 +114,10 @@ float AidlHalAreaConfig::getMinFloatValue() const {
 
 float AidlHalAreaConfig::getMaxFloatValue() const {
     return mAreaConfig.maxFloatValue;
+}
+
+bool AidlHalAreaConfig::isVariableUpdateRateSupported() const {
+    return mAreaConfig.supportVariableUpdateRate;
 }
 
 }  // namespace vhal

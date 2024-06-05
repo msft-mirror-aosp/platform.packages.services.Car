@@ -22,12 +22,11 @@ import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.RequiredFeature;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArrayMap;
-import android.util.Log;
+import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -55,7 +54,6 @@ public final class VmsClientManager extends CarManagerBase {
          *
          * @param client API client
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onClientConnected(@NonNull VmsClient client);
 
         /**
@@ -63,7 +61,6 @@ public final class VmsClientManager extends CarManagerBase {
          *
          * @param availableLayers Current layer availability
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onLayerAvailabilityChanged(@NonNull VmsAvailableLayers availableLayers);
 
         /**
@@ -71,7 +68,6 @@ public final class VmsClientManager extends CarManagerBase {
          *
          * @param subscriptionState Current subscription state
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onSubscriptionStateChanged(@NonNull VmsSubscriptionState subscriptionState);
 
         /**
@@ -81,7 +77,6 @@ public final class VmsClientManager extends CarManagerBase {
          * @param layer       Packet layer
          * @param packet      Packet data
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onPacketReceived(int providerId, @NonNull VmsLayer layer, @NonNull byte[] packet);
     }
 
@@ -108,7 +103,6 @@ public final class VmsClientManager extends CarManagerBase {
      * @param callback Callback to register for new client
      */
     @RequiresPermission(anyOf = {Car.PERMISSION_VMS_PUBLISHER, Car.PERMISSION_VMS_SUBSCRIBER})
-    @AddedInOrBefore(majorVersion = 33)
     public void registerVmsClientCallback(
             @NonNull @CallbackExecutor Executor executor,
             @NonNull VmsClientCallback callback) {
@@ -128,7 +122,7 @@ public final class VmsClientManager extends CarManagerBase {
         VmsClient client;
         synchronized (mLock) {
             if (mClients.containsKey(callback)) {
-                Log.w(TAG, "VmsClient already registered");
+                Slog.w(TAG, "VmsClient already registered");
                 return;
             }
 
@@ -136,14 +130,14 @@ public final class VmsClientManager extends CarManagerBase {
                     /* autoCloseMemory */ true,
                     this::handleRemoteExceptionFromCarService);
             mClients.put(callback, client);
-            if (DBG) Log.d(TAG, "Client count: " + mClients.size());
+            if (DBG) Slog.d(TAG, "Client count: " + mClients.size());
         }
 
         try {
-            if (DBG) Log.d(TAG, "Registering VmsClient");
+            if (DBG) Slog.d(TAG, "Registering VmsClient");
             client.register();
         } catch (RemoteException e) {
-            Log.e(TAG, "Error while registering", e);
+            Slog.e(TAG, "Error while registering", e);
             synchronized (mLock) {
                 mClients.remove(callback);
             }
@@ -151,7 +145,7 @@ public final class VmsClientManager extends CarManagerBase {
             return;
         }
 
-        if (DBG) Log.d(TAG, "Triggering callbacks for new VmsClient");
+        if (DBG) Slog.d(TAG, "Triggering callbacks for new VmsClient");
         executor.execute(() -> {
             callback.onClientConnected(client);
             if (!legacyClient) {
@@ -169,18 +163,17 @@ public final class VmsClientManager extends CarManagerBase {
      * @param callback
      */
     @RequiresPermission(anyOf = {Car.PERMISSION_VMS_PUBLISHER, Car.PERMISSION_VMS_SUBSCRIBER})
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterVmsClientCallback(@NonNull VmsClientCallback callback) {
         VmsClient client;
         synchronized (mLock) {
             client = mClients.remove(callback);
         }
         if (client == null) {
-            Log.w(TAG, "Unregister called for unknown callback");
+            Slog.w(TAG, "Unregister called for unknown callback");
             return;
         }
 
-        if (DBG) Log.d(TAG, "Unregistering VmsClient");
+        if (DBG) Slog.d(TAG, "Unregistering VmsClient");
         try {
             client.unregister();
         } catch (RemoteException e) {
@@ -192,10 +185,9 @@ public final class VmsClientManager extends CarManagerBase {
      * @hide
      */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     protected void onCarDisconnected() {
         synchronized (mLock) {
-            Log.w(TAG, "Car disconnected with " + mClients.size() + " active clients");
+            Slog.w(TAG, "Car disconnected with " + mClients.size() + " active clients");
             mClients.clear();
         }
     }

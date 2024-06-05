@@ -16,9 +16,11 @@
 
 #define LOG_TAG "carwatchdogd"
 #define DEBUG false  // STOPSHIP if true.
+#define ATRACE_TAG ATRACE_TAG_SYSTEM_SERVER
 
 #include "WatchdogProcessService.h"
 
+#include "PackageInfoResolver.h"
 #include "ServiceManager.h"
 #include "UidProcStatsCollector.h"
 #include "WatchdogServiceHelper.h"
@@ -30,15 +32,21 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
+#include <android/util/ProtoOutputStream.h>
 #include <binder/IPCThreadState.h>
 #include <hidl/HidlTransportSupport.h>
 #include <utils/SystemClock.h>
+#include <utils/Trace.h>
 
 #include <IVhalClient.h>
 #include <VehicleHalTypes.h>
 #include <inttypes.h>
 
 #include <utility>
+
+#include <carwatchdog_daemon_dump.proto.h>
+#include <health_check_client_info.proto.h>
+#include <performance_stats.proto.h>
 
 namespace android {
 namespace automotive {
@@ -78,6 +86,7 @@ using ::android::hardware::interfacesEqual;
 using ::android::hardware::Return;
 using ::android::hidl::base::V1_0::IBase;
 using ::android::hidl::manager::V1_0::IServiceManager;
+using ::android::util::ProtoOutputStream;
 using ::ndk::ScopedAIBinder_DeathRecipient;
 using ::ndk::ScopedAStatus;
 using ::ndk::SpAIBinder;
@@ -99,7 +108,7 @@ const int32_t MSG_CACHE_VHAL_PROCESS_IDENTIFIER = MSG_VHAL_HEALTH_CHECK + 1;
 // If {@code ro.carwatchdog.vhal_healthcheck.interval} is set, car watchdog checks VHAL health at
 // the given interval. The lower bound of the interval is 3s.
 constexpr int32_t kDefaultVhalCheckIntervalSec = 3;
-constexpr std::chrono::milliseconds kHealthCheckDelayMs = 1s;
+constexpr std::chrono::milliseconds kHealthCheckDelayMillis = 1s;
 constexpr int32_t kMaxVhalPidCachingAttempts = 2;
 constexpr std::chrono::nanoseconds kDefaultVhalPidCachingRetryDelayNs = 30s;
 constexpr TimeoutLength kCarWatchdogServiceTimeoutDelay = TimeoutLength::TIMEOUT_CRITICAL;
@@ -190,7 +199,33 @@ Result<pid_t> queryHidlServiceManagerForVhalPid(const sp<IServiceManager>& hidlS
     return pid;
 }
 
+int toProtoHealthCheckTimeout(TimeoutLength timeoutLength) {
+    switch (timeoutLength) {
+        case TimeoutLength::TIMEOUT_CRITICAL:
+            return HealthCheckClientInfo::CRITICAL;
+        case TimeoutLength::TIMEOUT_MODERATE:
+            return HealthCheckClientInfo::MODERATE;
+        case TimeoutLength::TIMEOUT_NORMAL:
+            return HealthCheckClientInfo::NORMAL;
+        default:
+            return HealthCheckClientInfo::HEALTH_CHECK_TIMEOUT_UNSPECIFIED;
+    }
+}
+
 }  // namespace
+
+std::string timeoutToString(TimeoutLength timeout) {
+    switch (timeout) {
+        case TimeoutLength::TIMEOUT_CRITICAL:
+            return "TIMEOUT_CRITICAL";
+        case TimeoutLength::TIMEOUT_MODERATE:
+            return "TIMEOUT_MODERATE";
+        case TimeoutLength::TIMEOUT_NORMAL:
+            return "TIMEOUT_NORMAL";
+        default:
+            return "UNKNOWN TIMEOUT";
+    }
+}
 
 WatchdogProcessService::WatchdogProcessService(const sp<Looper>& handlerLooper) :
       WatchdogProcessService(IVhalClient::tryCreate, kDefaultTryGetHidlServiceManager,
@@ -226,7 +261,7 @@ WatchdogProcessService::WatchdogProcessService(
     int32_t vhalHealthCheckIntervalSec =
             GetIntProperty(kPropertyVhalCheckInterval, kDefaultVhalCheckIntervalSec);
     vhalHealthCheckIntervalSec = std::max(vhalHealthCheckIntervalSec, kDefaultVhalCheckIntervalSec);
-    mVhalHealthCheckWindowMs = std::chrono::seconds(vhalHealthCheckIntervalSec);
+    mVhalHealthCheckWindowMillis = std::chrono::seconds(vhalHealthCheckIntervalSec);
 
     int32_t clientHealthCheckIntervalSec =
             GetIntProperty(kPropertyClientCheckInterval, kMissingIntPropertyValue);
@@ -241,16 +276,22 @@ WatchdogProcessService::WatchdogProcessService(
     }
 }
 
+WatchdogProcessService::~WatchdogProcessService() {
+    terminate();
+}
+
 ScopedAStatus WatchdogProcessService::registerClient(
         const std::shared_ptr<ICarWatchdogClient>& client, TimeoutLength timeout) {
+    ATRACE_CALL();
     if (client == nullptr) {
         return ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_ARGUMENT,
                                                            "Must provide non-null client");
     }
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
     uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    userid_t callingUserId = multiuser_get_user_id(callingUid);
 
-    ClientInfo clientInfo(client, callingPid, callingUid, kGetStartTimeForPidFunc(callingPid),
+    ClientInfo clientInfo(client, callingPid, callingUserId, kGetStartTimeForPidFunc(callingPid),
                           *this);
     return toScopedAStatus(registerClient(clientInfo, timeout));
 }
@@ -267,15 +308,17 @@ ScopedAStatus WatchdogProcessService::unregisterClient(
 
 ScopedAStatus WatchdogProcessService::registerCarWatchdogService(
         const SpAIBinder& binder, const sp<WatchdogServiceHelperInterface>& helper) {
+    ATRACE_CALL();
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
     uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    userid_t callingUserId = multiuser_get_user_id(callingUid);
 
     if (helper == nullptr) {
         return ScopedAStatus::
                 fromExceptionCodeWithMessage(EX_ILLEGAL_ARGUMENT,
                                              "Watchdog service helper instance is null");
     }
-    ClientInfo clientInfo(helper, binder, callingPid, callingUid,
+    ClientInfo clientInfo(helper, binder, callingPid, callingUserId,
                           kGetStartTimeForPidFunc(callingPid), *this);
     if (auto result = registerClient(clientInfo, kCarWatchdogServiceTimeoutDelay); !result.ok()) {
         return toScopedAStatus(result);
@@ -302,6 +345,7 @@ void WatchdogProcessService::unregisterCarWatchdogService(const SpAIBinder& bind
 
 ScopedAStatus WatchdogProcessService::registerMonitor(
         const std::shared_ptr<ICarWatchdogMonitor>& monitor) {
+    ATRACE_CALL();
     if (monitor == nullptr) {
         return ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_ARGUMENT,
                                                            "Must provide non-null monitor");
@@ -425,7 +469,8 @@ void WatchdogProcessService::setEnabled(bool isEnabled) {
     }
     if (mNotSupportedVhalProperties.count(VehicleProperty::VHAL_HEARTBEAT) == 0) {
         mVhalHeartBeat.eventTime = uptimeMillis();
-        std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMs + kHealthCheckDelayMs;
+        std::chrono::nanoseconds intervalNs =
+                mVhalHealthCheckWindowMillis + kHealthCheckDelayMillis;
         mHandlerLooper->sendMessageDelayed(intervalNs.count(), mMessageHandler,
                                            Message(MSG_VHAL_HEALTH_CHECK));
     }
@@ -485,9 +530,9 @@ void WatchdogProcessService::onDump(int fd) {
         mNotSupportedVhalProperties.count(VehicleProperty::VHAL_HEARTBEAT) == 0) {
         int64_t systemUptime = uptimeMillis();
         WriteStringToFd(StringPrintf("%sVHAL health check is supported:\n%s\tVHAL health check "
-                                     "interval: %lld ms\n%s\tVHAL heartbeat was updated %" PRIi64
-                                     " ms ago",
-                                     indent, indent, mVhalHealthCheckWindowMs.count(), indent,
+                                     "interval: %lld millis\n%s\tVHAL heartbeat was updated "
+                                     "%" PRIi64 " millis ago",
+                                     indent, indent, mVhalHealthCheckWindowMillis.count(), indent,
                                      systemUptime - mVhalHeartBeat.eventTime),
                         fd);
         std::string vhalType = mVhalService->isAidlVhal() ? "AIDL" : "HIDL";
@@ -518,6 +563,87 @@ void WatchdogProcessService::onDump(int fd) {
     } else {
         WriteStringToFd(StringPrintf("%sVHAL client is not connected", indent), fd);
     }
+}
+
+void WatchdogProcessService::onDumpProto(ProtoOutputStream& outProto) {
+    Mutex::Autolock lock(mMutex);
+
+    uint64_t healthCheckServiceDumpToken =
+            outProto.start(CarWatchdogDaemonDump::HEALTH_CHECK_SERVICE_DUMP);
+
+    outProto.write(HealthCheckServiceDump::IS_ENABLED, mIsEnabled);
+    outProto.write(HealthCheckServiceDump::IS_MONITOR_REGISTERED, mMonitor != nullptr);
+    outProto.write(HealthCheckServiceDump::IS_SYSTEM_SHUT_DOWN_IN_PROGRESS, isSystemShuttingDown());
+
+    for (const auto& userId : mStoppedUserIds) {
+        outProto.write(HealthCheckServiceDump::STOPPED_USERS, static_cast<int>(userId));
+    }
+    auto criticalHealthCheckWindowMillis =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                    getTimeoutDurationNs(TimeoutLength::TIMEOUT_CRITICAL))
+                    .count();
+    auto moderateHealthCheckWindowMillis =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                    getTimeoutDurationNs(TimeoutLength::TIMEOUT_MODERATE))
+                    .count();
+    auto normalHealthCheckWindowMillis =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                    getTimeoutDurationNs(TimeoutLength::TIMEOUT_NORMAL))
+                    .count();
+    outProto.write(HealthCheckServiceDump::CRITICAL_HEALTH_CHECK_WINDOW_MILLIS,
+                   criticalHealthCheckWindowMillis);
+    outProto.write(HealthCheckServiceDump::MODERATE_HEALTH_CHECK_WINDOW_MILLIS,
+                   moderateHealthCheckWindowMillis);
+    outProto.write(HealthCheckServiceDump::NORMAL_HEALTH_CHECK_WINDOW_MILLIS,
+                   normalHealthCheckWindowMillis);
+
+    // Vhal Health Check Info
+    uint64_t vHalHealthCheckInfoToken =
+            outProto.start(HealthCheckServiceDump::VHAL_HEALTH_CHECK_INFO);
+    outProto.write(VhalHealthCheckInfo::IS_ENABLED, mVhalService != nullptr);
+    outProto.write(VhalHealthCheckInfo::HEALTH_CHECK_WINDOW_MILLIS,
+                   mVhalHealthCheckWindowMillis.count());
+    outProto.write(VhalHealthCheckInfo::LAST_HEARTBEAT_UPDATE_AGO_MILLIS,
+                   uptimeMillis() - mVhalHeartBeat.eventTime);
+    int pidCachingProgressState = VhalHealthCheckInfo::FAILURE;
+    if (mVhalProcessIdentifier.has_value()) {
+        pidCachingProgressState = VhalHealthCheckInfo::SUCCESS;
+    } else if (mTotalVhalPidCachingAttempts < kMaxVhalPidCachingAttempts) {
+        pidCachingProgressState = VhalHealthCheckInfo::IN_PROGRESS;
+    }
+    outProto.write(VhalHealthCheckInfo::PID_CACHING_PROGRESS_STATE, pidCachingProgressState);
+    outProto.write(VhalHealthCheckInfo::PID,
+                   mVhalProcessIdentifier.has_value() ? mVhalProcessIdentifier->pid : -1);
+    outProto.write(VhalHealthCheckInfo::START_TIME_MILLIS,
+                   mVhalProcessIdentifier.has_value() ? mVhalProcessIdentifier->startTimeMillis
+                                                      : -1);
+
+    outProto.end(vHalHealthCheckInfoToken);
+
+    // Health Check Client Info
+    for (const auto& timeout : kTimeouts) {
+        const ClientInfoMap& clients = mClientsByTimeout[timeout];
+        for (auto it = clients.begin(); it != clients.end(); it++) {
+            uint64_t healthCheckClientInfoToken =
+                    outProto.start(HealthCheckServiceDump::REGISTERED_CLIENT_INFOS);
+            const ClientInfo clientInfo = it->second;
+            outProto.write(HealthCheckClientInfo::PID, clientInfo.kPid);
+
+            uint64_t userPackageInfoToken =
+                    outProto.start(HealthCheckClientInfo::USER_PACKAGE_INFO);
+            outProto.write(UserPackageInfo::USER_ID, static_cast<int>(clientInfo.kUserId));
+            outProto.write(UserPackageInfo::PACKAGE_NAME, clientInfo.packageName);
+            outProto.end(userPackageInfoToken);
+
+            outProto.write(HealthCheckClientInfo::CLIENT_TYPE, toProtoClientType(clientInfo.kType));
+            outProto.write(HealthCheckClientInfo::START_TIME_MILLIS, clientInfo.kStartTimeMillis);
+            outProto.write(HealthCheckClientInfo::HEALTH_CHECK_TIMEOUT,
+                           toProtoHealthCheckTimeout(timeout));
+            outProto.end(healthCheckClientInfoToken);
+        }
+    }
+
+    outProto.end(healthCheckServiceDumpToken);
 }
 
 void WatchdogProcessService::doHealthCheck(int what) {
@@ -624,6 +750,7 @@ void WatchdogProcessService::terminate() {
 
 Result<void> WatchdogProcessService::registerClient(const ClientInfo& clientInfo,
                                                     TimeoutLength timeout) {
+    ATRACE_CALL();
     uintptr_t cookieId = reinterpret_cast<uintptr_t>(clientInfo.getAIBinder());
     {
         Mutex::Autolock lock(mMutex);
@@ -656,6 +783,33 @@ Result<void> WatchdogProcessService::registerClient(const ClientInfo& clientInfo
         startHealthCheckingLocked(timeout);
         ALOGI("Starting health checking for timeout = %d", timeout);
     }
+    uid_t callingUid = IPCThreadState::self()->getCallingUid();
+
+    // Lazy initialization of PackageInfoResolver.
+    if (mPackageInfoResolver == nullptr) {
+        mPackageInfoResolver = PackageInfoResolver::getInstance();
+    }
+    mPackageInfoResolver
+            ->asyncFetchPackageNamesForUids({callingUid},
+                                            [&](std::unordered_map<uid_t, std::string>
+                                                        packageNames) {
+                                                ClientInfoMap& clients =
+                                                        this->mClientsByTimeout[timeout];
+                                                auto client = clients.find(cookieId);
+                                                // The client could have been unregistered by
+                                                // the time that the packageName is updated.
+                                                if (client != clients.end()) {
+                                                    if (packageNames.find(callingUid) !=
+                                                        packageNames.end()) {
+                                                        client->second.packageName =
+                                                                packageNames[callingUid];
+                                                    } else {
+                                                        ALOGW("Failed to resolve packageName "
+                                                              "for calling uid: %i.",
+                                                              callingUid);
+                                                    }
+                                                }
+                                            });
     return {};
 }
 
@@ -839,6 +993,7 @@ void WatchdogProcessService::handleVhalDeath() {
 }
 
 void WatchdogProcessService::reportWatchdogAliveToVhal() {
+    ATRACE_CALL();
     if (mNotSupportedVhalProperties.count(VehicleProperty::WATCHDOG_ALIVE) > 0) {
         ALOGW("VHAL doesn't support WATCHDOG_ALIVE. Car watchdog will not update WATCHDOG_ALIVE.");
         return;
@@ -862,6 +1017,7 @@ void WatchdogProcessService::reportWatchdogAliveToVhal() {
 
 void WatchdogProcessService::reportTerminatedProcessToVhal(
         const std::vector<ProcessIdentifier>& processesNotResponding) {
+    ATRACE_CALL();
     if (mNotSupportedVhalProperties.count(VehicleProperty::WATCHDOG_TERMINATED_PROCESS) > 0) {
         ALOGW("VHAL doesn't support WATCHDOG_TERMINATED_PROCESS. Terminated process is not "
               "reported to VHAL.");
@@ -890,6 +1046,7 @@ void WatchdogProcessService::reportTerminatedProcessToVhal(
 }
 
 Result<void> WatchdogProcessService::updateVhal(const VehiclePropValue& value) {
+    ATRACE_CALL();
     const auto& connectRet = connectToVhal();
     if (!connectRet.ok()) {
         std::string errorMsg = "VHAL is not connected: " + connectRet.error().message();
@@ -994,7 +1151,7 @@ void WatchdogProcessService::subscribeToVhalHeartBeat() {
               result.error().message().c_str());
         return;
     }
-    std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMs + kHealthCheckDelayMs;
+    std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMillis + kHealthCheckDelayMillis;
     mHandlerLooper->sendMessageDelayed(intervalNs.count(), mMessageHandler,
                                        Message(MSG_VHAL_HEALTH_CHECK));
     // VHAL process identifier is required only when terminating the VHAL process. VHAL process is
@@ -1129,7 +1286,7 @@ void WatchdogProcessService::updateVhalHeartBeat(int64_t value) {
         terminateVhal();
         return;
     }
-    std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMs + kHealthCheckDelayMs;
+    std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMillis + kHealthCheckDelayMillis;
     mHandlerLooper->sendMessageDelayed(intervalNs.count(), mMessageHandler,
                                        Message(MSG_VHAL_HEALTH_CHECK));
 }
@@ -1144,7 +1301,7 @@ void WatchdogProcessService::checkVhalHealth() {
         }
         lastEventTime = mVhalHeartBeat.eventTime;
     }
-    if (currentUptime > lastEventTime + mVhalHealthCheckWindowMs.count()) {
+    if (currentUptime > lastEventTime + mVhalHealthCheckWindowMillis.count()) {
         ALOGW("VHAL failed to update heart beat within timeout. Terminating VHAL...");
         terminateVhal();
     }
@@ -1229,6 +1386,7 @@ ScopedAStatus WatchdogProcessService::ClientInfo::unlinkToDeath(
 }
 
 ScopedAStatus WatchdogProcessService::ClientInfo::checkIfAlive(TimeoutLength timeout) const {
+    ATRACE_NAME(StringPrintf("checkIfAlive - %s", timeoutToString(timeout).c_str()).c_str());
     if (kType == ClientType::Regular) {
         return kClient->checkIfAlive(sessionId, timeout);
     }
@@ -1236,6 +1394,7 @@ ScopedAStatus WatchdogProcessService::ClientInfo::checkIfAlive(TimeoutLength tim
 }
 
 ScopedAStatus WatchdogProcessService::ClientInfo::prepareProcessTermination() const {
+    ATRACE_CALL();
     if (kType == ClientType::Regular) {
         return kClient->prepareProcessTermination();
     }
@@ -1265,6 +1424,17 @@ void WatchdogProcessService::PropertyChangeListener::onPropertySetError(
         }
         ALOGE("failed to set VHAL property, prop ID: %d, status: %d", error.propId,
               static_cast<int32_t>(error.status));
+    }
+}
+
+int WatchdogProcessService::toProtoClientType(ClientType clientType) {
+    switch (clientType) {
+        case ClientType::Regular:
+            return HealthCheckClientInfo::REGULAR;
+        case ClientType::Service:
+            return HealthCheckClientInfo::CAR_WATCHDOG_SERVICE;
+        default:
+            return HealthCheckClientInfo::CLIENT_TYPE_UNSPECIFIED;
     }
 }
 

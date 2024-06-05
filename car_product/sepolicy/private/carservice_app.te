@@ -48,6 +48,8 @@ allow carservice_app {
     overlay_service
     power_service
     procfsinspector_service
+    radio_service
+    registry_service
     sensorservice_service
     statsmanager_service
     surfaceflinger_service
@@ -105,11 +107,17 @@ userdebug_or_eng(`
 # Allow reading vehicle-specific configuration
 get_prop(carservice_app, vehicle_hal_prop)
 
+# Allow writing carwatchdog configuration
+set_prop(carservice_app, carwatchdog_config_prop)
+
 # Allow CarWatchdogService to access car watchdog daemon
 carwatchdog_client_domain(carservice_app)
 
 # Allow CarPowerManagementService to access car power policy daemon
 allow carservice_app carpowerpolicyd_service:service_manager find;
+
+# Allow CarPowerManagementService to serve a callback from car power policy daemon
+carpowerpolicy_callback_domain(carservice_app)
 
 # For ActivityBlockingActiviy
 allow carservice_app gpu_device:chr_file rw_file_perms;
@@ -132,3 +140,6 @@ allow carservice_app hint_service:service_manager find;
 
 # Allow finding AIDL EVS service
 allow carservice_app evsmanagerd_service:service_manager find;
+
+# Allow reading car boot information
+get_prop(carservice_app, car_boot_prop);

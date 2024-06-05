@@ -27,11 +27,18 @@ import android.automotive.watchdog.internal.PackageMetadata;
 import android.automotive.watchdog.internal.PerStateIoOveruseThreshold;
 import android.automotive.watchdog.internal.ResourceOveruseConfiguration;
 import android.automotive.watchdog.internal.ResourceSpecificConfiguration;
+import android.car.builtin.util.Slogf;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.watchdog.PerformanceDump.IoThresholdByAppCategory;
+import com.android.car.watchdog.PerformanceDump.IoThresholdByComponent;
+import com.android.car.watchdog.PerformanceDump.IoThresholdByPackage;
+import com.android.car.watchdog.PerformanceDump.OveruseConfigurationCacheDump;
+import com.android.car.watchdog.PerformanceDump.PackageByAppCategory;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
@@ -46,6 +53,7 @@ import java.util.function.BiFunction;
  * setting the cache.
  */
 public final class OveruseConfigurationCache {
+    private static final String TAG = OveruseConfigurationCache.class.getSimpleName();
     static final PerStateBytes DEFAULT_THRESHOLD =
             constructPerStateBytes(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
 
@@ -121,6 +129,111 @@ public final class OveruseConfigurationCache {
         writer.decreaseIndent();
     }
 
+    /** Dumps the contents of the cache in proto format. */
+    public void dumpProto(ProtoOutputStream proto) {
+        synchronized (mLock) {
+            long overuseConfigurationCacheDumpToken = proto.start(
+                    PerformanceDump.OVERUSE_CONFIGURATION_CACHE_DUMP);
+            for (int i = 0; i < mSafeToKillSystemPackages.size(); i++) {
+                proto.write(OveruseConfigurationCacheDump.SAFE_TO_KILL_SYSTEM_PACKAGES,
+                        mSafeToKillSystemPackages.valueAt(i));
+            }
+            for (int i = 0; i < mSafeToKillVendorPackages.size(); i++) {
+                proto.write(OveruseConfigurationCacheDump.SAFE_TO_KILL_VENDOR_PACKAGES,
+                        mSafeToKillVendorPackages.valueAt(i));
+            }
+            for (int i = 0; i < mVendorPackagePrefixes.size(); i++) {
+                proto.write(OveruseConfigurationCacheDump.VENDOR_PACKAGE_PREFIXES,
+                        mVendorPackagePrefixes.get(i));
+            }
+
+            for (int i = 0; i < mPackagesByAppCategoryType.size(); i++) {
+                long packageByAppCategoryToken = proto.start(
+                        OveruseConfigurationCacheDump.PACKAGES_BY_APP_CATEGORY);
+                proto.write(PackageByAppCategory.APPLICATION_CATEGORY,
+                        toProtoApplicationCategory(mPackagesByAppCategoryType.keyAt(i)));
+                ArraySet<String> packages = mPackagesByAppCategoryType.valueAt(i);
+                for (int j = 0; j < packages.size(); j++) {
+                    proto.write(PackageByAppCategory.PACKAGE_NAME,
+                            packages.valueAt(j));
+                }
+                proto.end(packageByAppCategoryToken);
+            }
+
+            for (int i = 0; i < mGenericIoThresholdsByComponent.size(); i++) {
+                long ioThresholdByComponentToken = proto.start(
+                        OveruseConfigurationCacheDump.GENERIC_IO_THRESHOLDS_BY_COMPONENT);
+                proto.write(IoThresholdByComponent.COMPONENT_TYPE,
+                        toProtoComponentType(mGenericIoThresholdsByComponent.keyAt(i)));
+                long perStateBytesToken = proto.start(IoThresholdByComponent.THRESHOLD);
+                PerStateBytes perStateBytes = mGenericIoThresholdsByComponent.valueAt(i);
+                proto.write(PerformanceDump.PerStateBytes.FOREGROUND_BYTES,
+                        perStateBytes.foregroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.BACKGROUND_BYTES,
+                        perStateBytes.backgroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.GARAGEMODE_BYTES,
+                        perStateBytes.garageModeBytes);
+                proto.end(perStateBytesToken);
+                proto.end(ioThresholdByComponentToken);
+            }
+
+            for (int i = 0; i < mIoThresholdsBySystemPackages.size(); i++) {
+                long ioThresholdByPackageToken = proto.start(
+                        OveruseConfigurationCacheDump.IO_THRESHOLDS_BY_PACKAGE);
+                proto.write(IoThresholdByPackage.PACKAGE_TYPE, PerformanceDump.SYSTEM);
+                long perStateBytesToken = proto.start(IoThresholdByComponent.THRESHOLD);
+                PerStateBytes perStateBytes = mIoThresholdsBySystemPackages.valueAt(i);
+                proto.write(PerformanceDump.PerStateBytes.FOREGROUND_BYTES,
+                        perStateBytes.foregroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.BACKGROUND_BYTES,
+                        perStateBytes.backgroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.GARAGEMODE_BYTES,
+                        perStateBytes.garageModeBytes);
+                proto.end(perStateBytesToken);
+                proto.write(IoThresholdByPackage.PACKAGE_NAME,
+                        mIoThresholdsBySystemPackages.keyAt(i));
+                proto.end(ioThresholdByPackageToken);
+            }
+
+            for (int i = 0; i < mIoThresholdsByVendorPackages.size(); i++) {
+                long ioThresholdByPackageToken = proto.start(
+                        OveruseConfigurationCacheDump.IO_THRESHOLDS_BY_PACKAGE);
+                proto.write(IoThresholdByPackage.PACKAGE_TYPE, PerformanceDump.VENDOR);
+                long perStateBytesToken = proto.start(IoThresholdByComponent.THRESHOLD);
+                PerStateBytes perStateBytes = mIoThresholdsByVendorPackages.valueAt(i);
+                proto.write(PerformanceDump.PerStateBytes.FOREGROUND_BYTES,
+                        perStateBytes.foregroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.BACKGROUND_BYTES,
+                        perStateBytes.backgroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.GARAGEMODE_BYTES,
+                        perStateBytes.garageModeBytes);
+                proto.end(perStateBytesToken);
+                proto.write(IoThresholdByPackage.PACKAGE_NAME,
+                        mIoThresholdsByVendorPackages.keyAt(i));
+                proto.end(ioThresholdByPackageToken);
+            }
+
+            for (int i = 0; i < mIoThresholdsByAppCategoryType.size(); i++) {
+                long ioThresholdsByAppCategoryTypeToken = proto.start(
+                        OveruseConfigurationCacheDump.THRESHOLDS_BY_APP_CATEGORY);
+                proto.write(IoThresholdByAppCategory.APPLICATION_CATEGORY,
+                        toProtoApplicationCategory(mIoThresholdsByAppCategoryType.keyAt(i)));
+                long perStateBytesToken = proto.start(IoThresholdByAppCategory.THRESHOLD);
+                PerStateBytes perStateBytes = mIoThresholdsByAppCategoryType.valueAt(i);
+                proto.write(PerformanceDump.PerStateBytes.FOREGROUND_BYTES,
+                        perStateBytes.foregroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.BACKGROUND_BYTES,
+                        perStateBytes.backgroundBytes);
+                proto.write(PerformanceDump.PerStateBytes.GARAGEMODE_BYTES,
+                        perStateBytes.garageModeBytes);
+                proto.end(perStateBytesToken);
+                proto.end(ioThresholdsByAppCategoryTypeToken);
+            }
+
+            proto.end(overuseConfigurationCacheDumpToken);
+        }
+    }
+
     /** Overwrites the configurations in the cache. */
     public void set(List<ResourceOveruseConfiguration> configs) {
         synchronized (mLock) {
@@ -178,6 +291,10 @@ public final class OveruseConfigurationCache {
                     if (threshold != null) {
                         return copyPerStateBytes(threshold);
                     }
+                    break;
+                default:
+                    // THIRD_PARTY and UNKNOWN components are set with the
+                    // default thresholds.
                     break;
             }
             threshold = fetchAppCategorySpecificThresholdLocked(genericPackageName);
@@ -265,6 +382,9 @@ public final class OveruseConfigurationCache {
                         ioConfig.packageSpecificThresholds, mIoThresholdsByVendorPackages);
                 setIoThresholdsByAppCategoryTypeLocked(ioConfig.categorySpecificThresholds);
                 break;
+            default:
+                Slogf.i(TAG, "Ignoring I/O overuse threshold for invalid component type: %d",
+                        componentType);
         }
     }
 
@@ -282,6 +402,10 @@ public final class OveruseConfigurationCache {
                     mIoThresholdsByAppCategoryType.append(ApplicationCategoryType.MEDIA,
                             threshold.perStateWriteBytes);
                     break;
+                default:
+                    Slogf.i(TAG,
+                            "Ignoring I/O overuse threshold for invalid application category: %s",
+                            threshold.name);
             }
         }
     }
@@ -328,6 +452,32 @@ public final class OveruseConfigurationCache {
                 return "ComponentType.THIRD_PARTY";
             default:
                 return "ComponentType.UNKNOWN";
+        }
+    }
+
+    private static int toProtoApplicationCategory(@ApplicationCategoryType int type) {
+        switch (type) {
+            case ApplicationCategoryType.MAPS:
+                return PerformanceDump.MAPS;
+            case ApplicationCategoryType.MEDIA:
+                return PerformanceDump.MEDIA;
+            case ApplicationCategoryType.OTHERS:
+                return PerformanceDump.OTHERS;
+            default:
+                return PerformanceDump.APPLICATION_CATEGORY_UNSPECIFIED;
+        }
+    }
+
+    private static int toProtoComponentType(@ComponentType int type) {
+        switch (type) {
+            case ComponentType.SYSTEM:
+                return PerformanceDump.SYSTEM;
+            case ComponentType.VENDOR:
+                return PerformanceDump.VENDOR;
+            case ComponentType.THIRD_PARTY:
+                return PerformanceDump.THIRD_PARTY;
+            default:
+                return PerformanceDump.COMPONENT_TYPE_UNSPECIFIED;
         }
     }
 

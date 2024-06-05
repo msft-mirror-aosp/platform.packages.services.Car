@@ -118,6 +118,26 @@
                 android:textSize="30sp"/>
 
             <Button
+                android:id="@+id/incoming_notificationbuilder_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:background="#ffa9a8"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:text="Incoming Call (old api)"
+                android:textSize="30sp"/>
+
+            <Button
+                android:id="@+id/incoming_forIncomingCall_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:background="#ffa9a8"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:text="Incoming Call (CallStyle api)"
+                android:textSize="30sp"/>
+
+            <Button
                 android:id="@+id/category_message_diff_person_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -228,6 +248,23 @@
                 android:layout_margin="10dp"
                 android:text="Custom Group Without Summary of 6 (Should not group)"
                 android:textSize="30sp"/>
+
+            <Button
+                android:id="@+id/actions_with_icons"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:text="Notification with custom action icons"
+                android:textSize="30sp"/>
+
+            <Button
+                android:id="@+id/self_dismiss_notification"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:text="Notification that gets dismissed on click"
+                android:textSize="30sp"/>
+
         </LinearLayout>
 
         <LinearLayout

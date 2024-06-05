@@ -26,12 +26,15 @@ import android.car.CarVersion;
 import android.car.ICar;
 import android.car.PlatformVersion;
 import android.car.hardware.CarSensorManager;
-import android.car.test.ApiCheckerRule.Builder;
+import android.car.test.CarTestManager;
 import android.content.ComponentName;
 import android.content.ServiceConnection;
+import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.LargeTest;
+import androidx.test.filters.SmallTest;
 
 import org.junit.Test;
 
@@ -65,12 +68,6 @@ public final class CarTest extends CarLessApiTestBase {
 
     private void waitForConnection(long timeoutMs) throws InterruptedException {
         mConnectionWait.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
-    }
-
-    // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
-    @Override
-    protected void configApiCheckerRule(Builder builder) {
-        builder.disableAnnotationsCheck();
     }
 
     @Test
@@ -124,28 +121,28 @@ public final class CarTest extends CarLessApiTestBase {
     public void testApiVersion_deprecated() throws Exception {
         int ApiVersionTooHigh = 1000000;
         int MinorApiVersionTooHigh = 1000000;
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT)).isTrue();
+        int apiVersionMajorInt = Car.getCarVersion().getMajorVersion();
+        int apiVersionMinorInt = Car.getCarVersion().getMinorVersion();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt)).isTrue();
         expectThat(Car.isApiVersionAtLeast(ApiVersionTooHigh)).isFalse();
 
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT - 1,
-                MinorApiVersionTooHigh)).isTrue();
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Car.API_VERSION_MINOR_INT)).isTrue();
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                MinorApiVersionTooHigh)).isFalse();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt - 1, MinorApiVersionTooHigh))
+                .isTrue();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt, apiVersionMinorInt)).isTrue();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt, MinorApiVersionTooHigh)).isFalse();
         expectThat(Car.isApiVersionAtLeast(ApiVersionTooHigh, 0)).isFalse();
 
-        expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Build.VERSION.SDK_INT)).isTrue();
-        expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT)).isTrue();
+        expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt, Build.VERSION.SDK_INT))
+                .isTrue();
+        expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt,
+                apiVersionMinorInt, Build.VERSION.SDK_INT)).isTrue();
 
         // SDK + 1 only works for released platform.
         if (CODENAME_REL.equals(Build.VERSION.CODENAME)) {
-            expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+            expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt,
                     Build.VERSION.SDK_INT + 1)).isFalse();
-            expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                    Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT + 1)).isFalse();
+            expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt,
+                    apiVersionMinorInt, Build.VERSION.SDK_INT + 1)).isFalse();
         }
     }
 
@@ -170,45 +167,20 @@ public final class CarTest extends CarLessApiTestBase {
         assertThat(platformVersion.getMinorVersion()).isAtLeast(0);
     }
 
-    /**
-     * Tests if {@link Car#getPlatformVersion()} is returning the right version defined
-     * in {@link PlatformVersion.VERSION_CODES}. All {@code isAtLeast} checks are there to
-     * identify the right {@link PlatformVersion.VERSION_CODES} to compare.
-     */
+    // This test need to wait for car service release and initialization.
     @Test
-    public void testPlatformVersionMatch() throws Exception {
-        PlatformVersion platformVersion = Car.getPlatformVersion();
+    @LargeTest
+    public void testCarServiceReleaseReInit() throws Exception {
+        Car car = Car.createCar(mContext);
 
-        assertWithMessage("platformVersion").that(
-                platformVersion.isAtLeast(PlatformVersion.VERSION_CODES.TIRAMISU_0)).isTrue();
+        CarTestManager carTestManager = (CarTestManager) (car.getCarManager(Car.TEST_SERVICE));
 
-        if (!platformVersion.isAtLeast(PlatformVersion.VERSION_CODES.TIRAMISU_1)) {
-            assertWithMessage("platformVersion").that(platformVersion).isEqualTo(
-                    PlatformVersion.VERSION_CODES.TIRAMISU_0);
-            return;
-        }
+        assertWithMessage("Could not get service %s", Car.TEST_SERVICE).that(carTestManager)
+                .isNotNull();
 
-        if (!platformVersion.isAtLeast(PlatformVersion.VERSION_CODES.TIRAMISU_2)) {
-            assertWithMessage("platformVersion").that(platformVersion).isEqualTo(
-                    PlatformVersion.VERSION_CODES.TIRAMISU_1);
-            return;
-        }
-
-        if (!platformVersion.isAtLeast(PlatformVersion.VERSION_CODES.TIRAMISU_3)) {
-            assertWithMessage("platformVersion").that(platformVersion).isEqualTo(
-                    PlatformVersion.VERSION_CODES.TIRAMISU_2);
-            return;
-        }
-
-        // If it has passed all previous version checks but it not the next version, assert
-        // the version before the next one.
-        if (!platformVersion.isAtLeast(PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0)) {
-            assertWithMessage("platformVersion").that(platformVersion).isEqualTo(
-                    PlatformVersion.VERSION_CODES.TIRAMISU_3);
-            return;
-        }
-        // should be U_0. This part should be updated when we have a newer version.
-        assertWithMessage("platformVersion").that(platformVersion).isEqualTo(
-                PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
+        Binder token = new Binder("testCarServiceReleaseReInit");
+        // Releaseing car service and re-initialize must not crash car service.
+        carTestManager.stopCarService(token);
+        carTestManager.startCarService(token);
     }
 }

@@ -23,7 +23,6 @@ import android.annotation.SystemApi;
 import android.app.Service;
 import android.car.Car;
 import android.car.CarLibLog;
-import android.car.annotation.AddedInOrBefore;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -33,6 +32,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Slog;
 import android.view.KeyEvent;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -65,11 +65,9 @@ import java.lang.ref.WeakReference;
 @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
 public abstract class CarInputHandlingService extends Service {
     private static final String TAG = CarLibLog.TAG_INPUT;
-    private static final boolean DBG = false;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
-    @AddedInOrBefore(majorVersion = 33)
     public static final String INPUT_CALLBACK_BINDER_KEY = "callback_binder";
-    @AddedInOrBefore(majorVersion = 33)
     public static final int INPUT_CALLBACK_BINDER_CODE = IBinder.FIRST_CALL_TRANSACTION;
 
     private final InputFilter[] mHandledKeys;
@@ -87,10 +85,9 @@ public abstract class CarInputHandlingService extends Service {
 
     @Override
     @CallSuper
-    @AddedInOrBefore(majorVersion = 33)
     public IBinder onBind(Intent intent) {
         if (DBG) {
-            Log.d(TAG, "onBind, intent: " + intent);
+            Slog.d(TAG, "onBind, intent: " + intent);
         }
 
         doCallbackIfPossible(intent.getExtras());
@@ -104,12 +101,12 @@ public abstract class CarInputHandlingService extends Service {
 
     private void doCallbackIfPossible(Bundle extras) {
         if (extras == null) {
-            Log.i(TAG, "doCallbackIfPossible: extras are null");
+            Slog.i(TAG, "doCallbackIfPossible: extras are null");
             return;
         }
         IBinder callbackBinder = extras.getBinder(INPUT_CALLBACK_BINDER_KEY);
         if (callbackBinder == null) {
-            Log.i(TAG, "doCallbackIfPossible: callback IBinder is null");
+            Slog.i(TAG, "doCallbackIfPossible: callback IBinder is null");
             return;
         }
         Parcel dataIn = Parcel.obtain();
@@ -127,11 +124,9 @@ public abstract class CarInputHandlingService extends Service {
      * Called when key event has been received.
      */
     @MainThread
-    @AddedInOrBefore(majorVersion = 33)
     protected abstract void onKeyEvent(KeyEvent keyEvent, int targetDisplay);
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
         writer.println("**" + getClass().getSimpleName() + "**");
         writer.println("input binder: " + mInputBinder);
@@ -181,9 +176,7 @@ public abstract class CarInputHandlingService extends Service {
      * Filter for input events that are handled by custom service.
      */
     public static final class InputFilter implements Parcelable {
-        @AddedInOrBefore(majorVersion = 33)
         public final int mKeyCode;
-        @AddedInOrBefore(majorVersion = 33)
         public final int mTargetDisplay;
 
         public InputFilter(int keyCode, int targetDisplay) {
@@ -198,19 +191,16 @@ public abstract class CarInputHandlingService extends Service {
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public int describeContents() {
             return 0;
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeInt(mKeyCode);
             dest.writeInt(mTargetDisplay);
         }
 
-        @AddedInOrBefore(majorVersion = 33)
         public static final Parcelable.Creator CREATOR = new Parcelable.Creator() {
             public InputFilter createFromParcel(Parcel in) {
                 return new InputFilter(in);

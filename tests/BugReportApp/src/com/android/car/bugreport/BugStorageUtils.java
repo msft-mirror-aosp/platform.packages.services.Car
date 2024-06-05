@@ -27,14 +27,15 @@ import static com.android.car.bugreport.BugStorageProvider.COLUMN_TTL_POINTS;
 import static com.android.car.bugreport.BugStorageProvider.COLUMN_TYPE;
 import static com.android.car.bugreport.BugStorageProvider.COLUMN_USERNAME;
 
-import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.google.api.client.auth.oauth2.TokenResponseException;
 import com.google.common.base.Preconditions;
@@ -120,7 +121,7 @@ final class BugStorageUtils {
             throws FileNotFoundException {
         ContentResolver r = context.getContentResolver();
         return r.openOutputStream(BugStorageProvider.buildUriWithSegment(
-                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_BUGREPORT_FILE));
+                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_BUGREPORT_FILE), "wt");
     }
 
     /** Returns an output stream to write the audio message file to. */
@@ -129,7 +130,7 @@ final class BugStorageUtils {
             throws FileNotFoundException {
         ContentResolver r = context.getContentResolver();
         return r.openOutputStream(BugStorageProvider.buildUriWithSegment(
-                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_AUDIO_FILE));
+                metaBugReport.getId(), BugStorageProvider.URL_SEGMENT_OPEN_AUDIO_FILE), "wt");
     }
 
     /**

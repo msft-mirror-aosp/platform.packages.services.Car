@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -22,8 +23,9 @@ android_test {
     name: "AndroidCarApiTest",
 
     srcs: [
-            "src/**/*.java",
-            "src/**/*.aidl",
+        "src/**/*.java",
+        "src/**/*.aidl",
+        ":VhalTestVendorProperties",
     ],
 
     platform_apis: true,
@@ -49,11 +51,12 @@ android_test {
         "android.car.test.utils",
         "com.android.car.test.lib",
         "androidx.test.runner",
-// TODO(b/236153976): comment back once guava is supported
-//      "guava-android-testlib",
+        // TODO(b/236153976): comment back once guava is supported
+        //      "guava-android-testlib",
         "compatibility-device-util-axt",
         "platform-test-annotations",
-        "truth-prebuilt",
+        "truth",
+        "Harrier",
     ],
 
     libs: [
@@ -70,8 +73,7 @@ android_test {
     ],
 
     test_suites: [
-        "general-tests",
+        "device-tests",
         "automotive-tests",
-        "automotive-general-tests",
     ],
 }

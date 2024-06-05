@@ -21,12 +21,10 @@ import static android.view.Display.DEFAULT_DISPLAY;
 
 import static com.android.car.CarServiceUtils.getContentResolverForUser;
 import static com.android.car.CarServiceUtils.isEventOfType;
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 import static com.android.car.util.BrightnessUtils.GAMMA_SPACE_MAX;
 import static com.android.car.util.BrightnessUtils.convertGammaToLinear;
 import static com.android.car.util.BrightnessUtils.convertLinearToGamma;
 
-import android.annotation.RequiresApi;
 import android.car.builtin.display.DisplayManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.power.PowerManagerHelper;
@@ -37,7 +35,6 @@ import android.content.Context;
 import android.database.ContentObserver;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManager.DisplayListener;
-import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -176,6 +173,7 @@ public interface DisplayInterface {
         private final DisplayManager.DisplayListener mDisplayListener = new DisplayListener() {
             @Override
             public void onDisplayAdded(int displayId) {
+                Slogf.i(TAG, "onDisplayAdded: displayId=%d", displayId);
                 synchronized (mLock) {
                     mDisplayStateSet.put(displayId, isDisplayOn(displayId));
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
@@ -184,6 +182,7 @@ public interface DisplayInterface {
 
             @Override
             public void onDisplayRemoved(int displayId) {
+                Slogf.i(TAG, "onDisplayRemoved: displayId=%d", displayId);
                 synchronized (mLock) {
                     mDisplayStateSet.delete(displayId);
                     mDisplayBrightnessSet.delete(displayId);
@@ -192,6 +191,7 @@ public interface DisplayInterface {
 
             @Override
             public void onDisplayChanged(int displayId) {
+                Slogf.i(TAG, "onDisplayChanged: displayId=%d", displayId);
                 handleDisplayChanged(displayId);
             }
         };
@@ -239,15 +239,13 @@ public interface DisplayInterface {
                         + "no CarPowerManagementService");
                 return;
             }
-            if (isPlatformVersionAtLeastU()
-                    && UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
                 refreshDisplayBrightnessFromDisplay(carPowerManagementService, displayId);
             } else {
                 refreshDisplayBrigtnessFromSetting(carPowerManagementService);
             }
         }
 
-        @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
         private void refreshDisplayBrightnessFromDisplay(
                 CarPowerManagementService carPowerManagementService, int displayId) {
             int linear = BrightnessUtils.brightnessFloatToInt(
@@ -316,8 +314,7 @@ public interface DisplayInterface {
             }
             int gamma = (percentBright * GAMMA_SPACE_MAX + 50) / 100;
             int linear = convertGammaToLinear(gamma, mMinimumBacklight, mMaximumBacklight);
-            if (isPlatformVersionAtLeastU()
-                    && UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
                 DisplayManagerHelper.setBrightness(mContext, displayId,
                         BrightnessUtils.brightnessIntToFloat(linear));
             } else {
@@ -339,6 +336,7 @@ public interface DisplayInterface {
 
         @Override
         public void startDisplayStateMonitoring() {
+            Slogf.i(TAG, "Starting to monitor display state change");
             CarPowerManagementService carPowerManagementService;
             CarUserService carUserService;
             synchronized (mLock) {
@@ -350,8 +348,7 @@ public interface DisplayInterface {
                             .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING).build();
             carUserService.addUserLifecycleListener(userSwitchingEventFilter,
                     mUserLifecycleListener);
-            if (isPlatformVersionAtLeastU()
-                    && UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
                 DisplayManagerHelper.registerDisplayListener(mContext, mDisplayListener,
                         carPowerManagementService.getHandler(),
                         DisplayManagerHelper.EVENT_FLAG_DISPLAY_ADDED
@@ -378,8 +375,7 @@ public interface DisplayInterface {
                 carUserService = mCarUserService;
             }
             carUserService.removeUserLifecycleListener(mUserLifecycleListener);
-            if (isPlatformVersionAtLeastU()
-                    && UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
                 mDisplayManager.unregisterDisplayListener(mDisplayListener);
             } else {
                 getContentResolverForUser(mContext, UserHandle.ALL.getIdentifier())
@@ -406,12 +402,7 @@ public interface DisplayInterface {
             } else {
                 mWakeLockInterface.switchToPartialWakeLock(displayId);
                 Slogf.i(CarLog.TAG_POWER, "off display %d", displayId);
-                if (isPlatformVersionAtLeastU()) {
-                    PowerManagerHelper.goToSleep(mContext, displayId, SystemClock.uptimeMillis());
-                } else {
-                    PowerManagerHelper.setDisplayState(mContext, /* on= */ false,
-                            SystemClock.uptimeMillis());
-                }
+                PowerManagerHelper.goToSleep(mContext, displayId, SystemClock.uptimeMillis());
             }
             if (carPowerManagementService != null) {
                 carPowerManagementService.handleDisplayChanged(displayId, on);
@@ -429,7 +420,12 @@ public interface DisplayInterface {
             // setDisplayState has a binder call to system_server. Should not wrap setDisplayState
             // with a lock.
             for (int i = 0; i < displayIds.size(); i++) {
-                setDisplayState(displayIds.get(i), on);
+                int displayId = displayIds.get(i);
+                try {
+                    setDisplayState(displayId, on);
+                } catch (IllegalArgumentException e) {
+                    Slogf.w(TAG, "Cannot set display(%d) state(%b)", displayId, on);
+                }
             }
         }
 

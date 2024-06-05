@@ -43,25 +43,29 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 import android.annotation.NonNull;
+import android.automotive.powerpolicy.internal.ICarPowerPolicyDelegate;
 import android.car.Car;
+import android.car.feature.Flags;
 import android.car.hardware.power.CarPowerManager;
 import android.car.hardware.power.CarPowerPolicy;
 import android.car.hardware.power.CarPowerPolicyFilter;
 import android.car.hardware.power.PowerComponent;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.mocks.JavaMockitoHelper;
+import android.car.testapi.FakeRefactoredCarPowerPolicyDaemon;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemNotification;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
 import android.hardware.automotive.vehicle.VehicleApPowerStateShutdownParam;
+import android.os.IInterface;
 import android.os.UserManager;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.util.AtomicFile;
 import android.util.Log;
 import android.util.SparseBooleanArray;
 
+import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.car.R;
@@ -73,17 +77,19 @@ import com.android.car.power.PowerComponentHandler;
 import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
-import com.android.car.test.utils.TemporaryFile;
 import com.android.car.user.CarUserService;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.internal.annotations.GuardedBy;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.mockito.Mock;
 import org.mockito.Spy;
 
+import java.io.File;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,15 +106,22 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     // A shorter value for use when the test is expected to time out
     private static final long WAIT_WHEN_TIMEOUT_EXPECTED_MS = 100;
 
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
     private final MockDisplayInterface mDisplayInterface = new MockDisplayInterface();
     private final MockSystemStateInterface mSystemStateInterface = new MockSystemStateInterface();
+    private final ICarPowerPolicyDelegate mRefactoredPowerPolicyDaemon =
+            new FakeRefactoredCarPowerPolicyDaemon(
+                    /* fileKernelSilentMode= */ new File("KERNEL_SILENT_FILE"),
+                    /* customComponents= */ null);
 
     @Spy
     private final Context mContext =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
     private final Executor mExecutor = mContext.getMainExecutor();
-    private final TemporaryFile mComponentStateFile;
 
+    private File mComponentStateFile;
     private MockedPowerHalService mPowerHal;
     private SystemInterface mSystemInterface;
     private CarPowerManagementService mService;
@@ -125,16 +138,17 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     private UserManager mUserManager;
     @Mock
     private CarUserService mCarUserService;
+    //TODO(286303350): replace this with refactored power policy daemon once refactor is complete
     @Mock
     private ICarPowerPolicySystemNotification mPowerPolicyDaemon;
 
     public CarPowerManagerUnitTest() throws Exception {
         super(CarPowerManager.TAG);
-        mComponentStateFile = new TemporaryFile("COMPONENT_STATE_FILE");
     }
 
     @Before
     public void setUp() throws Exception {
+        mComponentStateFile = temporaryFolder.newFile("COMPONENT_STATE_FILE");
         mPowerHal = new MockedPowerHalService(/*isPowerStateSupported=*/true,
                 /*isDeepSleepAllowed=*/true,
                 /*isHibernationAllowed=*/true,
@@ -447,12 +461,22 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         doReturn(false).when(mResources).getBoolean(
                 R.bool.config_enablePassengerDisplayPowerSaving);
         mPowerComponentHandler = new PowerComponentHandler(mContext, mSystemInterface,
-                new AtomicFile(mComponentStateFile.getFile()));
-        mService = new CarPowerManagementService(mContext, mResources, mPowerHal, mSystemInterface,
-                mUserManager, mCarUserService, mPowerPolicyDaemon, mPowerComponentHandler,
-                /* silentModeHwStatePath= */ null, /* silentModeKernelStatePath= */ null,
-                /* bootReason= */ null);
+                new AtomicFile(mComponentStateFile));
+        IInterface powerPolicyDaemon;
+        if (Flags.carPowerPolicyRefactoring()) {
+            powerPolicyDaemon = mRefactoredPowerPolicyDaemon;
+        } else {
+            powerPolicyDaemon = mPowerPolicyDaemon;
+        }
+        mService = new CarPowerManagementService.Builder().setContext(mContext)
+                .setResources(mResources).setPowerHalService(mPowerHal)
+                .setSystemInterface(mSystemInterface).setUserManager(mUserManager)
+                .setCarUserService(mCarUserService).setPowerPolicyDaemon(powerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).build();
         mService.init();
+        if (Flags.carPowerPolicyRefactoring()) {
+            mService.initializePowerPolicy();
+        }
         mService.setShutdownTimersForTest(0, 0);
         assertStateReceived(PowerHalService.SET_WAIT_FOR_VHAL, 0);
     }
@@ -674,16 +698,9 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         private final Semaphore mSleepWait = new Semaphore(0);
         private final Semaphore mSleepExitWait = new Semaphore(0);
 
-        @GuardedBy("sLock")
-        private boolean mWakeupCausedByTimer = false;
-
         @Override
         public void shutdown() {
             mShutdownWait.release();
-        }
-
-        public void waitForShutdown(long timeoutMs) throws Exception {
-            JavaMockitoHelper.await(mShutdownWait, timeoutMs);
         }
 
         @Override
@@ -705,24 +722,14 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
             return true;
         }
 
-        public void waitForSleepEntryAndWakeup(long timeoutMs) throws Exception {
-            JavaMockitoHelper.await(mSleepWait, timeoutMs);
-            mSleepExitWait.release();
-        }
-
         @Override
-        public void scheduleActionForBootCompleted(Runnable action, Duration delay) {}
+        public void scheduleActionForBootCompleted(Runnable action, Duration delay,
+                Duration delayRange) {}
 
         @Override
         public boolean isWakeupCausedByTimer() {
-            Log.i(TAG, "isWakeupCausedByTimer:" + mWakeupCausedByTimer);
-            return mWakeupCausedByTimer;
-        }
-
-        public void setWakeupCausedByTimer(boolean set) {
-            synchronized (sLock) {
-                mWakeupCausedByTimer = set;
-            }
+            Log.i(TAG, "isWakeupCausedByTimer: false");
+            return false;
         }
 
         @Override
@@ -731,7 +738,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         }
     }
 
-    private final class MockedPowerPolicyListener implements
+    private static final class MockedPowerPolicyListener implements
             CarPowerManager.CarPowerPolicyListener {
         private static final int MAX_LISTENER_WAIT_TIME_SEC = 1;
 

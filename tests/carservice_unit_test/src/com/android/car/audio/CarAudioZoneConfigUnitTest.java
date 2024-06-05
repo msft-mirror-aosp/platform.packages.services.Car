@@ -16,32 +16,43 @@
 
 package com.android.car.audio;
 
+import static android.car.feature.Flags.FLAG_CAR_AUDIO_DYNAMIC_DEVICES;
+import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_ATTENUATION_CHANGED;
 import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_MUTE_CHANGED;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE;
 import static android.media.AudioAttributes.USAGE_ASSISTANT;
 import static android.media.AudioAttributes.USAGE_MEDIA;
-
+import static android.media.FadeManagerConfiguration.FADE_STATE_DISABLED;
+import static android.media.audiopolicy.Flags.FLAG_ENABLE_FADE_MANAGER_CONFIGURATION;
 
 import static com.android.car.audio.CarAudioContext.AudioContext;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.car.media.CarAudioManager;
+import static java.util.Collections.EMPTY_LIST;
+
 import android.car.media.CarAudioZoneConfigInfo;
 import android.car.media.CarVolumeGroupEvent;
 import android.car.media.CarVolumeGroupInfo;
+import android.car.oem.CarAudioFadeConfiguration;
 import android.car.test.AbstractExpectableTestCase;
 import android.hardware.automotive.audiocontrol.AudioGainConfigInfo;
 import android.hardware.automotive.audiocontrol.Reasons;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.FadeManagerConfiguration;
+import android.platform.test.flag.junit.SetFlagsRule;
+import android.util.ArrayMap;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -49,6 +60,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.List;
+import java.util.Map;
 
 @RunWith(MockitoJUnitRunner.class)
 public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase {
@@ -64,8 +76,8 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     private static final String TEST_VOICE_GROUP_NAME = "Voice group name";
     private static final int TEST_ZONE_ID = 0;
     private static final int TEST_MUSIC_GROUP_ID = 0;
-    private static final int TEST_NAV_GROUP_ID = 20;
-    private static final int TEST_VOICE_GROUP_ID = 30;
+    private static final int TEST_NAV_GROUP_ID = 1;
+    private static final int TEST_VOICE_GROUP_ID = 2;
 
     private static final AudioAttributes TEST_MEDIA_ATTRIBUTE =
             CarAudioContext.getAudioAttributeFromUsage(USAGE_MEDIA);
@@ -86,9 +98,15 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     @AudioContext
     private static final int TEST_NAVIGATION_CONTEXT =
             TEST_CAR_AUDIO_CONTEXT.getContextForAudioAttribute(TEST_NAVIGATION_ATTRIBUTE);
+    private static final FadeManagerConfiguration TEST_FADE_MANAGER_CONFIG_DISABLED =
+            new FadeManagerConfiguration.Builder().setFadeState(FADE_STATE_DISABLED).build();
+    private static final FadeManagerConfiguration TEST_FADE_MANAGER_CONFIG_ENABLED =
+            new FadeManagerConfiguration.Builder().build();
 
     @Mock
     private CarVolumeGroup mMockMusicGroup;
+    @Mock
+    private CarVolumeGroup mMockInactiveMusicGroup;
     @Mock
     private CarVolumeGroup mMockNavGroup;
     @Mock
@@ -96,28 +114,41 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
 
     private CarAudioZoneConfig.Builder mTestAudioZoneConfigBuilder;
 
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
+
     @Before
     public void setUp() {
         mTestAudioZoneConfigBuilder = new CarAudioZoneConfig.Builder(TEST_ZONE_CONFIG_NAME,
-                CarAudioManager.PRIMARY_AUDIO_ZONE, TEST_ZONE_CONFIG_ID, /* isDefault= */ true);
+                PRIMARY_AUDIO_ZONE, TEST_ZONE_CONFIG_ID, /* isDefault= */ true);
 
         mMockMusicGroup = new VolumeGroupBuilder().setName(TEST_MUSIC_GROUP_NAME)
                 .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS)
-                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_MUSIC_GROUP_ID).build();
+                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_MUSIC_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_MEDIA, MUSIC_ADDRESS).build();
+
+        mMockInactiveMusicGroup = new VolumeGroupBuilder().setName(TEST_MUSIC_GROUP_NAME)
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS)
+                .setZoneId(TEST_ZONE_ID).setIsActive(false).setGroupId(TEST_MUSIC_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_MEDIA, MUSIC_ADDRESS).build();
 
         mMockNavGroup = new VolumeGroupBuilder().setName(TEST_NAV_GROUP_NAME)
                 .addDeviceAddressAndContexts(TEST_NAVIGATION_CONTEXT, NAV_ADDRESS)
-                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_NAV_GROUP_ID).build();
+                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_NAV_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE, NAV_ADDRESS)
+                .build();
 
         mMockVoiceGroup = new VolumeGroupBuilder().setName(TEST_VOICE_GROUP_NAME)
                 .addDeviceAddressAndContexts(TEST_ASSISTANT_CONTEXT, VOICE_ADDRESS)
-                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_VOICE_GROUP_ID).build();
+                .setZoneId(TEST_ZONE_ID).setGroupId(TEST_VOICE_GROUP_ID)
+                .addDeviceAddressAndUsages(USAGE_ASSISTANT, VOICE_ADDRESS)
+                .build();
     }
 
     @Test
     public void getZoneId_fromBuilder() {
         expectWithMessage("Builder zone id").that(mTestAudioZoneConfigBuilder.getZoneId())
-                .isEqualTo(CarAudioManager.PRIMARY_AUDIO_ZONE);
+                .isEqualTo(PRIMARY_AUDIO_ZONE);
     }
 
     @Test
@@ -131,7 +162,7 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
         CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.build();
 
         expectWithMessage("Zone id")
-                .that(zoneConfig.getZoneId()).isEqualTo(CarAudioManager.PRIMARY_AUDIO_ZONE);
+                .that(zoneConfig.getZoneId()).isEqualTo(PRIMARY_AUDIO_ZONE);
     }
 
     @Test
@@ -201,10 +232,29 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     @Test
     public void isDefault_forNonDefaultConfig_returnsFalse() {
         CarAudioZoneConfig zoneConfig = new CarAudioZoneConfig.Builder(TEST_ZONE_CONFIG_NAME,
-                CarAudioManager.PRIMARY_AUDIO_ZONE, TEST_ZONE_CONFIG_ID, /* isDefault= */ false)
+                PRIMARY_AUDIO_ZONE, TEST_ZONE_CONFIG_ID, /* isDefault= */ false)
                 .build();
 
         expectWithMessage("Non-default zone configuration").that(zoneConfig.isDefault()).isFalse();
+    }
+
+    @Test
+    public void isActive_returnsTrue() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).addVolumeGroup(mMockVoiceGroup).build();
+
+        expectWithMessage("Zone configuration active status")
+                .that(zoneConfig.isActive()).isTrue();
+    }
+
+    @Test
+    public void isActive_withInactiveVolumeGroup() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .addVolumeGroup(mMockInactiveMusicGroup).addVolumeGroup(mMockNavGroup)
+                .addVolumeGroup(mMockVoiceGroup).build();
+
+        expectWithMessage("Zone configuration active status with inactive volume group")
+                .that(zoneConfig.isActive()).isFalse();
     }
 
     @Test
@@ -255,6 +305,30 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
+    public void updateVolumeDevices_withUseCoreAudioRoutingEnabled() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+        boolean useCoreAudioRouting = true;
+
+        zoneConfig.updateVolumeDevices(useCoreAudioRouting);
+
+        verify(mMockMusicGroup).updateDevices(useCoreAudioRouting);
+        verify(mMockNavGroup).updateDevices(useCoreAudioRouting);
+    }
+
+    @Test
+    public void updateVolumeDevices_withUseCoreAudioRoutingDisabled() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+        boolean useCoreAudioRouting = false;
+
+        zoneConfig.updateVolumeDevices(useCoreAudioRouting);
+
+        verify(mMockMusicGroup).updateDevices(useCoreAudioRouting);
+        verify(mMockNavGroup).updateDevices(useCoreAudioRouting);
+    }
+
+    @Test
     public void validateCanUseDynamicMixRouting_addressSharedAmongGroups_forbidUseDynamicRouting() {
         CarAudioDeviceInfo musicCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
         CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
@@ -266,13 +340,56 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
         CarAudioZoneConfig zoneConfig = buildZoneConfig(
                 List.of(mockMusicGroup, mockNavGroupRoutingOnMusic));
 
-        zoneConfig.validateCanUseDynamicMixRouting(/* useCoreAudioRouting= */ true);
-
-        verify(musicCarAudioDeviceInfo).resetCanBeRoutedWithDynamicPolicyMix();
+        expectWithMessage("Zone configuration does not validate when not using core routing "
+                + "and usage is shared among context")
+                .that(zoneConfig.validateCanUseDynamicMixRouting(/* useCoreAudioRouting= */ false))
+                .isFalse();
     }
 
     @Test
-    public void validateZoneWhenUsageSharedAmongContext_usingCoreRouting_forbidUseDynamicRouting() {
+    public void validateCanUseDynamicMixRouting_whenUseCoreRouting_disablesDynamicRouting() {
+        CarAudioDeviceInfo musicCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
+        CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS)
+                .addCarAudioDeviceInfoMock(musicCarAudioDeviceInfo).build();
+        CarVolumeGroup mockNavGroupRoutingOnMusic = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_NAVIGATION_CONTEXT, MUSIC_ADDRESS)
+                .addCarAudioDeviceInfoMock(musicCarAudioDeviceInfo).build();
+        CarAudioZoneConfig zoneConfig = buildZoneConfig(
+                List.of(mockMusicGroup, mockNavGroupRoutingOnMusic));
+
+        expectWithMessage("Zone configuration validates when using core routing and addresses "
+                + "shared among volume groups")
+                .that(zoneConfig.validateCanUseDynamicMixRouting(/* useCoreAudioRouting= */ true))
+                .isTrue();
+        verify(musicCarAudioDeviceInfo, times(2)).resetCanBeRoutedWithDynamicPolicyMix();
+    }
+
+    @Test
+    public void validateZoneWhenUsageSharedAmongContext_forbidUseDynamicRouting() {
+        CarAudioDeviceInfo musicCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
+        CarAudioDeviceInfo navCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
+        when(musicCarAudioDeviceInfo.getAddress()).thenReturn(MUSIC_ADDRESS);
+        when(navCarAudioDeviceInfo.getAddress()).thenReturn(NAV_ADDRESS);
+        CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS)
+                .addDeviceAddressAndUsages(USAGE_MEDIA, MUSIC_ADDRESS)
+                .addCarAudioDeviceInfoMock(musicCarAudioDeviceInfo).build();
+        CarVolumeGroup mockNavGroupRoutingOnMusic = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, NAV_ADDRESS)
+                .addDeviceAddressAndUsages(USAGE_MEDIA, NAV_ADDRESS)
+                .addCarAudioDeviceInfoMock(navCarAudioDeviceInfo).build();
+        CarAudioZoneConfig zoneConfig = buildZoneConfig(
+                List.of(mockMusicGroup, mockNavGroupRoutingOnMusic));
+
+        expectWithMessage("Zone configuration does not validate when not using core routing and "
+                + "usage is shared among context")
+                .that(zoneConfig.validateCanUseDynamicMixRouting(/* useCoreAudioRouting= */ false))
+                .isFalse();
+    }
+
+    @Test
+    public void validateZoneWhenUsageSharedAmongContext_usingCoreRouting_disablesDynamicRouting() {
         CarAudioDeviceInfo musicCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
         CarAudioDeviceInfo navCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
         when(musicCarAudioDeviceInfo.getAddress()).thenReturn(MUSIC_ADDRESS);
@@ -292,7 +409,7 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
                 + "shared among context")
                 .that(zoneConfig.validateCanUseDynamicMixRouting(/* useCoreAudioRouting= */ true))
                 .isTrue();
-        verify(musicCarAudioDeviceInfo).resetCanBeRoutedWithDynamicPolicyMix();
+        verify(musicCarAudioDeviceInfo, times(2)).resetCanBeRoutedWithDynamicPolicyMix();
         verify(navCarAudioDeviceInfo).resetCanBeRoutedWithDynamicPolicyMix();
     }
 
@@ -352,7 +469,55 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
-    public void validateZoneConfigs_withAddressSharedAmongGroupNotUsingCoreAudioRouting_fails() {
+    public void validateVolumeGroups_withContextSharedAmongGroups() {
+        CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS).build();
+        CarVolumeGroup mockNavGroupWithMusicContext = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, NAV_ADDRESS).build();
+        CarVolumeGroup mockAllOtherContextsGroup = mockContextsExceptMediaAndNavigation();
+
+        CarAudioZoneConfig zoneConfig = buildZoneConfig(
+                List.of(mockMusicGroup, mockNavGroupWithMusicContext, mockAllOtherContextsGroup));
+
+        expectWithMessage("Valid status for config with context shared among volume groups")
+                .that(zoneConfig.validateVolumeGroups(TEST_CAR_AUDIO_CONTEXT,
+                        /* useCoreAudioRouting= */ false)).isFalse();
+    }
+
+    @Test
+    public void validateVolumeGroups_withInvalidDeviceTypesInGroup() {
+        CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS).build();
+        CarVolumeGroup mockNavGroupRoutingOnMusic = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_NAVIGATION_CONTEXT, NAV_ADDRESS).build();
+        when(mockNavGroupRoutingOnMusic.validateDeviceTypes(any())).thenReturn(false);
+        CarVolumeGroup mockAllOtherContextsGroup = mockContextsExceptMediaAndNavigation();
+        CarAudioZoneConfig zoneConfig = buildZoneConfig(
+                List.of(mockMusicGroup, mockNavGroupRoutingOnMusic, mockAllOtherContextsGroup));
+
+        expectWithMessage("Valid status for config with invalid group device types")
+                .that(zoneConfig.validateVolumeGroups(TEST_CAR_AUDIO_CONTEXT,
+                        /* useCoreAudioRouting= */ false)).isFalse();
+    }
+
+    @Test
+    public void validateVolumeGroups_withInvalidDeviceTypesInGroupAndCoreAudioRouting() {
+        CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS).build();
+        CarVolumeGroup mockNavGroupRoutingOnMusic = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_NAVIGATION_CONTEXT, NAV_ADDRESS).build();
+        when(mockNavGroupRoutingOnMusic.validateDeviceTypes(any())).thenReturn(false);
+        CarVolumeGroup mockAllOtherContextsGroup = mockContextsExceptMediaAndNavigation();
+        CarAudioZoneConfig zoneConfig = buildZoneConfig(
+                List.of(mockMusicGroup, mockNavGroupRoutingOnMusic, mockAllOtherContextsGroup));
+
+        expectWithMessage("Valid status for config with core audio routing and invalid types")
+                .that(zoneConfig.validateVolumeGroups(TEST_CAR_AUDIO_CONTEXT,
+                        /* useCoreAudioRouting= */ true)).isTrue();
+    }
+
+    @Test
+    public void validateVolumeGroups_withAddressSharedAmongGroupNotUsingCoreAudioRouting_fails() {
         CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
                 .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS).build();
         CarVolumeGroup mockNavGroupRoutingOnMusic = new VolumeGroupBuilder()
@@ -367,7 +532,7 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
-    public void validateZoneConfigs_withAddressSharedAmongGroupUsingCoreAudioRouting_succeeds() {
+    public void validateVolumeGroups_withAddressSharedAmongGroupUsingCoreAudioRouting_succeeds() {
         CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
                 .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS).build();
         CarVolumeGroup mockNavGroupRoutingOnMusic = new VolumeGroupBuilder()
@@ -382,15 +547,47 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
+    public void validateVolumeGroups_withContextSharedAmongGroup_fails() {
+        CarVolumeGroup mockMusicGroup1 = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS).build();
+        CarVolumeGroup mockMusicGroup2 = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, NAV_ADDRESS).build();
+        CarVolumeGroup mockAllOtherContextsGroup = mockContextsExceptMediaAndNavigation();
+        CarAudioZoneConfig zoneConfig = buildZoneConfig(
+                List.of(mockMusicGroup1, mockMusicGroup2, mockAllOtherContextsGroup));
+
+        expectWithMessage("Volume group validates when sharing the same context")
+                .that(zoneConfig.validateVolumeGroups(TEST_CAR_AUDIO_CONTEXT,
+                        /* useCoreAudioRouting= */ true)).isFalse();
+    }
+
+    @Test
+    public void validateVolumeGroups_withUnassignedAudioContext_fails() {
+        CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
+                .addDeviceAddressAndContexts(TEST_MEDIA_CONTEXT, MUSIC_ADDRESS).build();
+        CarVolumeGroup mockAllOtherContextsGroup = mockContextsExceptMediaAndNavigation();
+        CarAudioZoneConfig zoneConfig = buildZoneConfig(
+                List.of(mockMusicGroup, mockAllOtherContextsGroup));
+
+        expectWithMessage("Volume group with unassigned audio context")
+                .that(zoneConfig.validateVolumeGroups(TEST_CAR_AUDIO_CONTEXT,
+                        /* useCoreAudioRouting= */ true)).isFalse();
+    }
+
+    @Test
     public void getAudioDeviceInfos() {
         AudioDeviceInfo musicAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
+        AudioDeviceAttributes musicDeviceAttributes =
+                new AudioDeviceAttributes(musicAudioDeviceInfo);
         AudioDeviceInfo navAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
+        AudioDeviceAttributes navDeviceAttributes =
+                new AudioDeviceAttributes(navAudioDeviceInfo);
         CarAudioDeviceInfo musicCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
         CarAudioDeviceInfo navCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
         when(musicCarAudioDeviceInfo.getAddress()).thenReturn(MUSIC_ADDRESS);
         when(navCarAudioDeviceInfo.getAddress()).thenReturn(NAV_ADDRESS);
-        when(musicCarAudioDeviceInfo.getAudioDeviceInfo()).thenReturn(musicAudioDeviceInfo);
-        when(navCarAudioDeviceInfo.getAudioDeviceInfo()).thenReturn(navAudioDeviceInfo);
+        when(musicCarAudioDeviceInfo.getAudioDevice()).thenReturn(musicDeviceAttributes);
+        when(navCarAudioDeviceInfo.getAudioDevice()).thenReturn(navDeviceAttributes);
         when(navCarAudioDeviceInfo.canBeRoutedWithDynamicPolicyMix()).thenReturn(false);
         when(musicCarAudioDeviceInfo.canBeRoutedWithDynamicPolicyMix()).thenReturn(true);
         CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
@@ -403,8 +600,8 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
                 List.of(mockMusicGroup, mockNavGroupRoutingOnMusic));
 
         expectWithMessage("Zone configuration groups devices")
-                .that(zoneConfig.getAudioDeviceInfos())
-                .containsExactlyElementsIn(List.of(musicAudioDeviceInfo, navAudioDeviceInfo));
+                .that(zoneConfig.getAudioDevice())
+                .containsExactlyElementsIn(List.of(musicDeviceAttributes, navDeviceAttributes));
     }
 
     @Test
@@ -461,13 +658,35 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
+    public void getVolumeGroupForAudioAttributes() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+
+        expectWithMessage("Audio attributes in car audio zone config")
+                .that(zoneConfig.getVolumeGroupForAudioAttributes(TEST_NAVIGATION_ATTRIBUTE))
+                .isEqualTo(mMockNavGroup);
+    }
+
+    @Test
+    public void getVolumeGroupForAudioAttributes_withAttributeNotFound() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+
+        expectWithMessage("Audio attributes not in car audio zone config")
+                .that(zoneConfig.getVolumeGroupForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE))
+                .isNull();
+    }
+
+    @Test
     public void getAudioDeviceInfosSupportingDynamicMix() {
         AudioDeviceInfo musicAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
+        AudioDeviceAttributes musicDeviceAttributes =
+                new AudioDeviceAttributes(musicAudioDeviceInfo);
         CarAudioDeviceInfo musicCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
         CarAudioDeviceInfo navCarAudioDeviceInfo = Mockito.mock(CarAudioDeviceInfo.class);
         when(musicCarAudioDeviceInfo.getAddress()).thenReturn(MUSIC_ADDRESS);
         when(navCarAudioDeviceInfo.getAddress()).thenReturn(NAV_ADDRESS);
-        when(musicCarAudioDeviceInfo.getAudioDeviceInfo()).thenReturn(musicAudioDeviceInfo);
+        when(musicCarAudioDeviceInfo.getAudioDevice()).thenReturn(musicDeviceAttributes);
         when(navCarAudioDeviceInfo.canBeRoutedWithDynamicPolicyMix()).thenReturn(false);
         when(musicCarAudioDeviceInfo.canBeRoutedWithDynamicPolicyMix()).thenReturn(true);
         CarVolumeGroup mockMusicGroup = new VolumeGroupBuilder()
@@ -480,8 +699,8 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
                 List.of(mockMusicGroup, mockNavGroupRoutingOnMusic));
 
         expectWithMessage("Dynamic mix ready devices")
-                .that(zoneConfig.getAudioDeviceInfosSupportingDynamicMix())
-                .containsExactly(musicAudioDeviceInfo);
+                .that(zoneConfig.getAudioDeviceSupportingDynamicMix())
+                .containsExactly(musicDeviceAttributes);
     }
 
     @Test
@@ -490,7 +709,7 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
                 .addVolumeGroup(mMockNavGroup).build();
         List<Integer> reasons = List.of(Reasons.REMOTE_MUTE, Reasons.NAV_DUCKING);
         AudioGainConfigInfo musicGainInfo = new AudioGainConfigInfo();
-        musicGainInfo.zoneId = CarAudioManager.PRIMARY_AUDIO_ZONE;
+        musicGainInfo.zoneId = PRIMARY_AUDIO_ZONE;
         musicGainInfo.devicePortAddress = MUSIC_ADDRESS;
         musicGainInfo.volumeIndex = 666;
         CarAudioGainConfigInfo carMusicGainInfo = new CarAudioGainConfigInfo(musicGainInfo);
@@ -510,13 +729,58 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
+    public void onAudioGainChanged_withInvalidEventType() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+        List<Integer> reasons = List.of(Reasons.REMOTE_MUTE, Reasons.NAV_DUCKING);
+        AudioGainConfigInfo musicGainInfo = new AudioGainConfigInfo();
+        musicGainInfo.zoneId = PRIMARY_AUDIO_ZONE;
+        musicGainInfo.devicePortAddress = MUSIC_ADDRESS;
+        musicGainInfo.volumeIndex = 666;
+        CarAudioGainConfigInfo carMusicGainInfo = new CarAudioGainConfigInfo(musicGainInfo);
+        when(mMockNavGroup.onAudioGainChanged(any(), any())).thenReturn(EVENT_TYPE_MUTE_CHANGED);
+        when(mMockMusicGroup.onAudioGainChanged(any(), any())).thenReturn(0);
+        when(mMockVoiceGroup.onAudioGainChanged(any(), any()))
+                .thenReturn(EVENT_TYPE_ATTENUATION_CHANGED);
+
+        List<CarVolumeGroupEvent> events = zoneConfig.onAudioGainChanged(reasons,
+                List.of(carMusicGainInfo));
+
+        expectWithMessage("Car volume group events with invalid event type")
+                .that(events.isEmpty()).isTrue();
+    }
+
+    @Test
+    public void onAudioGainChanged_withInvalidAddress() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).build();
+        List<Integer> reasons = List.of(Reasons.REMOTE_MUTE, Reasons.NAV_DUCKING);
+        AudioGainConfigInfo musicGainInfo = new AudioGainConfigInfo();
+        musicGainInfo.zoneId = PRIMARY_AUDIO_ZONE;
+        musicGainInfo.devicePortAddress = "invalid_address";
+        musicGainInfo.volumeIndex = 666;
+        CarAudioGainConfigInfo carMusicGainInfo = new CarAudioGainConfigInfo(musicGainInfo);
+        when(mMockNavGroup.onAudioGainChanged(any(), any())).thenReturn(EVENT_TYPE_MUTE_CHANGED);
+        when(mMockMusicGroup.onAudioGainChanged(any(), any()))
+                .thenReturn(EVENT_TYPE_ATTENUATION_CHANGED);
+        when(mMockVoiceGroup.onAudioGainChanged(any(), any()))
+                .thenReturn(EVENT_TYPE_ATTENUATION_CHANGED);
+
+        List<CarVolumeGroupEvent> events = zoneConfig.onAudioGainChanged(reasons,
+                List.of(carMusicGainInfo));
+
+        expectWithMessage("Car volume group events with invalid device address")
+                .that(events.isEmpty()).isTrue();
+    }
+
+    @Test
     public void onAudioGainChanged_withoutAnyDeviceAddressInZone() {
         CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockVoiceGroup)
                 .build();
         List<Integer> reasons = List.of(Reasons.REMOTE_MUTE, Reasons.NAV_DUCKING);
 
         AudioGainConfigInfo musicGainInfo = new AudioGainConfigInfo();
-        musicGainInfo.zoneId = CarAudioManager.PRIMARY_AUDIO_ZONE;
+        musicGainInfo.zoneId = PRIMARY_AUDIO_ZONE;
         musicGainInfo.devicePortAddress = MUSIC_ADDRESS;
         musicGainInfo.volumeIndex = 666;
         CarAudioGainConfigInfo carMusicGainInfo = new CarAudioGainConfigInfo(musicGainInfo);
@@ -546,21 +810,299 @@ public final class CarAudioZoneConfigUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
-    public void getCarAudioZoneConfigInfo() {
+    public void getCarAudioZoneConfigInfo_withDynamicDevicesDisabled() {
+        mSetFlagsRule.disableFlags(FLAG_CAR_AUDIO_DYNAMIC_DEVICES);
         CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.build();
         CarAudioZoneConfigInfo zoneConfigInfoExpected = new CarAudioZoneConfigInfo(
-                TEST_ZONE_CONFIG_NAME, CarAudioManager.PRIMARY_AUDIO_ZONE, TEST_ZONE_CONFIG_ID);
+                TEST_ZONE_CONFIG_NAME, PRIMARY_AUDIO_ZONE, TEST_ZONE_CONFIG_ID);
 
         CarAudioZoneConfigInfo zoneConfigInfo = zoneConfig.getCarAudioZoneConfigInfo();
 
-        expectWithMessage("Zone configuration info")
+        expectWithMessage("Zone configuration info with dynamic devices disabled")
                 .that(zoneConfigInfo).isEqualTo(zoneConfigInfoExpected);
+    }
+
+    @Test
+    public void getCarAudioZoneConfigInfo_withDynamicDevicesEnabled() {
+        mSetFlagsRule.enableFlags(FLAG_CAR_AUDIO_DYNAMIC_DEVICES);
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.build();
+        CarAudioZoneConfigInfo zoneConfigInfoExpected = new CarAudioZoneConfigInfo(
+                TEST_ZONE_CONFIG_NAME, EMPTY_LIST, PRIMARY_AUDIO_ZONE, TEST_ZONE_CONFIG_ID,
+                /* isActive= */ true, /* isSelected= */ false, /* isDefault= */ true);
+
+        CarAudioZoneConfigInfo zoneConfigInfo = zoneConfig.getCarAudioZoneConfigInfo();
+
+        expectWithMessage("Zone configuration info with dynamic devices enabled")
+                .that(zoneConfigInfo).isEqualTo(zoneConfigInfoExpected);
+    }
+
+    @Test
+    public void audioDevicesAdded_withAlreadyActiveGroups() {
+        AudioDeviceInfo musicAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).addVolumeGroup(mMockVoiceGroup).build();
+
+        boolean status = zoneConfig.audioDevicesAdded(List.of(musicAudioDeviceInfo));
+
+        expectWithMessage("Added device status with already active group").that(status).isFalse();
+        verify(mMockMusicGroup, never()).audioDevicesAdded(any());
+        verify(mMockNavGroup, never()).audioDevicesAdded(any());
+        verify(mMockVoiceGroup, never()).audioDevicesAdded(any());
+    }
+
+    @Test
+    public void audioDevicesAdded_withInactiveGroups() {
+        AudioDeviceInfo musicAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .addVolumeGroup(mMockInactiveMusicGroup).addVolumeGroup(mMockNavGroup)
+                .addVolumeGroup(mMockVoiceGroup).build();
+
+        boolean status = zoneConfig.audioDevicesAdded(List.of(musicAudioDeviceInfo));
+
+        expectWithMessage("Added device status with inactive group").that(status).isTrue();
+        verify(mMockInactiveMusicGroup).audioDevicesAdded(any());
+        verify(mMockNavGroup).audioDevicesAdded(any());
+        verify(mMockVoiceGroup).audioDevicesAdded(any());
+    }
+
+    @Test
+    public void audioDevicesAdded_withInactiveGroups_andNullDevices() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .addVolumeGroup(mMockInactiveMusicGroup).addVolumeGroup(mMockNavGroup)
+                .addVolumeGroup(mMockVoiceGroup).build();
+
+        NullPointerException thrown =
+                assertThrows(NullPointerException.class,
+                        () -> zoneConfig.audioDevicesAdded(/* devices= */ null));
+
+        expectWithMessage("Audio devices added null devices exception").that(thrown)
+                .hasMessageThat().contains("Audio devices");
+    }
+
+    @Test
+    public void audioDevicesRemoved_withAlreadyActiveGroups() {
+        AudioDeviceInfo musicAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder.addVolumeGroup(mMockMusicGroup)
+                .addVolumeGroup(mMockNavGroup).addVolumeGroup(mMockVoiceGroup).build();
+
+        boolean status = zoneConfig.audioDevicesRemoved(List.of(musicAudioDeviceInfo));
+
+        expectWithMessage("Removed device status with active groups").that(status).isFalse();
+        verify(mMockMusicGroup).audioDevicesRemoved(any());
+        verify(mMockNavGroup).audioDevicesRemoved(any());
+        verify(mMockVoiceGroup).audioDevicesRemoved(any());
+    }
+
+    @Test
+    public void audioDevicesRemoved_withInactiveGroups() {
+        AudioDeviceInfo musicAudioDeviceInfo = Mockito.mock(AudioDeviceInfo.class);
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .addVolumeGroup(mMockInactiveMusicGroup).addVolumeGroup(mMockNavGroup)
+                .addVolumeGroup(mMockVoiceGroup).build();
+
+        boolean status = zoneConfig.audioDevicesRemoved(List.of(musicAudioDeviceInfo));
+
+        expectWithMessage("Removed device status with inactive group").that(status).isTrue();
+        verify(mMockInactiveMusicGroup).audioDevicesRemoved(any());
+        verify(mMockNavGroup).audioDevicesRemoved(any());
+        verify(mMockVoiceGroup).audioDevicesRemoved(any());
+    }
+
+    @Test
+    public void audioDevicesRemoved_withInactiveGroups_andNullDevices() {
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .addVolumeGroup(mMockInactiveMusicGroup).addVolumeGroup(mMockNavGroup)
+                .addVolumeGroup(mMockVoiceGroup).build();
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfig.audioDevicesRemoved(/* devices= */ null));
+
+        expectWithMessage("Audio devices removed null devices exception").that(thrown)
+                .hasMessageThat().contains("Audio devices");
+    }
+
+    @Test
+    public void setDefaultCarAudioFadeConfiguration_forNullAudioFadeConfigurtion_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioZoneConfig.Builder zoneConfigBuilder = mTestAudioZoneConfigBuilder;
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfigBuilder.setDefaultCarAudioFadeConfiguration(
+                        /* carAudioFadeConfiguration= */ null));
+
+        expectWithMessage("Set car audio fade configuration for default with null config exception")
+                .that(thrown).hasMessageThat()
+                .contains("Car audio fade configuration for default");
+    }
+
+    @Test
+    public void setCarAudioFadeConfigurationForAudioAttributes_withNullConfig_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioZoneConfig.Builder zoneConfigBuilder = mTestAudioZoneConfigBuilder;
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfigBuilder.setCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_MEDIA_ATTRIBUTE, /* carAudioFadeConfiguration= */ null));
+
+        expectWithMessage("Set car audio fade configuration with null config exception")
+                .that(thrown).hasMessageThat()
+                .contains("Car audio fade configuration for audio attributes");
+    }
+
+    @Test
+    public void setCarAudioFadeConfigurationForAudioAttributes_forNullAudioAttributes_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioZoneConfig.Builder zoneConfigBuilder = mTestAudioZoneConfigBuilder;
+        CarAudioFadeConfiguration carAudioFadeConfiguration =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfigBuilder.setCarAudioFadeConfigurationForAudioAttributes(
+                        /* audioAttributes= */ null, carAudioFadeConfiguration));
+
+        expectWithMessage("Set car audio fade configuration for null audio attributes exception")
+                .that(thrown).hasMessageThat().contains("Audio attributes");
+    }
+
+    @Test
+    public void getDefaultCarAudioFadeConfiguration_whenFeatureEnabled_matches() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration carAudioFadeConfiguration =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setDefaultCarAudioFadeConfiguration(carAudioFadeConfiguration).build();
+
+        expectWithMessage("Default car audio fade configuration when feature is enabled")
+                .that(zoneConfig.getDefaultCarAudioFadeConfiguration())
+                .isEqualTo(carAudioFadeConfiguration);
+    }
+
+    @Test
+    public void getDefaultCarAudioFadeConfiguration_whenFeatureDisabled_returnsNull() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ false)
+                .setDefaultCarAudioFadeConfiguration(afcEnabled).build();
+
+        expectWithMessage("Default car audio fade configuration when feature is disabled")
+                .that(zoneConfig.getDefaultCarAudioFadeConfiguration()).isNull();
+    }
+
+    @Test
+    public void getCarAudioFadeConfigurationForAudioAttributes_forNullAudioAttributes_fails() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        /* audioAttributes= */ null));
+
+        expectWithMessage("Get car audio fade configuration for null audio attributes exception")
+                .that(thrown).hasMessageThat().contains("Audio attributes cannot");
+    }
+
+    @Test
+    public void getCarAudioFadeConfigurationForAudioAttributes_whenFeatureEnabled_matches() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Car audio fade configuration for media when feature is enabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_MEDIA_ATTRIBUTE))
+                .isEqualTo(afcEnabled);
+        expectWithMessage("Car audio fade configuration for assistant when feature is enabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_ASSISTANT_ATTRIBUTE))
+                .isEqualTo(afcDisabled);
+    }
+
+    @Test
+    public void getCarAudioFadeConfigurationForAudioAttributes_whenFeatureDisabled_returnsNull() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ false)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Car audio fade configuration for media when feature is disabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_MEDIA_ATTRIBUTE)).isNull();
+        expectWithMessage("Car audio fade configuration for assistant when feature is disabled")
+                .that(zoneConfig.getCarAudioFadeConfigurationForAudioAttributes(
+                        TEST_ASSISTANT_ATTRIBUTE)).isNull();
+    }
+
+    @Test
+    public void getAllTransientCarAudioFadeConfigurations_whenFeatureEnabled_matches() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        Map<AudioAttributes, CarAudioFadeConfiguration> transientConfigs = new ArrayMap<>();
+        transientConfigs.put(TEST_MEDIA_ATTRIBUTE, afcEnabled);
+        transientConfigs.put(TEST_ASSISTANT_ATTRIBUTE, afcDisabled);
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ true)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Transient car audio fade configurations when feature is enabled")
+                .that(zoneConfig.getAllTransientCarAudioFadeConfigurations())
+                .isEqualTo(transientConfigs);
+    }
+
+    @Test
+    public void getAllTransientCarAudioFadeConfigurations_whenFeatureDisabled_returnsEmpty() {
+        mSetFlagsRule.enableFlags(FLAG_ENABLE_FADE_MANAGER_CONFIGURATION);
+        CarAudioFadeConfiguration afcEnabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_ENABLED).build();
+        CarAudioFadeConfiguration afcDisabled =
+                new CarAudioFadeConfiguration.Builder(TEST_FADE_MANAGER_CONFIG_DISABLED).build();
+        CarAudioZoneConfig zoneConfig = mTestAudioZoneConfigBuilder
+                .setFadeManagerConfigurationEnabled(/* enabled= */ false)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_MEDIA_ATTRIBUTE, afcEnabled)
+                .setCarAudioFadeConfigurationForAudioAttributes(TEST_ASSISTANT_ATTRIBUTE,
+                        afcDisabled)
+                .build();
+
+        expectWithMessage("Transient car audio fade configurations when feature is disabled")
+                .that(zoneConfig.getAllTransientCarAudioFadeConfigurations()).isEmpty();
     }
 
     private CarAudioZoneConfig buildZoneConfig(List<CarVolumeGroup> volumeGroups) {
         CarAudioZoneConfig.Builder carAudioZoneConfigBuilder =
                 new CarAudioZoneConfig.Builder("Primary zone config 0",
-                        CarAudioManager.PRIMARY_AUDIO_ZONE, /* zoneConfigId= */ 0,
+                        PRIMARY_AUDIO_ZONE, /* zoneConfigId= */ 0,
                         /* isDefault= */ true);
         for (int index = 0; index < volumeGroups.size(); index++) {
             carAudioZoneConfigBuilder =

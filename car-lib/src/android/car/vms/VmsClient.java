@@ -23,14 +23,13 @@ import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.car.Car;
-import android.car.annotation.AddedInOrBefore;
 import android.car.vms.VmsClientManager.VmsClientCallback;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.SharedMemory;
 import android.system.ErrnoException;
-import android.util.Log;
+import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -105,13 +104,12 @@ public final class VmsClient {
      */
     @Nullable
     @RequiresPermission(anyOf = {Car.PERMISSION_VMS_PUBLISHER, Car.PERMISSION_VMS_SUBSCRIBER})
-    @AddedInOrBefore(majorVersion = 33)
     public byte[] getProviderDescription(int providerId) {
-        if (DBG) Log.d(TAG, "Getting provider information for " + providerId);
+        if (DBG) Slog.d(TAG, "Getting provider information for " + providerId);
         try {
             return mService.getProviderInfo(mClientToken, providerId).getDescription();
         } catch (RemoteException e) {
-            Log.e(TAG, "While getting publisher information for " + providerId, e);
+            Slog.e(TAG, "While getting publisher information for " + providerId, e);
             mExceptionHandler.accept(e);
             return null;
         }
@@ -125,13 +123,12 @@ public final class VmsClient {
      * @param layers Data layers to be subscribed
      */
     @RequiresPermission(Car.PERMISSION_VMS_SUBSCRIBER)
-    @AddedInOrBefore(majorVersion = 33)
     public void setSubscriptions(@NonNull Set<VmsAssociatedLayer> layers) {
-        if (DBG) Log.d(TAG, "Setting subscriptions to " + layers);
+        if (DBG) Slog.d(TAG, "Setting subscriptions to " + layers);
         try {
             mService.setSubscriptions(mClientToken, new ArrayList<>(layers));
         } catch (RemoteException e) {
-            Log.e(TAG, "While setting subscriptions", e);
+            Slog.e(TAG, "While setting subscriptions", e);
             mExceptionHandler.accept(e);
         }
     }
@@ -143,16 +140,15 @@ public final class VmsClient {
      * subscriptions. Enabling monitoring does not affect the client's existing subscriptions.
      */
     @RequiresPermission(Car.PERMISSION_VMS_SUBSCRIBER)
-    @AddedInOrBefore(majorVersion = 33)
     public void setMonitoringEnabled(boolean enabled) {
-        if (DBG) Log.d(TAG, "Setting monitoring state to " + enabled);
+        if (DBG) Slog.d(TAG, "Setting monitoring state to " + enabled);
         try {
             mService.setMonitoringEnabled(mClientToken, enabled);
             synchronized (mLock) {
                 mMonitoringEnabled = enabled;
             }
         } catch (RemoteException e) {
-            Log.e(TAG, "While setting monitoring state to " + enabled, e);
+            Slog.e(TAG, "While setting monitoring state to " + enabled, e);
             mExceptionHandler.accept(e);
         }
     }
@@ -161,7 +157,6 @@ public final class VmsClient {
      * Returns the current monitoring state of the client.
      */
     @RequiresPermission(Car.PERMISSION_VMS_SUBSCRIBER)
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isMonitoringEnabled() {
         synchronized (mLock) {
             return mMonitoringEnabled;
@@ -173,7 +168,6 @@ public final class VmsClient {
      */
     @NonNull
     @RequiresPermission(anyOf = {Car.PERMISSION_VMS_PUBLISHER, Car.PERMISSION_VMS_SUBSCRIBER})
-    @AddedInOrBefore(majorVersion = 33)
     public VmsAvailableLayers getAvailableLayers() {
         synchronized (mLock) {
             return mAvailableLayers;
@@ -188,15 +182,14 @@ public final class VmsClient {
      * connection error
      */
     @RequiresPermission(Car.PERMISSION_VMS_PUBLISHER)
-    @AddedInOrBefore(majorVersion = 33)
     public int registerProvider(@NonNull byte[] providerDescription) {
-        if (DBG) Log.d(TAG, "Registering provider");
+        if (DBG) Slog.d(TAG, "Registering provider");
         Objects.requireNonNull(providerDescription, "providerDescription cannot be null");
         try {
             return mService.registerProvider(mClientToken,
                     new VmsProviderInfo(providerDescription));
         } catch (RemoteException e) {
-            Log.e(TAG, "While registering provider", e);
+            Slog.e(TAG, "While registering provider", e);
             mExceptionHandler.accept(e);
             return -1;
         }
@@ -208,13 +201,12 @@ public final class VmsClient {
      * @param providerId Provider ID
      */
     @RequiresPermission(Car.PERMISSION_VMS_PUBLISHER)
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterProvider(int providerId) {
-        if (DBG) Log.d(TAG, "Unregistering provider");
+        if (DBG) Slog.d(TAG, "Unregistering provider");
         try {
             setProviderOfferings(providerId, Collections.emptySet());
         } catch (IllegalArgumentException e) {
-            Log.e(TAG, "While unregistering provider " + providerId, e);
+            Slog.e(TAG, "While unregistering provider " + providerId, e);
         }
     }
 
@@ -229,14 +221,13 @@ public final class VmsClient {
      * @throws IllegalArgumentException if the client has not registered the provider
      */
     @RequiresPermission(Car.PERMISSION_VMS_PUBLISHER)
-    @AddedInOrBefore(majorVersion = 33)
     public void setProviderOfferings(int providerId, @NonNull Set<VmsLayerDependency> offerings) {
-        if (DBG) Log.d(TAG, "Setting provider offerings for " + providerId);
+        if (DBG) Slog.d(TAG, "Setting provider offerings for " + providerId);
         Objects.requireNonNull(offerings, "offerings cannot be null");
         try {
             mService.setProviderOfferings(mClientToken, providerId, new ArrayList<>(offerings));
         } catch (RemoteException e) {
-            Log.e(TAG, "While setting provider offerings for " + providerId, e);
+            Slog.e(TAG, "While setting provider offerings for " + providerId, e);
             mExceptionHandler.accept(e);
         }
     }
@@ -250,12 +241,11 @@ public final class VmsClient {
      * @throws IllegalArgumentException if the client does not offer the layer as the provider
      */
     @RequiresPermission(Car.PERMISSION_VMS_PUBLISHER)
-    @AddedInOrBefore(majorVersion = 33)
     public void publishPacket(int providerId, @NonNull VmsLayer layer, @NonNull byte[] packet) {
         Objects.requireNonNull(layer, "layer cannot be null");
         Objects.requireNonNull(packet, "packet cannot be null");
         if (DBG) {
-            Log.d(TAG, "Publishing packet as " + providerId + " (" + packet.length + " bytes)");
+            Slog.d(TAG, "Publishing packet as " + providerId + " (" + packet.length + " bytes)");
         }
         try {
             if (packet.length < LARGE_PACKET_THRESHOLD) {
@@ -267,7 +257,7 @@ public final class VmsClient {
                 }
             }
         } catch (RemoteException e) {
-            Log.e(TAG, "While publishing packet as " + providerId);
+            Slog.e(TAG, "While publishing packet as " + providerId);
             mExceptionHandler.accept(e);
         }
     }
@@ -277,7 +267,6 @@ public final class VmsClient {
      */
     @NonNull
     @RequiresPermission(anyOf = {Car.PERMISSION_VMS_PUBLISHER, Car.PERMISSION_VMS_SUBSCRIBER})
-    @AddedInOrBefore(majorVersion = 33)
     public VmsSubscriptionState getSubscriptionState() {
         synchronized (mLock) {
             return mSubscriptionState;
@@ -289,7 +278,6 @@ public final class VmsClient {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void register() throws RemoteException {
         VmsRegistrationInfo registrationInfo = mService.registerClient(
                 mClientToken, mClientCallback, mLegacyClient);
@@ -304,7 +292,6 @@ public final class VmsClient {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unregister() throws RemoteException {
         mService.unregisterClient(mClientToken);
     }
@@ -320,7 +307,7 @@ public final class VmsClient {
 
         @Override
         public void onLayerAvailabilityChanged(VmsAvailableLayers availableLayers) {
-            if (DBG) Log.d(TAG, "Received new layer availability: " + availableLayers);
+            if (DBG) Slog.d(TAG, "Received new layer availability: " + availableLayers);
             executeCallback((client, callback) -> {
                 synchronized (client.mLock) {
                     client.mAvailableLayers = availableLayers;
@@ -331,7 +318,7 @@ public final class VmsClient {
 
         @Override
         public void onSubscriptionStateChanged(VmsSubscriptionState subscriptionState) {
-            if (DBG) Log.d(TAG, "Received new subscription state: " + subscriptionState);
+            if (DBG) Slog.d(TAG, "Received new subscription state: " + subscriptionState);
             executeCallback((client, callback) -> {
                 synchronized (client.mLock) {
                     client.mSubscriptionState = subscriptionState;
@@ -343,7 +330,7 @@ public final class VmsClient {
         @Override
         public void onPacketReceived(int providerId, VmsLayer layer, byte[] packet) {
             if (DBG) {
-                Log.d(TAG, "Received packet from " + providerId + " for: " + layer
+                Slog.d(TAG, "Received packet from " + providerId + " for: " + layer
                         + " (" + packet.length + " bytes)");
             }
             executeCallback((client, callback) ->
@@ -353,7 +340,7 @@ public final class VmsClient {
         @Override
         public void onLargePacketReceived(int providerId, VmsLayer layer, SharedMemory packet) {
             if (DBG) {
-                Log.d(TAG, "Received large packet from " + providerId + " for: " + layer
+                Slog.d(TAG, "Received large packet from " + providerId + " for: " + layer
                         + " (" + packet.getSize() + " bytes)");
             }
             byte[] largePacket;
@@ -371,7 +358,7 @@ public final class VmsClient {
         private void executeCallback(BiConsumer<VmsClient, VmsClientCallback> callbackOperation) {
             final VmsClient client = mClient.get();
             if (client == null) {
-                Log.w(TAG, "VmsClient unavailable");
+                Slog.w(TAG, "VmsClient unavailable");
                 return;
             }
 

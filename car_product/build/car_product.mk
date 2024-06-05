@@ -18,6 +18,12 @@
 # automotive device.
 $(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_product.mk)
 
+ifneq ($(TARGET_NO_TELEPHONY), true)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_product.mk)
+PRODUCT_COPY_FILES += \
+    device/sample/etc/apns-full-conf.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/apns-conf.xml
+endif
+
 # Default AOSP sounds
 $(call inherit-product-if-exists, frameworks/base/data/sounds/AllAudio.mk)
 
@@ -38,6 +44,9 @@ PRODUCT_PACKAGES += \
     preinstalled-packages-platform-aosp-product.xml \
     WallpaperPicker \
 
+PRODUCT_PACKAGES_DEBUG += \
+    KitchenSinkServerlessRemoteTaskClientRRO \
+
 PRODUCT_PUBLIC_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/public
 PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/private
 PRODUCT_PUBLIC_SEPOLICY_DIRS += packages/services/Car/cpp/powerpolicy/sepolicy/public
@@ -51,12 +60,22 @@ PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/cpp/telemetry/cartelemetr
 PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/cartelemetry
 endif
 
+ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+# SEPolicy for test apps/services
+PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
+endif
+
 ifeq ($(DISABLE_CAR_PRODUCT_CONFIG_OVERLAY),)
-PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/car_product/overlay
+PRODUCT_PACKAGES += \
+    CarFrameworkResConfigRRO \
+    CarCertInstallerConfigRRO \
+    CarSettingsProviderConfigRRO \
+    CarTelecommConfigRRO
 endif
 
 ifeq ($(DISABLE_CAR_PRODUCT_VISUAL_OVERLAY),)
 PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/car_product/overlay-visual
+PRODUCT_PACKAGES += CarFrameworkResVisualRRO
 endif
 
 # CarSystemUIPassengerOverlay is an RRO package required for enabling unique look
@@ -65,4 +84,14 @@ ifeq ($(ENABLE_PASSENGER_SYSTEMUI_RRO), true)
 PRODUCT_PACKAGES += CarSystemUIPassengerOverlay
 endif  # ENABLE_PASSENGER_SYSTEMUI_RRO
 
+ifneq (,$(filter true,$(ENABLE_EVS_SAMPLE) $(ENABLE_SAMPLE_EVS_APP)))
+include packages/services/Car/cpp/evs/apps/sepolicy/evsapp.mk
+endif
+
 $(call inherit-product, device/sample/products/location_overlay.mk)
+
+# Theme RROs that are used to control the system theme on the runtime.
+$(call inherit-product-if-exists, packages/services/Car/car_product/rro/ThemeSamples/product.mk)
+
+# SystemUI RROs that are used to control the CarSystemUI features on the runtime.
+$(call inherit-product-if-exists, packages/apps/Car/SystemUI/samples/systemui_sample_rros.mk)

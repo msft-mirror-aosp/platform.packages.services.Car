@@ -49,6 +49,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarOccupantZoneService;
 import com.android.car.CarServiceBase;
@@ -335,7 +336,7 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
                 /* registeredReceiverEndpointMap= */ new BinderKeyValueContainer<>(),
                 /* pendingConnectionRequestMap= */ new BinderKeyValueContainer<>(),
                 /* acceptedConnectionRequestMap= */ new BinderKeyValueContainer<>(),
-                /* establishConnections= */ new ArraySet<>());
+                /* establishedConnections= */ new ArraySet<>());
     }
 
     @VisibleForTesting
@@ -381,9 +382,9 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
         // TODO(b/257117236): implement this method.
     }
 
+    /** Run `adb shell dumpsys car_service --services CarOccupantConnectionService` to dump. */
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
-    /** Run `adb shell dumpsys car_service --services CarOccupantConnectionService` to dump. */
     public void dump(IndentingPrintWriter writer) {
         writer.println("*CarOccupantConnectionService*");
         synchronized (mLock) {
@@ -433,6 +434,10 @@ public class CarOccupantConnectionService extends ICarOccupantConnection.Stub im
             }
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     @Override
     public void registerReceiver(String packageName, String receiverEndpointId,

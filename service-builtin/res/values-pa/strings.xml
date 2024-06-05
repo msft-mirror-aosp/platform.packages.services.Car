@@ -17,7 +17,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="car_permission_label_bind_projection_service" msgid="6976251734714662552">"ਯੋਜਨਾਬੰਦੀ ਸੇਵਾ ਨਾਲ ਜੋੜੋ"</string>
-    <string name="car_permission_desc_bind_projection_service" msgid="4610418233070289810">"ਹੋਲਡਰ ਨੂੰ ਯੋਜਨਾਬੰਦੀ ਸੇਵਾ ਦੇ ਉੱਚ-ਪੱਧਰ ਦੇ ਇੰਟਰਫੇਸ ਨਾਲ ਜੋੜਨ ਦਿੰਦਾ ਹੈ। ਇਹ ਆਮ ਐਪਾਂ ਲਈ ਕਦੇ ਵੀ ਲੋੜੀਂਦਾ ਨਹੀਂ ਹੋਣਾ ਚਾਹੀਦਾ।"</string>
+    <string name="car_permission_desc_bind_projection_service" msgid="4610418233070289810">"ਹੋਲਡਰ ਨੂੰ ਯੋਜਨਾਬੰਦੀ ਸੇਵਾ ਦੇ ਉੱਚ-ਪੱਧਰ ਦੇ ਇੰਟਰਫ਼ੇਸ ਨਾਲ ਜੋੜਨ ਦਿੰਦਾ ਹੈ। ਇਹ ਆਮ ਐਪਾਂ ਲਈ ਕਦੇ ਵੀ ਲੋੜੀਂਦਾ ਨਹੀਂ ਹੋਣਾ ਚਾਹੀਦਾ।"</string>
     <string name="car_permission_label_bind_vms_client" msgid="1298928874094319701">"VMS ਕਲਾਇੰਟ ਸੇਵਾ"</string>
     <string name="car_permission_desc_bind_vms_client" msgid="7758142590449847602">"VMS ਕਲਾਇੰਟਾਂ ਨਾਲ ਜੋੜੋ"</string>
     <string name="car_permission_label_bind_instrument_cluster_rendering" msgid="6723392540805279625">"ਇੰਸਟਰੂਮੈਂਟ ਕਲੱਸਟਰ ਰੈਂਡਰਿੰਗ"</string>
@@ -33,7 +33,7 @@
     <string name="importance_high" msgid="3393374688015554727">"ਉੱਚ ਮਹੱਤਤਾ"</string>
     <string name="android_system_label" msgid="9209428539477894959">"Android ਸਿਸਟਮ"</string>
     <string name="factory_reset_notification_title" msgid="6177770995437355965">"ਫੈਕਟਰੀ ਰੀਸੈੱਟ ਦੀ ਲੋੜ ਹੈ"</string>
-    <string name="factory_reset_notification_text" msgid="6051393302193696102">"ਵਾਹਨ ਆਡੀਓ ਸਿਸਟਮ ਦਾ ਸਾਰਾ ਡਾਟਾ ਮਿਟਾ ਦਿੱਤਾ ਜਾਵੇਗਾ। ਰੀਸੈੱਟ ਕਰਨ ਤੋਂ ਬਾਅਦ, ਤੁਸੀਂ ਨਵੇਂ ਪ੍ਰੋਫਾਈਲ ਦਾ ਸੈੱਟਅੱਪ ਕਰ ਸਕਦੇ ਹੋ।"</string>
+    <string name="factory_reset_notification_text" msgid="6051393302193696102">"ਇੰਫ਼ੋਟੇਨਮੈਂਟ ਸਿਸਟਮ ਦਾ ਸਾਰਾ ਡਾਟਾ ਮਿਟਾ ਦਿੱਤਾ ਜਾਵੇਗਾ। ਰੀਸੈੱਟ ਕਰਨ ਤੋਂ ਬਾਅਦ, ਤੁਸੀਂ ਨਵੇਂ ਪ੍ਰੋਫਾਈਲ ਦਾ ਸੈੱਟਅੱਪ ਕਰ ਸਕਦੇ ਹੋ।"</string>
     <string name="factory_reset_notification_button" msgid="6926734587145351076">"ਹੋਰ"</string>
     <string name="factory_reset_warning" msgid="8463356329619149262">"ਤੁਹਾਡਾ ਡੀਵਾਈਸ ਮਿਟਾਇਆ ਜਾਏਗਾ"</string>
     <string name="factory_reset_message" msgid="1972536809866779972">"ਪ੍ਰਸ਼ਾਸਕ ਐਪ ਵਰਤੀ ਨਹੀਂ ਜਾ ਸਕਦੀ। ਹੁਣ ਤੁਹਾਡੇ ਡੀਵਾਈਸ ਦਾ ਡਾਟਾ ਮਿਟਾਇਆ ਜਾਵੇਗਾ।\n\nਜੇ ਤੁਹਾਡੇ ਕੋਲ ਸਵਾਲ ਹਨ, ਤਾਂ ਆਪਣੀ ਸੰਸਥਾ ਦੇ ਪ੍ਰਸ਼ਾਸਕ ਨੂੰ ਸੰਪਰਕ ਕਰੋ।"</string>

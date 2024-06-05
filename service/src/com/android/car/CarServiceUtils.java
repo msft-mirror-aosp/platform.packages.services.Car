@@ -21,7 +21,6 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.os.Process.INVALID_UID;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -39,12 +38,14 @@ import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.Process;
 import android.os.SystemClock;
@@ -71,9 +72,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -88,8 +89,6 @@ public final class CarServiceUtils {
     private static final String TAG = CarLog.tagFor(CarServiceUtils.class);
     private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
-    /** Empty int array */
-    public  static final int[] EMPTY_INT_ARRAY = new int[0];
     private static final String COMMON_HANDLER_THREAD_NAME =
             "CarServiceUtils_COMMON_HANDLER_THREAD";
     private static final byte[] CHAR_POOL_FOR_RANDOM_STRING =
@@ -269,9 +268,12 @@ public final class CarServiceUtils {
                 return true;
             }
         }
+        StringJoiner expectedTyepsStringJoiner = new StringJoiner(",");
+        for (int index = 0; index < expectedTypes.length; index++) {
+            expectedTyepsStringJoiner.add(lifecycleEventTypeToString(expectedTypes[index]));
+        }
         Slogf.wtf(tag, "Received an unexpected event: %s. Expected types: [%s]", event,
-                Arrays.stream(expectedTypes).mapToObj(t -> lifecycleEventTypeToString(t)).collect(
-                        Collectors.joining(",")));
+                expectedTyepsStringJoiner.toString());
         return false;
     }
 
@@ -482,6 +484,20 @@ public final class CarServiceUtils {
     }
 
     /**
+     * Converts int-value array set to values array
+     */
+    public static int[] toIntArray(ArraySet<Integer> set) {
+        Preconditions.checkArgument(set != null,
+                "Int array set to converted to array must not be null");
+        int size = set.size();
+        int[] array = new int[size];
+        for (int i = 0; i < size; ++i) {
+            array[i] = set.valueAt(i);
+        }
+        return array;
+    }
+
+    /**
      * Returns delta between elapsed time to uptime = {@link SystemClock#elapsedRealtime()} -
      * {@link SystemClock#uptimeMillis()}. Note that this value will be always >= 0.
      */
@@ -528,29 +544,33 @@ public final class CarServiceUtils {
     }
 
     /**
-     * Finishes all queued {@code Handler} tasks for {@code HandlerThread} created via
+     * Quits all the {@code HandlerThread} created via
      * {@link#getHandlerThread(String)}. This is useful only for testing.
      */
     @VisibleForTesting
-    public static void finishAllHandlerTasks() {
+    public static void quitHandlerThreads() throws InterruptedException {
         ArrayList<HandlerThread> threads;
         synchronized (sHandlerThreads) {
             threads = new ArrayList<>(sHandlerThreads.values());
         }
-        ArrayList<SyncRunnable> syncs = new ArrayList<>(threads.size());
         for (int i = 0; i < threads.size(); i++) {
-            if (!threads.get(i).isAlive()) {
+            var thread = threads.get(i);
+            if (!thread.isAlive()) {
                 continue;
             }
-            Handler handler = new Handler(threads.get(i).getLooper());
-            SyncRunnable sr = new SyncRunnable(() -> { });
-            if (handler.post(sr)) {
-                // Track the threads only where SyncRunnable is posted successfully.
-                syncs.add(sr);
+            if (thread.quitSafely()) {
+                thread.join();
             }
         }
-        for (int i = 0; i < syncs.size(); i++) {
-            syncs.get(i).waitForComplete();
+        synchronized (sHandlerThreads) {
+            for (int i = 0; i < sHandlerThreads.size(); i++) {
+                if (sHandlerThreads.valueAt(i).isAlive()) {
+                    throw new IllegalStateException(
+                            "Thread: " + sHandlerThreads.keyAt(i) + " is still alive after "
+                            + "finishing all the tasks in the handler threads, maybe one of the "
+                            + " pending task is creating a new handler thread?");
+                }
+            }
         }
     }
 
@@ -687,8 +707,7 @@ public final class CarServiceUtils {
      * displays.
      */
     public static boolean isMultipleUsersOnMultipleDisplaysSupported(UserManager userManager) {
-        return isPlatformVersionAtLeastU()
-                && UserManagerHelper.isVisibleBackgroundUsersSupported(userManager);
+        return UserManagerHelper.isVisibleBackgroundUsersSupported(userManager);
     }
 
     /**
@@ -697,8 +716,7 @@ public final class CarServiceUtils {
      */
     public static boolean isVisibleBackgroundUsersOnDefaultDisplaySupported(
             UserManager userManager) {
-        return isPlatformVersionAtLeastU()
-                && UserManagerHelper.isVisibleBackgroundUsersOnDefaultDisplaySupported(userManager);
+        return UserManagerHelper.isVisibleBackgroundUsersOnDefaultDisplaySupported(userManager);
     }
 
     /**
@@ -736,9 +754,7 @@ public final class CarServiceUtils {
      * SystemUI service component not being defined.
      */
     public static boolean startSystemUiForUser(Context context, @UserIdInt int userId) {
-        if (!isPlatformVersionAtLeastU()) {
-            return false;
-        }
+        if (DBG) Slogf.d(TAG, "Start SystemUI for user: %d", userId);
         Preconditions.checkArgument(userId != UserHandle.SYSTEM.getIdentifier(),
                 "Cannot start SystemUI for the system user");
         Preconditions.checkArgument(userId != ActivityManager.getCurrentUser(),
@@ -748,8 +764,8 @@ public final class CarServiceUtils {
         ComponentName sysuiComponent = PackageManagerHelper.getSystemUiServiceComponent(context);
         Intent sysUIIntent = new Intent().setComponent(sysuiComponent);
         try {
-            context.createContextAsUser(UserHandle.of(userId), /* flags= */ 0).startService(
-                    sysUIIntent);
+            context.bindServiceAsUser(sysUIIntent, sEmptyServiceConnection,
+                    Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT, UserHandle.of(userId));
             return true;
         } catch (Exception e) {
             Slogf.w(TAG, e, "Cannot start SysUI component %s for user %d", sysuiComponent,
@@ -758,14 +774,20 @@ public final class CarServiceUtils {
         }
     }
 
+    // The callbacks are not called actually, because SystemUI returns null for IBinder.
+    private static final ServiceConnection sEmptyServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {}
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {}
+    };
+
     /**
      * Stops the SystemUI component for a particular user - this function should not be called
      * for the system user.
      */
     public static void stopSystemUiForUser(Context context, @UserIdInt int userId) {
-        if (!isPlatformVersionAtLeastU()) {
-            return;
-        }
         Preconditions.checkArgument(userId != UserHandle.SYSTEM.getIdentifier(),
                 "Cannot stop SystemUI for the system user");
         // TODO (b/261192740): add EventLog for SystemUI stopping

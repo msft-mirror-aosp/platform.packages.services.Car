@@ -32,7 +32,9 @@ public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTest
 
     private static final CarVolumeGroupInfo TEST_VOLUME_INFO =
             new CarVolumeGroupInfo.Builder(TEST_GROUP_NAME, TEST_ZONE_ID, TEST_PRIMARY_GROUP_ID)
-                    .setMaxVolumeGainIndex(9_000).setMinVolumeGainIndex(0).build();
+                    .setMaxVolumeGainIndex(9_000).setMinVolumeGainIndex(0)
+                    .setMaxActivationVolumeGainIndex(8_000).setMinActivationVolumeGainIndex(100)
+                    .build();
 
     @Test
     public void build() {
@@ -75,7 +77,7 @@ public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTest
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ true).build();
 
         info.writeToParcel(parcel, /* flags= */ 0);
-        parcel.setDataPosition(/* position= */ 0);
+        parcel.setDataPosition(/* pos= */ 0);
 
         expectWithMessage("Car volume change from parcel")
                 .that(OemCarVolumeChangeInfo.CREATOR.createFromParcel(parcel)).isEqualTo(info);

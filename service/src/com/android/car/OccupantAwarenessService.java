@@ -32,6 +32,8 @@ import android.hardware.automotive.occupant_awareness.IOccupantAwareness;
 import android.hardware.automotive.occupant_awareness.IOccupantAwarenessClientCallback;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
+import android.util.Log;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -64,7 +66,7 @@ public class OccupantAwarenessService
         extends android.car.occupantawareness.IOccupantAwarenessManager.Stub
         implements CarServiceBase {
     private static final String TAG = CarLog.tagFor(OccupantAwarenessService.class);
-    private static final boolean DBG = false;
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
     // HAL service identifier name.
     @VisibleForTesting
@@ -79,7 +81,8 @@ public class OccupantAwarenessService
 
     private final ChangeListenerToHalService mHalListener = new ChangeListenerToHalService(this);
 
-    private class ChangeCallbackList extends RemoteCallbackList<IOccupantAwarenessEventCallback> {
+    private static class ChangeCallbackList
+            extends RemoteCallbackList<IOccupantAwarenessEventCallback> {
         private final WeakReference<OccupantAwarenessService> mOasService;
 
         ChangeCallbackList(OccupantAwarenessService oasService) {
@@ -138,6 +141,10 @@ public class OccupantAwarenessService
                         "%d change listeners subscribed.",
                         mListeners.getRegisteredCallbackCount()));
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     /** Attempts to connect to the HAL service if it is not already connected. */
     private void connectToHalServiceIfNotConnected(boolean forceConnect) {

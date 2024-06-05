@@ -91,18 +91,16 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testSetProcessGroupInFirstTry() throws Exception {
-        setUpAssignPassengerActivityToFgGroup(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZones=*/ true);
+        setUpAssignPassengerActivityToFgGroup(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
 
         mService.init();
-
-        ProcessObserverCallback cb = verifyAndGetProcessObserverCallback();
 
         mProcessGroupsForGet.add(ProcessHelper.THREAD_GROUP_TOP_APP);
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(mNonCurrentUserId, /*appId=*/ 1);
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        int processUid = UserHandle.getUid(mNonCurrentUserId, /* appId= */ 1);
+        mService.handleFocusChanged(processPid, processUid);
 
         verify(mICarServiceHelper).getProcessGroup(processPid);
         verify(mICarServiceHelper).setProcessGroup(processPid, ProcessHelper.THREAD_GROUP_DEFAULT);
@@ -110,12 +108,10 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testSetProcessGroupInSecondTry() throws Exception {
-        setUpAssignPassengerActivityToFgGroup(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZones=*/ true);
+        setUpAssignPassengerActivityToFgGroup(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
 
         mService.init();
-
-        ProcessObserverCallback cb = verifyAndGetProcessObserverCallback();
 
         // 1st entry is not top app yet, so it will retry.
         mProcessGroupsForGet.add(ProcessHelper.THREAD_GROUP_DEFAULT);
@@ -123,8 +119,8 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(mNonCurrentUserId, /*appId=*/ 1);
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        int processUid = UserHandle.getUid(mNonCurrentUserId, /* appId= */ 1);
+        mService.handleFocusChanged(processPid, processUid);
 
         // Double the waiting time so that we have enough delay
         waitForHandlerThreadToComplete(2 * PASSENGER_PROCESS_GROUP_SET_RETRY_TIMEOUT_MS);
@@ -136,19 +132,17 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testGetProcessGroupFailure() throws Exception {
-        setUpAssignPassengerActivityToFgGroup(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZones=*/ true);
+        setUpAssignPassengerActivityToFgGroup(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
 
         mService.init();
-
-        ProcessObserverCallback cb = verifyAndGetProcessObserverCallback();
 
         mThrowExceptionOnGetSetProcessGroup = true;
 
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(mNonCurrentUserId, /*appId=*/ 1);
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        int processUid = UserHandle.getUid(mNonCurrentUserId, /* appId= */ 1);
+        mService.handleFocusChanged(processPid, processUid);
 
         verify(mICarServiceHelper).getProcessGroup(processPid);
         verify(mICarServiceHelper, never()).setProcessGroup(anyInt(), anyInt());
@@ -156,17 +150,15 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testIgnoreCurrentUser() throws Exception {
-        setUpAssignPassengerActivityToFgGroup(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZones=*/ true);
+        setUpAssignPassengerActivityToFgGroup(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
 
         mService.init();
 
-        ProcessObserverCallback cb = verifyAndGetProcessObserverCallback();
-
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(ActivityManager.getCurrentUser(), /*appId=*/ 1);
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        int processUid = UserHandle.getUid(ActivityManager.getCurrentUser(), /* appId= */ 1);
+        mService.handleFocusChanged(processPid, processUid);
 
         verify(mICarServiceHelper, never()).getProcessGroup(processPid);
         verify(mICarServiceHelper, never()).setProcessGroup(anyInt(), anyInt());
@@ -174,17 +166,15 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testIgnoreSystemUser() throws Exception {
-        setUpAssignPassengerActivityToFgGroup(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZones=*/ true);
+        setUpAssignPassengerActivityToFgGroup(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
 
         mService.init();
 
-        ProcessObserverCallback cb = verifyAndGetProcessObserverCallback();
-
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(UserHandle.USER_SYSTEM, /*appId=*/ 1);
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        int processUid = UserHandle.getUid(UserHandle.USER_SYSTEM, /* appId= */ 1);
+        mService.handleFocusChanged(processPid, processUid);
 
         verify(mICarServiceHelper, never()).getProcessGroup(processPid);
         verify(mICarServiceHelper, never()).setProcessGroup(anyInt(), anyInt());
@@ -192,26 +182,26 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testIgnoreWhenDisabledFromResource() throws Exception {
-        doTestDisabledConfig(/*enableResource=*/ false, /*hasDriverZone=*/ true,
-                /*hasPassengerZones=*/ true);
+        doTestDisabledConfig(/* enableResource= */ false, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
     }
 
     @Test
     public void testIgnoreWithoutDriverZone() throws Exception {
-        doTestDisabledConfig(/*enableResource=*/ true, /*hasDriverZone=*/ false,
-                /*hasPassengerZones=*/ true);
+        doTestDisabledConfig(/* enableResource= */ true, /* hasDriverZone= */ false,
+                /* hasPassengerZone= */ true);
     }
 
     @Test
     public void testIgnoreWithoutPassengerZone() throws Exception {
-        doTestDisabledConfig(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZones=*/ false);
+        doTestDisabledConfig(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ false);
     }
 
     @Test
     public void testRegisterProcessRunningStateCallback() {
-        setUpAssignPassengerActivityToFgGroup(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZone=*/ true);
+        setUpAssignPassengerActivityToFgGroup(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
 
         mService.init();
         ProcessObserverCallback customCallback = mock(ProcessObserverCallback.class);
@@ -221,21 +211,21 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(ActivityManager.getCurrentUser(), /*appId=*/ 1);
+        int processUid = UserHandle.getUid(ActivityManager.getCurrentUser(), /* appId= */ 1);
 
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        cb.onForegroundActivitiesChanged(processPid, processUid, /* foregroundActivities= */ true);
         // Double the waiting time so that we have enough delay
         waitForHandlerThreadToComplete(2 * PASSENGER_PROCESS_GROUP_SET_RETRY_TIMEOUT_MS);
 
-        verify(customCallback)
-                .onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        verify(customCallback).onForegroundActivitiesChanged(processPid, processUid,
+                /* foregroundActivities= */ true);
 
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ false);
+        cb.onForegroundActivitiesChanged(processPid, processUid, /* foregroundActivities= */ false);
         // Double the waiting time so that we have enough delay
         waitForHandlerThreadToComplete(2 * PASSENGER_PROCESS_GROUP_SET_RETRY_TIMEOUT_MS);
 
-        verify(customCallback)
-                .onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ false);
+        verify(customCallback).onForegroundActivitiesChanged(processPid, processUid,
+                /* foregroundActivities= */ false);
 
         cb.onProcessDied(processPid, processUid);
         // Double the waiting time so that we have enough delay
@@ -246,8 +236,8 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testUnregisterProcessRunningStateCallback() {
-        setUpAssignPassengerActivityToFgGroup(/*enableResource=*/ true, /*hasDriverZone=*/ true,
-                /*hasPassengerZone=*/ true);
+        setUpAssignPassengerActivityToFgGroup(/* enableResource= */ true, /* hasDriverZone= */ true,
+                /* hasPassengerZone= */ true);
 
         mService.init();
         ProcessObserverCallback customCallback = mock(ProcessObserverCallback.class);
@@ -258,14 +248,14 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(ActivityManager.getCurrentUser(), /*appId=*/ 1);
+        int processUid = UserHandle.getUid(ActivityManager.getCurrentUser(), /* appId= */ 1);
 
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        cb.onForegroundActivitiesChanged(processPid, processUid, /* foregroundActivities= */ true);
         // Double the waiting time so that we have enough delay
         waitForHandlerThreadToComplete(2 * PASSENGER_PROCESS_GROUP_SET_RETRY_TIMEOUT_MS);
 
-        verify(customCallback, never())
-                .onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        verify(customCallback, never()).onForegroundActivitiesChanged(processPid, processUid,
+                /* foregroundActivities= */ true);
     }
 
     private void setUpAssignPassengerActivityToFgGroup(boolean enableResource,
@@ -289,13 +279,11 @@ public class SystemActivityMonitoringServiceUnitTest extends AbstractExtendedMoc
 
         mService.init();
 
-        ProcessObserverCallback cb = verifyAndGetProcessObserverCallback();
-
         mProcessGroupsForGet.add(ProcessHelper.THREAD_GROUP_TOP_APP);
         int processPid = 1;
         // appId does not matter here but better to avoid 0.
-        int processUid = UserHandle.getUid(mNonCurrentUserId, /*appId=*/ 1);
-        cb.onForegroundActivitiesChanged(processPid, processUid, /*foreground=*/ true);
+        int processUid = UserHandle.getUid(mNonCurrentUserId, /* appId= */ 1);
+        mService.handleFocusChanged(processPid, processUid);
 
         verify(mICarServiceHelper, never()).getProcessGroup(processPid);
         verify(mICarServiceHelper, never()).setProcessGroup(processPid,

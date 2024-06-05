@@ -21,16 +21,21 @@ import static com.android.car.audio.CarAudioUtils.hasExpired;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.media.AudioAttributes;
 import android.media.AudioPlaybackConfiguration;
 import android.util.ArrayMap;
+import android.util.Pair;
+import android.util.proto.ProtoOutputStream;
 
+import com.android.car.audio.CarAudioDumpProto.CarAudioPlaybackCallbackProto;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,13 +48,16 @@ final class ZoneAudioPlaybackCallback {
     private final ArrayMap<String, AudioPlaybackConfiguration> mLastActiveConfigs =
             new ArrayMap<>();
     private final CarAudioZone mCarAudioZone;
+    private final @Nullable  CarAudioPlaybackMonitor mCarAudioPlaybackMonitor;
     private final SystemClockWrapper mClock;
     private final int mVolumeKeyEventTimeoutMs;
 
     ZoneAudioPlaybackCallback(@NonNull CarAudioZone carAudioZone,
-            @NonNull SystemClockWrapper clock,
-            int volumeKeyEventTimeoutMs) {
+                              @Nullable CarAudioPlaybackMonitor carAudioPlaybackMonitor,
+                              @NonNull SystemClockWrapper clock,
+                              int volumeKeyEventTimeoutMs) {
         mCarAudioZone = Objects.requireNonNull(carAudioZone, "Audio zone cannot be null");
+        mCarAudioPlaybackMonitor = carAudioPlaybackMonitor;
         mClock = Objects.requireNonNull(clock, "Clock cannot be null");
         mVolumeKeyEventTimeoutMs = Preconditions.checkArgumentNonnegative(volumeKeyEventTimeoutMs,
                 "Volume key event timeout must be positive");
@@ -58,15 +66,24 @@ final class ZoneAudioPlaybackCallback {
     public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configurations) {
         ArrayMap<String, AudioPlaybackConfiguration> newActiveConfigs =
                 filterNewActiveConfiguration(configurations);
+        List<Pair<AudioAttributes, Integer>> newlyActiveAudioAttributesWithUid = new ArrayList<>();
 
         synchronized (mLock) {
             List<AudioPlaybackConfiguration> newlyInactiveConfigurations =
                     getNewlyInactiveConfigurationsLocked(newActiveConfigs);
+            if (mCarAudioPlaybackMonitor != null) {
+                newlyActiveAudioAttributesWithUid = getNewlyActiveAudioAttributes(newActiveConfigs);
+            }
 
             mLastActiveConfigs.clear();
             mLastActiveConfigs.putAll(newActiveConfigs);
 
             startTimersForContextThatBecameInactiveLocked(newlyInactiveConfigurations);
+        }
+
+        if (mCarAudioPlaybackMonitor != null && !newlyActiveAudioAttributesWithUid.isEmpty()) {
+            mCarAudioPlaybackMonitor.onActiveAudioPlaybackAttributesAdded(
+                    newlyActiveAudioAttributesWithUid, mCarAudioZone.getId());
         }
     }
 
@@ -109,6 +126,32 @@ final class ZoneAudioPlaybackCallback {
         return newlyInactiveConfigurations;
     }
 
+    @GuardedBy("mLock")
+    private List<Pair<AudioAttributes, Integer>> getNewlyActiveAudioAttributes(
+            ArrayMap<String, AudioPlaybackConfiguration> newActiveConfigurations) {
+        List<AudioPlaybackConfiguration> audioPlaybackConfigurationsWithNewAttributes =
+                new ArrayList<>();
+        for (int index = 0; index < newActiveConfigurations.size(); index++) {
+            if (mLastActiveConfigs.containsKey(newActiveConfigurations.keyAt(index))) {
+                continue;
+            }
+            audioPlaybackConfigurationsWithNewAttributes
+                    .add(newActiveConfigurations.valueAt(index));
+        }
+        List<Pair<AudioAttributes, Integer>> attributesUidList = new ArrayList<>();
+        for (int index = 0; index < audioPlaybackConfigurationsWithNewAttributes.size(); index++) {
+            AudioPlaybackConfiguration configuration = audioPlaybackConfigurationsWithNewAttributes
+                    .get(index);
+            List<AudioAttributes> attributes = getAudioAttributesFromPlaybacks(
+                    List.of(configuration));
+            if (attributes.isEmpty()) {
+                continue;
+            }
+            attributesUidList.add(new Pair<>(attributes.get(0), configuration.getClientUid()));
+        }
+        return attributesUidList;
+    }
+
     private ArrayMap<String, AudioPlaybackConfiguration> filterNewActiveConfiguration(
             List<AudioPlaybackConfiguration> configurations) {
         ArrayMap<String, AudioPlaybackConfiguration> newActiveConfigs = new ArrayMap<>();
@@ -128,8 +171,7 @@ final class ZoneAudioPlaybackCallback {
 
     @GuardedBy("mLock")
     private List<AudioAttributes> getCurrentlyActiveAttributesLocked() {
-        return mCarAudioZone.findActiveAudioAttributesFromPlaybackConfigurations(
-                new ArrayList<>(mLastActiveConfigs.values()));
+        return getAudioAttributesFromPlaybacks(mLastActiveConfigs.values());
     }
 
     @GuardedBy("mLock")
@@ -157,6 +199,12 @@ final class ZoneAudioPlaybackCallback {
         }
     }
 
+    private List<AudioAttributes> getAudioAttributesFromPlaybacks(
+            Collection<AudioPlaybackConfiguration> playbacks) {
+        return mCarAudioZone.findActiveAudioAttributesFromPlaybackConfigurations(
+                new ArrayList<>(playbacks));
+    }
+
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         writer.printf("Audio zone: %d\n", mCarAudioZone.getId());
@@ -181,6 +229,43 @@ final class ZoneAudioPlaybackCallback {
                         mAudioAttributesStartTime.keyAt(i), mAudioAttributesStartTime.valueAt(i));
             }
             writer.decreaseIndent();
+        }
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    void dumpProto(ProtoOutputStream proto) {
+        long token = proto.start(CarAudioPlaybackCallbackProto.ZONE_AUDIO_PLAYBACK_CALLBACKS);
+        proto.write(CarAudioPlaybackCallbackProto.ZoneAudioPlaybackCallbackProto.ZONE_ID,
+                mCarAudioZone.getId());
+        dumpProtoLastActiveConfigsAndAudioAttributesStartTime(proto);
+        proto.end(token);
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProtoLastActiveConfigsAndAudioAttributesStartTime(ProtoOutputStream proto) {
+        synchronized (mLock) {
+            for (int i = 0; i < mLastActiveConfigs.size(); i++) {
+                long lastActiveConfigToken = proto.start(CarAudioPlaybackCallbackProto
+                        .ZoneAudioPlaybackCallbackProto.LAST_ACTIVE_CONFIGS);
+                proto.write(CarAudioPlaybackCallbackProto.ZoneAudioPlaybackCallbackProto
+                        .AudioDeviceAddressToConfig.ADDRESS, mLastActiveConfigs.keyAt(i));
+                proto.write(CarAudioPlaybackCallbackProto.ZoneAudioPlaybackCallbackProto
+                        .AudioDeviceAddressToConfig.CONFIG, mLastActiveConfigs.valueAt(i)
+                        .toString());
+                proto.end(lastActiveConfigToken);
+            }
+
+            for (int i = 0; i < mAudioAttributesStartTime.size(); i++) {
+                long audioAttributeToStartTimeToken = proto.start(CarAudioPlaybackCallbackProto
+                        .ZoneAudioPlaybackCallbackProto.AUDIO_ATTRIBUTES_TO_START_TIMES);
+                CarAudioContextInfo.dumpCarAudioAttributesProto(mAudioAttributesStartTime.keyAt(i),
+                        CarAudioPlaybackCallbackProto.ZoneAudioPlaybackCallbackProto
+                                .AudioAttributesToStartTime.AUDIO_ATTRIBUTES, proto);
+                proto.write(CarAudioPlaybackCallbackProto.ZoneAudioPlaybackCallbackProto
+                        .AudioAttributesToStartTime.START_TIME,
+                        mAudioAttributesStartTime.valueAt(i));
+                proto.end(audioAttributeToStartTimeToken);
+            }
         }
     }
 }

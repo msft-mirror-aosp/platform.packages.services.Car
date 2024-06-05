@@ -25,7 +25,13 @@ android_app {
 
     platform_apis: true,
 
+    system_ext_specific: true,
+
     aaptflags: ["--auto-add-overlay"],
+
+    optimize: {
+        enabled: false,
+    },
 
     certificate: "platform",
 
@@ -39,6 +45,7 @@ android_app {
     libs: [
         "android.car",
         "auto_value_annotations",
+        "androidx.annotation_annotation",
     ],
 
     static_libs: [

@@ -16,6 +16,7 @@
 
 #include <aidl/android/hardware/automotive/vehicle/BnVehicle.h>
 #include <android/binder_ibinder.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <AidlHalPropValue.h>
@@ -54,11 +55,14 @@ using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfig;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfigs;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropError;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropErrors;
+using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyAccess;
+using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyStatus;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropValue;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropValues;
 
 using ::ndk::ScopedAStatus;
 using ::ndk::SharedRefBase;
+using ::testing::Gt;
 
 class MockVhal final : public BnVehicle {
 public:
@@ -262,6 +266,9 @@ protected:
     constexpr static int32_t TEST_PROP_ID = 1;
     constexpr static int32_t TEST_AREA_ID = 2;
     constexpr static int32_t TEST_PROP_ID_2 = 3;
+    constexpr static int32_t TEST_AREA_ID_2 = 4;
+    constexpr static VehiclePropertyAccess TEST_GLOBAL_ACCESS = VehiclePropertyAccess::READ_WRITE;
+    constexpr static VehiclePropertyAccess TEST_AREA_ACCESS = VehiclePropertyAccess::READ;
     constexpr static int64_t TEST_TIMEOUT_IN_MS = 100;
 
     void SetUp() override {
@@ -345,6 +352,7 @@ TEST_F(AidlVhalClientTest, testGetValueNormal) {
     auto gotValue = std::move(result.value());
     ASSERT_EQ(gotValue->getPropId(), TEST_PROP_ID);
     ASSERT_EQ(gotValue->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(gotValue->getStatus(), VehiclePropertyStatus::AVAILABLE);
     ASSERT_EQ(gotValue->getInt32Values(), std::vector<int32_t>({1}));
 }
 
@@ -379,7 +387,39 @@ TEST_F(AidlVhalClientTest, testGetValueSync) {
     auto gotValue = std::move(result.value());
     ASSERT_EQ(gotValue->getPropId(), TEST_PROP_ID);
     ASSERT_EQ(gotValue->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(gotValue->getStatus(), VehiclePropertyStatus::AVAILABLE);
     ASSERT_EQ(gotValue->getInt32Values(), std::vector<int32_t>({1}));
+}
+
+TEST_F(AidlVhalClientTest, testGetValueUnavailableStatusSync) {
+    VehiclePropValue testProp{
+            .prop = TEST_PROP_ID,
+            .areaId = TEST_AREA_ID,
+    };
+    getVhal()->setWaitTimeInMs(10);
+    getVhal()->setGetValueResults({
+            GetValueResult{
+                    .requestId = 0,
+                    .status = StatusCode::OK,
+                    .prop =
+                            VehiclePropValue{
+                                    .prop = TEST_PROP_ID,
+                                    .areaId = TEST_AREA_ID,
+                                    .status = VehiclePropertyStatus::UNAVAILABLE,
+                            },
+            },
+    });
+
+    AidlHalPropValue propValue(TEST_PROP_ID, TEST_AREA_ID);
+    VhalClientResult<std::unique_ptr<IHalPropValue>> result = getClient()->getValueSync(propValue);
+
+    ASSERT_EQ(getVhal()->getGetValueRequests(),
+              std::vector<GetValueRequest>({GetValueRequest{.requestId = 0, .prop = testProp}}));
+    ASSERT_TRUE(result.ok());
+    auto gotValue = std::move(result.value());
+    ASSERT_EQ(gotValue->getPropId(), TEST_PROP_ID);
+    ASSERT_EQ(gotValue->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(gotValue->getStatus(), VehiclePropertyStatus::UNAVAILABLE);
 }
 
 TEST_F(AidlVhalClientTest, testGetValueTimeout) {
@@ -766,11 +806,19 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
     getVhal()->setPropConfigs({
             VehiclePropConfig{
                     .prop = TEST_PROP_ID,
+                    .access = TEST_GLOBAL_ACCESS,
                     .areaConfigs = {{
-                            .areaId = TEST_AREA_ID,
-                            .minInt32Value = 0,
-                            .maxInt32Value = 1,
-                    }},
+                                            .areaId = TEST_AREA_ID,
+                                            .minInt32Value = 0,
+                                            .maxInt32Value = 1,
+                                            .supportVariableUpdateRate = true,
+                                    },
+                                    {
+                                            .areaId = TEST_AREA_ID_2,
+                                            .access = TEST_AREA_ACCESS,
+                                            .minInt32Value = 2,
+                                            .maxInt32Value = 3,
+                                    }},
             },
             VehiclePropConfig{
                     .prop = TEST_PROP_ID_2,
@@ -784,15 +832,31 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
 
     ASSERT_EQ(configs.size(), static_cast<size_t>(2));
     ASSERT_EQ(configs[0]->getPropId(), TEST_PROP_ID);
-    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(1));
+    ASSERT_EQ(configs[0]->getAccess(), toInt(TEST_GLOBAL_ACCESS));
+    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(2));
 
-    const IHalAreaConfig* areaConfig = configs[0]->getAreaConfigs();
-    ASSERT_EQ(areaConfig->getAreaId(), TEST_AREA_ID);
-    ASSERT_EQ(areaConfig->getMinInt32Value(), 0);
-    ASSERT_EQ(areaConfig->getMaxInt32Value(), 1);
+    const std::unique_ptr<IHalAreaConfig>& areaConfig0 = configs[0]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig0->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(areaConfig0->getAccess(), toInt(TEST_GLOBAL_ACCESS));
+    ASSERT_EQ(areaConfig0->getMinInt32Value(), 0);
+    ASSERT_EQ(areaConfig0->getMaxInt32Value(), 1);
+    ASSERT_TRUE(areaConfig0->isVariableUpdateRateSupported());
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig1 = configs[0]->getAreaConfigs()[1];
+    ASSERT_EQ(areaConfig1->getAreaId(), TEST_AREA_ID_2);
+    ASSERT_EQ(areaConfig1->getAccess(), toInt(TEST_AREA_ACCESS));
+    ASSERT_EQ(areaConfig1->getMinInt32Value(), 2);
+    ASSERT_EQ(areaConfig1->getMaxInt32Value(), 3);
+    ASSERT_FALSE(areaConfig1->isVariableUpdateRateSupported());
 
     ASSERT_EQ(configs[1]->getPropId(), TEST_PROP_ID_2);
-    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(0));
+    ASSERT_EQ(configs[1]->getAccess(), 0);
+    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(1));
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig2 = configs[1]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig2->getAreaId(), 0);
+    ASSERT_EQ(areaConfig2->getAccess(), 0);
+    ASSERT_FALSE(areaConfig2->isVariableUpdateRateSupported());
 }
 
 TEST_F(AidlVhalClientTest, testGetAllPropConfigsError) {
@@ -808,11 +872,19 @@ TEST_F(AidlVhalClientTest, testGetPropConfigs) {
     getVhal()->setPropConfigs({
             VehiclePropConfig{
                     .prop = TEST_PROP_ID,
+                    .access = TEST_GLOBAL_ACCESS,
                     .areaConfigs = {{
-                            .areaId = TEST_AREA_ID,
-                            .minInt32Value = 0,
-                            .maxInt32Value = 1,
-                    }},
+                                            .areaId = TEST_AREA_ID,
+                                            .minInt32Value = 0,
+                                            .maxInt32Value = 1,
+                                            .supportVariableUpdateRate = true,
+                                    },
+                                    {
+                                            .areaId = TEST_AREA_ID_2,
+                                            .access = TEST_AREA_ACCESS,
+                                            .minInt32Value = 2,
+                                            .maxInt32Value = 3,
+                                    }},
             },
             VehiclePropConfig{
                     .prop = TEST_PROP_ID_2,
@@ -828,15 +900,31 @@ TEST_F(AidlVhalClientTest, testGetPropConfigs) {
 
     ASSERT_EQ(configs.size(), static_cast<size_t>(2));
     ASSERT_EQ(configs[0]->getPropId(), TEST_PROP_ID);
-    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(1));
+    ASSERT_EQ(configs[0]->getAccess(), toInt(TEST_GLOBAL_ACCESS));
+    ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(2));
 
-    const IHalAreaConfig* areaConfig = configs[0]->getAreaConfigs();
-    ASSERT_EQ(areaConfig->getAreaId(), TEST_AREA_ID);
-    ASSERT_EQ(areaConfig->getMinInt32Value(), 0);
-    ASSERT_EQ(areaConfig->getMaxInt32Value(), 1);
+    const std::unique_ptr<IHalAreaConfig>& areaConfig0 = configs[0]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig0->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(areaConfig0->getAccess(), toInt(TEST_GLOBAL_ACCESS));
+    ASSERT_EQ(areaConfig0->getMinInt32Value(), 0);
+    ASSERT_EQ(areaConfig0->getMaxInt32Value(), 1);
+    ASSERT_TRUE(areaConfig0->isVariableUpdateRateSupported());
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig1 = configs[0]->getAreaConfigs()[1];
+    ASSERT_EQ(areaConfig1->getAreaId(), TEST_AREA_ID_2);
+    ASSERT_EQ(areaConfig1->getAccess(), toInt(TEST_AREA_ACCESS));
+    ASSERT_EQ(areaConfig1->getMinInt32Value(), 2);
+    ASSERT_EQ(areaConfig1->getMaxInt32Value(), 3);
+    ASSERT_FALSE(areaConfig1->isVariableUpdateRateSupported());
 
     ASSERT_EQ(configs[1]->getPropId(), TEST_PROP_ID_2);
-    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(0));
+    ASSERT_EQ(configs[1]->getAccess(), 0);
+    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(1));
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig2 = configs[1]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig2->getAreaId(), 0);
+    ASSERT_EQ(areaConfig2->getAccess(), 0);
+    ASSERT_FALSE(areaConfig2->isVariableUpdateRateSupported());
 }
 
 TEST_F(AidlVhalClientTest, testGetPropConfigsError) {
@@ -930,6 +1018,95 @@ TEST_F(AidlVhalClientTest, testUnubscribeError) {
     auto result = subscriptionClient->unsubscribe({TEST_PROP_ID});
 
     ASSERT_FALSE(result.ok());
+}
+
+TEST_F(AidlVhalClientTest, testGetRemoteInterfaceVersion) {
+    // The AIDL VHAL should be v2 or higher.
+    ASSERT_THAT(getClient()->getRemoteInterfaceVersion(), Gt(1));
+}
+
+TEST_F(AidlVhalClientTest, testSubscribeOptionsBuilder) {
+    auto optionsBuilder = SubscribeOptionsBuilder(TEST_PROP_ID);
+    optionsBuilder.setSampleRate(1.23f);
+    optionsBuilder.addAreaId(1);
+    optionsBuilder.addAreaId(2);
+    optionsBuilder.setResolution(2.34f);
+
+    auto options = optionsBuilder.build();
+
+    ASSERT_EQ(options,
+              (SubscribeOptions{
+                      .propId = TEST_PROP_ID,
+                      .areaIds = {1, 2},
+                      .sampleRate = 1.23f,
+                      .resolution = 2.34f,
+                      // VUR is true by default
+                      .enableVariableUpdateRate = true,
+              }));
+}
+
+TEST_F(AidlVhalClientTest, testSubscribeOptionsBuilder_disableVur) {
+    auto optionsBuilder = SubscribeOptionsBuilder(TEST_PROP_ID);
+    optionsBuilder.setSampleRate(1.23f);
+    optionsBuilder.addAreaId(1);
+    optionsBuilder.addAreaId(2);
+    optionsBuilder.setResolution(2.34f);
+    optionsBuilder.setEnableVariableUpdateRate(false);
+
+    auto options = optionsBuilder.build();
+
+    ASSERT_EQ(options,
+              (SubscribeOptions{
+                      .propId = TEST_PROP_ID,
+                      .areaIds = {1, 2},
+                      .sampleRate = 1.23f,
+                      .resolution = 2.34f,
+                      .enableVariableUpdateRate = false,
+              }));
+}
+
+TEST_F(AidlVhalClientTest, testAidlHalPropValueClone_valueIsTheSame) {
+    VehiclePropValue testProp{.prop = TEST_PROP_ID,
+                              .areaId = TEST_AREA_ID,
+                              .value = {
+                                      .int32Values = {1, 2},
+                                      .floatValues = {1.1, 2.2},
+                              }};
+    auto testPropCopy = testProp;
+    std::unique_ptr<IHalPropValue> halPropValue =
+            std::make_unique<AidlHalPropValue>(std::move(testPropCopy));
+    auto halPropValueClone = halPropValue->clone();
+
+    EXPECT_EQ(halPropValueClone->getPropId(), TEST_PROP_ID);
+    EXPECT_EQ(halPropValueClone->getAreaId(), TEST_AREA_ID);
+    EXPECT_EQ(halPropValueClone->getInt32Values(), std::vector<int32_t>({1, 2}));
+    EXPECT_EQ(halPropValueClone->getFloatValues(), std::vector<float>({1.1, 2.2}));
+}
+
+TEST_F(AidlVhalClientTest, testAidlHalPropValueClone_modifyCloneDoesNotAffectOrig) {
+    std::vector<int32_t> int32Values1 = {1, 2};
+    std::vector<float> floatValues1 = {1.1, 2.2};
+    std::vector<int32_t> int32Values2 = {5, 4, 3, 2, 1};
+    std::vector<float> floatValues2 = {3.3, 2.2, 1.1};
+
+    VehiclePropValue testProp{.prop = TEST_PROP_ID,
+                              .areaId = TEST_AREA_ID,
+                              .value = {
+                                      .int32Values = int32Values1,
+                                      .floatValues = floatValues1,
+                              }};
+    auto testPropCopy = testProp;
+    std::unique_ptr<IHalPropValue> halPropValue =
+            std::make_unique<AidlHalPropValue>(std::move(testPropCopy));
+    auto halPropValueClone = halPropValue->clone();
+
+    halPropValueClone->setInt32Values(int32Values2);
+    halPropValueClone->setFloatValues(floatValues2);
+
+    EXPECT_EQ(halPropValue->getInt32Values(), int32Values1);
+    EXPECT_EQ(halPropValue->getFloatValues(), floatValues1);
+    EXPECT_EQ(halPropValueClone->getInt32Values(), int32Values2);
+    EXPECT_EQ(halPropValueClone->getFloatValues(), floatValues2);
 }
 
 }  // namespace aidl_test

@@ -43,6 +43,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -60,6 +61,11 @@ class CarAudioZonesHelperLegacy {
     private static final int ZONE_CONFIG_ID = 0;
 
     private static final int NO_BUS_FOR_CONTEXT = -1;
+
+    private static final int MIN_ACTIVATION_VOLUME_PERCENTAGE = 0;
+    private static final int MAX_ACTIVATION_VOLUME_PERCENTAGE = 100;
+    private static final int ACTIVATION_VOLUME_INVOCATION_TYPE =
+            CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
 
     private final Context mContext;
     private final @XmlRes int mXmlConfiguration;
@@ -206,7 +212,10 @@ class CarAudioZonesHelperLegacy {
         CarVolumeGroupFactory groupFactory =
                 new CarVolumeGroupFactory(/* audioManager= */ null, mCarAudioSettings,
                         mCarAudioContext, PRIMARY_AUDIO_ZONE, ZONE_CONFIG_ID, id,
-                        String.valueOf(id), /* useCarVolumeGroupMute= */ false);
+                        String.valueOf(id), /* useCarVolumeGroupMute= */ false,
+                        new CarActivationVolumeConfig(ACTIVATION_VOLUME_INVOCATION_TYPE,
+                                MIN_ACTIVATION_VOLUME_PERCENTAGE, MAX_ACTIVATION_VOLUME_PERCENTAGE)
+                );
 
         List<Integer> audioContexts = parseAudioContexts(parser, attrs);
 
@@ -266,7 +275,7 @@ class CarAudioZonesHelperLegacy {
     private static int parseDeviceAddress(String address) {
         String[] words = address.split("_");
         int addressParsed = -1;
-        if (words[0].toLowerCase().startsWith("bus")) {
+        if (words[0].toLowerCase(Locale.US).startsWith("bus")) {
             try {
                 addressParsed = Integer.parseInt(words[0].substring(3));
             } catch (NumberFormatException e) {

@@ -51,9 +51,11 @@ PRODUCT_PACKAGES += \
     CarTelemetryApp \
     RailwayReferenceApp \
     CarHotwordDetectionServiceOne \
+    KitchenSinkServerlessRemoteTaskClientRRO \
+    AaosCustomizationTool \
 
 # SEPolicy for test apps / services
-BOARD_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
+PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
 endif
 
 # ClusterOsDouble is the testing app to test Cluster2 framework and it can handle Cluster VHAL
@@ -120,10 +122,6 @@ PRODUCT_PROPERTY_OVERRIDES := \
 PRODUCT_PROPERTY_OVERRIDES += \
     keyguard.no_require_sim=true
 
-# TODO(b/255631687): Enable the shell transition as soon as all CTS issues are resolved.
-PRODUCT_SYSTEM_PROPERTIES += \
-    persist.wm.debug.shell_transit=0
-
 # TODO(b/198516172): Find a better location to add this read only property
 # It is added here to check the functionality, will be updated in next CL
 PRODUCT_SYSTEM_PROPERTIES += \
@@ -142,6 +140,7 @@ PRODUCT_PACKAGES += \
     CarService \
     CarShell \
     CarDialerApp \
+    CarDocumentsUI \
     CarRadioApp \
     OverviewApp \
     CarLauncher \
@@ -165,6 +164,7 @@ PRODUCT_PACKAGES += \
 # RROs
 PRODUCT_PACKAGES += \
     CarPermissionControllerRRO \
+    CarSystemUIRRO \
 
 # CarSystemUIPassengerOverlay is an RRO package required for enabling unique look
 # and feel for Passenger(Secondary) User.
@@ -264,7 +264,7 @@ PRODUCT_LOCALES := \
 PRODUCT_BOOT_JARS += \
     android.car.builtin
 
-USE_CAR_FRAMEWORK_APEX ?= true
+USE_CAR_FRAMEWORK_APEX ?= false
 
 ifeq ($(USE_CAR_FRAMEWORK_APEX),true)
     PRODUCT_PACKAGES += com.android.car.framework
@@ -272,13 +272,12 @@ ifeq ($(USE_CAR_FRAMEWORK_APEX),true)
     PRODUCT_APEX_BOOT_JARS += com.android.car.framework:android.car-module
     PRODUCT_APEX_SYSTEM_SERVER_JARS += com.android.car.framework:car-frameworks-service-module
 
-    $(call soong_config_set,AUTO,car_bootclasspath_fragment,true)
+    $(call soong_config_set,bootclasspath,car_bootclasspath_fragment,true)
 
     PRODUCT_HIDDENAPI_STUBS := android.car-module.stubs
     PRODUCT_HIDDENAPI_STUBS_SYSTEM := android.car-module.stubs.system
     PRODUCT_HIDDENAPI_STUBS_TEST := android.car-module.stubs.test
 else # !USE_CAR_FRAMEWORK_APEX
-    $(warning NOT using CarFramework APEX)
     PRODUCT_BOOT_JARS += android.car
     PRODUCT_PACKAGES += android.car CarServiceUpdatableNonModule car-frameworks-service-module
     PRODUCT_SYSTEM_SERVER_JARS += car-frameworks-service-module

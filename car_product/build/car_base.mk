@@ -18,11 +18,16 @@
 # car packages should be added to car.mk instead of here
 
 ifeq ($(DISABLE_CAR_PRODUCT_CONFIG_OVERLAY),)
-PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/car_product/overlay
+PRODUCT_PACKAGES += \
+    CarFrameworkResConfigRRO \
+    CarCertInstallerConfigRRO \
+    CarSettingsProviderConfigRRO \
+    CarTelecommConfigRRO
 endif
 
 ifeq ($(DISABLE_CAR_PRODUCT_VISUAL_OVERLAY),)
 PRODUCT_PACKAGE_OVERLAYS += packages/services/Car/car_product/overlay-visual
+PRODUCT_PACKAGES += CarFrameworkResVisualRRO
 endif
 
 PRODUCT_PACKAGES += \
@@ -31,7 +36,6 @@ PRODUCT_PACKAGES += \
     BasicDreams \
     CaptivePortalLogin \
     CertInstaller \
-    DocumentsUI \
     DownloadProviderUi \
     FusedLocation \
     InputDevices \
@@ -50,7 +54,6 @@ PRODUCT_PACKAGES += \
     atrace \
     libandroidfw \
     libaudioutils \
-    libmdnssd \
     libnfc_ndef \
     libpowermanager \
     libvariablespeed \
@@ -133,3 +136,6 @@ include packages/services/Car/cpp/powerpolicy/product/carpowerpolicy.mk
 ifeq ($(ENABLE_CARTELEMETRY_SERVICE), true)
 include packages/services/Car/cpp/telemetry/cartelemetryd/products/telemetry.mk
 endif
+
+# Disable Dynamic System Update for automotive targets
+PRODUCT_NO_DYNAMIC_SYSTEM_UPDATE := true

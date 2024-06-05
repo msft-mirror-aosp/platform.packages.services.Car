@@ -22,7 +22,6 @@ import static android.media.AudioAttributes.USAGE_MEDIA;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.when;
 
-import android.media.AudioManager;
 import android.os.UserHandle;
 
 import com.google.common.truth.Expect;
@@ -44,6 +43,10 @@ public final class CarVolumeGroupFactoryTest {
     private static final int MIN_GAIN_INDEX = 0;
     private static final int MAX_GAIN_INDEX = (TestCarAudioDeviceInfoBuilder.MAX_GAIN
             - TestCarAudioDeviceInfoBuilder.MIN_GAIN) / TestCarAudioDeviceInfoBuilder.STEP_VALUE;
+    private static final CarActivationVolumeConfig CAR_ACTIVATION_VOLUME_CONFIG =
+            new CarActivationVolumeConfig(CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT,
+                    /* minActivationVolumePercentage= */ 10,
+                    /* maxActivationVolumePercentage= */ 90);
     private static final String GROUP_NAME = "group_0";
     private static final String MEDIA_DEVICE_ADDRESS = "music";
     private static final String NAVIGATION_DEVICE_ADDRESS = "navigation";
@@ -65,7 +68,7 @@ public final class CarVolumeGroupFactoryTest {
     @Mock
     CarAudioSettings mSettingsMock;
     @Mock
-    AudioManager mAudioManagerMock;
+    AudioManagerWrapper mAudioManagerMock;
 
     CarVolumeGroupFactory mFactory;
 
@@ -293,7 +296,8 @@ public final class CarVolumeGroupFactoryTest {
         NullPointerException thrown = assertThrows(NullPointerException.class,
                 () -> new CarVolumeGroupFactory(/* audioManager= */ null,
                         /* carAudioSettings= */ null, TEST_CAR_AUDIO_CONTEXT, ZONE_ID,
-                        CONFIG_ID, GROUP_ID, GROUP_NAME, /* useCarVolumeGroupMute= */ true));
+                        CONFIG_ID, GROUP_ID, GROUP_NAME, /* useCarVolumeGroupMute= */ true,
+                        CAR_ACTIVATION_VOLUME_CONFIG));
 
         expect.withMessage("Constructor null car audio settings exception")
                 .that(thrown).hasMessageThat()
@@ -305,15 +309,28 @@ public final class CarVolumeGroupFactoryTest {
         NullPointerException thrown = assertThrows(NullPointerException.class,
                 () -> new CarVolumeGroupFactory(/* audioManager= */ null, mSettingsMock,
                         /* carAudioContext= */ null, ZONE_ID, CONFIG_ID, GROUP_ID,
-                        GROUP_NAME, /* useCarVolumeGroupMute= */ true));
+                        GROUP_NAME, /* useCarVolumeGroupMute= */ true,
+                        CAR_ACTIVATION_VOLUME_CONFIG));
 
         expect.withMessage("Constructor null car audio context exception")
                 .that(thrown).hasMessageThat()
                 .contains("Car audio context");
     }
 
+    @Test
+    public void factoryConstructor_withNullCarActivationVolumeConfig_fails() {
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> new CarVolumeGroupFactory(mAudioManagerMock, mSettingsMock,
+                        TEST_CAR_AUDIO_CONTEXT, ZONE_ID, CONFIG_ID, GROUP_ID, GROUP_NAME,
+                        /* useCarVolumeGroupMute= */ true, /* carActivationVolumeConfig= */ null));
+
+        expect.withMessage("Constructor null car ativation volume config")
+                .that(thrown).hasMessageThat().contains("Car activation volume config");
+    }
+
     CarVolumeGroupFactory getFactory() {
         return new CarVolumeGroupFactory(mAudioManagerMock, mSettingsMock, TEST_CAR_AUDIO_CONTEXT,
-                ZONE_ID, CONFIG_ID, GROUP_ID, GROUP_NAME, /* useCarVolumeGroupMute= */ true);
+                ZONE_ID, CONFIG_ID, GROUP_ID, GROUP_NAME, /* useCarVolumeGroupMute= */ true,
+                CAR_ACTIVATION_VOLUME_CONFIG);
     }
 }

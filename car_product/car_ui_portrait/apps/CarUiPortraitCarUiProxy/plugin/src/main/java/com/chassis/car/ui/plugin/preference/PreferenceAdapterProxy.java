@@ -30,15 +30,22 @@ import static com.android.car.ui.preference.CarUiPreferenceViewStub.TWO_ACTION_T
 import static com.android.car.ui.preference.CarUiPreferenceViewStub.TWO_ACTION_TEXT_BORDERLESS;
 
 import android.content.Context;
+import android.content.res.AssetManager;
 import android.content.res.Resources;
+import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 import com.android.car.ui.plugin.oemapis.preference.PreferenceOEMV1;
 import com.android.car.ui.plugin.oemapis.preference.PreferenceViewAttributesOEMV1;
 import com.android.car.ui.preference.CarUiPreferenceViewStub.PreferenceType;
-import com.android.car.ui.sharedlibrary.R;
 
+import com.chassis.car.ui.plugin.R;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 /**
  * Adapter to load preference from plugin.
@@ -47,6 +54,7 @@ public class PreferenceAdapterProxy implements PreferenceOEMV1 {
 
     private final Context mPluginContext;
     private final Context mSourceContext;
+    private String mAppPackageName;
 
     public PreferenceAdapterProxy(Context pluginContext, Context sourceContext) {
         mPluginContext = pluginContext;
@@ -142,20 +150,72 @@ public class PreferenceAdapterProxy implements PreferenceOEMV1 {
         int sharedLibId = getSharedLibViewId(name);
         int appViewId = getAppViewId(name);
         View view = carUiPreferenceView.findViewById(sharedLibId);
-        if (view != null) {
-            view.setId(appViewId);
-        }
+        ViewGroup.LayoutParams currentViewLayoutParam = view.getLayoutParams();
+        ViewGroup parent = (ViewGroup) view.getParent();
+        int index = parent.indexOfChild(view);
+        parent.removeView(view);
+        FrameLayout wrapper = new FrameLayout(mPluginContext);
+        ViewGroup.LayoutParams wrapperLayoutparams = new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        wrapper.addView(view, wrapperLayoutparams);
+        parent.addView(wrapper, index, currentViewLayoutParam);
+        view.setId(appViewId);
+        wrapper.setId(sharedLibId);
     }
 
     private int getSharedLibViewId(String resName) {
         Resources res = mPluginContext.getResources();
-        return res.getIdentifier(resName, "id",
-                "com.android.car.ui.sharedlibrary");
+        return res.getIdentifier(resName, "id", "com.chassis.car.ui.plugin");
     }
 
     private int getAppViewId(String resName) {
         Resources res = mSourceContext.getResources();
-        return res.getIdentifier(resName, "id",
-                mSourceContext.getPackageName());
+        return res.getIdentifier(resName, "id", getAppPackageName());
+    }
+
+    private String getAppPackageName() {
+        if (mAppPackageName != null) {
+            return mAppPackageName;
+        }
+
+        SparseArray<String> r = getAssignedPackageIdentifiers(mSourceContext.getAssets());
+        for (int i = 0, n = r.size(); i < n; i++) {
+            final int id = r.keyAt(i);
+            // skip anything not in the app space (0x7f)
+            if (id != 0x7f) {
+                continue;
+            }
+
+            String packageName = mSourceContext.getResources().getResourcePackageName(id);
+            // Check if car-ui-lib resources are present under this package name
+            if (mSourceContext.getResources().getIdentifier(
+                    "car_ui_plugin_package_provider_authority_name", "string", packageName) != 0) {
+                mAppPackageName = packageName;
+                return mAppPackageName;
+            }
+        }
+
+        mAppPackageName = mSourceContext.getPackageName();
+        return mAppPackageName;
+    }
+
+    private static SparseArray<String> getAssignedPackageIdentifiers(AssetManager am) {
+        final Class<? extends AssetManager> rClazz = am.getClass();
+        Throwable cause;
+        try {
+            final Method callback = rClazz.getMethod("getAssignedPackageIdentifiers");
+            Object invoke = callback.invoke(am);
+            return (SparseArray<String>) invoke;
+        } catch (NoSuchMethodException e) {
+            // No rewriting to be done.
+            return new SparseArray<>();
+        } catch (IllegalAccessException e) {
+            cause = e;
+        } catch (InvocationTargetException e) {
+            cause = e.getCause();
+        }
+
+        throw new RuntimeException("Failed to find R classes ", cause);
     }
 }
+

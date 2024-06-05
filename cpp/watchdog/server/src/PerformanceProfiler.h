@@ -17,6 +17,7 @@
 #ifndef CPP_WATCHDOG_SERVER_SRC_PERFORMANCEPROFILER_H_
 #define CPP_WATCHDOG_SERVER_SRC_PERFORMANCEPROFILER_H_
 
+#include "PressureMonitor.h"
 #include "ProcDiskStatsCollector.h"
 #include "ProcStatCollector.h"
 #include "UidStatsCollector.h"
@@ -24,11 +25,16 @@
 
 #include <android-base/chrono_utils.h>
 #include <android-base/result.h>
+#include <android/util/ProtoOutputStream.h>
 #include <cutils/multiuser.h>
 #include <gtest/gtest_prod.h>
+#include <meminfo/procmeminfo.h>
 #include <utils/Errors.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
+#include <utils/SystemClock.h>
+
+#include <android_car_feature.h>
 
 #include <ctime>
 #include <string>
@@ -56,12 +62,16 @@ enum ProcStatType {
     IO_BLOCKED_TASKS_COUNT = 0,
     MAJOR_FAULTS,
     CPU_TIME,
+    MEMORY_STATS,
     PROC_STAT_TYPES,
 };
 
 // UserPackageStats represents the user package performance stats.
 class UserPackageStats {
 public:
+    // TODO(b/332773702): Rename nested structs
+    //  first-level IoStatsView, ProcSingleStatsView, and ProcCpuStatsView renames to Uid*Stats
+    //  second-level ProcessValue and ProcessCpuValue renames to Process*Stats
     struct IoStatsView {
         int64_t bytes[UID_STATES] = {0};
         int64_t fsync[UID_STATES] = {0};
@@ -82,26 +92,43 @@ public:
         std::vector<ProcessValue> topNProcesses = {};
     };
     struct ProcCpuStatsView {
-        uint64_t cpuTime = 0;
-        uint64_t cpuCycles = 0;
+        int64_t cpuTimeMillis = 0;
+        int64_t cpuCycles = 0;
         struct ProcessCpuValue {
+            int32_t pid = -1;
             std::string comm = "";
-            uint64_t cpuTime = 0;
-            uint64_t cpuCycles = 0;
+            int64_t cpuTimeMillis = 0;
+            int64_t cpuCycles = 0;
         };
         std::vector<ProcessCpuValue> topNProcesses = {};
     };
+    struct MemoryStats {
+        uint64_t rssKb = 0;
+        uint64_t pssKb = 0;
+        uint64_t ussKb = 0;
+        uint64_t swapPssKb = 0;
+    };
+    struct UidMemoryStats {
+        MemoryStats memoryStats;
+        bool isSmapsRollupSupported;
+        struct ProcessMemoryStats {
+            std::string comm = "";
+            MemoryStats memoryStats;
+        };
+        std::vector<ProcessMemoryStats> topNProcesses = {};
+    };
 
     UserPackageStats(MetricType metricType, const UidStats& uidStats);
-    UserPackageStats(ProcStatType procStatType, const UidStats& uidStats, int topNProcessCount);
+    UserPackageStats(ProcStatType procStatType, const UidStats& uidStats, int topNProcessCount,
+                     bool isSmapsRollupSupported);
 
     // Class must be DefaultInsertable for std::vector<T>::resize to work
     UserPackageStats() : uid(0), genericPackageName("") {}
     // For unit test case only
-    UserPackageStats(
-            uid_t uid, std::string genericPackageName,
-            std::variant<std::monostate, IoStatsView, ProcSingleStatsView, ProcCpuStatsView>
-                    statsView) :
+    UserPackageStats(uid_t uid, std::string genericPackageName,
+                     std::variant<std::monostate, IoStatsView, ProcSingleStatsView,
+                                  ProcCpuStatsView, UidMemoryStats>
+                             statsView) :
           uid(uid),
           genericPackageName(std::move(genericPackageName)),
           statsView(std::move(statsView)) {}
@@ -113,10 +140,12 @@ public:
     uint64_t getValue() const;
     std::string toString(MetricType metricsType, const int64_t totalIoStats[][UID_STATES]) const;
     std::string toString(int64_t totalValue) const;
+    std::string toString(int64_t totalRssKb, int64_t totalPssKb) const;
 
     uid_t uid;
     std::string genericPackageName;
-    std::variant<std::monostate, IoStatsView, ProcSingleStatsView, ProcCpuStatsView> statsView;
+    std::variant<std::monostate, IoStatsView, ProcSingleStatsView, ProcCpuStatsView, UidMemoryStats>
+            statsView;
 
 private:
     void cacheTopNProcessSingleStats(
@@ -125,6 +154,9 @@ private:
     void cacheTopNProcessCpuStats(
             const UidStats& uidStats, int topNProcessCount,
             std::vector<UserPackageStats::ProcCpuStatsView::ProcessCpuValue>* topNProcesses);
+    void cacheTopNProcessMemStats(
+            const UidStats& uidStats, int topNProcessCount, bool isSmapsRollupSupported,
+            std::vector<UserPackageStats::UidMemoryStats::ProcessMemoryStats>* topNProcesses);
 };
 
 /**
@@ -137,11 +169,16 @@ struct UserPackageSummaryStats {
     std::vector<UserPackageStats> topNIoWrites = {};
     std::vector<UserPackageStats> topNIoBlocked = {};
     std::vector<UserPackageStats> topNMajorFaults = {};
+    std::vector<UserPackageStats> topNMemStats = {};
     int64_t totalIoStats[METRIC_TYPES][UID_STATES] = {{0}};
     std::unordered_map<uid_t, uint64_t> taskCountByUid = {};
+    // TODO(b/337115923): Clean up below duplicate fields and report `totalMajorFaults`,
+    //  `totalRssKb`, `totalPssKb`, and `majorFaultsPercentChange` as part of `SystemSummaryStats`.
     int64_t totalCpuTimeMillis = 0;
     uint64_t totalCpuCycles = 0;
     uint64_t totalMajorFaults = 0;
+    uint64_t totalRssKb = 0;
+    uint64_t totalPssKb = 0;
     // Percentage of increase/decrease in the major page faults since last collection.
     double majorFaultsPercentChange = 0.0;
     std::string toString() const;
@@ -162,9 +199,11 @@ struct SystemSummaryStats {
 
 // Performance record collected during a sampling/collection period.
 struct PerfStatsRecord {
-    time_t time;  // Collection time.
+    time_point_millis collectionTimeMillis;
     SystemSummaryStats systemSummaryStats;
     UserPackageSummaryStats userPackageSummaryStats;
+    std::unordered_map<PressureMonitorInterface::PressureLevel, std::chrono::milliseconds>
+            memoryPressureLevelDurations;
     std::string toString() const;
 };
 
@@ -182,19 +221,34 @@ struct UserSwitchCollectionInfo : CollectionInfo {
 };
 
 // PerformanceProfiler implements the I/O performance data collection module.
-class PerformanceProfiler final : public DataProcessorInterface {
+class PerformanceProfiler final :
+      public DataProcessorInterface,
+      public PressureMonitorInterface::PressureChangeCallbackInterface {
 public:
-    PerformanceProfiler() :
+    PerformanceProfiler(
+            const android::sp<PressureMonitorInterface>& pressureMonitor,
+            const std::function<int64_t()>& getElapsedTimeSinceBootMillisFunc = &elapsedRealtime) :
+          kPressureMonitor(pressureMonitor),
+          kGetElapsedTimeSinceBootMillisFunc(getElapsedTimeSinceBootMillisFunc),
           mTopNStatsPerCategory(0),
           mTopNStatsPerSubcategory(0),
           mMaxUserSwitchEvents(0),
           mSystemEventDataCacheDurationSec(0),
+          // TODO(b/333722043): Once carwatchdogd has sys_ptrace capability, set
+          // mIsSmapsRollupSupported field from `android::meminfo::IsSmapsRollupSupported()`.
+          // Disabling smaps_rollup support because this file cannot be read without sys_ptrace
+          // capability.
+          mIsSmapsRollupSupported(false),
+          mIsMemoryProfilingEnabled(android::car::feature::car_watchdog_memory_profiling()),
           mBoottimeCollection({}),
           mPeriodicCollection({}),
           mUserSwitchCollections({}),
           mWakeUpCollection({}),
           mCustomCollection({}),
-          mLastMajorFaults(0) {}
+          mLastMajorFaults(0),
+          mDoSendResourceUsageStats(false),
+          mMemoryPressureLevelDeltaInfo(PressureLevelDeltaInfo(getElapsedTimeSinceBootMillisFunc)) {
+    }
 
     ~PerformanceProfiler() { terminate(); }
 
@@ -203,28 +257,32 @@ public:
     // Implements DataProcessorInterface.
     android::base::Result<void> onSystemStartup() override;
 
+    void onCarWatchdogServiceRegistered() override;
+
     android::base::Result<void> onBoottimeCollection(
-            time_t time, const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
+            time_point_millis time,
+            const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
             aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onWakeUpCollection(
-            time_t time, const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
+            time_point_millis time,
+            const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector) override;
 
     android::base::Result<void> onPeriodicCollection(
-            time_t time, SystemState systemState,
+            time_point_millis time, SystemState systemState,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
             aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onUserSwitchCollection(
-            time_t time, userid_t from, userid_t to,
+            time_point_millis time, userid_t from, userid_t to,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector) override;
 
     android::base::Result<void> onCustomCollection(
-            time_t time, SystemState systemState,
+            time_point_millis time, SystemState systemState,
             const std::unordered_set<std::string>& filterPackages,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
@@ -241,7 +299,13 @@ public:
 
     android::base::Result<void> onDump(int fd) const override;
 
+    android::base::Result<void> onDumpProto(
+            const CollectionIntervals& collectionIntervals,
+            android::util::ProtoOutputStream& outProto) const override;
+
     android::base::Result<void> onCustomCollectionDump(int fd) override;
+
+    void onPressureChanged(PressureMonitorInterface::PressureLevel) override;
 
 protected:
     android::base::Result<void> init();
@@ -250,17 +314,55 @@ protected:
     void terminate();
 
 private:
+    class PressureLevelDeltaInfo {
+    public:
+        explicit PressureLevelDeltaInfo(
+                const std::function<int64_t()>& getElapsedTimeSinceBootMillisFunc) :
+              kGetElapsedTimeSinceBootMillisFunc(getElapsedTimeSinceBootMillisFunc),
+              mLatestPressureLevel(PressureMonitorInterface::PRESSURE_LEVEL_NONE),
+              mLatestPressureLevelElapsedRealtimeMillis(getElapsedTimeSinceBootMillisFunc()) {}
+
+        // Calculates the duration for the previously reported pressure level, updates it in
+        // mPressureLevelDurations, and sets the latest pressure level and its elapsed realtime.
+        void setLatestPressureLevelLocked(PressureMonitorInterface::PressureLevel pressureLevel);
+
+        // Returns the latest pressure stats and flushes stats to mPressureLevelDurations.
+        std::unordered_map<PressureMonitorInterface::PressureLevel, std::chrono::milliseconds>
+        onCollectionLocked();
+
+    private:
+        // Updated by test for mocking elapsed time.
+        const std::function<int64_t()> kGetElapsedTimeSinceBootMillisFunc;
+
+        // Latest pressure level reported by the PressureMonitor.
+        PressureMonitorInterface::PressureLevel mLatestPressureLevel;
+
+        // Time when the latest pressure level was recorded. Used to calculate
+        // pressureLevelDurations.
+        int64_t mLatestPressureLevelElapsedRealtimeMillis = 0;
+
+        // Duration spent in different pressure levels since the last poll.
+        std::unordered_map<PressureMonitorInterface::PressureLevel, std::chrono::milliseconds>
+                mPressureLevelDurations = {};
+    };
+
     // Processes the collected data.
     android::base::Result<void> processLocked(
-            time_t time, const std::unordered_set<std::string>& filterPackages,
+            time_point_millis time, SystemState systemState,
+            const std::unordered_set<std::string>& filterPackages,
             const android::sp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::sp<ProcStatCollectorInterface>& procStatCollector,
-            CollectionInfo* collectionInfo);
+            CollectionInfo* collectionInfo,
+            aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats);
 
     // Processes per-UID performance data.
-    void processUidStatsLocked(const std::unordered_set<std::string>& filterPackages,
-                               const android::sp<UidStatsCollectorInterface>& uidStatsCollector,
-                               UserPackageSummaryStats* userPackageSummaryStats);
+    void processUidStatsLocked(
+            bool isGarageModeActive, int64_t totalCpuTimeMillis,
+            const std::unordered_set<std::string>& filterPackages,
+            const android::sp<UidStatsCollectorInterface>& uidStatsCollector,
+            std::vector<aidl::android::automotive::watchdog::internal::UidResourceUsageStats>*
+                    uidResourceUsageStats,
+            UserPackageSummaryStats* userPackageSummaryStats);
 
     // Processes system performance data from the `/proc/stats` file.
     void processProcStatLocked(const android::sp<ProcStatCollectorInterface>& procStatCollector,
@@ -269,7 +371,30 @@ private:
     // Dump the user switch collection
     android::base::Result<void> onUserSwitchCollectionDump(int fd) const;
 
-    void clearExpiredSystemEventCollections(time_t now);
+    void clearExpiredSystemEventCollections(time_point_millis time);
+
+    void dumpStatsRecordsProto(const CollectionInfo& collection,
+                               android::util::ProtoOutputStream& outProto) const;
+
+    void dumpPackageCpuStatsProto(const std::vector<UserPackageStats>& userPackageStats,
+                                  android::util::ProtoOutputStream& outProto) const;
+
+    void dumpPackageStorageIoStatsProto(const std::vector<UserPackageStats>& userPackageStats,
+                                        const uint64_t storageStatsFieldId,
+                                        android::util::ProtoOutputStream& outProto) const;
+
+    void dumpPackageTaskStateStatsProto(const std::vector<UserPackageStats>& userPackageStats,
+                                        const std::unordered_map<uid_t, uint64_t>& taskCountByUid,
+                                        android::util::ProtoOutputStream& outProto) const;
+
+    void dumpPackageMajorPageFaultsProto(const std::vector<UserPackageStats>& userPackageStats,
+                                         android::util::ProtoOutputStream& outProto) const;
+
+    // Pressure monitor instance.
+    const android::sp<PressureMonitorInterface> kPressureMonitor;
+
+    // Updated by test for mocking elapsed time.
+    const std::function<int64_t()> kGetElapsedTimeSinceBootMillisFunc;
 
     // Top N per-UID stats per category.
     int mTopNStatsPerCategory;
@@ -282,6 +407,12 @@ private:
 
     // Amount of seconds before a system event's cache is cleared.
     std::chrono::seconds mSystemEventDataCacheDurationSec;
+
+    // Smaps rollup is supported by kernel or not.
+    bool mIsSmapsRollupSupported;
+
+    // Memory Profiling feature flag is enabled or not.
+    bool mIsMemoryProfilingEnabled;
 
     // Makes sure only one collection is running at any given time.
     mutable Mutex mMutex;
@@ -307,6 +438,12 @@ private:
     // Major faults delta from last collection. Useful when calculating the percentage change in
     // major faults since last collection.
     uint64_t mLastMajorFaults GUARDED_BY(mMutex);
+
+    // Enables the sending of resource usage stats to CarService.
+    bool mDoSendResourceUsageStats GUARDED_BY(mMutex);
+
+    // Aggregated pressure level changes occurred since the last collection.
+    PressureLevelDeltaInfo mMemoryPressureLevelDeltaInfo GUARDED_BY(mMutex);
 
     friend class WatchdogPerfService;
 

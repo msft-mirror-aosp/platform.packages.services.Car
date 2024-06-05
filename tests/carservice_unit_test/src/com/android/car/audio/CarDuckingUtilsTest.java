@@ -26,6 +26,7 @@ import static android.media.AudioAttributes.USAGE_SAFETY;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -182,8 +183,7 @@ public class CarDuckingUtilsTest {
                 .containsExactlyElementsIn(playbackTrackMetadataHoldingFocus);
 
         // back to none holding focus
-        playbackTrackMetadataHoldingFocus =
-                CarHalAudioUtils.audioAttributesToMetadatas(audioAttributesWithOnlyMedia, mockZone);
+        CarHalAudioUtils.audioAttributesToMetadatas(audioAttributesWithOnlyMedia, mockZone);
 
         CarDuckingInfo duckingInfo3 =
                 CarDuckingUtils.generateDuckingInfo(duckingInfo2, Collections.EMPTY_LIST,
@@ -215,6 +215,7 @@ public class CarDuckingUtilsTest {
 
     private static CarAudioZone generateAudioZoneMock() {
         CarAudioZone mockZone = mock(CarAudioZone.class);
+        when(mockZone.getAddressForContext(anyInt())).thenReturn(new String(""));
         when(mockZone.getAddressForContext(TEST_MEDIA_AUDIO_CONTEXT)).thenReturn(MEDIA_ADDRESS);
         when(mockZone.getAddressForContext(TEST_EMERGENCY_AUDIO_CONTEXT))
                 .thenReturn(EMERGENCY_ADDRESS);
@@ -224,7 +225,6 @@ public class CarDuckingUtilsTest {
         when(mockZone.getAddressForContext(CarAudioContext.getInvalidContext()))
                 .thenThrow(new IllegalArgumentException());
         when(mockZone.getCarAudioContext()).thenReturn(TEST_CAR_AUDIO_CONTEXT);
-
         return mockZone;
     }
 

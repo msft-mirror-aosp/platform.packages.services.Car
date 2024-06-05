@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_automotive",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -30,6 +31,7 @@ android_test {
     platform_apis: true,
 
     libs: [
+        "android.car",
         "android.test.base",
         "android.test.mock",
         "android.test.runner",
@@ -38,7 +40,7 @@ android_test {
     static_libs: [
         "androidx.test.rules",
         "mockito-target",
-        "truth-prebuilt",
+        "truth",
     ],
 
     test_suites: [

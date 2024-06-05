@@ -18,13 +18,18 @@ package android.car.watchdoglib;
 
 import static android.car.test.mocks.AndroidMockitoHelper.mockQueryService;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +46,6 @@ import android.automotive.watchdog.internal.ResourceStats;
 import android.automotive.watchdog.internal.StateType;
 import android.automotive.watchdog.internal.ThreadPolicyWithPriority;
 import android.automotive.watchdog.internal.UserPackageIoUsageStats;
-import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -49,6 +53,8 @@ import android.os.ServiceManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoSession;
@@ -65,12 +71,19 @@ import java.util.List;
 public class CarWatchdogDaemonHelperTest {
     private static final String CAR_WATCHDOG_DAEMON_INTERFACE =
             "android.automotive.watchdog.internal.ICarWatchdog/default";
+    private static final int MAX_WAIT_TIME_MS = 3000;
 
     @Mock CarWatchdogDaemonHelper.OnConnectionChangeListener mListener;
-    @Mock private IBinder mBinder = new Binder();
+    @Mock private IBinder mBinder;
+
+    @Captor
+    private ArgumentCaptor<IBinder.DeathRecipient> mDeathRecipientCaptor;
+
     @Spy private ICarWatchdog mFakeCarWatchdog = new FakeCarWatchdog();
+
     private CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
     private MockitoSession mMockSession;
+    private IBinder.DeathRecipient mCarWatchdogDaemonBinderDeathRecipient;
 
     @Before
     public void setUp() throws Exception {
@@ -79,9 +92,13 @@ public class CarWatchdogDaemonHelperTest {
                 .strictness(Strictness.LENIENT)
                 .spyStatic(ServiceManager.class)
                 .startMocking();
+        doReturn(mBinder).when(
+                () -> ServiceManager.checkService(CAR_WATCHDOG_DAEMON_INTERFACE));
+        when(mFakeCarWatchdog.asBinder()).thenReturn(mBinder);
         mockQueryService(CAR_WATCHDOG_DAEMON_INTERFACE, mBinder, mFakeCarWatchdog);
         mCarWatchdogDaemonHelper = new CarWatchdogDaemonHelper();
         mCarWatchdogDaemonHelper.connect();
+        captureAndVerifyRegistrationWithDaemon();
     }
 
     @After
@@ -327,8 +344,34 @@ public class CarWatchdogDaemonHelperTest {
                 () -> mCarWatchdogDaemonHelper.onTodayIoUsageStatsFetched(Collections.emptyList()));
     }
 
+    @Test
+    public void testWatchdogDaemonRestart() throws Exception {
+        mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mListener);
+        mCarWatchdogDaemonBinderDeathRecipient.binderDied();
+
+        verify(mListener).onConnectionChange(false);
+
+        // Wait for daemon to reconnect.
+        verify(mBinder, timeout(MAX_WAIT_TIME_MS)).linkToDeath(mDeathRecipientCaptor.capture(),
+                anyInt());
+
+        verify(mListener, timeout(MAX_WAIT_TIME_MS)).onConnectionChange(true);
+        mCarWatchdogDaemonBinderDeathRecipient = mDeathRecipientCaptor.getValue();
+        assertWithMessage("Watchdog daemon binder death recipient")
+                .that(mCarWatchdogDaemonBinderDeathRecipient).isNotNull();
+
+        mCarWatchdogDaemonHelper.removeOnConnectionChangeListener(mListener);
+    }
+
+    private void captureAndVerifyRegistrationWithDaemon() throws RemoteException {
+        verify(mBinder, atLeastOnce()).linkToDeath(mDeathRecipientCaptor.capture(), anyInt());
+        mCarWatchdogDaemonBinderDeathRecipient = mDeathRecipientCaptor.getValue();
+        assertWithMessage("Watchdog daemon binder death recipient")
+                .that(mCarWatchdogDaemonBinderDeathRecipient).isNotNull();
+    }
+
     // FakeCarWatchdog mimics ICarWatchdog daemon in local process.
-    private final class FakeCarWatchdog extends ICarWatchdog.Default {
+    private static final class FakeCarWatchdog extends ICarWatchdog.Default {
         private static final int UDC_INTERFACE_VERSION = 3;
 
         private final ArrayList<ICarWatchdogServiceForSystem> mServices = new ArrayList<>();
@@ -362,7 +405,8 @@ public class CarWatchdogDaemonHelperTest {
         }
     }
 
-    private final class ICarWatchdogServiceForSystemImpl extends ICarWatchdogServiceForSystem.Stub {
+    private static final class ICarWatchdogServiceForSystemImpl
+            extends ICarWatchdogServiceForSystem.Stub {
         @Override
         public void checkIfAlive(int sessionId, int timeout) {}
 

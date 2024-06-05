@@ -16,15 +16,12 @@
 
 package android.car.drivingstate;
 
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
-
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.car.builtin.content.ContextHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.os.Handler;
@@ -33,7 +30,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.UserManager;
-import android.util.Log;
+import android.util.Slog;
 import android.view.Display;
 
 import com.android.internal.annotations.GuardedBy;
@@ -58,7 +55,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public static final String UX_RESTRICTION_MODE_BASELINE = "baseline";
 
@@ -84,7 +80,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public void onCarDisconnected() {
         synchronized (mLock) {
@@ -103,7 +98,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
          *
          * @param restrictionInfo The new UX restriction information
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onUxRestrictionsChanged(CarUxRestrictions restrictionInfo);
     }
 
@@ -116,7 +110,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      *
      * @param listener {@link OnUxRestrictionsChangedListener}
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void registerListener(@NonNull OnUxRestrictionsChangedListener listener) {
         registerListener(listener, getDisplayId());
     }
@@ -124,23 +117,24 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
     /**
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     @Deprecated
     public void registerListener(@NonNull OnUxRestrictionsChangedListener listener, int displayId) {
         setListener(displayId, listener);
     }
+
     /**
      * @hide
+     * @deprecated use {@link CarUxRestrictionsManager#registerListener} instead.
      */
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
+    @Deprecated
     public void setListener(int displayId, @NonNull OnUxRestrictionsChangedListener listener) {
         CarUxRestrictionsChangeListenerToService serviceListener;
         synchronized (mLock) {
             // Check if the listener has been already registered.
             if (mUxRListener != null) {
                 if (DBG) {
-                    Log.d(TAG, "Listener already registered listener");
+                    Slog.d(TAG, "Listener already registered listener");
                 }
                 return;
             }
@@ -162,13 +156,12 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
     /**
      * Unregisters the registered {@link OnUxRestrictionsChangedListener}
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterListener() {
         CarUxRestrictionsChangeListenerToService serviceListener;
         synchronized (mLock) {
             if (mUxRListener == null) {
                 if (DBG) {
-                    Log.d(TAG, "Listener was not previously registered");
+                    Slog.d(TAG, "Listener was not previously registered");
                 }
                 return;
             }
@@ -199,7 +192,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(value = Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION)
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public boolean saveUxRestrictionsConfigurationForNextBoot(
             @NonNull List<CarUxRestrictionsConfiguration> configs) {
@@ -216,7 +208,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      * @return current UX restrictions that is in effect.
      */
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public CarUxRestrictions getCurrentCarUxRestrictions() {
         return getCurrentCarUxRestrictions(getDisplayId());
     }
@@ -225,7 +216,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      * @hide
      */
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public CarUxRestrictions getCurrentCarUxRestrictions(int displayId) {
         try {
@@ -252,7 +242,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(value = Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION)
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public boolean setRestrictionMode(@NonNull String mode) {
         Objects.requireNonNull(mode, "mode must not be null");
@@ -275,7 +264,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      */
     @RequiresPermission(value = Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION)
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public String getRestrictionMode() {
         try {
@@ -296,7 +284,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      * @hide
      */
     @RequiresPermission(value = Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION)
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public boolean saveUxRestrictionsConfigurationForNextBoot(
             @NonNull CarUxRestrictionsConfiguration config) {
@@ -317,7 +304,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      */
     @Nullable
     @RequiresPermission(value = Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION)
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public List<CarUxRestrictionsConfiguration> getStagedConfigs() {
         try {
@@ -335,7 +321,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
      */
     @Nullable
     @RequiresPermission(value = Car.PERMISSION_CAR_UX_RESTRICTIONS_CONFIGURATION)
-    @AddedInOrBefore(majorVersion = 33)
     @SystemApi
     public List<CarUxRestrictionsConfiguration> getConfigs() {
         try {
@@ -420,13 +405,6 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
     }
 
     private int getDisplayId() {
-        if (!isPlatformVersionAtLeastU()) {
-            mDisplayId = Display.DEFAULT_DISPLAY;
-            Log.d(TAG, "Returning default display id=" + mDisplayId +
-                " on earlier than U platform.");
-            return mDisplayId;
-        }
-
         if (mDisplayId != Display.INVALID_DISPLAY) {
             return mDisplayId;
         }
@@ -435,18 +413,18 @@ public final class CarUxRestrictionsManager extends CarManagerBase {
         // For example, if it is an Activity context, a valid display id will already be obtained
         // here. But if it is an Application context, it will return invalid display id.
         mDisplayId = ContextHelper.getAssociatedDisplayId(getContext());
-        Log.d(TAG, "Context returns associated display ID " + mDisplayId);
+        Slog.d(TAG, "Context returns associated display ID " + mDisplayId);
 
         if (mDisplayId == Display.INVALID_DISPLAY) {
             // If there is no display id associated with the context, further obtain the display
             // id by mapping the user to display id.
             mDisplayId = UserManagerHelper.getMainDisplayIdAssignedToUser(mUserManager);
-            Log.d(TAG, "Display ID assigned to user is display " + mDisplayId);
+            Slog.d(TAG, "Display ID assigned to user is display " + mDisplayId);
         }
 
         if (mDisplayId == Display.INVALID_DISPLAY) {
             mDisplayId = Display.DEFAULT_DISPLAY;
-            Log.e(TAG, "Could not retrieve display id. Using default: " + mDisplayId);
+            Slog.e(TAG, "Could not retrieve display id. Using default: " + mDisplayId);
         }
 
         return mDisplayId;

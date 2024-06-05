@@ -24,19 +24,16 @@ import android.content.Context;
 import android.hardware.automotive.occupant_awareness.IOccupantAwareness;
 import android.hardware.automotive.occupant_awareness.IOccupantAwarenessClientCallback;
 import android.hardware.automotive.occupant_awareness.OccupantAwarenessStatus;
-import android.hardware.automotive.occupant_awareness.OccupantDetection;
 import android.hardware.automotive.occupant_awareness.OccupantDetections;
 import android.hardware.automotive.occupant_awareness.Role;
 import android.os.RemoteException;
-import android.test.suitebuilder.annotation.MediumTest;
 
 import androidx.test.core.app.ApplicationProvider;
+import androidx.test.filters.MediumTest;
 import androidx.test.runner.AndroidJUnit4;
-
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -46,14 +43,12 @@ import java.util.concurrent.TimeUnit;
 @RunWith(AndroidJUnit4.class)
 @MediumTest
 public final class OccupantAwarenessServiceTest {
-    private static final int TIMESTAMP = 1234; // In milliseconds.
-
     /**
      * Mock implementation of {@link
      * android.hardware.automotive.occupant_awareness.IOccupantAwareness} for testing the service
      * and manager.
      */
-    private class MockOasHal
+    private static final class MockOasHal
             extends android.hardware.automotive.occupant_awareness.IOccupantAwareness.Stub {
         private IOccupantAwarenessClientCallback mCallback;
         private boolean mGraphIsRunning;
@@ -109,19 +104,6 @@ public final class OccupantAwarenessServiceTest {
                 throws RemoteException {
             if (mCallback != null) {
                 mCallback.onSystemStatusChanged(detectionFlags, status);
-            }
-        }
-
-        /** Causes a status event to be generated with the specified detection event data. */
-        public void fireDetectionEvent(OccupantAwarenessDetection detectionEvent)
-                throws RemoteException {
-            if (mCallback != null) {
-                OccupantDetection detection = new OccupantDetection();
-
-                OccupantDetections detections = new OccupantDetections();
-                detections.timeStampMillis = TIMESTAMP;
-                detections.detections = new OccupantDetection[] {detection};
-                mCallback.onDetectionEvent(detections);
             }
         }
 

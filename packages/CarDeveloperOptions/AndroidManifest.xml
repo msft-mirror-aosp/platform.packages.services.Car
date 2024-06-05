@@ -25,6 +25,9 @@
     <uses-permission android:name="android.permission.CONTROL_UI_TRACING"
                      tools:node="remove" />
 
+    <uses-permission android:name="android.permission.RECOVERY"
+                     tools:node="remove" />
+
     <application android:label="@string/development_settings_title"
                  android:theme="@style/Theme.CDOBaseTheme"
                  tools:node="merge"
@@ -32,7 +35,6 @@
 
         <activity
             android:name=".CarDevelopmentSettingsDashboardActivity"
-            android:enabled="false"
             android:exported="true"
             android:icon="@drawable/ic_settings_development"
             android:label="@string/development_settings_title"
@@ -314,6 +316,14 @@
             <intent-filter tools:node="removeAll"/>
         </activity>
 
+        <activity android:name="com.android.settings.Settings$FingerprintSettingsActivityV2"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
         <activity
             android:name="com.android.settings.bluetooth.DevicePickerActivity"
             android:enabled="false"
@@ -424,6 +434,15 @@
 
         <activity
             android:name="com.android.settings.Settings$LanguageSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$NavigationModeSettingsActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -704,6 +723,14 @@
 
         <activity
             android:name="com.android.settings.Settings$ManageApplicationsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity android:name="com.android.settings.Settings$UserAspectRatioAppListActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -1843,7 +1870,7 @@
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
-            tools:replace="android:exported">
+            tools:replace="android:exported, android:enabled">
             <intent-filter tools:node="removeAll"/>
         </activity>
 
@@ -1858,6 +1885,15 @@
 
         <activity
             android:name="com.android.settings.Settings$DreamSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$CommunalSettingsActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2441,6 +2477,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$PreviouslyConnectedDeviceActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$StylusUsiDetailsActivity"
             android:enabled="false"
             android:exported="false"
@@ -2469,6 +2514,15 @@
 
         <activity
             android:name="com.android.settings.wifi.dpp.WifiDppConfiguratorActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.wifi.dpp.WifiDppConfiguratorAuthActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2594,7 +2648,88 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$ResetMobileNetworkSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$SatelliteSettingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$AppBatteryUsageActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$AccessibilityEditShortcutsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$DevelopmentSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$AudioStreamConfirmDialogActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ScreenTimeoutActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.privatespace.PrivateSpaceAuthenticationActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.bluetooth.QrCodeScanModeActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.connecteddevice.audiosharing.audiostreams.qrcode.QrCodeScanModeActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2728,6 +2863,96 @@
             <intent-filter tools:node="removeAll"/>
         </activity>
 
+        <activity android:name="com.android.settings.biometrics.fingerprint2.ui.enrollment.activity.FingerprintEnrollmentV2Activity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.remoteauth.RemoteAuthActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$CellularSecuritySettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$HearingDevicesActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$HearingDevicesPairingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ColorContrastActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+
+        <activity
+            android:name="com.android.settings.Settings$BluetoothDashboardActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.connecteddevice.audiosharing.AudioSharingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.connecteddevice.audiosharing.audiostreams.qrcode.QrCodeScanModeActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+       </activity>
+
+        <activity
+            android:name="com.android.settings.connecteddevice.audiosharing.audiostreams.AudioStreamConfirmDialogActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+       </activity>
+
         <activity-alias
             android:name="com.android.settings.ConfirmDeviceCredentialActivity"
             android:enabled="false"
@@ -2763,6 +2988,15 @@
             tools:replace="android:exported">
             <intent-filter tools:node="removeAll"/>
         </activity-alias>
+
+        <activity-alias
+            android:name="com.android.settings.MediaRoutingControlActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity-alias>>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -2806,6 +3040,10 @@
 
         <provider
             android:name="com.android.settings.homepage.contextualcards.SettingsContextualCardProvider"
+            tools:node="remove"/>
+
+        <provider
+            android:name="com.android.settings.biometrics.BiometricSettingsProvider"
             tools:node="remove"/>
 
         <provider
@@ -3020,6 +3258,32 @@
             <intent-filter tools:node="removeAll"/>
         </receiver>
 
+        <receiver
+            android:name="com.android.settings.privatespace.PrivateSpaceBroadcastReceiver"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
+        <receiver
+            android:name="com.android.settings.development.Enable16KBootReceiver"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:enabled,android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
+        <receiver android:name="com.android.settings.connecteddevice.audiosharing.AudioSharingReceiver"
+            android:exported="false"
+            android:enabled="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
         <service
             android:name="com.android.settings.wifi.tether.TetherService"
             android:enabled="false"
@@ -3143,6 +3407,15 @@
             android:exported="false"
             tools:node="merge"
             tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </service>
+
+        <service
+            android:name="com.android.settings.connecteddevice.audiosharing.audiostreams.AudioStreamMediaService"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported,android:enabled">
             <intent-filter tools:node="removeAll"/>
         </service>
 

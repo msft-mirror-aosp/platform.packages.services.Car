@@ -18,6 +18,7 @@ package android.car.app;
 import android.app.ActivityManager.RunningTaskInfo;
 import android.app.PendingIntent;
 import android.car.app.ICarTaskViewClient;
+import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.SurfaceControl;
@@ -31,10 +32,15 @@ import android.view.SurfaceControl;
 oneway interface ICarTaskViewHost {
    void release();
    void startActivity(in PendingIntent pendingIntent, in Intent intent, in Bundle options, in Rect launchBounds);
+   void createRootTask(int displayId);
+   void createLaunchRootTask(int displayId, boolean embedHomeTask, boolean embedRecentsTask,
+     boolean embedAssistantTask);
    void notifySurfaceCreated(in SurfaceControl control);
    void setWindowBounds(in Rect bounds);
    void notifySurfaceDestroyed();
    void showEmbeddedTask();
    void addInsets(int index, int type, in Rect frame);
    void removeInsets(int index, int type);
+   void setTaskVisibility(boolean visibility);
+   void reorderTask(boolean onTop);
 }

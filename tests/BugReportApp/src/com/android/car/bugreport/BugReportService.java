@@ -23,8 +23,6 @@ import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 
 import static com.android.car.bugreport.PackageUtils.getPackageVersion;
 
-import android.annotation.FloatRange;
-import android.annotation.StringRes;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -42,8 +40,6 @@ import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Binder;
-import android.os.Build;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -51,6 +47,9 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.view.Display;
 import android.widget.Toast;
+
+import androidx.annotation.FloatRange;
+import androidx.annotation.StringRes;
 
 import com.google.common.base.Preconditions;
 import com.google.common.io.ByteStreams;
@@ -62,6 +61,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -86,11 +87,11 @@ public class BugReportService extends Service {
     /**
      * Extra data from intent - current bug report.
      */
-    static final String EXTRA_META_BUG_REPORT = "meta_bug_report";
+    static final String EXTRA_META_BUG_REPORT_ID = "meta_bug_report_id";
 
     /**
      * Collects bugreport for the existing {@link MetaBugReport}, which must be provided using
-     * {@link EXTRA_META_BUG_REPORT}.
+     * {@link EXTRA_META_BUG_REPORT_ID}.
      */
     static final String ACTION_COLLECT_BUGREPORT =
             "com.android.car.bugreport.action.COLLECT_BUGREPORT";
@@ -207,6 +208,12 @@ public class BugReportService extends Service {
         }
     }
 
+    static Intent buildStartBugReportIntent(Context context) {
+        Intent intent = new Intent(context, BugReportService.class);
+        intent.setAction(ACTION_START_AUDIO_LATER);
+        return intent;
+    }
+
     @Override
     public void onCreate() {
         Preconditions.checkState(Config.isBugReportEnabled(), "BugReport is disabled.");
@@ -228,7 +235,7 @@ public class BugReportService extends Service {
         mSingleThreadExecutor = Executors.newSingleThreadScheduledExecutor();
         mHandler = new BugReportHandler();
         mHandlerStartedToast = new Handler();
-        mConfig = Config.create();
+        mConfig = Config.create(getApplicationContext());
     }
 
     @Override
@@ -257,8 +264,9 @@ public class BugReportService extends Service {
             mMetaBugReport =
                     BugReportActivity.createBugReport(this, MetaBugReport.TYPE_AUDIO_LATER);
         } else if (ACTION_COLLECT_BUGREPORT.equals(action)) {
-            Bundle extras = intent.getExtras();
-            mMetaBugReport = extras.getParcelable(EXTRA_META_BUG_REPORT);
+            int bugReportId = intent.getIntExtra(EXTRA_META_BUG_REPORT_ID, /* defaultValue= */ -1);
+            mMetaBugReport = BugStorageUtils.findBugReport(this, bugReportId).orElseThrow(
+                    () -> new RuntimeException("Failed to find bug report with id " + bugReportId));
         } else {
             Log.w(TAG, "No action provided, ignoring");
             return START_NOT_STICKY;
@@ -314,7 +322,7 @@ public class BugReportService extends Service {
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent startBugReportInfoActivity =
                 PendingIntent.getActivity(getApplicationContext(), /* requestCode= */ 0, intent,
-                                          PendingIntent.FLAG_IMMUTABLE);
+                        PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, PROGRESS_CHANNEL_ID)
                 .setContentTitle(getText(R.string.notification_bugreport_in_progress))
                 .setContentText(mMetaBugReport.getTitle())
@@ -378,7 +386,7 @@ public class BugReportService extends Service {
         // BugReportService doesn't automatically reconnect to it.
         connectToCarServiceSync();
 
-        if (Build.IS_USERDEBUG || Build.IS_ENG) {
+        if (Config.isDebuggable()) {
             mSingleThreadExecutor.schedule(
                     this::grabBtSnoopLog, ACTIVITY_FINISH_DELAY_MILLIS, TimeUnit.MILLISECONDS);
         }
@@ -412,7 +420,7 @@ public class BugReportService extends Service {
         try (ParcelFileDescriptor outFd = ParcelFileDescriptor.open(outputFile,
                 ParcelFileDescriptor.MODE_CREATE | ParcelFileDescriptor.MODE_READ_WRITE);
              ParcelFileDescriptor extraOutFd = ParcelFileDescriptor.open(extraOutputFile,
-                ParcelFileDescriptor.MODE_CREATE | ParcelFileDescriptor.MODE_READ_WRITE)) {
+                     ParcelFileDescriptor.MODE_CREATE | ParcelFileDescriptor.MODE_READ_WRITE)) {
             requestBugReport(outFd, extraOutFd);
         } catch (IOException | RuntimeException e) {
             Log.e(TAG, "Failed to grab dump state", e);
@@ -437,7 +445,7 @@ public class BugReportService extends Service {
         }
         mCallback = new CarBugreportManager.CarBugreportManagerCallback() {
             @Override
-            public void onError(@CarBugreportErrorCode int errorCode) {
+            public void onError(int errorCode) {
                 Log.e(TAG, "CarBugreportManager failed: " + errorCode);
                 disconnectFromCarService();
                 handleBugReportManagerError(errorCode);
@@ -467,8 +475,7 @@ public class BugReportService extends Service {
         mBugreportManager.requestBugreport(outFd, extraOutFd, mCallback);
     }
 
-    private void handleBugReportManagerError(
-            @CarBugreportManager.CarBugreportManagerCallback.CarBugreportErrorCode int errorCode) {
+    private void handleBugReportManagerError(int errorCode) {
         if (mMetaBugReport == null) {
             Log.w(TAG, "No bugreport is running");
             mIsCollectingBugReport.set(false);
@@ -491,8 +498,7 @@ public class BugReportService extends Service {
         mIsCollectingBugReport.set(false);
     }
 
-    private static String getBugReportFailureStatusMessage(
-            @CarBugreportManager.CarBugreportManagerCallback.CarBugreportErrorCode int errorCode) {
+    private static String getBugReportFailureStatusMessage(int errorCode) {
         switch (errorCode) {
             case CAR_BUGREPORT_DUMPSTATE_CONNECTION_FAILED:
             case CAR_BUGREPORT_DUMPSTATE_FAILED:
@@ -525,11 +531,38 @@ public class BugReportService extends Service {
                 .notify(BUGREPORT_FINISHED_NOTIF_ID, notification);
     }
 
+    /** Moves extra screenshots from a screenshot directory to a given directory. */
+    private void moveExtraScreenshots(File destinationDir) {
+        String screenshotDirPath = ScreenshotUtils.getScreenshotDir();
+        if (screenshotDirPath == null) {
+            return;
+        }
+        File screenshotDir = new File(screenshotDirPath);
+        if (!screenshotDir.isDirectory()) {
+            return;
+        }
+        for (File file : screenshotDir.listFiles()) {
+            if (file.isDirectory()) {
+                continue;
+            }
+            String destinationPath = destinationDir.getPath() + "/" + file.getName();
+            try {
+                Files.move(Paths.get(file.getPath()), Paths.get(destinationPath));
+                Log.i(TAG, "Move a screenshot" + file.getPath() + " to " + destinationPath);
+            } catch (IOException e) {
+                Log.e(TAG, "Cannot move a screenshot" + file.getName() + " to bugreport.", e);
+            }
+        }
+    }
+
     /**
      * Zips the temp directory, writes to the system user's {@link FileUtils#getPendingDir} and
-     * updates the bug report status.
+     * updates the bug report status. Note that audio file is always stored in cache directory and
+     * moved by {@link com.android.car.bugreport.BugReportActivity.AddAudioToBugReportAsyncTask}, so
+     * not zipped by this method.
      *
-     * <p>For {@link MetaBugReport#TYPE_AUDIO_FIRST}: Sets status to either STATUS_UPLOAD_PENDING or
+     * <p>For {@link MetaBugReport#TYPE_AUDIO_FIRST}: Sets status to either STATUS_UPLOAD_PENDING
+     * or
      * STATUS_PENDING_USER_ACTION and shows a regular notification.
      *
      * <p>For {@link MetaBugReport#TYPE_AUDIO_LATER}: Sets status to STATUS_AUDIO_PENDING and shows
@@ -543,7 +576,11 @@ public class BugReportService extends Service {
             Log.d(TAG, "Zipping bugreport into " + bugreportFileName);
             mMetaBugReport = BugStorageUtils.update(this,
                     mMetaBugReport.toBuilder().setBugReportFileName(bugreportFileName).build());
-            File bugReportTempDir = FileUtils.createTempDir(this, mMetaBugReport.getTimestamp());
+            File bugReportTempDir = FileUtils.getTempDir(this, mMetaBugReport.getTimestamp());
+
+            Log.d(TAG, "Adding extra screenshots into " + bugReportTempDir.getAbsolutePath());
+            moveExtraScreenshots(bugReportTempDir);
+
             zipDirectoryToOutputStream(bugReportTempDir,
                     BugStorageUtils.openBugReportFileToWrite(this, mMetaBugReport));
         } catch (IOException e) {
@@ -557,7 +594,7 @@ public class BugReportService extends Service {
             BugStorageUtils.setBugReportStatus(BugReportService.this,
                     mMetaBugReport, Status.STATUS_AUDIO_PENDING, /* message= */ "");
             playNotificationSound();
-            startActivity(BugReportActivity.buildAddAudioIntent(this, mMetaBugReport));
+            startActivity(BugReportActivity.buildAddAudioIntent(this, mMetaBugReport.getId()));
         } else {
             // NOTE: If bugreport is TYPE_AUDIO_FIRST, it will already contain an audio message.
             Status status = mConfig.isAutoUpload()

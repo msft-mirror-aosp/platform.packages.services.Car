@@ -137,16 +137,19 @@ bool HalCamera::changeFramesInFlight(int delta) {
     newRecords.reserve(bufferCount);
 
     // Copy and compact the old records that are still active
-    for (const auto& rec : mFrames) {
-        if (rec.refCount > 0) {
-            newRecords.push_back(std::move(rec));
+    {
+        std::lock_guard lock(mFrameMutex);
+        for (const auto& rec : mFrames) {
+            if (rec.refCount > 0) {
+                newRecords.push_back(std::move(rec));
+            }
         }
-    }
-    if (newRecords.size() > static_cast<unsigned>(bufferCount)) {
-        LOG(WARNING) << "We found more frames in use than requested.";
-    }
+        if (newRecords.size() > static_cast<unsigned>(bufferCount)) {
+            LOG(WARNING) << "We found more frames in use than requested.";
+        }
 
-    mFrames.swap(newRecords);
+        mFrames.swap(newRecords);
+    }
     return true;
 }
 
@@ -178,18 +181,21 @@ bool HalCamera::changeFramesInFlight(const std::vector<BufferDesc>& buffers, int
     std::vector<FrameRecord> newRecords;
     newRecords.reserve(bufferCount);
 
-    // Copy and compact the old records that are still active
-    for (const auto& rec : mFrames) {
-        if (rec.refCount > 0) {
-            newRecords.push_back(std::move(rec));
+    {
+        std::lock_guard lock(mFrameMutex);
+        // Copy and compact the old records that are still active
+        for (const auto& rec : mFrames) {
+            if (rec.refCount > 0) {
+                newRecords.push_back(std::move(rec));
+            }
         }
-    }
 
-    if (newRecords.size() > static_cast<unsigned>(bufferCount)) {
-        LOG(WARNING) << "We found more frames in use than requested.";
-    }
+        if (newRecords.size() > static_cast<unsigned>(bufferCount)) {
+            LOG(WARNING) << "We found more frames in use than requested.";
+        }
 
-    mFrames.swap(newRecords);
+        mFrames.swap(newRecords);
+    }
 
     return true;
 }
@@ -200,35 +206,46 @@ void HalCamera::requestNewFrame(std::shared_ptr<VirtualCamera> client, int64_t l
     req.timestamp = lastTimestamp;
 
     std::lock_guard<std::mutex> lock(mFrameMutex);
-    mNextRequests->push_back(req);
+    mNextRequests.push_back(req);
 }
 
 ScopedAStatus HalCamera::clientStreamStarting() {
-    if (mStreamState != STOPPED) {
-        return ScopedAStatus::ok();
-    }
-
-    mStreamState = RUNNING;
-    return mHwCamera->startVideoStream(ref<HalCamera>());
-}
-
-void HalCamera::cancelCaptureRequestFromClientLocked(std::deque<struct FrameRequest>* requests,
-                                                     const VirtualCamera* client) {
-    auto it = requests->begin();
-    while (it != requests->end()) {
-        if (it->client.lock().get() == client) {
-            requests->erase(it);
-            return;
+    {
+        std::lock_guard lock(mFrameMutex);
+        if (mStreamState == RUNNING) {
+            // This camera device is already active.
+            return ScopedAStatus::ok();
         }
-        ++it;
+
+        if (mStreamState == STOPPED) {
+            // Try to start a video stream.
+            ScopedAStatus status = mHwCamera->startVideoStream(ref<HalCamera>());
+            if (status.isOk()) {
+                mStreamState = RUNNING;
+            }
+            return status;
+        }
+
+        // We cannot start a video stream.
+        return Utils::buildScopedAStatusFromEvsResult(
+                mStreamState == STOPPING ? EvsResult::RESOURCE_BUSY
+                                         : EvsResult::UNDERLYING_SERVICE_ERROR);
     }
 }
 
 void HalCamera::clientStreamEnding(const VirtualCamera* client) {
     {
         std::lock_guard<std::mutex> lock(mFrameMutex);
-        cancelCaptureRequestFromClientLocked(mNextRequests, client);
-        cancelCaptureRequestFromClientLocked(mCurrentRequests, client);
+        if (mStreamState != RUNNING) {
+            // We are being stopped or stopped already.
+            return;
+        }
+
+        mNextRequests.erase(std::remove_if(mNextRequests.begin(), mNextRequests.end(),
+                                           [client](const auto& r) {
+                                               return r.client.lock().get() == client;
+                                           }),
+                            mNextRequests.end());
     }
 
     // Do we still have a running client?
@@ -242,7 +259,10 @@ void HalCamera::clientStreamEnding(const VirtualCamera* client) {
 
     // If not, then stop the hardware stream
     if (!stillRunning) {
-        mStreamState = STOPPING;
+        {
+            std::lock_guard lock(mFrameMutex);
+            mStreamState = STOPPING;
+        }
         auto status = mHwCamera->stopVideoStream();
         if (!status.isOk()) {
             LOG(WARNING) << "Failed to stop a video stream, error = "
@@ -252,7 +272,9 @@ void HalCamera::clientStreamEnding(const VirtualCamera* client) {
 }
 
 ScopedAStatus HalCamera::doneWithFrame(BufferDesc buffer) {
-    std::lock_guard<std::mutex> lock(mFrameMutex);
+    std::unique_lock lock(mFrameMutex);
+    ::android::base::ScopedLockAssertion lock_assertion(mFrameMutex);
+    mFrameOpDone.wait(lock, [this]() REQUIRES(mFrameMutex) { return mFrameOpInProgress != true; });
 
     // Find this frame in our list of outstanding frames
     auto it = std::find_if(mFrames.begin(), mFrames.end(),
@@ -264,17 +286,18 @@ ScopedAStatus HalCamera::doneWithFrame(BufferDesc buffer) {
         return ScopedAStatus::ok();
     }
 
-    // Are there still clients using this buffer?
-    if (it->refCount > 0) {
-        it->refCount = it->refCount - 1;
-        if (it->refCount > 0) {
-            LOG(DEBUG) << "Buffer " << buffer.bufferId << " is still being used by " << it->refCount
-                       << " other client(s).";
-            return ScopedAStatus::ok();
-        }
-    } else {
+    if (it->refCount < 1) {
         LOG(WARNING) << "Buffer " << buffer.bufferId
                      << " is returned with a zero reference counter.";
+        return ScopedAStatus::ok();
+    }
+
+    // Are there still clients using this buffer?
+    it->refCount = it->refCount - 1;
+    if (it->refCount > 0) {
+        LOG(DEBUG) << "Buffer " << buffer.bufferId << " is still being used by " << it->refCount
+                   << " other client(s).";
+        return ScopedAStatus::ok();
     }
 
     // Since all our clients are done with this buffer, return it to the device layer
@@ -304,64 +327,86 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
     //           but this must be derived from current framerate.
     constexpr int64_t kThreshold = 16'000;  // ms
     unsigned frameDeliveries = 0;
+    std::deque<FrameRequest> currentRequests;
+    std::deque<FrameRequest> puntedRequests;
     {
-        // Handle frame requests from v1.1 clients
         std::lock_guard<std::mutex> lock(mFrameMutex);
-        std::swap(mCurrentRequests, mNextRequests);
-        while (!mCurrentRequests->empty()) {
-            auto req = mCurrentRequests->front();
-            mCurrentRequests->pop_front();
-            std::shared_ptr<VirtualCamera> vCam = req.client.lock();
-            if (!vCam) {
-                // Ignore a client already dead.
-                continue;
-            }
+        currentRequests.insert(currentRequests.end(),
+                               std::make_move_iterator(mNextRequests.begin()),
+                               std::make_move_iterator(mNextRequests.end()));
+        mNextRequests.clear();
+        mFrameOpInProgress = true;
+    }
 
-            if (timestamp - req.timestamp < kThreshold) {
-                // Skip current frame because it arrives too soon.
-                LOG(DEBUG) << "Skips a frame from " << getId();
-                mNextRequests->push_back(req);
+    while (!currentRequests.empty()) {
+        auto req = currentRequests.front();
+        currentRequests.pop_front();
+        std::shared_ptr<VirtualCamera> vCam = req.client.lock();
+        if (!vCam) {
+            // Ignore a client already dead.
+            continue;
+        }
 
-                // Reports a skipped frame
-                mUsageStats->framesSkippedToSync();
-            } else {
-                if (!vCam->deliverFrame(buffers[0])) {
-                    LOG(WARNING) << getId() << " failed to forward the buffer to " << vCam.get();
-                } else {
-                    LOG(DEBUG) << getId() << " forwarded the buffer #" << buffers[0].bufferId
-                               << " to " << vCam.get() << " from " << this;
-                    ++frameDeliveries;
-                }
+        if (timestamp - req.timestamp < kThreshold) {
+            // Skip current frame because it arrives too soon.
+            LOG(DEBUG) << "Skips a frame from " << getId();
+            mUsageStats->framesSkippedToSync();
+            puntedRequests.push_back(req);
+            continue;
+        }
+
+        if (!vCam->deliverFrame(buffers[0])) {
+            LOG(WARNING) << getId() << " failed to forward the buffer to " << vCam.get();
+        } else {
+            LOG(DEBUG) << getId() << " forwarded the buffer #" << buffers[0].bufferId << " to "
+                       << vCam.get() << " from " << this;
+            ++frameDeliveries;
+        }
+    }
+
+    if (frameDeliveries < 1) {
+        // If none of our clients could accept the frame, then return it
+        // right away.
+        LOG(INFO) << "Trivially rejecting frame (" << buffers[0].bufferId << ") from " << getId()
+                  << " with no acceptance";
+        if (!mHwCamera->doneWithFrame(buffers).isOk()) {
+            LOG(WARNING) << "Failed to return buffers";
+        }
+
+        // Reports a returned buffer
+        mUsageStats->framesReturned(buffers);
+
+        // Adding skipped capture requests back to the queue.
+        std::lock_guard<std::mutex> lock(mFrameMutex);
+        mNextRequests.insert(mNextRequests.end(),
+                             std::make_move_iterator(puntedRequests.begin()),
+                             std::make_move_iterator(puntedRequests.end()));
+        mFrameOpInProgress = false;
+        mFrameOpDone.notify_all();
+    } else {
+        std::lock_guard lock(mFrameMutex);
+
+        // Add an entry for this frame in our tracking list.
+        unsigned i;
+        for (i = 0; i < mFrames.size(); ++i) {
+            if (mFrames[i].refCount == 0) {
+                break;
             }
         }
 
-        if (frameDeliveries < 1) {
-            // If none of our clients could accept the frame, then return it
-            // right away.
-            LOG(INFO) << "Trivially rejecting frame (" << buffers[0].bufferId << ") from "
-                      << getId() << " with no acceptance";
-            if (!mHwCamera->doneWithFrame(buffers).isOk()) {
-                LOG(WARNING) << "Failed to return buffers";
-            }
-
-            // Reports a returned buffer
-            mUsageStats->framesReturned(buffers);
+        if (i == mFrames.size()) {
+            mFrames.emplace_back(buffers[0].bufferId, frameDeliveries);
         } else {
-            // Add an entry for this frame in our tracking list.
-            unsigned i;
-            for (i = 0; i < mFrames.size(); ++i) {
-                if (mFrames[i].refCount == 0) {
-                    break;
-                }
-            }
-
-            if (i == mFrames.size()) {
-                mFrames.push_back(buffers[0].bufferId);
-            } else {
-                mFrames[i].frameId = buffers[0].bufferId;
-            }
+            mFrames[i].frameId = buffers[0].bufferId;
             mFrames[i].refCount = frameDeliveries;
         }
+
+        // Adding skipped capture requests back to the queue.
+        mNextRequests.insert(mNextRequests.end(),
+                             std::make_move_iterator(puntedRequests.begin()),
+                             std::make_move_iterator(puntedRequests.end()));
+        mFrameOpInProgress = false;
+        mFrameOpDone.notify_all();
     }
 
     return ScopedAStatus::ok();
@@ -371,6 +416,7 @@ ScopedAStatus HalCamera::notify(const EvsEventDesc& event) {
     LOG(DEBUG) << "Received an event id: " << static_cast<int32_t>(event.aType);
     if (event.aType == EvsEventType::STREAM_STOPPED) {
         // This event happens only when there is no more active client.
+        std::lock_guard lock(mFrameMutex);
         if (mStreamState != STOPPING) {
             LOG(WARNING) << "Stream stopped unexpectedly";
         }

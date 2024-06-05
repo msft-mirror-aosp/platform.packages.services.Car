@@ -16,6 +16,7 @@
 
 package com.android.car.audio;
 
+import static android.car.oem.CarAudioFeaturesInfo.AUDIO_FEATURE_NO_FEATURE;
 import static android.media.AudioAttributes.USAGE_ALARM;
 import static android.media.AudioAttributes.USAGE_ANNOUNCEMENT;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY;
@@ -33,6 +34,8 @@ import static android.media.AudioManager.AUDIOFOCUS_GAIN;
 import static android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK;
 import static android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -41,15 +44,16 @@ import static org.mockito.Mockito.when;
 
 import android.car.media.CarAudioManager;
 import android.car.oem.AudioFocusEntry;
+import android.car.oem.CarAudioFeaturesInfo;
 import android.car.oem.OemCarAudioFocusResult;
 import android.content.ContentResolver;
 import android.content.pm.PackageManager;
 import android.media.AudioFocusInfo;
-import android.media.AudioManager;
 import android.media.audiopolicy.AudioPolicy;
 import android.util.SparseArray;
 
 import com.android.car.CarLocalServices;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.oem.CarOemAudioFocusProxyService;
 import com.android.car.oem.CarOemProxyService;
 
@@ -169,7 +173,7 @@ abstract class CarZonesAudioFocusTestBase {
             USAGE_ANNOUNCEMENT, ANNOUNCEMENT_CLIENT_UID_2, ANNOUNCEMENT_CLIENT_ID_2);
 
     @Mock
-    protected AudioManager mMockAudioManager;
+    protected AudioManagerWrapper mMockAudioManager;
     @Mock
     protected AudioPolicy mAudioPolicy;
     @Mock
@@ -265,8 +269,9 @@ abstract class CarZonesAudioFocusTestBase {
             carFocusCallback) {
         CarZonesAudioFocus carZonesAudioFocus =
                 CarZonesAudioFocus.createCarZonesAudioFocus(mMockAudioManager,
-                        mMockPackageManager, mCarAudioZones, mCarAudioSettings,
-                        carFocusCallback, mMockCarVolumeInfoWrapper);
+                        mMockPackageManager, mCarAudioZones, mCarAudioSettings, carFocusCallback,
+                        mMockCarVolumeInfoWrapper, new CarAudioFeaturesInfo.Builder(
+                                AUDIO_FEATURE_NO_FEATURE).build());
         carZonesAudioFocus.setOwningPolicy(mCarAudioService, mAudioPolicy);
 
         return carZonesAudioFocus;
@@ -289,6 +294,7 @@ abstract class CarZonesAudioFocusTestBase {
                 .setAudioFocusEntry(entry).build();
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
     public static final class AudioClientInfo {
         private final int mUsage;
         private final int mClientUid;

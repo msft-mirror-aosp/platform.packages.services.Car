@@ -18,11 +18,10 @@ package android.car.apitest;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.car.VehiclePropertyIds;
-import android.car.annotation.ApiRequirements;
 import android.hardware.automotive.vehicle.VehicleProperty;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 
+import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.ApiTest;
@@ -46,9 +45,10 @@ public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
 
     // IDs that only exist in VHAL, not exposed by CarPropertyManager.
     private static final List<String> MISSING_VEHICLE_PROPERTY_IDS = List.of(
-                    "EXTERNAL_CAR_TIME",
+                    "CAMERA_SERVICE_CURRENT_STATE",
                     "DISABLED_OPTIONAL_FEATURES",
                     "EVS_SERVICE_REQUEST",
+                    "EXTERNAL_CAR_TIME",
                     "HW_KEY_INPUT_V2",
                     "HW_MOTION_INPUT",
                     "HW_CUSTOM_INPUT",
@@ -61,8 +61,6 @@ public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
 
     @Test
     @NonApiTest(exemptionReasons = {}, justification = "Large number of constant fields")
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void testMatchingVehiclePropertyNamesInVehicleHal() {
         List<String> carServiceNames = getListOfConstantNames(VehiclePropertyIds.class);
         List<String> vhalNames = getListOfConstantNames(VehicleProperty.class);
@@ -95,8 +93,6 @@ public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
 
     @Test
     @NonApiTest(exemptionReasons = {}, justification = "Large number of constant fields")
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public void testMatchingVehiclePropertyValuesInVehicleHal() {
         List<String> carServiceNames = getListOfConstantNames(VehiclePropertyIds.class);
         List<String> vhalNames = getListOfConstantNames(VehicleProperty.class);

@@ -17,6 +17,7 @@
 package com.google.android.car.kitchensink;
 
 import android.annotation.Nullable;
+import android.app.NotificationManager;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
 import android.car.CarProjectionManager;
@@ -29,13 +30,12 @@ import android.car.telemetry.CarTelemetryManager;
 import android.car.watchdog.CarWatchdogManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemProperties;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -52,20 +52,24 @@ import com.google.android.car.kitchensink.activityresolver.ActivityResolverFragm
 import com.google.android.car.kitchensink.admin.DevicePolicyFragment;
 import com.google.android.car.kitchensink.alertdialog.AlertDialogTestFragment;
 import com.google.android.car.kitchensink.assistant.CarAssistantFragment;
+import com.google.android.car.kitchensink.audio.AudioConfigurationTestFragment;
 import com.google.android.car.kitchensink.audio.AudioMirrorTestFragment;
 import com.google.android.car.kitchensink.audio.AudioTestFragment;
 import com.google.android.car.kitchensink.audio.AudioUserAssignmentFragment;
 import com.google.android.car.kitchensink.audio.CarAudioInputTestFragment;
+import com.google.android.car.kitchensink.audio.OemCarServiceTestFragment;
 import com.google.android.car.kitchensink.audiorecorder.AudioRecorderTestFragment;
 import com.google.android.car.kitchensink.backup.BackupAndRestoreFragment;
 import com.google.android.car.kitchensink.biometrics.BiometricPromptTestFragment;
 import com.google.android.car.kitchensink.bluetooth.BluetoothHeadsetFragment;
 import com.google.android.car.kitchensink.bluetooth.BluetoothUuidFragment;
 import com.google.android.car.kitchensink.bluetooth.MapMceTestFragment;
+import com.google.android.car.kitchensink.camera2.Camera2TestFragment;
 import com.google.android.car.kitchensink.carboard.KeyboardTestFragment;
 import com.google.android.car.kitchensink.cluster.InstrumentClusterFragment;
 import com.google.android.car.kitchensink.connectivity.ConnectivityFragment;
 import com.google.android.car.kitchensink.cube.CubesTestFragment;
+import com.google.android.car.kitchensink.customizationtool.CustomizationToolFragment;
 import com.google.android.car.kitchensink.diagnostic.DiagnosticTestFragment;
 import com.google.android.car.kitchensink.display.DisplayInfoFragment;
 import com.google.android.car.kitchensink.display.DisplayMirroringFragment;
@@ -88,6 +92,7 @@ import com.google.android.car.kitchensink.privacy.PrivacyIndicatorFragment;
 import com.google.android.car.kitchensink.projection.ProjectionFragment;
 import com.google.android.car.kitchensink.property.PropertyTestFragment;
 import com.google.android.car.kitchensink.qc.QCViewerFragment;
+import com.google.android.car.kitchensink.radio.RadioTestFragment;
 import com.google.android.car.kitchensink.remoteaccess.RemoteAccessTestFragment;
 import com.google.android.car.kitchensink.rotary.RotaryFragment;
 import com.google.android.car.kitchensink.sensor.SensorsTestFragment;
@@ -108,14 +113,15 @@ import com.google.android.car.kitchensink.weblinks.WebLinksTestFragment;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-public class KitchenSinkActivity extends FragmentActivity {
+public class KitchenSinkActivity extends FragmentActivity implements KitchenSinkHelper {
 
-    private static final String TAG = "KitchenSinkActivity";
+    public static final String TAG = "KitchenSinkActivity";
     private static final String LAST_FRAGMENT_TAG = "lastFragmentTag";
     private static final String DEFAULT_FRAGMENT_TAG = "";
 
@@ -134,10 +140,67 @@ public class KitchenSinkActivity extends FragmentActivity {
     private int mNotificationId = 1000;
     private boolean mShowHeaderInfo;
 
+    private final KitchenSinkHelperImpl mKsHelperImpl = new KitchenSinkHelperImpl();
+
     public static final String DUMP_ARG_CMD = "cmd";
     public static final String DUMP_ARG_FRAGMENT = "fragment";
     public static final String DUMP_ARG_QUIET = "quiet";
     public static final String DUMP_ARG_REFRESH = "refresh";
+
+    @Override
+    public Car getCar() {
+        return mKsHelperImpl.getCar();
+    }
+
+    @Override
+    public void requestRefreshManager(Runnable r, Handler h) {
+        mKsHelperImpl.requestRefreshManager(r, h);
+    }
+
+    @Override
+    public CarPropertyManager getPropertyManager() {
+        return mKsHelperImpl.getPropertyManager();
+    }
+
+    @Override
+    public CarHvacManager getHvacManager() {
+        return mKsHelperImpl.getHvacManager();
+    }
+
+    @Override
+    public CarOccupantZoneManager getOccupantZoneManager() {
+        return mKsHelperImpl.getOccupantZoneManager();
+    }
+
+    @Override
+    public CarPowerManager getPowerManager() {
+        return mKsHelperImpl.getPowerManager();
+    }
+
+    @Override
+    public CarSensorManager getSensorManager() {
+        return mKsHelperImpl.getSensorManager();
+    }
+
+    @Override
+    public CarProjectionManager getProjectionManager() {
+        return mKsHelperImpl.getProjectionManager();
+    }
+
+    @Override
+    public CarTelemetryManager getCarTelemetryManager() {
+        return mKsHelperImpl.getCarTelemetryManager();
+    }
+
+    @Override
+    public CarWatchdogManager getCarWatchdogManager() {
+        return mKsHelperImpl.getCarWatchdogManager();
+    }
+
+    @Override
+    public CarPerformanceManager getPerformanceManager() {
+        return mKsHelperImpl.getPerformanceManager();
+    }
 
     private interface ClickHandler {
         void onClick();
@@ -229,125 +292,89 @@ public class KitchenSinkActivity extends FragmentActivity {
         }
     }
 
-    private final List<MenuEntry> mMenuEntries = Arrays.asList(
-            new FragmentMenuEntry("activity resolver", ActivityResolverFragment.class),
-            new FragmentMenuEntry("alert window", AlertDialogTestFragment.class),
-            new FragmentMenuEntry("assistant", CarAssistantFragment.class),
-            new FragmentMenuEntry(AudioTestFragment.FRAGMENT_NAME, AudioTestFragment.class),
-            new FragmentMenuEntry(AudioUserAssignmentFragment.FRAGMENT_NAME,
-                    AudioUserAssignmentFragment.class),
-            new FragmentMenuEntry(AudioRecorderTestFragment.FRAGMENT_NAME,
-                    AudioRecorderTestFragment.class),
-            new FragmentMenuEntry(CarAudioInputTestFragment.FRAGMENT_NAME,
-                    CarAudioInputTestFragment.class),
-            new FragmentMenuEntry(AudioMirrorTestFragment.FRAGMENT_NAME,
-                    AudioMirrorTestFragment.class),
-            new FragmentMenuEntry("Hotword", CarMultiConcurrentHotwordTestFragment.class),
-            new FragmentMenuEntry("B&R", BackupAndRestoreFragment.class),
-            new FragmentMenuEntry("BT headset", BluetoothHeadsetFragment.class),
-            new FragmentMenuEntry("BT messaging", MapMceTestFragment.class),
-            new FragmentMenuEntry("BT Uuids", BluetoothUuidFragment.class),
-            new FragmentMenuEntry(BiometricPromptTestFragment.FRAGMENT_NAME,
-                    BiometricPromptTestFragment.class),
-            new FragmentMenuEntry("carapi", CarApiTestFragment.class),
-            new FragmentMenuEntry("carboard", KeyboardTestFragment.class),
-            new FragmentMenuEntry("connectivity", ConnectivityFragment.class),
-            new FragmentMenuEntry("cubes test", CubesTestFragment.class),
-            new FragmentMenuEntry("device policy", DevicePolicyFragment.class),
-            new FragmentMenuEntry("diagnostic", DiagnosticTestFragment.class),
-            new FragmentMenuEntry("display info", DisplayInfoFragment.class),
-            new FragmentMenuEntry("display input lock", DisplayInputLockTestFragment.class),
-            new FragmentMenuEntry("display mirroring", DisplayMirroringFragment.class),
-            new FragmentMenuEntry("drive mode switch", DriveModeSwitchFragment.class),
-            new FragmentMenuEntry("experimental feature", ExperimentalFeatureTestFragment.class),
-            new FragmentMenuEntry("hvac", HvacTestFragment.class),
-            new FragmentMenuEntry("inst cluster", InstrumentClusterFragment.class),
-            new FragmentMenuEntry("mainline", CarMainlineFragment.class),
-            new FragmentMenuEntry("MD media", MultidisplayMediaFragment.class),
-            new FragmentMenuEntry("notification", NotificationFragment.class),
-            new FragmentMenuEntry("orientation test", OrientationTestFragment.class),
-            new FragmentMenuEntry("package info", PackageInfoFragment.class),
-            new FragmentMenuEntry("performance", CarPerformanceTestFragment.class),
-            new FragmentMenuEntry("power test", PowerTestFragment.class),
-            new FragmentMenuEntry(PrivacyIndicatorFragment.FRAGMENT_NAME,
-                    PrivacyIndicatorFragment.class),
-            new FragmentMenuEntry("profile_user", ProfileUserFragment.class),
-            new FragmentMenuEntry("projection", ProjectionFragment.class),
-            new FragmentMenuEntry("property test", PropertyTestFragment.class),
-            new FragmentMenuEntry("qc viewer", QCViewerFragment.class),
-            new FragmentMenuEntry("remote access", RemoteAccessTestFragment.class),
-            new FragmentMenuEntry("rotary", RotaryFragment.class),
-            new FragmentMenuEntry("sensors", SensorsTestFragment.class),
-            new FragmentMenuEntry("storage lifetime", StorageLifetimeFragment.class),
-            new FragmentMenuEntry("storage volumes", StorageVolumesFragment.class),
-            new FragmentMenuEntry("system bars", SystemBarsFragment.class),
-            new FragmentMenuEntry("system features", SystemFeaturesFragment.class),
-            new FragmentMenuEntry("telemetry", CarTelemetryTestFragment.class),
-            new FragmentMenuEntry("touch test", TouchTestFragment.class),
-            new FragmentMenuEntry("users", UserFragment.class),
-            new FragmentMenuEntry("user restrictions", UserRestrictionsFragment.class),
-            new FragmentMenuEntry("vehicle ctrl", VehicleCtrlFragment.class),
-            new FragmentMenuEntry(VirtualDisplayFragment.FRAGMENT_NAME,
-                    VirtualDisplayFragment.class),
-            new FragmentMenuEntry("volume test", VolumeTestFragment.class),
-            new FragmentMenuEntry("watchdog", CarWatchdogTestFragment.class),
-            new FragmentMenuEntry("web links", WebLinksTestFragment.class),
-            new FragmentMenuEntry("inject motion", InjectMotionTestFragment.class),
-            new FragmentMenuEntry("inject key", InjectKeyTestFragment.class),
-            new FragmentMenuEntry("window insets full screen",
-                    WindowInsetsFullScreenFragment.class));
+    private final List<MenuEntry> mMenuEntries = new ArrayList<>();
 
-    private Car mCarApi;
-    private CarHvacManager mHvacManager;
-    private CarOccupantZoneManager mOccupantZoneManager;
-    private CarPowerManager mPowerManager;
-    private CarPropertyManager mPropertyManager;
-    private CarSensorManager mSensorManager;
-    private CarProjectionManager mCarProjectionManager;
-    private CarTelemetryManager mCarTelemetryManager;
-    private CarWatchdogManager mCarWatchdogManager;
-    private CarPerformanceManager mCarPerformanceManager;
-    private Object mPropertyManagerReady = new Object();
+    public static final List<Pair<String, Class>> MENU_ENTRIES = Arrays.asList(
+            new Pair<>("activity resolver", ActivityResolverFragment.class),
+            new Pair<>("alert window", AlertDialogTestFragment.class),
+            new Pair<>("assistant", CarAssistantFragment.class),
+            new Pair<>(AudioTestFragment.FRAGMENT_NAME, AudioTestFragment.class),
+            new Pair<>(AudioUserAssignmentFragment.FRAGMENT_NAME,
+                    AudioUserAssignmentFragment.class),
+            new Pair<>(AudioConfigurationTestFragment.FRAGMENT_NAME,
+                    AudioConfigurationTestFragment.class),
+            new Pair<>(AudioRecorderTestFragment.FRAGMENT_NAME,
+                    AudioRecorderTestFragment.class),
+            new Pair<>(CarAudioInputTestFragment.FRAGMENT_NAME,
+                    CarAudioInputTestFragment.class),
+            new Pair<>(AudioMirrorTestFragment.FRAGMENT_NAME,
+                    AudioMirrorTestFragment.class),
+            new Pair<>("Hotword", CarMultiConcurrentHotwordTestFragment.class),
+            new Pair<>("B&R", BackupAndRestoreFragment.class),
+            new Pair<>("BT headset", BluetoothHeadsetFragment.class),
+            new Pair<>("BT messaging", MapMceTestFragment.class),
+            new Pair<>("BT Uuids", BluetoothUuidFragment.class),
+            new Pair<>(BiometricPromptTestFragment.FRAGMENT_NAME,
+                    BiometricPromptTestFragment.class),
+            new Pair<>("carapi", CarApiTestFragment.class),
+            new Pair<>("carboard", KeyboardTestFragment.class),
+            new Pair<>("connectivity", ConnectivityFragment.class),
+            new Pair<>("cubes test", CubesTestFragment.class),
+            new Pair<>("customization tool", CustomizationToolFragment.class),
+            new Pair<>("device policy", DevicePolicyFragment.class),
+            new Pair<>("diagnostic", DiagnosticTestFragment.class),
+            new Pair<>("display info", DisplayInfoFragment.class),
+            new Pair<>("display input lock", DisplayInputLockTestFragment.class),
+            new Pair<>("display mirroring", DisplayMirroringFragment.class),
+            new Pair<>("drive mode switch", DriveModeSwitchFragment.class),
+            new Pair<>("experimental feature", ExperimentalFeatureTestFragment.class),
+            new Pair<>("hvac", HvacTestFragment.class),
+            new Pair<>("inst cluster", InstrumentClusterFragment.class),
+            new Pair<>("mainline", CarMainlineFragment.class),
+            new Pair<>("MD media", MultidisplayMediaFragment.class),
+            new Pair<>("notification", NotificationFragment.class),
+            new Pair<>("orientation test", OrientationTestFragment.class),
+            new Pair<>("package info", PackageInfoFragment.class),
+            new Pair<>("performance", CarPerformanceTestFragment.class),
+            new Pair<>("power test", PowerTestFragment.class),
+            new Pair<>(PrivacyIndicatorFragment.FRAGMENT_NAME,
+                    PrivacyIndicatorFragment.class),
+            new Pair<>("profile_user", ProfileUserFragment.class),
+            new Pair<>("projection", ProjectionFragment.class),
+            new Pair<>("property test", PropertyTestFragment.class),
+            new Pair<>("qc viewer", QCViewerFragment.class),
+            new Pair<>("remote access", RemoteAccessTestFragment.class),
+            new Pair<>("rotary", RotaryFragment.class),
+            new Pair<>("sensors", SensorsTestFragment.class),
+            new Pair<>("storage lifetime", StorageLifetimeFragment.class),
+            new Pair<>("storage volumes", StorageVolumesFragment.class),
+            new Pair<>("system bars", SystemBarsFragment.class),
+            new Pair<>("system features", SystemFeaturesFragment.class),
+            new Pair<>("telemetry", CarTelemetryTestFragment.class),
+            new Pair<>("touch test", TouchTestFragment.class),
+            new Pair<>("users", UserFragment.class),
+            new Pair<>("user restrictions", UserRestrictionsFragment.class),
+            new Pair<>("vehicle ctrl", VehicleCtrlFragment.class),
+            new Pair<>(VirtualDisplayFragment.FRAGMENT_NAME,
+                    VirtualDisplayFragment.class),
+            new Pair<>("volume test", VolumeTestFragment.class),
+            new Pair<>("watchdog", CarWatchdogTestFragment.class),
+            new Pair<>("web links", WebLinksTestFragment.class),
+            new Pair<>("inject motion", InjectMotionTestFragment.class),
+            new Pair<>("inject key", InjectKeyTestFragment.class),
+            new Pair<>("window insets full screen",
+                    WindowInsetsFullScreenFragment.class),
+            new Pair<>("oem car service", OemCarServiceTestFragment.class),
+            new Pair<>("Camera2", Camera2TestFragment.class),
+            new Pair<>(RadioTestFragment.FRAGMENT_NAME, RadioTestFragment.class));
 
     public KitchenSinkActivity() {
+        for (Pair<String, Class> entry : MENU_ENTRIES) {
+            mMenuEntries.add(new FragmentMenuEntry(entry.first, entry.second));
+        }
         mMenuEntries.sort(Comparator.comparing(MenuEntry::getText));
     }
 
-    public CarHvacManager getHvacManager() {
-        return mHvacManager;
-    }
-
-    public CarOccupantZoneManager getOccupantZoneManager() {
-        return mOccupantZoneManager;
-    }
-
-    public CarPowerManager getPowerManager() {
-        return mPowerManager;
-    }
-
-    public CarPropertyManager getPropertyManager() {
-        return mPropertyManager;
-    }
-
-    public CarSensorManager getSensorManager() {
-        return mSensorManager;
-    }
-
-    public CarProjectionManager getProjectionManager() {
-        return mCarProjectionManager;
-    }
-
-    public CarTelemetryManager getCarTelemetryManager() {
-        return mCarTelemetryManager;
-    }
-
-    public CarWatchdogManager getCarWatchdogManager() {
-        return mCarWatchdogManager;
-    }
-
-    public CarPerformanceManager getPerformanceManager() {
-        return mCarPerformanceManager;
-    }
 
     /* Open any tab directly:
      * adb shell am force-stop com.google.android.car.kitchensink
@@ -369,6 +396,12 @@ public class KitchenSinkActivity extends FragmentActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         Log.i(TAG, "onNewIntent");
+        if (intent.getCategories() != null
+                && intent.getCategories().contains(
+                        NotificationFragment.INTENT_CATEGORY_SELF_DISMISS)) {
+            NotificationManager nm = this.getSystemService(NotificationManager.class);
+            nm.cancel(NotificationFragment.SELF_DISMISS_NOTIFICATION_ID);
+        }
         Bundle extras = intent.getExtras();
         if (extras == null) {
             return;
@@ -390,10 +423,13 @@ public class KitchenSinkActivity extends FragmentActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.kitchen_activity);
 
-        // Connection to Car Service does not work for non-automotive yet.
-        if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
-            initCarApi();
-        }
+        findViewById(R.id.root).setOnApplyWindowInsetsListener((v, insets) -> {
+            final android.graphics.Insets i = insets.getSystemWindowInsets();
+            v.setPadding(i.left, i.top, i.right, i.bottom);
+            return insets.inset(i).consumeSystemWindowInsets();
+        });
+
+        mKsHelperImpl.initCarApiIfAutomotive(this);
 
         mKitchenContent = findViewById(R.id.kitchen_content);
 
@@ -403,6 +439,9 @@ public class KitchenSinkActivity extends FragmentActivity {
 
         mMenuButton = findViewById(R.id.menu_button);
         mMenuButton.setOnClickListener(view -> toggleMenuVisibility());
+
+        ((Button) findViewById(R.id.new_version_button)).setOnClickListener(
+                view -> goToNewVersion());
         ((Button) findViewById(R.id.finish_button)).setOnClickListener(view -> finish());
         ((Button) findViewById(R.id.home_button)).setOnClickListener(view -> launchHome());
 
@@ -416,7 +455,7 @@ public class KitchenSinkActivity extends FragmentActivity {
         mUserIdView.setText("U#" + userId);
         mDisplayIdView.setText("D#" + displayId);
 
-        Log.i(TAG, "onCreate: userId="  + userId + ", displayId=" + displayId);
+        Log.i(TAG, "onCreate: userId=" + userId + ", displayId=" + displayId);
         onNewIntent(getIntent());
     }
 
@@ -447,6 +486,14 @@ public class KitchenSinkActivity extends FragmentActivity {
     }
 
     /**
+     * Goes to the newer version of Kitchen Sink App.
+     */
+    private void goToNewVersion() {
+        Intent intent = new Intent(this, KitchenSink2Activity.class);
+        startActivity(intent);
+    }
+
+    /**
      * Sets the visibility of the header that's shown on all fragments.
      */
     public void setHeaderVisibility(boolean visible) {
@@ -466,19 +513,6 @@ public class KitchenSinkActivity extends FragmentActivity {
         Intent homeIntent = new Intent(Intent.ACTION_MAIN);
         homeIntent.addCategory(Intent.CATEGORY_HOME);
         startActivity(homeIntent);
-    }
-
-    private void initCarApi() {
-        if (mCarApi != null && mCarApi.isConnected()) {
-            mCarApi.disconnect();
-            mCarApi = null;
-        }
-        mCarApi = Car.createCar(this, null, Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER,
-                (Car car, boolean ready) -> {
-                    if (ready) {
-                        initManagers(car);
-                    }
-                });
     }
 
     @Override
@@ -521,9 +555,7 @@ public class KitchenSinkActivity extends FragmentActivity {
 
     @Override
     protected void onDestroy() {
-        if (mCarApi != null) {
-            mCarApi.disconnect();
-        }
+        mKsHelperImpl.disconnect();
         Log.i(TAG, "onDestroy");
         super.onDestroy();
     }
@@ -598,30 +630,6 @@ public class KitchenSinkActivity extends FragmentActivity {
         mLastFragment = fragment;
     }
 
-    private void initManagers(Car car) {
-        synchronized (mPropertyManagerReady) {
-            mHvacManager = (CarHvacManager) car.getCarManager(
-                    android.car.Car.HVAC_SERVICE);
-            mOccupantZoneManager = (CarOccupantZoneManager) car.getCarManager(
-                    android.car.Car.CAR_OCCUPANT_ZONE_SERVICE);
-            mPowerManager = (CarPowerManager) car.getCarManager(
-                    android.car.Car.POWER_SERVICE);
-            mPropertyManager = (CarPropertyManager) car.getCarManager(
-                    android.car.Car.PROPERTY_SERVICE);
-            mSensorManager = (CarSensorManager) car.getCarManager(
-                    android.car.Car.SENSOR_SERVICE);
-            mCarProjectionManager =
-                    (CarProjectionManager) car.getCarManager(Car.PROJECTION_SERVICE);
-            mCarTelemetryManager =
-                    (CarTelemetryManager) car.getCarManager(Car.CAR_TELEMETRY_SERVICE);
-            mCarWatchdogManager =
-                    (CarWatchdogManager) car.getCarManager(Car.CAR_WATCHDOG_SERVICE);
-            mCarPerformanceManager =
-                    (CarPerformanceManager) car.getCarManager(Car.CAR_PERFORMANCE_SERVICE);
-            mPropertyManagerReady.notifyAll();
-        }
-    }
-
     private void updateHeaderInfoVisibility() {
         mShowHeaderInfo = getBooleanProperty(PROPERTY_SHOW_HEADER_INFO, false);
         Log.i(TAG, "updateHeaderInfoVisibility(): showHeaderInfo=" + mShowHeaderInfo);
@@ -635,10 +643,6 @@ public class KitchenSinkActivity extends FragmentActivity {
         updateHeaderInfoVisibility();
         boolean after = mShowHeaderInfo;
         writer.printf("Updated header info visibility from %b to %b\n", before, after);
-    }
-
-    public Car getCar() {
-        return mCarApi;
     }
 
     private final class MenuAdapter extends RecyclerView.Adapter<ItemViewHolder> {
@@ -674,31 +678,6 @@ public class KitchenSinkActivity extends FragmentActivity {
             super(itemView);
             mTitle = itemView.findViewById(R.id.title);
         }
-    }
-
-    // Use AsyncTask to refresh Car*Manager after car service connected
-    public void requestRefreshManager(final Runnable r, final Handler h) {
-        final AsyncTask<Void, Void, Void> task = new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected Void doInBackground(Void... unused) {
-                synchronized (mPropertyManagerReady) {
-                    while (!mCarApi.isConnected()) {
-                        try {
-                            mPropertyManagerReady.wait();
-                        } catch (InterruptedException e) {
-                            return null;
-                        }
-                    }
-                }
-                return null;
-            }
-
-            @Override
-            protected void onPostExecute(Void unused) {
-                h.post(r);
-            }
-        };
-        task.execute();
     }
 
     private static boolean getBooleanProperty(String prop, boolean defaultValue) {

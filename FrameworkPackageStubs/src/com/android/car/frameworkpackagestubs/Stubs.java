@@ -24,8 +24,10 @@ import android.widget.Toast;
 /**
  * Contains different stub classes.
  *
- * <p>These are broken out so that the intent filters are easier to track and so that
- * individual ones can create more specific messages if desired.
+ * <p>This handles the intents to avoid app crashing and notify the function is not supported.
+ *
+ * <p>These are broken out so that the intent filters are easier to track and so that individual
+ * ones can create more specific messages if desired.
  */
 public final class Stubs {
 
@@ -34,7 +36,8 @@ public final class Stubs {
      *
      * <p>Shows a toast and finishes.
      *
-     * <p>Subclasses can override {@link #getMessage()} to customize the message.
+     * <p>Subclasses can override {@link #getMessage()} to customize the message. Subclasses can
+     * override {@link #setResultImp()} if to return a result.
      */
     private static class BaseActivity extends Activity {
 
@@ -44,12 +47,16 @@ public final class Stubs {
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             showToast();
+            setResultImp();
             finish();
         }
 
         protected CharSequence getMessage() {
             return getResources().getString(R.string.message_not_supported);
         }
+
+        /* No result is expected by default */
+        protected void setResultImp() {}
 
         private void showToast() {
             cancelToast();
@@ -100,6 +107,23 @@ public final class Stubs {
     public static class SettingsStub extends BaseActivity { }
 
     /**
+     * Stub activity for android.settings.MANAGE_UNKNOWN_APP_SOURCES intent. It returns
+     * RESULT_CANCELED for startActivityForResult() according to CDD Application Packaging
+     * Compatibility.
+     */
+    public static class ManageExternalSourcesActivityStub extends BaseActivity {
+        @Override
+        protected CharSequence getMessage() {
+            return getResources().getString(R.string.manage_unknown_app_sources_not_supported);
+        }
+
+        @Override
+        protected void setResultImp() {
+            setResult(RESULT_CANCELED);
+        }
+    }
+
+    /**
      * Stub activity for ignore background data restriction setting.
      */
     public static class IgnoreBackgroundDataRestrictionsSettingsStub extends BaseActivity { }
@@ -129,6 +153,14 @@ public final class Stubs {
                 return getResources().getString(R.string.pip_not_supported);
             }
             return super.getMessage();
+        }
+    }
+
+    /** Stub activity for Dream Settings. */
+    public static class DreamSettingsStub extends BaseActivity {
+        @Override
+        protected CharSequence getMessage() {
+            return getResources().getString(R.string.dream_not_supported);
         }
     }
 }

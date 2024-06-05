@@ -337,11 +337,11 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
         // init()), but on "real life" VehicleHal calls these 2 methods in sequence, and the latter
         // depends on the properties set by the former, so it's ok to test both here...
         myHalService.init();
-        verify(mVehicleHal).subscribeProperty(myHalService, INITIAL_USER_INFO);
-        verify(mVehicleHal).subscribeProperty(myHalService, CREATE_USER);
-        verify(mVehicleHal).subscribeProperty(myHalService, REMOVE_USER);
-        verify(mVehicleHal).subscribeProperty(myHalService, SWITCH_USER);
-        verify(mVehicleHal).subscribeProperty(myHalService, USER_IDENTIFICATION_ASSOCIATION);
+        verify(mVehicleHal).subscribePropertySafe(myHalService, INITIAL_USER_INFO);
+        verify(mVehicleHal).subscribePropertySafe(myHalService, CREATE_USER);
+        verify(mVehicleHal).subscribePropertySafe(myHalService, REMOVE_USER);
+        verify(mVehicleHal).subscribePropertySafe(myHalService, SWITCH_USER);
+        verify(mVehicleHal).subscribePropertySafe(myHalService, USER_IDENTIFICATION_ASSOCIATION);
     }
 
     @Test
@@ -1829,7 +1829,7 @@ public final class UserHalServiceTest extends AbstractExtendedMockitoTestCase {
      * @param prop prop to be set
      * @param response response to be set on event
      * @param rightRequestId whether the response id should match the request
-     * @param countDownLatch A {@link CountDownLatch} to control when to send the event.
+     * @param latch A {@link CountDownLatch} to control when to send the event.
      * @return A copy of the update property value.
      *
      * @return reference to the value passed to {@code set()}.

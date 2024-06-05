@@ -18,6 +18,10 @@
 # automotive device.
 $(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_system_ext.mk)
 
+ifneq ($(TARGET_NO_TELEPHONY), true)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/telephony_system_ext.mk)
+endif
+
 # Window Extensions
 $(call inherit-product, $(SRC_TARGET_DIR)/product/window_extensions.mk)
 
@@ -25,6 +29,9 @@ PRODUCT_PACKAGES += \
     CarDeveloperOptions \
     CarProvision \
     CarSystemUI \
+
+PRODUCT_PACKAGES_DEBUG += \
+    BugReportApp \
 
 # Default dex optimization configurations
 PRODUCT_SYSTEM_EXT_PROPERTIES += \

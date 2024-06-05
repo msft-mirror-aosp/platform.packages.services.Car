@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -35,7 +36,7 @@ android_robolectric_test {
 
     libs: [
         "android.car",
-        "truth-prebuilt",
+        "truth",
         "androidx.test.core",
         "android.car.testapi",
         "androidx.test.rules",
@@ -44,4 +45,5 @@ android_robolectric_test {
     instrumentation_for: "CarLibTestApp",
     upstream: true,
 
+    strict_mode: false,
 }

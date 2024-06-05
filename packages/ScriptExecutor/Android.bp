@@ -62,7 +62,7 @@ android_app {
 
     srcs: [
         ":iscriptexecutor_aidl",
-        "src/**/*.java"
+        "src/**/*.java",
     ],
 
     resource_dirs: ["res"],
@@ -87,12 +87,12 @@ android_app {
 
     jni_uses_platform_apis: true,
 
+    use_embedded_native_libs: true,
     apex_available: [
         "//apex_available:platform",
         "com.android.car.framework",
     ],
 }
-
 
 java_test_helper_library {
     name: "scriptexecutor-test-lib",

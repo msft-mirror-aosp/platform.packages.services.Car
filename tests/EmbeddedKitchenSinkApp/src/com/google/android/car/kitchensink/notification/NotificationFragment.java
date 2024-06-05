@@ -1,5 +1,7 @@
 package com.google.android.car.kitchensink.notification;
 
+import static android.app.Notification.FLAG_FOREGROUND_SERVICE;
+
 import android.annotation.Nullable;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -16,6 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.NumberPicker;
 
+import androidx.annotation.DrawableRes;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationCompat.Action;
 import androidx.core.app.NotificationCompat.MessagingStyle;
@@ -41,6 +44,9 @@ public class NotificationFragment extends Fragment {
     private static final String IMPORTANCE_LOW_ID = "importance_low";
     private static final String IMPORTANCE_MIN_ID = "importance_min";
     private static final String IMPORTANCE_NONE_ID = "importance_none";
+    public static final String INTENT_CATEGORY_SELF_DISMISS =
+            "com.google.android.car.kitchensink.notification.INTENT_CATEGORY_SELF_DISMISS";
+    public static final int SELF_DISMISS_NOTIFICATION_ID = 987;
     private int mCurrentNotificationId;
     private int mCurrentGroupNotificationCount;
     private NotificationManager mManager;
@@ -92,6 +98,7 @@ public class NotificationFragment extends Fragment {
         initImportanceLowButton(view);
         initImportanceMinButton(view);
 
+        initIncomingButton(view);
         initOngoingButton(view);
         initMessagingStyleButtonForDiffPerson(view);
         initMessagingStyleButtonForSamePerson(view);
@@ -107,6 +114,8 @@ public class NotificationFragment extends Fragment {
         initCustomGroupSummaryButton(view);
         initGroupWithoutSummaryButton(view);
         initCustomizableMessageButton(view);
+        initButtonWithCustomActionIcon(view);
+        initSelfRemovingNotification(view);
 
         return view;
     }
@@ -242,6 +251,59 @@ public class NotificationFragment extends Fragment {
                     .setContentText("No heads-up; Below Importance Low; Groups")
                     .setSmallIcon(R.drawable.car_ic_mode)
                     .build();
+            mManager.notify(mCurrentNotificationId++, notification);
+        });
+    }
+
+    private Notification.Action getAction(String text, @DrawableRes int actionIcon) {
+        Icon icon = Icon.createWithResource(mContext, actionIcon);
+        Intent intent = new Intent(mContext, KitchenSinkActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                mContext,
+                /* requestCode= */ 0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return new Notification.Action.Builder(icon, text, pendingIntent).build();
+    }
+
+    private void initIncomingButton(View view) {
+        view.findViewById(R.id.incoming_notificationbuilder_button).setOnClickListener(v -> {
+            Notification notification = new Notification.Builder(mContext, IMPORTANCE_HIGH_ID)
+                    .setSmallIcon(R.drawable.car_ic_mode)
+                    .setContentTitle("Unknown number")
+                    .setContentText("Incoming call")
+                    .setOngoing(true)
+                    .setActions(
+                            getAction("Answer", R.drawable.ic_answer_icon),
+                            getAction("Decline", R.drawable.ic_decline_icon))
+                    .build();
+
+            mManager.notify(mCurrentNotificationId++, notification);
+        });
+
+        view.findViewById(R.id.incoming_forIncomingCall_button).setOnClickListener(v -> {
+
+            android.app.Person caller = new android.app.Person.Builder()
+                    .setName("Chuck Norris")
+                    .setImportant(true)
+                    .build();
+            // Creating the call notification style
+            int declineId = mCurrentNotificationId++;
+            int answerId = mCurrentNotificationId++;
+            PendingIntent declineIntent = createServiceIntent(declineId, "Decline");
+            PendingIntent answerIntent = createServiceIntent(answerId, "Answer");
+            Notification.CallStyle notificationStyle =
+                    Notification.CallStyle.forIncomingCall(caller, declineIntent, answerIntent);
+
+            Notification notification = new Notification.Builder(mContext, IMPORTANCE_HIGH_ID)
+                    .setSmallIcon(R.drawable.car_ic_mode)
+                    .setContentTitle("Incoming call")
+                    .setContentText("Incoming call from Chuck Norris")
+                    .setStyle(notificationStyle)
+                    .setOngoing(true)
+                    .setCategory(Notification.CATEGORY_CALL)
+                    .build();
+            notification.flags = notification.flags | FLAG_FOREGROUND_SERVICE;
             mManager.notify(mCurrentNotificationId++, notification);
         });
     }
@@ -892,5 +954,58 @@ public class NotificationFragment extends Fragment {
                 mHandler.post(() -> mManager.notify(mCurrentNotificationId++, notification));
             }
         });
+    }
+
+    private void initButtonWithCustomActionIcon(View view) {
+        Intent intent = new Intent(mContext, KitchenSinkActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent,
+                PendingIntent.FLAG_IMMUTABLE);
+
+        Notification notification = new Notification
+                .Builder(mContext, IMPORTANCE_HIGH_ID)
+                .setContentTitle("Notification with custom button icon")
+                .setContentText(
+                        "Icons should be shown in the action buttons")
+                .setSmallIcon(R.drawable.car_ic_mode)
+                .addAction(
+                        new Notification.Action.Builder(
+                                R.drawable.architecture, "architecture", pendingIntent)
+                                .build())
+                .addAction(
+                        new Notification.Action.Builder(
+                                Icon.createWithResource(this.getContext(), R.drawable.archive),
+                                "archive", pendingIntent).build())
+                .addAction(
+                        new Notification.Action.Builder(
+                                Icon.createWithResource(this.getContext().getPackageName(),
+                                        R.drawable.audiotrack),
+                                "audio-track", pendingIntent).build())
+                .setColor(mContext.getColor(android.R.color.holo_red_light))
+                .build();
+
+        view.findViewById(R.id.actions_with_icons).setOnClickListener(
+                v -> mManager.notify(mCurrentNotificationId++, notification)
+        );
+    }
+
+    private void initSelfRemovingNotification(View view) {
+        Intent intent = new Intent(mContext, KitchenSinkActivity.class);
+        intent.addCategory(INTENT_CATEGORY_SELF_DISMISS);
+        PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent,
+                PendingIntent.FLAG_IMMUTABLE);
+
+        Notification notification = new Notification
+                .Builder(mContext, IMPORTANCE_HIGH_ID)
+                .setContentTitle("Self Canceling notification")
+                .setSmallIcon(R.drawable.car_ic_mode)
+                .setContentIntent(pendingIntent)
+                .addAction(new Notification.Action.Builder(
+                        null, "Click to cancel this notification", pendingIntent
+                ).build())
+                .build();
+
+        view.findViewById(R.id.self_dismiss_notification).setOnClickListener(
+                v -> mManager.notify(SELF_DISMISS_NOTIFICATION_ID, notification)
+        );
     }
 }

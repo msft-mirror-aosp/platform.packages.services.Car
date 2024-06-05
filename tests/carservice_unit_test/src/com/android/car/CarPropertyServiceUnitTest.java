@@ -27,18 +27,22 @@ import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.car.Car;
 import android.car.VehicleAreaType;
+import android.car.VehicleAreaWindow;
 import android.car.VehiclePropertyIds;
+import android.car.feature.FeatureFlags;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.AreaIdConfig;
@@ -46,35 +50,44 @@ import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.ICarPropertyEventListener;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Log;
-import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.car.hal.PropertyHalService;
 import com.android.car.internal.property.AsyncPropertyServiceRequest;
 import com.android.car.internal.property.AsyncPropertyServiceRequestList;
+import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.logging.HistogramFactoryInterface;
+import com.android.modules.expresslog.Histogram;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.MockitoAnnotations;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class CarPropertyServiceUnitTest {
-
     private static final String TAG = CarLog.tagFor(CarPropertyServiceUnitTest.class);
+
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
+            .setProcessSystem()
+            .setProvideMainThread(true)
+            .build();
 
     @Mock
     private Context mContext;
@@ -87,9 +100,15 @@ public final class CarPropertyServiceUnitTest {
     @Mock
     private IAsyncPropertyResultCallback mAsyncPropertyResultCallback;
     @Mock
-    private CarPropertyConfig<?> mCarPropertyConfig;
+    private FeatureFlags mFeatureFlags;
+    @Mock
+    private HistogramFactoryInterface mHistogramFactory;
+    @Captor
+    private ArgumentCaptor<List<CarPropertyEvent>> mPropertyEventCaptor;
 
     private CarPropertyService mService;
+
+    private final SparseArray<CarPropertyConfig<?>> mConfigs = new SparseArray<>();
 
     private static final int SPEED_ID = VehiclePropertyIds.PERF_VEHICLE_SPEED;
     private static final int HVAC_TEMP = VehiclePropertyIds.HVAC_TEMPERATURE_SET;
@@ -101,11 +120,11 @@ public final class CarPropertyServiceUnitTest {
     private static final int WRITE_ONLY_OTHER_ENUM_PROPERTY_ID =
             VehiclePropertyIds.CRUISE_CONTROL_TYPE;
     private static final int READ_WRITE_INT_PROPERTY_ID = 42345;
+    private static final int ON_CHANGE_ZONED_PROPERTY_ID = 52345;
+    private static final int CONTINUOUS_ZONED_PROPERTY_ID = 62345;
 
     private static final int ON_CHANGE_READ_WRITE_PROPERTY_ID = 1111;
     private static final int NO_PERMISSION_PROPERTY_ID = 13292;
-    private static final String GRANTED_PERMISSION = "GRANTED_PERMISSION";
-    private static final String DENIED_PERMISSION = "DENIED_PERMISSION";
     private static final int GLOBAL_AREA_ID = 0;
     private static final int NOT_SUPPORTED_AREA_ID = -1;
     private static final float MIN_SAMPLE_RATE = 2;
@@ -127,105 +146,200 @@ public final class CarPropertyServiceUnitTest {
 
     @Before
     public void setUp() {
+        MockitoAnnotations.initMocks(this);
 
         when(mICarPropertyEventListener.asBinder()).thenReturn(mIBinder);
-        when(mContext.checkCallingOrSelfPermission(GRANTED_PERMISSION)).thenReturn(
-                PackageManager.PERMISSION_GRANTED);
-        when(mContext.checkCallingOrSelfPermission(DENIED_PERMISSION)).thenReturn(
-                PackageManager.PERMISSION_DENIED);
 
-        SparseArray<CarPropertyConfig<?>> configs = new SparseArray<>();
-        configs.put(SPEED_ID, CarPropertyConfig.newBuilder(Float.class, SPEED_ID,
-                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1).addAreaConfig(GLOBAL_AREA_ID, null,
-                null).setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ).setChangeMode(
+        mConfigs.put(SPEED_ID, CarPropertyConfig.newBuilder(Float.class, SPEED_ID,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1).addAreaIdConfig(
+                        new AreaIdConfig.Builder<Float>(
+                                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ, GLOBAL_AREA_ID)
+                        .setSupportVariableUpdateRate(true).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ).setChangeMode(
                 CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS).setMaxSampleRate(
                 100).setMinSampleRate(1).build());
-        when(mHalService.getReadPermission(SPEED_ID)).thenReturn(GRANTED_PERMISSION);
+        when(mHalService.isReadable(mContext, SPEED_ID)).thenReturn(true);
         // HVAC_TEMP is actually not a global property, but for simplicity, make it global here.
-        configs.put(HVAC_TEMP, CarPropertyConfig.newBuilder(Float.class, HVAC_TEMP,
+        mConfigs.put(HVAC_TEMP, CarPropertyConfig.newBuilder(Float.class, HVAC_TEMP,
                         VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL)
-                .addAreaConfig(GLOBAL_AREA_ID, null, null)
-                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ)
-                .build());
-        when(mHalService.getReadPermission(HVAC_TEMP)).thenReturn(GRANTED_PERMISSION);
-        configs.put(VehiclePropertyIds.GEAR_SELECTION,
+                .addAreaIdConfig(new AreaIdConfig.Builder(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ, GLOBAL_AREA_ID).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ).build());
+        when(mHalService.isReadable(mContext, HVAC_TEMP)).thenReturn(true);
+        mConfigs.put(VehiclePropertyIds.GEAR_SELECTION,
                 CarPropertyConfig.newBuilder(Integer.class, VehiclePropertyIds.GEAR_SELECTION,
                                 VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL)
-                        .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ)
-                        .build());
+                        .addAreaIdConfig(new AreaIdConfig.Builder(
+                                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ, GLOBAL_AREA_ID)
+                                .build())
+                        .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ).build());
         // Property with read or read/write access
-        when(mHalService.getReadPermission(CONTINUOUS_READ_ONLY_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(CONTINUOUS_READ_ONLY_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
+        when(mHalService.isReadable(mContext, CONTINUOUS_READ_ONLY_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(CONTINUOUS_READ_ONLY_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
                 CONTINUOUS_READ_ONLY_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaConfig(GLOBAL_AREA_ID, null, null).setAccess(
+                1).addAreaIdConfig(new AreaIdConfig.Builder<Integer>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ, GLOBAL_AREA_ID)
+                        .setSupportVariableUpdateRate(true).build()).setAccess(
                 CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ).setChangeMode(
                 CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS).setMinSampleRate(
                 MIN_SAMPLE_RATE).setMaxSampleRate(MAX_SAMPLE_RATE).build());
-        when(mHalService.getWritePermission(WRITE_ONLY_INT_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(WRITE_ONLY_INT_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
-                WRITE_ONLY_INT_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaConfig(GLOBAL_AREA_ID, MIN_INT_VALUE, MAX_INT_VALUE).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE).build());
-        when(mHalService.getWritePermission(WRITE_ONLY_LONG_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(WRITE_ONLY_LONG_PROPERTY_ID, CarPropertyConfig.newBuilder(Long.class,
-                WRITE_ONLY_LONG_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaConfig(GLOBAL_AREA_ID, MIN_LONG_VALUE, MAX_LONG_VALUE).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE).build());
-        when(mHalService.getWritePermission(WRITE_ONLY_FLOAT_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(WRITE_ONLY_FLOAT_PROPERTY_ID, CarPropertyConfig.newBuilder(Float.class,
-                WRITE_ONLY_FLOAT_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaConfig(GLOBAL_AREA_ID, MIN_FLOAT_VALUE, MAX_FLOAT_VALUE).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE).build());
-        when(mHalService.getWritePermission(WRITE_ONLY_ENUM_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(WRITE_ONLY_ENUM_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
+        when(mHalService.isWritable(mContext, WRITE_ONLY_INT_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(WRITE_ONLY_INT_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
+                WRITE_ONLY_INT_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder<Integer>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE, GLOBAL_AREA_ID)
+                        .setMinValue(MIN_INT_VALUE).setMaxValue(MAX_INT_VALUE).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE)
+                .build());
+        when(mHalService.isWritable(mContext, WRITE_ONLY_LONG_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(WRITE_ONLY_LONG_PROPERTY_ID, CarPropertyConfig.newBuilder(Long.class,
+                WRITE_ONLY_LONG_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder<Long>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE, GLOBAL_AREA_ID)
+                        .setMinValue(MIN_LONG_VALUE).setMaxValue(MAX_LONG_VALUE).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE)
+                .build());
+        when(mHalService.isWritable(mContext, WRITE_ONLY_FLOAT_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(WRITE_ONLY_FLOAT_PROPERTY_ID, CarPropertyConfig.newBuilder(Float.class,
+                WRITE_ONLY_FLOAT_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder<Float>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE, GLOBAL_AREA_ID)
+                        .setMinValue(MIN_FLOAT_VALUE).setMaxValue(MAX_FLOAT_VALUE).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE)
+                .build());
+        when(mHalService.isWritable(mContext, WRITE_ONLY_ENUM_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(WRITE_ONLY_ENUM_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
                 WRITE_ONLY_ENUM_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaIdConfig(new AreaIdConfig.Builder(GLOBAL_AREA_ID).setSupportedEnumValues(
-                SUPPORTED_ENUM_VALUES).build()).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE).build());
-        when(mHalService.getWritePermission(WRITE_ONLY_OTHER_ENUM_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(WRITE_ONLY_OTHER_ENUM_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
+                1).addAreaIdConfig(new AreaIdConfig.Builder(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE, GLOBAL_AREA_ID)
+                .setSupportedEnumValues(SUPPORTED_ENUM_VALUES).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE).build());
+        when(mHalService.isWritable(mContext, WRITE_ONLY_OTHER_ENUM_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(WRITE_ONLY_OTHER_ENUM_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
                 WRITE_ONLY_OTHER_ENUM_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaIdConfig(new AreaIdConfig.Builder(GLOBAL_AREA_ID).setSupportedEnumValues(
-                SUPPORTED_ENUM_VALUES).build()).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE).build());
-        when(mHalService.getReadPermission(ON_CHANGE_READ_WRITE_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        when(mHalService.getWritePermission(ON_CHANGE_READ_WRITE_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(ON_CHANGE_READ_WRITE_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
-                ON_CHANGE_READ_WRITE_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaConfig(GLOBAL_AREA_ID, null, null).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE).setChangeMode(
-                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE).build());
-        configs.put(NO_PERMISSION_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
-                NO_PERMISSION_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaConfig(GLOBAL_AREA_ID, null, null).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE).build());
+                1).addAreaIdConfig(new AreaIdConfig.Builder(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE, GLOBAL_AREA_ID)
+                .setSupportedEnumValues(SUPPORTED_ENUM_VALUES).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_WRITE).build());
+        when(mHalService.isReadable(mContext, ON_CHANGE_READ_WRITE_PROPERTY_ID))
+                .thenReturn(true);
+        when(mHalService.isWritable(mContext, ON_CHANGE_READ_WRITE_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(ON_CHANGE_READ_WRITE_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
+                ON_CHANGE_READ_WRITE_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE, GLOBAL_AREA_ID)
+                        .build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE)
+                .setChangeMode(CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE).build());
+        mConfigs.put(NO_PERMISSION_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
+                NO_PERMISSION_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE, GLOBAL_AREA_ID)
+                        .build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE).build());
 
-        when(mHalService.getWritePermission(READ_WRITE_INT_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        when(mHalService.getReadPermission(READ_WRITE_INT_PROPERTY_ID)).thenReturn(
-                GRANTED_PERMISSION);
-        configs.put(READ_WRITE_INT_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
-                READ_WRITE_INT_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
-                1).addAreaConfig(GLOBAL_AREA_ID, MIN_INT_VALUE, MAX_INT_VALUE).setAccess(
-                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE).build());
-        when(mHalService.getPropertyList()).thenReturn(configs);
+        when(mHalService.isReadable(mContext, READ_WRITE_INT_PROPERTY_ID))
+                .thenReturn(true);
+        when(mHalService.isWritable(mContext, READ_WRITE_INT_PROPERTY_ID))
+                .thenReturn(true);
+        mConfigs.put(READ_WRITE_INT_PROPERTY_ID, CarPropertyConfig.newBuilder(Integer.class,
+                READ_WRITE_INT_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder<Integer>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE, GLOBAL_AREA_ID)
+                        .setMinValue(MIN_INT_VALUE).setMaxValue(MAX_INT_VALUE).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE)
+                .build());
 
-        SparseArray<Pair<String, String>> propToPermission = new SparseArray<>();
-        propToPermission.put(ON_CHANGE_READ_WRITE_PROPERTY_ID,
-                new Pair<String, String>(DENIED_PERMISSION, Car.PERMISSION_CONTROL_DISPLAY_UNITS));
-        when(mHalService.getPermissionsForAllProperties()).thenReturn(
-                propToPermission);
+        mConfigs.put(ON_CHANGE_ZONED_PROPERTY_ID, CarPropertyConfig.newBuilder(Float.class,
+                ON_CHANGE_ZONED_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_WINDOW, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder<Float>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT).build())
+                .addAreaIdConfig(new AreaIdConfig.Builder<Float>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                        VehicleAreaWindow.WINDOW_ROW_1_RIGHT).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ)
+                .setChangeMode(CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE)
+                .setMaxSampleRate(100)
+                .setMinSampleRate(1)
+                .build());
+        when(mHalService.isReadable(mContext, ON_CHANGE_ZONED_PROPERTY_ID)).thenReturn(true);
 
-        mService = new CarPropertyService(mContext, mHalService);
+        mConfigs.put(CONTINUOUS_ZONED_PROPERTY_ID, CarPropertyConfig.newBuilder(Float.class,
+                CONTINUOUS_ZONED_PROPERTY_ID, VehicleAreaType.VEHICLE_AREA_TYPE_WINDOW, 1)
+                .addAreaIdConfig(new AreaIdConfig.Builder<Float>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT).build())
+                .addAreaIdConfig(new AreaIdConfig.Builder<Float>(
+                        CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                        VehicleAreaWindow.WINDOW_ROW_1_RIGHT).build())
+                .setAccess(CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ)
+                .setChangeMode(CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS)
+                .setMaxSampleRate(100)
+                .setMinSampleRate(1)
+                .build());
+        when(mHalService.isReadable(mContext, CONTINUOUS_ZONED_PROPERTY_ID)).thenReturn(true);
+
+        when(mHalService.getPropertyList()).thenReturn(mConfigs);
+
+        when(mFeatureFlags.variableUpdateRate()).thenReturn(true);
+        when(mFeatureFlags.subscriptionWithResolution()).thenReturn(true);
+
+        when(mHistogramFactory.newUniformHistogram(any(), anyInt(), anyFloat(), anyFloat()))
+                .thenReturn(mock(Histogram.class));
+        when(mHistogramFactory.newScaledRangeHistogram(any(), anyInt(), anyInt(), anyFloat(),
+                anyFloat())).thenReturn(mock(Histogram.class));
+
+        mService = new CarPropertyService.Builder()
+                .setContext(mContext)
+                .setPropertyHalService(mHalService)
+                .setFeatureFlags(mFeatureFlags)
+                .setHistogramFactory(mHistogramFactory)
+                .build();
         mService.init();
+    }
+
+    @Test
+    public void testGetPropertyConfigList() {
+        var result = mService.getPropertyConfigList(new int[] {
+                READ_WRITE_INT_PROPERTY_ID, ON_CHANGE_ZONED_PROPERTY_ID});
+
+        assertThat(result.missingPermissionPropIds.length).isEqualTo(0);
+        assertThat(result.unsupportedPropIds.length).isEqualTo(0);
+        assertThat(result.carPropertyConfigList.getConfigs()).containsExactly(
+                mConfigs.get(READ_WRITE_INT_PROPERTY_ID),
+                mConfigs.get(ON_CHANGE_ZONED_PROPERTY_ID));
+    }
+
+    @Test
+    public void testGetPropertyConfigList_noReadOrWritePermission() {
+        var result = mService.getPropertyConfigList(new int[] {
+                READ_WRITE_INT_PROPERTY_ID, NO_PERMISSION_PROPERTY_ID});
+
+        assertThat(result.missingPermissionPropIds).isEqualTo(new int[] {
+                NO_PERMISSION_PROPERTY_ID});
+        assertThat(result.unsupportedPropIds.length).isEqualTo(0);
+        assertThat(result.carPropertyConfigList.getConfigs()).containsExactly(
+                mConfigs.get(READ_WRITE_INT_PROPERTY_ID));
+    }
+
+    @Test
+    public void testGetPropertyConfigList_noConfig() {
+        int invalidPropertyID = -1;
+        var result = mService.getPropertyConfigList(new int[] {
+                READ_WRITE_INT_PROPERTY_ID, invalidPropertyID});
+
+        assertThat(result.unsupportedPropIds).isEqualTo(new int[] {invalidPropertyID});
+        assertThat(result.missingPermissionPropIds.length).isEqualTo(0);
+        assertThat(result.carPropertyConfigList.getConfigs()).containsExactly(
+                mConfigs.get(READ_WRITE_INT_PROPERTY_ID));
     }
 
     @Test
@@ -237,7 +351,8 @@ public final class CarPropertyServiceUnitTest {
         mService.getPropertiesAsync(new AsyncPropertyServiceRequestList(requests),
                 mAsyncPropertyResultCallback, ASYNC_TIMEOUT_MS);
 
-        verify(mHalService).getCarPropertyValuesAsync(eq(requests), any(), eq(ASYNC_TIMEOUT_MS));
+        verify(mHalService).getCarPropertyValuesAsync(eq(requests), any(), eq(ASYNC_TIMEOUT_MS),
+                anyLong());
     }
 
     @Test
@@ -269,7 +384,7 @@ public final class CarPropertyServiceUnitTest {
     public void testGetPropertiesAsync_noReadPermission() {
         AsyncPropertyServiceRequest getPropertyServiceRequest = new AsyncPropertyServiceRequest(0,
                 SPEED_ID, 0);
-        when(mHalService.getReadPermission(SPEED_ID)).thenReturn(DENIED_PERMISSION);
+        when(mHalService.isReadable(mContext, SPEED_ID)).thenReturn(false);
 
         assertThrows(SecurityException.class, () -> mService.getPropertiesAsync(
                 new AsyncPropertyServiceRequestList(List.of(getPropertyServiceRequest)),
@@ -315,7 +430,8 @@ public final class CarPropertyServiceUnitTest {
         mService.setPropertiesAsync(new AsyncPropertyServiceRequestList(requests),
                 mAsyncPropertyResultCallback, ASYNC_TIMEOUT_MS);
 
-        verify(mHalService).setCarPropertyValuesAsync(eq(requests), any(), eq(ASYNC_TIMEOUT_MS));
+        verify(mHalService).setCarPropertyValuesAsync(eq(requests), any(), eq(ASYNC_TIMEOUT_MS),
+                anyLong());
     }
 
     @Test
@@ -329,7 +445,8 @@ public final class CarPropertyServiceUnitTest {
         mService.setPropertiesAsync(new AsyncPropertyServiceRequestList(requests),
                 mAsyncPropertyResultCallback, ASYNC_TIMEOUT_MS);
 
-        verify(mHalService).setCarPropertyValuesAsync(eq(requests), any(), eq(ASYNC_TIMEOUT_MS));
+        verify(mHalService).setCarPropertyValuesAsync(eq(requests), any(), eq(ASYNC_TIMEOUT_MS),
+                anyLong());
     }
 
     @Test
@@ -436,8 +553,8 @@ public final class CarPropertyServiceUnitTest {
     public void testSetPropertiesAsync_noWritePermission() {
         AsyncPropertyServiceRequest request = new AsyncPropertyServiceRequest(
                 0, READ_WRITE_INT_PROPERTY_ID, 0, TEST_PROPERTY_VALUE);
-        when(mHalService.getWritePermission(READ_WRITE_INT_PROPERTY_ID)).thenReturn(
-                DENIED_PERMISSION);
+        when(mHalService.isWritable(mContext, READ_WRITE_INT_PROPERTY_ID))
+                .thenReturn(false);
 
         assertThrows(SecurityException.class, () -> mService.setPropertiesAsync(
                 new AsyncPropertyServiceRequestList(List.of(request)),
@@ -459,8 +576,8 @@ public final class CarPropertyServiceUnitTest {
     public void testSetPropertiesAsync_noReadPermission() {
         AsyncPropertyServiceRequest request = new AsyncPropertyServiceRequest(
                 0, READ_WRITE_INT_PROPERTY_ID, 0, TEST_PROPERTY_VALUE);
-        when(mHalService.getReadPermission(READ_WRITE_INT_PROPERTY_ID)).thenReturn(
-                DENIED_PERMISSION);
+        when(mHalService.isReadable(mContext, READ_WRITE_INT_PROPERTY_ID))
+                .thenReturn(false);
 
         assertThrows(SecurityException.class, () -> mService.setPropertiesAsync(
                 new AsyncPropertyServiceRequestList(List.of(request)),
@@ -507,36 +624,36 @@ public final class CarPropertyServiceUnitTest {
         IBinder mBinder2 = mock(IBinder.class);
         when(mMockHandler1.asBinder()).thenReturn(mBinder1);
         when(mMockHandler2.asBinder()).thenReturn(mBinder2);
-        // Initially SPEED_ID is not subscribed, so should return -1.
-        when(mHalService.getSubscribedUpdateRateHz(SPEED_ID)).thenReturn(-1f);
-        CarPropertyValue mValue = mock(CarPropertyValue.class);
+        long timestampNanos = Duration.ofSeconds(1).toNanos();
+        CarPropertyValue<Float> mValue =
+                new CarPropertyValue<>(SPEED_ID, 0, timestampNanos, 0f);
         when(mHalService.getProperty(SPEED_ID, 0)).thenReturn(mValue);
 
         // Register the first listener.
-        mService.registerListener(SPEED_ID, /* rate= */ 10, mMockHandler1);
+        mService.registerListener(SPEED_ID, /* updateRateHz= */ 10, mMockHandler1);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler1, timeout(5000)).onEvent(any());
 
-        verify(mHalService).subscribeProperty(SPEED_ID, 10f);
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(SPEED_ID,
+                new int[]{0}, 10f, /* enableVur= */ true)));
         verify(mHalService).getProperty(SPEED_ID, 0);
 
         // Clean up invocation state.
         clearInvocations(mHalService);
-        when(mHalService.getSubscribedUpdateRateHz(SPEED_ID)).thenReturn(10f);
 
         // Register the second listener.
-        mService.registerListener(SPEED_ID, /* rate= */ 20, mMockHandler2);
+        mService.registerListener(SPEED_ID, /* updateRateHz= */ 20, mMockHandler2);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler2, timeout(5000)).onEvent(any());
 
-        verify(mHalService).subscribeProperty(SPEED_ID, 20f);
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(SPEED_ID,
+                new int[]{0}, 20f, /* enableVur= */ true)));
         verify(mHalService).getProperty(SPEED_ID, 0);
 
         // Clean up invocation state.
         clearInvocations(mHalService);
-        when(mHalService.getSubscribedUpdateRateHz(SPEED_ID)).thenReturn(20f);
 
         // Unregister the second listener, the first listener must still be registered.
         mService.unregisterListener(SPEED_ID, mMockHandler2);
@@ -544,12 +661,51 @@ public final class CarPropertyServiceUnitTest {
         // The property must not be unsubscribed.
         verify(mHalService, never()).unsubscribeProperty(anyInt());
         // The subscription rate must be updated.
-        verify(mHalService).subscribeProperty(SPEED_ID, 10f);
-        when(mHalService.getSubscribedUpdateRateHz(SPEED_ID)).thenReturn(10f);
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(SPEED_ID,
+                new int[]{0}, 10f, /* enableVur= */ true)));
 
         // Unregister the first listener. We have no more listeners, must cause unsubscription.
         mService.unregisterListener(SPEED_ID, mMockHandler1);
 
+        verify(mHalService).unsubscribeProperty(SPEED_ID);
+    }
+
+    @Test
+    public void testRegisterForMultipleProperties() throws Exception {
+        ICarPropertyEventListener mMockHandler1 = mock(ICarPropertyEventListener.class);
+        // Must use two different binders because listener is uniquely identified by binder.
+        IBinder mBinder1 = mock(IBinder.class);
+        when(mMockHandler1.asBinder()).thenReturn(mBinder1);
+        long timestampNanos = Duration.ofSeconds(1).toNanos();
+        CarPropertyValue<Float> mValue =
+                new CarPropertyValue<>(HVAC_TEMP, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(mValue);
+        mValue = new CarPropertyValue<>(SPEED_ID, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(SPEED_ID, 0)).thenReturn(mValue);
+
+        mService.registerListener(List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f),
+                        createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f)),
+                mMockHandler1);
+        verify(mMockHandler1, timeout(5000)).onEvent(any());
+
+        verify(mHalService).subscribeProperty(List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f),
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f)));
+        verify(mHalService).getProperty(HVAC_TEMP, 0);
+        verify(mHalService).getProperty(SPEED_ID, 0);
+
+        // Clean up invocation state.
+        clearInvocations(mHalService);
+
+        // Unregister the second listener, the first listener must still be registered.
+        mService.unregisterListener(HVAC_TEMP, mMockHandler1);
+        verify(mHalService).unsubscribeProperty(HVAC_TEMP);
+
+        // Clean up invocation state.
+        clearInvocations(mHalService);
+
+        mService.unregisterListener(SPEED_ID, mMockHandler1);
         verify(mHalService).unsubscribeProperty(SPEED_ID);
     }
 
@@ -562,32 +718,34 @@ public final class CarPropertyServiceUnitTest {
         IBinder mBinder2 = mock(IBinder.class);
         when(mMockHandler1.asBinder()).thenReturn(mBinder1);
         when(mMockHandler2.asBinder()).thenReturn(mBinder2);
-        // Initially HVAC_TEMP is not subscribed, so should return -1.
-        when(mHalService.getSubscribedUpdateRateHz(HVAC_TEMP)).thenReturn(-1f);
-        CarPropertyValue mValue = mock(CarPropertyValue.class);
+        long timestampNanos = Duration.ofSeconds(1).toNanos();
+        CarPropertyValue<Float> mValue =
+                new CarPropertyValue<>(HVAC_TEMP, 0, timestampNanos, 0f);
         when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(mValue);
 
         // Register the first listener.
-        mService.registerListener(HVAC_TEMP, /* rate= */ SENSOR_RATE_ONCHANGE, mMockHandler1);
+        mService.registerListener(HVAC_TEMP, /* updateRateHz= */ SENSOR_RATE_ONCHANGE,
+                mMockHandler1);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler1, timeout(5000)).onEvent(any());
 
-        verify(mHalService).subscribeProperty(HVAC_TEMP, 0f);
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                HVAC_TEMP, new int[]{0}, 0f)));
         verify(mHalService).getProperty(HVAC_TEMP, 0);
 
         // Clean up invocation state.
         clearInvocations(mHalService);
-        when(mHalService.getSubscribedUpdateRateHz(HVAC_TEMP)).thenReturn(0f);
 
         // Register the second listener.
-        mService.registerListener(HVAC_TEMP, /* rate= */ SENSOR_RATE_ONCHANGE, mMockHandler2);
+        mService.registerListener(HVAC_TEMP, /* updateRateHz= */ SENSOR_RATE_ONCHANGE,
+                mMockHandler2);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler2, timeout(5000)).onEvent(any());
 
         // Must not subscribe again.
-        verify(mHalService, never()).subscribeProperty(anyInt(), anyFloat());
+        verify(mHalService, never()).subscribeProperty(any());
         verify(mHalService).getProperty(HVAC_TEMP, 0);
 
         // Clean up invocation state.
@@ -603,6 +761,446 @@ public final class CarPropertyServiceUnitTest {
         mService.unregisterListener(HVAC_TEMP, mMockHandler1);
 
         verify(mHalService).unsubscribeProperty(HVAC_TEMP);
+    }
+
+    @Test
+    public void testRegisterListenerWithSubscription() throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        long timestampNanos = Duration.ofSeconds(1).toNanos();
+        CarPropertyValue<Float> speedValue = new CarPropertyValue<>(
+                SPEED_ID, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(SPEED_ID, 0)).thenReturn(speedValue);
+        CarPropertyValue<Float> hvacValue = new CarPropertyValue<>(
+                HVAC_TEMP, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(hvacValue);
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f),
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f));
+        mService.registerListener(subscribeOptions, mockHandler);
+
+        // Verify the two initial value responses arrive.
+        verify(mockHandler, timeout(5000)).onEvent(mPropertyEventCaptor.capture());
+        List<CarPropertyEvent> eventList = mPropertyEventCaptor.getValue();
+        assertWithMessage("Must receive two initial value events").that(eventList).hasSize(2);
+        assertWithMessage("Received expected speed initial value event").that(
+                eventList.get(0).getCarPropertyValue()).isEqualTo(speedValue);
+        assertWithMessage("Received expected hvac initial value event").that(
+                eventList.get(1).getCarPropertyValue()).isEqualTo(hvacValue);
+        verify(mHalService).subscribeProperty(subscribeOptions);
+        // Verify the initial get value requests are sent.
+        verify(mHalService).getProperty(SPEED_ID, 0);
+        verify(mHalService).getProperty(HVAC_TEMP, 0);
+    }
+
+    @Test
+    public void testRegisterListenerWithSubscription_enableVurAndResolution() throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        long timestampNanos = Duration.ofSeconds(1).toNanos();
+        CarPropertyValue<Float> speedValue = new CarPropertyValue<>(
+                SPEED_ID, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(SPEED_ID, 0)).thenReturn(speedValue);
+        CarPropertyValue<Float> hvacValue = new CarPropertyValue<>(
+                HVAC_TEMP, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(hvacValue);
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f, /* enableVur= */ true,
+                        /* resolution */ 1.0f),
+                // This is an on-change property, so Vur must have no effect.
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f, /* enableVur= */ true,
+                        /* resolution */ 1.0f));
+        List<CarSubscription> sanitizedOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f, /* enableVur= */ true,
+                        /* resolution */ 1.0f),
+                // This is an on-change property, so Vur must have no effect.
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f, /* enableVur= */ false,
+                        /* resolution */ 0.0f));
+        mService.registerListener(subscribeOptions, mockHandler);
+
+        // Verify the two initial value responses arrive.
+        verify(mockHandler, timeout(5000)).onEvent(mPropertyEventCaptor.capture());
+        verify(mHalService).subscribeProperty(sanitizedOptions);
+    }
+
+    @Test
+    public void testRegisterListenerWithSubscription_VurFeatureOff() throws Exception {
+        when(mFeatureFlags.variableUpdateRate()).thenReturn(false);
+
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        long timestampNanos = Duration.ofSeconds(1).toNanos();
+        CarPropertyValue<Float> speedValue = new CarPropertyValue<>(
+                SPEED_ID, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(SPEED_ID, 0)).thenReturn(speedValue);
+        CarPropertyValue<Float> hvacValue = new CarPropertyValue<>(
+                HVAC_TEMP, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(hvacValue);
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f, /* enableVur= */ true));
+        List<CarSubscription> sanitizedOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f, /* enableVur= */ false));
+        mService.registerListener(subscribeOptions, mockHandler);
+
+        // Verify the two initial value responses arrive.
+        verify(mockHandler, timeout(5000)).onEvent(mPropertyEventCaptor.capture());
+        verify(mHalService).subscribeProperty(sanitizedOptions);
+    }
+
+    @Test
+    public void testRegisterListenerWithSubscription_ResolutionFeatureOff() throws Exception {
+        when(mFeatureFlags.subscriptionWithResolution()).thenReturn(false);
+
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        long timestampNanos = Duration.ofSeconds(1).toNanos();
+        CarPropertyValue<Float> speedValue = new CarPropertyValue<>(
+                SPEED_ID, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(SPEED_ID, 0)).thenReturn(speedValue);
+        CarPropertyValue<Float> hvacValue = new CarPropertyValue<>(
+                HVAC_TEMP, 0, timestampNanos, 0f);
+        when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(hvacValue);
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f, /* enableVur= */ true,
+                        /* resolution */ 1.0f));
+        List<CarSubscription> sanitizedOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f, /* enableVur= */ true,
+                        /* resolution */ 0.0f));
+        mService.registerListener(subscribeOptions, mockHandler);
+
+        // Verify the two initial value responses arrive.
+        verify(mockHandler, timeout(5000)).onEvent(mPropertyEventCaptor.capture());
+        verify(mHalService).subscribeProperty(sanitizedOptions);
+    }
+
+    @Test
+    public void testRegisterListenerWithSubscription_exceptionFromPropertyHalService()
+            throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        doThrow(new ServiceSpecificException(0)).when(mHalService).subscribeProperty(any());
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f),
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f));
+
+        assertThrows(ServiceSpecificException.class, () ->
+                mService.registerListener(subscribeOptions, mockHandler));
+    }
+
+    @Test
+    public void testRegisterListenerWithSubscription_exceptionFromPropertyHalService_retry()
+            throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        doThrow(new ServiceSpecificException(0)).when(mHalService).subscribeProperty(any());
+        CarPropertyValue mockValue = mock(CarPropertyValue.class);
+        when(mHalService.getProperty(anyInt(), anyInt())).thenReturn(mockValue);
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f),
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f));
+
+        assertThrows(ServiceSpecificException.class, () ->
+                mService.registerListener(subscribeOptions, mockHandler));
+
+        // Finish the async get initial value task.
+        mService.finishHandlerTasks(/*timeoutInMs=*/ 1000);
+
+        // Simulate the error goes away.
+        clearInvocations(mHalService);
+        doNothing().when(mHalService).subscribeProperty(any());
+
+        mService.registerListener(subscribeOptions, mockHandler);
+
+        // Verify that the retry request must go to PropertyHalService.
+        verify(mHalService).subscribeProperty(subscribeOptions);
+    }
+
+    @Test
+    public void testregisterListener_alreadySubscribedOptionFilteredOut() {
+        ICarPropertyEventListener mockHandler1 = mock(ICarPropertyEventListener.class);
+        ICarPropertyEventListener mockHandler2 = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder1 = mock(IBinder.class);
+        IBinder mockBinder2 = mock(IBinder.class);
+        when(mockHandler1.asBinder()).thenReturn(mockBinder1);
+        when(mockHandler2.asBinder()).thenReturn(mockBinder2);
+        CarPropertyValue mockValue = mock(CarPropertyValue.class);
+        when(mHalService.getProperty(anyInt(), anyInt())).thenReturn(mockValue);
+
+        // Client 1
+        // On-change:
+        // [left -> 0f]
+        // Continuous:
+        // [left -> 20f, right -> 20f]
+        List<CarSubscription> firstSubscribeOptions = List.of(
+                createCarSubscriptionOption(ON_CHANGE_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT}, 0f),
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT, VehicleAreaWindow.WINDOW_ROW_1_RIGHT},
+                        20f));
+        mService.registerListener(firstSubscribeOptions, mockHandler1);
+
+        verify(mHalService).subscribeProperty(firstSubscribeOptions);
+
+        // Client 2
+        // On-change:
+        // [left -> 0f (filtered out), right -> 0f]
+        // Continuous:
+        // [left -> 10f (filtered out), right -> 30f]
+        //
+        // The request received by PropertyHalService should be:
+        // On-change:
+        // [right -> 0f]
+        // Continuous:
+        // [right -> 30f]
+        List<CarSubscription> secondSubscribeOptions = List.of(
+                createCarSubscriptionOption(ON_CHANGE_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT, VehicleAreaWindow.WINDOW_ROW_1_RIGHT},
+                        0f),
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT}, 10f),
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_RIGHT}, 30f));
+        mService.registerListener(secondSubscribeOptions, mockHandler2);
+
+        verify(mHalService).subscribeProperty(List.of(
+                createCarSubscriptionOption(ON_CHANGE_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_RIGHT}, 0f),
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_RIGHT}, 30f)
+        ));
+
+        clearInvocations(mHalService);
+
+        // Unregister client 1 for on-change [left -> 0f]
+        // Since client2 still registered for on-change [left -> 0f], nothing changes.
+        mService.unregisterListener(ON_CHANGE_ZONED_PROPERTY_ID, mockHandler1);
+
+        verify(mHalService, never()).subscribeProperty(any());
+        verify(mHalService, never()).unsubscribeProperty(anyInt());
+
+        // Unregister client 1 for continuous property, left should be 10 because client 2 registers
+        // to left at 10. Right should still be subscribed at 30 and no change.
+        mService.unregisterListener(CONTINUOUS_ZONED_PROPERTY_ID, mockHandler1);
+
+        verify(mHalService).subscribeProperty(List.of(
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT}, 10f)));
+
+        // Unregister client 2 for on-change property, should cause unsubscribe for the property.
+        mService.unregisterListener(ON_CHANGE_ZONED_PROPERTY_ID, mockHandler2);
+
+        verify(mHalService).unsubscribeProperty(ON_CHANGE_ZONED_PROPERTY_ID);
+
+        // Unregister client 2 for continuous property, should cause unsubscribe for the property.
+        clearInvocations(mHalService);
+        mService.unregisterListener(CONTINUOUS_ZONED_PROPERTY_ID, mockHandler2);
+
+        verify(mHalService).unsubscribeProperty(CONTINUOUS_ZONED_PROPERTY_ID);
+    }
+
+    @Test
+    public void testRegisterListenerWithSubscription_unregisterListener() {
+        ICarPropertyEventListener mockHandler1 = mock(ICarPropertyEventListener.class);
+        ICarPropertyEventListener mockHandler2 = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder1 = mock(IBinder.class);
+        IBinder mockBinder2 = mock(IBinder.class);
+        when(mockHandler1.asBinder()).thenReturn(mockBinder1);
+        when(mockHandler2.asBinder()).thenReturn(mockBinder2);
+        CarPropertyValue mockValue = mock(CarPropertyValue.class);
+        when(mHalService.getProperty(anyInt(), anyInt())).thenReturn(mockValue);
+
+        // Client 1
+        // On-change:
+        // [left -> 0f]
+        // Continuous:
+        // [left -> 20f, right -> 20f]
+        List<CarSubscription> firstSubscribeOptions = List.of(
+                createCarSubscriptionOption(ON_CHANGE_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT}, 0f),
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT, VehicleAreaWindow.WINDOW_ROW_1_RIGHT},
+                        20f));
+        mService.registerListener(firstSubscribeOptions, mockHandler1);
+
+        // Client 2
+        // On-change:
+        // [left -> 0f (filtered out), right -> 0f]
+        // Continuous:
+        // [left -> 10f (filtered out), right -> 30f]
+        List<CarSubscription> secondSubscribeOptions = List.of(
+                createCarSubscriptionOption(ON_CHANGE_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT, VehicleAreaWindow.WINDOW_ROW_1_RIGHT},
+                        0f),
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_LEFT}, 10f),
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_RIGHT}, 30f));
+        mService.registerListener(secondSubscribeOptions, mockHandler2);
+
+        clearInvocations(mHalService);
+
+        // Unregister client 2 for on-change. This should cause right to be unsubscribed. However,
+        // we do not have unsubscribe API for zone, so we will do nothing.
+        mService.unregisterListener(ON_CHANGE_ZONED_PROPERTY_ID, mockHandler2);
+
+        verify(mHalService, never()).subscribeProperty(any());
+        verify(mHalService, never()).unsubscribeProperty(anyInt());
+
+        // Unregister client 1 for on-change, now no client is registered to on-change.
+        mService.unregisterListener(ON_CHANGE_ZONED_PROPERTY_ID, mockHandler1);
+
+        verify(mHalService).unsubscribeProperty(ON_CHANGE_ZONED_PROPERTY_ID);
+
+        // Unregister client 2 for continuous. This should update right from 30f to 20f.
+        clearInvocations(mHalService);
+        mService.unregisterListener(CONTINUOUS_ZONED_PROPERTY_ID, mockHandler2);
+
+        verify(mHalService).subscribeProperty(List.of(
+                createCarSubscriptionOption(CONTINUOUS_ZONED_PROPERTY_ID, new int[]{
+                        VehicleAreaWindow.WINDOW_ROW_1_RIGHT}, 20f)));
+        verify(mHalService, never()).unsubscribeProperty(anyInt());
+
+        clearInvocations(mHalService);
+        // Unregister client 1 for on-change, now no client is registered to continuous.
+        mService.unregisterListener(CONTINUOUS_ZONED_PROPERTY_ID, mockHandler1);
+
+        verify(mHalService, never()).subscribeProperty(any());
+        verify(mHalService).unsubscribeProperty(CONTINUOUS_ZONED_PROPERTY_ID);
+    }
+
+    @Test
+    public void testregisterListener_emptyAreaIds() throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                mService.registerListener(List.of(
+                        createCarSubscriptionOption(ON_CHANGE_ZONED_PROPERTY_ID, new int[]{}, 0f)),
+                mockHandler));
+    }
+
+    @Test
+    public void testregisterListener_nullAreaIds() throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                mService.registerListener(List.of(
+                        createCarSubscriptionOption(ON_CHANGE_ZONED_PROPERTY_ID,
+                                /* areaId= */ null, 0f)),
+                mockHandler));
+    }
+
+    @Test
+    public void testUnregisterListener_exceptionFromPropertyHalService()
+            throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        CarPropertyValue mockValue = mock(CarPropertyValue.class);
+        when(mHalService.getProperty(anyInt(), anyInt())).thenReturn(mockValue);
+        doThrow(new ServiceSpecificException(0)).when(mHalService).unsubscribeProperty(anyInt());
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f),
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f));
+
+        mService.registerListener(subscribeOptions, mockHandler);
+
+        assertThrows(ServiceSpecificException.class, () ->
+                mService.unregisterListener(SPEED_ID, mockHandler));
+    }
+
+    @Test
+    public void testUnregisterListener_exceptionFromPropertyHalService_retry()
+            throws Exception {
+        ICarPropertyEventListener mockHandler = mock(ICarPropertyEventListener.class);
+        IBinder mockBinder = mock(IBinder.class);
+        when(mockHandler.asBinder()).thenReturn(mockBinder);
+        CarPropertyValue mockValue = mock(CarPropertyValue.class);
+        when(mHalService.getProperty(anyInt(), anyInt())).thenReturn(mockValue);
+        doThrow(new ServiceSpecificException(0)).when(mHalService).unsubscribeProperty(anyInt());
+
+        List<CarSubscription> subscribeOptions = List.of(
+                createCarSubscriptionOption(SPEED_ID, new int[]{0}, 20f),
+                createCarSubscriptionOption(HVAC_TEMP, new int[]{0}, 0f));
+
+        mService.registerListener(subscribeOptions, mockHandler);
+
+        assertThrows(ServiceSpecificException.class, () ->
+                mService.unregisterListener(SPEED_ID, mockHandler));
+
+        // Finish the async get initial value task.
+        mService.finishHandlerTasks(/*timeoutInMs=*/ 1000);
+
+        // Simulate the error goes away.
+        clearInvocations(mHalService);
+        doNothing().when(mHalService).unsubscribeProperty(anyInt());
+
+        mService.unregisterListener(SPEED_ID, mockHandler);
+
+        // The retry request must go to PropertyHalService.
+        verify(mHalService).unsubscribeProperty(SPEED_ID);
+    }
+
+    @Test
+    public void testOnPropertySetError() throws Exception {
+        int areaId = 0;
+        int propertyId = WRITE_ONLY_INT_PROPERTY_ID;
+        CarPropertyValue<Integer> value = new CarPropertyValue<>(
+                propertyId, areaId, MIN_INT_VALUE);
+        ICarPropertyEventListener mockEventListener = mock(ICarPropertyEventListener.class);
+        IBinder mBinder = mock(IBinder.class);
+        when(mockEventListener.asBinder()).thenReturn(mBinder);
+        mService.setProperty(value, mockEventListener);
+
+        int errorCode = 2;
+        mService.onPropertySetError(propertyId, areaId, errorCode);
+
+        verify(mockEventListener).onEvent(mPropertyEventCaptor.capture());
+
+        List<CarPropertyEvent> events = mPropertyEventCaptor.getValue();
+        assertThat(events).containsExactly(CarPropertyEvent.createErrorEventWithErrorCode(
+                propertyId, areaId, errorCode
+        ));
+    }
+
+    @Test
+    public void testOnPropertySetError_unregisterProperty() throws Exception {
+        int areaId = 0;
+        int propertyId = WRITE_ONLY_INT_PROPERTY_ID;
+        CarPropertyValue<Integer> value = new CarPropertyValue<>(
+                propertyId, areaId, MIN_INT_VALUE);
+        ICarPropertyEventListener mockEventListener = mock(ICarPropertyEventListener.class);
+        IBinder mBinder = mock(IBinder.class);
+        when(mockEventListener.asBinder()).thenReturn(mBinder);
+        mService.setProperty(value, mockEventListener);
+
+        int errorCode = 2;
+        mService.onPropertySetError(propertyId, areaId, errorCode);
+
+        verify(mockEventListener).onEvent(any());
+        clearInvocations(mockEventListener);
+
+        // After unregisterListener, the listener must not receive onPropertyError event.
+        mService.unregisterListener(propertyId, mockEventListener);
+        mService.onPropertySetError(propertyId, areaId, errorCode);
+
+        verify(mockEventListener, never()).onEvent(any());
     }
 
     private static class EventListener extends ICarPropertyEventListener.Stub{
@@ -650,19 +1248,13 @@ public final class CarPropertyServiceUnitTest {
         // This test checks that CarPropertyService must not hold any lock while calling
         // ICarPropertyListener's onEvent callback, otherwise it might cause dead lock if
         // the callback calls another function in CarPropertyService that requires the same lock.
-
-        // We don't care about the result for getReadPermission so just return an empty map.
-        when(mHalService.getPermissionsForAllProperties()).thenReturn(
-                new SparseArray<Pair<String, String>>());
         mService.init();
 
-        // Initially HVAC_TEMP is not subscribed, so should return -1.
-        when(mHalService.getSubscribedUpdateRateHz(HVAC_TEMP)).thenReturn(-1f);
         CarPropertyValue<Float> value = new CarPropertyValue<Float>(HVAC_TEMP, 0, 1.0f);
         when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(value);
         EventListener listener = new EventListener(mService);
 
-        mService.registerListener(HVAC_TEMP, /* rate= */ SENSOR_RATE_ONCHANGE, listener);
+        mService.registerListener(HVAC_TEMP, /* updateRateHz= */ SENSOR_RATE_ONCHANGE, listener);
         List<CarPropertyEvent> events = List.of(new CarPropertyEvent(0, value));
         mService.onPropertyChange(events);
 
@@ -711,8 +1303,8 @@ public final class CarPropertyServiceUnitTest {
 
     @Test
     public void getProperty_throwsSecurityExceptionIfAppDoesNotHavePermissionToRead() {
-        when(mHalService.getReadPermission(VehiclePropertyIds.GEAR_SELECTION)).thenReturn(
-                DENIED_PERMISSION);
+        when(mHalService.isReadable(mContext, VehiclePropertyIds.GEAR_SELECTION))
+                .thenReturn(false);
         assertThrows(SecurityException.class,
                 () -> mService.getProperty(VehiclePropertyIds.GEAR_SELECTION, 0));
     }
@@ -722,19 +1314,6 @@ public final class CarPropertyServiceUnitTest {
         assertThrows(IllegalArgumentException.class,
                 () -> mService.getProperty(ON_CHANGE_READ_WRITE_PROPERTY_ID,
                         NOT_SUPPORTED_AREA_ID));
-    }
-
-    @Test
-    public void
-            getPropertyConfigList_returnEmptyIfNoVendorExtensionPermissionForDisplayUnitsProp() {
-        when(mHalService.isDisplayUnitsProperty(ON_CHANGE_READ_WRITE_PROPERTY_ID)).thenReturn(true);
-        when(mContext.checkCallingOrSelfPermission(Car.PERMISSION_VENDOR_EXTENSION)).thenReturn(
-                PackageManager.PERMISSION_DENIED);
-        when(mContext.checkCallingOrSelfPermission(Car.PERMISSION_CONTROL_DISPLAY_UNITS))
-                .thenReturn(PackageManager.PERMISSION_GRANTED);
-        List<CarPropertyConfig> configList = mService.getPropertyConfigList(
-                new int[] { ON_CHANGE_READ_WRITE_PROPERTY_ID }).getConfigs();
-        assertThat(configList).isEmpty();
     }
 
     @Test
@@ -773,21 +1352,11 @@ public final class CarPropertyServiceUnitTest {
 
     @Test
     public void setProperty_throwsSecurityExceptionIfAppDoesNotHavePermissionToWrite() {
-        when(mHalService.getWritePermission(NO_PERMISSION_PROPERTY_ID)).thenReturn(
-                DENIED_PERMISSION);
+        when(mHalService.isWritable(mContext, NO_PERMISSION_PROPERTY_ID))
+                .thenReturn(false);
         assertThrows(SecurityException.class, () -> mService.setProperty(
                 new CarPropertyValue(NO_PERMISSION_PROPERTY_ID, GLOBAL_AREA_ID, Integer.MAX_VALUE),
                 mICarPropertyEventListener));
-    }
-
-    @Test
-    public void setProperty_throwsExceptionIfNoVendorExtensionPermissionForDisplayUnitsProp() {
-        when(mHalService.isDisplayUnitsProperty(ON_CHANGE_READ_WRITE_PROPERTY_ID)).thenReturn(true);
-        when(mContext.checkCallingOrSelfPermission(Car.PERMISSION_VENDOR_EXTENSION)).thenReturn(
-                PackageManager.PERMISSION_DENIED);
-        assertThrows(SecurityException.class, () -> mService.setProperty(
-                new CarPropertyValue(ON_CHANGE_READ_WRITE_PROPERTY_ID, GLOBAL_AREA_ID,
-                        Integer.MAX_VALUE), mICarPropertyEventListener));
     }
 
     @Test
@@ -878,7 +1447,8 @@ public final class CarPropertyServiceUnitTest {
     public void registerListener_throwsExceptionBecauseOfNullListener() {
         assertThrows(NullPointerException.class,
                 () -> mService.registerListener(ON_CHANGE_READ_WRITE_PROPERTY_ID,
-                        CarPropertyManager.SENSOR_RATE_NORMAL, /* listener= */ null));
+                        CarPropertyManager.SENSOR_RATE_NORMAL,
+                        /* carPropertyEventListener= */ null));
     }
 
     @Test
@@ -904,8 +1474,8 @@ public final class CarPropertyServiceUnitTest {
 
     @Test
     public void registerListener_throwsSecurityExceptionIfAppDoesNotHavePermissionToRead() {
-        when(mHalService.getReadPermission(NO_PERMISSION_PROPERTY_ID)).thenReturn(
-                DENIED_PERMISSION);
+        when(mHalService.isReadable(mContext, NO_PERMISSION_PROPERTY_ID))
+                .thenReturn(false);
         assertThrows(SecurityException.class,
                 () -> mService.registerListener(NO_PERMISSION_PROPERTY_ID, 0,
                         mICarPropertyEventListener));
@@ -913,30 +1483,107 @@ public final class CarPropertyServiceUnitTest {
 
     @Test
     public void registerListener_updatesRateForNonContinuousProperty() {
-        when(mHalService.getSubscribedUpdateRateHz(ON_CHANGE_READ_WRITE_PROPERTY_ID))
-                .thenReturn(-1f);
         mService.registerListener(ON_CHANGE_READ_WRITE_PROPERTY_ID,
                 CarPropertyManager.SENSOR_RATE_FAST, mICarPropertyEventListener);
-        verify(mHalService).subscribeProperty(ON_CHANGE_READ_WRITE_PROPERTY_ID,
-                SENSOR_RATE_ONCHANGE);
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                ON_CHANGE_READ_WRITE_PROPERTY_ID, new int[]{0}, SENSOR_RATE_ONCHANGE)));
+    }
+
+    @Test
+    public void registerListener_VurDefaultOn() {
+        mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE,
+                mICarPropertyEventListener);
+
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ true, /* resolution */ 0.0f)));
+    }
+
+    @Test
+    public void registerListener_VurExplicitOn() {
+        mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE,
+                /* enableVariableUpdateRate= */ true,
+                mICarPropertyEventListener);
+
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ true, /* resolution */ 0.0f)));
+    }
+
+    @Test
+    public void registerListener_VurExplicitOff() {
+        mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE,
+                /* enableVariableUpdateRate= */ false,
+                mICarPropertyEventListener);
+
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ false, /* resolution */ 0.0f)));
+    }
+
+    @Test
+    public void registerListener_VurFalseWhenFeatureOff() {
+        when(mFeatureFlags.variableUpdateRate()).thenReturn(false);
+
+        mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE,
+                mICarPropertyEventListener);
+
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ false, /* resolution */ 0.0f)));
+    }
+
+    @Test
+    public void registerListener_Resolution() {
+        mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE,
+                /* enableVariableUpdateRate= */ true, /* resolution */ 1.0f,
+                mICarPropertyEventListener);
+
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ true, /* resolution */ 1.0f)));
+    }
+
+    @Test
+    public void registerListener_ResolutionZeroWhenFeatureOff() {
+        when(mFeatureFlags.subscriptionWithResolution()).thenReturn(false);
+
+        mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE,
+                /* enableVariableUpdateRate= */ true, /* resolution */ 1.0f,
+                mICarPropertyEventListener);
+
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ true, /* resolution */ 0.0f)));
     }
 
     @Test
     public void registerListener_updatesRateToMinForContinuousProperty() {
-        when(mHalService.getSubscribedUpdateRateHz(CONTINUOUS_READ_ONLY_PROPERTY_ID))
-                .thenReturn(-1f);
         mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE - 1,
                 mICarPropertyEventListener);
-        verify(mHalService).subscribeProperty(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE);
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ true, /* resolution */ 0.0f)));
     }
 
     @Test
     public void registerListener_updatesRateToMaxForContinuousProperty() {
-        when(mHalService.getSubscribedUpdateRateHz(CONTINUOUS_READ_ONLY_PROPERTY_ID))
-                .thenReturn(-1f);
         mService.registerListener(CONTINUOUS_READ_ONLY_PROPERTY_ID, MAX_SAMPLE_RATE + 1,
                 mICarPropertyEventListener);
-        verify(mHalService).subscribeProperty(CONTINUOUS_READ_ONLY_PROPERTY_ID, MAX_SAMPLE_RATE);
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MAX_SAMPLE_RATE,
+                /* enableVur= */ true, /* resolution */ 0.0f)));
+    }
+
+    @Test
+    public void registerListenerSafe_VurExplicitOn() {
+        mService.registerListenerSafe(CONTINUOUS_READ_ONLY_PROPERTY_ID, MIN_SAMPLE_RATE,
+                /* enableVariableUpdateRate= */ true,
+                mICarPropertyEventListener);
+
+        verify(mHalService).subscribeProperty(List.of(createCarSubscriptionOption(
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, new int[]{0}, MIN_SAMPLE_RATE,
+                /* enableVur= */ true, /* resolution */ 0.0f)));
     }
 
     @Test
@@ -954,37 +1601,14 @@ public final class CarPropertyServiceUnitTest {
     @Test
     public void unregisterListener_throwsExceptionBecauseOfNullListener() {
         assertThrows(NullPointerException.class,
-                () -> mService.unregisterListener(ON_CHANGE_READ_WRITE_PROPERTY_ID, /* listener= */
-                        null));
+                () -> mService.unregisterListener(ON_CHANGE_READ_WRITE_PROPERTY_ID,
+                        /* iCarPropertyEventListener= */ null));
     }
 
     @Test
     public void unregisterListener_throwsExceptionBecauseOfUnsupportedPropertyId() {
         assertThrows(IllegalArgumentException.class,
                 () -> mService.unregisterListener(VehiclePropertyIds.INVALID,
-                        mICarPropertyEventListener));
-    }
-
-    @Test
-    public void unregisterListener_throwsExceptionBecausePropertyIsNotReadable() {
-        assertThrows(IllegalArgumentException.class,
-                () -> mService.unregisterListener(WRITE_ONLY_INT_PROPERTY_ID,
-                        mICarPropertyEventListener));
-    }
-
-    @Test
-    public void unregisterListener_throwsSecurityExceptionIfPlatformDoesNotHavePermissionToRead() {
-        assertThrows(SecurityException.class,
-                () -> mService.unregisterListener(NO_PERMISSION_PROPERTY_ID,
-                        mICarPropertyEventListener));
-    }
-
-    @Test
-    public void unregisterListener_throwsSecurityExceptionIfAppDoesNotHavePermissionToRead() {
-        when(mHalService.getReadPermission(NO_PERMISSION_PROPERTY_ID)).thenReturn(
-                DENIED_PERMISSION);
-        assertThrows(SecurityException.class,
-                () -> mService.unregisterListener(NO_PERMISSION_PROPERTY_ID,
                         mICarPropertyEventListener));
     }
 
@@ -1051,5 +1675,56 @@ public final class CarPropertyServiceUnitTest {
         returnCd.countDown();
         assertWithMessage("All setProperty operations finished within 10 seconds")
                 .that(finishCd.await(10, TimeUnit.SECONDS)).isTrue();
+    }
+
+    @Test
+    public void getSupportedNoReadPermPropIds() throws Exception {
+        int invalidPropertyID = -1;
+        assertThat(mService.getSupportedNoReadPermPropIds(new int[] {
+                CONTINUOUS_READ_ONLY_PROPERTY_ID, WRITE_ONLY_INT_PROPERTY_ID, invalidPropertyID
+        })).isEqualTo(new int[]{WRITE_ONLY_INT_PROPERTY_ID});
+    }
+
+    @Test
+    public void isSupportedAndHasWritePermissionOnly_unsupported() throws Exception {
+        assertThat(mService.isSupportedAndHasWritePermissionOnly(-1)).isFalse();
+    }
+
+    @Test
+    public void isSupportedAndHasWritePermissionOnly_writeOnly() throws Exception {
+        assertThat(mService.isSupportedAndHasWritePermissionOnly(WRITE_ONLY_INT_PROPERTY_ID))
+                .isTrue();
+    }
+
+    @Test
+    public void isSupportedAndHasWritePermissionOnly_readOnly() throws Exception {
+        assertThat(mService.isSupportedAndHasWritePermissionOnly(CONTINUOUS_READ_ONLY_PROPERTY_ID))
+                .isFalse();
+    }
+
+    /** Creates a {@code CarSubscription} with Vur off. */
+    private static CarSubscription createCarSubscriptionOption(int propertyId,
+            int[] areaId, float updateRateHz) {
+        return createCarSubscriptionOption(propertyId, areaId, updateRateHz,
+                /* enableVur= */ false, /*resolution*/ 0.0f);
+    }
+
+    /** Creates a {@code CarSubscription}. */
+    private static CarSubscription createCarSubscriptionOption(int propertyId,
+            int[] areaId, float updateRateHz, boolean enableVur) {
+        return createCarSubscriptionOption(propertyId, areaId, updateRateHz,
+                enableVur, /*resolution*/ 0.0f);
+    }
+
+    /** Creates a {@code CarSubscription}. */
+    private static CarSubscription createCarSubscriptionOption(int propertyId,
+            int[] areaId, float updateRateHz, boolean enableVur, float resolution) {
+        CarSubscription options = new CarSubscription();
+        options.propertyId = propertyId;
+        options.areaIds = areaId;
+        options.updateRateHz = updateRateHz;
+        options.enableVariableUpdateRate = enableVur;
+        options.resolution = resolution;
+        return options;
     }
 }

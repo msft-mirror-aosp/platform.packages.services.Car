@@ -24,16 +24,19 @@ import android.car.IAppFocusListener;
 import android.car.IAppFocusOwnershipCallback;
 import android.car.builtin.util.Slogf;
 import android.content.Context;
-import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.util.ArraySet;
+import android.util.Log;
 import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.StaticBinderInterface;
+import com.android.car.internal.SystemStaticBinder;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -50,7 +53,7 @@ import java.util.Set;
  */
 public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
         BinderInterfaceContainer.BinderEventHandler<IAppFocusOwnershipCallback> {
-    private static final boolean DBG = false;
+    private static final boolean DBG = Slogf.isLoggable(CarLog.TAG_APP_FOCUS, Log.DEBUG);
     private static final boolean DBG_EVENT = false;
 
     // This constant should be equal to PermissionChecker.PERMISSION_GRANTED.
@@ -58,6 +61,7 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
     static final int PERMISSION_CHECKER_PERMISSION_GRANTED = 0;
 
     private final SystemActivityMonitoringService mSystemActivityMonitoringService;
+    private final StaticBinderInterface mBinderInterface;
 
     private final Object mLock = new Object();
 
@@ -74,7 +78,7 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
     private final SparseArray<OwnershipClientInfo> mFocusOwners = new SparseArray<>();
 
     @GuardedBy("mLock")
-    private final Set<Integer> mActiveAppTypes = new ArraySet<>();
+    private final ArraySet<Integer> mActiveAppTypes = new ArraySet<>();
 
     @GuardedBy("mLock")
     private final List<FocusOwnershipCallback> mFocusOwnershipCallbacks = new ArrayList<>();
@@ -90,7 +94,15 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
 
     public AppFocusService(Context context,
             SystemActivityMonitoringService systemActivityMonitoringService) {
+        this(context, systemActivityMonitoringService, new SystemStaticBinder());
+    }
+
+    @VisibleForTesting
+    AppFocusService(Context context,
+            SystemActivityMonitoringService systemActivityMonitoringService,
+            StaticBinderInterface binderInterface) {
         mContext = context;
+        mBinderInterface = binderInterface;
         mSystemActivityMonitoringService = systemActivityMonitoringService;
         mAllChangeClients = new ClientHolder(mAllBinderEventHandler);
         mAllOwnershipClients = new OwnershipClientHolder(this);
@@ -101,8 +113,8 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
         synchronized (mLock) {
             ClientInfo info = (ClientInfo) mAllChangeClients.getBinderInterface(listener);
             if (info == null) {
-                info = new ClientInfo(mAllChangeClients, listener, Binder.getCallingUid(),
-                        Binder.getCallingPid(), appType);
+                info = new ClientInfo(mAllChangeClients, listener, mBinderInterface.getCallingUid(),
+                        mBinderInterface.getCallingPid(), appType);
                 mAllChangeClients.addBinderInterface(info);
             } else {
                 info.addAppType(appType);
@@ -127,22 +139,27 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
     @Override
     public int[] getActiveAppTypes() {
         synchronized (mLock) {
-            return mActiveAppTypes.stream().mapToInt(Integer::intValue).toArray();
+            return CarServiceUtils.toIntArray(mActiveAppTypes);
         }
     }
 
     @Override
     public List<String> getAppTypeOwner(@CarAppFocusManager.AppFocusType int appType) {
+        if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.QUERY_ALL_PACKAGES)
+                !=  PERMISSION_CHECKER_PERMISSION_GRANTED) {
+            throw new SecurityException("Caller must have the "
+                    + android.Manifest.permission.QUERY_ALL_PACKAGES + " permission");
+        }
         OwnershipClientInfo owner;
         synchronized (mLock) {
             owner = mFocusOwners.get(appType);
         }
         if (owner == null) {
-            return null;
+            return Collections.EMPTY_LIST;
         }
         String[] packageNames = mContext.getPackageManager().getPackagesForUid(owner.getUid());
         if (packageNames == null) {
-            return null;
+            return Collections.EMPTY_LIST;
         }
         return Arrays.asList(packageNames);
     }
@@ -166,7 +183,7 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
                     (OwnershipClientInfo) mAllOwnershipClients.getBinderInterface(callback);
             if (info == null) {
                 info = new OwnershipClientInfo(mAllOwnershipClients, callback,
-                        Binder.getCallingUid(), Binder.getCallingPid());
+                        mBinderInterface.getCallingUid(), mBinderInterface.getCallingPid());
                 mAllOwnershipClients.addBinderInterface(info);
             }
             Set<Integer> alreadyOwnedAppTypes = info.getOwnedAppTypes();
@@ -274,7 +291,6 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
     @VisibleForTesting
     public Looper getLooper() {
         return mHandlerThread.getLooper();
-
     }
 
     @Override
@@ -311,6 +327,10 @@ public class AppFocusService extends IAppFocus.Stub implements CarServiceBase,
             }
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     /**
      * Returns true if process with given uid and pid owns provided focus.

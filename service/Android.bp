@@ -17,37 +17,168 @@
 // Build the Car service.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 genrule {
     name: "statslog-Car-java-gen",
     tools: ["stats-log-api-gen"],
-    cmd: "$(location stats-log-api-gen) --java $(out) --module car --javaPackage com.android.car"
-        + " --javaClass CarStatsLog",
+    cmd: "$(location stats-log-api-gen) --java $(out) --module car --javaPackage com.android.car" +
+        " --javaClass CarStatsLog",
     out: ["com/android/car/CarStatsLog.java"],
+}
+
+gensrcs {
+    name: "gen-car-service-dump-javastream-protos",
+
+    tools: [
+        "aprotoc",
+        "protoc-gen-javastream",
+        "soong_zip",
+    ],
+
+    tool_files: [
+        ":libprotobuf-internal-protos",
+    ],
+
+    cmd: "mkdir -p $(genDir)/$(in) " +
+        "&& $(location aprotoc) " +
+        "  --plugin=$(location protoc-gen-javastream) " +
+        "  --javastream_out=$(genDir)/$(in) " +
+        "  -Iexternal/protobuf/src " +
+        "  -I . " +
+        "  $(in) " +
+        "&& $(location soong_zip) -jar -o $(out) -C $(genDir)/$(in) -D $(genDir)/$(in)",
+
+    srcs: [
+        ":car-service-dump-proto-srcs",
+    ],
+
+    output_extension: "srcjar",
+}
+
+genrule {
+    name: "gen-native-dump-cppstream-proto-headers",
+    tools: [
+        "aprotoc",
+        "protoc-gen-cppstream",
+    ],
+    cmd: "mkdir -p $(genDir) " +
+        "&& $(location aprotoc) " +
+        "  --plugin=$(location protoc-gen-cppstream) " +
+        "  --cppstream_out=$(genDir) " +
+        "  --cppstream_opt=experimental_allow_proto3_optional " +
+        "  -Iexternal/protobuf/src " +
+        "  -Ipackages/services/Car/service/proto/android/car/watchdog " +
+        "  $(in) ",
+    srcs: [
+        ":native-dump-proto-srcs",
+    ],
+
+    out: [
+        "carwatchdog_daemon_dump.proto.h",
+        "performance_stats.proto.h",
+        "health_check_client_info.proto.h",
+    ],
+}
+
+genrule {
+    name: "gen-native-dump-proto-headers",
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir) " +
+        "&& $(location aprotoc) " +
+        "  --cpp_out=$(genDir) " +
+        "  --proto_path=external/protobuf/src/google/protobuf " +
+        "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
+        "  $(in) ",
+    srcs: [
+        ":native-dump-proto-srcs",
+    ],
+    out: [
+        "carwatchdog_daemon_dump.pb.h",
+        "performance_stats.pb.h",
+        "health_check_client_info.pb.h",
+    ],
+}
+
+genrule {
+    name: "gen-native-dump-proto-srcs",
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir) " +
+        "&& $(location aprotoc) " +
+        "  --cpp_out=$(genDir) " +
+        "  --proto_path=external/protobuf/src/google/protobuf " +
+        "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
+        "  $(in) ",
+    srcs: [
+        ":native-dump-proto-srcs",
+    ],
+    out: [
+        "carwatchdog_daemon_dump.pb.cc",
+        "performance_stats.pb.cc",
+        "health_check_client_info.pb.cc",
+    ],
+}
+
+filegroup {
+    name: "car-service-dump-proto-srcs",
+    srcs: [
+        "proto/android/car/**/*_dump.proto",
+    ],
+    exclude_srcs: [
+        ":native-dump-proto-srcs",
+    ],
+}
+
+filegroup {
+    name: "native-dump-proto-srcs",
+    srcs: [
+        "proto/android/car/watchdog/*_daemon_dump.proto",
+        "proto/android/car/watchdog/performance_stats.proto",
+        "proto/android/car/watchdog/health_check_client_info.proto",
+    ],
+}
+
+filegroup {
+    name: "car-service-non-dump-proto-srcs",
+    srcs: [
+        "proto/android/car/telemetry/*.proto",
+        "proto/android/car/watchdog/atoms.proto",
+    ],
 }
 
 java_defaults {
     name: "carservice-updatable-min-java-defaults",
 
+    defaults: [
+        "car-framework-aconfig-libraries",
+        "latest_android_hardware_automotive_audiocontrol_java_static",
+    ],
+
     srcs: [
         // add full source for all codes under p/s/Car to reduce unnecessary library allow listing.
-        ":IVehicleGeneratedJavaFiles",
+        ":IVehicleGeneratedJavaFiles-V3",
         ":android.car.cluster.navigation-src",
         ":android.car.watchdoglib-src",
         ":cartelemetry-cardata-proto-srcs",
         ":cartelemetryservice-proto-srcs",
+        ":car-service-non-dump-proto-srcs",
         ":com.android.car.procfsinspector-client-src",
-        ":statslog-Car-java-gen",
+        ":gen-car-service-dump-javastream-protos",
         ":iscriptexecutor_aidl",
-        "proto/**/*.proto",
+        ":statslog-Car-java-gen",
+        ":VhalTestVendorProperties",
         "src/**/*.java",
-        ],
+    ],
 
     aidl: {
         include_dirs: [
-            "packages/services/Car/procfs-inspector/client/src",
+            "packages/services/Car/libs/procfs-inspector/client/src",
         ],
     },
 
@@ -65,6 +196,7 @@ java_defaults {
         "framework-bluetooth",
         "framework-connectivity",
         "framework-connectivity-t.stubs.module_lib",
+        "framework-location",
         "framework-statsd",
         "framework-tethering",
         "framework-wifi",
@@ -74,21 +206,24 @@ java_defaults {
     ],
 
     static_libs: [
-        "android.automotive.telemetry.internal-V2-java",  // ICarTelemetryInternal
+        "android.automotive.powerpolicy.delegate-V1-java",
+        "android.automotive.telemetry.internal-V2-java", // ICarTelemetryInternal
         "android.automotive.watchdog.internal-V3-java",
         "android.frameworks.automotive.powerpolicy.internal-V1-java",
-        "android.frameworks.automotive.powerpolicy-V2-java",
+        "android.frameworks.automotive.powerpolicy-V3-java",
         "android.hidl.base-V1.0-java",
         "android.hardware.automotive.audiocontrol-V1.0-java",
         "android.hardware.automotive.audiocontrol-V2.0-java",
-        "android.hardware.automotive.audiocontrol-V3-java",
-        "android.hardware.automotive.remoteaccess-V1-java",
-        "android.hardware.automotive.vehicle-V2-java",
-        "android.hardware.automotive.vehicle.property-V2-java",
+        "android.hardware.automotive.remoteaccess-V2-java",
+        "android.hardware.automotive.vehicle-V3-java",
+        "android.hardware.automotive.vehicle.property-V3-java",
         "android.hardware.automotive.vehicle-V2.0-java",
         "android.hardware.health-V1.0-java",
         "android.hardware.health-V2.0-java",
         "android.hardware.automotive.occupant_awareness-V1-java",
+        "android.media.audiopolicy-aconfig-java",
+        "libprotobuf-java-lite",
+        "modules-utils-expresslog",
     ],
 
     proto: {
@@ -100,16 +235,10 @@ java_defaults {
         enabled: false,
     },
 
-    // Disable build in PDK, missing aidl import breaks build
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
-
     sdk_version: "module_current",
 
     java_resources: [
+        ":CarSvcProps_JSON",
         ":VehicleHalDefaultProperties_JSON",
     ],
 }
@@ -121,9 +250,10 @@ java_defaults {
         "//packages/services/Car:__subpackages__",
     ],
 
-    defaults: [ "carservice-updatable-min-java-defaults" ],
+    defaults: ["carservice-updatable-min-java-defaults"],
 
-    min_sdk_version: "33",
+    // TODO(b/288271411): enable it when car mainline module is supported
+    // min_sdk_version: "33",
 }
 
 // Non-module build
@@ -164,15 +294,9 @@ java_library {
     ],
 
     static_libs: [
-        "android.hardware.automotive.vehicle-V2-java",
+        "android.hardware.automotive.vehicle-V3-java",
         "android.hardware.automotive.vehicle-V2.0-java",
     ],
-
-    product_variables: {
-            pdk: {
-                enabled: false,
-            },
-    },
 }
 
 // Minimum code shared with carservice builtin.
@@ -186,7 +310,7 @@ java_library {
     ],
 
     libs: [
-            "android.car",
+        "android.car",
     ],
 }
 
@@ -199,7 +323,15 @@ android_library {
 
     defaults: ["carservice-updatable-min-java-defaults"],
 
-    manifest: "EmptyAndroidManifest.xml"
+    manifest: "EmptyAndroidManifest.xml",
+
+    // Avoid using the java_sdk_library version for android.car.builtin since it cannot be found
+    // during runtime on host. Use a java_library version instead.
+    exclude_uses_libs: ["android.car.builtin"],
+
+    static_libs: [
+        "android.car.builtin.testonly",
+    ],
 }
 
 filegroup {

@@ -33,6 +33,7 @@ import android.annotation.Nullable;
 import android.car.AbstractExtendedMockitoCarServiceTestCase;
 import android.car.builtin.util.TimingsTraceLog;
 import android.car.hardware.CarPropertyConfig;
+import android.car.hardware.property.AreaIdConfig;
 import android.car.telemetry.TelemetryProto;
 import android.content.Context;
 import android.content.ServiceConnection;
@@ -47,8 +48,6 @@ import android.os.SystemClock;
 import android.util.Log;
 
 import com.android.car.CarLog;
-import com.android.car.CarPropertyService;
-import com.android.car.internal.property.CarPropertyConfigList;
 import com.android.car.telemetry.ResultStore;
 import com.android.car.telemetry.publisher.AbstractPublisher;
 import com.android.car.telemetry.publisher.PublisherFactory;
@@ -71,7 +70,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -88,8 +86,10 @@ public final class DataBrokerTest extends AbstractExtendedMockitoCarServiceTestC
     private static final int PRIORITY_LOW = 100;
     private static final long TIMEOUT_MS = 15_000L;
     private static final CarPropertyConfig<Integer> PROP_CONFIG =
-            CarPropertyConfig.newBuilder(Integer.class, PROP_ID, PROP_AREA).setAccess(
-                    CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ).build();
+            CarPropertyConfig.newBuilder(Integer.class, PROP_ID, PROP_AREA)
+                    .addAreaIdConfig(new AreaIdConfig.Builder<Integer>(
+                            CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ, /* areaId */ 0).build())
+                    .build();
     private static final TelemetryProto.VehiclePropertyPublisher
             VEHICLE_PROPERTY_PUBLISHER_CONFIGURATION =
             TelemetryProto.VehiclePropertyPublisher.newBuilder().setReadRate(
@@ -130,8 +130,6 @@ public final class DataBrokerTest extends AbstractExtendedMockitoCarServiceTestC
     @Mock
     private PackageManager mMockPackageManager;
     @Mock
-    private CarPropertyService mMockCarPropertyService;
-    @Mock
     private DataBroker.DataBrokerListener mMockDataBrokerListener;
     @Mock
     private IBinder mMockScriptExecutorBinder;
@@ -150,9 +148,6 @@ public final class DataBrokerTest extends AbstractExtendedMockitoCarServiceTestC
 
     @Before
     public void setUp() throws Exception {
-        when(mMockCarPropertyService.getPropertyList())
-                .thenReturn(new CarPropertyConfigList(
-                        Collections.singletonList(PROP_CONFIG)));
         mockPackageManager();
 
         mFakeScriptExecutor = new FakeScriptExecutor();

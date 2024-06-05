@@ -14,6 +14,7 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -24,9 +25,19 @@ java_library {
 
     static_libs: [
         "mockito-target-extended",
-        "truth-prebuilt",
+        "truth",
         "android.car",
     ],
 
     libs: ["android.car-system-stubs"],
+
+    visibility: ["//packages/services/Car:__subpackages__"],
+}
+
+filegroup {
+    name: "com.android.car.test.lib-srcs",
+
+    srcs: ["src/**/*.java"],
+
+    visibility: ["//packages/services/Car:__subpackages__"],
 }

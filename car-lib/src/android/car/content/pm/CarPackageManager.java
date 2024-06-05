@@ -17,9 +17,12 @@
 package android.car.content.pm;
 
 import static android.car.Car.PERMISSION_CONTROL_APP_BLOCKING;
+import static android.car.Car.PERMISSION_MANAGE_DISPLAY_COMPATIBILITY;
 import static android.car.CarLibLog.TAG_CAR;
 
 import android.Manifest;
+import android.annotation.CallbackExecutor;
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.RequiresPermission;
@@ -30,23 +33,28 @@ import android.app.PendingIntent;
 import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.CarVersion;
-import android.car.annotation.AddedInOrBefore;
-import android.car.annotation.ApiRequirements;
+import android.car.feature.Flags;
 import android.content.ComponentName;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.os.Binder;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
-import android.util.Log;
+import android.util.ArrayMap;
+import android.util.Slog;
 
+import com.android.car.internal.ICarBase;
+import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Provides car specific API related with package management.
@@ -66,7 +74,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_SET_POLICY_WAIT_FOR_CHANGE = 0x1;
     /**
      * Flag for {@link #setAppBlockingPolicy(String, CarAppBlockingPolicy, int)}. When this
@@ -81,7 +88,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_SET_POLICY_ADD = 0x2;
     /**
      * Flag for {@link #setAppBlockingPolicy(String, CarAppBlockingPolicy, int)}. When this
@@ -95,7 +101,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public static final int FLAG_SET_POLICY_REMOVE = 0x4;
 
     /**
@@ -103,21 +108,18 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String BLOCKING_INTENT_EXTRA_BLOCKED_ACTIVITY_NAME = "blocked_activity";
     /**
      * int task id of the blocked task.
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String BLOCKING_INTENT_EXTRA_BLOCKED_TASK_ID = "blocked_task_id";
     /**
      * Name of root activity of blocked task.
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String BLOCKING_INTENT_EXTRA_ROOT_ACTIVITY_NAME = "root_activity_name";
     /**
      * Boolean indicating whether the root activity is distraction-optimized (DO).
@@ -125,7 +127,6 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String BLOCKING_INTENT_EXTRA_IS_ROOT_ACTIVITY_DO = "is_root_activity_do";
 
     /**
@@ -133,7 +134,6 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String BLOCKING_INTENT_EXTRA_DISPLAY_ID = "display_id";
 
     /**
@@ -141,7 +141,6 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String DRIVING_SAFETY_REGION_ALL = "android.car.drivingsafetyregion.all";
 
     /**
@@ -157,7 +156,6 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final String DRIVING_SAFETY_ACTIVITY_METADATA_REGIONS =
             "android.car.drivingsafetyregions";
 
@@ -166,7 +164,6 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int ERROR_CODE_NO_PACKAGE = -100;
 
     /**
@@ -176,18 +173,25 @@ public final class CarPackageManager extends CarManagerBase {
      * <p>Format is in the form {@code major:minor} or {@code major}.
      *
      * <p>For example, for {@link android.os.Build.VERSION_CODES#TIRAMISU Android 13}, it would be:
-     * <code><meta-data android:name="android.car.targetCarVersion" android:value="33"/></code>
+     * <code>
+     * &#60;meta-data android:name="android.car.targetCarVersion" android:value="33"/&#62;
+     * </code>
      *
      * <p>Or:
      *
-     * <code><meta-data android:name="android.car.targetCarVersion" android:value="33:0"/></code>
+     * <code>
+     * &#60;meta-data android:name="android.car.targetCarVersion" android:value="33:0"/&#62;
+     * </code>
      *
      * <p>And for {@link android.os.Build.VERSION_CODES#TIRAMISU Android 13} first update:
      *
-     * <code><meta-data android:name="android.car.targetCarVersion" android:value="33:1"/></code>
+     * <code>
+     * &#60;meta-data android:name="android.car.targetCarVersion" android:value="33:1"/&#62;
+     * </code>
+     *
+     * @deprecated Car version is no longer supported by the CarService.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
+    @Deprecated
     public static final String MANIFEST_METADATA_TARGET_CAR_VERSION =
             "android.car.targetCarVersion";
 
@@ -199,22 +203,31 @@ public final class CarPackageManager extends CarManagerBase {
     public @interface SetPolicyFlags {}
 
     private final ICarPackageManager mService;
+    private final Object mLock = new Object();
+    /**
+     * Map that stores externally created {@link ICarBlockingUiCommandListener} objects keyed by
+     * their corresponding internally provided {@link BlockingUiCommandListener} objects. Since
+     * ArrayMap's initial size is 10, and the blocking ui will have at most 1~2 listeners,
+     * initialize size of the map to be 2.
+     */
+    @GuardedBy("mLock")
+    private final Map<BlockingUiCommandListener, ICarBlockingUiCommandListener>
+            mICarBlockingUiCommandListener = new ArrayMap<>(2);
 
     /** @hide */
-    public CarPackageManager(Car car, IBinder service) {
+    public CarPackageManager(ICarBase car, IBinder service) {
         this(car, ICarPackageManager.Stub.asInterface(service));
     }
 
     /** @hide */
     @VisibleForTesting
-    public CarPackageManager(Car car, ICarPackageManager service) {
+    public CarPackageManager(ICarBase car, ICarPackageManager service) {
         super(car);
         mService = service;
     }
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         // nothing to do
     }
@@ -250,7 +263,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @SystemApi
     @Deprecated
-    @AddedInOrBefore(majorVersion = 33)
     public void setAppBlockingPolicy(
             String packageName, CarAppBlockingPolicy policy, @SetPolicyFlags int flags) {
         if ((flags & FLAG_SET_POLICY_WAIT_FOR_CHANGE) != 0
@@ -272,7 +284,6 @@ public final class CarPackageManager extends CarManagerBase {
      *
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public void restartTask(int taskId) {
         try {
             mService.restartTask(taskId);
@@ -296,7 +307,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isActivityBackedBySafeActivity(ComponentName activityName) {
         try {
             return mService.isActivityBackedBySafeActivity(activityName);
@@ -311,7 +321,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @hide
      */
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     public void setEnableActivityBlocking(boolean enable) {
         try {
             mService.setEnableActivityBlocking(enable);
@@ -329,7 +338,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @return true if the activity is distraction optimized, false if it isn't or if the value
      *         could not be determined.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isActivityDistractionOptimized(String packageName, String className) {
         try {
             return mService.isActivityDistractionOptimized(packageName, className);
@@ -346,7 +354,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @return true if the pending intent represents an activity that is distraction optimized,
      *         false if it isn't or if the value could not be determined.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isPendingIntentDistractionOptimized(@NonNull PendingIntent pendingIntent) {
         try {
             return mService.isPendingIntentDistractionOptimized(pendingIntent);
@@ -363,7 +370,6 @@ public final class CarPackageManager extends CarManagerBase {
      * @param className
      * @return
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isServiceDistractionOptimized(String packageName, String className) {
         try {
             return mService.isServiceDistractionOptimized(packageName, className);
@@ -383,7 +389,6 @@ public final class CarPackageManager extends CarManagerBase {
     @RequiresPermission(anyOf = {PERMISSION_CONTROL_APP_BLOCKING,
             Car.PERMISSION_CAR_DRIVING_STATE})
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public String getCurrentDrivingSafetyRegion() {
         try {
             return mService.getCurrentDrivingSafetyRegion();
@@ -415,7 +420,6 @@ public final class CarPackageManager extends CarManagerBase {
      */
     @RequiresPermission(allOf = {PERMISSION_CONTROL_APP_BLOCKING,
             android.Manifest.permission.QUERY_ALL_PACKAGES})
-    @AddedInOrBefore(majorVersion = 33)
     public void controlTemporaryActivityBlockingBypassingAsUser(String packageName,
             String activityClassName, boolean bypass, @UserIdInt int userId)
             throws NameNotFoundException {
@@ -453,7 +457,6 @@ public final class CarPackageManager extends CarManagerBase {
     @RequiresPermission(allOf = {PERMISSION_CONTROL_APP_BLOCKING,
             android.Manifest.permission.QUERY_ALL_PACKAGES})
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public List<String> getSupportedDrivingSafetyRegionsForActivityAsUser(String packageName,
             String activityClassName, @UserIdInt int userId) throws NameNotFoundException {
         try {
@@ -484,18 +487,18 @@ public final class CarPackageManager extends CarManagerBase {
      * @throws NameNotFoundException If the given package does not exist for the user.
      *
      * @hide
+     * @deprecated CarVersion is no longer supported by the CarService.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @SystemApi
     @RequiresPermission(Manifest.permission.QUERY_ALL_PACKAGES)
     @NonNull
+    @Deprecated
     public CarVersion getTargetCarVersion(@NonNull String packageName)
             throws NameNotFoundException {
         try {
             return mService.getTargetCarVersion(packageName);
         } catch (ServiceSpecificException e) {
-            Log.w(TAG, "Failed to get CarVersion for " + packageName, e);
+            Slog.w(TAG, "Failed to get CarVersion for " + packageName, e);
             handleServiceSpecificFromCarService(e, packageName);
         } catch (RemoteException e) {
             e.rethrowFromSystemServer();
@@ -513,20 +516,55 @@ public final class CarPackageManager extends CarManagerBase {
      * version} as major and {@code 0} as minor instead.
      *
      * @return targeted Car API version (as defined above)
+     * @deprecated CarVersion is no longer supported by the CarService.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.TIRAMISU_1,
-             minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     @NonNull
+    @Deprecated
     public CarVersion getTargetCarVersion() {
         String pkgName = mCar.getContext().getPackageName();
         try {
             return mService.getSelfTargetCarVersion(pkgName);
         } catch (RemoteException e) {
-            Log.w(TAG_CAR, "Car service threw exception calling getTargetCarVersion(" + pkgName
+            Slog.w(TAG_CAR, "Car service threw exception calling getTargetCarVersion(" + pkgName
                     + ")", e);
             e.rethrowFromSystemServer();
             return null;
         }
+    }
+
+    /**
+     * @return true if a package requires launching in automotive display compatibility mode.
+     * false otherwise.
+     *
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_DISPLAY_COMPATIBILITY)
+    @SystemApi
+    @RequiresPermission(allOf = {PERMISSION_MANAGE_DISPLAY_COMPATIBILITY,
+            android.Manifest.permission.QUERY_ALL_PACKAGES})
+    public boolean requiresDisplayCompat(@NonNull String packageName) throws NameNotFoundException {
+        if (!Flags.displayCompatibility()) {
+            return false;
+        }
+        try {
+            return mService.requiresDisplayCompat(packageName);
+        } catch (ServiceSpecificException e) {
+            Slog.w(TAG_CAR, "Car service threw exception calling requiresDisplayCompat("
+                    + packageName + ")", e);
+            if (e.errorCode == ERROR_CODE_NO_PACKAGE) {
+                throw new NameNotFoundException("cannot find " + packageName);
+            }
+            throw new RuntimeException(e);
+        } catch (SecurityException e) {
+            Slog.w(TAG_CAR, "Car service threw exception calling requiresDisplayCompat("
+                    + packageName + ")", e);
+            throw e;
+        } catch (RemoteException e) {
+            Slog.w(TAG_CAR, "Car service threw exception calling requiresDisplayCompat("
+                    + packageName + ")", e);
+            e.rethrowFromSystemServer();
+        }
+        return false;
     }
 
     private void handleServiceSpecificFromCarService(ServiceSpecificException e,
@@ -549,5 +587,95 @@ public final class CarPackageManager extends CarManagerBase {
         }
         // don't know what this is
         throw new IllegalStateException(e);
+    }
+
+    /**
+     * Callback interface to finish the blocking ui.
+     *
+     * @hide
+     */
+    public interface BlockingUiCommandListener {
+        /**
+         * Called when the blocking ui needs to be finished
+         */
+        void finishBlockingUi();
+    }
+
+    /**
+     * Registers the {@link BlockingUiCommandListener} for the BlockingUi.
+     *
+     * <p>Note: A listener can only listen for one displayId.
+     * <p>Note: A listener cannot be registered twice. Registering the second time would result in a
+     * no-op.
+     *
+     * @param displayId        {@link android.view.Display} for which the blocking ui is registered.
+     * @param callbackExecutor the executor to execute the callback with.
+     * @param listener         {@link BlockingUiCommandListener} listener.
+     * @throws IllegalStateException if the listener is already registered.
+     * @hide
+     */
+    public void registerBlockingUiCommandListener(int displayId,
+            @NonNull @CallbackExecutor Executor callbackExecutor,
+            @NonNull BlockingUiCommandListener listener) {
+        synchronized (mLock) {
+            if (mICarBlockingUiCommandListener.get(listener) != null) {
+                throw new IllegalStateException("BlockingUiListener already registered");
+            }
+            CarBlockingUiCommandListenerImpl carBlockingUiListener =
+                    new CarBlockingUiCommandListenerImpl(callbackExecutor, listener);
+            try {
+                mService.registerBlockingUiCommandListener(carBlockingUiListener, displayId);
+                mICarBlockingUiCommandListener.put(listener, carBlockingUiListener);
+            } catch (RemoteException e) {
+                handleRemoteExceptionFromCarService(e);
+            }
+        }
+    }
+
+    /**
+     * Unregisters the {@link BlockingUiCommandListener}.
+     *
+     * @hide
+     */
+    public void unregisterBlockingUiCommandListener(@NonNull BlockingUiCommandListener listener) {
+        synchronized (mLock) {
+            try {
+                if (mICarBlockingUiCommandListener.get(listener) == null) {
+                    Slog.e(TAG, "BlockingUiListener already unregistered");
+                    return;
+                }
+                mService.unregisterBlockingUiCommandListener(
+                        mICarBlockingUiCommandListener.get(listener));
+            } catch (RemoteException e) {
+                handleRemoteExceptionFromCarService(e);
+            }
+            mICarBlockingUiCommandListener.remove(listener);
+        }
+    }
+
+    private class CarBlockingUiCommandListenerImpl extends ICarBlockingUiCommandListener.Stub {
+        private final Executor mExecutor;
+        private final BlockingUiCommandListener mListener;
+
+        CarBlockingUiCommandListenerImpl(Executor callbackExecutor,
+                BlockingUiCommandListener listener) {
+            mExecutor = callbackExecutor;
+            mListener = listener;
+        }
+
+        public void finishBlockingUi() throws RemoteException {
+            long identity = Binder.clearCallingIdentity();
+            try {
+                synchronized (mLock) {
+                    if (mICarBlockingUiCommandListener.get(mListener) == null) {
+                        Slog.e(TAG, "BlockingUiListener already unregistered");
+                        return;
+                    }
+                    mExecutor.execute(mListener::finishBlockingUi);
+                }
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
+        }
     }
 }

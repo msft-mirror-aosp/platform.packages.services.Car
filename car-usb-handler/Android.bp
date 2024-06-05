@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -38,10 +39,4 @@ android_app {
     libs: ["android.car-system-stubs"],
 
     required: ["allowed_privapp_android.car.usb.handler"],
-
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }

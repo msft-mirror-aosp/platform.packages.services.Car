@@ -98,10 +98,6 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
             <intent-filter android:priority="-1">
-                <action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-            </intent-filter>
-            <intent-filter android:priority="-1">
                 <action android:name="android.settings.PROCESS_WIFI_EASY_CONNECT_URI"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:scheme="DPP"/>
@@ -109,6 +105,26 @@
             <intent-filter android:priority="-1">
                 <action android:name="android.settings.USER_DICTIONARY_SETTINGS"/>
                 <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+
+        <!-- These disable the Settings UI to enable a trusted external source
+             to install unknown apks. Set android:priority="101" to avoid other
+             apps to take the priority, nor conflicting with Settings' 1 -->
+        <activity android:name=".Stubs$ManageExternalSourcesActivityStub"
+            android:label="@string/stub_name"
+            android:excludeFromRecents="true"
+            android:exported="true">
+            <!-- ManageExternalSourcesActivity stub -->
+            <intent-filter android:priority="101">
+                <action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <!-- ManageAppExternalSourcesActivity stub when a package is specified -->
+            <intent-filter android:priority="101">
+                <action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="package" />
             </intent-filter>
         </activity>
 
@@ -220,6 +236,17 @@
                   android:exported="true">
             <intent-filter android:priority="-1">
                 <action android:name="android.settings.PICTURE_IN_PICTURE_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Dream settings stub -->
+        <activity android:name=".Stubs$DreamSettingsStub"
+            android:label="@string/stub_name"
+            android:excludeFromRecents="true"
+            android:exported="true">
+            <intent-filter android:priority="-1">
+                <action android:name="android.settings.DREAM_SETTINGS" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

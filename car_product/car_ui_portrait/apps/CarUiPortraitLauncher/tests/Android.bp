@@ -15,47 +15,62 @@
 //
 
 package {
+    default_team: "trendy_team_system_experience",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 android_test {
-  name: "CarUiPortraitLauncherTest",
+    name: "CarUiPortraitLauncherTest",
 
-  srcs: ["src/**/*.java"],
+    srcs: ["src/**/*.java"],
 
-  resource_dirs: ["res"],
+    resource_dirs: ["res"],
 
-  libs: [
-      "android.test.base",
-  ],
+    libs: [
+        "android.test.base",
+        "android.test.mock",
+    ],
 
-  optimize: {
-      enabled: false,
-  },
+    optimize: {
+        enabled: false,
+    },
 
-  static_libs: [
-      "android.car.testapi",
-      "android.car.test.utils",
-      "androidx.test.core",
-      "androidx.test.runner",
-      "androidx.test.espresso.core",
-      "androidx.test.espresso.intents",
-      "androidx.test.ext.junit",
-      "truth-prebuilt",
-      "CarLauncher-core"
-  ],
+    static_libs: [
+        "android.car",
+        "android.car.testapi",
+        "android.car.test.utils",
+        "androidx.test.core",
+        "androidx.test.runner",
+        "androidx.test.espresso.core",
+        "androidx.test.espresso.intents",
+        "androidx.test.ext.junit",
+        "mockito-target-extended-minus-junit4",
+        "truth",
+        "ub-uiautomator",
+        "CarUiPortraitLauncher-core",
+    ],
 
-  platform_apis: true,
+    jni_libs: [
+        "libdexmakerjvmtiagent",
+        "libstaticjvmtiagent",
+    ],
 
-  certificate: "platform",
+    platform_apis: true,
 
-  privileged: true,
+    certificate: "platform",
 
-  manifest: "AndroidManifest.xml",
+    privileged: true,
 
-  instrumentation_for: "CarUiPortraitLauncher",
+    manifest: "AndroidManifest.xml",
 
-  dex_preopt: {
-      enabled: false,
-  },
+    instrumentation_for: "CarUiPortraitLauncher",
+
+    dex_preopt: {
+        enabled: false,
+    },
+
+    test_suites: [
+        "automotive-tests",
+        "device-tests",
+    ],
 }

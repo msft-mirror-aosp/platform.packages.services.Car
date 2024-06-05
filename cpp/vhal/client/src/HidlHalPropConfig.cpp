@@ -30,8 +30,16 @@ using ::android::hardware::automotive::vehicle::toInt;
 
 HidlHalPropConfig::HidlHalPropConfig(VehiclePropConfig&& config) {
     mPropConfig = std::move(config);
-    for (VehicleAreaConfig& areaConfig : mPropConfig.areaConfigs) {
-        mAreaConfigs.emplace_back(std::move(areaConfig));
+    if (mPropConfig.areaConfigs.size() == 0) {
+        VehicleAreaConfig globalAreaConfig;
+        globalAreaConfig.areaId = 0;
+        mAreaConfigs.push_back(std::make_unique<HidlHalAreaConfig>(std::move(globalAreaConfig),
+                                                                   toInt(mPropConfig.access)));
+    } else {
+        for (VehicleAreaConfig& areaConfig : mPropConfig.areaConfigs) {
+            mAreaConfigs.push_back(std::make_unique<HidlHalAreaConfig>(std::move(areaConfig),
+                                                                       toInt(mPropConfig.access)));
+        }
     }
 }
 
@@ -45,10 +53,6 @@ int32_t HidlHalPropConfig::getAccess() const {
 
 int32_t HidlHalPropConfig::getChangeMode() const {
     return toInt(mPropConfig.changeMode);
-}
-
-const IHalAreaConfig* HidlHalPropConfig::getAreaConfigs() const {
-    return &(mAreaConfigs[0]);
 }
 
 size_t HidlHalPropConfig::getAreaConfigSize() const {
@@ -71,12 +75,17 @@ float HidlHalPropConfig::getMaxSampleRate() const {
     return mPropConfig.maxSampleRate;
 }
 
-HidlHalAreaConfig::HidlHalAreaConfig(VehicleAreaConfig&& areaConfig) {
+HidlHalAreaConfig::HidlHalAreaConfig(VehicleAreaConfig&& areaConfig, int32_t access) {
     mAreaConfig = std::move(areaConfig);
+    mAccess = access;
 }
 
 int32_t HidlHalAreaConfig::getAreaId() const {
     return mAreaConfig.areaId;
+}
+
+int32_t HidlHalAreaConfig::getAccess() const {
+    return mAccess;
 }
 
 int32_t HidlHalAreaConfig::getMinInt32Value() const {
@@ -101,6 +110,11 @@ float HidlHalAreaConfig::getMinFloatValue() const {
 
 float HidlHalAreaConfig::getMaxFloatValue() const {
     return mAreaConfig.maxFloatValue;
+}
+
+// HIDL VHAL does not support VUR.
+bool HidlHalAreaConfig::isVariableUpdateRateSupported() const {
+    return false;
 }
 
 }  // namespace vhal

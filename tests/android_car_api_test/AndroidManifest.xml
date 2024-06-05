@@ -72,6 +72,7 @@
     <uses-permission android:name="android.car.permission.CONTROL_CAR_SEATS" />
     <uses-permission android:name="android.car.permission.CONTROL_CAR_WINDOWS" />
     <uses-permission android:name="android.car.permission.READ_CAR_DISPLAY_UNITS" />
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_DISPLAY_UNITS" />
     <uses-permission android:name="android.car.permission.CAR_IDENTIFICATION" />
     <uses-permission android:name="android.car.permission.PERMISSION_ADJUST_RANGE_REMAINING" />
     <uses-permission android:name="android.car.permission.PERMISSION_CAR_ENGINE_DETAILED" />
@@ -94,6 +95,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED"/>
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_CONFIGURATION"/>
     <uses-permission android:name="android.permission.CONNECTIVITY_USE_RESTRICTED_NETWORKS"/>
     <uses-permission android:name="android.permission.LOCATION_BYPASS" />
     <!-- Use for sensor access in Sensors fragment. -->

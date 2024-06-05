@@ -63,7 +63,8 @@ public class DiagnosticHalServiceTest {
     private DiagnosticHalService.DiagnosticListener mListener;
 
     private DiagnosticHalService mService;
-    private final HalPropValueBuilder mPropValueBuilder = new HalPropValueBuilder(/* aidl= */ true);
+    private final HalPropValueBuilder mPropValueBuilder = new HalPropValueBuilder(
+            /* isAidl= */ true);
 
     private VehiclePropConfig mFreezeFrameConfig;
     private VehiclePropConfig mLiveFrameConfig;
@@ -170,7 +171,8 @@ public class DiagnosticHalServiceTest {
         assertThat(mService.requestDiagnosticStart(CarDiagnosticManager.FRAME_TYPE_LIVE,
                 sensorRate)).isTrue();
 
-        verify(mVehicle).subscribeProperty(mService, VehicleProperty.OBD2_LIVE_FRAME, expectRate);
+        verify(mVehicle).subscribePropertySafe(mService, VehicleProperty.OBD2_LIVE_FRAME,
+                expectRate);
     }
 
     @Test
@@ -219,7 +221,7 @@ public class DiagnosticHalServiceTest {
         assertThat(mService.requestDiagnosticStart(CarDiagnosticManager.FRAME_TYPE_FREEZE,
                 CarSensorManager.SENSOR_RATE_FAST)).isTrue();
 
-        verify(mVehicle).subscribeProperty(mService, VehicleProperty.OBD2_FREEZE_FRAME, 10f);
+        verify(mVehicle).subscribePropertySafe(mService, VehicleProperty.OBD2_FREEZE_FRAME, 10f);
     }
 
     @Test
@@ -232,21 +234,21 @@ public class DiagnosticHalServiceTest {
     public void testRequestDiagnosticStopLiveFrame() {
         mService.requestDiagnosticStop(CarDiagnosticManager.FRAME_TYPE_LIVE);
 
-        verify(mVehicle).unsubscribeProperty(mService, VehicleProperty.OBD2_LIVE_FRAME);
+        verify(mVehicle).unsubscribePropertySafe(mService, VehicleProperty.OBD2_LIVE_FRAME);
     }
 
     @Test
     public void testRequestDiagnosticStopFreezeFrame() {
         mService.requestDiagnosticStop(CarDiagnosticManager.FRAME_TYPE_FREEZE);
 
-        verify(mVehicle).unsubscribeProperty(mService, VehicleProperty.OBD2_FREEZE_FRAME);
+        verify(mVehicle).unsubscribePropertySafe(mService, VehicleProperty.OBD2_FREEZE_FRAME);
     }
 
     @Test
     public void testRequestDiagnosticStopInvalidSensorType() {
         mService.requestDiagnosticStop(INVALID_SENSOR_TYPE);
 
-        verify(mVehicle, never()).unsubscribeProperty(any(), anyInt());
+        verify(mVehicle, never()).unsubscribePropertySafe(any(), anyInt());
     }
 
     @Test

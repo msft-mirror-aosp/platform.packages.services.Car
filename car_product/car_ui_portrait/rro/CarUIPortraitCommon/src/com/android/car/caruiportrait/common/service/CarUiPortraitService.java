@@ -21,6 +21,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -44,6 +45,11 @@ public class CarUiPortraitService extends Service {
     // key name for the intent's extra that tells the root task view's visibility status
     public static final String INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED =
             "INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED";
+
+    // key name for the intent's extra that tells the component that request the view's
+    // visibility change.
+    public static final String INTENT_EXTRA_IMMERSIVE_MODE_REQUESTED_SOURCE =
+            "INTENT_EXTRA_IMMERSIVE_MODE_REQUESTED_SOURCE";
 
     public static final String INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE =
             "INTENT_EXTRA_IS_IMMERSIVE_MODE_STATE";
@@ -162,6 +168,7 @@ public class CarUiPortraitService extends Service {
     public static final int MSG_COLLAPSE_RECENTS = 13;
 
     private boolean mIsSystemInImmersiveMode;
+    private String mImmersiveModeSource;
     private boolean mIsSuwInProgress;
     private BroadcastReceiver mSysUiRequestsReceiver;
 
@@ -204,8 +211,9 @@ public class CarUiPortraitService extends Service {
                 case MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE:
                     int val = msg.arg1;
                     Intent hideSysBarIntent = new Intent(REQUEST_FROM_LAUNCHER);
-                    hideSysBarIntent.putExtra(INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE,
-                            intToBoolean(val));
+                    Log.d(TAG, "hideSysBarIntent: val = " + val);
+
+                    hideSysBarIntent.putExtra(INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE, val);
                     CarUiPortraitService.this.sendBroadcast(hideSysBarIntent);
                     break;
                 case MSG_FG_TASK_VIEW_READY:
@@ -229,10 +237,18 @@ public class CarUiPortraitService extends Service {
             public void onReceive(Context context, Intent intent) {
                 boolean isImmersive = intent.getBooleanExtra(
                         INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED, false);
+                String source = intent.getStringExtra(
+                        INTENT_EXTRA_IMMERSIVE_MODE_REQUESTED_SOURCE);
+                Log.d(TAG, "Immersive request: source = " + source + ", request=" + isImmersive);
                 if (intent.hasExtra(INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED)
-                        && isImmersive != mIsSystemInImmersiveMode) {
+                        && isImmersive != mIsSystemInImmersiveMode
+                        && source != null
+                        && !source.equals(mImmersiveModeSource)) {
                     mIsSystemInImmersiveMode = isImmersive;
-                    notifyClients(MSG_IMMERSIVE_MODE_REQUESTED, boolToInt(isImmersive));
+                    mImmersiveModeSource = source;
+                    Bundle bundle = new Bundle();
+                    bundle.putString(INTENT_EXTRA_IMMERSIVE_MODE_REQUESTED_SOURCE, source);
+                    notifyClients(MSG_IMMERSIVE_MODE_REQUESTED, boolToInt(isImmersive), bundle);
                 }
 
                 boolean isImmersiveState = intent.getBooleanExtra(
@@ -282,6 +298,21 @@ public class CarUiPortraitService extends Service {
             } catch (RemoteException e) {
                 // The client is dead. Remove it from the list.
                 mClients.remove(i);
+                Log.d(TAG, "A client is removed from the list");
+            }
+        }
+    }
+
+    private void notifyClients(int key, int value, Bundle bundle) {
+        for (int i = mClients.size() - 1; i >= 0; i--) {
+            try {
+                Message msg = Message.obtain(null, key, value, 0);
+                msg.setData(bundle);
+                mClients.get(i).send(msg);
+            } catch (RemoteException e) {
+                // The client is dead. Remove it from the list.
+                mClients.remove(i);
+                Log.d(TAG, "A client is removed from the list");
             }
         }
     }

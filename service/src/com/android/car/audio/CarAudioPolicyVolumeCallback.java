@@ -17,7 +17,7 @@
 package com.android.car.audio;
 
 import static android.car.builtin.media.AudioManagerHelper.adjustToString;
-import static android.car.builtin.media.AudioManagerHelper.isMasterMute;
+import static android.car.media.CarAudioManager.INVALID_VOLUME_GROUP_ID;
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.media.AudioManager.ADJUST_LOWER;
 import static android.media.AudioManager.ADJUST_MUTE;
@@ -36,13 +36,11 @@ import android.car.media.CarVolumeGroupInfo;
 import android.car.oem.OemCarAudioVolumeRequest;
 import android.car.oem.OemCarVolumeChangeInfo;
 import android.media.AudioAttributes;
-import android.media.AudioManager;
 import android.media.audiopolicy.AudioPolicy;
 import android.util.Log;
 
 import com.android.car.CarLocalServices;
 import com.android.car.oem.CarOemProxyService;
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.List;
 import java.util.Objects;
@@ -51,7 +49,7 @@ final class CarAudioPolicyVolumeCallback extends AudioPolicy.AudioPolicyVolumeCa
 
     public static final boolean DEBUG = Slogf.isLoggable(TAG_AUDIO, Log.DEBUG);
 
-    private final AudioManager mAudioManager;
+    private final AudioManagerWrapper mAudioManager;
     private final boolean mUseCarVolumeGroupMuting;
     private final AudioPolicyVolumeCallbackInternal mVolumeCallback;
     private final CarVolumeInfoWrapper mCarVolumeInfo;
@@ -65,9 +63,8 @@ final class CarAudioPolicyVolumeCallback extends AudioPolicy.AudioPolicyVolumeCa
         }
     }
 
-    @VisibleForTesting
     CarAudioPolicyVolumeCallback(AudioPolicyVolumeCallbackInternal volumeCallback,
-            AudioManager audioManager, CarVolumeInfoWrapper carVolumeInfo,
+            AudioManagerWrapper audioManager, CarVolumeInfoWrapper carVolumeInfo,
             boolean useCarVolumeGroupMuting) {
         mVolumeCallback = Objects.requireNonNull(volumeCallback, "Volume Callback cannot be null");
         mAudioManager = Objects.requireNonNull(audioManager, "AudioManager cannot be null");
@@ -148,6 +145,13 @@ final class CarAudioPolicyVolumeCallback extends AudioPolicy.AudioPolicyVolumeCa
 
     private void evaluateVolumeAdjustmentInternal(int adjustment, int zoneId) {
         int groupId = mCarVolumeInfo.getVolumeGroupIdForAudioZone(zoneId);
+        if (groupId == INVALID_VOLUME_GROUP_ID) {
+            // This can happen if all volume groups are configured with dynamic devices and the
+            // configuration to allow volume key events to dynamic devices is disabled.
+            Slogf.w(TAG_AUDIO, "onVolumeAdjustment: %s but no suitable volume group id was found.",
+                    adjustToString(adjustment));
+            return;
+        }
         boolean isMuted = isMuted(zoneId, groupId);
 
         if (Slogf.isLoggable(TAG_AUDIO, VERBOSE)) {
@@ -198,7 +202,7 @@ final class CarAudioPolicyVolumeCallback extends AudioPolicy.AudioPolicyVolumeCa
         if (mUseCarVolumeGroupMuting) {
             return mCarVolumeInfo.isVolumeGroupMuted(zoneId, groupId);
         }
-        return isMasterMute(mAudioManager);
+        return mAudioManager.isMasterMuted();
     }
 
     private boolean isOemDuckingServiceAvailable() {

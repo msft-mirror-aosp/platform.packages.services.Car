@@ -28,6 +28,7 @@ import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarLog;
 import com.android.car.CarPerUserServiceHelper;
@@ -95,6 +96,10 @@ public class CarBluetoothService implements CarServiceBase {
     private ICarPerUserService mCarPerUserService;
     @GuardedBy("mPerUserLock")
     private ICarBluetoothUserService mCarBluetoothUserService;
+    // Whether this service is already released. We should not create new handler thread if service
+    // is already released.
+    @GuardedBy("mPerUserLock")
+    private boolean mReleased = false;
     private final CarPerUserServiceHelper mUserServiceHelper;
     private final CarPerUserServiceHelper.ServiceCallback mUserServiceCallback =
             new CarPerUserServiceHelper.ServiceCallback() {
@@ -104,6 +109,13 @@ public class CarBluetoothService implements CarServiceBase {
                 Slogf.d(TAG, "Connected to CarPerUserService");
             }
             synchronized (mPerUserLock) {
+                if (mReleased) {
+                    // We create handlerThread in initializeUserLocked. We must make sure we do not
+                    // create handler thread after release otherwise the newly created thread might
+                    // not be cleaned up properly.
+                    return;
+                }
+
                 // Explicitly clear out existing per-user objects since we can't rely on the
                 // onServiceDisconnected and onPreUnbind calls to always be called before this
                 destroyUserLocked();
@@ -163,6 +175,9 @@ public class CarBluetoothService implements CarServiceBase {
         if (DBG) {
             Slogf.d(TAG, "init()");
         }
+        synchronized (mPerUserLock) {
+            mReleased = false;
+        }
         mUserServiceHelper.registerServiceCallback(mUserServiceCallback);
     }
 
@@ -179,6 +194,7 @@ public class CarBluetoothService implements CarServiceBase {
         mUserServiceHelper.unregisterServiceCallback(mUserServiceCallback);
         synchronized (mPerUserLock) {
             destroyUserLocked();
+            mReleased = true;
         }
     }
 
@@ -547,7 +563,6 @@ public class CarBluetoothService implements CarServiceBase {
                 mDeviceManager.setDeviceConnectionPriority(device, priority);
             }
         }
-        return;
     }
 
     /**
@@ -589,6 +604,29 @@ public class CarBluetoothService implements CarServiceBase {
         synchronized (mPerUserLock) {
             if (mInhibitManager == null) return false;
             return mInhibitManager.releaseProfileInhibit(device, profile, token);
+        }
+    }
+
+
+    /**
+     * Checks whether a request to disconnect the given profile on the given device has been made
+     * and if the inhibit request is still active.
+     *
+     * @param device  The device on which to verify the inhibit request.
+     * @param profile The profile on which to verify the inhibit request.
+     * @param token   The token provided in the original call to
+     *                {@link #requestBluetoothProfileInhibit}.
+     * @return True if inhibit was requested and is still active, false if an error occurred or
+     *         inactive.
+     */
+    public boolean isProfileInhibited(BluetoothDevice device, int profile, IBinder token) {
+        if (DBG) {
+            Slogf.d(TAG, "Check profile inhibit: profile %s, device %s",
+                    BluetoothUtils.getProfileName(profile), device.getAddress());
+        }
+        synchronized (mPerUserLock) {
+            if (mInhibitManager == null) return false;
+            return mInhibitManager.isProfileInhibited(device, profile, token);
         }
     }
 
@@ -654,7 +692,11 @@ public class CarBluetoothService implements CarServiceBase {
             }
 
             // Device Manager status
-            mDeviceManager.dump(writer);
+            if (mDeviceManager != null) {
+                mDeviceManager.dump(writer);
+            } else {
+                writer.printf("BluetoothDeviceManager: null\n");
+            }
 
             // Profile Inhibits
             if (mInhibitManager != null) {
@@ -664,4 +706,8 @@ public class CarBluetoothService implements CarServiceBase {
             }
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 }

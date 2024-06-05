@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -22,8 +23,12 @@ package {
 java_sdk_library {
     name: "android.car-module",
 
+    defaults: [
+        "car-framework-aconfig-libraries",
+    ],
     srcs: [
         ":android.car-full-src",
+        ":com.android.car.internal.dep-src",
     ],
     aidl: {
         include_dirs: [
@@ -33,9 +38,10 @@ java_sdk_library {
     },
 
     sdk_version: "module_current",
-    min_sdk_version: "33",
+    // TODO(b/288271411): enable it when car mainline module is supported
+    // min_sdk_version: "33",
     apex_available: [
-        "com.android.car.framework"
+        "com.android.car.framework",
     ],
     shared_library: false, // added to bootclasspath
 
@@ -43,11 +49,13 @@ java_sdk_library {
         "android.car.builtin",
         "framework-annotations-lib",
         "modules-utils-preconditions",
+        "framework-location",
         "framework-wifi",
         "framework-bluetooth",
     ],
     // Stub build drops module api and breaks build. Add it here.
     stub_only_libs: [
+        "framework-location",
         "framework-wifi",
         "framework-bluetooth",
     ],

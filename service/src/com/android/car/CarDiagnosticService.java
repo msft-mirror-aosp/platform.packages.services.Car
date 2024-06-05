@@ -30,6 +30,9 @@ import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArrayMap;
+import android.util.ArraySet;
+import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.Listeners.ClientWithRate;
 import com.android.car.hal.DiagnosticHalService;
@@ -41,12 +44,10 @@ import com.android.internal.annotations.GuardedBy;
 
 import java.util.Arrays;
 import java.util.ConcurrentModificationException;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /** @hide */
 public class CarDiagnosticService extends ICarDiagnostic.Stub
@@ -59,8 +60,8 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
 
     /** key: diagnostic type. */
     @GuardedBy("mLock")
-    private final HashMap<Integer, Listeners<DiagnosticClient>> mDiagnosticListeners =
-        new HashMap<>();
+    private final SparseArray<Listeners<DiagnosticClient>> mDiagnosticListeners =
+            new SparseArray();
 
     /** the latest live frame data. */
     @GuardedBy("mLock")
@@ -140,9 +141,9 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
     @Override
     public void release() {
         synchronized (mLock) {
-            mDiagnosticListeners.forEach(
-                    (Integer frameType, Listeners diagnosticListeners) ->
-                            diagnosticListeners.release());
+            for (int i = 0; i < mDiagnosticListeners.size(); i++) {
+                mDiagnosticListeners.valueAt(i).release();
+            }
             mDiagnosticListeners.clear();
             mLiveFrameDiagnosticRecord.disableIfNeeded();
             mFreezeFrameDiagnosticRecords.disableIfNeeded();
@@ -183,7 +184,7 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
             }
         }
 
-        for (ArrayMap.Entry<CarDiagnosticService.DiagnosticClient, List<CarDiagnosticEvent>> entry :
+        for (Map.Entry<CarDiagnosticService.DiagnosticClient, List<CarDiagnosticEvent>> entry :
                 eventsByClient.entrySet()) {
             CarDiagnosticService.DiagnosticClient client = entry.getKey();
             List<CarDiagnosticEvent> clientEvents = entry.getValue();
@@ -490,7 +491,7 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
         /** callback for diagnostic events */
         private final ICarDiagnosticEventListener mListener;
 
-        private final Set<Integer> mActiveDiagnostics = new HashSet<>();
+        private final ArraySet<Integer> mActiveDiagnostics = new ArraySet<>();
 
         /** when false, it is already released */
         private volatile boolean mActive = true;
@@ -529,7 +530,7 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
         }
 
         int[] getDiagnosticArray() {
-            return mActiveDiagnostics.stream().mapToInt(Integer::intValue).toArray();
+            return CarServiceUtils.toIntArray(mActiveDiagnostics);
         }
 
         ICarDiagnosticEventListener getICarDiagnosticEventListener() {
@@ -605,7 +606,7 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
 
     private static class FreezeFrameRecord extends DiagnosticRecord {
         /** Store the timestamp --> freeze frame mapping. */
-        HashMap<Long, CarDiagnosticEvent> mEvents = new HashMap<>();
+        ArrayMap<Long, CarDiagnosticEvent> mEvents = new ArrayMap<>();
 
         @Override
         boolean disableIfNeeded() {
@@ -626,7 +627,11 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
         }
 
         long[] getFreezeFrameTimestamps() {
-            return mEvents.keySet().stream().mapToLong(Long::longValue).toArray();
+            long[] freezeFrameTimestamps = new long[mEvents.size()];
+            for (int i = 0; i < mEvents.size(); i++) {
+                freezeFrameTimestamps[i] = mEvents.keyAt(i);
+            }
+            return freezeFrameTimestamps;
         }
 
         CarDiagnosticEvent getEvent(long timestamp) {
@@ -672,12 +677,12 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
             }
             writer.println("**diagnostic listeners**");
             try {
-                for (int diagnostic : mDiagnosticListeners.keySet()) {
-                    Listeners diagnosticListeners = mDiagnosticListeners.get(diagnostic);
+                for (int i = 0; i < mDiagnosticListeners.size(); i++) {
+                    Listeners diagnosticListeners = mDiagnosticListeners.valueAt(i);
                     if (diagnosticListeners != null) {
                         writer.println(
                                 " Diagnostic:"
-                                        + diagnostic
+                                        + mDiagnosticListeners.keyAt(i)
                                         + " num client:"
                                         + diagnosticListeners.getNumberOfClients()
                                         + " rate:"
@@ -689,4 +694,8 @@ public class CarDiagnosticService extends ICarDiagnostic.Stub
             }
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 }

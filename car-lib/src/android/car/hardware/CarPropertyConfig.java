@@ -25,8 +25,7 @@ import android.annotation.SystemApi;
 import android.car.VehicleAreaType;
 import android.car.VehicleAreaType.VehicleAreaTypeValue;
 import android.car.VehiclePropertyIds;
-import android.car.annotation.AddedInOrBefore;
-import android.car.annotation.ApiRequirements;
+import android.car.feature.Flags;
 import android.car.hardware.property.AreaIdConfig;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -50,6 +49,7 @@ import java.util.List;
  *
  */
 public final class CarPropertyConfig<T> implements Parcelable {
+    private static final String TAG = CarPropertyConfig.class.getSimpleName();
     private final int mAccess;
     private final int mAreaType;
     private final int mChangeMode;
@@ -90,16 +90,12 @@ public final class CarPropertyConfig<T> implements Parcelable {
     public @interface VehiclePropertyAccessType {}
 
     /** Property Access Unknown */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_PROPERTY_ACCESS_NONE = 0;
     /** The property is readable */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_PROPERTY_ACCESS_READ = 1;
     /** The property is writable */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_PROPERTY_ACCESS_WRITE = 2;
     /** The property is readable and writable */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_PROPERTY_ACCESS_READ_WRITE = 3;
 
     /** @hide */
@@ -112,17 +108,14 @@ public final class CarPropertyConfig<T> implements Parcelable {
     public @interface VehiclePropertyChangeModeType {}
 
     /** Properties of this type must never be changed. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_PROPERTY_CHANGE_MODE_STATIC = 0;
     /** Properties of this type must report when there is a change. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE = 1;
     /** Properties of this type change continuously. */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS = 2;
 
     /**
-     * Return the access type of the car property.
+     * Returns the access type of the car property.
      * <p>The access type could be one of the following:
      * <ul>
      *   <li>{@link CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_NONE}</li>
@@ -133,13 +126,12 @@ public final class CarPropertyConfig<T> implements Parcelable {
      *
      * @return the access type of the car property.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public @VehiclePropertyAccessType int getAccess() {
         return mAccess;
     }
 
     /**
-     * Return the area type of the car property.
+     * Returns the area type of the car property.
      * <p>The area type could be one of the following:
      * <ul>
      *   <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}</li>
@@ -148,17 +140,17 @@ public final class CarPropertyConfig<T> implements Parcelable {
      *   <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_DOOR}</li>
      *   <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_MIRROR}</li>
      *   <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WHEEL}</li>
+     *   <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_VENDOR}</li>
      * </ul>
      *
      * @return the area type of the car property.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public @VehicleAreaTypeValue int getAreaType() {
         return mAreaType;
     }
 
     /**
-     * Return the change mode of the car property.
+     * Returns the change mode of the car property.
      *
      * <p>The change mode could be one of the following:
      * <ul>
@@ -169,58 +161,58 @@ public final class CarPropertyConfig<T> implements Parcelable {
      *
      * @return the change mode of properties.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public @VehiclePropertyChangeModeType int getChangeMode() {
         return mChangeMode;
     }
 
     /**
+     * Returns the optional additional configuration parameters.
      *
      * @return Additional configuration parameters. For different properties, configArrays have
      * different information.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public List<Integer> getConfigArray() {
         return Collections.unmodifiableList(mConfigArray);
     }
 
     /**
+     * Returns the optional additional configuration information.
      *
      * @return Some properties may require additional information passed over this
      * string. Most properties do not need to set this.
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public String getConfigString() {
         return mConfigString;
     }
 
     /**
+     * Returns the max sample rate in Hz.
      *
      * @return Max sample rate in Hz. Must be defined for {@link
      * #VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} return 0 if change mode is not continuous.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public float getMaxSampleRate() {
         return mMaxSampleRate;
     }
 
     /**
+     * Returns the min sample rate in Hz.
      *
-     * @return Min sample rate in Hz.Must be defined for {@link
+     * @return Min sample rate in Hz. Must be defined for {@link
      * #VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS} return 0 if change mode is not continuous.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public float getMinSampleRate() {
         return mMinSampleRate;
     }
 
     /**
+     * Returns the property identifier.
+     *
      * @return Property identifier, must be one of enums in
      *   {@link android.car.VehiclePropertyIds}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public int getPropertyId() {
         return mPropertyId;
     }
@@ -244,28 +236,27 @@ public final class CarPropertyConfig<T> implements Parcelable {
      * @return the value type of the vehicle property.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public Class<T> getPropertyType() {
         return mType;
     }
 
     /**
+     * Returns a list of {@link AreaIdConfig} for this property.
+     *
      * @return list of {@link AreaIdConfig} instances for this property.
      */
     @NonNull
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public List<AreaIdConfig<T>> getAreaIdConfigs() {
         return Collections.unmodifiableList(mAreaIdConfigs);
     }
 
     /**
+     * Returns the {@link AreaIdConfig} for the specified {@code areaId}.
+     *
      * @return {@link AreaIdConfig} instance for passed {@code areaId}
      * @throws IllegalArgumentException if {@code areaId} is not supported for property
      */
     @NonNull
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
     public AreaIdConfig<T> getAreaIdConfig(int areaId) {
         if (!mAreaIdToAreaIdConfig.contains(areaId)) {
             throw new IllegalArgumentException("Area ID: " + Integer.toHexString(areaId)
@@ -276,19 +267,20 @@ public final class CarPropertyConfig<T> implements Parcelable {
     }
 
     /**
+     * Returns whether this property is area type {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}.
+     *
      * @return true if this property is area type {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean isGlobalProperty() {
         return mAreaType == VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL;
     }
 
     /**
+     * Returns the number of areaIds for the property.
      *
-     * @return the number of areaIds for properties.
+     * @return the number of areaIds for the property.
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public int getAreaCount() {
         return mAreaIdConfigs.size();
     }
@@ -297,12 +289,12 @@ public final class CarPropertyConfig<T> implements Parcelable {
      * Returns a list of area IDs supported for the vehicle property.
      *
      * <p>An area represents a unique element of a {@link VehicleAreaType}. For instance, if the
-     * {@link VehicleAreaType} is {@link VehicleAreaType#VEHICLE_AREA_TYPE_WINDOW}, then an example
-     * area is {@link android.car.VehicleAreaWindow#WINDOW_FRONT_WINDSHIELD}.
+     * {@link VehicleAreaType} is {@link VehicleAreaType#VEHICLE_AREA_TYPE_SEAT}, then an example
+     * area is {@link android.car.VehicleAreaSeat#SEAT_ROW_1_LEFT}.
      *
      * <p>An area ID is a combination of one or more areas, and is created by bitwise "OR"ing the
      * areas together. Areas from different {@link VehicleAreaType} values will not be mixed in a
-     * single area ID. For example, a {@link android.car.VehicleAreaWindow} area cannot be combined
+     * single area ID. For example, a {@link android.car.VehicleAreaWheel} area cannot be combined
      * with a {@link android.car.VehicleAreaSeat} area in an area ID.
      *
      * <p>For properties that return {@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL} for {@link
@@ -322,7 +314,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
      * @return the array of supported area IDs.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public int[] getAreaIds() {
         int[] areaIds = new int[mAreaIdConfigs.size()];
         for (int i = 0; i < areaIds.length; i++) {
@@ -336,7 +327,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
      * Throws {@link java.lang.IllegalStateException} if supported area count not equals to one.
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public int getFirstAndOnlyAreaId() {
         if (mAreaIdConfigs.size() != 1) {
             throw new IllegalStateException("Expected one and only area in this property. PropId: "
@@ -346,12 +336,9 @@ public final class CarPropertyConfig<T> implements Parcelable {
     }
 
     /**
-     *
-     * @param areaId
-     * @return true if areaId is existing.
+     * Verify if the areaId passed as a parameter exists.
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public boolean hasArea(int areaId) {
         return mAreaIdToAreaIdConfig.indexOfKey(areaId) >= 0;
     }
@@ -359,12 +346,11 @@ public final class CarPropertyConfig<T> implements Parcelable {
     /**
      * @deprecated - use {@link #getAreaIdConfigs()} or {@link #getAreaIdConfig(int)} instead.
      *
-     * @param areaId
-     * @return Min value in given areaId. Null if not have min value in given area.
+     * @param areaId the area ID
+     * @return min value in given areaId. Null if not have min value in given area
      */
     @Deprecated
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public T getMinValue(int areaId) {
         AreaIdConfig<T> areaIdConfig = mAreaIdToAreaIdConfig.get(areaId);
         return areaIdConfig == null ? null : areaIdConfig.getMinValue();
@@ -373,12 +359,11 @@ public final class CarPropertyConfig<T> implements Parcelable {
     /**
      * @deprecated - use {@link #getAreaIdConfigs()} or {@link #getAreaIdConfig(int)} instead.
      *
-     * @param areaId
-     * @return Max value in given areaId. Null if not have max value in given area.
+     * @param areaId the area ID
+     * @return max value in given areaId. Null if not have max value in given area
      */
     @Deprecated
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public T getMaxValue(int areaId) {
         AreaIdConfig<T> areaIdConfig = mAreaIdToAreaIdConfig.get(areaId);
         return areaIdConfig == null ? null : areaIdConfig.getMaxValue();
@@ -391,7 +376,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
      */
     @Deprecated
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public T getMinValue() {
         AreaIdConfig<T> areaIdConfig = mAreaIdToAreaIdConfig.get(0);
         return areaIdConfig == null ? null : areaIdConfig.getMinValue();
@@ -404,7 +388,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
      */
     @Deprecated
     @Nullable
-    @AddedInOrBefore(majorVersion = 33)
     public T getMaxValue() {
         AreaIdConfig<T> areaIdConfig = mAreaIdToAreaIdConfig.get(0);
         return areaIdConfig == null ? null : areaIdConfig.getMaxValue();
@@ -412,13 +395,11 @@ public final class CarPropertyConfig<T> implements Parcelable {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(mAccess);
         dest.writeInt(mAreaType);
@@ -459,7 +440,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
         }
     }
 
-    @AddedInOrBefore(majorVersion = 33)
     public static final Creator<CarPropertyConfig> CREATOR = new Creator<CarPropertyConfig>() {
         @Override
         public CarPropertyConfig createFromParcel(Parcel in) {
@@ -490,14 +470,14 @@ public final class CarPropertyConfig<T> implements Parcelable {
     }
 
     /**
-     * @deprecated This API is deprecated in favor of {@link
-     * android.car.hardware.property.AreaIdConfig} which allows properties to specify which enum
-     * values are supported. This API will be marked as {@code @removed} in the next API release and
-     * then fully removed in two API releases.
+     * Represents min/max value of car property.
      *
-     * <p>Represents min/max value of car property.
      * @param <T> The property type
      * @hide
+     * @deprecated This API is deprecated in favor of {@link
+     * android.car.hardware.property.AreaIdConfig} which allows properties to specify which enum
+     * values are supported. This API will be marked as {@code @removed} in the next major release
+     * and hard removed in the release after that.
      */
     @Deprecated
     public static class AreaConfig<T> implements Parcelable {
@@ -510,7 +490,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
             mMaxValue = maxValue;
         }
 
-        @AddedInOrBefore(majorVersion = 33)
         public static final Parcelable.Creator<AreaConfig<Object>> CREATOR =
                 getCreator(Object.class);
 
@@ -534,24 +513,20 @@ public final class CarPropertyConfig<T> implements Parcelable {
             mMaxValue = (T) in.readValue(getClass().getClassLoader());
         }
 
-        @AddedInOrBefore(majorVersion = 33)
         @Nullable public T getMinValue() {
             return mMinValue;
         }
 
-        @AddedInOrBefore(majorVersion = 33)
         @Nullable public T getMaxValue() {
             return mMaxValue;
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public int describeContents() {
             return 0;
         }
 
         @Override
-        @AddedInOrBefore(majorVersion = 33)
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeValue(mMinValue);
             dest.writeValue(mMaxValue);
@@ -571,9 +546,11 @@ public final class CarPropertyConfig<T> implements Parcelable {
      *
      * @return Builder<T>
      * @hide
+     * @deprecated marked as deprecated because clients should not have direct access to the
+     * CarPropertyConfig.Builder class
      */
+    @Deprecated
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public static <T> Builder<T> newBuilder(Class<T> type, int propertyId, int areaType,
                                             int areaCapacity) {
         return new Builder<>(areaType, propertyId, type);
@@ -586,19 +563,23 @@ public final class CarPropertyConfig<T> implements Parcelable {
      * @return Builder<T>
      * @hide
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static <T> Builder<T> newBuilder(Class<T> type, int propertyId, int areaType) {
         return new Builder<>(areaType, propertyId, type);
     }
 
 
     /**
+     * Builder for making new {@code CarPropertyConfig} objects.
+     *
      * @param <T>
      * @hide
-     * */
+     * @deprecated marked as deprecated because clients should not have direct access to the
+     * CarPropertyConfig.Builder class
+     */
+    @Deprecated
     @SystemApi
     public static class Builder<T> {
-        private int mAccess;
+        private int mAccess = VEHICLE_PROPERTY_ACCESS_NONE;
         private final int mAreaType;
         private int mChangeMode;
         private final ArrayList<Integer> mConfigArray = new ArrayList<>();
@@ -616,47 +597,61 @@ public final class CarPropertyConfig<T> implements Parcelable {
         }
 
         /**
-         * @deprecated - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
-         *
          * Add supported areas parameter to {@link CarPropertyConfig}
          *
+         * <p>This function uses the access set in the builder to define the area ID's access level.
+         * Make sure to call {@link CarPropertyConfig.Builder#setAccess(int)} before calling this
+         * function.
+         *
          * @return Builder<T>
+         * @removed - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
          */
         @Deprecated
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> addAreas(int[] areaIds) {
             for (int areaId : areaIds) {
-                mAreaIdConfigs.add(new AreaIdConfig.Builder<T>(areaId).build());
+                AreaIdConfig.Builder<T> areaIdConfigBuilder = Flags.areaIdConfigAccess()
+                        ? new AreaIdConfig.Builder<T>(mAccess, areaId)
+                        : new AreaIdConfig.Builder<T>(areaId);
+                mAreaIdConfigs.add(areaIdConfigBuilder.build());
             }
             return this;
         }
 
         /**
-         * @deprecated - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
-         *
          * Add {@code areaId} to {@link CarPropertyConfig}
          *
+         * <p>This function uses the access set in the builder to define the area's access level.
+         * Make sure to call {@link CarPropertyConfig.Builder#setAccess(int)} before calling this
+         * function.
+         *
          * @return Builder<T>
+         * @removed - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
          */
         @Deprecated
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> addArea(int areaId) {
-            mAreaIdConfigs.add(new AreaIdConfig.Builder<T>(areaId).build());
+            AreaIdConfig.Builder<T> areaIdConfigBuilder = Flags.areaIdConfigAccess()
+                    ? new AreaIdConfig.Builder<T>(mAccess, areaId)
+                    : new AreaIdConfig.Builder<T>(areaId);
+            mAreaIdConfigs.add(areaIdConfigBuilder.build());
             return this;
         }
 
         /**
-         * @deprecated - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
-         *
          * Add {@code areaConfig} to {@link CarPropertyConfig}
          *
+         * <p>This function uses the access set in the builder to define the area's access level.
+         * Make sure to call {@link CarPropertyConfig.Builder#setAccess(int)} before calling this
+         * function.
+         *
          * @return Builder<T>
+         * @removed - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
          */
         @Deprecated
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> addAreaConfig(int areaId, T min, T max) {
-            mAreaIdConfigs.add(new AreaIdConfig.Builder<T>(areaId).setMinValue(min).setMaxValue(
-                    max).build());
+            AreaIdConfig.Builder<T> areaIdConfigBuilder = Flags.areaIdConfigAccess()
+                    ? new AreaIdConfig.Builder<T>(mAccess, areaId)
+                    : new AreaIdConfig.Builder<T>(areaId);
+            mAreaIdConfigs.add(areaIdConfigBuilder.setMinValue(min).setMaxValue(max).build());
             return this;
         }
 
@@ -666,8 +661,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
          * @return Builder<T>
          */
         @NonNull
-        @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-                minPlatformVersion = ApiRequirements.PlatformVersion.TIRAMISU_0)
         public Builder<T> addAreaIdConfig(@NonNull AreaIdConfig<T> areaIdConfig) {
             mAreaIdConfigs.add(areaIdConfig);
             return this;
@@ -679,7 +672,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
          *
          * @return Builder<T>
          */
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> setAccess(int access) {
             mAccess = access;
             return this;
@@ -690,7 +682,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
          *
          * @return Builder<T>
          */
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> setChangeMode(int changeMode) {
             mChangeMode = changeMode;
             return this;
@@ -701,7 +692,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
          *
          * @return Builder<T>
          */
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> setConfigArray(ArrayList<Integer> configArray) {
             mConfigArray.clear();
             mConfigArray.addAll(configArray);
@@ -713,7 +703,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
          *
          * @return Builder<T>
          */
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> setConfigString(String configString) {
             mConfigString = configString;
             return this;
@@ -724,7 +713,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
          *
          * @return Builder<T>
          */
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> setMaxSampleRate(float maxSampleRate) {
             mMaxSampleRate = maxSampleRate;
             return this;
@@ -735,7 +723,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
          *
          * @return Builder<T>
          */
-        @AddedInOrBefore(majorVersion = 33)
         public Builder<T> setMinSampleRate(float minSampleRate) {
             mMinSampleRate = minSampleRate;
             return this;
@@ -744,7 +731,6 @@ public final class CarPropertyConfig<T> implements Parcelable {
         /**
          * Builds a new {@link CarPropertyConfig}.
          */
-        @AddedInOrBefore(majorVersion = 33)
         public CarPropertyConfig<T> build() {
             return new CarPropertyConfig<>(mAccess, mAreaType, mChangeMode, mConfigArray,
                                            mConfigString, mMaxSampleRate, mMinSampleRate,

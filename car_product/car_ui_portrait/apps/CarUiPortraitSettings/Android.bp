@@ -32,7 +32,7 @@ android_app {
     certificate: "platform",
 
     optimize: {
-        enabled: false,
+        proguard_flags_files: [":CarSettings_proguard_flags"],
     },
 
     privileged: true,
@@ -44,10 +44,4 @@ android_app {
     required: ["allowed_privapp_com.android.car.settings"],
 
     dxflags: ["--multi-dex"],
-
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }

@@ -21,15 +21,20 @@ import static android.car.media.CarVolumeGroupEvent.EVENT_TYPE_VOLUME_GAIN_INDEX
 import static com.android.car.audio.GainBuilder.DEFAULT_GAIN;
 import static com.android.car.audio.GainBuilder.MAX_GAIN;
 import static com.android.car.audio.GainBuilder.STEP_SIZE;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import android.car.media.CarVolumeGroupInfo;
+import android.media.AudioAttributes;
 import android.util.ArrayMap;
 import android.util.SparseArray;
+
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import com.google.common.collect.ImmutableList;
 
@@ -40,8 +45,13 @@ import java.util.Map;
 /**
  * Class to build mock volume group
  */
+@ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
 public final class VolumeGroupBuilder {
 
+    private static final int TEST_MIN_VOLUME = 0;
+    private static final int TEST_MAX_VOLUME = MAX_GAIN / STEP_SIZE;
+    private static final int TEST_MIN_ACTIVATION_VOLUME = 0;
+    private static final int TEST_MAX_ACTIVATION_VOLUME = MAX_GAIN / STEP_SIZE;
     private SparseArray<String> mDeviceAddresses = new SparseArray<>();
     private CarAudioDeviceInfo mCarAudioDeviceInfoMock;
     private ArrayMap<String, List<Integer>> mUsagesDeviceAddresses = new ArrayMap<>();
@@ -49,6 +59,7 @@ public final class VolumeGroupBuilder {
     private boolean mIsMuted;
     private int mZoneId;
     private int mId;
+    private boolean mIsActive = true;
 
     /**
      * Add name for volume group
@@ -105,6 +116,14 @@ public final class VolumeGroupBuilder {
     }
 
     /**
+     * Sets is active for volume group
+     */
+    public VolumeGroupBuilder setIsActive(boolean isActive) {
+        mIsActive = isActive;
+        return this;
+    }
+
+    /**
      * Builds car volume group
      */
     public CarVolumeGroup build() {
@@ -150,12 +169,29 @@ public final class VolumeGroupBuilder {
         when(carVolumeGroup.getId()).thenReturn(mId);
 
         when(carVolumeGroup.getCarVolumeGroupInfo()).thenReturn(new CarVolumeGroupInfo.Builder(
-                "Name: " + mName, mZoneId, mId).setMinVolumeGainIndex(0)
-                .setMaxVolumeGainIndex(MAX_GAIN / STEP_SIZE)
-                .setVolumeGainIndex(DEFAULT_GAIN / STEP_SIZE).build());
+                "Name: " + mName, mZoneId, mId).setMinVolumeGainIndex(TEST_MIN_VOLUME)
+                .setMaxVolumeGainIndex(TEST_MAX_VOLUME)
+                .setVolumeGainIndex(DEFAULT_GAIN / STEP_SIZE)
+                .setMinActivationVolumeGainIndex(TEST_MIN_ACTIVATION_VOLUME)
+                .setMaxActivationVolumeGainIndex(TEST_MAX_ACTIVATION_VOLUME).build());
 
         when(carVolumeGroup.calculateNewGainStageFromDeviceInfos())
                 .thenReturn(EVENT_TYPE_VOLUME_GAIN_INDEX_CHANGED);
+
+        when(carVolumeGroup.isActive()).thenReturn(mIsActive);
+
+        when(carVolumeGroup.audioDevicesAdded(anyList())).thenReturn(!mIsActive);
+        when(carVolumeGroup.audioDevicesRemoved(anyList())).thenReturn(!mIsActive);
+        when(carVolumeGroup.validateDeviceTypes(any())).thenReturn(true);
+
+        for (int index = 0; index < mUsagesDeviceAddresses.size(); index++) {
+            List<Integer> usagesForAddress = mUsagesDeviceAddresses.valueAt(index);
+            for (int usageId = 0; usageId < usagesForAddress.size(); usageId++) {
+                AudioAttributes audioAttributes = CarAudioContext.getAudioAttributeFromUsage(
+                        usagesForAddress.get(usageId));
+                when(carVolumeGroup.hasAudioAttributes(audioAttributes)).thenReturn(true);
+            }
+        }
 
         return carVolumeGroup;
     }

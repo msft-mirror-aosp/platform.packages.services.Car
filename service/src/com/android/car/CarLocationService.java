@@ -46,6 +46,7 @@ import android.os.UserManager;
 import android.util.AtomicFile;
 import android.util.JsonReader;
 import android.util.JsonWriter;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -143,22 +144,32 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
 
                     boolean isOn =
                             accumulatedPolicy.isComponentEnabled(PowerComponent.LOCATION);
-                    if (isOn) {
-                        logd("Resume GNSS requests.");
-                        locationManager.setAutomotiveGnssSuspended(false);
-                        if (locationManager.isAutomotiveGnssSuspended()) {
-                            Slogf.w(TAG,
-                                    "Failed - isAutomotiveGnssSuspended is true. "
-                                    + "GNSS should NOT be suspended.");
+                    try {
+                        if (isOn) {
+                            logd("Resume GNSS requests.");
+                            locationManager.setAutomotiveGnssSuspended(false);
+                            if (locationManager.isAutomotiveGnssSuspended()) {
+                                Slogf.w(
+                                        TAG,
+                                        "Failed - isAutomotiveGnssSuspended is true. "
+                                                + "GNSS should NOT be suspended.");
+                            }
+                        } else {
+                            logd("Suspend GNSS requests.");
+                            locationManager.setAutomotiveGnssSuspended(true);
+                            if (!locationManager.isAutomotiveGnssSuspended()) {
+                                Slogf.w(
+                                        TAG,
+                                        "Failed - isAutomotiveGnssSuspended is false. "
+                                                + "GNSS should be suspended.");
+                            }
                         }
-                    } else {
-                        logd("Suspend GNSS requests.");
-                        locationManager.setAutomotiveGnssSuspended(true);
-                        if (!locationManager.isAutomotiveGnssSuspended()) {
-                            Slogf.w(TAG,
-                                    "Failed - isAutomotiveGnssSuspended is false. "
-                                    + "GNSS should be suspended.");
-                        }
+                    } catch (NullPointerException e) {
+                        Slogf.w(
+                                TAG,
+                                "The device might not support GNSS thus GNSSManagerService may be"
+                                        + " null",
+                                e);
                     }
                 }
     };
@@ -313,6 +324,10 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
         writer.printf("Context: %s\n", mContext);
         writer.printf("MAX_LOCATION_INJECTION_ATTEMPTS: %d\n", MAX_LOCATION_INJECTION_ATTEMPTS);
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     @Override
     public void onStateChanged(int state, CompletablePowerStateChangeFuture future) {
@@ -601,7 +616,7 @@ public class CarLocationService extends BroadcastReceiver implements CarServiceB
             logd("Failed to inject stored location on attempt %s.", attemptCount);
             asyncOperation(() -> {
                 injectLocation(location, attemptCount + 1);
-            }, 200 * attemptCount);
+            }, 200L * attemptCount);
         } else {
             logd("No location injected.");
         }

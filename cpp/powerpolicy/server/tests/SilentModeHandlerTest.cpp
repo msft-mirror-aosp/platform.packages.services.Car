@@ -63,9 +63,11 @@ public:
     ~SilentModeHandlerPeer() { mHandler->stopMonitoringSilentModeHwState(); }
 
     void init() {
+        mHandler->init();
+        mHandler->stopMonitoringSilentModeHwState();
         mHandler->mSilentModeHwStateFilename = mFileSilentModeHwState.path;
         mHandler->mKernelSilentModeFilename = mFileKernelSilentMode.path;
-        mHandler->init();
+        mHandler->startMonitoringSilentModeHwState();
     }
 
     void injectBootReason(const std::string& bootReason) { mHandler->mBootReason = bootReason; }
@@ -84,6 +86,10 @@ public:
     }
 
     void updateKernelSilentMode(bool isSilent) { mHandler->updateKernelSilentMode(isSilent); }
+
+    ScopedAStatus setSilentMode(const std::string& silentMode) {
+        return mHandler->setSilentMode(silentMode);
+    }
 
 private:
     SilentModeHandler* mHandler;
@@ -104,6 +110,8 @@ public:
                 (override));
     MOCK_METHOD(ScopedAStatus, unregisterPowerPolicyChangeCallback,
                 (const std::shared_ptr<ICarPowerPolicyChangeCallback>& callback), (override));
+    MOCK_METHOD(ScopedAStatus, applyPowerPolicy, (const std::string& policyId), (override));
+    MOCK_METHOD(ScopedAStatus, setPowerPolicyGroup, (const std::string& policyGroupId), (override));
     MOCK_METHOD(void, notifySilentModeChange, (const bool silent), (override));
 };
 
@@ -162,6 +170,71 @@ TEST_F(SilentModeHandlerTest, TestUpdateKernelSilentMode) {
 
     ASSERT_EQ(handlerPeer.readKernelSilentMode(), kValueNonSilentMode)
             << "Kernel silent mode file should have 0";
+}
+
+TEST_F(SilentModeHandlerTest, TestSetSilentModeForForcedSilent) {
+    SilentModeHandler handler(carPowerPolicyServer.get());
+    internal::SilentModeHandlerPeer handlerPeer(&handler);
+    handlerPeer.injectBootReason(kBootReasonNormal);
+    handlerPeer.init();
+
+    ScopedAStatus status = handlerPeer.setSilentMode("forced-silent");
+
+    ASSERT_TRUE(status.isOk()) << "setSilentMode(\"forced-silent\") should return OK";
+    ASSERT_TRUE(handler.isSilentMode())
+            << "When in forced-silent, silent mode should be set to true";
+
+    handlerPeer.updateSilentModeHwState(/*isSilent=*/false);
+
+    ASSERT_TRUE(handler.isSilentMode())
+            << "When in forced-silent, silent mode should not change by HW state";
+}
+
+TEST_F(SilentModeHandlerTest, TestSetSilentModeForForcedNonSilent) {
+    SilentModeHandler handler(carPowerPolicyServer.get());
+    internal::SilentModeHandlerPeer handlerPeer(&handler);
+    handlerPeer.injectBootReason(kBootReasonNormal);
+    handlerPeer.init();
+
+    ScopedAStatus status = handlerPeer.setSilentMode("forced-non-silent");
+
+    ASSERT_TRUE(status.isOk()) << "setSilentMode(\"forced-non-silent\") should return OK";
+    ASSERT_FALSE(handler.isSilentMode())
+            << "When in forced-non-silent, silent mode should be set to false";
+
+    handlerPeer.updateSilentModeHwState(/*isSilent=*/true);
+
+    ASSERT_FALSE(handler.isSilentMode())
+            << "When in forced-non-silent, silent mode should not change by HW state";
+}
+
+TEST_F(SilentModeHandlerTest, TestSetSilentModeForNonForcedSilent) {
+    SilentModeHandler handler(carPowerPolicyServer.get());
+    internal::SilentModeHandlerPeer handlerPeer(&handler);
+    handlerPeer.injectBootReason(kBootReasonNormal);
+    handlerPeer.init();
+
+    ScopedAStatus status = handlerPeer.setSilentMode("forced-non-silent");
+    status = handlerPeer.setSilentMode("non-forced-silent-mode");
+
+    ASSERT_TRUE(status.isOk()) << "setSilentMode(\"non-forced-silent-mode\") should return OK";
+    ASSERT_FALSE(handler.isSilentMode())
+            << "Changing to non-forced mode should keep the current silent mode";
+
+    handlerPeer.updateSilentModeHwState(/*isSilent=*/true);
+
+    ASSERT_FALSE(handler.isSilentMode())
+            << "When in non-forced-silent, silent mode should change by HW state";
+}
+
+TEST_F(SilentModeHandlerTest, TestSetSilentModeWithErrorMode) {
+    SilentModeHandler handler(carPowerPolicyServer.get());
+    internal::SilentModeHandlerPeer handlerPeer(&handler);
+    handlerPeer.injectBootReason(kBootReasonNormal);
+    handlerPeer.init();
+
+    ScopedAStatus status = handlerPeer.setSilentMode("error-silent-mode");
+    ASSERT_FALSE(status.isOk()) << "setSilentMode with an erroneous mode should not return OK";
 }
 
 }  // namespace powerpolicy

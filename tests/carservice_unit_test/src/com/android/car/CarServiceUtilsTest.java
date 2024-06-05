@@ -26,6 +26,7 @@ import static android.os.Process.INVALID_UID;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -44,6 +45,7 @@ import android.content.res.Resources;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.os.Process;
 import android.text.TextUtils;
+import android.util.ArraySet;
 
 import com.android.car.util.TransitionLog;
 
@@ -54,6 +56,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoSession;
 
+import java.util.List;
 import java.util.UUID;
 
 public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
@@ -81,6 +84,10 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
 
     @Mock
     private PackageManager mPm;
+
+    public CarServiceUtilsTest() {
+        super(TAG);
+    }
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
@@ -124,7 +131,6 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testStartSystemUiForUser() {
         int userId = NON_CURRENT_USER_ID;
-        mockContextCreateContextAsUser(mMockContext, mMockUserContext, userId);
         Resources resources = mock(Resources.class);
         String systemUiComponent = "test.systemui/test.systemui.TestSystemUIService";
         when(resources.getString(com.android.internal.R.string.config_systemUIServiceComponent))
@@ -134,7 +140,7 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
 
         CarServiceUtils.startSystemUiForUser(mMockContext, userId);
 
-        verify(mMockUserContext).startService(intentCaptor.capture());
+        verify(mMockContext).bindServiceAsUser(intentCaptor.capture(), any(), anyInt(), any());
         assertThat(intentCaptor.getValue().getComponent()).isEqualTo(
                 ComponentName.unflattenFromString(systemUiComponent));
     }
@@ -264,6 +270,7 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    @ExpectWtf
     public void testIsEventOfType_returnsFalse() {
         assertThat(CarServiceUtils.isEventOfType(TAG, USER_STARTING_EVENT,
                 USER_LIFECYCLE_EVENT_TYPE_SWITCHING)).isFalse();
@@ -276,11 +283,13 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    @ExpectWtf
     public void testIsEventAnyOfTypes_emptyEventTypes_returnsFalse() {
         assertThat(CarServiceUtils.isEventAnyOfTypes(TAG, USER_STARTING_EVENT)).isFalse();
     }
 
     @Test
+    @ExpectWtf
     public void testIsEventAnyOfTypes_returnsFalse() {
         assertThat(CarServiceUtils.isEventAnyOfTypes(TAG, USER_STARTING_EVENT,
                 USER_LIFECYCLE_EVENT_TYPE_SWITCHING, USER_LIFECYCLE_EVENT_TYPE_STOPPING)).isFalse();
@@ -327,6 +336,26 @@ public class CarServiceUtilsTest extends AbstractExtendedMockitoTestCase {
 
         expectWithMessage("Null values exception").that(thrown).hasMessageThat()
                 .contains("Values to convert to array set");
+    }
+
+    @Test
+    public void toIntArray() {
+        List<Integer> values = List.of(1, 2, 3);
+        ArraySet<Integer> set = new ArraySet<>(values);
+
+        expectWithMessage("Array converted from int array set")
+                .that(CarServiceUtils.toIntArray(set)).asList()
+                .containsExactlyElementsIn(values);
+    }
+
+    @Test
+    public void toIntArray_fails() {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
+                CarServiceUtils.toIntArray(/* set= */ (ArraySet<Integer>) null)
+        );
+
+        expectWithMessage("Null int array set exception").that(thrown).hasMessageThat()
+                .contains("Int array set to converted to array must not be null");
     }
 
     @Test

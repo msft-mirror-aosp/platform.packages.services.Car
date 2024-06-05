@@ -26,7 +26,6 @@ import static android.os.Process.INVALID_UID;
 
 import static com.android.car.CarLog.TAG_AM;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
@@ -399,17 +398,11 @@ final class VendorServiceController implements UserLifecycleListener {
         // Start/bind service for system user.
         startOrBindServicesForUser(UserHandle.SYSTEM, /* forPostUnlock= */ null);
 
-        if (!isPlatformVersionAtLeastU()) {
-            // `user=visible` is not supported before U. Just need to handle the current user.
-            startOrBindServicesForUser(UserHandle.of(ActivityManager.getCurrentUser()),
-                    /* forPostUnlock= */ null);
-        } else {
-            // Start/bind service for all visible users.
-            Set<UserHandle> visibleUsers = mUserManager.getVisibleUsers();
-            for (Iterator<UserHandle> iterator = visibleUsers.iterator(); iterator.hasNext(); ) {
-                UserHandle userHandle = iterator.next();
-                startOrBindServicesForUser(userHandle, /* forPostUnlock= */ null);
-            }
+        // Start/bind service for all visible users.
+        Set<UserHandle> visibleUsers = mUserManager.getVisibleUsers();
+        for (Iterator<UserHandle> iterator = visibleUsers.iterator(); iterator.hasNext();) {
+            UserHandle userHandle = iterator.next();
+            startOrBindServicesForUser(userHandle, /* forPostUnlock= */ null);
         }
     }
 
@@ -465,15 +458,6 @@ final class VendorServiceController implements UserLifecycleListener {
                 continue;
             }
             VendorServiceInfo service = VendorServiceInfo.parse(rawServiceInfo);
-            // `user=visible` and `user=backgroundVisible` are not supported before U.
-            // Log an error and ignore the service.
-            if ((service.isVisibleUserService() || service.isBackgroundVisibleUserService())
-                    && !service.isAllUserService() && !isPlatformVersionAtLeastU()) {
-                Slogf.e(TAG, "user=visible and user=backgroundVisible are not supported in "
-                        + "this platform version. %s is ignored. Check your config.xml file.",
-                        service.toShortString());
-                continue;
-            }
             mVendorServiceInfos.add(service);
             if (DBG) {
                 Slogf.i(TAG, "Registered vendor service: " + service);
@@ -490,9 +474,8 @@ final class VendorServiceController implements UserLifecycleListener {
      */
     @VisibleForTesting
     public static final class VendorServiceConnection implements ServiceConnection, Executor {
-        private static final int REBIND_DELAY_MS = 5000;
-        private static final int MAX_RECENT_FAILURES = 5;
-        private static final int FAILURE_COUNTER_RESET_TIMEOUT = 5 * 60 * 1000; // 5 min.
+        private static final int INITIAL_REBIND_DELAY_MS = 4000; // 4 sec.
+        private static final int DEFAULT_FAILURE_COUNTER_RESET_TIMEOUT = 5 * 60 * 1000; // 5 min.
         private static final int MSG_REBIND = 0;
         private static final int MSG_FAILURE_COUNTER_RESET = 1;
 
@@ -553,8 +536,13 @@ final class VendorServiceController implements UserLifecycleListener {
 
             Intent intent = mVendorServiceInfo.getIntent();
             if (mVendorServiceInfo.shouldBeBound()) {
-                return mUserContext.bindService(intent, BIND_AUTO_CREATE, /* executor= */ this,
-                        /* conn= */ this);
+                boolean canBind = mUserContext.bindService(intent, BIND_AUTO_CREATE,
+                        /* executor= */ this, /* conn= */ this);
+                if (!canBind) {
+                    // Still need to unbind when an attempt to bind fails.
+                    unbindService();
+                }
+                return canBind;
             } else if (mVendorServiceInfo.shouldBeStartedInForeground()) {
                 mStarted = mUserContext.startForegroundService(intent) != null;
                 return mStarted;
@@ -571,10 +559,14 @@ final class VendorServiceController implements UserLifecycleListener {
                 mUserContext.stopService(mVendorServiceInfo.getIntent());
                 mStarted = false;
             } else if (mBound) {
-                if (DBG) Slogf.d(TAG, "Unbinding %s", this);
-                mUserContext.unbindService(this);
+                unbindService();
                 mBound = false;
             }
+        }
+
+        private void unbindService() {
+            if (DBG) Slogf.d(TAG, "Unbinding %s", this);
+            mUserContext.unbindService(this);
         }
 
         @Override // From Executor
@@ -595,11 +587,11 @@ final class VendorServiceController implements UserLifecycleListener {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            mBound = false;
             if (DBG) {
                 Slogf.d(TAG, "onServiceDisconnected, name: " + name);
             }
-            tryToRebind();
+            // A binding is persistent, and the service will be reconnected by the binder.
+            // Therefore, there is no need to attempt to rebind or reconnect here.
         }
 
         @Override
@@ -608,7 +600,19 @@ final class VendorServiceController implements UserLifecycleListener {
             if (DBG) {
                 Slogf.d(TAG, "onBindingDied, name: " + name);
             }
+            // When a binding died, first unbind the connection and then rebind.
+            unbindService();
             tryToRebind();
+        }
+
+        @Override
+        public void onNullBinding(ComponentName name) {
+            // Null binding means that the attempted service will never become usable.
+            if (DBG) {
+                Slogf.d(TAG, "onNullBinding, name: " + name);
+            }
+            // Still need to unbind to release resource associated with the connection.
+            unbindService();
         }
 
         private void tryToRebind() {
@@ -627,8 +631,13 @@ final class VendorServiceController implements UserLifecycleListener {
             int currentUserId = ActivityManager.getCurrentUser();
             if (isUserInScope(mUser.getIdentifier(), mVendorServiceInfo, mCarUserService,
                     currentUserId)) {
+                // Double the delay after each failure.
+                int rebindDelay = INITIAL_REBIND_DELAY_MS * (1 << mRecentFailures);
+                Slogf.i(TAG, "tryToRebind(): after " + mRecentFailures + " recent failures,"
+                        + " trying to rebind service " + mVendorServiceInfo.toShortString()
+                        + " for user " + mUser.getIdentifier() + " in " + rebindDelay + "ms");
                 mFailureHandler.sendMessageDelayed(
-                        mFailureHandler.obtainMessage(MSG_REBIND), REBIND_DELAY_MS);
+                        mFailureHandler.obtainMessage(MSG_REBIND), rebindDelay);
                 scheduleResetFailureCounter();
             } else {
                 Slogf.w(TAG, "No need to rebind anymore as the service no longer satisfies "
@@ -638,22 +647,34 @@ final class VendorServiceController implements UserLifecycleListener {
 
         private void scheduleResetFailureCounter() {
             mFailureHandler.removeMessages(MSG_FAILURE_COUNTER_RESET);
+            // Reset the failure counter after the timeout. We take the max, to ensure
+            // that we are not resetting the counter before exhausting all retries.
+            int failureCounterResetTimeout =
+                    INITIAL_REBIND_DELAY_MS * (1 << (mVendorServiceInfo.getMaxRetries() + 1));
+            failureCounterResetTimeout =
+                    failureCounterResetTimeout > DEFAULT_FAILURE_COUNTER_RESET_TIMEOUT
+                            ? failureCounterResetTimeout : DEFAULT_FAILURE_COUNTER_RESET_TIMEOUT;
             mFailureHandler.sendMessageDelayed(
                     mFailureHandler.obtainMessage(MSG_FAILURE_COUNTER_RESET),
-                    FAILURE_COUNTER_RESET_TIMEOUT);
+                    failureCounterResetTimeout);
         }
 
         private void handleFailureMessage(Message msg) {
             switch (msg.what) {
                 case MSG_REBIND: {
-                    if (mRecentFailures < MAX_RECENT_FAILURES && !mBound) {
+                    if (mBound) {
+                        Slogf.d(TAG, "Service " + mVendorServiceInfo.toShortString()
+                                + " is already bound. Ignoring MSG_REBIND");
+                    } else if (mRecentFailures < mVendorServiceInfo.getMaxRetries()) {
                         Slogf.i(TAG, "Attempting to rebind to the service "
-                                + mVendorServiceInfo.toShortString());
+                                + mVendorServiceInfo.toShortString() + " (" + (mRecentFailures + 1)
+                                + " out of " + mVendorServiceInfo.getMaxRetries() + " max tries)");
                         ++mRecentFailures;
                         startOrBindService();
                     } else {
-                        Slogf.w(TAG, "Exceeded maximum number of attempts to rebind"
-                                + "to the service " + mVendorServiceInfo.toShortString());
+                        Slogf.w(TAG, "Exceeded maximum number of attempts ("
+                                + mVendorServiceInfo.getMaxRetries() + ") to rebind to the service "
+                                + mVendorServiceInfo.toShortString());
                     }
                     break;
                 }

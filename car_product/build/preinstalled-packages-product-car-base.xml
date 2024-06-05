@@ -272,6 +272,12 @@
         <install-in user-type="SYSTEM" />
     </install-in-user-type>
 
+    <!-- RRO package to make systembars persistent. -->
+    <install-in-user-type package="com.android.systemui.rro.persistent">
+        <install-in user-type="SYSTEM" />
+        <install-in user-type="FULL" />
+    </install-in-user-type>
+
  <!--
    Apps that initially were marked as FULL only but are actually
    required on SYSTEM user as well.
@@ -322,9 +328,6 @@
     <install-in-user-type package="com.android.stk">
         <install-in user-type="FULL" />
     </install-in-user-type>
-    <install-in-user-type package="com.android.dreams.phototable">
-        <install-in user-type="FULL" />
-    </install-in-user-type>
     <install-in-user-type package="com.android.carrierdefaultapp">
         <install-in user-type="FULL" />
     </install-in-user-type>
@@ -341,9 +344,6 @@
         <install-in user-type="FULL" />
     </install-in-user-type>
     <install-in-user-type package="com.android.simappdialog">
-        <install-in user-type="FULL" />
-    </install-in-user-type>
-    <install-in-user-type package="com.android.dreams.basic">
         <install-in user-type="FULL" />
     </install-in-user-type>
     <install-in-user-type package="com.android.companiondevicemanager">
@@ -467,6 +467,10 @@
     </install-in-user-type>
     <!-- RRO package to be applied when the system boots up for secondary user-->
     <install-in-user-type package="com.android.systemui.md.passenger.car.rro">
+        <install-in user-type="FULL" />
+    </install-in-user-type>
+    <!-- Required by RotaryService-->
+    <install-in-user-type package="com.android.car.rotary">
         <install-in user-type="FULL" />
     </install-in-user-type>
 </config>

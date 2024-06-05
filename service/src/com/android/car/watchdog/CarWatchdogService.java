@@ -16,7 +16,6 @@
 
 package com.android.car.watchdog;
 
-import static android.car.PlatformVersion.VERSION_CODES;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -75,6 +74,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.ArraySet;
 import android.util.Log;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
@@ -203,6 +203,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                     mWatchdogPerfHandler.processPackageChangedIntent(intent);
                     break;
                 }
+                default:
+                    Slogf.i(TAG, "Ignoring unknown intent %s", intent);
             }
         }
     };
@@ -279,15 +281,28 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     @VisibleForTesting
     public CarWatchdogService(Context context, Context carServiceBuiltinPackageContext,
             WatchdogStorage watchdogStorage, TimeSource timeSource) {
+        this(context, carServiceBuiltinPackageContext, watchdogStorage,
+                timeSource, /*watchdogProcessHandler=*/ null, /*watchdogPerfHandler=*/ null);
+    }
+
+    @VisibleForTesting
+    CarWatchdogService(Context context, Context carServiceBuiltinPackageContext,
+            WatchdogStorage watchdogStorage, TimeSource timeSource,
+            WatchdogProcessHandler watchdogProcessHandler,
+            WatchdogPerfHandler watchdogPerfHandler) {
         mContext = context;
         mWatchdogStorage = watchdogStorage;
         mPackageInfoHandler = new PackageInfoHandler(mContext.getPackageManager());
         mCarWatchdogDaemonHelper = new CarWatchdogDaemonHelper(TAG_WATCHDOG);
         mWatchdogServiceForSystem = new ICarWatchdogServiceForSystemImpl(this);
-        mWatchdogProcessHandler = new WatchdogProcessHandler(mWatchdogServiceForSystem,
-                mCarWatchdogDaemonHelper);
-        mWatchdogPerfHandler = new WatchdogPerfHandler(mContext, carServiceBuiltinPackageContext,
-                mCarWatchdogDaemonHelper, mPackageInfoHandler, mWatchdogStorage, timeSource);
+        mWatchdogProcessHandler = watchdogProcessHandler != null ? watchdogProcessHandler
+                : new WatchdogProcessHandler(mWatchdogServiceForSystem, mCarWatchdogDaemonHelper,
+                        mPackageInfoHandler);
+        mWatchdogPerfHandler =
+                watchdogPerfHandler != null ? watchdogPerfHandler : new WatchdogPerfHandler(
+                        mContext, carServiceBuiltinPackageContext,
+                        mCarWatchdogDaemonHelper, mPackageInfoHandler, mWatchdogStorage,
+                        timeSource);
         mConnectionListener = (isConnected) -> {
             mWatchdogPerfHandler.onDaemonConnectionChange(isConnected);
             synchronized (mLock) {
@@ -306,6 +321,10 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
 
     @Override
     public void init() {
+        // TODO(b/266008677): The daemon reads the sendResourceUsageStatsEnabled sysprop at the
+        // moment the CarWatchdogService connects to it. Therefore, the property must be set by
+        // CarWatchdogService before connecting with the CarWatchdog daemon. Set the property to
+        // true to enable the sending of resource usage stats from the daemon.
         mWatchdogProcessHandler.init();
         mWatchdogPerfHandler.init();
         subscribePowerManagementService();
@@ -343,6 +362,16 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         mWatchdogProcessHandler.dump(writer);
         mWatchdogPerfHandler.dump(writer);
         writer.decreaseIndent();
+    }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {
+        synchronized (mLock) {
+            proto.write(CarWatchdogDumpProto.CURRENT_GARAGE_MODE, mCurrentGarageMode);
+        }
+        mWatchdogProcessHandler.dumpProto(proto);
+        mWatchdogPerfHandler.dumpProto(proto);
     }
 
     /**
@@ -592,11 +621,6 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     }
 
     private void notifyPowerCycleChange(@PowerCycle int powerCycle) {
-        // TODO(b/236876940): Change version check to TIRAMISU_2 when cherry picking to T-QPR2.
-        if (!Car.getPlatformVersion().isAtLeast(VERSION_CODES.UPSIDE_DOWN_CAKE_0)
-                && powerCycle == PowerCycle.POWER_CYCLE_SUSPEND_EXIT) {
-            return;
-        }
         try {
             mCarWatchdogDaemonHelper.notifySystemStateChange(
                     StateType.POWER_CYCLE, powerCycle, MISSING_ARG_VALUE);
@@ -728,11 +752,6 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                     USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) {
                 return;
             }
-            if (!Car.getPlatformVersion().isAtLeast(VERSION_CODES.TIRAMISU_1)
-                    && !isEventAnyOfTypes(TAG, event,
-                    USER_LIFECYCLE_EVENT_TYPE_STARTING, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) {
-                return;
-            }
 
             int userId = event.getUserHandle().getIdentifier();
             int userState;
@@ -820,6 +839,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             // ON covers resume.
             case CarPowerManager.STATE_ON:
                 return PowerCycle.POWER_CYCLE_RESUME;
+            default:
+                Slogf.e(TAG, "Invalid power state: %d", powerState);
         }
         return -1;
     }
@@ -830,6 +851,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 return "GARAGE_MODE_OFF";
             case GarageMode.GARAGE_MODE_ON:
                 return "GARAGE_MODE_ON";
+            default:
+                Slogf.e(TAG, "Invalid garage mode: %d", garageMode);
         }
         return "INVALID";
     }

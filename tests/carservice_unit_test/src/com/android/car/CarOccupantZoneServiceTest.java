@@ -269,12 +269,11 @@ public class CarOccupantZoneServiceTest {
         doReturn(VehicleAreaSeat.SEAT_ROW_1_LEFT).when(mService).getDriverSeat();
         doReturn(CURRENT_USER).when(mService).getCurrentUser();
         doAnswer(invocation -> {
-            UserHandle user = (UserHandle) invocation.getArgument(0);
-            int userId = user.getIdentifier();
+            int userId = (Integer) invocation.getArgument(0);
             boolean visible = mVisibleUsers.indexOf(userId) >= 0;
             Log.i(TAG, "isUserVisible for user:" + userId + " result:" + visible);
             return visible;
-        }).when(mService).isUserVisible(any());
+        }).when(mCarUserService).isUserVisible(anyInt());
 
         Car car = new Car(mContext, /* service= */ null, /* handler= */ null);
         mManager = new CarOccupantZoneManager(car, mService);
@@ -397,12 +396,11 @@ public class CarOccupantZoneServiceTest {
         spyOn(mService);
         mVisibleUsers.addAll(new int[]{ PROFILE_USER1, PROFILE_USER2 });
         doAnswer(invocation -> {
-            UserHandle user = (UserHandle) invocation.getArgument(0);
-            int userId = user.getIdentifier();
+            int userId = (Integer) invocation.getArgument(0);
             boolean visible = mVisibleUsers.indexOf(userId) >= 0;
             Log.i(TAG, "isUserVisible for user:" + userId + " result:" + visible);
             return visible;
-        }).when(mService).isUserVisible(any());
+        }).when(mCarUserService).isUserVisible(anyInt());
         doReturn(VehicleAreaSeat.SEAT_ROW_1_LEFT).when(mService).getDriverSeat();
         doReturn(CURRENT_USER).when(mService).getCurrentUser();
         LinkedList<UserHandle> profileUsers = new LinkedList<>();
@@ -919,6 +917,7 @@ public class CarOccupantZoneServiceTest {
                 "occupantZoneId=0,occupantType=DRIVER,seatRow=0,seatSide=driver", // wrong row
                 "occupantZoneId=0,occupantType=DRIVER,seatRow=1,seatSide=wrongSide"
         };
+        mService.init();
 
         String[] zoneConfig = new String[1];
         when(mResources.getStringArray(R.array.config_occupant_zones))
@@ -937,6 +936,7 @@ public class CarOccupantZoneServiceTest {
                 "displayPort=10,displayType=Unknown,occupantZoneId=0",
                 "displayPort=10,displayType=MAIN,occupantZoneId=100" // wrong zone id
         };
+        mService.init();
 
         String[] displayConfig = new String[1];
         when(mResources.getStringArray(R.array.config_occupant_display_mapping))
@@ -1094,6 +1094,18 @@ public class CarOccupantZoneServiceTest {
                 CarOccupantZoneManager.DISPLAY_TYPE_HUD)).isEqualTo(Display.INVALID_DISPLAY);
         assertThat(mManager.getDisplayIdForDriver(
                 CarOccupantZoneManager.DISPLAY_TYPE_AUXILIARY)).isEqualTo(Display.INVALID_DISPLAY);
+        assertThat(mManager.getDisplayIdForDriver(
+                CarOccupantZoneManager.DISPLAY_TYPE_AUXILIARY_2)).isEqualTo(
+                        Display.INVALID_DISPLAY);
+        assertThat(mManager.getDisplayIdForDriver(
+                CarOccupantZoneManager.DISPLAY_TYPE_AUXILIARY_3)).isEqualTo(
+                        Display.INVALID_DISPLAY);
+        assertThat(mManager.getDisplayIdForDriver(
+                CarOccupantZoneManager.DISPLAY_TYPE_AUXILIARY_4)).isEqualTo(
+                        Display.INVALID_DISPLAY);
+        assertThat(mManager.getDisplayIdForDriver(
+                CarOccupantZoneManager.DISPLAY_TYPE_AUXILIARY_5)).isEqualTo(
+                        Display.INVALID_DISPLAY);
     }
 
     @Test
@@ -1117,7 +1129,7 @@ public class CarOccupantZoneServiceTest {
         mService.init();
 
         int driverUser = mManager.getUserForOccupant(mZoneDriverLHD);
-        assertThat(CURRENT_USER).isEqualTo(driverUser);
+        assertThat(driverUser).isEqualTo(CURRENT_USER);
 
         assertThat(mManager.getUserForOccupant(mZoneFrontPassengerLHD)).isEqualTo(
                 CarOccupantZoneManager.INVALID_USER_ID);
@@ -1139,7 +1151,7 @@ public class CarOccupantZoneServiceTest {
         mService.mUserLifecycleListener.onEvent(new UserLifecycleEvent(
                 CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING, newUserId));
 
-        assertThat(newUserId).isEqualTo(mManager.getUserForOccupant(mZoneDriverLHD));
+        assertThat(mManager.getUserForOccupant(mZoneDriverLHD)).isEqualTo(newUserId);
 
         assertThat(mManager.getUserForOccupant(mZoneFrontPassengerLHD)).isEqualTo(
                 CarOccupantZoneManager.INVALID_USER_ID);
@@ -1218,7 +1230,7 @@ public class CarOccupantZoneServiceTest {
     public void testGetSupportedInputTypes_driverZoneInfo() {
         mService.init();
 
-        assertThat(mService.getSupportedInputTypes(/* zoneId= */ 0,
+        assertThat(mService.getSupportedInputTypes(/* occupantZoneId= */ 0,
                 CarOccupantZoneManager.DISPLAY_TYPE_MAIN)).asList().containsExactly(CarInputManager
                 .INPUT_TYPE_DPAD_KEYS, CarInputManager.INPUT_TYPE_NAVIGATE_KEYS, CarInputManager
                 .INPUT_TYPE_ROTARY_NAVIGATION, CarInputManager.INPUT_TYPE_TOUCH_SCREEN);

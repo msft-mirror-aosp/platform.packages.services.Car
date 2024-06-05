@@ -65,7 +65,6 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.car.Car;
 import android.car.CarOccupantZoneManager;
-import android.car.CarVersion;
 import android.car.ICarResultReceiver;
 import android.car.PlatformVersion;
 import android.car.SyncResultCallback;
@@ -490,7 +489,6 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         // Arrange.
         mockUmGetVisibleUsers(mMockedUserManager);
         when(mMockedUserManager.isUserRunning(UserHandle.of(TEST_USER_ID))).thenReturn(true);
-        mockContextCreateContextAsUser(mMockContext, mMockUserContext, TEST_USER_ID);
         mockCarServiceHelperGetMainDisplayAssignedToUser(TEST_USER_ID, TEST_DISPLAY_ID);
         mockUmIsVisibleBackgroundUsersSupported(mMockedUserManager, true);
 
@@ -499,7 +497,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         sendUserVisibleEvent(TEST_USER_ID);
 
         // Verify.
-        verify(mMockUserContext).startService(any());
+        verify(mMockContext).bindServiceAsUser(any(), any(), anyInt(), any());
     }
 
     @Test
@@ -508,7 +506,6 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         // Arrange.
         mockUmGetVisibleUsers(mMockedUserManager);
         when(mMockedUserManager.isUserRunning(UserHandle.of(TEST_USER_ID))).thenReturn(true);
-        mockContextCreateContextAsUser(mMockContext, mMockUserContext, TEST_USER_ID);
         mockCarServiceHelperGetMainDisplayAssignedToUser(TEST_USER_ID, Display.DEFAULT_DISPLAY);
         mockUmIsVisibleBackgroundUsersSupported(mMockedUserManager, true);
         mockUmIsVisibleBackgroundUsersOnDefaultDisplaySupported(mMockedUserManager, true);
@@ -518,7 +515,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         sendUserVisibleEvent(TEST_USER_ID);
 
         // Verify.
-        verify(mMockUserContext, never()).startService(any());
+        verify(mMockContext, never()).bindServiceAsUser(any(), any(), anyInt(), any());
     }
 
     @Test
@@ -611,34 +608,6 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         // Verify: receivers are called or not depending on what their filter evaluates to.
         verify(mLifecycleEventReceiver, never()).send(anyInt(), any());
         verify(mAnotherLifecycleEventReceiver, times(2)).send(anyInt(), any());
-    }
-
-    @Test
-    public void testOnUserLifecycleEvent_notifyReceiver_targetVersionCheck() throws Exception {
-        // Arrange: add receivers.
-        mCarUserService.setLifecycleListenerForApp("package1",
-                new UserLifecycleEventFilter.Builder()
-                        .addEventType(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_CREATED).build(),
-                mLifecycleEventReceiver);
-        mCarUserService.setLifecycleListenerForApp("package2",
-                new UserLifecycleEventFilter.Builder()
-                        .addEventType(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_CREATED).build(),
-                mAnotherLifecycleEventReceiver);
-
-        when(mCarPackageManagerService.getTargetCarVersion("package1"))
-                .thenReturn(CarVersion.VERSION_CODES.TIRAMISU_0);
-        when(mCarPackageManagerService.getTargetCarVersion("package2"))
-                .thenReturn(CarVersion.VERSION_CODES.TIRAMISU_1);
-
-        // Act: User created event occurs.
-        sendUserLifecycleEvent(/* fromUser */ 0, mRegularUserId,
-                CarUserManager.USER_LIFECYCLE_EVENT_TYPE_CREATED);
-        waitForHandlerThreadToFinish();
-
-        // Verify: receivers are called or not depending on whether the target version meets
-        // requirement.
-        verify(mLifecycleEventReceiver, never()).send(anyInt(), any());
-        verify(mAnotherLifecycleEventReceiver).send(anyInt(), any());
     }
 
     @Test
@@ -1009,7 +978,6 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         List<UserHandle> existingUsers = Arrays.asList(mAdminUser, mRegularUser);
         mockExistingUsersAndCurrentUser(existingUsers, currentUser);
         UserHandle removeUser = mAdminUser;
-        int removedUserId = removeUser.getIdentifier();
         mockRemoveUserNoCallback(removeUser, UserManager.REMOVE_RESULT_DEFERRED);
 
         removeUser(mAdminUserId, NO_CALLER_RESTRICTIONS, mUserRemovalResultCallbackImpl);
@@ -1399,6 +1367,34 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     }
 
     @Test
+    public void testSwitchUserIgnoringUxRestrictions() throws Exception {
+        mockGetUxRestrictions(/*restricted= */ true);
+        initService();
+        mockExistingUsersAndCurrentUser(mAdminUser);
+        mSwitchUserResponse.requestId = 42;
+        mSwitchUserResponse.status = SwitchUserStatus.SUCCESS;
+        mockHalSwitch(mAdminUserId, mGuestUser, mSwitchUserResponse);
+        mockAmSwitchUser(mMockedActivityManager, mGuestUser, true);
+
+        // fail on restricted state
+        switchUser(mGuestUserId, ASYNC_CALL_TIMEOUT_MS, mUserSwitchResultCallbackImpl);
+        assertUserSwitchResult(getUserSwitchResult(),
+                UserSwitchResult.STATUS_UX_RESTRICTION_FAILURE);
+
+        // Should be ok calling switchUserIgnoringUxRestriction...
+        switchUserIgnoringUxRestriction(mGuestUserId, ASYNC_CALL_TIMEOUT_MS,
+                mUserSwitchResultCallbackImpl2);
+        assertUserSwitchResult(getUserSwitchResult2(),
+                UserSwitchResult.STATUS_SUCCESSFUL);
+
+        // Verify only second call succeeded. If more than one call was succeeded, verify() would
+        // fail because it was called more than once()
+        assertHalSwitchAnyUser();
+        verifyAnyUserSwitch();
+        verifyNoLogoutUser();
+    }
+
+    @Test
     public void testSwitchUser_multipleCallsDifferentUser_beforeFirstUserUnlocked()
             throws Exception {
         mockExistingUsersAndCurrentUser(mAdminUser);
@@ -1663,7 +1659,8 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         mockManageUsersPermission(android.Manifest.permission.MANAGE_USERS, false);
 
         assertThrows(SecurityException.class, () -> mCarUserService
-                .switchUser(mGuestUserId, ASYNC_CALL_TIMEOUT_MS, mUserSwitchResultCallbackImpl));
+                .switchUser(mGuestUserId, ASYNC_CALL_TIMEOUT_MS, mUserSwitchResultCallbackImpl,
+                        /* ignoreUxRestriction= */ false));
     }
 
     @Test
@@ -1957,7 +1954,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     public void testCreateUser_internalHalFailure() throws Exception {
         UserHandle newUser = UserHandle.of(42);
         mockUmCreateUser(mMockedUserManager, "dude", "TypeONegative", 108, newUser);
-        mockHalCreateUser(HalCallback.STATUS_INVALID, /* not_used_status= */ -1);
+        mockHalCreateUser(HalCallback.STATUS_INVALID, /* responseStatus= */ -1);
         mockRemoveUser(newUser);
 
         createUser("dude", "TypeONegative", 108, ASYNC_CALL_TIMEOUT_MS, mUserCreationResultCallback,
@@ -2924,16 +2921,6 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     }
 
     @Test
-    public void testIsUserVisible_platformVersionNotAtLeastUDC() throws Exception {
-        mockCarGetPlatformVersion(PlatformVersion.VERSION_CODES.TIRAMISU_0);
-        mockUmGetVisibleUsers(mMockedUserManager, mContextUserId);
-
-        boolean visible = mCarUserService.isUserVisible(mContextUserId);
-
-        assertWithMessage("isUserVisible(%s)", mContextUserId).that(visible).isFalse();
-    }
-
-    @Test
     public void testIsUserVisible() throws Exception {
         mockUmGetVisibleUsers(mMockedUserManager, mContextUserId);
 
@@ -2997,7 +2984,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         }
     }
 
-    protected void userOpFlagTest(int carConstant, int amConstant) {
+    private void userOpFlagTest(int carConstant, int amConstant) {
         assertWithMessage("Constant %s",
                 DebugUtils.constantToString(CarUserService.class, "USER_OP_", carConstant))
                 .that(carConstant).isEqualTo(amConstant);

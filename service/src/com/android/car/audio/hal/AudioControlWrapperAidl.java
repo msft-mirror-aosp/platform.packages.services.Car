@@ -20,6 +20,7 @@ import static android.car.builtin.media.AudioManagerHelper.usageToString;
 import static android.car.builtin.media.AudioManagerHelper.usageToXsdString;
 import static android.car.builtin.media.AudioManagerHelper.xsdStringToUsage;
 
+import static com.android.car.audio.CarHalAudioUtils.usageToMetadata;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
@@ -64,6 +65,7 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
 
     private static final int AIDL_AUDIO_CONTROL_VERSION_1 = 1;
     private static final int AIDL_AUDIO_CONTROL_VERSION_2 = 2;
+    private static final int AIDL_AUDIO_CONTROL_VERSION_3 = 3;
 
     private IBinder mBinder;
     private IAudioControl mAudioControl;
@@ -140,6 +142,11 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
         Objects.requireNonNull(gainCallback, "Audio Gain Callback can not be null");
         IAudioGainCallback agc = new AudioGainCallbackWrapper(gainCallback);
         try {
+            if (mAudioControl.getInterfaceVersion() < AIDL_AUDIO_CONTROL_VERSION_2) {
+                Slogf.w(TAG, "Registering audio gain callback is not supported"
+                        + " for versions less than " + AIDL_AUDIO_CONTROL_VERSION_2);
+                return;
+            }
             mAudioControl.registerGainCallback(agc);
         } catch (RemoteException e) {
             Slogf.e(TAG, "Failed to register gain callback");
@@ -154,10 +161,23 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
     }
 
     @Override
-    public void onAudioFocusChange(@AttributeUsage int usage, int zoneId, int focusChange) {
+    public void onAudioFocusChange(PlaybackTrackMetadata metaData, int zoneId, int focusChange) {
         if (Slogf.isLoggable(TAG, Log.DEBUG)) {
-            Slogf.d(TAG, "onAudioFocusChange: usage " + usageToString(usage)
-                    + ", zoneId " + zoneId + ", focusChange " + focusChange);
+            Slogf.d(TAG, "onAudioFocusChange: metadata %s, zoneId %d, focusChanged %d", metaData,
+                    zoneId, focusChange);
+        }
+        try {
+            mAudioControl.onAudioFocusChangeWithMetaData(metaData, zoneId, focusChange);
+        } catch (RemoteException e) {
+            Slogf.d(TAG, "onAudioFocusChange: failed with metadata, retry with usage.");
+            onAudioFocusChange(metaData.usage, zoneId, focusChange);
+        }
+    }
+
+    private void onAudioFocusChange(@AttributeUsage int usage, int zoneId, int focusChange) {
+        if (Slogf.isLoggable(TAG, Log.DEBUG)) {
+            Slogf.d(TAG, "onAudioFocusChange: usage %s, zoneId %d, focusChanged %d",
+                    usageToString(usage), zoneId, focusChange);
         }
         try {
             String usageName = usageToXsdString(usage);
@@ -254,6 +274,11 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
             @Override
             public void run() {
                 try {
+                    if (mAudioControl.getInterfaceVersion() < AIDL_AUDIO_CONTROL_VERSION_3) {
+                        Slogf.w(TAG, "Setting module change callback is not supported"
+                                + " for versions less than " + AIDL_AUDIO_CONTROL_VERSION_3);
+                        return;
+                    }
                     mAudioControl.setModuleChangeCallback(callback);
                     mModuleChangeCallbackRegistered = true;
                 } catch (RemoteException e) {
@@ -287,6 +312,11 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
             @Override
             public void run() {
                 try {
+                    if (mAudioControl.getInterfaceVersion() < AIDL_AUDIO_CONTROL_VERSION_3) {
+                        Slogf.w(TAG, "Clearing module change callback is not supported"
+                                + " for versions less than " + AIDL_AUDIO_CONTROL_VERSION_3);
+                        return;
+                    }
                     mAudioControl.clearModuleChangeCallback();
                     mModuleChangeCallbackRegistered = false;
                 } catch (RemoteException e) {
@@ -318,12 +348,19 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
     @Override
     public void binderDied() {
         Slogf.w(TAG, "AudioControl HAL died. Fetching new handle");
+        mBinder.unlinkToDeath(this, 0);
         mListenerRegistered = false;
         mGainCallbackRegistered = false;
         mModuleChangeCallbackRegistered = false;
         mBinder = AudioControlWrapperAidl.getService();
         mAudioControl = IAudioControl.Stub.asInterface(mBinder);
-        linkToDeath(mDeathRecipient);
+        // TODO(b/284043199): Refactor the retry logic out and add delay between retry.
+        try {
+            mBinder.linkToDeath(this, 0);
+        } catch (RemoteException e) {
+            // Avoid crashing the binder thread.
+            Slogf.e(TAG, "Call to IAudioControl#linkToDeath failed", e);
+        }
         if (mDeathRecipient != null) {
             mDeathRecipient.serviceDied();
         }
@@ -364,28 +401,28 @@ public final class AudioControlWrapperAidl implements AudioControlWrapper, IBind
         public void requestAudioFocusWithMetaData(
                 PlaybackTrackMetadata playbackMetaData, int zoneId, int focusGain) {
             if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slogf.d(TAG, "requestAudioFocusWithMetaData metadata=" + playbackMetaData
-                        + ", zoneId=" + zoneId + ", focusGain=" + focusGain);
+                Slogf.d(TAG, "requestAudioFocusWithMetaData metadata=%s, zoneId=%d, focusGain=%d",
+                        playbackMetaData, zoneId, focusGain);
             }
-            requestAudioFocus(playbackMetaData.usage, zoneId, focusGain);
+            mListener.requestAudioFocus(playbackMetaData, zoneId, focusGain);
         }
 
         @Override
         public void abandonAudioFocusWithMetaData(
                 PlaybackTrackMetadata playbackMetaData, int zoneId) {
             if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Slogf.d(TAG, "abandonAudioFocusWithMetaData metadata=" + playbackMetaData
-                        + ", zoneId=" + zoneId);
+                Slogf.d(TAG, "abandonAudioFocusWithMetaData metadata=%s, zoneId=%d",
+                        playbackMetaData, zoneId);
             }
-            abandonAudioFocus(playbackMetaData.usage, zoneId);
+            mListener.abandonAudioFocus(playbackMetaData, zoneId);
         }
 
         private void abandonAudioFocus(int usage, int zoneId) {
-            mListener.abandonAudioFocus(usage, zoneId);
+            abandonAudioFocusWithMetaData(usageToMetadata(usage), zoneId);
         }
 
         private void requestAudioFocus(int usage, int zoneId, int focusGain) {
-            mListener.requestAudioFocus(usage, zoneId, focusGain);
+            requestAudioFocusWithMetaData(usageToMetadata(usage), zoneId, focusGain);
         }
     }
 

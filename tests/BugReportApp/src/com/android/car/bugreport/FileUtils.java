@@ -16,10 +16,14 @@
 package com.android.car.bugreport;
 
 import android.content.Context;
+import android.os.UserManager;
+import android.util.Log;
 
 import com.google.common.base.Preconditions;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 
 /**
  * File utilities.
@@ -35,6 +39,7 @@ import java.io.File;
  * collected.
  */
 public class FileUtils {
+    private static final String TAG = FileUtils.class.getSimpleName();
     private static final String PREFIX = "bugreport-";
     /** A directory under the system user; contains bugreport zip files and audio files. */
     private static final String PENDING_DIR = "bug_reports_pending";
@@ -44,19 +49,9 @@ public class FileUtils {
     private static final String FS = "@";
 
     static File getPendingDir(Context context) {
-        Preconditions.checkArgument(context.getUser().isSystem(),
+        Preconditions.checkArgument(context.getSystemService(UserManager.class).isSystemUser(),
                 "Must be called from the system user.");
         File dir = new File(context.getDataDir(), PENDING_DIR);
-        dir.mkdirs();
-        return dir;
-    }
-
-    /**
-     * Creates and returns file directory for storing bug report files before they are zipped into
-     * a single file.
-     */
-    static File createTempDir(Context context, String timestamp) {
-        File dir = getTempDir(context, timestamp);
         dir.mkdirs();
         return dir;
     }
@@ -66,9 +61,11 @@ public class FileUtils {
      * single file.
      */
     static File getTempDir(Context context, String timestamp) {
-        Preconditions.checkArgument(!context.getUser().isSystem(),
+        Preconditions.checkArgument(!context.getSystemService(UserManager.class).isSystemUser(),
                 "Must be called from the current user.");
-        return new File(context.getDataDir(), TEMP_DIR + "/" + timestamp);
+        File dir = new File(context.getDataDir(), TEMP_DIR + "/" + timestamp);
+        dir.mkdirs();
+        return dir;
     }
 
     /**
@@ -96,7 +93,7 @@ public class FileUtils {
                 + "-" + lookupCode + "-message." + extension);
     }
 
-    private static String extractLookupCode(MetaBugReport bug) {
+    public static String extractLookupCode(MetaBugReport bug) {
         Preconditions.checkArgument(bug.getTitle().startsWith("["),
                 "Invalid bugreport title, doesn't contain lookup code. ");
         return bug.getTitle().substring(1, BugReportActivity.LOOKUP_STRING_LENGTH + 1);
@@ -106,22 +103,22 @@ public class FileUtils {
      * Returns a {@link File} object pointing to a path in a temp directory under current users
      * {@link Context#getDataDir}.
      *
-     * @param context       - an application context.
-     * @param timestamp     - generates file for this timestamp
-     * @param suffix        - a filename suffix.
+     * @param context   - an application context.
+     * @param timestamp - generates file for this timestamp
+     * @param suffix    - a filename suffix.
      * @return A file.
      */
     static File getFileWithSuffix(Context context, String timestamp, String suffix) {
-        return new File(createTempDir(context, timestamp), timestamp + suffix);
+        return new File(getTempDir(context, timestamp), timestamp + suffix);
     }
 
     /**
      * Returns a {@link File} object pointing to a path in a temp directory under current users
      * {@link Context#getDataDir}.
      *
-     * @param context     - an application context.
-     * @param timestamp   - generates file for this timestamp.
-     * @param name        - a filename
+     * @param context   - an application context.
+     * @param timestamp - generates file for this timestamp.
+     * @param name      - a filename
      * @return A file.
      */
     static File getFile(Context context, String timestamp, String name) {
@@ -145,5 +142,18 @@ public class FileUtils {
             }
         }
         directory.delete();
+    }
+
+    /**
+     * Deletes a file quietly by ignoring exceptions.
+     *
+     * @param file The file to delete.
+     */
+    public static void deleteFileQuietly(File file) {
+        try {
+            Files.delete(file.toPath());
+        } catch (IOException | SecurityException e) {
+            Log.w(TAG, "Failed to delete " + file + ". Ignoring the error.", e);
+        }
     }
 }

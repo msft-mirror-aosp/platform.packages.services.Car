@@ -90,7 +90,6 @@ public class FastPairGattServer {
             .fromString("00002A00-0000-1000-8000-00805f9b34fb");
     private static final String TAG = CarLog.tagFor(FastPairGattServer.class);
     private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
-    private static final int MAX_KEY_COUNT = 10;
     private static final int KEY_LIFESPAN_AWAIT_PAIRING = 60_000;
     // Spec *does* say indefinitely but not having a timeout is risky. This matches the BT stack's
     // internal pairing timeout
@@ -214,11 +213,6 @@ public class FastPairGattServer {
                 mCallbacks.onPairingCompleted(false);
             } else if (newState == BluetoothProfile.STATE_CONNECTED) {
                 mRemoteGattDevice = device;
-
-                // Although we're already connected, it's good practice to call connect again. This
-                // will mark the connection as desirable in the core stack so that it isn't
-                // accidentally torn down.
-                mBluetoothGattServer.connect(device, /* auto-connect= */ false);
             }
         }
 
@@ -663,8 +657,9 @@ public class FastPairGattServer {
      * Determine if this pairing request is based on the anti-spoof keys associated with the model
      * id or stored account keys.
      *
-     * @param accountKey
-     * @return
+     * @param pairingRequest Pairing request
+     * @return Whether pairing request is based on the anti-spoof keys associated with the model id
+     *         or stored account keys.
      */
     private byte[] processKeyBasedPairing(byte[] pairingRequest) {
         if (mFailureCounter.hasExceededLimit()) {
@@ -824,7 +819,6 @@ public class FastPairGattServer {
         // Check that the request is either a Key-based Pairing Request or an Action Request
         if (decryptedRequest[0] == 0x00 || decryptedRequest[0] == 0x10) {
             String localAddress = mBluetoothAdapter.getAddress();
-            byte[] localAddressBytes = BluetoothUtils.getBytesFromAddress(localAddress);
             // Extract the remote address bytes from the message
             byte[] remoteAddressBytes = Arrays.copyOfRange(decryptedRequest, 2, 8);
             BluetoothDevice localDevice = mBluetoothAdapter.getRemoteDevice(localAddress);

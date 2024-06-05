@@ -15,6 +15,7 @@
  */
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -25,7 +26,7 @@ java_binary_host {
     static_libs: [
         "javaparser",
         "junit",
-        "truth-prebuilt",
+        "truth",
     ],
 }
 
@@ -36,6 +37,6 @@ java_test_host {
     static_libs: [
         "javaparser",
         "junit",
-        "truth-prebuilt",
+        "truth",
     ],
 }

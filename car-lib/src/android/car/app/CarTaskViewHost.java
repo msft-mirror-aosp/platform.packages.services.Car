@@ -21,7 +21,6 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
 import android.app.PendingIntent;
-import android.car.annotation.ApiRequirements;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
@@ -35,27 +34,36 @@ import android.view.SurfaceControl;
 @SystemApi
 public interface CarTaskViewHost {
     /** Releases the resources held by this task view's host side. */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void release();
 
     /**
      * See {@link TaskView#startActivity(PendingIntent, Intent,
      * ActivityOptions, Rect)}
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void startActivity(
             @NonNull PendingIntent pendingIntent, @Nullable Intent intent, @NonNull Bundle options,
             @Nullable Rect launchBounds);
+
+    /**
+     * Creates the root task, which will be embedded inside this task view.
+     *
+     * @hide
+     */
+    void createRootTask(int displayId);
+
+    /**
+     * Creates the launch root task, which will be embedded inside this task view.
+     *
+     * @hide
+     */
+    void createLaunchRootTask(int displayId, boolean embedHomeTask,
+            boolean embedRecentsTask, boolean embedAssistantTask);
 
     /**
      * Notifies the host side that the client surface has been created.
      *
      * @param control the {@link SurfaceControl} of the surface that has been created.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void notifySurfaceCreated(@NonNull SurfaceControl control);
 
     /**
@@ -63,20 +71,28 @@ public interface CarTaskViewHost {
      *
      * @param windowBoundsOnScreen the new bounds in screen coordinates.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void setWindowBounds(@NonNull Rect windowBoundsOnScreen);
 
     /** Notifies the host side that the client surface has been destroyed. */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void notifySurfaceDestroyed();
 
     /** Brings the embedded Task to the front in the WM Hierarchy. */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void showEmbeddedTask();
 
+    /**
+     * Sets the visibility of the embedded task.
+     *
+     * @hide
+     */
+    void setTaskVisibility(boolean visibility);
+
+    /**
+     * Reorders the embedded task to top when {@code onTop} is {@code true} and to bottom when
+     * its {@code false}.
+     *
+     * @hide
+     */
+    void reorderTask(boolean onTop);
     /**
      * Adds the given {@code insets} on the Task.
      *
@@ -95,15 +111,11 @@ public interface CarTaskViewHost {
      * @param type  The insets type of the insets source. This doesn't accept the composite types.
      * @param frame The rectangle area of the insets source.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void addInsets(int index, int type, @NonNull Rect frame);
 
     /**
      * Removes the insets for the given @code index}, and {@code type} that were added via
      * {@link #addInsets(int, int, Rect)}
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void removeInsets(int index, int type);
 }

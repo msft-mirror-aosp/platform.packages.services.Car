@@ -15,10 +15,12 @@
  */
 package com.android.car.hal;
 
+import static android.hardware.automotive.vehicle.VehicleProperty.AP_POWER_BOOTUP_REASON;
 import static android.hardware.automotive.vehicle.VehicleProperty.AP_POWER_STATE_REPORT;
 import static android.hardware.automotive.vehicle.VehicleProperty.AP_POWER_STATE_REQ;
 import static android.hardware.automotive.vehicle.VehicleProperty.DISPLAY_BRIGHTNESS;
 import static android.hardware.automotive.vehicle.VehicleProperty.PER_DISPLAY_BRIGHTNESS;
+import static android.hardware.automotive.vehicle.VehicleProperty.SHUTDOWN_REQUEST;
 import static android.hardware.automotive.vehicle.VehicleProperty.VEHICLE_IN_USE;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
@@ -27,7 +29,9 @@ import android.annotation.IntDef;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.view.DisplayHelper;
+import android.car.feature.FeatureFlags;
 import android.content.Context;
+import android.hardware.automotive.vehicle.VehicleApPowerBootupReason;
 import android.hardware.automotive.vehicle.VehicleApPowerStateConfigFlag;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReport;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
@@ -38,6 +42,7 @@ import android.hardware.automotive.vehicle.VehiclePropertyStatus;
 import android.hardware.display.DisplayManager;
 import android.os.ServiceSpecificException;
 import android.util.SparseArray;
+import android.util.SparseIntArray;
 import android.view.Display;
 
 import com.android.car.CarLog;
@@ -61,13 +66,64 @@ public class PowerHalService extends HalServiceBase {
     // Set display brightness from 0-100%
     public static final int MAX_BRIGHTNESS = 100;
 
-    private static final int[] SUPPORTED_PROPERTIES = new int[]{
-            AP_POWER_STATE_REQ,
-            AP_POWER_STATE_REPORT,
-            DISPLAY_BRIGHTNESS,
-            PER_DISPLAY_BRIGHTNESS,
-            VEHICLE_IN_USE,
-    };
+    // TODO(b/337307388): replace this with VehicleProperty.PER_DISPLAY_MAX_BRIGHTNESS once we use
+    // property V4.
+    private static final int PER_DISPLAY_MAX_BRIGHTNESS = 0x11410F4E;
+
+    private record PropertyInfo(boolean needSubscription) {}
+
+    private static SparseArray<PropertyInfo> getSupportedProperties() {
+        SparseArray<PropertyInfo> propertyInfo = new SparseArray<>();
+        propertyInfo.put(AP_POWER_STATE_REQ, new PropertyInfo(/*needSubscription=*/ true));
+        // This is issued from PowerHalService so we do not need to subscribe to it.
+        propertyInfo.put(AP_POWER_STATE_REPORT, new PropertyInfo(/*needSubscription=*/ false));
+        propertyInfo.put(DISPLAY_BRIGHTNESS, new PropertyInfo(/*needSubscription=*/ true));
+        propertyInfo.put(PER_DISPLAY_BRIGHTNESS, new PropertyInfo(/*needSubscription=*/ true));
+        propertyInfo.put(VEHICLE_IN_USE, new PropertyInfo(/*needSubscription=*/ false));
+        propertyInfo.put(AP_POWER_BOOTUP_REASON, new PropertyInfo(/*needSubscription=*/ false));
+        propertyInfo.put(PER_DISPLAY_MAX_BRIGHTNESS, new PropertyInfo(/*needSubscription=*/ false));
+        return propertyInfo;
+    }
+
+    private static final SparseArray<PropertyInfo> SUPPORTED_PROPERTIES = getSupportedProperties();
+
+    /**
+     * Unknown bootup reason.
+     */
+    public static final int BOOTUP_REASON_UNKNOWN = -1;
+
+    /**
+     * Power on due to user's pressing of power key or rotating of ignition switch.
+     */
+    public static final int BOOTUP_REASON_USER_POWER_ON = 0;
+
+    /**
+     * Automatic power on triggered by door unlock or any other kind of automatic user detection.
+     */
+    public static final int BOOTUP_REASON_SYSTEM_USER_DETECTION = 1;
+
+    /**
+     * Automatic power on to execute a remote task. This is triggered by receiving a wakeup message
+     * from an external system in the vehicle.
+     */
+    public static final int BOOTUP_REASON_SYSTEM_REMOTE_ACCESS = 2;
+
+    /**
+     * Automatic power on to enter garage mode. This is triggered by receiving a wakeup message from
+     * an external system in the vehicle.
+     */
+    public static final int BOOTUP_REASON_SYSTEM_ENTER_GARAGE_MODE = 3;
+
+    /** @hide */
+    @IntDef(prefix = {"BOOTUP_REASON_"}, value = {
+            BOOTUP_REASON_UNKNOWN,
+            BOOTUP_REASON_USER_POWER_ON,
+            BOOTUP_REASON_SYSTEM_USER_DETECTION,
+            BOOTUP_REASON_SYSTEM_REMOTE_ACCESS,
+            BOOTUP_REASON_SYSTEM_ENTER_GARAGE_MODE,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface BootupReason {}
 
     @VisibleForTesting
     public static final int SET_WAIT_FOR_VHAL = VehicleApPowerStateReport.WAIT_FOR_VHAL;
@@ -161,7 +217,7 @@ public class PowerHalService extends HalServiceBase {
     public static final class PowerState {
 
         @IntDef({SHUTDOWN_TYPE_UNDEFINED, SHUTDOWN_TYPE_POWER_OFF, SHUTDOWN_TYPE_DEEP_SLEEP,
-                SHUTDOWN_TYPE_HIBERNATION})
+                SHUTDOWN_TYPE_HIBERNATION, SHUTDOWN_TYPE_EMERGENCY})
         @Retention(RetentionPolicy.SOURCE)
         public @interface ShutdownType {}
 
@@ -169,6 +225,7 @@ public class PowerHalService extends HalServiceBase {
         public static final int SHUTDOWN_TYPE_POWER_OFF = 1;
         public static final int SHUTDOWN_TYPE_DEEP_SLEEP = 2;
         public static final int SHUTDOWN_TYPE_HIBERNATION = 3;
+        public static final int SHUTDOWN_TYPE_EMERGENCY = 4;
         /**
          * One of STATE_*
          */
@@ -192,7 +249,8 @@ public class PowerHalService extends HalServiceBase {
             }
             return (mParam != VehicleApPowerStateShutdownParam.SHUTDOWN_IMMEDIATELY
                     && mParam != VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY
-                    && mParam != VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY);
+                    && mParam != VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY
+                    && mParam != VehicleApPowerStateShutdownParam.EMERGENCY_SHUTDOWN);
         }
 
         /**
@@ -230,6 +288,8 @@ public class PowerHalService extends HalServiceBase {
             } else if (mParam == VehicleApPowerStateShutdownParam.CAN_HIBERNATE
                     || mParam == VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY) {
                 result = SHUTDOWN_TYPE_HIBERNATION;
+            } else if (mParam == VehicleApPowerStateShutdownParam.EMERGENCY_SHUTDOWN) {
+                result = SHUTDOWN_TYPE_EMERGENCY;
             }
 
             return result;
@@ -262,6 +322,7 @@ public class PowerHalService extends HalServiceBase {
     private final SparseArray<HalPropConfig> mProperties = new SparseArray<>();
     private final Context mContext;
     private final VehicleHal mHal;
+    private final FeatureFlags mFeatureFlags;
     @Nullable
     @GuardedBy("mLock")
     private ArrayList<HalPropValue> mQueuedEvents;
@@ -270,10 +331,13 @@ public class PowerHalService extends HalServiceBase {
     @GuardedBy("mLock")
     private int mMaxDisplayBrightness;
     @GuardedBy("mLock")
+    private SparseIntArray mMaxPerDisplayBrightness = new SparseIntArray();
+    @GuardedBy("mLock")
     private boolean mPerDisplayBrightnessSupported;
 
-    public PowerHalService(Context context, VehicleHal hal) {
+    public PowerHalService(Context context, FeatureFlags featureFlags, VehicleHal hal) {
         mContext = context;
+        mFeatureFlags = featureFlags;
         mHal = hal;
     }
 
@@ -430,7 +494,7 @@ public class PowerHalService extends HalServiceBase {
         }
         try {
             HalPropValue value = mHal.getHalPropValueBuilder()
-                    .build(VehicleProperty.PER_DISPLAY_BRIGHTNESS, /* areaId= */ 0,
+                    .build(PER_DISPLAY_BRIGHTNESS, /* areaId= */ 0,
                             new int[]{displayPort, brightnessToSet});
             mHal.set(value);
             Slogf.i(CarLog.TAG_POWER, "send display brightness = %d, port = %d",
@@ -467,7 +531,7 @@ public class PowerHalService extends HalServiceBase {
         }
 
         try {
-            mHal.set(VehicleProperty.SHUTDOWN_REQUEST, /* areaId= */ 0).to(shutdownParam);
+            mHal.set(SHUTDOWN_REQUEST, /* areaId= */ 0).to(shutdownParam);
         } catch (ServiceSpecificException | IllegalArgumentException e) {
             Slogf.e(CarLog.TAG_POWER, "cannot send SHUTDOWN_REQUEST to VHAL", e);
         }
@@ -525,9 +589,71 @@ public class PowerHalService extends HalServiceBase {
             return (value.getStatus() == VehiclePropertyStatus.AVAILABLE
                     && value.getInt32ValuesSize() >= 1 && value.getInt32Value(0) != 0);
         } catch (ServiceSpecificException | IllegalArgumentException e) {
-            Slogf.w(CarLog.TAG_POWER, "Failed to get VEHICLE_IN_USE value", e);
+            Slogf.w(CarLog.TAG_POWER,
+                    "Failed to get VEHICLE_IN_USE value, assume vehicle is in use", e);
+            return true;
+        }
+    }
+
+    /**
+     * Returns whether {@code VEHICLE_IN_USE} is supported and getting it returns a valid value.
+     */
+    public boolean isVehicleInUseSupported() {
+        try {
+            HalPropValue value = mHal.get(VEHICLE_IN_USE);
+            if (value.getStatus() != VehiclePropertyStatus.AVAILABLE) {
+                Slogf.w(CarLog.TAG_POWER,
+                        "VEHICLE_IN_USE is supported in config but getting it returns a property "
+                        + "value: " + value + " which does not contain AVAILABLE status");
+                return false;
+            }
+            return true;
+        } catch (ServiceSpecificException | IllegalArgumentException e) {
+            Slogf.w(CarLog.TAG_POWER, "VEHICLE_IN_USE is not supported", e);
             return false;
         }
+    }
+
+    /**
+     * Returns whether {@code SHUTDOWN_REQUEST} is supported
+     */
+    public boolean isShutdownRequestSupported() {
+        return mHal.getPropConfig(SHUTDOWN_REQUEST) != null;
+    }
+
+    /**
+     * Gets the head unit's bootup reason.
+     *
+     * This reason is only set once during bootup and will not change if, say user enters the
+     * vehicle after the vehicle was booted up for remote access.
+     */
+    public @BootupReason int getVehicleApBootupReason() {
+        try {
+            HalPropValue value = mHal.get(AP_POWER_BOOTUP_REASON);
+            if (value.getStatus() != VehiclePropertyStatus.AVAILABLE) {
+                Slogf.w(CarLog.TAG_POWER, "AP_POWER_BOOTUP_REASON is not available");
+                return BOOTUP_REASON_UNKNOWN;
+            }
+            if (value.getInt32ValuesSize() < 1) {
+                Slogf.w(CarLog.TAG_POWER, "Invalid AP_POWER_BOOTUP_REASON, no value");
+                return BOOTUP_REASON_UNKNOWN;
+            }
+            switch (value.getInt32Value(0)) {
+                case VehicleApPowerBootupReason.USER_POWER_ON:
+                    return BOOTUP_REASON_USER_POWER_ON;
+                case VehicleApPowerBootupReason.SYSTEM_USER_DETECTION:
+                    return BOOTUP_REASON_SYSTEM_USER_DETECTION;
+                case VehicleApPowerBootupReason.SYSTEM_REMOTE_ACCESS:
+                    return BOOTUP_REASON_SYSTEM_REMOTE_ACCESS;
+                case VehicleApPowerBootupReason.SYSTEM_ENTER_GARAGE_MODE:
+                    return BOOTUP_REASON_SYSTEM_ENTER_GARAGE_MODE;
+                default:
+                    return BOOTUP_REASON_UNKNOWN;
+            }
+        } catch (ServiceSpecificException | IllegalArgumentException e) {
+            Slogf.w(CarLog.TAG_POWER, "Failed to get AP_POWER_BOOTUP_REASON value", e);
+        }
+        return BOOTUP_REASON_UNKNOWN;
     }
 
     private boolean isConfigFlagSet(int flag) {
@@ -561,9 +687,10 @@ public class PowerHalService extends HalServiceBase {
     public void init() {
         synchronized (mLock) {
             for (int i = 0; i < mProperties.size(); i++) {
-                HalPropConfig config = mProperties.valueAt(i);
-                if (VehicleHal.isPropertySubscribable(config)) {
-                    mHal.subscribeProperty(this, config.getPropId());
+                int propId = mProperties.valueAt(i).getPropId();
+                if (mProperties.contains(propId)
+                        && SUPPORTED_PROPERTIES.get(propId).needSubscription) {
+                    mHal.subscribeProperty(this, propId);
                 }
             }
             HalPropConfig brightnessProperty = mProperties.get(PER_DISPLAY_BRIGHTNESS);
@@ -580,20 +707,60 @@ public class PowerHalService extends HalServiceBase {
                             + mMaxDisplayBrightness);
                     mMaxDisplayBrightness = 1;
                 }
+
+                if (mFeatureFlags.perDisplayMaxBrightness()) {
+                    getMaxPerDisplayBrightnessFromVhalLocked();
+                }
             }
         }
+    }
+
+    @GuardedBy("mLock")
+    private void getMaxPerDisplayBrightnessFromVhalLocked() {
+        if (!mPerDisplayBrightnessSupported
+                || !mProperties.contains(PER_DISPLAY_MAX_BRIGHTNESS)) {
+            return;
+        }
+
+        try {
+            HalPropValue value = mHal.get(PER_DISPLAY_MAX_BRIGHTNESS);
+            for (int i = 0; i + 1 < value.getInt32ValuesSize(); i += 2) {
+                int displayPort = value.getInt32Value(i);
+                int maxDisplayBrightness = value.getInt32Value(i + 1);
+                if (maxDisplayBrightness <= 0) {
+                    Slogf.w(CarLog.TAG_POWER,
+                            "Max display brightness from vehicle HAL for display port: %d is "
+                            + "invalid:  %d", displayPort, maxDisplayBrightness);
+                    maxDisplayBrightness = 1;
+                }
+                mMaxPerDisplayBrightness.put(displayPort, maxDisplayBrightness);
+            }
+        } catch (ServiceSpecificException e) {
+            Slogf.e(CarLog.TAG_POWER, "Cannot get PER_DISPLAY_MAX_BRIGHTNESS", e);
+        }
+
     }
 
     @Override
     public void release() {
         synchronized (mLock) {
+            for (int i = 0; i < mProperties.size(); i++) {
+                int propId = mProperties.valueAt(i).getPropId();
+                if (SUPPORTED_PROPERTIES.get(propId).needSubscription) {
+                    mHal.unsubscribePropertySafe(this, propId);
+                }
+            }
             mProperties.clear();
         }
     }
 
     @Override
     public int[] getAllSupportedProperties() {
-        return SUPPORTED_PROPERTIES;
+        int[] propertyIds = new int[SUPPORTED_PROPERTIES.size()];
+        for (int i = 0; i < SUPPORTED_PROPERTIES.size(); i++) {
+            propertyIds[i] = SUPPORTED_PROPERTIES.keyAt(i);
+        }
+        return propertyIds;
     }
 
     @Override
@@ -680,20 +847,27 @@ public class PowerHalService extends HalServiceBase {
                 }
                 case PER_DISPLAY_BRIGHTNESS:
                 {
-                    int maxBrightness;
-                    synchronized (mLock) {
-                        maxBrightness = mMaxDisplayBrightness;
-                    }
                     int displayPort;
                     int brightness;
                     try {
                         displayPort = v.getInt32Value(0);
-                        brightness = v.getInt32Value(1) * MAX_BRIGHTNESS / maxBrightness;
+                        brightness = v.getInt32Value(1);
                     } catch (IndexOutOfBoundsException e) {
                         Slogf.e(CarLog.TAG_POWER, "Received invalid event, ignore, int32Values: "
                                 + v.dumpInt32Values(), e);
                         break;
                     }
+                    int maxBrightness;
+                    synchronized (mLock) {
+                        if (!mFeatureFlags.perDisplayMaxBrightness()
+                                || mMaxPerDisplayBrightness.size() == 0) {
+                            maxBrightness = mMaxDisplayBrightness;
+                        } else {
+                            maxBrightness = mMaxPerDisplayBrightness.get(displayPort,
+                                    /* valueIfKeyNotFound= */ 1);
+                        }
+                    }
+                    brightness = brightness * MAX_BRIGHTNESS / maxBrightness;
                     brightness = adjustBrightness(brightness, /* minBrightness= */ 0,
                             MAX_BRIGHTNESS);
                     Slogf.i(CarLog.TAG_POWER, "Received PER_DISPLAY_BRIGHTNESS=" + brightness

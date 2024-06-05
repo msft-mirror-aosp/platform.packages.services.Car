@@ -37,11 +37,16 @@
           <item type="bool" name="audioPersistMasterMuteState"/>
           <item type="integer" name="audioVolumeKeyEventTimeoutMs"/>
           <item type="bool" name="audioUseCarVolumeGroupEvent"/>
+          <item type="bool" name="audioUseFadeManagerConfiguration"/>
+          <item type="bool" name="audioUseMinMaxActivationVolume"/>
+          <item type="bool" name="audioUseIsolatedAudioFocusForDynamicDevices"/>
+          <item type="bool" name="audioEnableVolumeKeyEventsToDynamicDevices"/>
           <item type="bool" name="displayOffMuteLockAllAudio"/>
           <item type="bool" name="useDefaultBluetoothConnectionPolicy"/>
           <item type="bool" name="useDefaultBluetoothPowerPolicy"/>
           <item type="string" name="instrumentClusterRendererService" translatable="false"/>
           <item type="string" name="config_clusterHomeActivity" translatable="false"/>
+          <item type="integer" name="config_clusterHomeServiceMode"/>
           <item type="string" name="rotaryService" translatable="false"/>
           <item type="bool" name="enableActivityBlockingForSafety"/>
           <item type="string" name="activityBlockingActivity" translatable="false"/>
@@ -86,7 +91,6 @@
           <item type="string" name="config_car_bugreport_application" translatable="false"/>
           <item type="array" name="config_occupant_zones" translatable="false"/>
           <item type="array" name="config_occupant_display_mapping" translatable="false"/>
-          <item type="array" name="config_sourcePreferredComponents" translatable="false"/>
           <item type="string" name="config_userNoticeUiService" translatable="false"/>
           <item type="string" name="config_userPickerActivity" translatable="false"/>
           <item type="integer" name="config_mediaSourceChangedAutoplay"/>
@@ -108,6 +112,7 @@
           <item type="integer" name="config_noUserScreenOffTimeout"/>
           <item type="string" name="config_evsRearviewCameraId" translatable="false"/>
           <item type="string" name="config_evsCameraActivity" translatable="false"/>
+          <item type="array" name="config_carEvsService" translatable="false" />
           <item type="bool" name="config_wifiAdjustmentForSuspend"/>
           <item type="bool" name="config_enableCarLocationServiceGnssControlsForPowerManagement"/>
           <item type="bool" name="config_preventTemplatedAppsFromShowingDialog"/>
@@ -121,11 +126,19 @@
           <item type="integer" name="config_oemCarService_thread_pool_size"/>
           <item type="integer" name="config_allowedSystemUptimeForRemoteAccess"/>
           <item type="bool" name="config_assignPassengerActivityToForegroundCpuGroup"/>
-
+          <item type="integer" name="config_notifyApStateChange_max_retry"/>
+          <item type="integer" name="config_notifyApStateChange_retry_sleep_ms"/>
+          <item type="fraction" name="config_clusterHomeVisibility_minAlpha"/>
+          <item type="fraction" name="config_clusterHomeVisibility_minRendered"/>
+          <item type="integer" name="config_clusterHomeVisibility_stabilityMs"/>
+          <item type="bool" name="config_enablePersistTetheringCapabilities" />
+          <item type="array" name="config_packages_not_to_stop_during_suspend" translatable="false"/>
+          <item type="string" name="config_suspend_to_disk_memory_savings" translatable="false"/>
           <!-- Params from config.xml that can be overlaid -->
 
           <!-- XML files that can be overlaid -->
           <item type="xml" name="car_ux_restrictions_map"/>
+          <item type="xml" name="remote_access_serverless_client_map"/>
           <!-- XML files that can be overlaid -->
         </policy>
         <!-- END VENDOR CUSTOMIZATION -->

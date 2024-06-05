@@ -29,6 +29,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.car.hardware.property.VehicleHalStatusCode;
+import android.car.test.util.TemporaryFile;
 import android.car.vms.VmsAssociatedLayer;
 import android.car.vms.VmsAvailableLayers;
 import android.car.vms.VmsClient;
@@ -46,7 +47,6 @@ import android.os.Handler;
 import android.os.ServiceSpecificException;
 
 import com.android.car.R;
-import com.android.car.test.utils.TemporaryFile;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -120,7 +120,7 @@ public class VmsHalServiceTest {
 
         // Verify START_SESSION message was sent
         InOrder initOrder = Mockito.inOrder(mVehicleHal);
-        initOrder.verify(mVehicleHal).subscribeProperty(mHalService,
+        initOrder.verify(mVehicleHal).subscribePropertySafe(mHalService,
                 VehicleProperty.VEHICLE_MAP_SERVICE);
         initOrder.verify(mVehicleHal).set(createHalMessage(
                 VmsMessageType.START_SESSION, // Message type
@@ -1063,7 +1063,7 @@ public class VmsHalServiceTest {
 
     @Test
     public void testDumpMetrics_NonVendorProperty() throws Exception {
-        HalPropValue vehicleProp = mPropValueBuilder.build(/*propId=*/0, /*areaId=*/0,
+        HalPropValue vehicleProp = mPropValueBuilder.build(/* prop= */ 0, /* areaId= */ 0,
                 toByteArray(PAYLOAD_AS_LIST));
         when(mVehicleHal.get(anyInt())).thenReturn(vehicleProp);
 
@@ -1084,7 +1084,7 @@ public class VmsHalServiceTest {
                 metricsPropertyId);
         setUp();
 
-        HalPropValue metricsProperty = mPropValueBuilder.build(/*propId=*/0, /*areaId=*/0,
+        HalPropValue metricsProperty = mPropValueBuilder.build(/* prop= */ 0, /* areaId= */ 0,
                 toByteArray(PAYLOAD_AS_LIST));
         when(mVehicleHal.get(metricsPropertyId)).thenReturn(metricsProperty);
 

@@ -33,6 +33,7 @@
 #include <android-base/result.h>
 #include <android-base/stringprintf.h>
 #include <android/binder_auto_utils.h>
+#include <android/util/ProtoOutputStream.h>
 #include <cutils/multiuser.h>
 #include <utils/Mutex.h>
 
@@ -61,7 +62,7 @@ class IoOveruseMonitorPeer;
 }  // namespace internal
 
 // Used only in tests.
-std::tuple<int64_t, int64_t> calculateStartAndDuration(const time_t& currentTime);
+std::tuple<int64_t, int64_t> calculateStartAndDuration(const time_point_millis& currentTime);
 
 /**
  * IoOveruseMonitorInterface interface defines the methods that the I/O overuse monitoring module
@@ -74,9 +75,6 @@ public:
 
     // Dumps the help text.
     virtual bool dumpHelpText(int fd) const = 0;
-
-    // Notifies that CarWatchdogService was registered
-    virtual void onCarWatchdogServiceRegistered() = 0;
 
     // Below API is from internal/ICarWatchdog.aidl. Please refer to the AIDL for description.
     virtual android::base::Result<void> updateResourceOveruseConfigurations(
@@ -137,7 +135,7 @@ public:
     }
 
     android::base::Result<void> onBoottimeCollection(
-            [[maybe_unused]] time_t time,
+            [[maybe_unused]] time_point_millis time,
             [[maybe_unused]] const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             [[maybe_unused]] const android::wp<ProcStatCollectorInterface>& procStatCollector,
             [[maybe_unused]] aidl::android::automotive::watchdog::internal::ResourceStats*
@@ -147,7 +145,7 @@ public:
     }
 
     android::base::Result<void> onWakeUpCollection(
-            [[maybe_unused]] time_t time,
+            [[maybe_unused]] time_point_millis time,
             [[maybe_unused]] const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             [[maybe_unused]] const android::wp<ProcStatCollectorInterface>& procStatCollector)
             override {
@@ -156,7 +154,7 @@ public:
     }
 
     android::base::Result<void> onUserSwitchCollection(
-            [[maybe_unused]] time_t time, [[maybe_unused]] userid_t from,
+            [[maybe_unused]] time_point_millis time, [[maybe_unused]] userid_t from,
             [[maybe_unused]] userid_t to,
             [[maybe_unused]] const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             [[maybe_unused]] const android::wp<ProcStatCollectorInterface>& procStatCollector)
@@ -166,13 +164,13 @@ public:
     }
 
     android::base::Result<void> onPeriodicCollection(
-            time_t time, SystemState systemState,
+            time_point_millis time, SystemState systemState,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
             aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) override;
 
     android::base::Result<void> onCustomCollection(
-            time_t time, SystemState systemState,
+            time_point_millis time, SystemState systemState,
             const std::unordered_set<std::string>& filterPackages,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
@@ -183,6 +181,9 @@ public:
             const std::function<void()>& alertHandler) override;
 
     android::base::Result<void> onDump(int fd) const override;
+    android::base::Result<void> onDumpProto(
+            const CollectionIntervals& collectionIntervals,
+            android::util::ProtoOutputStream& outProto) const override;
 
     bool dumpHelpText(int fd) const override;
 
@@ -290,6 +291,15 @@ private:
     // Makes sure only one collection is running at any given time.
     mutable std::shared_mutex mRwMutex;
 
+    // This is the thread on which the write to disk is performed. In the event the monitor begins
+    // to terminate before the write has completed, the termination procedure should wait for this
+    // thread to complete. Otherwise, this thread will run independently, which will cause
+    // the thread to access stale lock or member fields leading to crashing the process.
+    std::thread mWriteToDiskThread;
+
+    // Tracks if mWriteToDiskThread is actively writing to disk.
+    bool mIsWriteToDiskPending GUARDED_BY(mRwMutex);
+
     // Indicates whether or not today's I/O usage stats, that were collected during previous boot,
     // are read from CarService because CarService persists these stats in database across reboot.
     bool mDidReadTodayPrevBootStats GUARDED_BY(mRwMutex);
@@ -314,7 +324,7 @@ private:
     std::unordered_map<std::string, UserPackageIoUsage> mUserPackageDailyIoUsageById
             GUARDED_BY(mRwMutex);
     double mIoOveruseWarnPercentage GUARDED_BY(mRwMutex);
-    time_t mLastUserPackageIoMonitorTime GUARDED_BY(mRwMutex);
+    time_point_millis mLastUserPackageIoMonitorTime GUARDED_BY(mRwMutex);
     std::vector<aidl::android::automotive::watchdog::internal::PackageIoOveruseStats>
             mLatestIoOveruseStats;
 

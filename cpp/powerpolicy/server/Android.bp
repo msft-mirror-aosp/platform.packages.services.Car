@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -26,8 +27,8 @@ cc_defaults {
         "-Wunused-parameter",
     ],
     shared_libs: [
-        "android.frameworks.automotive.powerpolicy-V2-ndk",
-        "android.frameworks.automotive.powerpolicy.internal-V1-cpp",
+        "android.automotive.powerpolicy.delegate-V1-ndk",
+        "android.frameworks.automotive.powerpolicy-V3-ndk",
         "android.frameworks.automotive.powerpolicy.internal-V1-ndk",
         "android.hardware.automotive.vehicle@2.0",
         "libbase",
@@ -37,13 +38,15 @@ cc_defaults {
         "liblog",
         "libtinyxml2",
         "libutils",
+        "server_configurable_flags",
     ],
     static_libs: [
+        "android.car.feature-aconfig-cpp",
         "libc++fs",
         "libsysfsmonitor",
         "libvhalclient",
     ],
-    defaults: [ "vhalclient_defaults" ],
+    defaults: ["vhalclient_defaults"],
 }
 
 cc_library {

@@ -10,7 +10,7 @@ aidl_interface {
         "android/automotive/computepipe/*.aidl",
     ],
     imports: [
-        "android.hardware.graphics.common-V4",
+        "android.hardware.graphics.common-V5",
     ],
     stability: "vintf",
     // Automotive has different platform schedule. We shouldn't need to
@@ -29,7 +29,7 @@ aidl_interface {
         {
             version: "1",
             imports: ["android.hardware.graphics.common-V1"],
-        }
+        },
     ],
 }
 
@@ -58,6 +58,6 @@ aidl_interface {
         {
             version: "1",
             imports: ["android.automotive.computepipe.runner-V1"],
-        }
+        },
     ],
 }

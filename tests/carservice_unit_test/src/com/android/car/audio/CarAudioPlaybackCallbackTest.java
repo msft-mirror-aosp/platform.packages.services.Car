@@ -20,12 +20,19 @@ import static android.media.AudioAttributes.USAGE_MEDIA;
 
 import static com.android.car.audio.CarAudioService.SystemClockWrapper;
 
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.media.AudioAttributes;
 import android.media.AudioPlaybackConfiguration;
+import android.util.Pair;
 import android.util.SparseArray;
 
 import com.google.common.collect.ImmutableList;
@@ -33,6 +40,8 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -52,6 +61,8 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
     private static final int NEGATIVE_KEY_EVENT_TIMEOUT_MS = -KEY_EVENT_TIMEOUT_MS;
     private static final String PRIMARY_MEDIA_ADDRESS = "music_bus0";
     private static final String SECONDARY_MEDIA_ADDRESS = "music_bus1";
+    private static final int PLAYBACK_UID_1 = 10101;
+    private static final int PLAYBACK_UID_2 = 10102;
 
     private static final AudioAttributes TEST_MEDIA_AUDIO_ATTRIBUTE =
             new AudioAttributes.Builder().setUsage(USAGE_MEDIA).build();
@@ -70,6 +81,10 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
     private CarAudioPlaybackCallback mCallback;
     @Mock
     private SystemClockWrapper mClock;
+    @Mock
+    private CarAudioPlaybackMonitor mCarAudioPlaybackMonitor;
+    @Captor
+    private ArgumentCaptor<List<Pair<AudioAttributes, Integer>>> mAudioAttributesCaptor;
 
     @Before
     public void setUp() {
@@ -78,14 +93,15 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
         when(mClock.uptimeMillis()).thenReturn(TIMER_START_TIME_MS);
         mCarAudioZones.put(PRIMARY_ZONE_ID, mPrimaryZone);
         mCarAudioZones.put(SECONDARY_ZONE_ID, mSecondaryZone);
-        mCallback = new CarAudioPlaybackCallback(mCarAudioZones, mClock, KEY_EVENT_TIMEOUT_MS);
+        mCallback = new CarAudioPlaybackCallback(mCarAudioZones, mCarAudioPlaybackMonitor, mClock,
+                KEY_EVENT_TIMEOUT_MS);
     }
 
     @Test
     public void constructor_withNullAudioZones_fails() throws Exception {
         NullPointerException thrown = assertThrows(NullPointerException.class,
-                () -> new CarAudioPlaybackCallback(/* audioZones= */ null, mClock,
-                        KEY_EVENT_TIMEOUT_MS));
+                () -> new CarAudioPlaybackCallback(/* carAudioZones= */ null,
+                        mCarAudioPlaybackMonitor, mClock, KEY_EVENT_TIMEOUT_MS));
 
         expectWithMessage("Car audio playback callback construction exception")
                 .that(thrown).hasMessageThat().contains("Car audio zone cannot be null");
@@ -94,8 +110,8 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
     @Test
     public void constructor_withEmptyAudioZones_fails() throws Exception {
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-                () -> new CarAudioPlaybackCallback(new SparseArray<>(), mClock,
-                        KEY_EVENT_TIMEOUT_MS));
+                () -> new CarAudioPlaybackCallback(new SparseArray<>(), mCarAudioPlaybackMonitor,
+                        mClock, KEY_EVENT_TIMEOUT_MS));
 
         expectWithMessage("Car audio playback callback construction exception")
                 .that(thrown).hasMessageThat().contains("Car audio zones must not be empty");
@@ -105,8 +121,8 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
     public void constructor_withNullSystemClockWrapper_fails()
             throws Exception {
         NullPointerException thrown = assertThrows(NullPointerException.class,
-                () -> new CarAudioPlaybackCallback(mCarAudioZones, /* clock= */ null,
-                        KEY_EVENT_TIMEOUT_MS));
+                () -> new CarAudioPlaybackCallback(mCarAudioZones, mCarAudioPlaybackMonitor,
+                        /* clock= */ null, KEY_EVENT_TIMEOUT_MS));
 
         expectWithMessage("Car audio playback callback construction exception")
                 .that(thrown).hasMessageThat().contains("Clock cannot be null");
@@ -116,7 +132,7 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
     public void constructor_withNegativeKeyEventTimeout_fails()
             throws Exception {
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-                () -> new CarAudioPlaybackCallback(mCarAudioZones, mClock,
+                () -> new CarAudioPlaybackCallback(mCarAudioZones, mCarAudioPlaybackMonitor, mClock,
                         NEGATIVE_KEY_EVENT_TIMEOUT_MS));
 
         expectWithMessage("Car audio playback callback construction exception")
@@ -130,6 +146,7 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_1)
                         .build()
         );
 
@@ -145,6 +162,33 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
         expectWithMessage("Secondary zone active attributes")
                 .that(secondaryZoneActiveAttributes)
                 .isEmpty();
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_1)),
+                PRIMARY_ZONE_ID);
+        verify(mCarAudioPlaybackMonitor, never()).onActiveAudioPlaybackAttributesAdded(any(),
+                eq(SECONDARY_ZONE_ID));
+    }
+
+    @Test
+    public void onPlaybackConfigChanged_withNullPlaybackMonitor() {
+        CarAudioPlaybackCallback callback = new CarAudioPlaybackCallback(mCarAudioZones,
+                /* carAudioPlaybackMonitor= */ null, mClock, KEY_EVENT_TIMEOUT_MS);
+        List<AudioPlaybackConfiguration> configurations = ImmutableList.of(
+                new AudioPlaybackConfigurationBuilder()
+                        .setUsage(USAGE_MEDIA)
+                        .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
+                        .build()
+        );
+
+        callback.onPlaybackConfigChanged(configurations);
+
+        List<AudioAttributes> primaryZoneActiveAttributes =
+                callback.getAllActiveAudioAttributesForZone(PRIMARY_ZONE_ID);
+        List<AudioAttributes> secondaryZoneActiveAttributes =
+                callback.getAllActiveAudioAttributesForZone(SECONDARY_ZONE_ID);
+        expectWithMessage("Primary zone active attributes with null playback monitor")
+                .that(primaryZoneActiveAttributes).containsExactly(TEST_MEDIA_AUDIO_ATTRIBUTE);
+        expectWithMessage("Secondary zone active attributes with null playback monitor")
+                .that(secondaryZoneActiveAttributes).isEmpty();
     }
 
     @Test
@@ -153,10 +197,12 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_1)
                         .build(),
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(SECONDARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_2)
                         .build()
         );
 
@@ -172,6 +218,10 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
         expectWithMessage("Secondary zone active attributes")
                 .that(secondaryZoneActiveAttributes)
                 .containsExactly(TEST_MEDIA_AUDIO_ATTRIBUTE);
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_1)),
+                PRIMARY_ZONE_ID);
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_2)),
+                SECONDARY_ZONE_ID);
     }
 
     @Test
@@ -180,11 +230,13 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_1)
                         .build(),
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(SECONDARY_MEDIA_ADDRESS)
                         .setInactive()
+                        .setClientUid(PLAYBACK_UID_2)
                         .build()
         );
 
@@ -200,6 +252,10 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
         expectWithMessage("Secondary zone active attributes")
                 .that(secondaryZoneActiveAttributes)
                 .isEmpty();
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_1)),
+                PRIMARY_ZONE_ID);
+        verify(mCarAudioPlaybackMonitor, never()).onActiveAudioPlaybackAttributesAdded(any(),
+                eq(SECONDARY_ZONE_ID));
     }
 
     @Test
@@ -208,10 +264,12 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_1)
                         .build(),
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(SECONDARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_2)
                         .build()
         );
         List<AudioPlaybackConfiguration> configurationsChanged = ImmutableList.of(
@@ -219,11 +277,13 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
                         .setInactive()
+                        .setClientUid(PLAYBACK_UID_1)
                         .build(),
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(SECONDARY_MEDIA_ADDRESS)
                         .setInactive()
+                        .setClientUid(PLAYBACK_UID_2)
                         .build()
         );
         mCallback.onPlaybackConfigChanged(configurations);
@@ -241,6 +301,10 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
         expectWithMessage("Secondary zone active attributes")
                 .that(secondaryZoneActiveAttributes)
                 .containsExactly(TEST_MEDIA_AUDIO_ATTRIBUTE);
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_1)),
+                PRIMARY_ZONE_ID);
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_2)),
+                SECONDARY_ZONE_ID);
     }
 
     @Test
@@ -249,10 +313,12 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_1)
                         .build(),
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(SECONDARY_MEDIA_ADDRESS)
+                        .setClientUid(PLAYBACK_UID_2)
                         .build()
         );
         List<AudioPlaybackConfiguration> configurationsChanged = ImmutableList.of(
@@ -260,11 +326,13 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(PRIMARY_MEDIA_ADDRESS)
                         .setInactive()
+                        .setClientUid(PLAYBACK_UID_1)
                         .build(),
                 new AudioPlaybackConfigurationBuilder()
                         .setUsage(USAGE_MEDIA)
                         .setDeviceAddress(SECONDARY_MEDIA_ADDRESS)
                         .setInactive()
+                        .setClientUid(PLAYBACK_UID_2)
                         .build()
         );
         mCallback.onPlaybackConfigChanged(configurations);
@@ -282,6 +350,10 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
         expectWithMessage("Secondary zone active attributes")
                 .that(secondaryZoneActiveAttributes)
                 .isEmpty();
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_1)),
+                PRIMARY_ZONE_ID);
+        verifyActivationPlaybacks(List.of(new Pair<>(TEST_MEDIA_AUDIO_ATTRIBUTE, PLAYBACK_UID_2)),
+                SECONDARY_ZONE_ID);
     }
 
     @Test
@@ -352,5 +424,15 @@ public class CarAudioPlaybackCallbackTest extends AbstractExtendedMockitoTestCas
         return new TestCarAudioZoneBuilder("Secondary zone", SECONDARY_ZONE_ID)
                 .addCarAudioZoneConfig(secondaryCarAudioZoneConfig)
                 .build();
+    }
+
+    private void verifyActivationPlaybacks(List<Pair<AudioAttributes, Integer>>
+                                                   newlyActiveAudioAttributesWithUid,
+                                           int zoneId) {
+        verify(mCarAudioPlaybackMonitor).onActiveAudioPlaybackAttributesAdded(
+                mAudioAttributesCaptor.capture(), eq(zoneId));
+        assertWithMessage("Audio attributes with uid for newly active playbacks")
+                .that(mAudioAttributesCaptor.getValue())
+                .containsExactlyElementsIn(newlyActiveAudioAttributesWithUid);
     }
 }

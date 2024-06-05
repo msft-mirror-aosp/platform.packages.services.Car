@@ -25,14 +25,13 @@ import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarManagerBase;
-import android.car.annotation.AddedInOrBefore;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.SystemClock;
-import android.util.Log;
+import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -46,7 +45,6 @@ import java.lang.ref.WeakReference;
 @SystemApi
 public final class CarDrivingStateManager extends CarManagerBase {
     private static final String TAG = "CarDrivingStateMgr";
-    private static final boolean DBG = false;
     private static final boolean VDBG = false;
     private static final int MSG_HANDLE_DRIVING_STATE_CHANGE = 0;
 
@@ -70,7 +68,6 @@ public final class CarDrivingStateManager extends CarManagerBase {
 
     /** @hide */
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void onCarDisconnected() {
         synchronized (mLock) {
             mListenerToService = null;
@@ -90,7 +87,6 @@ public final class CarDrivingStateManager extends CarManagerBase {
          *
          * @param event Car's driving state.
          */
-        @AddedInOrBefore(majorVersion = 33)
         void onDrivingStateChanged(CarDrivingStateEvent event);
     }
 
@@ -101,11 +97,10 @@ public final class CarDrivingStateManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public void registerListener(@NonNull CarDrivingStateEventListener listener) {
         if (listener == null) {
             if (VDBG) {
-                Log.v(TAG, "registerCarDrivingStateEventListener(): null listener");
+                Slog.v(TAG, "registerCarDrivingStateEventListener(): null listener");
             }
             throw new IllegalArgumentException("Listener is null");
         }
@@ -113,7 +108,7 @@ public final class CarDrivingStateManager extends CarManagerBase {
         synchronized (mLock) {
             // Check if the listener has been already registered for this event type
             if (mDrvStateEventListener != null) {
-                Log.w(TAG, "Listener already registered");
+                Slog.w(TAG, "Listener already registered");
                 return;
             }
             if (mListenerToService == null) {
@@ -137,12 +132,11 @@ public final class CarDrivingStateManager extends CarManagerBase {
      * @hide
      */
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public void unregisterListener() {
         CarDrivingStateChangeListenerToService localListenerToService;
         synchronized (mLock) {
             if (mDrvStateEventListener == null) {
-                Log.w(TAG, "Listener was not previously registered");
+                Slog.w(TAG, "Listener was not previously registered");
                 return;
             }
             localListenerToService = mListenerToService;
@@ -164,7 +158,6 @@ public final class CarDrivingStateManager extends CarManagerBase {
      */
     @Nullable
     @SystemApi
-    @AddedInOrBefore(majorVersion = 33)
     public CarDrivingStateEvent getCurrentCarDrivingState() {
         try {
             return mDrivingService.getCurrentDrivingState();
@@ -181,7 +174,6 @@ public final class CarDrivingStateManager extends CarManagerBase {
      * @hide
      */
     @TestApi
-    @AddedInOrBefore(majorVersion = 33)
     @RequiresPermission(PERMISSION_CONTROL_APP_BLOCKING)
     public void injectDrivingState(int drivingState) {
         CarDrivingStateEvent event = new CarDrivingStateEvent(
@@ -261,7 +253,7 @@ public final class CarDrivingStateManager extends CarManagerBase {
             return;
         }
         CarDrivingStateEventListener listener;
-        synchronized (this) {
+        synchronized (mLock) {
             listener = mDrvStateEventListener;
         }
         if (listener != null) {

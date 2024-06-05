@@ -34,7 +34,10 @@ import static android.car.VehicleAreaSeat.SEAT_ROW_1_RIGHT;
 import static android.car.VehicleAreaSeat.SEAT_ROW_2_RIGHT;
 import static android.car.test.mocks.AndroidMockitoHelper.mockContextCreateContextAsUser;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 
 import static com.android.car.occupantconnection.CarRemoteDeviceService.INITIAL_APP_STATE;
 import static com.android.car.occupantconnection.CarRemoteDeviceService.INITIAL_OCCUPANT_ZONE_STATE;
@@ -211,7 +214,7 @@ public class CarRemoteDeviceServiceTest {
 
         OccupantZoneInfo peerZone = new OccupantZoneInfo(/* zoneId= */ 0,
                 OCCUPANT_TYPE_DRIVER, SEAT_ROW_1_LEFT);
-        PerUserInfo peerUserInfo = mockPerUserInfo(USER_ID, peerZone);
+        mockPerUserInfo(USER_ID, peerZone);
         // The BroadcastReceiver in the peerUserInfo is a mock and will do nothing when calling
         // peerUserInfo.receiver.onReceive(), so remove it from the map. When mService.init() is
         // called, because the map doesn't have the PerUserInfo, it will create a real
@@ -225,7 +228,7 @@ public class CarRemoteDeviceServiceTest {
         mService.init();
         mService.registerStateCallback(PACKAGE_NAME, mCallback);
         // Get the PerUserInfo containing the real BroadcastReceiver.
-        peerUserInfo = mPerUserInfoMap.get(USER_ID);
+        PerUserInfo peerUserInfo = mPerUserInfoMap.get(USER_ID);
 
         // Pretend that the peer app is installed in the beginning.
         ClientId peerClient = new ClientId(peerZone, USER_ID, PACKAGE_NAME);
@@ -264,7 +267,7 @@ public class CarRemoteDeviceServiceTest {
 
         OccupantZoneInfo peerZone = new OccupantZoneInfo(/* zoneId= */ 0,
                 OCCUPANT_TYPE_DRIVER, SEAT_ROW_1_LEFT);
-        PerUserInfo peerUserInfo = mockPerUserInfo(USER_ID, peerZone);
+        mockPerUserInfo(USER_ID, peerZone);
         // The BroadcastReceiver in the peerUserInfo is a mock and will do nothing when calling
         // peerUserInfo.receiver.onReceive(), so remove it from the map. When mService.init() is
         // called, because the map doesn't have the PerUserInfo, it will create a real
@@ -278,7 +281,7 @@ public class CarRemoteDeviceServiceTest {
         mService.init();
         mService.registerStateCallback(PACKAGE_NAME, mCallback);
         // Get the PerUserInfo containing the real BroadcastReceiver.
-        peerUserInfo = mPerUserInfoMap.get(USER_ID);
+        PerUserInfo peerUserInfo = mPerUserInfoMap.get(USER_ID);
 
         // Pretend that the peer app is installed in the beginning.
         ClientId peerClient = new ClientId(peerZone, USER_ID, PACKAGE_NAME);
@@ -641,7 +644,7 @@ public class CarRemoteDeviceServiceTest {
     }
 
     @Test
-    public void testOccupantZonePowerStateChanged() throws RemoteException {
+    public void testOccupantZonePowerStateChanged() {
         DisplayListener[] displayListener = new DisplayListener[1];
         doAnswer((invocation) -> {
             Object[] args = invocation.getArguments();
@@ -661,7 +664,76 @@ public class CarRemoteDeviceServiceTest {
     }
 
     @Test
-    public void testUserAssigned() throws RemoteException {
+    public void testUserStarting() {
+        UserLifecycleListener[] userLifecycleListeners = new UserLifecycleListener[1];
+        doAnswer((invocation) -> {
+            Object[] args = invocation.getArguments();
+            userLifecycleListeners[0] = (UserLifecycleListener) args[1];
+            return null;
+        }).when(mUserService).addUserLifecycleListener(any(), any());
+
+        mService.init();
+        mOccupantZoneStateMap.put(mOccupantZone, FLAG_OCCUPANT_ZONE_POWER_ON);
+
+        mockPerUserInfo(USER_ID, mOccupantZone);
+        // Remove the item added by previous line, then check whether it can be added back
+        // after onEvent().
+        mPerUserInfoMap.remove(USER_ID);
+        UserLifecycleEvent event = new UserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING,
+                /* from= */ USER_ID, /* to= */ USER_ID);
+        userLifecycleListeners[0].onEvent(event);
+
+        assertThat(mPerUserInfoMap.get(USER_ID).zone).isEqualTo(mOccupantZone);
+    }
+
+    @Test
+    public void testUserBecameVisible() {
+        UserLifecycleListener[] userLifecycleListeners = new UserLifecycleListener[1];
+        doAnswer((invocation) -> {
+            Object[] args = invocation.getArguments();
+            userLifecycleListeners[0] = (UserLifecycleListener) args[1];
+            return null;
+        }).when(mUserService).addUserLifecycleListener(any(), any());
+
+        mService.init();
+        mOccupantZoneStateMap.put(mOccupantZone, FLAG_OCCUPANT_ZONE_POWER_ON);
+
+        mockPerUserInfo(USER_ID, mOccupantZone);
+        // Remove the item added by previous line, then check whether it can be added back
+        // after onEvent().
+        mPerUserInfoMap.remove(USER_ID);
+        UserLifecycleEvent event = new UserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_VISIBLE,
+                /* from= */ USER_ID, /* to= */ USER_ID);
+        userLifecycleListeners[0].onEvent(event);
+
+        assertThat(mPerUserInfoMap.get(USER_ID).zone).isEqualTo(mOccupantZone);
+    }
+
+    @Test
+    public void testUserSwitching() {
+        UserLifecycleListener[] userLifecycleListeners = new UserLifecycleListener[1];
+        doAnswer((invocation) -> {
+            Object[] args = invocation.getArguments();
+            userLifecycleListeners[0] = (UserLifecycleListener) args[1];
+            return null;
+        }).when(mUserService).addUserLifecycleListener(any(), any());
+
+        mService.init();
+        mOccupantZoneStateMap.put(mOccupantZone, FLAG_OCCUPANT_ZONE_POWER_ON);
+
+        mockPerUserInfo(USER_ID, mOccupantZone);
+        // Remove the item added by previous line, then check whether it can be added back
+        // after onEvent().
+        mPerUserInfoMap.remove(USER_ID);
+        UserLifecycleEvent event = new UserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
+                /* from= */ USER_ID, /* to= */ USER_ID);
+        userLifecycleListeners[0].onEvent(event);
+
+        assertThat(mPerUserInfoMap.get(USER_ID).zone).isEqualTo(mOccupantZone);
+    }
+
+    @Test
+    public void testUserAssigned() {
         UserLifecycleListener[] userLifecycleListeners = new UserLifecycleListener[1];
         doAnswer((invocation) -> {
             Object[] args = invocation.getArguments();
@@ -684,7 +756,7 @@ public class CarRemoteDeviceServiceTest {
     }
 
     @Test
-    public void testUserUnassigned() throws RemoteException {
+    public void testUserUnassigned() {
         UserLifecycleListener[] userLifecycleListeners = new UserLifecycleListener[1];
         doAnswer((invocation) -> {
             Object[] args = invocation.getArguments();
@@ -708,7 +780,7 @@ public class CarRemoteDeviceServiceTest {
     }
 
     @Test
-    public void testUserSwitched() throws RemoteException {
+    public void testUserSwitched() {
         UserLifecycleListener[] userLifecycleListeners = new UserLifecycleListener[1];
         doAnswer((invocation) -> {
             Object[] args = invocation.getArguments();

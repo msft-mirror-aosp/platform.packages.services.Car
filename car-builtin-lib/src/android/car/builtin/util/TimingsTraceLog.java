@@ -18,8 +18,6 @@ package android.car.builtin.util;
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
-import android.car.builtin.annotation.AddedIn;
-import android.car.builtin.annotation.PlatformVersion;
 
 /**
  * Wrapper class for {@code android.util.TimingsTraceLog}. Check the class for API documentation.
@@ -28,26 +26,47 @@ import android.car.builtin.annotation.PlatformVersion;
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public class TimingsTraceLog {
 
-    private final android.util.TimingsTraceLog mTimingsTraceLog;
+    private static final class TimingsTraceLogInternal extends android.util.TimingsTraceLog {
+        private final int mMinDurationMs;
+
+        /**
+         * Same as {@link TimingsTraceLog} except last argument {@code minDurationMs} which
+         * specifies the minimum duration to log the duration.
+         */
+        TimingsTraceLogInternal(String tag, long traceTag, int minDurationMs) {
+            super(tag, traceTag);
+            mMinDurationMs = minDurationMs;
+        }
+
+        @Override
+        public void logDuration(String name, long timeMs) {
+            if (timeMs >= mMinDurationMs) {
+                super.logDuration(name, timeMs);
+            }
+        }
+    }
+
+    private final TimingsTraceLogInternal mTimingsTraceLog;
 
     public TimingsTraceLog(@NonNull String tag, long traceTag) {
-        mTimingsTraceLog = new android.util.TimingsTraceLog(tag, traceTag);
+        mTimingsTraceLog = new TimingsTraceLogInternal(tag, traceTag, /* minDurationMs= */ 0);
+    }
+
+    public TimingsTraceLog(@NonNull String tag, long traceTag, int minDurationMs) {
+        mTimingsTraceLog = new TimingsTraceLogInternal(tag, traceTag, minDurationMs);
     }
 
     /** Check {@code android.util.Slog}. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public void traceBegin(@NonNull String name) {
         mTimingsTraceLog.traceBegin(name);
     }
 
     /** Check {@code android.util.Slog}. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public void traceEnd() {
         mTimingsTraceLog.traceEnd();
     }
 
     /** Check {@code android.util.Slog}. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public void logDuration(@NonNull String name, long timeMs) {
         mTimingsTraceLog.logDuration(name, timeMs);
     }

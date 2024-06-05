@@ -16,14 +16,16 @@
 
 package android.car.hardware;
 
+import static android.car.feature.Flags.FLAG_CAR_PROPERTY_VALUE_PROPERTY_STATUS;
+
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import static java.lang.Integer.toHexString;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.car.VehiclePropertyIds;
-import android.car.annotation.AddedInOrBefore;
 import android.car.builtin.os.ParcelHelper;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -34,6 +36,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -51,9 +54,11 @@ public final class CarPropertyValue<T> implements Parcelable {
 
     private final int mPropertyId;
     private final int mAreaId;
+    private final int mStatus;
     private final long mTimestampNanos;
     private final T mValue;
 
+    /** @removed accidentally exposed previously */
     @IntDef({
         STATUS_AVAILABLE,
         STATUS_UNAVAILABLE,
@@ -65,35 +70,34 @@ public final class CarPropertyValue<T> implements Parcelable {
     /**
      * {@code CarPropertyValue} is available.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_AVAILABLE = 0;
 
     /**
      * {@code CarPropertyValue} is unavailable.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_UNAVAILABLE = 1;
 
     /**
      * {@code CarPropertyValue} has an error.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public static final int STATUS_ERROR = 2;
 
     /**
      * Creates an instance of {@code CarPropertyValue}.
      *
-     * @param propertyId Property ID, must be one of enums in
-     *   {@link android.car.VehiclePropertyIds}.
-     * @param areaId Area ID of Property, must be one of enums in one of the following classes:
-     *   <ul>
-     *     <li><{@code VehicleAreaWindow}</li>
-     *     <li><{@code VehicleAreaDoor}</li>
-     *     <li><{@link android.car.VehicleAreaSeat}</li>
-     *     <li><{@code VehicleAreaMirror}</li>
-     *     <li><{@link android.car.VehicleAreaWheel}</li>
-     *   </ul>
-     *   or 0 for global property.
+     * @param propertyId The property identifier, see constants in
+     *                   {@link android.car.VehiclePropertyIds} for system defined property IDs.
+     * @param areaId     The area identifier. Must be {@code 0} if property is
+     *                   {@link android.car.VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}. Otherwise, it
+     *                   must be one or more OR'd together constants of this property's
+     *                   {@link android.car.VehicleAreaType}:
+     *                     <ul>
+     *                       <li>{@code VehicleAreaWindow}</li>
+     *                       <li>{@code VehicleAreaDoor}</li>
+     *                       <li>{@link android.car.VehicleAreaSeat}</li>
+     *                       <li>{@code VehicleAreaMirror}</li>
+     *                       <li>{@link android.car.VehicleAreaWheel}</li>
+     *                     </ul>
      * @param value Value of Property
      * @hide
      */
@@ -105,28 +109,28 @@ public final class CarPropertyValue<T> implements Parcelable {
      * Creates an instance of {@code CarPropertyValue}. The {@code timestampNanos} is the time in
      * nanoseconds at which the event happened. For a given car property, each new {@code
      * CarPropertyValue} should be monotonically increasing using the same time base as
-     * {@link SystemClock#elapsedRealtimeNanos()}.
+     * {@link android.os.SystemClock#elapsedRealtimeNanos()}.
      *
-     * @param propertyId Property ID, must be one of enums in
-     *   {@link android.car.VehiclePropertyIds}.
-     * @param areaId     Area ID of Property, must be one of enums in one of the following classes:
-     *   <ul>
-     *     <li><{@code VehicleAreaWindow}</li>
-     *     <li><{@code VehicleAreaDoor}</li>
-     *     <li><{@link android.car.VehicleAreaSeat}</li>
-     *     <li><{@code VehicleAreaMirror}</li>
-     *     <li><{@link android.car.VehicleAreaWheel}</li>
-     *   </ul>
-     *   or 0 for global property.
+     *
+     * @param propertyId The property identifier, see constants in
+     *                   {@link android.car.VehiclePropertyIds} for system defined property IDs.
+     * @param areaId     The area identifier. Must be {@code 0} if property is
+     *                   {@link android.car.VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}. Otherwise, it
+     *                   must be one or more OR'd together constants of this property's
+     *                   {@link android.car.VehicleAreaType}:
+     *                     <ul>
+     *                       <li>{@code VehicleAreaWindow}</li>
+     *                       <li>{@code VehicleAreaDoor}</li>
+     *                       <li>{@link android.car.VehicleAreaSeat}</li>
+     *                       <li>{@code VehicleAreaMirror}</li>
+     *                       <li>{@link android.car.VehicleAreaWheel}</li>
+     *                     </ul>
      * @param timestampNanos  Elapsed time in nanoseconds since boot
      * @param value      Value of Property
      * @hide
      */
     public CarPropertyValue(int propertyId, int areaId, long timestampNanos, T value) {
-        mPropertyId = propertyId;
-        mAreaId = areaId;
-        mTimestampNanos = timestampNanos;
-        mValue = value;
+        this(propertyId, areaId, CarPropertyValue.STATUS_AVAILABLE, timestampNanos, value);
     }
 
     /**
@@ -136,14 +140,9 @@ public final class CarPropertyValue<T> implements Parcelable {
      */
     @Deprecated
     public CarPropertyValue(int propertyId, int areaId, int status, long timestampNanos, T value) {
-        if (status != STATUS_AVAILABLE) {
-            throw new IllegalArgumentException(
-                    "car property value with property ID: "
-                    + VehiclePropertyIds.toString(propertyId) + ", areaID: " + areaId
-                    + " must have available status, this should not happen.");
-        }
         mPropertyId = propertyId;
         mAreaId = areaId;
+        mStatus = status;
         mTimestampNanos = timestampNanos;
         mValue = value;
     }
@@ -158,6 +157,7 @@ public final class CarPropertyValue<T> implements Parcelable {
     public CarPropertyValue(Parcel in) {
         mPropertyId = in.readInt();
         mAreaId = in.readInt();
+        mStatus = in.readInt();
         mTimestampNanos = in.readLong();
         String valueClassName = in.readString();
         Class<?> valueClass;
@@ -177,7 +177,6 @@ public final class CarPropertyValue<T> implements Parcelable {
         }
     }
 
-    @AddedInOrBefore(majorVersion = 33)
     public static final Creator<CarPropertyValue> CREATOR = new Creator<CarPropertyValue>() {
         @Override
         public CarPropertyValue createFromParcel(Parcel in) {
@@ -192,16 +191,15 @@ public final class CarPropertyValue<T> implements Parcelable {
 
     @Override
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    @AddedInOrBefore(majorVersion = 33)
     public int describeContents() {
         return 0;
     }
 
     @Override
-    @AddedInOrBefore(majorVersion = 33)
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(mPropertyId);
         dest.writeInt(mAreaId);
+        dest.writeInt(mStatus);
         dest.writeLong(mTimestampNanos);
 
         Class<?> valueClass = mValue == null ? null : mValue.getClass();
@@ -218,39 +216,51 @@ public final class CarPropertyValue<T> implements Parcelable {
     }
 
     /**
-     * @return Property id of {@code CarPropertyValue}, must be one of enums in
-     *   {@link android.car.VehiclePropertyIds}.
+     * Returns the property identifier.
+     *
+     * @return The property identifier of {@code CarPropertyValue}. See constants in
+     *         {@link android.car.VehiclePropertyIds} for some system defined possible values.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public int getPropertyId() {
         return mPropertyId;
     }
 
     /**
-     * @return Area id of {@code CarPropertyValue}, must be one of enums in one of the following
-     * classes:
-     *   <ul>
-     *     <li><{@code VehicleAreaWindow}</li>
-     *     <li><{@code VehicleAreaDoor}</li>
-     *     <li><{@link android.car.VehicleAreaSeat}</li>
-     *     <li><{@code VehicleAreaMirror}</li>
-     *     <li><{@link android.car.VehicleAreaWheel}</li>
-     *   </ul>
-     *   or 0 for global property.
+     * Returns the area identifier.
+     *
+     * @return The area identifier of {@code CarPropertyValue}, If property is
+     *         {@link android.car.VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}, it will be {@code 0}.
+     *         Otherwise, it will be on or more OR'd together constants of this property's
+     *         {@link android.car.VehicleAreaType}:
+     *           <ul>
+     *             <li>{@code VehicleAreaWindow}</li>
+     *             <li>{@code VehicleAreaDoor}</li>
+     *             <li>{@link android.car.VehicleAreaSeat}</li>
+     *             <li>{@code VehicleAreaMirror}</li>
+     *             <li>{@link android.car.VehicleAreaWheel}</li>
+     *           </ul>
      */
-    @AddedInOrBefore(majorVersion = 33)
     public int getAreaId() {
         return mAreaId;
     }
 
     /**
-     * @return Status of {@code CarPropertyValue}
-     *
-     * @deprecated This will always return {@link #STATUS_AVAILABLE}.
+     * @return The property status of {@code CarPropertyValue}
      */
-    @AddedInOrBefore(majorVersion = 33)
-    public @PropertyStatus int getStatus() {
-        return STATUS_AVAILABLE;
+    @FlaggedApi(FLAG_CAR_PROPERTY_VALUE_PROPERTY_STATUS)
+    @PropertyStatus
+    public int getPropertyStatus() {
+        return mStatus;
+    }
+
+    /**
+     * @return Status of {@code CarPropertyValue}
+     * @deprecated Use a new API that communicates the property status.
+     */
+    @Deprecated
+    @PropertyStatus
+    public int getStatus() {
+        return mStatus;
     }
 
     /**
@@ -262,16 +272,19 @@ public final class CarPropertyValue<T> implements Parcelable {
      * {@link android.location.Location} and {@link android.hardware.SensorEvent} instances).
      * Ideally, timestamp synchronization error should be below 1 millisecond.
      */
-    @AddedInOrBefore(majorVersion = 33)
     public long getTimestamp() {
         return mTimestampNanos;
     }
 
     /**
-     * @return Value of {@code CarPropertyValue}
+     * Returns the value for {@code CarPropertyValue}.
+     *
+     * <p>
+     * <b>Note:</b>Caller must check the value of {@link #getStatus()}. Only use
+     * {@link #getValue()} when {@link #getStatus()} is {@link #STATUS_AVAILABLE}. If not,
+     * {@link #getValue()} is meaningless.
      */
     @NonNull
-    @AddedInOrBefore(majorVersion = 33)
     public T getValue() {
         return mValue;
     }
@@ -283,6 +296,7 @@ public final class CarPropertyValue<T> implements Parcelable {
                 + "mPropertyId=0x" + toHexString(mPropertyId)
                 + ", propertyName=" + VehiclePropertyIds.toString(mPropertyId)
                 + ", mAreaId=0x" + toHexString(mAreaId)
+                + ", mStatus=" + mStatus
                 + ", mTimestampNanos=" + mTimestampNanos
                 + ", mValue=" + mValue
                 + '}';
@@ -291,7 +305,8 @@ public final class CarPropertyValue<T> implements Parcelable {
     /** Generates hash code for this instance. */
     @Override
     public int hashCode() {
-        return Objects.hash(mPropertyId, mAreaId, mTimestampNanos, mValue);
+        return Arrays.deepHashCode(new Object[]{
+                mPropertyId, mAreaId, mStatus, mTimestampNanos, mValue});
     }
 
     /** Checks equality with passed {@code object}. */
@@ -305,7 +320,8 @@ public final class CarPropertyValue<T> implements Parcelable {
         }
         CarPropertyValue<?> carPropertyValue = (CarPropertyValue<?>) object;
         return mPropertyId == carPropertyValue.mPropertyId && mAreaId == carPropertyValue.mAreaId
+                && mStatus == carPropertyValue.mStatus
                 && mTimestampNanos == carPropertyValue.mTimestampNanos
-                && Objects.equals(mValue, carPropertyValue.mValue);
+                && Objects.deepEquals(mValue, carPropertyValue.mValue);
     }
 }

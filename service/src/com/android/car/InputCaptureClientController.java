@@ -18,6 +18,7 @@ package com.android.car;
 
 import static android.car.CarOccupantZoneManager.DisplayTypeEnum;
 
+import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import static java.util.Map.entry;
@@ -90,7 +91,8 @@ public class InputCaptureClientController {
             entry(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT,
                     CarInputManager.INPUT_TYPE_SYSTEM_NAVIGATE_KEYS),
             entry(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT,
-                    CarInputManager.INPUT_TYPE_SYSTEM_NAVIGATE_KEYS)
+                    CarInputManager.INPUT_TYPE_SYSTEM_NAVIGATE_KEYS),
+            entry(KeyEvent.KEYCODE_VOICE_ASSIST, CarInputManager.INPUT_TYPE_SYSTEM_NAVIGATE_KEYS)
     );
 
     private static final Set<Integer> VALID_INPUT_TYPES = Set.of(
@@ -112,7 +114,7 @@ public class InputCaptureClientController {
             CarOccupantZoneManager.DISPLAY_TYPE_INSTRUMENT_CLUSTER
     );
 
-    private static final int[] EMPTY_INPUT_TYPES = new int[0];
+    private static final int[] EMPTY_INPUT_TYPES = EMPTY_INT_ARRAY;
 
     private final class ClientInfoForDisplay implements IBinder.DeathRecipient {
         private final int mUid;
@@ -183,8 +185,7 @@ public class InputCaptureClientController {
             if (client.mGrantedTypes.isEmpty()) {
                 inputTypesToDispatch = EMPTY_INPUT_TYPES;
             } else {
-                inputTypesToDispatch = client.mGrantedTypes.stream().mapToInt(
-                        Integer::intValue).toArray();
+                inputTypesToDispatch = CarServiceUtils.toIntArray(client.mGrantedTypes);
             }
             mClientsToDispatch.put(client.mCallback, inputTypesToDispatch);
         }
@@ -210,13 +211,13 @@ public class InputCaptureClientController {
     private final SparseArray<SparseArray<LinkedList<ClientInfoForDisplay>>>
             mPerInputTypeCapturers = new SparseArray<>(2);
 
-    @GuardedBy("mLock")
     /** key: display type -> client binder */
+    @GuardedBy("mLock")
     private final SparseArray<HashMap<IBinder, ClientInfoForDisplay>> mAllClients =
             new SparseArray<>(1);
 
-    @GuardedBy("mLock")
     /** Keeps events to dispatch together. FIFO, last one added to last */
+    @GuardedBy("mLock")
     private final LinkedList<ClientsToDispatch> mClientDispatchQueue =
             new LinkedList<>();
 

@@ -17,12 +17,8 @@
 package android.car.builtin.input;
 
 import android.annotation.NonNull;
-import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
-import android.car.builtin.annotation.AddedIn;
-import android.car.builtin.annotation.PlatformVersion;
 import android.hardware.input.InputManager;
-import android.os.Build;
 import android.os.IBinder;
 import android.view.View;
 
@@ -45,7 +41,6 @@ public class InputManagerHelper {
      * @param event        the event to inject
      * @return {@code true} if injection succeeds
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public static boolean injectInputEvent(@NonNull InputManager inputManager,
             @NonNull android.view.InputEvent event) {
         return inputManager.injectInputEvent(event, InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
@@ -54,9 +49,28 @@ public class InputManagerHelper {
     /**
      * See {@link InputManager#pilferPointers(IBinder)}.
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static void pilferPointers(@NonNull InputManager inputManager, @NonNull View v) {
         inputManager.pilferPointers(v.getViewRootImpl().getInputToken());
+    }
+
+    /**
+     * See {@link InputManager#addUniqueIdAssociationByDescriptor(String, String)}.
+     */
+    public static void addUniqueIdAssociationByDescriptor(@NonNull InputManager inputManager,
+            @NonNull String inputDeviceDescriptor,
+            @NonNull String displayUniqueId) {
+        // TODO(b/341949977): Improve addUniqueIdAssociationByDescriptor to handle incorrect
+        // input
+        inputManager.addUniqueIdAssociationByDescriptor(inputDeviceDescriptor, displayUniqueId);
+    }
+
+    /**
+     * See {@link InputManager#removeUniqueIdAssociationByDescriptor(String)}.
+     */
+    public static void removeUniqueIdAssociationByDescriptor(@NonNull InputManager inputManager,
+            @NonNull String inputDeviceDescriptor) {
+        // TODO(b/341949977): Improve removeUniqueIdAssociationByDescriptor to handle incorrect
+        // input
+        inputManager.removeUniqueIdAssociationByDescriptor(inputDeviceDescriptor);
     }
 }
