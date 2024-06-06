@@ -616,6 +616,9 @@ public final class CarUnitTest {
         assertThat(car).isNotNull();
         assertThat(car.isConnected()).isTrue();
         verify(mContext).bindService(any(), any(), anyInt());
+        // The callback will be called from the main thread, so it is not guaranteed to be called
+        // after createCar returns.
+        mLifecycleListener.waitForEvent(1, DEFAULT_TIMEOUT_MS);
         mLifecycleListener.assertOneListenerCallAndClear(car, true);
 
         // Just call these to guarantee that nothing crashes with these call.
