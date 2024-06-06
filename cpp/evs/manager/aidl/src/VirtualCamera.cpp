@@ -18,6 +18,7 @@
 
 #include "Enumerator.h"
 #include "HalCamera.h"
+#include "ScopedTrace.h"
 #include "utils/include/Utils.h"
 
 #include <android-base/file.h>
@@ -57,6 +58,8 @@ VirtualCamera::~VirtualCamera() {
 }
 
 ScopedAStatus VirtualCamera::doneWithFrame(const std::vector<BufferDesc>& buffers) {
+    ScopedTrace trace(__PRETTY_FUNCTION__,
+                      buffers.empty() ? std::numeric_limits<int>::min() : buffers[0].bufferId);
     std::lock_guard lock(mMutex);
 
     for (auto&& buffer : buffers) {
@@ -409,6 +412,7 @@ ScopedAStatus VirtualCamera::setMaxFramesInFlight(int32_t bufferCount) {
 }
 
 ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraStream>& receiver) {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     std::lock_guard lock(mMutex);
 
     if (!receiver) {
@@ -476,6 +480,7 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
         int64_t lastFrameTimestamp = -1;
         EvsResult status = EvsResult::OK;
         while (true) {
+            ScopedTrace trace("Processing a frame buffer", lastFrameTimestamp);
             std::unique_lock lock(mMutex);
             ::android::base::ScopedLockAssertion assume_lock(mMutex);
 
@@ -581,6 +586,7 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
 }
 
 ScopedAStatus VirtualCamera::stopVideoStream() {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     {
         std::lock_guard lock(mMutex);
         if (mStreamState != RUNNING) {
@@ -649,6 +655,7 @@ ScopedAStatus VirtualCamera::unsetPrimaryClient() {
 }
 
 void VirtualCamera::shutdown() {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     {
         std::lock_guard lock(mMutex);
 
@@ -721,6 +728,7 @@ std::vector<std::shared_ptr<HalCamera>> VirtualCamera::getHalCameras() {
 }
 
 bool VirtualCamera::deliverFrame(const BufferDesc& bufDesc) {
+    ScopedTrace trace(__PRETTY_FUNCTION__, bufDesc.bufferId);
     std::lock_guard lock(mMutex);
 
     if (mStreamState == STOPPED) {
@@ -767,6 +775,7 @@ bool VirtualCamera::deliverFrame(const BufferDesc& bufDesc) {
 }
 
 bool VirtualCamera::notify(const EvsEventDesc& event) {
+    ScopedTrace trace(__PRETTY_FUNCTION__, static_cast<int>(event.aType));
     switch (event.aType) {
         case EvsEventType::STREAM_STOPPED: {
             {
