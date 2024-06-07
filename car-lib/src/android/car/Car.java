@@ -1636,12 +1636,18 @@ public final class Car implements ICarBase {
     @GuardedBy("mLock")
     private int mConnectionRetryCount;
 
+    // Whether we have registered the service listener. It should only be registered once.
     @GuardedBy("mLock")
     private boolean mServiceListenerRegistered;
+    // The car service binder object we get from ServiceManager.
     @GuardedBy("mLock")
     private IBinder mCarServiceBinder;
+    // Whether the client is currently waiting (blocked) for a car service connection.
     @GuardedBy("mLock")
     private boolean mWaiting;
+    // Whether client explicitly called disconnect.
+    @GuardedBy("mLock")
+    private boolean mClientRequestDisconnect;
 
     private final Runnable mConnectionRetryRunnable = new Runnable() {
         @Override
@@ -1676,15 +1682,13 @@ public final class Car implements ICarBase {
                     mLock.notifyAll();
                     return;
                 }
+                if (mClientRequestDisconnect) {
+                    // Client explicitly called disconnect, do not invoke the callbacks.
+                    return;
+                }
             }
 
-            mMainThreadEventHandler.post(() -> {
-                setCarService(binder);
-
-                Slog.i(TAG_CAR, "car_service ready on main thread, Time between Car object creation"
-                        + " and car_service connected (ms): " + timeSinceCreateMillis());
-                notifyCarReady(binder);
-            });
+            mMainThreadEventHandler.post(() -> setBinderAndNotifyReady(binder));
         }
     }
 
@@ -1726,13 +1730,33 @@ public final class Car implements ICarBase {
                 handleCarDisconnectLocked();
             }
             if (mStatusChangeCallback != null) {
-                mStatusChangeCallback.onLifecycleChanged(Car.this, false);
+                mStatusChangeCallback.onLifecycleChanged(Car.this, /* ready= */ false);
             } else if (mServiceConnectionListenerClient != null) {
                 mServiceConnectionListenerClient.onServiceDisconnected(name);
             } else {
                 // This client does not handle car service restart, so should be terminated.
                 finishClient();
             }
+        }
+    };
+
+    private final IBinder.DeathRecipient mDeathRecipient = new IBinder.DeathRecipient() {
+        @Override
+        public void binderDied() {
+            Slog.w(TAG_CAR, "Car service disconnected, probably crashed");
+            // Car service can pick up feature changes after restart.
+            mFeatures.resetCache();
+            synchronized (mLock) {
+                if (mConnectionState == STATE_DISCONNECTED) {
+                    Slog.i(TAG_CAR, "State is already disconnected, ignore");
+                    // can happen when client calls disconnect before onServiceDisconnected call.
+                    return;
+                }
+                mCarServiceBinder = null;
+                handleCarDisconnectLocked();
+            }
+            dispatchToMainThread(isMainThread(), () -> notifyCarDisconnected());
+            registerServiceListenerIfNotRegistered();
         }
     };
 
@@ -2388,15 +2412,33 @@ public final class Car implements ICarBase {
         }
         mConnectionState = STATE_CONNECTED;
         mService = newService;
-        // TODO(b/343489611): carServiceBinder.linkToDeath
+        try {
+            carServiceBinder.linkToDeath(mDeathRecipient, /* flags= */ 0);
+        } catch (RemoteException e) {
+            Slog.e(TAG_CAR, "Failed to call linkToDeath on car service binder, will not receive "
+                    + "callback if car service crashes", e);
+        }
     }
 
     private void notifyCarReady(IBinder serviceBinder) {
         if (mStatusChangeCallback != null) {
-            mStatusChangeCallback.onLifecycleChanged(this, true);
+            mStatusChangeCallback.onLifecycleChanged(/* car= */ this, /* ready= */ true);
         } else if (mServiceConnectionListenerClient != null) {
             mServiceConnectionListenerClient.onServiceConnected(
                     new ComponentName(CAR_SERVICE_PACKAGE, CAR_SERVICE_CLASS), serviceBinder);
+        }
+    }
+
+    private void notifyCarDisconnected() {
+        Slog.i(TAG_CAR, "notify car service disconnected");
+        if (mStatusChangeCallback != null) {
+            mStatusChangeCallback.onLifecycleChanged(Car.this, /* ready= */ false);
+        } else if (mServiceConnectionListenerClient != null) {
+            mServiceConnectionListenerClient.onServiceDisconnected(
+                    new ComponentName(CAR_SERVICE_PACKAGE, CAR_SERVICE_CLASS));
+        } else {
+            // This client does not handle car service restart, so should be terminated.
+            finishClient();
         }
     }
 
@@ -2429,6 +2471,13 @@ public final class Car implements ICarBase {
     private void dispatchCarReadyToMainThread(boolean isMainThread) {
         dispatchToMainThread(isMainThread,
                 () -> mStatusChangeCallback.onLifecycleChanged(/* car= */ this, /* ready= */ true));
+    }
+
+    private void setBinderAndNotifyReady(IBinder binder) {
+        setCarService(binder);
+        Slog.i(TAG_CAR, "car_service ready on main thread, Time between Car object creation"
+                + " and car_service connected (ms): " + timeSinceCreateMillis());
+        notifyCarReady(binder);
     }
 
     private Car(Context context, @Nullable ICar service,
@@ -2488,17 +2537,33 @@ public final class Car implements ICarBase {
      */
     @Deprecated
     public void connect() throws IllegalStateException {
+        IBinder carServiceBinder = null;
         synchronized (mLock) {
             if (mConnectionState != STATE_DISCONNECTED) {
                 throw new IllegalStateException("already connected or connecting");
             }
+            mClientRequestDisconnect = false;
             mConnectionState = STATE_CONNECTING;
-            if (Flags.createCarUseNotifications()) {
-                registerServiceListenerIfNotRegistered();
-            } else {
+            if (!Flags.createCarUseNotifications()) {
+                // Ideally this should not be inside the lock, but legacy logic run this inside
+                // the lock.
                 startCarService();
+                return;
             }
+
+            carServiceBinder = mCarServiceBinder;
         }
+
+        if (carServiceBinder != null) {
+            // If we already have a car service binder ready. This means this is a reconnect
+            // after disconnect or car service crash. And car service is already ready
+            // before connecting.
+
+            // Need this to make carServiceBinder final.
+            IBinder binder = carServiceBinder;
+            dispatchToMainThread(isMainThread(), () -> setBinderAndNotifyReady(binder));
+        }
+        registerServiceListenerIfNotRegistered();
     }
 
     @GuardedBy("mLock")
@@ -2524,13 +2589,13 @@ public final class Car implements ICarBase {
      */
     public void disconnect() {
         synchronized (mLock) {
+            mClientRequestDisconnect = true;
             handleCarDisconnectLocked();
             if (mServiceBound) {
                 mContext.unbindService(mServiceConnectionListener);
                 mServiceBound = false;
             }
         }
-        // TODO(b/343489611): block car service ready callback.
     }
 
     @Override
