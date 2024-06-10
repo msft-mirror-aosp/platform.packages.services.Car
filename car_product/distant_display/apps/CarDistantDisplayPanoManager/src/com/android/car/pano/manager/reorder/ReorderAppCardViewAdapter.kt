@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.car.pano.manager
+package com.android.car.pano.manager.reorder
 
 import android.content.Context
 import android.view.LayoutInflater
@@ -23,13 +23,19 @@ import android.widget.RelativeLayout
 import androidx.recyclerview.widget.RecyclerView
 import com.android.car.appcard.ImageAppCard
 import com.android.car.appcard.host.AppCardContainer
+import com.android.car.pano.manager.AppCardServiceManager
+import com.android.car.pano.manager.AppCardType
+import com.android.car.pano.manager.R
 import com.android.car.pano.manager.holder.ImageAppCardViewHolder
 import com.android.car.pano.manager.holder.ProgressAppCardViewHolder
+import java.util.Optional
 
-class AppCardViewAdapter(
+class ReorderAppCardViewAdapter(
   private val context: Context,
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>(), AppCardTouchHelper.AppCardTouchHelperContract {
-  private val inflater = LayoutInflater.from(context)
+  private val inflater: LayoutInflater,
+  private val appCardServiceManager: AppCardServiceManager,
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>(),
+  ReorderAppCardTouchHelper.AppCardTouchHelperContract {
   private val selectedBackground = context.resources.getDrawable(
     R.drawable.app_card_selected_bg,
     null
@@ -50,15 +56,16 @@ class AppCardViewAdapter(
           parent,
           attachToRoot
         )
-        ImageAppCardViewHolder(context, view)
+        ImageAppCardViewHolder(context, view, selector = null)
       }
+
       AppCardType.PROGRESS -> {
         val view = inflater.inflate(
           R.layout.progress_buttons_app_card,
           parent,
           attachToRoot
         )
-        ProgressAppCardViewHolder(context, view)
+        ProgressAppCardViewHolder(context, view, selector = null)
       }
     }
   }
@@ -78,21 +85,37 @@ class AppCardViewAdapter(
     val type = AppCardType.fromInt(holder.itemViewType)
     when (type) {
       AppCardType.IMAGE -> {
-        (holder as ImageAppCardViewHolder).bind(appCards[position])
+        (holder as ImageAppCardViewHolder).bind(appCards[position], selected = false)
       }
+
       AppCardType.PROGRESS -> {
-        (holder as ProgressAppCardViewHolder).bind(appCards[position])
+        (holder as ProgressAppCardViewHolder).bind(appCards[position], selected = false)
       }
     }
   }
 
-  override fun setAppCards(newList: MutableList<AppCardContainer>, from: Int, to: Int) {
+  override fun setAppCards(
+    newList: MutableList<AppCardContainer>,
+    from: Optional<Int>,
+    to: Optional<Int>
+  ) {
     appCards.clear()
-    appCards.addAll(newList)
-    if (from == -1 && to == -1) {
+    newList.forEach {
+      // Ignore [EmptyAppCard] for recyclerview
+      if (it.appCard is ImageAppCard) {
+        appCards.add(it)
+      }
+    }
+    if (from.isEmpty && to.isEmpty) {
       notifyDataSetChanged()
     } else {
-      notifyItemMoved(from, to)
+      notifyItemMoved(from.get(), to.get())
+
+      val keyList = mutableListOf<String>()
+      appCards.forEach { appCardContainer ->
+        keyList.add("${appCardContainer.appId} : ${appCardContainer.appCard.id}")
+      }
+      appCardServiceManager.sendAppCardOrder(keyList)
     }
   }
 
@@ -105,6 +128,6 @@ class AppCardViewAdapter(
   }
 
   companion object {
-    private const val TAG = "AppCardViewAdapter"
+    private const val TAG = "ReorderAppCardViewAdapter"
   }
 }
