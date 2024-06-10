@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2015 The Android Open Source Project
+<!-- Copyright (C) 2024 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
      package="com.android.car.test"
      android:sharedUserId="com.google.android.car.uid.kitchensink">
+
     <uses-permission android:name="android.Manifest.permission.MODIFY_AUDIO_ROUTING"/>
     <uses-permission android:name="android.car.permission.ACCESS_PRIVATE_DISPLAY_ID"/>
     <uses-permission android:name="android.car.permission.MANAGE_THREAD_PRIORITY"/>
@@ -47,8 +48,38 @@
          android:label="Tests for Car APIs"/>
 
     <application android:label="@string/app_title"
-        android:debuggable="true"
-        android:testOnly="true">
+         android:name=".CarServiceTestApp"
+         android:debuggable="true"
+         android:testOnly="true">
         <uses-library android:name="android.test.runner"/>
+        <service android:name="com.android.car.TestAppBlockingPolicyService"
+             android:permission="android.car.permission.CONTROL_APP_BLOCKING"
+             android:exported="true">
+            <intent-filter>
+                <action android:name="android.car.content.pm.CarAppBlockingPolicyService"/>
+            </intent-filter>
+        </service>
+
+        <activity android:name="com.android.car.pm.CarPackageManagerServiceTest$NonDoActivity"
+            android:taskAffinity=""/>
+        <activity android:name="com.android.car.pm.CarPackageManagerServiceTest$DoActivity"
+             android:label="DoActivity">
+            <meta-data android:name="distractionOptimized"
+                 android:value="true"/>
+        </activity>
+        <activity android:name="androidx.car.app.activity.CarAppActivity"
+            android:label="CarAppActivity">
+            <meta-data android:name="distractionOptimized"
+                android:value="true"/>
+        </activity>
+
+        <receiver android:name="com.android.car.CarStorageMonitoringBroadcastReceiver"
+             android:exported="true"
+             android:permission="android.car.permission.STORAGE_MONITORING">
+            <intent-filter>
+                <action android:name="android.car.storagemonitoring.EXCESSIVE_IO"/>
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>
