@@ -45,7 +45,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import android.car.builtin.media.AudioManagerHelper;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.media.AudioAttributes;
-import android.media.AudioManager;
 import android.util.ArraySet;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -140,14 +139,14 @@ public class CarAudioContextTest extends AbstractExtendedMockitoTestCase {
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
         session
                 .spyStatic(CoreAudioHelper.class)
-                .spyStatic(AudioManager.class);
+                .spyStatic(AudioManagerWrapper.class);
     }
 
     void setupMock() {
         doReturn(CoreAudioRoutingUtils.getProductStrategies())
-                .when(() -> AudioManager.getAudioProductStrategies());
+                .when(AudioManagerWrapper::getAudioProductStrategies);
         doReturn(CoreAudioRoutingUtils.getVolumeGroups())
-                .when(() -> AudioManager.getAudioVolumeGroups());
+                .when(AudioManagerWrapper::getAudioVolumeGroups);
 
         doReturn(CoreAudioRoutingUtils.MUSIC_STRATEGY_ID)
                 .when(() -> CoreAudioHelper.getStrategyForAudioAttributes(
@@ -980,5 +979,15 @@ public class CarAudioContextTest extends AbstractExtendedMockitoTestCase {
 
         expectWithMessage("Context infos").that(carAudioContext.getContextsInfo())
                 .containsExactlyElementsIn(audioContextInfos);
+    }
+
+    @Test
+    public void getCarAudioContextId_forAudioAttributesWrapper() {
+        int contextId = 1;
+        CarAudioContext.AudioAttributesWrapper wrapper =
+                new CarAudioContext.AudioAttributesWrapper(TEST_MEDIA_ATTRIBUTE, contextId);
+
+        expectWithMessage("Car audio context Id").that(wrapper.getCarAudioContextId())
+                .isEqualTo(contextId);
     }
 }
