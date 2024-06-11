@@ -16,6 +16,7 @@
 
 package com.android.car.audio;
 
+import static android.media.AudioDeviceInfo.TYPE_BLE_BROADCAST;
 import static android.media.AudioDeviceInfo.TYPE_BLE_HEADSET;
 import static android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP;
 import static android.media.AudioDeviceInfo.TYPE_BUS;
@@ -448,10 +449,10 @@ public class CarAudioDeviceInfoTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void audioDevicesAdded_withBusDevices() {
-        AudioDeviceAttributes attributes = getMockAudioDeviceAttribute(TYPE_BLUETOOTH_A2DP);
+    public void audioDevicesAdded_withBluetoothDeviceForBusTypeDeviceInfo() {
+        AudioDeviceAttributes attributes = getMockAudioDeviceAttribute(TYPE_BUS);
         CarAudioDeviceInfo info = new CarAudioDeviceInfo(mAudioManagerWrapper, attributes);
-        AudioDeviceInfo audioDeviceInfo = getMockAudioDeviceInfo(TYPE_BUS);
+        AudioDeviceInfo audioDeviceInfo = getMockAudioDeviceInfo(TYPE_BLUETOOTH_A2DP);
 
         boolean updated = info.audioDevicesAdded(List.of(audioDeviceInfo));
 
@@ -480,9 +481,11 @@ public class CarAudioDeviceInfoTest extends AbstractExpectableTestCase {
         CarAudioDeviceInfo info = new CarAudioDeviceInfo(mAudioManagerWrapper, attributes);
         AudioDeviceInfo audioDeviceInfo = getMockAudioDeviceInfo(TYPE_BLUETOOTH_A2DP);
         info.setAudioDeviceInfo(audioDeviceInfo);
-        AudioDeviceInfo removedAudioDevice = getMockAudioDeviceInfo(TYPE_BLE_HEADSET);
+        AudioDeviceInfo removedHeadsetAudioDevice = getMockAudioDeviceInfo(TYPE_BLE_HEADSET);
+        AudioDeviceInfo removedBroadcastAudioDevice = getMockAudioDeviceInfo(TYPE_BLE_BROADCAST);
 
-        boolean updated = info.audioDevicesRemoved(List.of(removedAudioDevice));
+        boolean updated = info.audioDevicesRemoved(List.of(removedHeadsetAudioDevice,
+                removedBroadcastAudioDevice));
 
         expectWithMessage("Updated status of remove dynamic device with different type")
                 .that(updated).isFalse();
@@ -505,10 +508,10 @@ public class CarAudioDeviceInfoTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void audioDevicesRemoved_withBusDevices() {
-        AudioDeviceAttributes attributes = getMockAudioDeviceAttribute(TYPE_BLUETOOTH_A2DP);
+    public void audioDevicesRemoved_withBluetoothDeviceForBusTypeDeviceInfo() {
+        AudioDeviceAttributes attributes = getMockAudioDeviceAttribute(TYPE_BUS);
         CarAudioDeviceInfo info = new CarAudioDeviceInfo(mAudioManagerWrapper, attributes);
-        AudioDeviceInfo audioDeviceInfo = getMockAudioDeviceInfo(TYPE_BUS);
+        AudioDeviceInfo audioDeviceInfo = getMockAudioDeviceInfo(TYPE_BLUETOOTH_A2DP);
 
         boolean updated = info.audioDevicesRemoved(List.of(audioDeviceInfo));
 
