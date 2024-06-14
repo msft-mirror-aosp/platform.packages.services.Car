@@ -37,9 +37,9 @@ import java.util.Optional;
         SystemUIModule.class,
         CarSystemUIModule.class,
         CarSystemUICoreStartableModule.class,
-        SystemUIBinder.class,
+        CarDistantDisplaySystemUIBinder.class,
         ShadelessSceneContainerFrameworkModule.class})
-public interface SysUIComponent extends CarSysUIComponent {
+public interface CarDistantDisplaySysUIComponent extends CarSysUIComponent {
     /**
      * Builder for a CarSysUIComponent.
      */
@@ -49,12 +49,12 @@ public interface SysUIComponent extends CarSysUIComponent {
          * sets RootTaskDisplayAreaOrganizer.
          */
         @BindsInstance
-        SysUIComponent.Builder setRootTaskDisplayAreaOrganizer(
+        CarDistantDisplaySysUIComponent.Builder setRootTaskDisplayAreaOrganizer(
                 Optional<RootTaskDisplayAreaOrganizer> r);
 
         /**
          * Builds CarUiDistantDisplaySysUIComponent
          */
-        SysUIComponent build();
+        CarDistantDisplaySysUIComponent build();
     }
 }
