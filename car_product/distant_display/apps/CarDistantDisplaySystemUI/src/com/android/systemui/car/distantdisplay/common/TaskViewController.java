@@ -37,6 +37,7 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+import com.android.car.apps.common.util.IntentUtils;
 import com.android.car.ui.utils.CarUxRestrictionsUtil;
 import com.android.systemui.R;
 import com.android.systemui.broadcast.BroadcastDispatcher;
@@ -82,6 +83,7 @@ public class TaskViewController {
     private final InputManager mInputManager;
     private final DisplayManager mDisplayManager;
     private final MediaSessionManager mMediaSessionManager;
+    private final String mMediaBlockingComponentName;
     private final List<ComponentName> mRestrictedActivities;
     private List<String> mGameControllerPackages;
     private final List<Callback> mCallbacks = new ArrayList<>();
@@ -179,6 +181,8 @@ public class TaskViewController {
         mRestrictedActivities = new ArrayList<>();
         String[] ddRestrictedActivities = mContext.getResources().getStringArray(
                 R.array.config_restrictedActivities);
+        mMediaBlockingComponentName = mContext.getResources().getString(
+                R.string.config_mediaBlockingActivity);
         for (int i = 0; i < ddRestrictedActivities.length; i++) {
             mRestrictedActivities.add(
                     ComponentName.unflattenFromString(ddRestrictedActivities[i]));
@@ -254,6 +258,12 @@ public class TaskViewController {
         changeDisplayForTask(MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY);
     }
 
+    /** Move task from default display to distant display. */
+    public void moveTaskToRightDistantDisplay() {
+        if (!mInitialized) return;
+        changeDisplayForTask(MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY_PASSENGER);
+    }
+
     /** Move task from distant display to default display. */
     public void moveTaskFromDistantDisplay() {
         if (!mInitialized) return;
@@ -295,8 +305,9 @@ public class TaskViewController {
             TaskData data = mForegroundTasks.getTopTaskOnDisplay(mDistantDisplayId);
             if (data == null || data.mTaskId == mDistantDisplayRootWallpaperTaskId) return;
             moveTaskToDisplay(data.mTaskId, DEFAULT_DISPLAY_ID);
-            mDisplayCompatService.setVisibility(false);
-        } else if (movement.equals(MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY)
+            mDisplayCompatService.updateState(DistantDisplayService.State.DEFAULT);
+        } else if ((movement.equals(MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY) || movement.equals(
+                MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY_PASSENGER))
                 && !mForegroundTasks.isEmpty()) {
             int uxr = mCarUxRestrictionsUtil.getCurrentRestrictions().getActiveRestrictions();
             if (isVideoRestricted(uxr)) {
@@ -314,7 +325,11 @@ public class TaskViewController {
             }
             moveTaskToDisplay(data.mTaskId, mDistantDisplayId);
             launchCompanionUI(componentName);
-            mDisplayCompatService.setVisibility(true);
+            DistantDisplayService.State state = movement.equals(
+                    MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY)
+                    ? DistantDisplayService.State.DRIVER_DD
+                    : DistantDisplayService.State.PASSENGER_DD;
+            mDisplayCompatService.updateState(state);
         }
     }
 
@@ -332,13 +347,15 @@ public class TaskViewController {
         UserHandle launchUserHandle = UserHandle.SYSTEM;
         if (isGameApp(packageName)) {
             intent = DistantDisplayGameController.createIntent(mContext, packageName);
-        } else if (hasActiveMediaSession(packageName)) {
-            // TODO(b/333732969): replace with correct media activity once available
+        } else if (componentName != null && hasActiveMediaSession(componentName)) {
+            //TODO: b/344983836 Currently there is no reliable way to figure out if the current
+            // application supports video media
             ComponentName mediaComponent = ComponentName.unflattenFromString(
-                    "com.android.car.media/.MediaBlockingActivity");
+                    mMediaBlockingComponentName);
             intent = new Intent();
             intent.setComponent(mediaComponent);
             intent.putExtra(Intent.EXTRA_COMPONENT_NAME, componentName.flattenToShortString());
+            intent.putExtra(IntentUtils.EXTRA_MEDIA_BLOCKING_ACTIVITY_DISMISS_ON_PARK, false);
             launchUserHandle = mUserTracker.getUserHandle();
         } else {
             intent = DistantDisplayCompanionActivity.createIntent(mContext, packageName);
@@ -364,14 +381,10 @@ public class TaskViewController {
         return mGameControllerPackages.contains(packageName);
     }
 
-    private boolean hasActiveMediaSession(@Nullable String packageName) {
-        if (!isVideoApp(packageName)) {
-            return false;
-        }
-
-        return mMediaSessionManager.getActiveSessionsForUser(/* notificationListener= */ null,
+    private boolean hasActiveMediaSession(ComponentName componentName) {
+        return mMediaSessionManager.getActiveSessionsForUser(null,
                         mUserTracker.getUserHandle())
-                .stream().anyMatch(mediaController -> packageName
+                .stream().anyMatch(mediaController -> componentName.getPackageName()
                         .equals(mediaController.getPackageName()));
     }
 
