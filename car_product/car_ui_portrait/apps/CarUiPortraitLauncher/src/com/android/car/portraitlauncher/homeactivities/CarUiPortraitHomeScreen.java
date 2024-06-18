@@ -21,8 +21,7 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_TRUSTED_OVERL
 
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IMMERSIVE_MODE_REQUESTED_SOURCE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_APP_GRID_VISIBILITY_CHANGE;
-import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_NOTIFICATION;
-import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_RECENTS;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_APPLICATION;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_FG_TASK_VIEW_READY;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_IMMERSIVE_MODE_CHANGE;
@@ -300,7 +299,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         }
     };
 
-    // TODO(b/335532760): revisit the calm mode logic
     private void handleCalmMode(ActivityManager.RunningTaskInfo taskInfo,
             @NonNull TaskViewPanelStateChangeReason reason) {
         if (!ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
@@ -308,35 +306,39 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                     "Skip handling calm mode since the reason is not " + ON_TASK_MOVED_TO_FRONT);
             return;
         }
-
-        mIsNotificationCenterOnTop = mTaskCategoryManager.isNotificationActivity(taskInfo);
-        mIsRecentsOnTop = mTaskCategoryManager.isRecentsActivity(taskInfo);
-        mIsAppGridOnTop = mTaskCategoryManager.isAppGridActivity(taskInfo);
-        if (mIsCalmMode && (mIsNotificationCenterOnTop || mIsRecentsOnTop || mIsAppGridOnTop)) {
-            PortraitCalmModeActivity.dismissCalmMode(getApplicationContext());
-            setControlBarVisibility(/* isVisible = */ true, /* animate = */ true);
-            notifySystemUI(MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE, WindowInsets.Type.systemBars());
-            mIsCalmMode = false;
+        if (mTaskCategoryManager.isFullScreenActivity(taskInfo)) {
+            logIfDebuggable(
+                    "Skip handling calm mode if new activity is full screen activity");
+            return;
         }
 
-        if (mTaskCategoryManager.isBackgroundApp(taskInfo)) {
-            mTaskCategoryManager.setCurrentBackgroundApp(taskInfo.baseActivity);
-            mIsCalmMode = mTaskCategoryManager.isCalmModeActivity(taskInfo);
-            int windowInsetsType = WindowInsets.Type.systemBars();
-            if (mIsCalmMode) {
+        boolean wasCalmMode = mIsCalmMode;
+        mIsCalmMode = mTaskCategoryManager.isCalmModeActivity(taskInfo);
 
-                if (mRootTaskViewPanel.isOpen()) {
-                    mRootTaskViewPanel.closePanel(
-                            createReason(ON_CALM_MODE_STARTED, taskInfo.taskId,
-                                    getVisibleActivity(taskInfo)));
-                }
-                setControlBarVisibility(/* isVisible = */ false, /* animate = */ true);
-                windowInsetsType = WindowInsets.Type.navigationBars();
-            } else {
-                setControlBarVisibility(/* isVisible = */ true, /* animate = */ true);
-            }
-            notifySystemUI(MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE, windowInsetsType);
+        if (wasCalmMode && !mIsCalmMode) {
+            exitCalmMode();
+        } else if (!wasCalmMode && mIsCalmMode) {
+            enterCalmMode(taskInfo);
         }
+    }
+
+    private void exitCalmMode() {
+        logIfDebuggable("Exiting calm mode");
+        PortraitCalmModeActivity.dismissCalmMode(getApplicationContext());
+        setControlBarVisibility(/* isVisible = */ true, /* animate = */ true);
+        notifySystemUI(MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE, WindowInsets.Type.systemBars());
+    }
+
+    private void enterCalmMode(ActivityManager.RunningTaskInfo taskInfo) {
+        logIfDebuggable("Entering calm mode");
+        if (mRootTaskViewPanel.isVisible()) {
+            mRootTaskViewPanel.closePanel(
+                    createReason(ON_CALM_MODE_STARTED, taskInfo.taskId,
+                            getVisibleActivity(taskInfo)));
+        }
+        setControlBarVisibility(/* isVisible = */ false, /* animate = */ true);
+        int windowInsetsType = WindowInsets.Type.navigationBars();
+        notifySystemUI(MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE, windowInsetsType);
     }
 
     private void handleSystemBarButton(boolean isPanelVisible) {
@@ -357,6 +359,13 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
     private void handleTaskStackChange(ActivityManager.RunningTaskInfo taskInfo,
             TaskViewPanelStateChangeReason reason) {
+
+        mIsNotificationCenterOnTop = mTaskCategoryManager.isNotificationActivity(taskInfo);
+        mIsRecentsOnTop = mTaskCategoryManager.isRecentsActivity(taskInfo);
+        mIsAppGridOnTop = mTaskCategoryManager.isAppGridActivity(taskInfo);
+        if (mTaskCategoryManager.isBackgroundApp(taskInfo)) {
+            mTaskCategoryManager.setCurrentBackgroundApp(taskInfo.baseActivity);
+        }
 
         handleFullScreenPanel(taskInfo);
         handleCalmMode(taskInfo, reason);
@@ -579,10 +588,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         }
     }
 
-    private void collapseRecentsPanel() {
-        if (mIsRecentsOnTop) {
-            mRootTaskViewPanel.closePanel(createReason(ON_COLLAPSE_MSG));
-        }
+    private void collapseAppPanel() {
+        logIfDebuggable("On collapse app panel");
+        mRootTaskViewPanel.closePanel(createReason(ON_COLLAPSE_MSG));
     }
 
     @Override
@@ -1201,11 +1209,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                     boolean hideNavBar = intToBool(msg.arg1);
                     mRootTaskViewPanel.setToolBarViewVisibility(hideNavBar);
                     break;
-                case MSG_COLLAPSE_NOTIFICATION:
-                    collapseNotificationPanel();
-                    break;
-                case MSG_COLLAPSE_RECENTS:
-                    collapseRecentsPanel();
+                case MSG_COLLAPSE_APPLICATION:
+                    collapseAppPanel();
                     break;
                 default:
                     super.handleMessage(msg);
