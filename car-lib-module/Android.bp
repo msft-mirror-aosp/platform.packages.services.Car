@@ -99,4 +99,7 @@ java_sdk_library {
     compile_dex: true,
 
     installable: true,
+    lint: {
+        baseline_filename: "lint-baseline.xml",
+    },
 }
