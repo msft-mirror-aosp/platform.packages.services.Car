@@ -64,6 +64,17 @@ public final class Logger {
     }
 
     /**
+     * Logs a verbose message.
+     */
+    public void logV(String msg) {
+        if (mUseSystemLogger) {
+            Slogf.v(mTag, msg);
+        } else {
+            Log.v(mTag, msg);
+        }
+    }
+
+    /**
      * Whether debug logging should be enabled.
      */
     public boolean dbg() {
