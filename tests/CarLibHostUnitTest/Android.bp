@@ -31,6 +31,9 @@ java_library {
         "fake.com.android.car.internal.dep",
     ],
     sdk_version: "module_current",
+    lint: {
+        baseline_filename: "lint-baseline.xml",
+    },
 }
 
 android_ravenwood_test {
