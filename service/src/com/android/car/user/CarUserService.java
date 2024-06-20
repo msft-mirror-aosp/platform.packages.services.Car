@@ -125,6 +125,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.os.CarSystemProperties;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.DebugUtils;
@@ -748,6 +749,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void initBootUser(int requestType) {
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
+                requestType);
         boolean replaceGuest =
                 requestType == InitialUserInfoRequestType.RESUME && !mSwitchGuestUserBeforeSleep;
         checkManageUsersPermission("startInitialUser");
@@ -757,6 +760,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
                     /* supportsOverrideUserIdProperty= */ true, requestType);
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
+                    requestType);
             return;
         }
 
@@ -822,6 +827,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         /* supportsOverrideUserIdProperty= */ false, requestType);
             }
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
+                    requestType);
         });
     }
 
