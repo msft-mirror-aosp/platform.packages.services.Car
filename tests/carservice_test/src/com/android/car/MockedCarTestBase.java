@@ -17,7 +17,6 @@ package com.android.car;
 
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -46,6 +45,7 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.IInterface;
+import android.os.Process;
 import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.ArraySet;
@@ -55,15 +55,16 @@ import android.util.SparseArray;
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.car.ICarImpl.Builder.CarRemoteAccessServiceConstructor;
 import com.android.car.garagemode.GarageModeService;
 import com.android.car.hal.test.AidlMockedVehicleHal;
 import com.android.car.hal.test.AidlVehiclePropConfigBuilder;
 import com.android.car.hal.test.HidlMockedVehicleHal;
 import com.android.car.hal.test.HidlVehiclePropConfigBuilder;
 import com.android.car.internal.ICarServiceHelper;
+import com.android.car.internal.StaticBinderInterface;
 import com.android.car.os.CarPerformanceService;
 import com.android.car.power.CarPowerManagementService;
-import com.android.car.remoteaccess.CarRemoteAccessService;
 import com.android.car.systeminterface.ActivityManagerInterface;
 import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.IOInterface;
@@ -118,7 +119,8 @@ public class MockedCarTestBase {
     private CarTelemetryService mCarTelemetryService;
     private CarWatchdogService mCarWatchdogService = mock(CarWatchdogService.class);
     private CarPerformanceService mCarPerformanceService;
-    private CarRemoteAccessService mCarRemoteAccessService;
+    private CarRemoteAccessServiceConstructor mCarRemoteAccessServiceConstructor;
+    private AppFocusService mAppFocusService;
 
     private final CarUserService mCarUserService = mock(CarUserService.class);
     private final MockIOInterface mMockIOInterface = new MockIOInterface();
@@ -217,12 +219,22 @@ public class MockedCarTestBase {
     }
 
     /**
-     * Set the CarRemoteAccessService to be used during the test.
+     * Set the consturctor to create a fake CarRemoteAccessService for the test.
      *
      * If not called, the real service would be used.
      */
-    protected void setCarRemoteAccessService(CarRemoteAccessService service) {
-        mCarRemoteAccessService = service;
+    protected void setCarRemoteAccessServiceConstructor(
+            CarRemoteAccessServiceConstructor constructor) {
+        mCarRemoteAccessServiceConstructor = constructor;
+    }
+
+    /**
+     * Set the AppFocusService to be used during the test.
+     *
+     * If not called, the real service would be used.
+     */
+    protected void setAppFocusService(AppFocusService service) {
+        mAppFocusService = service;
     }
 
     /**
@@ -293,7 +305,6 @@ public class MockedCarTestBase {
     protected MockitoSession createMockingSession() {
         return mockitoSession()
                 .initMocks(this)
-                .spyStatic(ICarImpl.class)
                 .strictness(Strictness.LENIENT)
                 .startMocking();
     }
@@ -372,13 +383,24 @@ public class MockedCarTestBase {
                 .setCarWatchdogService(mCarWatchdogService)
                 .setCarPerformanceService(mCarPerformanceService)
                 .setCarTelemetryService(mCarTelemetryService)
-                .setCarRemoteAccessService(mCarRemoteAccessService)
+                .setCarRemoteAccessServiceConstructor(mCarRemoteAccessServiceConstructor)
+                .setAppFocusService(mAppFocusService)
                 .setGarageModeService(mGarageModeService)
                 .setPowerPolicyDaemon(powerPolicyDaemon)
                 .setDoPriorityInitInConstruction(false)
+                .setTestStaticBinder(new StaticBinderInterface() {
+                    @Override
+                    public int getCallingUid() {
+                        return Process.SYSTEM_UID;
+                    }
+
+                    @Override
+                    public int getCallingPid() {
+                        return 0;
+                    }
+                })
                 .build();
 
-        doNothing().when(() -> ICarImpl.assertCallingFromSystemProcess());
         carImpl.setSystemServerConnections(mICarServiceHelper,
                 new ICarImplTest.CarServiceConnectedCallback());
         spyOnBeforeCarImplInit(carImpl);
@@ -407,7 +429,7 @@ public class MockedCarTestBase {
                 mCarImpl.release();
                 mCarImpl = null;
             }
-            CarServiceUtils.finishAllHandlerTasks();
+            CarServiceUtils.quitHandlerThreads();
             mMockIOInterface.tearDown();
             mHidlMockedVehicleHal = null;
             mAidlMockedVehicleHal = null;

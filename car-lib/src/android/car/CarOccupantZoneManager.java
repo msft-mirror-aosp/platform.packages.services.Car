@@ -34,7 +34,7 @@ import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.util.Log;
+import android.util.Slog;
 import android.view.Display;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -121,6 +121,12 @@ public class CarOccupantZoneManager extends CarManagerBase {
      */
     public static final int DISPLAY_TYPE_AUXILIARY_5 = 9;
 
+    /**
+     * Display specifically used for showing display compatibility apps.
+     * @hide
+     */
+    public static final int DISPLAY_TYPE_DISPLAY_COMPATIBILITY = 10;
+
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(prefix = "DISPLAY_TYPE_", value = {
@@ -134,6 +140,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
             DISPLAY_TYPE_AUXILIARY_3,
             DISPLAY_TYPE_AUXILIARY_4,
             DISPLAY_TYPE_AUXILIARY_5,
+            DISPLAY_TYPE_DISPLAY_COMPATIBILITY,
     })
     @Target({ElementType.TYPE_USE})
     public @interface DisplayTypeEnum {}
@@ -829,7 +836,7 @@ public class CarOccupantZoneManager extends CarManagerBase {
                     handleOnOccupantZoneConfigChanged(msg.arg1);
                     break;
                 default:
-                    Log.e(TAG, "Unknown msg not handdled:" + msg.what);
+                    Slog.e(TAG, "Unknown msg not handdled:" + msg.what);
                     break;
             }
         }

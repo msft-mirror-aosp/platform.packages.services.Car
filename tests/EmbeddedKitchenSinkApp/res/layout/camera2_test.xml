@@ -26,4 +26,10 @@
         android:layout_height="wrap_content"
         android:text="@string/camera2_user0"
         android:layout_gravity="center"/>
+   <Button
+       android:id="@+id/camera2_multi_camera_preview"
+       android:layout_width="wrap_content"
+       android:layout_height="wrap_content"
+       android:text="@string/camera2_multi_camera_preview"
+       android:layout_gravity="center"/>
 </LinearLayout>

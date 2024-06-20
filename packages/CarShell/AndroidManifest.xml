@@ -18,6 +18,7 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         package="com.android.shell"
+        updatableSystem="false"
         coreApp="true"
         android:sharedUserId="android.uid.shell"
         >
@@ -166,7 +167,7 @@
     <!-- Permissions required for CarRemoteDeviceManagerPermissionTest -->
     <uses-permission android:name="android.car.permission.MANAGE_REMOTE_DEVICE" />
     <!-- Permissions required for CarPackageManagerPermissionTest -->
-    <uses-permission android:name="android.car.permission.QUERY_DISPLAY_COMPATIBILITY" />
+    <uses-permission android:name="android.car.permission.MANAGE_DISPLAY_COMPATIBILITY" />
     <!-- permissions required for CarRemoteAccessManagerTest -->
     <uses-permission android:name="android.car.permission.CONTROL_REMOTE_ACCESS" />
     <!-- permissions required for ClusterHomeManagerTest -->
@@ -175,4 +176,6 @@
     <uses-permission android:name="android.car.permission.CAR_NAVIGATION_MANAGER" />
     <!-- permissions required for CarProjectionManagerTest -->
     <uses-permission android:name="android.car.permission.CAR_PROJECTION" />
+    <!-- permissions required for CarWifiManagerTest -->
+    <uses-permission android:name="android.car.permission.READ_PERSIST_TETHERING_SETTINGS" />
 </manifest>

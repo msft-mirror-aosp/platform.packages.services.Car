@@ -69,6 +69,7 @@ import android.media.session.PlaybackState;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.PersistableBundle;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.UserHandle;
@@ -360,6 +361,15 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
     };
 
     private final UserHandleHelper mUserHandleHelper;
+    private static final PersistableBundle USER_INTERACTION_EXTRAS;
+
+    static {
+        USER_INTERACTION_EXTRAS = new PersistableBundle();
+        USER_INTERACTION_EXTRAS.putString(UsageStatsManager.EXTRA_EVENT_CATEGORY,
+                CarMediaService.class.getCanonicalName());
+        USER_INTERACTION_EXTRAS.putString(UsageStatsManager.EXTRA_EVENT_ACTION,
+                "setPrimaryMediaSource");
+    }
 
     public CarMediaService(Context context, CarOccupantZoneService occupantZoneService,
             CarUserService userService, CarPowerManagementService powerManagementService) {
@@ -776,7 +786,7 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
     }
 
     /**
-     * @see {@link CarMediaManager#setMediaSource(ComponentName)}
+     * @see CarMediaManager#setMediaSource(ComponentName, int)
      */
     @Override
     public void setMediaSource(@NonNull ComponentName componentName,
@@ -792,7 +802,7 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
     }
 
     /**
-     * @see {@link CarMediaManager#getMediaSource()}
+     * @see CarMediaManager#getMediaSource
      */
     @Override
     public ComponentName getMediaSource(@CarMediaManager.MediaSourceMode int mode,
@@ -816,7 +826,8 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
     }
 
     /**
-     * @see {@link CarMediaManager#registerMediaSourceListener(MediaSourceChangedListener)}
+     * @see
+     * CarMediaManager#removeMediaSourceListener(CarMediaManager.MediaSourceChangedListener, int)
      */
     @Override
     public void registerMediaSourceListener(ICarMediaSourceListener callback,
@@ -832,7 +843,7 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
     }
 
     /**
-     * @see {@link CarMediaManager#unregisterMediaSourceListener(ICarMediaSourceListener)}
+     * @see CarMediaManager#removeMediaSourceListener
      */
     @Override
     public void unregisterMediaSourceListener(ICarMediaSourceListener callback,
@@ -1300,7 +1311,7 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
         // attribution of non-foreground media app interactions to the app's package name
         if (componentName != null) {
             UsageStatsManagerHelper.reportUserInteraction(mUsageStatsManager,
-                    componentName.getPackageName(), userId);
+                    componentName.getPackageName(), userId, USER_INTERACTION_EXTRAS);
         }
     }
 
