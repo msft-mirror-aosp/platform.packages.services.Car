@@ -38,6 +38,7 @@ import android.car.annotation.OptionalFeature;
 import android.car.app.CarActivityManager;
 import android.car.app.CarDisplayCompatManager;
 import android.car.builtin.os.BuildHelper;
+import android.car.builtin.util.Slogf;
 import android.car.cluster.CarInstrumentClusterManager;
 import android.car.cluster.ClusterActivityState;
 import android.car.cluster.ClusterHomeManager;
@@ -2048,14 +2049,27 @@ public final class Car implements ICarBase {
             return createCarInternalLegacy(context, handler, waitTimeoutMs, statusChangeListener);
         }
 
-        private Car createCarInternal(Context context, @Nullable Handler handler,
-                long waitTimeoutMs, @Nullable CarServiceLifecycleListener statusChangeListener) {
-            // TODO(b/343489611): Implement this.
+        private @Nullable Car createCarInternal(Context context,
+                @Nullable Handler handler, long waitTimeoutMs,
+                @Nullable CarServiceLifecycleListener statusChangeListener) {
+            Car car = new Car(context, /* service= */ null, /* serviceConnectionListener= */ null,
+                    statusChangeListener, handler, mDeps);
+            IBinder binderService = mDeps.serviceManager().getService(
+                    CAR_SERVICE_BINDER_SERVICE_NAME);
+            if (binderService != null) {
+                // Most common case when car service is already ready.
+                car.setCarService(binderService);
+                Slogf.i(TAG_CAR, "createCar car_service is already ready, took (ms): %d",
+                        car.timeSinceCreateMillis());
+                car.notifyCarReadyOnMainThread(binderService);
+                return car;
+            }
+
             return null;
         }
 
         // Legacy createCar implementation.
-        private Car createCarInternalLegacy(Context context, @Nullable Handler handler) {
+        private @Nullable Car createCarInternalLegacy(Context context, @Nullable Handler handler) {
             Car car = null;
             IBinder service = null;
             boolean started = false;
@@ -2201,6 +2215,33 @@ public final class Car implements ICarBase {
         return SystemClock.uptimeMillis() - mCreateUptimeMillis;
     }
 
+    private void setCarService(IBinder carServiceBinder) {
+        synchronized (mLock) {
+            setCarServiceLocked(carServiceBinder);
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void setCarServiceLocked(IBinder carServiceBinder) {
+        ICar newService = ICar.Stub.asInterface(carServiceBinder);
+        if (newService == null) {
+            Slogf.wtf(TAG_CAR, "null binder service", new RuntimeException());
+            return;  // should not happen.
+        }
+        mConnectionState = STATE_CONNECTED;
+        mService = newService;
+        // TODO(b/343489611): carServiceBinder.linkToDeath
+    }
+
+    private void notifyCarReady(IBinder serviceBinder) {
+        if (mStatusChangeCallback != null) {
+            mStatusChangeCallback.onLifecycleChanged(this, true);
+        } else if (mServiceConnectionListenerClient != null) {
+            mServiceConnectionListenerClient.onServiceConnected(
+                    new ComponentName(CAR_SERVICE_PACKAGE, CAR_SERVICE_CLASS), serviceBinder);
+        }
+    }
+
     private static boolean isMainThread() {
         return Looper.myLooper() == Looper.getMainLooper();
     }
@@ -2221,6 +2262,10 @@ public final class Car implements ICarBase {
             // should dispatch to main thread.
             mMainThreadEventHandler.post(runnable);
         }
+    }
+
+    private void notifyCarReadyOnMainThread(IBinder serviceBinder) {
+        dispatchToMainThread(isMainThread(), () -> notifyCarReady(serviceBinder));
     }
 
     private void dispatchCarReadyToMainThread(boolean isMainThread) {
