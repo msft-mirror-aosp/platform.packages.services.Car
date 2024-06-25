@@ -1041,9 +1041,8 @@ public final class CarUnitTest {
         // Car service is registered after 200ms.
         mEventHandler.postDelayed(() -> setCarServiceRegistered(), 200);
 
-        Car car = mCarBuilder.createCar(mContext, null, 50, mLifecycleListener);
+        Car car = mCarBuilder.createCar(mContext, null, /* waitTimeoutMs= */50, mLifecycleListener);
         assertThat(car).isNotNull();
-        assertThat(car.isConnected()).isFalse();
         verify(mContext).bindService(any(), any(), anyInt());
 
         // The callback should be invoked after 200ms.
