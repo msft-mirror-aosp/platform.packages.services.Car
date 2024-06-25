@@ -464,6 +464,12 @@ public final class CarUnitTest {
         createCar_Context_CarServiceRegistered();
     }
 
+    @Test
+    @EnableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_CarServiceRegistered_newLogic() throws Exception {
+        createCar_Context_CarServiceRegistered();
+    }
+
     private void createCar_Context_CarServiceRegistered() throws Exception {
         setCarServiceRegistered();
 
@@ -837,7 +843,14 @@ public final class CarUnitTest {
 
     @Test
     @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
-    public void testCreateCar_Context_DoNotWait_CarServiceRegistere_oldLogic()
+    public void testCreateCar_Context_DoNotWait_CarServiceRegistered_oldLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_CarServiceRegistered();
+    }
+
+    @Test
+    @EnableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_CarServiceRegistered_newLogic()
             throws Exception {
         createCar_Context_DoNotWait_CarServiceRegistered();
     }
@@ -851,7 +864,6 @@ public final class CarUnitTest {
 
         assertThat(car).isNotNull();
         assertThat(car.isConnected()).isTrue();
-        verify(mContext).bindService(any(), any(), anyInt());
 
         mLifecycleListener.waitForEvent(1, DEFAULT_TIMEOUT_MS);
         mLifecycleListener.assertOneListenerCallAndClear(car, true);
@@ -896,6 +908,13 @@ public final class CarUnitTest {
         createCar_Context_DoNotWait_InvokeFromMain_CarServiceRegistered();
     }
 
+    @Test
+    @EnableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_DoNotWait_InvokeFromMain_CarSvcRegistered_newLogic()
+            throws Exception {
+        createCar_Context_DoNotWait_InvokeFromMain_CarServiceRegistered();
+    }
+
     private void createCar_Context_DoNotWait_InvokeFromMain_CarServiceRegistered()
             throws Exception {
         setCarServiceRegistered();
@@ -906,7 +925,6 @@ public final class CarUnitTest {
 
             assertThat(car).isNotNull();
             assertThat(car.isConnected()).isTrue();
-            verify(mContext).bindService(any(), any(), anyInt());
             // createCar is called from main handler, so callback must have already been called.
             mLifecycleListener.assertOneListenerCallAndClear(car, true);
         });

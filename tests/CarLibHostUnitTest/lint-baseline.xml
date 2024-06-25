@@ -8,7 +8,7 @@
         errorLine2="                              ~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/Car.java"
-            line="1741"
+            line="1724"
             column="31"/>
     </issue>
 
@@ -19,7 +19,7 @@
         errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/Car.java"
-            line="2713"
+            line="2633"
             column="27"/>
     </issue>
 
@@ -30,7 +30,7 @@
         errorLine2="                                        ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/media/CarAudioManager.java"
-            line="2252"
+            line="2249"
             column="41"/>
     </issue>
 
@@ -47,45 +47,12 @@
 
     <issue
         id="FlaggedApi"
-        message="Method `onStreamEvent()` is a flagged API and should be inside an `if (Flags.carEvsStreamManagement())` check (or annotate the surrounding method `handleStreamEventLocked` with `@FlaggedApi(Flags.FLAG_CAR_EVS_STREAM_MANAGEMENT) to transfer requirement to caller`)"
-        errorLine1="            executor.execute(() -> cb.onStreamEvent(origin, event));"
-        errorLine2="                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="packages/services/Car/car-lib/src/android/car/evs/CarEvsManager.java"
-            line="595"
-            column="36"/>
-    </issue>
-
-    <issue
-        id="FlaggedApi"
-        message="Method `getType()` is a flagged API and should be inside an `if (Flags.carEvsStreamManagement())` check (or annotate the surrounding method `handleNewFrame` with `@FlaggedApi(Flags.FLAG_CAR_EVS_STREAM_MANAGEMENT) to transfer requirement to caller`)"
-        errorLine1="                buffer.getType() : CarEvsUtils.getTag(buffer.getId());"
-        errorLine2="                ~~~~~~~~~~~~~~~~">
-        <location
-            file="packages/services/Car/car-lib/src/android/car/evs/CarEvsManager.java"
-            line="610"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="FlaggedApi"
-        message="Method `getType()` is a flagged API and should be inside an `if (Flags.carEvsStreamManagement())` check (or annotate the surrounding method `returnFrameBuffer` with `@FlaggedApi(Flags.FLAG_CAR_EVS_STREAM_MANAGEMENT) to transfer requirement to caller`)"
-        errorLine1="                buffer.getType() : CarEvsUtils.getTag(buffer.getId());"
-        errorLine2="                ~~~~~~~~~~~~~~~~">
-        <location
-            file="packages/services/Car/car-lib/src/android/car/evs/CarEvsManager.java"
-            line="719"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="FlaggedApi"
         message="Method `subscribePropertyEvents()` is a flagged API and should be inside an `if (Flags.batchedSubscriptions())` check (or annotate the surrounding method `subscribePropertyEvents` with `@FlaggedApi(Flags.FLAG_BATCHED_SUBSCRIPTIONS) to transfer requirement to caller`)"
         errorLine1="        return subscribePropertyEvents(List.of("
         errorLine2="               ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1243"
+            line="1228"
             column="16"/>
     </issue>
 
@@ -96,7 +63,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1244"
+            line="1229"
             column="17"/>
     </issue>
 
@@ -107,7 +74,7 @@
         errorLine2="                ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1244"
+            line="1229"
             column="17"/>
     </issue>
 
@@ -118,7 +85,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1244"
+            line="1229"
             column="17"/>
     </issue>
 
@@ -129,7 +96,7 @@
         errorLine2="               ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1274"
+            line="1259"
             column="16"/>
     </issue>
 
@@ -140,7 +107,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1275"
+            line="1260"
             column="17"/>
     </issue>
 
@@ -151,7 +118,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1275"
+            line="1260"
             column="17"/>
     </issue>
 
@@ -162,7 +129,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1275"
+            line="1260"
             column="17"/>
     </issue>
 
@@ -173,7 +140,7 @@
         errorLine2="               ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1305"
+            line="1290"
             column="16"/>
     </issue>
 
@@ -184,7 +151,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1306"
+            line="1291"
             column="17"/>
     </issue>
 
@@ -195,7 +162,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1306"
+            line="1291"
             column="17"/>
     </issue>
 
@@ -206,7 +173,7 @@
         errorLine2="                ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1306"
+            line="1291"
             column="17"/>
     </issue>
 
@@ -217,7 +184,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1306"
+            line="1291"
             column="17"/>
     </issue>
 
@@ -228,7 +195,7 @@
         errorLine2="                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1361"
+            line="1346"
             column="37"/>
     </issue>
 
@@ -239,7 +206,7 @@
         errorLine2="                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1361"
+            line="1346"
             column="37"/>
     </issue>
 
@@ -250,7 +217,7 @@
         errorLine2="                                    ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1361"
+            line="1346"
             column="37"/>
     </issue>
 
@@ -261,7 +228,7 @@
         errorLine2="                                    ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1361"
+            line="1346"
             column="37"/>
     </issue>
 
@@ -272,7 +239,7 @@
         errorLine2="               ^">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1363"
+            line="1348"
             column="16"/>
     </issue>
 
@@ -283,7 +250,7 @@
         errorLine2="                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1499"
+            line="1484"
             column="41"/>
     </issue>
 
@@ -294,7 +261,7 @@
         errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1500"
+            line="1485"
             column="38"/>
     </issue>
 
@@ -305,7 +272,7 @@
         errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1501"
+            line="1486"
             column="43"/>
     </issue>
 
@@ -316,7 +283,7 @@
         errorLine2="                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1502"
+            line="1487"
             column="55"/>
     </issue>
 
@@ -327,7 +294,7 @@
         errorLine2="                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="packages/services/Car/car-lib/src/android/car/hardware/property/CarPropertyManager.java"
-            line="1503"
+            line="1488"
             column="41"/>
     </issue>
 
@@ -360,7 +327,7 @@
         errorLine2="                    ^">
         <location
             file="packages/services/Car/car-lib/src/com/android/car/internal/property/InputSanitizationUtils.java"
-            line="160"
+            line="159"
             column="21"/>
     </issue>
 

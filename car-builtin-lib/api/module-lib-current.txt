@@ -302,7 +302,12 @@ package android.car.builtin.os {
     method @Nullable public static android.os.IBinder checkService(@NonNull String);
     method @Nullable public static String[] getDeclaredInstances(@NonNull String);
     method @Nullable public static android.os.IBinder getService(@NonNull String);
+    method public static void registerForNotifications(@NonNull String, @NonNull android.car.builtin.os.ServiceManagerHelper.IServiceRegistrationCallback) throws android.os.RemoteException;
     method @Nullable public static android.os.IBinder waitForDeclaredService(@NonNull String);
+  }
+
+  public static interface ServiceManagerHelper.IServiceRegistrationCallback {
+    method public void onRegistration(@NonNull String, android.os.IBinder);
   }
 
   public final class SharedMemoryHelper {
