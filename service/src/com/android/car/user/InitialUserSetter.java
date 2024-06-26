@@ -50,6 +50,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.car.internal.dep.Trace;
 import com.android.car.internal.os.CarSystemProperties;
+import com.android.car.user.CarUserService.GlobalSettings;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
@@ -137,32 +138,36 @@ final class InitialUserSetter {
     private final Consumer<UserHandle> mListener;
 
     private final UserHandleHelper mUserHandleHelper;
+    private final GlobalSettings mGlobalSettings;
 
     private final boolean mIsVisibleBackgroundUsersOnDefaultDisplaySupported;
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
-            @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper) {
-        this(context, carUserService, listener, userHandleHelper,
+            @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper,
+            @NonNull GlobalSettings globalSettings) {
+        this(context, carUserService, listener, userHandleHelper, globalSettings,
                 context.getString(R.string.default_guest_name));
     }
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
             @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper,
-            @Nullable String newGuestName) {
+            @NonNull GlobalSettings globalSettings, @Nullable String newGuestName) {
         this(context, context.getSystemService(UserManager.class), carUserService, listener,
-                userHandleHelper, UserManagerHelper.getDefaultUserName(context), newGuestName);
+                userHandleHelper, globalSettings, UserManagerHelper.getDefaultUserName(context),
+                newGuestName);
     }
 
     @VisibleForTesting
     InitialUserSetter(@NonNull Context context, @NonNull UserManager um,
             @NonNull CarUserService carUserService, @NonNull Consumer<UserHandle> listener,
-            @NonNull UserHandleHelper userHandleHelper, @Nullable String newUserName,
-            @Nullable String newGuestName) {
+            @NonNull UserHandleHelper userHandleHelper, @NonNull GlobalSettings globalSettings,
+            @Nullable String newUserName, @Nullable String newGuestName) {
         mContext = context;
         mUm = um;
         mCarUserService = carUserService;
         mListener = listener;
         mUserHandleHelper = userHandleHelper;
+        mGlobalSettings = globalSettings;
         mNewUserName = newUserName;
         mNewGuestName = newGuestName;
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
@@ -750,7 +755,7 @@ final class InitialUserSetter {
             Slogf.d(TAG, "setting global property " + name + " to " + userId);
         }
 
-        Settings.Global.putInt(mContext.getContentResolver(), name, userId);
+        mGlobalSettings.putInt(mContext.getContentResolver(), name, userId);
     }
 
     /**
@@ -900,11 +905,11 @@ final class InitialUserSetter {
     private void resetUserIdGlobalProperty(@NonNull String name) {
         EventLogHelper.writeCarInitialUserResetGlobalProperty(name);
 
-        Settings.Global.putInt(mContext.getContentResolver(), name, UserManagerHelper.USER_NULL);
+        mGlobalSettings.putInt(mContext.getContentResolver(), name, UserManagerHelper.USER_NULL);
     }
 
     private int getUserIdGlobalProperty(@NonNull String name) {
-        int userId = Settings.Global.getInt(mContext.getContentResolver(), name,
+        int userId = mGlobalSettings.getInt(mContext.getContentResolver(), name,
                 UserManagerHelper.USER_NULL);
         if (DBG) {
             Slogf.d(TAG, "getting global property " + name + ": " + userId);
