@@ -27,6 +27,7 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.car.builtin.app.ActivityManagerHelper;
+import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.provider.SettingsHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -47,6 +48,7 @@ import com.android.car.R;
 import com.android.car.hal.UserHalHelper;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.UserHelperLite;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.os.CarSystemProperties;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
@@ -349,6 +351,8 @@ final class InitialUserSetter {
     public void set(@NonNull InitialUserInfo info) {
         Preconditions.checkArgument(info != null, "info cannot be null");
 
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "InitialuserSetter.set");
+
         EventLogHelper.writeCarInitialUserInfo(info.type, info.replaceGuest, info.switchUserId,
                 info.newUserName, info.newUserFlags,
                 info.supportsOverrideUserIdProperty, info.userLocales);
@@ -385,8 +389,10 @@ final class InitialUserSetter {
                 }
                 break;
             default:
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 throw new IllegalArgumentException("invalid InitialUserInfo type: " + info.type);
         }
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private void replaceUser(InitialUserInfo info, boolean fallback) {

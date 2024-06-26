@@ -16,8 +16,10 @@
 
 package com.android.car.internal.os;
 
+import android.annotation.NonNull;
 import android.car.builtin.os.ServiceManagerHelper;
 import android.os.IBinder;
+import android.os.RemoteException;
 
 /**
  * A real implementation for ServiceManager.
@@ -28,5 +30,12 @@ public final class SystemServiceManager implements ServiceManager {
     @Override
     public IBinder getService(String name) {
         return ServiceManagerHelper.getService(name);
+    }
+
+    @Override
+    public void registerForNotifications(@NonNull String name,
+            @NonNull ServiceManagerHelper.IServiceRegistrationCallback callback)
+            throws RemoteException {
+        ServiceManagerHelper.registerForNotifications(name, callback);
     }
 }

@@ -34,6 +34,8 @@ android.car Car void handleRemoteExceptionFromCarService(Service service, Remote
 android.car Car.CarBuilder Car createCar(Context context)
 android.car Car.CarBuilder Car createCar(Context context, Handler handler)
 android.car Car.CarBuilder Car createCar(Context context, Handler handler, long waitTimeoutMs, CarServiceLifecycleListener statusChangeListener)
+android.car Car.CarBuilder Car createCar(Context context, ServiceConnection serviceConnectionListener)
+android.car Car.CarBuilder Car createCar(Context context, ServiceConnection serviceConnectionListener, Handler handler)
 android.car Car.CarBuilder CarBuilder setFakeDeps(Deps deps)
 android.car CarAppFocusManager int APP_FOCUS_MAX
 android.car CarAppFocusManager int[] getActiveAppTypes()
