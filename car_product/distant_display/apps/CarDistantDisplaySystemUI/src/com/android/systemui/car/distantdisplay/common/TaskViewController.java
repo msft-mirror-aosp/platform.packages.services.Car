@@ -58,6 +58,7 @@ import com.google.android.car.distantdisplay.service.DistantDisplayService.Servi
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -96,6 +97,7 @@ public class TaskViewController {
     private int mDistantDisplayRootWallpaperTaskId = INVALID_TASK_ID;
     private MoveTaskReceiver mMoveTaskReceiver;
     private CarUxRestrictionsUtil mCarUxRestrictionsUtil;
+    private HashSet<Integer> mComponentStateSet;
 
     private final CarUxRestrictionsUtil.OnUxRestrictionsChangedListener
             mOnUxRestrictionsChangedListener = carUxRestrictions -> {
@@ -121,7 +123,6 @@ public class TaskViewController {
         public void onTaskMovedToFront(ActivityManager.RunningTaskInfo taskInfo) {
             logIfDebuggable("onTaskMovedToFront: displayId: " + taskInfo.displayId + ", " + taskInfo
                     + " token: " + taskInfo.token);
-            Intent intent = taskInfo.baseIntent;
             mForegroundTasks.put(taskInfo.taskId, taskInfo.displayId, taskInfo.baseIntent);
             if (taskInfo.displayId == DEFAULT_DISPLAY_ID) {
                 notifyListeners(DEFAULT_DISPLAY_ID);
@@ -129,6 +130,11 @@ public class TaskViewController {
                 if (getPackageNameFromBaseIntent(taskInfo.baseIntent).equals(
                         mContext.getPackageName())) {
                     mDistantDisplayRootWallpaperTaskId = taskInfo.taskId;
+                }
+                if (mComponentStateSet.contains(taskInfo.taskId)) {
+                    mComponentStateSet.remove(taskInfo.taskId);
+                } else {
+                    mDistantDisplayService.updateState(DistantDisplayService.State.DRIVER_DD);
                 }
                 notifyListeners(mDistantDisplayId);
             }
@@ -209,6 +215,7 @@ public class TaskViewController {
                     }
                 });
         mDistantDisplayId = mContext.getResources().getInteger(R.integer.config_distantDisplayId);
+        mComponentStateSet = new HashSet<>();
     }
 
     /**
@@ -317,6 +324,7 @@ public class TaskViewController {
             if (data == null || data.mTaskId == mDistantDisplayRootWallpaperTaskId) return;
             moveTaskToDisplay(data.mTaskId, DEFAULT_DISPLAY_ID);
             mDistantDisplayService.updateState(DistantDisplayService.State.DEFAULT);
+            mComponentStateSet.add(data.mTaskId);
         } else if ((movement.equals(MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY) || movement.equals(
                 MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY_PASSENGER))
                 && !mForegroundTasks.isEmpty()) {
@@ -341,6 +349,7 @@ public class TaskViewController {
                     ? DistantDisplayService.State.DRIVER_DD
                     : DistantDisplayService.State.PASSENGER_DD;
             mDistantDisplayService.updateState(state);
+            mComponentStateSet.add(data.mTaskId);
         }
     }
 
