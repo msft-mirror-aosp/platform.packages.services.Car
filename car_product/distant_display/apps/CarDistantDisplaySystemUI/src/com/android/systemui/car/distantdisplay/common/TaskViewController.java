@@ -36,6 +36,7 @@ import android.os.UserManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.android.car.apps.common.util.IntentUtils;
 import com.android.car.ui.utils.CarUxRestrictionsUtil;
@@ -89,7 +90,7 @@ public class TaskViewController {
     private final List<Callback> mCallbacks = new ArrayList<>();
     private boolean mInitialized;
     private int mDistantDisplayId;
-    private DistantDisplayService mDisplayCompatService;
+    private DistantDisplayService mDistantDisplayService;
     private final DistantDisplayForegroundTaskMap mForegroundTasks =
             new DistantDisplayForegroundTaskMap();
     private int mDistantDisplayRootWallpaperTaskId = INVALID_TASK_ID;
@@ -195,7 +196,7 @@ public class TaskViewController {
                     @Override
                     public void onServiceConnected(DistantDisplayService service) {
                         Log.d(TAG, "TaskViewController onServiceConnected: " + service);
-                        mDisplayCompatService = service;
+                        mDistantDisplayService = service;
                     }
 
                     @Override
@@ -284,6 +285,16 @@ public class TaskViewController {
         }
     }
 
+    @VisibleForTesting
+    void setDistantDisplayService(DistantDisplayService displayDisplayService) {
+        mDistantDisplayService = displayDisplayService;
+    }
+
+    @VisibleForTesting
+    int getDistantDisplayId() {
+        return mDistantDisplayId;
+    }
+
     private void setupDebuggingThroughAdb() {
         IntentFilter filter = new IntentFilter(MoveTaskReceiver.MOVE_ACTION);
         mMoveTaskReceiver = new MoveTaskReceiver();
@@ -305,7 +316,7 @@ public class TaskViewController {
             TaskData data = mForegroundTasks.getTopTaskOnDisplay(mDistantDisplayId);
             if (data == null || data.mTaskId == mDistantDisplayRootWallpaperTaskId) return;
             moveTaskToDisplay(data.mTaskId, DEFAULT_DISPLAY_ID);
-            mDisplayCompatService.updateState(DistantDisplayService.State.DEFAULT);
+            mDistantDisplayService.updateState(DistantDisplayService.State.DEFAULT);
         } else if ((movement.equals(MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY) || movement.equals(
                 MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY_PASSENGER))
                 && !mForegroundTasks.isEmpty()) {
@@ -329,7 +340,7 @@ public class TaskViewController {
                     MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY)
                     ? DistantDisplayService.State.DRIVER_DD
                     : DistantDisplayService.State.PASSENGER_DD;
-            mDisplayCompatService.updateState(state);
+            mDistantDisplayService.updateState(state);
         }
     }
 
