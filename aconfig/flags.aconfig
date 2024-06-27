@@ -144,6 +144,13 @@ flag {
   bug: "302596493"
 }
 
+flag {
+  name: "create_car_use_notifications"
+  namespace: "car_framework"
+  description: "Optimized Car.createCar implementation using ServiceManagerHelper.registerForNotifications and binder death recipient"
+  bug: "343489611"
+}
+
 # ClusterHomeManager
 flag {
   name: "cluster_health_monitoring"
