@@ -18,7 +18,6 @@ package com.android.car.pm;
 
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,10 +32,8 @@ import android.car.testapi.BlockingUserLifecycleListener;
 import android.car.user.CarUserManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
-import android.content.IContentProvider;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
@@ -150,9 +147,7 @@ public final class VendorServiceControllerTest extends AbstractExpectableTestCas
     @Mock
     private Context mBaseContext;
     @Mock
-    private ContentResolver mContentResolver;
-    @Mock
-    private IContentProvider mContentProvider;
+    private CarUserService.GlobalSettings mGlobalSettings;
 
     private ServiceLauncherContext mContext;
     private CarUserService mCarUserService;
@@ -168,9 +163,11 @@ public final class VendorServiceControllerTest extends AbstractExpectableTestCas
     public void setUp() throws Exception {
         mContext = new ServiceLauncherContext(mBaseContext);
 
-        // Required for getting/setting user ID in Settings.Global in InitialUserSetter.
-        when(mContentResolver.acquireProvider(anyString())).thenReturn(mContentProvider);
-        when(mContext.getContentResolver()).thenReturn(mContentResolver);
+        // Required for getting/setting user ID in InitialUserSetter.
+        when(mGlobalSettings.getInt(any(), any(), anyInt())).thenAnswer((inv) -> {
+            // Return the default value.
+            return inv.getArgument(2);
+        });
 
         // No visible users by default.
         synchronized (mLock) {
@@ -200,10 +197,12 @@ public final class VendorServiceControllerTest extends AbstractExpectableTestCas
         });
 
         mCarUserService = new CarUserService(mContext, mUserHal, mUserManager,
-                new UserHandleHelper(mContext, mUserManager),
-                mDevicePolicyManager, mActivityManager, /* maxRunningUsers= */ 2,
-                /* initialUserSetter= */ null, mUxRestrictionService, /* handler= */ null,
-                mCarPackageManagerService, mCarOccupantZoneService, mCurrentUserFetcher);
+                /* maxRunningUsers= */ 2, mUxRestrictionService, mCarPackageManagerService,
+                mCarOccupantZoneService,
+                new CarUserService.Deps(new UserHandleHelper(mContext, mUserManager),
+                        mDevicePolicyManager, mActivityManager,
+                        /* initialUserSetter= */ null, /* handler= */ null,
+                        mCurrentUserFetcher, mGlobalSettings));
 
         CarLocalServices.removeServiceForTest(CarUserService.class);
         CarLocalServices.addService(CarUserService.class, mCarUserService);

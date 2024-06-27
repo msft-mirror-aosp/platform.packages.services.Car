@@ -563,7 +563,7 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
                             : EvsEventType::TIMEOUT,
                     .payload = {static_cast<int32_t>(status)},
             };
-            if (!mStream->notify(std::move(event)).isOk()) {
+            if (!mStream->notify(event).isOk()) {
                 LOG(WARNING) << "Error delivering a stream event"
                              << static_cast<int32_t>(event.aType);
             }
@@ -607,8 +607,9 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
                 }
 
                 for (auto&& buffer : buffers) {
+                    const auto bufferId = buffer.bufferId;
                     if (!pHwCamera->doneWithFrame(std::move(buffer)).isOk()) {
-                        LOG(WARNING) << "Failed to return a buffer " << buffer.bufferId << " to "
+                        LOG(WARNING) << "Failed to return a buffer " << bufferId << " to "
                                      << hwCameraId;
                     }
                 }

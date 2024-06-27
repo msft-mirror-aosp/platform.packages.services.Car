@@ -627,16 +627,14 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
                 mMockContext,
                 mUserHal,
                 mMockedUserManager,
-                mMockedUserHandleHelper,
-                mMockedDevicePolicyManager,
-                mMockedActivityManager,
                 /* maxRunningUsers= */ 3,
-                mInitialUserSetter,
                 mCarUxRestrictionService,
-                mHandler,
                 mCarPackageManagerService,
                 mCarOccupantZoneService,
-                new ActivityManagerCurrentUserFetcher());
+                new CarUserService.Deps(mMockedUserHandleHelper, mMockedDevicePolicyManager,
+                        mMockedActivityManager, mInitialUserSetter, mHandler,
+                        new ActivityManagerCurrentUserFetcher(),
+                        new CarUserService.SystemGlobalSettings()));
     }
 
     /**
