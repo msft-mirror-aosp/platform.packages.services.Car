@@ -125,6 +125,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.os.CarSystemProperties;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.DebugUtils;
@@ -214,6 +215,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private static final String BG_HANDLER_THREAD_NAME = "UserService.BG";
 
+    private final CurrentUserFetcher mCurrentUserFetcher;
     private final Context mContext;
     private final ActivityManager mAm;
     private final UserManager mUserManager;
@@ -349,11 +351,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 context.getSystemService(DevicePolicyManager.class),
                 context.getSystemService(ActivityManager.class), maxRunningUsers,
                 /* initialUserSetter= */ null, uxRestrictionService, /* handler= */ null,
-                carPackageManagerService, carOccupantZoneService);
+                carPackageManagerService, carOccupantZoneService,
+                new ActivityManagerCurrentUserFetcher());
     }
 
     @VisibleForTesting
-    CarUserService(@NonNull Context context, @NonNull UserHalService hal,
+    public CarUserService(@NonNull Context context, @NonNull UserHalService hal,
             @NonNull UserManager userManager,
             @NonNull UserHandleHelper userHandleHelper,
             @NonNull DevicePolicyManager dpm,
@@ -363,8 +366,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @NonNull CarUxRestrictionsManagerService uxRestrictionService,
             @Nullable Handler handler,
             @NonNull CarPackageManagerService carPackageManagerService,
-            @NonNull CarOccupantZoneService carOccupantZoneService) {
+            @NonNull CarOccupantZoneService carOccupantZoneService,
+            @NonNull CurrentUserFetcher currentUserFetcher) {
         Slogf.d(TAG, "CarUserService(): DBG=%b, user=%s", DBG, context.getUser());
+        mCurrentUserFetcher = currentUserFetcher;
         mContext = context;
         mHal = hal;
         mAm = am;
@@ -701,7 +706,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void initResumeReplaceGuest() {
-        int currentUserId = ActivityManager.getCurrentUser();
+        int currentUserId = mCurrentUserFetcher.getCurrentUser();
         UserHandle currentUser = mUserHandleHelper.getExistingUserHandle(currentUserId);
 
         if (currentUser == null) {
@@ -748,6 +753,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void initBootUser(int requestType) {
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
+                requestType);
         boolean replaceGuest =
                 requestType == InitialUserInfoRequestType.RESUME && !mSwitchGuestUserBeforeSleep;
         checkManageUsersPermission("startInitialUser");
@@ -757,6 +764,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
                     /* supportsOverrideUserIdProperty= */ true, requestType);
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
+                    requestType);
             return;
         }
 
@@ -822,6 +831,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         /* supportsOverrideUserIdProperty= */ false, requestType);
             }
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
+                    requestType);
         });
     }
 
@@ -953,7 +964,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     private void handleSwitchUser(@NonNull UserHandle targetUser, int timeoutMs,
             @NonNull ResultCallbackImpl<UserSwitchResult> callback, boolean isLogout,
             boolean ignoreUxRestriction) {
-        int currentUser = ActivityManager.getCurrentUser();
+        int currentUser = mCurrentUserFetcher.getCurrentUser();
         int targetUserId = targetUser.getIdentifier();
         if (currentUser == targetUserId) {
             if (DBG) {
@@ -1890,7 +1901,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 Integer user = userId;
                 if (isPersistentUser(userId)) {
                     // current foreground user should stay in top priority.
-                    if (userId == ActivityManager.getCurrentUser()) {
+                    if (userId == mCurrentUserFetcher.getCurrentUser()) {
                         mBackgroundUsersToRestart.remove(user);
                         mBackgroundUsersToRestart.add(0, user);
                     }
@@ -1930,7 +1941,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
         // Non-current user only
         // TODO(b/270719791): Keep track of the current user to avoid IPC to AM.
-        if (userId == ActivityManager.getCurrentUser()) {
+        if (userId == mCurrentUserFetcher.getCurrentUser()) {
             if (DBG) {
                 Slogf.d(TAG, "onUserStarting: user %d is the current user, skipping", userId);
             }
@@ -1986,7 +1997,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
         // Non-current user only
         // TODO(b/270719791): Keep track of the current user to avoid IPC to AM.
-        if (userId == ActivityManager.getCurrentUser()) {
+        if (userId == mCurrentUserFetcher.getCurrentUser()) {
             if (DBG) {
                 Slogf.d(TAG, "onUserVisible: user %d is the current user, skipping", userId);
             }
@@ -2054,7 +2065,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         // Run from here only when CMUMD is supported.
-        if (userId == ActivityManager.getCurrentUser()) {
+        if (userId == mCurrentUserFetcher.getCurrentUser()) {
             mBgHandler.post(() -> startUserPickerOnOtherDisplays(/* currentUserId= */ userId));
         } else {
             mBgHandler.post(() -> startLauncherForVisibleUser(userId));
@@ -2167,7 +2178,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private @UserStartResult.Status int startUserInBackgroundInternal(@UserIdInt int userId) {
         // If the requested user is the current user, do nothing and return success.
-        if (ActivityManager.getCurrentUser() == userId) {
+        if (mCurrentUserFetcher.getCurrentUser() == userId) {
             return UserStartResult.STATUS_SUCCESSFUL_USER_IS_CURRENT_USER;
         }
         // If requested user does not exist, return error.
@@ -2216,7 +2227,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
         ArrayList<Integer> startedUsers = new ArrayList<>();
         for (Integer user : users) {
-            if (user == ActivityManager.getCurrentUser()) {
+            if (user == mCurrentUserFetcher.getCurrentUser()) {
                 continue;
             }
             if (ActivityManagerHelper.startUserInBackground(user)) {
@@ -2554,7 +2565,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return;
         }
         if (userId == UserHandle.SYSTEM.getIdentifier()
-                || userId == ActivityManager.getCurrentUser()) {
+                || userId == mCurrentUserFetcher.getCurrentUser()) {
             Slogf.w(TAG, "Cannot start SystemUI for current or system user (userId=%d)", userId);
             return;
         }

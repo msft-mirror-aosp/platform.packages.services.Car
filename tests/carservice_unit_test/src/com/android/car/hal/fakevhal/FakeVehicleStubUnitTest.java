@@ -1590,12 +1590,14 @@ public class FakeVehicleStubUnitTest {
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
         client.subscribe(options);
 
-        verify(callback, timeout(100).atLeast(10)).onPropertyEvent(any(ArrayList.class));
+        // 500ms should generate 2 * 20 = 40 events, check for 10 events to be safe.
+        verify(callback, timeout(200).atLeast(10)).onPropertyEvent(any(ArrayList.class));
 
         client.unsubscribe(VehicleProperty.FUEL_LEVEL);
         clearInvocations(callback);
 
-        verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+        // 200ms should generate 20 events, check for 5 events to be safe.
+        verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
     }
 
     @Test
