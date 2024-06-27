@@ -21,7 +21,6 @@ import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.up
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updateTextViewAndVisibility;
 
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.view.View;
@@ -39,7 +38,6 @@ import com.android.car.media.common.playback.PlaybackProgress;
 import com.android.car.media.common.playback.PlaybackViewModel;
 import com.android.car.media.common.playback.PlaybackViewModel.PlaybackController;
 import com.android.car.media.common.source.MediaSource;
-import com.android.car.media.common.source.MediaSourceColors;
 import com.android.car.media.common.ui.PlaybackCardController;
 import com.android.car.media.common.ui.PlaybackHistoryController;
 import com.android.car.media.common.ui.PlaybackQueueController;
@@ -216,22 +214,6 @@ public class ControlBarMediaController extends PlaybackCardController {
         }
     }
 
-    // TODO b/336857156: Add disabled state for play/pause button and make sure it reflects here
-    @Override
-    protected void updateViewsWithMediaSourceColors(MediaSourceColors colors) {
-        int defaultColor = mView.getResources().getColor(R.color.car_on_surface, null);
-        ColorStateList accentColor = colors != null ? ColorStateList.valueOf(
-                colors.getAccentColor(defaultColor)) :
-                ColorStateList.valueOf(defaultColor);
-
-        if (mPlayPauseButton != null) {
-            mPlayPauseButton.setBackgroundTintList(accentColor);
-        }
-        if (mSeekBar != null) {
-            mSeekBar.setProgressTintList(accentColor);
-        }
-    }
-
     @Override
     protected void updatePlaybackState(PlaybackViewModel.PlaybackStateWrapper playbackState) {
         boolean hasOverflow = false;
@@ -245,6 +227,9 @@ public class ControlBarMediaController extends PlaybackCardController {
             if (playbackState.isSkipPreviousEnabled() || playbackState.iSkipPreviousReserved()) {
                 count++;
             }
+            Drawable skipNextDrawableBackground = count == 1 ? mView.getContext()
+                    .getDrawable(R.drawable.pill_button_shape) : mView.getContext()
+                    .getDrawable(R.drawable.right_half_pill_button_shape);
             List<ImageButton> mActionsCopy = new ArrayList<>(mActions);
             if (playbackState.getCustomActions().size() > (MAX_ACTIONS_IN_DEFAULT_LAYOUT - count)) {
                 while (count >= 0) {
@@ -262,8 +247,8 @@ public class ControlBarMediaController extends PlaybackCardController {
                     playbackController, mView.getContext().getDrawable(R.drawable.ic_skip_previous),
                     mView.getContext().getDrawable(R.drawable.ic_skip_next),
                     mView.getContext().getDrawable(R.drawable.left_half_pill_button_shape),
-                    mView.getContext().getDrawable(R.drawable.right_half_pill_button_shape),
-                    /* reserveSkipSlots */ true, /* defaultButtonDrawable */ null);
+                    skipNextDrawableBackground, /* reserveSkipSlots */ true,
+                    /* defaultButtonDrawable */ null);
 
             if (!hasOverflow && mViewModel.getOverflowExpanded()) {
                 handleCustomActionsOverflowButtonClicked(mActionOverflowButton);
