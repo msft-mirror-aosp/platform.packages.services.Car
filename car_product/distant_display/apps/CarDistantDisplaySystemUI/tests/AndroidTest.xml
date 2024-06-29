@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (C) 2024 The Android Open Source Project
   ~
@@ -13,12 +14,15 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
+<configuration description="Distant Display Tests">
+    <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
+        <option name="cleanup-apks" value="true" />
+        <option name="install-arg" value="-t" />
+        <option name="test-file-name" value="CarDistantDisplaySystemUITest.apk" />
+    </target_preparer>
 
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="@color/car_surface_container_highest"
-        android:state_selected="true" android:state_enabled="true"/>
-    <item android:color="@color/car_on_surface_variant"
-        android:state_selected="false" android:state_enabled="true"/>
-    <item android:color="@color/car_surface_50"
-        android:state_enabled="false"/>
-</selector>
+    <test class="com.android.tradefed.testtype.AndroidJUnitTest">
+        <option name="package" value="com.android.systemui.tests" />
+        <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
+    </test>
+</configuration>

@@ -43,6 +43,7 @@ import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarServiceHelperWrapper;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 
@@ -338,10 +339,12 @@ public final class WatchdogProcessHandler {
      */
     public void asyncFetchAidlVhalPid() {
         mServiceHandler.post(() -> {
+            Trace.beginSection("WatchdogProcessHandler.asyncFetchAidlVhalPid");
             int pid = CarServiceHelperWrapper.getInstance().fetchAidlVhalPid();
             if (pid < 0) {
                 Slogf.e(CarWatchdogService.TAG, "Failed to fetch AIDL VHAL pid from"
                         + " CarServiceHelperService");
+                Trace.endSection();
                 return;
             }
             try {
@@ -350,17 +353,20 @@ public final class WatchdogProcessHandler {
                 Slogf.e(CarWatchdogService.TAG,
                         "Failed to notify car watchdog daemon of the AIDL VHAL pid");
             }
+            Trace.endSection();
         });
     }
 
     /** Enables/disables the watchdog daemon client health check process. */
     void controlProcessHealthCheck(boolean enable) {
+        Trace.beginSection("WatchdogProcessHandler-healthCheckEnabled-" + enable);
         try {
             mCarWatchdogDaemonHelper.controlProcessHealthCheck(enable);
         } catch (RemoteException e) {
             Slogf.w(CarWatchdogService.TAG,
                     "Cannot enable/disable the car watchdog daemon health check process: %s", e);
         }
+        Trace.endSection();
     }
 
     private void onClientDeath(ICarWatchdogServiceCallback client, int timeout) {
@@ -373,16 +379,19 @@ public final class WatchdogProcessHandler {
         // For critical clients, the response status are checked just before reporting to car
         // watchdog daemon. For moderate and normal clients, the status are checked after allowed
         // delay per timeout.
+        Trace.beginSection("WatchdogProcessHandler.doHealthCheck");
         analyzeClientResponse(TIMEOUT_CRITICAL);
         reportHealthCheckResult(sessionId);
         sendPingToClients(TIMEOUT_CRITICAL);
         sendPingToClientsAndCheck(TIMEOUT_MODERATE);
         sendPingToClientsAndCheck(TIMEOUT_NORMAL);
+        Trace.endSection();
     }
 
     private void analyzeClientResponse(int timeout) {
         // Clients which are not responding are stored in mClientsNotResponding, and will be dumped
         // and killed at the next response of CarWatchdogService to car watchdog daemon.
+        Trace.beginSection("WatchdogProcessHandler.analyzeClientResponse");
         synchronized (mLock) {
             SparseArray<ClientInfo> pingedClients = mPingedClientMap.get(timeout);
             for (int i = 0; i < pingedClients.size(); i++) {
@@ -395,9 +404,11 @@ public final class WatchdogProcessHandler {
             }
             mClientCheckInProgress.setValueAt(timeout, false);
         }
+        Trace.endSection();
     }
 
     private void sendPingToClients(int timeout) {
+        Trace.beginSection("WatchdogProcessHandler.sendPingToClients");
         ArrayList<ClientInfo> clientsToCheck;
         synchronized (mLock) {
             SparseArray<ClientInfo> pingedClients = mPingedClientMap.get(timeout);
@@ -428,6 +439,7 @@ public final class WatchdogProcessHandler {
                 }
             }
         }
+        Trace.endSection();
     }
 
     private void sendPingToClientsAndCheck(int timeout) {
@@ -463,6 +475,7 @@ public final class WatchdogProcessHandler {
     }
 
     private void reportHealthCheckResult(int sessionId) {
+        Trace.beginSection("WatchdogProcessHandler.reportHealthCheckResult");
         List<ProcessIdentifier> clientsNotResponding;
         ArrayList<ClientInfo> clientsToNotify;
         synchronized (mLock) {
@@ -488,6 +501,7 @@ public final class WatchdogProcessHandler {
             Slogf.w(CarWatchdogService.TAG,
                     "Cannot respond to car watchdog daemon (sessionId=%d): %s", sessionId, e);
         }
+        Trace.endSection();
     }
 
     @NonNull
