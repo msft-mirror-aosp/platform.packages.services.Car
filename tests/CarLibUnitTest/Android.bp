@@ -74,6 +74,9 @@ android_test {
         "mockito-target-extended",
         "ravenwood-junit",
     ],
+    libs: [
+        "android.car.builtin",
+    ],
     defaults: [
         "CarLibUnitTestDefault",
     ],

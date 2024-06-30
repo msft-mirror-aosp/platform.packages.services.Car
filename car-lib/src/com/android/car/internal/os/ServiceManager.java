@@ -16,7 +16,10 @@
 
 package com.android.car.internal.os;
 
+import android.annotation.NonNull;
+import android.car.builtin.os.ServiceManagerHelper;
 import android.os.IBinder;
+import android.os.RemoteException;
 
 /**
  * An interface to inject fake
@@ -25,6 +28,11 @@ import android.os.IBinder;
  * @hide
  */
 public interface ServiceManager {
-    /** Check {@link ServiceManager#getService(String)} */
+    /** Check {@link ServiceManagerHelper#getService(String)} */
     IBinder getService(String name);
+
+    /** Check {@link ServiceManagerHelper#registerForNotifications} */
+    void registerForNotifications(@NonNull String name,
+            @NonNull ServiceManagerHelper.IServiceRegistrationCallback callback)
+            throws RemoteException;
 }

@@ -60,6 +60,7 @@ import android.os.UserManager;
 import android.provider.Settings;
 
 import com.android.car.internal.os.CarSystemProperties;
+import com.android.car.user.CarUserService.SystemGlobalSettings;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -122,7 +123,7 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
     public void setFixtures() {
         when(mContext.createContextAsUser(any(), anyInt())).thenReturn(mContext);
         mSetter = spy(new InitialUserSetter(mContext, mUm, mCarUserService, mListener,
-                        mMockedUserHandleHelper, OWNER_NAME, GUEST_NAME));
+                mMockedUserHandleHelper, new SystemGlobalSettings(), OWNER_NAME, GUEST_NAME));
         mockGetCurrentUser(CURRENT_USER_ID);
 
         // Need explicitly mock this call, otherwise the test will fail because the real method
