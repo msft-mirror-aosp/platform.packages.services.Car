@@ -97,8 +97,16 @@ public final class CarResolverActivity extends ResolverActivity
                 });
             }
 
+            // Set a max height on the list of apps so that the list does not cut off the "Just
+            // Once"/"Always" buttons of the activity
             int resolverListMaxHeight = getResources().getDimensionPixelSize(
                     com.android.car.activityresolver.R.dimen.resolver_list_max_height);
+            // The activity has a preselected default app option, so subract that height from max
+            // height which is applied to the list of app choices
+            if (useLayoutWithDefault()) {
+                resolverListMaxHeight -= getResources().getDimensionPixelSize(
+                        com.android.car.activityresolver.R.dimen.resolver_list_item_height);
+            }
             if (listView.getHeight() > resolverListMaxHeight) {
                 listView.getLayoutParams().height = resolverListMaxHeight;
                 listView.setLayoutParams(listView.getLayoutParams());
