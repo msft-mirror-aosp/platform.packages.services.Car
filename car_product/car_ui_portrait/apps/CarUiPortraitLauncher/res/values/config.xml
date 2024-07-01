@@ -50,7 +50,6 @@
     -->
     <string-array name="config_fullScreenActivities" translatable="false">
         <!-- CTS test activities that pass when fullscreen -->
-        <item>android.assist.cts/android.assist.cts.TestStartActivity</item>
         <item>android.widget.cts/android.widget.cts.ListViewCtsActivity</item>
         <item>android.widget.cts/android.widget.cts.TextViewCtsActivity</item>
         <item>android.widget.cts/android.widget.cts.RelativeLayoutCtsActivity</item>
@@ -104,4 +103,7 @@
         TODO(b/310687870): Add RB to testing plan
     -->
     <bool name="config_enableMediaSessionAppsWhileDriving">false</bool>
+
+    <!-- Boolean value to indicate if the recents activity should open the most recent task on dismiss. -->
+    <bool name="config_launch_most_recent_task_on_recents_dismiss">false</bool>
 </resources>

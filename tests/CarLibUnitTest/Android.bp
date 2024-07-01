@@ -31,6 +31,9 @@ java_library {
         "fake.com.android.car.internal.dep",
     ],
     sdk_version: "module_current",
+    lint: {
+        baseline_filename: "lint-baseline.xml",
+    },
 }
 
 java_defaults {
@@ -70,6 +73,9 @@ android_test {
     static_libs: [
         "mockito-target-extended",
         "ravenwood-junit",
+    ],
+    libs: [
+        "android.car.builtin",
     ],
     defaults: [
         "CarLibUnitTestDefault",
