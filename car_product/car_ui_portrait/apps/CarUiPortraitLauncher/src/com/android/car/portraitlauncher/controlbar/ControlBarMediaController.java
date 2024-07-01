@@ -21,7 +21,6 @@ import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.up
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updateTextViewAndVisibility;
 
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.view.View;
@@ -30,6 +29,7 @@ import android.widget.ImageButton;
 
 import androidx.constraintlayout.motion.widget.MotionLayout;
 
+import com.android.car.apps.common.RoundedDrawable;
 import com.android.car.apps.common.util.ViewUtils;
 import com.android.car.carlauncher.homescreen.audio.media.MediaIntentRouter;
 import com.android.car.media.common.MediaItemMetadata;
@@ -38,8 +38,8 @@ import com.android.car.media.common.playback.PlaybackProgress;
 import com.android.car.media.common.playback.PlaybackViewModel;
 import com.android.car.media.common.playback.PlaybackViewModel.PlaybackController;
 import com.android.car.media.common.source.MediaSource;
-import com.android.car.media.common.source.MediaSourceColors;
 import com.android.car.media.common.ui.PlaybackCardController;
+import com.android.car.media.common.ui.PlaybackHistoryController;
 import com.android.car.media.common.ui.PlaybackQueueController;
 
 import java.util.ArrayList;
@@ -57,6 +57,7 @@ public class ControlBarMediaController extends PlaybackCardController {
     private ViewGroup mHistoryContainer;
 
     private PlaybackQueueController mPlaybackQueueController;
+    private PlaybackHistoryController mPlaybackHistoryController;
     private MotionLayout mMotionLayout;
 
     private int mSubtitleVisibility;
@@ -103,11 +104,17 @@ public class ControlBarMediaController extends PlaybackCardController {
         mPlaybackQueueController = new PlaybackQueueController(
                 mView.findViewById(R.id.queue_list), Resources.ID_NULL,
                 R.layout.control_bar_media_queue_item, Resources.ID_NULL, getViewLifecycleOwner(),
-                mDataModel, mViewModel.getMediaItemsRepository(), null, 0);
+                mDataModel, mViewModel.getMediaItemsRepository(),
+                /* LifeCycleObserverUxrContentLimiter */ null, /* uxrConfigurationId */ 0);
         mPlaybackQueueController.setShowTimeForActiveQueueItem(true);
         mPlaybackQueueController.setShowIconForActiveQueueItem(false);
         mPlaybackQueueController.setShowThumbnailForQueueItem(true);
         mPlaybackQueueController.setShowSubtitleForQueueItem(true);
+
+        mPlaybackHistoryController = new PlaybackHistoryController(getViewLifecycleOwner(),
+                mViewModel, mHistoryContainer, R.layout.control_bar_media_history_item,
+                Resources.ID_NULL, /* uxrConfigurationId */ 0);
+        mPlaybackHistoryController.setupView();
 
         mMotionLayout = mView.findViewById(R.id.control_bar_media_card_motion_layout);
         mMotionLayout.addTransitionListener(new MotionLayout.TransitionListener() {
@@ -167,6 +174,13 @@ public class ControlBarMediaController extends PlaybackCardController {
     }
 
     @Override
+    protected void updateAlbumCoverWithDrawable(Drawable drawable) {
+        RoundedDrawable roundedDrawable = new RoundedDrawable(drawable, mView.getResources()
+                .getFloat(R.dimen.control_bar_media_card_album_art_drawable_corner_ratio));
+        super.updateAlbumCoverWithDrawable(roundedDrawable);
+    }
+
+    @Override
     protected void updateLogoWithDrawable(Drawable drawable) {
         super.updateLogoWithDrawable(drawable);
         if (isPanelOpen()) {
@@ -200,22 +214,6 @@ public class ControlBarMediaController extends PlaybackCardController {
         }
     }
 
-    // TODO b/336857156: Add disabled state for play/pause button and make sure it reflects here
-    @Override
-    protected void updateViewsWithMediaSourceColors(MediaSourceColors colors) {
-        int defaultColor = mView.getResources().getColor(R.color.car_on_surface, null);
-        ColorStateList accentColor = colors != null ? ColorStateList.valueOf(
-                colors.getAccentColor(defaultColor)) :
-                ColorStateList.valueOf(defaultColor);
-
-        if (mPlayPauseButton != null) {
-            mPlayPauseButton.setBackgroundTintList(accentColor);
-        }
-        if (mSeekBar != null) {
-            mSeekBar.setProgressTintList(accentColor);
-        }
-    }
-
     @Override
     protected void updatePlaybackState(PlaybackViewModel.PlaybackStateWrapper playbackState) {
         boolean hasOverflow = false;
@@ -229,6 +227,9 @@ public class ControlBarMediaController extends PlaybackCardController {
             if (playbackState.isSkipPreviousEnabled() || playbackState.iSkipPreviousReserved()) {
                 count++;
             }
+            Drawable skipNextDrawableBackground = count == 1 ? mView.getContext()
+                    .getDrawable(R.drawable.pill_button_shape) : mView.getContext()
+                    .getDrawable(R.drawable.right_half_pill_button_shape);
             List<ImageButton> mActionsCopy = new ArrayList<>(mActions);
             if (playbackState.getCustomActions().size() > (MAX_ACTIONS_IN_DEFAULT_LAYOUT - count)) {
                 while (count >= 0) {
@@ -246,8 +247,8 @@ public class ControlBarMediaController extends PlaybackCardController {
                     playbackController, mView.getContext().getDrawable(R.drawable.ic_skip_previous),
                     mView.getContext().getDrawable(R.drawable.ic_skip_next),
                     mView.getContext().getDrawable(R.drawable.left_half_pill_button_shape),
-                    mView.getContext().getDrawable(R.drawable.right_half_pill_button_shape),
-                    /* reserveSkipSlots */ true, /* defaultButtonDrawable */ null);
+                    skipNextDrawableBackground, /* reserveSkipSlots */ true,
+                    /* defaultButtonDrawable */ null);
 
             if (!hasOverflow && mViewModel.getOverflowExpanded()) {
                 handleCustomActionsOverflowButtonClicked(mActionOverflowButton);
