@@ -1460,11 +1460,11 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         // Create a buffer to circulate
         HardwareBuffer buffer =
                 HardwareBuffer.create(/* width= */ 64, /* height= */ 32,
-                        /* format= */ HardwareBuffer.RGBA_8888,
-                        /* layers= */ 1,
-                        /* usage= */ HardwareBuffer.USAGE_CPU_READ_OFTEN);
+                                      /* format= */ HardwareBuffer.RGBA_8888,
+                                      /* layers= */ 1,
+                                      /* usage= */ HardwareBuffer.USAGE_CPU_READ_OFTEN);
 
-        int bufferId = mRandom.nextInt();
+        int bufferId = mRandom.nextInt() & DATA_MASK;
         EvsStreamCallbackImpl spiedCallback = spy(new EvsStreamCallbackImpl());
         EvsStatusListenerImpl spiedStatusListener = spy(new EvsStatusListenerImpl());
         mCarEvsService.registerStatusListener(spiedStatusListener);
