@@ -99,6 +99,9 @@ void PowerPolicyClientBase::handleBinderDeath() {
         std::unique_lock writeLock(mRWMutex);
         mPolicyServer = nullptr;
     }
+    if (mConnectionThread.joinable()) {
+        mConnectionThread.join();
+    }
     init();
 }
 
