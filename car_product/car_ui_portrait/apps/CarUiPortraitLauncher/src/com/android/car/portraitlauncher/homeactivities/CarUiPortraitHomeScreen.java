@@ -21,8 +21,7 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_TRUSTED_OVERL
 
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IMMERSIVE_MODE_REQUESTED_SOURCE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_APP_GRID_VISIBILITY_CHANGE;
-import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_NOTIFICATION;
-import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_RECENTS;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_COLLAPSE_APPLICATION;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_FG_TASK_VIEW_READY;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_HIDE_SYSTEM_BAR_FOR_IMMERSIVE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.MSG_IMMERSIVE_MODE_CHANGE;
@@ -37,6 +36,7 @@ import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeRea
 import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.ON_HOME_SCREEN_LAYOUT_CHANGED;
 import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.ON_IMMERSIVE_REQUEST;
 import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.ON_MEDIA_INTENT;
+import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.ON_PANEL_READY;
 import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.ON_SUW_STATE_CHANGED;
 import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.ON_TASK_MOVED_TO_FRONT;
 import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.createReason;
@@ -160,6 +160,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             "SAVED_BACKGROUND_APP_COMPONENT_NAME";
     private static final IActivityTaskManager sActivityTaskManager =
             ActivityTaskManager.getService();
+    private static final int INVALID_TASK_ID = -1;
     private final UserEventReceiver mUserEventReceiver = new UserEventReceiver();
     private final Configuration mConfiguration = new Configuration();
 
@@ -182,6 +183,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     private boolean mIsCalmMode;
     private TaskInfoCache mTaskInfoCache;
     private TaskViewPanel mRootTaskViewPanel;
+    private boolean mSkipAppGridOnRestartAttempt;
+    private int mAppGridTaskId = INVALID_TASK_ID;
     private final IntentHandler mMediaIntentHandler = new IntentHandler() {
         @Override
         public void handleIntent(Intent intent) {
@@ -242,6 +245,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 logIfDebuggable(
                         "On task created, task = " + taskId + " componentName " + componentName);
             }
+            if (mTaskCategoryManager.isAppGridActivity(componentName)) {
+                mAppGridTaskId = taskId;
+            }
         }
 
         @Override
@@ -273,6 +279,10 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         public void onTaskRemoved(int taskId) throws RemoteException {
             super.onTaskRemoved(taskId);
             logIfDebuggable("onTaskRemoved taskId=" + taskId);
+            if (mAppGridTaskId == taskId) {
+                Log.e(TAG, "onTaskRemoved, App Grid task is removed.");
+                mAppGridTaskId = INVALID_TASK_ID;
+            }
         }
 
         /**
@@ -364,6 +374,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         mIsNotificationCenterOnTop = mTaskCategoryManager.isNotificationActivity(taskInfo);
         mIsRecentsOnTop = mTaskCategoryManager.isRecentsActivity(taskInfo);
         mIsAppGridOnTop = mTaskCategoryManager.isAppGridActivity(taskInfo);
+
         if (mTaskCategoryManager.isBackgroundApp(taskInfo)) {
             mTaskCategoryManager.setCurrentBackgroundApp(taskInfo.baseActivity);
         }
@@ -377,12 +388,46 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
         mCurrentTaskInRootTaskView = taskInfo;
 
+        if (!shouldOpenPanelForAppGrid(reason)) {
+            return;
+        }
+
         if (shouldOpenFullScreenPanel(taskInfo)) {
             mRootTaskViewPanel.openFullScreenPanel(/* animated= */ true, /* showToolBar= */ true,
                     mNavBarHeight, reason);
         } else {
             mRootTaskViewPanel.openPanel(reason);
         }
+    }
+
+    /**
+     * Determine if the Application panel should open for the AppGrid.
+     *
+     * <p> AppGrid is used as the application panel's
+     * 1. background when panel is open, preventing the user from seeing an empty panel.
+     * 2. foreground when panel is closed, putting any ongoing activities within the panel to
+     * onStop state.
+     *
+     * <p> If the reason of panel state change is ON_TASK_MOVED_TO_FRONT, always returns false.
+     * <p> If the reason of panel state change is ON_ACTIVITY_RESTART_ATTEMPT, check
+     * {@link mSkipAppGridOnRestartAttempt}.
+     */
+    private boolean shouldOpenPanelForAppGrid(TaskViewPanelStateChangeReason reason) {
+        if (!mIsAppGridOnTop) {
+            return false;
+        } else if (ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
+            logIfDebuggable("Skip panel action for app grid in onTaskMovedToFront");
+            return false;
+        } else if (ON_ACTIVITY_RESTART_ATTEMPT.equals(reason.getReason())
+                && mSkipAppGridOnRestartAttempt) {
+            logIfDebuggable(
+                    "Skip panel action for app grid in onActivityRestartAttempt after manually "
+                            + "close the panel");
+            mSkipAppGridOnRestartAttempt = false;
+            return false;
+        }
+
+        return true;
     }
 
     private CarUiPortraitServiceManager mCarUiPortraitServiceManager;
@@ -583,16 +628,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         transaction.commitNow();
     }
 
-    private void collapseNotificationPanel() {
-        if (mIsNotificationCenterOnTop) {
-            mRootTaskViewPanel.closePanel(createReason(ON_COLLAPSE_MSG));
-        }
-    }
-
-    private void collapseRecentsPanel() {
-        if (mIsRecentsOnTop) {
-            mRootTaskViewPanel.closePanel(createReason(ON_COLLAPSE_MSG));
-        }
+    private void collapseAppPanel() {
+        logIfDebuggable("On collapse app panel");
+        mRootTaskViewPanel.closePanel(createReason(ON_COLLAPSE_MSG));
     }
 
     @Override
@@ -1010,7 +1048,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         mRootTaskViewPanel.setOnStateChangeListener(new TaskViewPanel.OnStateChangeListener() {
             @Override
             public void onStateChangeStart(TaskViewPanel.State oldState,
-                    TaskViewPanel.State newState, boolean animated) {
+                    TaskViewPanel.State newState, boolean animated,
+                    TaskViewPanelStateChangeReason reason) {
                 boolean isFullScreen = newState.isFullScreen();
                 if (!mIsSUWInProgress) {
                     setControlBarVisibility(!isFullScreen, animated);
@@ -1028,7 +1067,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
             @Override
             public void onStateChangeEnd(TaskViewPanel.State oldState, TaskViewPanel.State newState,
-                    boolean animated) {
+                    boolean animated, TaskViewPanelStateChangeReason reason) {
                 updateObscuredTouchRegion();
                 // Hide the control bar after the animation if in full screen.
                 if (newState.isFullScreen()) {
@@ -1043,9 +1082,19 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
                 mTaskViewControllerWrapper.setWindowBounds(
                         mRootTaskViewPanel.getTaskViewBounds(newState), APPLICATION);
+
+                if (!newState.isVisible()) {
+                    startActivityInternal(CarLauncherUtils.getAppsGridIntent());
+                    // Ensure the first click on AppGrid button can open the panel.
+                    // When panel is closed for ON_PANEL_READY, the AppGrid get launched for the
+                    // first time, it won't triggers OnRestartAttempt and reset
+                    // mSkipAppGridOnRestartAttempt.
+                    if (!ON_PANEL_READY.equals(reason.getReason())) {
+                        mSkipAppGridOnRestartAttempt = true;
+                    }
+                }
             }
         });
-
 
         TaskViewControllerWrapper.TaskViewCallback callback =
                 new TaskViewControllerWrapper.TaskViewCallback() {
@@ -1211,11 +1260,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                     boolean hideNavBar = intToBool(msg.arg1);
                     mRootTaskViewPanel.setToolBarViewVisibility(hideNavBar);
                     break;
-                case MSG_COLLAPSE_NOTIFICATION:
-                    collapseNotificationPanel();
-                    break;
-                case MSG_COLLAPSE_RECENTS:
-                    collapseRecentsPanel();
+                case MSG_COLLAPSE_APPLICATION:
+                    collapseAppPanel();
                     break;
                 default:
                     super.handleMessage(msg);
