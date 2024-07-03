@@ -386,7 +386,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
         mCurrentTaskInRootTaskView = taskInfo;
 
-        if (!shouldOpenPanelForAppGrid(reason)) {
+        if (mIsAppGridOnTop && !shouldOpenPanelForAppGrid(reason)) {
+            logIfDebuggable("Panel should not open for app grid, check previous log for details");
             return;
         }
 
@@ -411,9 +412,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
      * {@link mSkipAppGridOnRestartAttempt}.
      */
     private boolean shouldOpenPanelForAppGrid(TaskViewPanelStateChangeReason reason) {
-        if (!mIsAppGridOnTop) {
-            return false;
-        } else if (ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
+        if (ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
             logIfDebuggable("Skip panel action for app grid in onTaskMovedToFront");
             return false;
         } else if (ON_ACTIVITY_RESTART_ATTEMPT.equals(reason.getReason())
