@@ -160,6 +160,14 @@ flag {
     namespace: "car_framework"
     description: "Enables navigation audio usage in legacy volume mode."
     bug: "353872512"
+  }
+
+flag {
+    name: "async_audio_service_init"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Controls whether to run CarAudioService init asynchronously to improve performance"
+    bug: "368619416"
 }
 
 flag {
