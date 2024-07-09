@@ -415,19 +415,22 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @NonNull CarOccupantZoneService carOccupantZoneService,
             @NonNull Deps deps) {
         Slogf.d(TAG, "CarUserService(): DBG=%b, user=%s", DBG, context.getUser());
-        mCurrentUserFetcher = deps.currentUserFetcher;
-        mGlobalSettings = deps.globalSettings;
         mContext = context;
         mHal = hal;
         mMaxRunningUsers = maxRunningUsers;
         mUserManager = userManager;
-        mAm = deps.am;
-        mDpm = deps.dpm;
-        mUserHandleHelper = deps.userHandleHelper;
-        mHandler = deps.handler != null ? deps.handler : new Handler(mHandlerThread.getLooper());
-        mInitialUserSetter = deps.initialUserSetter != null ? deps.initialUserSetter :
+
+        mAm = deps.am();
+        mDpm = deps.dpm();
+        mUserHandleHelper = deps.userHandleHelper();
+        mHandler = deps.handler() != null ? deps.handler() :
+                new Handler(mHandlerThread.getLooper());
+        mInitialUserSetter = deps.initialUserSetter() != null ? deps.initialUserSetter() :
                 new InitialUserSetter(context, this, (u) -> setInitialUser(u), mUserHandleHelper,
-                        mGlobalSettings);
+                        deps);
+        mCurrentUserFetcher = deps.currentUserFetcher();
+        mGlobalSettings = deps.globalSettings();
+
         Resources resources = context.getResources();
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
                 R.bool.config_switchGuestUserBeforeGoingSleep);
