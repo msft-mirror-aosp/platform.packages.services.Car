@@ -47,10 +47,19 @@ public final class UserHelperLite {
     }
 
     /**
-     * Checks whether the given user is both {@code SYSTEM} and headless.
+     * Checks whether the given user is both {@code SYSTEM} and the device is in headless system
+     * user mode.
      */
     public static boolean isHeadlessSystemUser(@UserIdInt int userId) {
-        return userId == UserHandle.SYSTEM.getIdentifier()
-                && UserManager.isHeadlessSystemUserMode();
+        return isHeadlessSystemUser(userId, UserManager.isHeadlessSystemUserMode());
+    }
+
+    /**
+     * Checks whether the given user is both {@code SYSTEM} and the device is in headless system
+     * user mode.
+     */
+    public static boolean isHeadlessSystemUser(@UserIdInt int userId,
+            boolean isHeadlessSystemUserMode) {
+        return userId == UserHandle.SYSTEM.getIdentifier() && isHeadlessSystemUserMode;
     }
 }
