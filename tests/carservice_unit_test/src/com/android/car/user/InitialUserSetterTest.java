@@ -52,12 +52,14 @@ import android.hardware.automotive.vehicle.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.UserInfo;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.platform.test.ravenwood.RavenwoodRule;
 import android.provider.Settings;
 import android.util.ArrayMap;
 
 import com.android.internal.annotations.GuardedBy;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -66,7 +68,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(MockitoJUnitRunner.Silent.class)
 public final class InitialUserSetterTest {
 
     private static final int NO_FLAGS = 0;
@@ -82,6 +84,10 @@ public final class InitialUserSetterTest {
             new InitialUserSetter.Builder(InitialUserSetter.TYPE_CREATE)
                     .setRequestType(InitialUserInfoRequestType.RESUME)
                     .build();
+
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder().setProvideMainThread(true)
+            .build();
 
     @Mock
     private Context mContext;
