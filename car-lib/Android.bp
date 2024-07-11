@@ -297,6 +297,7 @@ java_library {
     dist: {
         targets: ["dist_files"],
     },
+    is_stubs_module: true,
 }
 
 java_library {
