@@ -672,6 +672,10 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        mTaskViewControllerWrapper.updateAllowListedActivities(BACKGROUND,
+                mTaskCategoryManager.getBackgroundActivitiesList());
+        mTaskViewControllerWrapper.updateAllowListedActivities(FULLSCREEN,
+                mTaskCategoryManager.getFullScreenActivitiesList());
         // the showEmbeddedTasks will make the task visible which will lead to opening of the panel
         // and that should be skipped for application panel  when the  home intent is sent. Because
         // that leads to CTS failures.
