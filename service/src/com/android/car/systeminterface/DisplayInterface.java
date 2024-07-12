@@ -312,7 +312,7 @@ public interface DisplayInterface {
                 CarPowerManagementService carPowerManagementService) {
             int gamma = GAMMA_SPACE_MAX;
             try {
-                int linear = mSettings.systemGetInt(getContentResolverForUser(mContext,
+                int linear = mSettings.getIntSystem(getContentResolverForUser(mContext,
                         UserHandle.CURRENT.getIdentifier()), System.SCREEN_BRIGHTNESS);
                 if (hasRecentlySetBrightness(linear)) {
                     return;
@@ -408,7 +408,7 @@ public interface DisplayInterface {
                                 | DisplayManagerHelper.EVENT_FLAG_DISPLAY_BRIGHTNESS);
             } else {
                 getContentResolverForUser(mContext, UserHandle.ALL.getIdentifier())
-                        .registerContentObserver(mSettings.systemGetUriFor(
+                        .registerContentObserver(mSettings.getUriForSystem(
                                 System.SCREEN_BRIGHTNESS), false, mBrightnessObserver);
             }
 

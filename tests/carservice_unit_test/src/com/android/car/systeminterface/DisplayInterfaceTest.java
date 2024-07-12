@@ -120,9 +120,9 @@ public final class DisplayInterfaceTest {
 
     @Before
     public void setUp() throws Exception {
-        when(mSettings.systemGetInt(eq(mContentResolver), anyString())).thenReturn(
+        when(mSettings.getIntSystem(eq(mContentResolver), anyString())).thenReturn(
                 GLOBAL_BRIGHTNESS);
-        when(mSettings.systemGetUriFor(anyString())).thenReturn(Uri.parse(""));
+        when(mSettings.getUriForSystem(anyString())).thenReturn(Uri.parse(""));
         when(mContext.createContextAsUser(any(), anyInt())).thenReturn(mContext);
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
         when(mContext.getSystemService(DisplayManager.class)).thenReturn(mDisplayManager);

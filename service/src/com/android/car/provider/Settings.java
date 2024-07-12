@@ -27,25 +27,65 @@ public interface Settings {
     /**
      * @see android.provider.Settings.System#getInt
      */
-    int systemGetInt(ContentResolver cr, String name) throws SettingNotFoundException;
+    int getIntSystem(ContentResolver cr, String name) throws SettingNotFoundException;
 
     /**
      * @see android.provider.Settings.System#getUriFor
      */
-    Uri systemGetUriFor(String name);
+    Uri getUriForSystem(String name);
+
+    /**
+     * @see android.provider.Settings.System#putString
+     */
+    boolean putStringSystem(ContentResolver resolver, String name, String value);
+
+    /**
+     * @see android.provider.Settings.Global.getString
+     */
+    String getStringGlobal(ContentResolver resolver, String name);
+
+    /**
+     * @see android.provider.Settings.Global.getInt
+     */
+    int getIntGlobal(ContentResolver cr, String name, int def);
+
+    /**
+     * @see android.provider.Settings.Global.putInt
+     */
+    boolean putIntGlobal(ContentResolver cr, String name, int value);
 
     /**
      * The default real implementation.
      */
     class DefaultImpl implements Settings {
         @Override
-        public int systemGetInt(ContentResolver cr, String name) throws SettingNotFoundException {
+        public int getIntSystem(ContentResolver cr, String name) throws SettingNotFoundException {
             return android.provider.Settings.System.getInt(cr, name);
         }
 
         @Override
-        public Uri systemGetUriFor(String name) {
+        public Uri getUriForSystem(String name) {
             return android.provider.Settings.System.getUriFor(name);
+        }
+
+        @Override
+        public boolean putStringSystem(ContentResolver resolver, String name, String value) {
+            return android.provider.Settings.System.putString(resolver, name, value);
+        }
+
+        @Override
+        public String getStringGlobal(ContentResolver resolver, String name) {
+            return android.provider.Settings.Global.getString(resolver, name);
+        }
+
+        @Override
+        public int getIntGlobal(ContentResolver cr, String name, int def) {
+            return android.provider.Settings.Global.getInt(cr, name, def);
+        }
+
+        @Override
+        public boolean putIntGlobal(ContentResolver cr, String name, int value) {
+            return android.provider.Settings.Global.putInt(cr, name, value);
         }
     }
 }
