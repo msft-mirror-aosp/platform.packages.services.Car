@@ -50,6 +50,7 @@ import android.view.Display;
 import com.android.car.CarLog;
 import com.android.car.internal.util.IntArray;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.provider.Settings;
 import com.android.car.user.CarUserService;
 import com.android.car.util.BrightnessUtils;
 import com.android.internal.annotations.GuardedBy;
@@ -140,6 +141,26 @@ public interface DisplayInterface {
     void refreshDisplayBrightness(int displayId);
 
     /**
+     * An interface to get display type.
+     */
+    interface DisplayTypeGetter {
+        /**
+         * Gets the display type.
+         */
+        int getDisplayType(Display display);
+
+        /**
+         * A default implementation that uses DisplayHelper.
+         */
+        class DefaultImpl implements DisplayTypeGetter {
+            @Override
+            public int getDisplayType(Display display) {
+                return DisplayHelper.getType(display);
+            }
+        }
+    }
+
+    /**
      * Default implementation of display operations
      */
     class DefaultImpl implements DisplayInterface {
@@ -163,6 +184,8 @@ public interface DisplayInterface {
         private final int mMaximumBacklight;
         private final int mMinimumBacklight;
         private final WakeLockInterface mWakeLockInterface;
+        private final Settings mSettings;
+        private final DisplayTypeGetter mDisplayTypeGetter;
         private final Handler mHandler = new Handler(Looper.getMainLooper());
         @GuardedBy("mLock")
         private CarPowerManagementService mCarPowerManagementService;
@@ -215,12 +238,15 @@ public interface DisplayInterface {
             }
         };
 
-        DefaultImpl(Context context, WakeLockInterface wakeLockInterface) {
+        DefaultImpl(Context context, WakeLockInterface wakeLockInterface, Settings settings,
+                DisplayTypeGetter displayTypeGetter) {
             mContext = context;
             mDisplayManager = context.getSystemService(DisplayManager.class);
             mMaximumBacklight = PowerManagerHelper.getMaximumScreenBrightnessSetting(context);
             mMinimumBacklight = PowerManagerHelper.getMinimumScreenBrightnessSetting(context);
             mWakeLockInterface = wakeLockInterface;
+            mSettings = settings;
+            mDisplayTypeGetter = displayTypeGetter;
             synchronized (mLock) {
                 for (Display display : mDisplayManager.getDisplays()) {
                     int displayId = display.getDisplayId();
@@ -286,7 +312,7 @@ public interface DisplayInterface {
                 CarPowerManagementService carPowerManagementService) {
             int gamma = GAMMA_SPACE_MAX;
             try {
-                int linear = System.getInt(getContentResolverForUser(mContext,
+                int linear = mSettings.systemGetInt(getContentResolverForUser(mContext,
                         UserHandle.CURRENT.getIdentifier()), System.SCREEN_BRIGHTNESS);
                 if (hasRecentlySetBrightness(linear)) {
                     return;
@@ -382,14 +408,13 @@ public interface DisplayInterface {
                                 | DisplayManagerHelper.EVENT_FLAG_DISPLAY_BRIGHTNESS);
             } else {
                 getContentResolverForUser(mContext, UserHandle.ALL.getIdentifier())
-                        .registerContentObserver(System.getUriFor(System.SCREEN_BRIGHTNESS),
-                                false,
-                                mBrightnessObserver);
+                        .registerContentObserver(mSettings.systemGetUriFor(
+                                System.SCREEN_BRIGHTNESS), false, mBrightnessObserver);
             }
 
             for (Display display : mDisplayManager.getDisplays()) {
                 int displayId = display.getDisplayId();
-                int displayType = DisplayHelper.getType(display);
+                int displayType = mDisplayTypeGetter.getDisplayType(display);
                 if (displayType == DisplayHelper.TYPE_VIRTUAL
                         || displayType == DisplayHelper.TYPE_OVERLAY) {
                     Slogf.i(TAG,

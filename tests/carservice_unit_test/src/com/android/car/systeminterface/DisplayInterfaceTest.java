@@ -16,8 +16,6 @@
 
 package com.android.car.systeminterface;
 
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.AdditionalMatchers.or;
@@ -31,21 +29,22 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.view.DisplayHelper;
-import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.hardware.display.DisplayManager;
+import android.net.Uri;
 import android.os.PowerManager;
 import android.os.UserManager;
-import android.provider.Settings.System;
+import android.platform.test.ravenwood.RavenwoodRule;
 import android.view.Display;
 
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.provider.Settings;
 import com.android.car.user.CarUserService;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -53,7 +52,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public final class DisplayInterfaceTest extends AbstractExtendedMockitoTestCase {
+public final class DisplayInterfaceTest {
 
     private static final int MAIN_DISPLAY_ID = Display.DEFAULT_DISPLAY;
     private static final int DISTANT_DISPLAY_ID = 2;
@@ -66,6 +65,10 @@ public final class DisplayInterfaceTest extends AbstractExtendedMockitoTestCase 
 
     private static final int MIN_SCREEN_BRIGHTNESS_SETTING = 1;
     private static final int MAX_SCREEN_BRIGHTNESS_SETTING = 255;
+
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
+            .setProvideMainThread(true).build();
 
     @Mock
     private Context mContext;
@@ -92,7 +95,14 @@ public final class DisplayInterfaceTest extends AbstractExtendedMockitoTestCase 
     private UserManager mUserManager;
 
     @Mock
+    private DisplayInterface.DisplayTypeGetter mDisplayTypeGetter;
+
+    @Mock
+    private Settings mSettings;
+
+    @Mock
     private Display mDisplay;
+
     @Mock
     private Display mDistantDisplay;
     @Mock
@@ -102,22 +112,17 @@ public final class DisplayInterfaceTest extends AbstractExtendedMockitoTestCase 
 
     private DisplayInterface.DefaultImpl mDisplayInterface;
 
-    @Override
-    protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        // TODO(b/352420874): Remove these static mocks.
-        session.spyStatic(UserManagerHelper.class);
-        session.spyStatic(System.class);
-        session.spyStatic(DisplayHelper.class);
-    }
-
     private void addDisplay(Display display, int displayId, int displayType) {
         when(display.getDisplayId()).thenReturn(displayId);
         when(mDisplayManager.getDisplay(displayId)).thenReturn(display);
-        doReturn(displayType).when(() -> DisplayHelper.getType(display));
+        when(mDisplayTypeGetter.getDisplayType(display)).thenReturn(displayType);
     }
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+        when(mSettings.systemGetInt(eq(mContentResolver), anyString())).thenReturn(
+                GLOBAL_BRIGHTNESS);
+        when(mSettings.systemGetUriFor(anyString())).thenReturn(Uri.parse(""));
         when(mContext.createContextAsUser(any(), anyInt())).thenReturn(mContext);
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
         when(mContext.getSystemService(DisplayManager.class)).thenReturn(mDisplayManager);
@@ -166,7 +171,6 @@ public final class DisplayInterfaceTest extends AbstractExtendedMockitoTestCase 
         when(mDisplayManager.getDisplays()).thenReturn(new Display[]{mDisplay, mDistantDisplay});
         when(mDisplay.getState()).thenReturn(Display.STATE_ON);
         when(mDistantDisplay.getState()).thenReturn(Display.STATE_ON);
-        doReturn(GLOBAL_BRIGHTNESS).when(() -> System.getInt(eq(mContentResolver), anyString()));
 
         createDisplayInterface(/* visibleBgUsersSupported= */ false);
 
@@ -193,7 +197,6 @@ public final class DisplayInterfaceTest extends AbstractExtendedMockitoTestCase 
     @Test
     public void testStopDisplayStateMonitoring_visibleBgUsersNotSupported() {
         when(mDisplayManager.getDisplays()).thenReturn(new Display[]{mDisplay});
-        doReturn(GLOBAL_BRIGHTNESS).when(() -> System.getInt(eq(mContentResolver), anyString()));
 
         createDisplayInterface(/* visibleBgUsersSupported= */ false);
         mDisplayInterface.startDisplayStateMonitoring();
@@ -204,10 +207,11 @@ public final class DisplayInterfaceTest extends AbstractExtendedMockitoTestCase 
     }
 
     private void createDisplayInterface(boolean visibleBgUsersSupported) {
-        doReturn(visibleBgUsersSupported)
-                .when(() -> UserManagerHelper.isVisibleBackgroundUsersSupported(any()));
+        when(mUserManager.isVisibleBackgroundUsersSupported()).thenReturn(
+                visibleBgUsersSupported);
 
-        mDisplayInterface = new DisplayInterface.DefaultImpl(mContext, mWakeLockInterface);
+        mDisplayInterface = new DisplayInterface.DefaultImpl(mContext, mWakeLockInterface,
+                mSettings, mDisplayTypeGetter);
         mDisplayInterface.init(mCarPowerManagementService, mCarUserService);
     }
 }
