@@ -23,8 +23,6 @@ import android.os.RemoteException;
 
 /**
  * A real implementation for ServiceManager.
- *
- * @hide
  */
 public final class SystemServiceManager implements ServiceManager {
     @Override
