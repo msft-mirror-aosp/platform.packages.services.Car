@@ -272,6 +272,11 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     private static final int TEST_GAIN_DEFAULT_VALUE = -2000;
     private static final int TEST_GAIN_STEP_VALUE = 2;
 
+    private static final String TEST_LEGACY_VOLUME_GROUP_NAME = "legacy_zone0";
+    private static final int TEST_STREAM_MIN_VOLUME = 0;
+    private static final int TEST_STREAM_MAX_VOLUME = 25;
+    private static final int TEST_STREAM_VOLUME = 10;
+
     private static final CarOccupantZoneManager.OccupantZoneInfo TEST_DRIVER_OCCUPANT =
             getOccupantInfo(TEST_DRIVER_OCCUPANT_ZONE_ID,
                     CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER,
@@ -721,6 +726,13 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
             return SUCCESS;
         });
 
+        when(mAudioManager.getStreamMinVolume(anyInt())).thenReturn(TEST_STREAM_MIN_VOLUME);
+        when(mAudioManager.getStreamMaxVolume(anyInt())).thenReturn(TEST_STREAM_MAX_VOLUME);
+        when(mAudioManager.getStreamVolume(anyInt())).thenReturn(TEST_STREAM_VOLUME);
+
+        when(mAudioManager.isAudioServerRunning()).thenReturn(true);
+
+        // Needed by audio policy when setting UID device affinity
         IBinder mockBinder = mock(IBinder.class);
         when(mockBinder.queryLocalInterface(any())).thenReturn(mMockAudioService);
         doReturn(mockBinder).when(() -> ServiceManager.getService(Context.AUDIO_SERVICE));
@@ -2352,19 +2364,33 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     }
 
     @Test
-    public void getVolumeGroupInfosForZone_forDynamicRoutingDisabled() {
+    public void getVolumeGroupInfosForZone_forDynamicRoutingDisabled() throws Exception {
         when(mMockResources.getBoolean(audioUseDynamicRouting))
                 .thenReturn(/* useDynamicRouting= */ false);
         CarAudioService nonDynamicAudioService = new CarAudioService(mMockContext,
                 mTemporaryAudioConfigurationFile.getFile().getAbsolutePath(),
                 mCarVolumeCallbackHandler);
         nonDynamicAudioService.init();
+        List<AudioDeviceInfo> deviceInfos = List.of(mMediaOutputDevice);
+        when(mAudioManager.getAudioDevicesForAttributes(ATTRIBUTES_MEDIA)).thenReturn(deviceInfos);
+        when(mAudioManager.isStreamMute(AudioManager.STREAM_MUSIC)).thenReturn(true);
+        CarVolumeGroupInfo expectedVolumeGroupInfo = new CarVolumeGroupInfo.Builder(
+                TEST_LEGACY_VOLUME_GROUP_NAME, PRIMARY_OCCUPANT_ZONE, MEDIA_VOLUME_GROUP_ID)
+                .setVolumeGainIndex(TEST_STREAM_VOLUME)
+                .setMaxVolumeGainIndex(TEST_STREAM_MAX_VOLUME)
+                .setMinVolumeGainIndex(TEST_STREAM_MIN_VOLUME)
+                .setAudioAttributes(Arrays.asList(ATTRIBUTES_MEDIA))
+                .setMuted(true)
+                .setBlocked(false)
+                .setAttenuated(false).build();
 
         List<CarVolumeGroupInfo> infos =
                 nonDynamicAudioService.getVolumeGroupInfosForZone(PRIMARY_AUDIO_ZONE);
 
-        expectWithMessage("Car volume group infos with dynamic routing disabled")
-                .that(infos).isEmpty();
+        expectWithMessage("Car volume group infos size with dynamic routing disabled")
+                .that(infos).hasSize(CarAudioDynamicRouting.STREAM_TYPES.length);
+        expectWithMessage("Car volume group info name with dynamic routing disabled")
+                .that(infos.get(0)).isEqualTo(expectedVolumeGroupInfo);
     }
 
     @Test
@@ -2456,6 +2482,34 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         expectWithMessage("Exception for volume groups info size for out of range group")
                 .that(thrown).hasMessageThat().contains("audio zone Id");
+    }
+
+    @Test
+    public void getVolumeGroupInfo_withLegacyMode() throws Exception {
+        when(mMockResources.getBoolean(audioUseDynamicRouting))
+                .thenReturn(/* useDynamicRouting= */ false);
+        CarAudioService nonDynamicAudioService = new CarAudioService(mMockContext,
+                mTemporaryAudioConfigurationFile.getFile().getAbsolutePath(),
+                mCarVolumeCallbackHandler);
+        nonDynamicAudioService.init();
+        when(mAudioManager.isStreamMute(AudioManager.STREAM_MUSIC)).thenReturn(true);
+        CarVolumeGroupInfo expectedVolumeGroupInfo = new CarVolumeGroupInfo.Builder(
+                TEST_LEGACY_VOLUME_GROUP_NAME, PRIMARY_OCCUPANT_ZONE, MEDIA_VOLUME_GROUP_ID)
+                .setVolumeGainIndex(TEST_STREAM_VOLUME)
+                .setMaxVolumeGainIndex(TEST_STREAM_MAX_VOLUME)
+                .setMinVolumeGainIndex(TEST_STREAM_MIN_VOLUME)
+                .setAudioAttributes(Arrays.asList(ATTRIBUTES_MEDIA))
+                .setMuted(true)
+                .setBlocked(false)
+                .setAttenuated(false).build();
+
+        CarVolumeGroupInfo testVolumeGroupInfo =
+                nonDynamicAudioService.getVolumeGroupInfo(
+                        PRIMARY_OCCUPANT_ZONE, TEST_PRIMARY_ZONE_GROUP_0);
+
+        expectWithMessage("Volume group info in legacy mode")
+                .that(testVolumeGroupInfo)
+                .isEqualTo(expectedVolumeGroupInfo);
     }
 
     @Test
@@ -3103,7 +3157,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 .getAudioAttributesForVolumeGroup(TEST_PRIMARY_ZONE_VOLUME_INFO_0);
 
         expectWithMessage("Volume group audio attributes with dynamic routing disabled")
-                .that(audioAttributes).isEmpty();
+                .that(audioAttributes)
+                .containsExactly(CarAudioContext.getAudioAttributeFromUsage(USAGE_MEDIA));
     }
 
     @Test

@@ -138,7 +138,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1831,7 +1830,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     public CarVolumeGroupInfo getVolumeGroupInfo(int zoneId, int groupId) {
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
         if (!mUseDynamicRouting) {
-            return null;
+            return getVolumeGroupInfoForLegacyMode(zoneId, groupId);
         }
         synchronized (mImplLock) {
             return getCarVolumeGroupLocked(zoneId, groupId).getCarVolumeGroupInfo();
@@ -1842,7 +1841,11 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     public List<CarVolumeGroupInfo> getVolumeGroupInfosForZone(int zoneId) {
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
         if (!mUseDynamicRouting) {
-            return Collections.EMPTY_LIST;
+            List<CarVolumeGroupInfo> infos = new ArrayList<CarVolumeGroupInfo>();
+            for (int groupId = 0; groupId < getVolumeGroupCount(zoneId); groupId++) {
+                infos.add(getVolumeGroupInfoForLegacyMode(zoneId, groupId));
+            }
+            return infos;
         }
         synchronized (mImplLock) {
             return getVolumeGroupInfosForZoneLocked(zoneId);
@@ -1854,13 +1857,31 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         Objects.requireNonNull(groupInfo, "Car volume group info can not be null");
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
         if (!mUseDynamicRouting) {
-            return Collections.EMPTY_LIST;
+            return getVolumeGroupInfoForLegacyMode(groupInfo.getZoneId(), groupInfo.getId())
+                    .getAudioAttributes();
         }
 
         synchronized (mImplLock) {
             return getCarAudioZoneLocked(groupInfo.getZoneId())
                     .getCurrentVolumeGroup(groupInfo.getId()).getAudioAttributes();
         }
+    }
+
+    private CarVolumeGroupInfo getVolumeGroupInfoForLegacyMode(int zoneId, int groupId) {
+        int maxIndex = getGroupMaxVolume(zoneId, groupId);
+        int minIndex = getGroupMinVolume(zoneId, groupId);
+        AudioAttributes audioAttributes = CarAudioContext.getAudioAttributeFromUsage(
+                CarAudioDynamicRouting.STREAM_TYPE_USAGES[groupId]);
+
+        return new CarVolumeGroupInfo.Builder("legacy_zone" + zoneId, zoneId, groupId)
+                .setVolumeGainIndex(getGroupVolume(zoneId, groupId))
+                .setMaxVolumeGainIndex(maxIndex)
+                .setMinVolumeGainIndex(minIndex)
+                .setAudioAttributes(Arrays.asList(audioAttributes))
+                .setMuted(mAudioManager.isStreamMute(
+                        CarAudioDynamicRouting.STREAM_TYPES[groupId]))
+                .setBlocked(false)
+                .setAttenuated(false).build();
     }
 
     @GuardedBy("mImplLock")
