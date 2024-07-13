@@ -433,7 +433,7 @@ public class PropertyHalService extends HalServiceBase {
                     AsyncPropRequestInfo requestInfo =
                             getPendingAsyncPropRequestInfoLocked(serviceRequestId);
                     if (requestInfo == null) {
-                        Slogf.w(TAG, "The pending request: %d finished before timeout handler",
+                        Slogf.i(TAG, "The pending request: %d finished before timeout handler",
                                 serviceRequestId);
                         continue;
                     }
@@ -445,7 +445,8 @@ public class PropertyHalService extends HalServiceBase {
                 }
             }
             for (int i = 0; i < callbackToRequestIds.size(); i++) {
-                callbackToRequestIds.keyAt(i).onRequestsTimeout(callbackToRequestIds.valueAt(i));
+                callbackToRequestIds.keyAt(i).onRequestsTimeout(
+                        callbackToRequestIds.valueAt(i), /* fromVhal= */ false);
             }
         }
     }
@@ -851,6 +852,17 @@ public class PropertyHalService extends HalServiceBase {
 
         @Override
         public void onRequestsTimeout(List<Integer> serviceRequestIds) {
+            onRequestsTimeout(serviceRequestIds, /* fromVhal= */ true);
+        }
+
+        private void onRequestsTimeout(List<Integer> serviceRequestIds, boolean fromVhal) {
+            if (fromVhal) {
+                Slogf.w(TAG, "Requests timeout from VHAL, service Request IDs: %s",
+                        serviceRequestIds);
+            } else {
+                Slogf.w(TAG, "Requests timeout internally, service Request IDs: %s",
+                        serviceRequestIds);
+            }
             List<GetSetValueResultWrapper> timeoutGetResults = new ArrayList<>();
             List<GetSetValueResultWrapper> timeoutSetResults = new ArrayList<>();
             synchronized (mLock) {
@@ -859,9 +871,9 @@ public class PropertyHalService extends HalServiceBase {
                     AsyncPropRequestInfo requestInfo =
                             getAndRemovePendingAsyncPropRequestInfoLocked(serviceRequestId);
                     if (requestInfo == null) {
-                        Slogf.w(TAG, "Service request ID %d time out but no "
+                        Slogf.i(TAG, "Service request ID %d time out but no "
                                 + "pending request is found. The request may have already been "
-                                + "cancelled or finished", serviceRequestId);
+                                + "cancelled, timeout or finished", serviceRequestId);
                         continue;
                     }
                     if (DBG) {
@@ -942,7 +954,7 @@ public class PropertyHalService extends HalServiceBase {
         AsyncPropRequestInfo requestInfo =
                 mPendingAsyncRequests.getRequestIfFound(serviceRequestId);
         if (requestInfo == null) {
-            Slogf.w(TAG, "the request for propertyHalService request "
+            Slogf.i(TAG, "the request for propertyHalService request "
                     + "ID: %d already timed out or already completed", serviceRequestId);
         }
         return requestInfo;
@@ -953,8 +965,6 @@ public class PropertyHalService extends HalServiceBase {
             int serviceRequestId) {
         AsyncPropRequestInfo requestInfo = getPendingAsyncPropRequestInfoLocked(serviceRequestId);
         if (requestInfo == null) {
-            Slogf.w(TAG, "the request for propertyHalService request "
-                    + "ID: %d already timed out or already completed", serviceRequestId);
             return null;
         }
         removePendingAsyncPropRequestInfoLocked(requestInfo);

@@ -197,8 +197,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             }
 
             ActivityOptions options = ActivityOptions.makeBasic();
-            options.setLaunchDisplayId(getDisplay().getDisplayId());
-
             startActivity(intent, options.toBundle());
         }
     };

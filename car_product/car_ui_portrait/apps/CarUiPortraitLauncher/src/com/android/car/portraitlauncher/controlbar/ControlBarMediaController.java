@@ -25,6 +25,8 @@ import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.ImageButton;
 
 import androidx.constraintlayout.motion.widget.MotionLayout;
@@ -52,6 +54,7 @@ public class ControlBarMediaController extends PlaybackCardController {
 
     private ViewGroup mCustomActionLayout;
     private ViewGroup mCustomActionOverflowLayout;
+    private View mCustomActionOverflowConcealLayout;
     private ImageButton mActionOverflowExitButton;
     private ViewGroup mQueueContainer;
     private ViewGroup mHistoryContainer;
@@ -68,6 +71,9 @@ public class ControlBarMediaController extends PlaybackCardController {
     private int mMaxTimeVisibility;
     private int mCustomActionLayoutVisibility;
     private int mCustomActionOverflowLayoutVisibility;
+
+    private Animation mOverflowConcealOpenAnimation;
+    private Animation mOverflowConcealCloseAnimation;
 
     /**
      * Builder for {@link ControlBarMediaController}. Overrides build() method to return
@@ -94,6 +100,8 @@ public class ControlBarMediaController extends PlaybackCardController {
 
         mCustomActionLayout = mView.findViewById(R.id.custom_action_container);
         mCustomActionOverflowLayout = mView.findViewById(R.id.custom_action_overflow_container);
+        mCustomActionOverflowConcealLayout = mView.findViewById(
+                R.id.custom_action_overflow_conceal_container);
         mActionOverflowExitButton = mView.findViewById(R.id.overflow_exit_button);
         mActionOverflowExitButton.setOnClickListener(view ->
                 handleCustomActionsOverflowButtonClicked(mActionOverflowButton));
@@ -141,6 +149,11 @@ public class ControlBarMediaController extends PlaybackCardController {
             public void onTransitionTrigger(MotionLayout motionLayout, int i, boolean b, float v) {
             }
         });
+
+        mOverflowConcealOpenAnimation = AnimationUtils.loadAnimation(
+                mView.getContext(), R.anim.media_card_overflow_open_animation);
+        mOverflowConcealCloseAnimation = AnimationUtils.loadAnimation(
+                mView.getContext(), R.anim.media_card_overflow_close_animation);
     }
 
     @Override
@@ -273,9 +286,41 @@ public class ControlBarMediaController extends PlaybackCardController {
     }
 
     private void setOverflowState(boolean isExpanded) {
+
+        Animation anim = isExpanded ? mOverflowConcealOpenAnimation :
+                mOverflowConcealCloseAnimation;
+        anim.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {
+            }
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                if (!isExpanded) {
+                    ViewUtils.setVisible(mCustomActionOverflowLayout, false);
+                    ViewUtils.setVisible(mActionOverflowExitButton, false);
+                }
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {
+            }
+        });
+        mCustomActionOverflowConcealLayout.startAnimation(anim);
+
+        Animation fadeIn = AnimationUtils.loadAnimation(mView.getContext(),
+                R.anim.media_card_overflow_fade_in);
+        Animation fadeOut = AnimationUtils.loadAnimation(mView.getContext(),
+                R.anim.media_card_overflow_fade_out);
+        if (!isExpanded) {
+            mCustomActionLayout.startAnimation(fadeIn);
+            mCustomActionOverflowLayout.startAnimation(fadeOut);
+        } else {
+            mCustomActionOverflowLayout.startAnimation(fadeIn);
+            ViewUtils.setVisible(mCustomActionOverflowLayout, true);
+            ViewUtils.setVisible(mActionOverflowExitButton, true);
+        }
         ViewUtils.setVisible(mCustomActionLayout, !isExpanded);
-        ViewUtils.setVisible(mCustomActionOverflowLayout, isExpanded);
-        ViewUtils.setVisible(mActionOverflowExitButton, isExpanded);
         mCustomActionLayoutVisibility = mCustomActionLayout.getVisibility();
         mCustomActionOverflowLayoutVisibility = mCustomActionOverflowLayout.getVisibility();
     }
