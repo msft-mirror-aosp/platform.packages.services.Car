@@ -660,9 +660,13 @@ public final class CarActivityService extends ICarActivityService.Stub
         // Starts ABA as User 0 consistenly since the target apps can be any users (User 0 -
         // UserPicker, Driver/Passegners - general NDO apps) and launching ABA as passengers
         // have some issue (b/294447050).
-        mContext.startActivity(newActivityIntent, options.toBundle());
-        // Now make stack with new activity focused.
-        findTaskAndGrantFocus(newActivityIntent.getComponent());
+        try {
+             mContext.startActivity(newActivityIntent, options.toBundle());
+            // Now make stack with new activity focused.
+            findTaskAndGrantFocus(newActivityIntent.getComponent());
+        } catch (SecurityException e) {
+            Slogf.e(CarLog.TAG_AM, "cannot start the activity on display(" + displayId + ")", e);
+        }
     }
 
     private void findTaskAndGrantFocus(ComponentName activity) {
