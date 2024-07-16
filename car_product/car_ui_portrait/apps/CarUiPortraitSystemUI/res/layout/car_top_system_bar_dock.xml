@@ -113,11 +113,10 @@
 
             </com.android.systemui.car.systembar.CarUiPortraitNotificationButton>
 
-            <com.android.systemui.car.systembar.CarTopSystemBarButton
+            <com.android.systemui.car.systembar.CarSystemBarButton
                 android:id="@+id/user_name"
                 style="@style/CarTopSystemBarButton"
-                android:background="@drawable/status_icon_background"
-                systemui:intent="intent:#Intent;component=com.android.car.settings/.profiles.ProfileSwitcherActivity;launchFlags=0x24000000;end">
+                android:background="@drawable/status_icon_background">
 
                 <ImageView
                     android:id="@+id/user_avatar"
@@ -127,7 +126,7 @@
                     android:src="@drawable/car_ic_user_icon"
                     android:tint="@color/system_bar_icon_color_with_selection" />
 
-            </com.android.systemui.car.systembar.CarTopSystemBarButton>
+            </com.android.systemui.car.systembar.CarSystemBarButton>
 
         </LinearLayout>
 
