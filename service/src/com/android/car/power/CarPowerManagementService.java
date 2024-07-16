@@ -3957,46 +3957,56 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      * Utility method to help with memory freeing before entering Suspend-To-Disk
      */
     private void freeMemory() {
-        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "freeMemory");
-        ActivityManagerHelper.killAllBackgroundProcesses();
-        if (!mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
-            Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
-            return;
-        }
-        List<ActivityManager.RunningAppProcessInfo> allRunningAppProcesses =
-                ActivityManagerHelper.getRunningAppProcesses();
-        ArraySet<Integer> safeUids = new ArraySet<>();
-        ArraySet<String> suspendToDiskAllowList = getS2dAllowList();
-        int suspendToDiskImportanceLevel = getS2dImportanceLevel();
-        for (int i = 0; i < allRunningAppProcesses.size(); i++) {
-            ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
-            boolean isCarServiceOrMyPid = ICarImpl.class.getPackage().getName()
-                    .equals(info.processName)
-                    || info.pid == android.os.Process.myPid();
-            boolean isSystemOrShellUid = info.uid == Process.SYSTEM_UID
-                    || info.uid == Process.SHELL_UID;
-            boolean isProcessPersistent = (ActivityManagerHelper
-                    .getFlagsForRunningAppProcessInfo(info)
-                    & ActivityManagerHelper.PROCESS_INFO_PERSISTENT_FLAG) != 0;
-            boolean isWithinConfig = suspendToDiskImportanceLevel > info.importance;
-            boolean isProcessAllowListed = suspendToDiskAllowList.contains(info.processName);
-            if (isCarServiceOrMyPid || isSystemOrShellUid || isProcessPersistent
-                    || isWithinConfig || isProcessAllowListed) {
-                safeUids.add(info.uid);
+        try {
+            Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "freeMemory");
+            ActivityManagerHelper.killAllBackgroundProcesses();
+            if (!mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
+                return;
             }
-        }
-
-        for (int i = 0; i < allRunningAppProcesses.size(); i++) {
-            ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
-            if (!safeUids.contains(info.uid)) {
-                for (int j = 0; j < info.pkgList.length; j++) {
-                    String pkgToStop = info.pkgList[j];
-                    PackageManagerHelper.forceStopPackageAsUser(mContext, pkgToStop,
-                            UserManagerHelper.USER_ALL);
+            int suspendToDiskImportanceLevel = getS2dImportanceLevel();
+            switch (suspendToDiskImportanceLevel) {
+                case ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE:
+                    return;
+                case ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED:
+                    ActivityManagerHelper.killAllBackgroundProcesses();
+                    return;
+            }
+            List<ActivityManager.RunningAppProcessInfo> allRunningAppProcesses =
+                    ActivityManagerHelper.getRunningAppProcesses();
+            ArraySet<Integer> safeUids = new ArraySet<>();
+            ArraySet<String> suspendToDiskAllowList = getS2dAllowList();
+            for (int i = 0; i < allRunningAppProcesses.size(); i++) {
+                ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
+                boolean isCarServiceOrMyPid = ICarImpl.class.getPackage().getName()
+                        .equals(info.processName)
+                        || info.pid == android.os.Process.myPid();
+                boolean isSystemOrShellUid = info.uid == Process.SYSTEM_UID
+                        || info.uid == Process.SHELL_UID;
+                boolean isProcessPersistent = (ActivityManagerHelper
+                        .getFlagsForRunningAppProcessInfo(info)
+                        & ActivityManagerHelper.PROCESS_INFO_PERSISTENT_FLAG) != 0;
+                boolean isWithinConfig = suspendToDiskImportanceLevel > info.importance;
+                boolean isProcessAllowListed = suspendToDiskAllowList.contains(info.processName);
+                if (isCarServiceOrMyPid || isSystemOrShellUid || isProcessPersistent
+                        || isWithinConfig || isProcessAllowListed) {
+                    safeUids.add(info.uid);
                 }
             }
+
+            for (int i = 0; i < allRunningAppProcesses.size(); i++) {
+                ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
+                if (!safeUids.contains(info.uid)) {
+                    for (int j = 0; j < info.pkgList.length; j++) {
+                        String pkgToStop = info.pkgList[j];
+                        PackageManagerHelper.forceStopPackageAsUser(mContext, pkgToStop,
+                                UserManagerHelper.USER_ALL);
+                    }
+                }
+            }
+        } finally {
+            Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
         }
-        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     /**
