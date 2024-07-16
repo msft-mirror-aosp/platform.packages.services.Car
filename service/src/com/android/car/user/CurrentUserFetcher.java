@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,14 @@
  * limitations under the License.
  */
 
-package com.android.systemui.car.systembar;
-
-import android.content.Context;
-import android.util.AttributeSet;
-
-import com.android.systemui.R;
+package com.android.car.user;
 
 /**
- * CarTopSystemBarButton is an {@link CarSystemBarButton} that is used in top status bar and does
- * not use car_nav_button_icon.
+ * An interface to get current user. Designed to be faked for unit testing.
  */
-public class CarTopSystemBarButton extends CarSystemBarButton  {
-    public CarTopSystemBarButton(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        this.removeView(findViewById(R.id.car_nav_button_icon));
-    }
+public interface CurrentUserFetcher {
+    /**
+     * See {@link android.app.ActivityManager.getCurrentUser}.
+     */
+    int getCurrentUser();
 }

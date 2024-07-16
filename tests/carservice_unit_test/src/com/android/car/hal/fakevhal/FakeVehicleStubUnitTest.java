@@ -1286,7 +1286,8 @@ public class FakeVehicleStubUnitTest {
         try {
             client.subscribe(options);
 
-            verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            // 200ms should generate 20 events, check for 5 events to be safe.
+            verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
         } finally {
             client.unsubscribe(VehicleProperty.FUEL_LEVEL);
         }
@@ -1314,12 +1315,14 @@ public class FakeVehicleStubUnitTest {
         try {
             client.subscribe(options1);
 
-            verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            // 200ms should generate 20 events, check for 5 events to be safe.
+            verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
             clearInvocations(callback);
 
             client.subscribe(options2);
 
-            verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            // 400ms should generate 20 events, check for 5 events to be safe.
+            verify(callback, timeout(400).atLeast(5)).onPropertyEvent(any(ArrayList.class));
         } finally {
             client.unsubscribe(VehicleProperty.FUEL_LEVEL);
         }
@@ -1333,6 +1336,7 @@ public class FakeVehicleStubUnitTest {
         // Create subscribe options
         SubscribeOptions option = new SubscribeOptions();
         option.propId = VehicleProperty.FUEL_LEVEL;
+        // Sample rate will fit to 100f.
         option.sampleRate = 200f;
         SubscribeOptions[] options = new SubscribeOptions[]{option};
 
@@ -1343,7 +1347,8 @@ public class FakeVehicleStubUnitTest {
         try {
             client.subscribe(options);
 
-            verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            // 200ms should generate 20 events, check for 5 events to be safe.
+            verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
         } finally {
             client.unsubscribe(VehicleProperty.FUEL_LEVEL);
         }
@@ -1357,6 +1362,7 @@ public class FakeVehicleStubUnitTest {
         // Create subscribe options
         SubscribeOptions option = new SubscribeOptions();
         option.propId = VehicleProperty.FUEL_LEVEL;
+        // Sample rate will fit to 1f.
         option.sampleRate = -50f;
         SubscribeOptions[] options = new SubscribeOptions[]{option};
         VehicleHalCallback callback = mock(VehicleHalCallback.class);
@@ -1367,7 +1373,8 @@ public class FakeVehicleStubUnitTest {
         try {
             client.subscribe(options);
 
-            verify(callback, timeout(100).atLeast(1)).onPropertyEvent(any(ArrayList.class));
+            // 2000ms should generate 2 events, check for 1 event to be safe.
+            verify(callback, timeout(2000).atLeast(1)).onPropertyEvent(any(ArrayList.class));
         } finally {
             client.unsubscribe(VehicleProperty.FUEL_LEVEL);
         }
@@ -1526,7 +1533,8 @@ public class FakeVehicleStubUnitTest {
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
         client.subscribe(options);
 
-        verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+        // 200ms should generate 20 events, check for 5 events to be safe.
+        verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
 
         client.unsubscribe(VehicleProperty.FUEL_LEVEL);
         clearInvocations(callback);
@@ -1555,15 +1563,16 @@ public class FakeVehicleStubUnitTest {
             client1.subscribe(options);
             client2.subscribe(options);
 
-            verify(callback1, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
-            verify(callback2, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            // 200ms should generate 20 events, check for 5 events to be safe.
+            verify(callback1, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            verify(callback2, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
 
             client1.unsubscribe(VehicleProperty.FUEL_LEVEL);
             clearInvocations(callback1);
             clearInvocations(callback2);
 
             verify(callback1, after(200).atMost(1)).onPropertyEvent(any(ArrayList.class));
-            verify(callback2, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            verify(callback2, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
         } finally {
             client2.unsubscribe(VehicleProperty.FUEL_LEVEL);
         }
@@ -1590,12 +1599,14 @@ public class FakeVehicleStubUnitTest {
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
         client.subscribe(options);
 
-        verify(callback, timeout(100).atLeast(10)).onPropertyEvent(any(ArrayList.class));
+        // 200ms should generate 2 * 20 = 40 events, check for 10 events to be safe.
+        verify(callback, timeout(200).atLeast(10)).onPropertyEvent(any(ArrayList.class));
 
         client.unsubscribe(VehicleProperty.FUEL_LEVEL);
         clearInvocations(callback);
 
-        verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+        // 200ms should generate 20 events, check for 5 events to be safe.
+        verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
     }
 
     @Test
