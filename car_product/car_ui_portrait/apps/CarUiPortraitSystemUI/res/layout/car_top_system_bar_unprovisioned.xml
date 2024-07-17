@@ -81,11 +81,10 @@
                 android:layout_gravity="center"
                 systemui:controller="com.android.systemui.car.statusicon.ui.StatusBarSensorInfoController"/>
 
-            <com.android.systemui.car.systembar.CarTopSystemBarButton
+            <com.android.systemui.car.systembar.CarSystemBarButton
                 android:id="@+id/user_name"
                 style="@style/CarTopSystemBarButton"
-                android:background="@drawable/status_icon_background"
-                systemui:intent="intent:#Intent;component=com.android.car.settings/.profiles.ProfileSwitcherActivity;launchFlags=0x24000000;end" >
+                android:background="@drawable/status_icon_background" >
                 <ImageView
                     android:id="@+id/user_avatar"
                     android:layout_gravity="center"
@@ -93,7 +92,7 @@
                     android:layout_height="@dimen/top_system_bar_icon_drawing_size"
                     android:src="@drawable/car_ic_user_icon"
                 />
-            </com.android.systemui.car.systembar.CarTopSystemBarButton>
+            </com.android.systemui.car.systembar.CarSystemBarButton>
         </LinearLayout>
     </RelativeLayout>
 </com.android.systemui.car.systembar.CarSystemBarView>
