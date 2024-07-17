@@ -680,6 +680,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     mSystemInterface.isSystemSupportingHibernation());
             writer.printf("mLastShutdownState: %d\n", mLastShutdownState);
             writer.printf("mReadyForCallback: %b\n", mReadyForCallback.get());
+            if (mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
+                writer.printf("Suspend to disk importance level: %d\n", getS2dImportanceLevel());
+            }
         }
 
         synchronized (mSimulationWaitObject) {

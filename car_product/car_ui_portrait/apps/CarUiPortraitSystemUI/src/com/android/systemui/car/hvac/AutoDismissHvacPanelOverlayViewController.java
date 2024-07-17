@@ -20,7 +20,6 @@ import android.animation.Animator;
 import android.animation.AnimatorInflater;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
-import android.app.UiModeManager;
 import android.content.Context;
 import android.content.res.Resources;
 import android.os.Handler;
@@ -66,11 +65,10 @@ public class AutoDismissHvacPanelOverlayViewController extends HvacPanelOverlayV
             FlingAnimationUtils.Builder flingAnimationUtilsBuilder,
             CarDeviceProvisionedController carDeviceProvisionedController,
             @Main Handler handler,
-            ConfigurationController configurationController,
-            UiModeManager uiModeManager) {
+            ConfigurationController configurationController) {
         super(context, resources, hvacController, overlayViewGlobalStateController,
-                flingAnimationUtilsBuilder, carDeviceProvisionedController, configurationController,
-                uiModeManager);
+                flingAnimationUtilsBuilder, carDeviceProvisionedController,
+                configurationController);
         mResources = resources;
         mHandler = handler;
         mContext = context;
