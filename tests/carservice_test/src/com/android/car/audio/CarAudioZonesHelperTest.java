@@ -40,11 +40,13 @@ import static org.mockito.Mockito.when;
 
 import android.car.Car;
 import android.car.feature.Flags;
+import android.car.media.CarAudioZoneConfigInfo;
 import android.car.test.AbstractExpectableTestCase;
 import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -1494,14 +1496,15 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void loadAudioZones_withPrimaryZoneAndDynamicAudioDevices() throws Exception {
-        mSetFlagsRule.enableFlags(Flags.FLAG_CAR_AUDIO_DYNAMIC_DEVICES);
+    @EnableFlags({Flags.FLAG_CAR_AUDIO_DYNAMIC_DEVICES})
+    public void loadAudioZones_withPrimaryZoneAndDynamicAudioDevicesAndCoreVolumeEnabled()
+            throws Exception {
         try (InputStream versionFourStream = mContext.getResources().openRawResource(
                 R.raw.car_audio_configuration_with_dynamic_devices_for_primary_zone)) {
             CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
                     mCarAudioSettings, versionFourStream, mCarAudioOutputDeviceInfos,
                     mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
-                    /* useCoreAudioVolume= */ false, /* useCoreAudioRouting= */ false,
+                    /* useCoreAudioVolume= */ true, /* useCoreAudioRouting= */ false,
                     /* useFadeManagerConfiguration= */ false,
                     /* carAudioFadeConfigurationHelper= */ null);
 
@@ -1524,6 +1527,34 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
             AudioDeviceAttributes btDevice = allDevices.get(0);
             expectWithMessage("BT all audio config type").that(btDevice.getType())
                     .isEqualTo(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP);
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_CAR_AUDIO_DYNAMIC_DEVICES})
+    public void loadAudioZones_withPrimaryZoneAndDynamicAudioDevicesAndCoreVolumeDisabled()
+            throws Exception {
+        try (InputStream versionFourStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_dynamic_devices_for_primary_zone)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, versionFourStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ false, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone without dynamic device configurations")
+                    .that(zones.size()).isEqualTo(1);
+            CarAudioZone zone = zones.get(0);
+            List<CarAudioZoneConfig> configs = zone.getAllCarAudioZoneConfigs();
+            expectWithMessage("Configurations for primary zone without dynamic devices")
+                    .that(configs).hasSize(1);
+            CarAudioZoneConfigInfo defaultConfig = configs.get(0).getCarAudioZoneConfigInfo();
+            expectWithMessage("Default config after failing to load dynamic configurations")
+                    .that(CarAudioUtils.getDynamicDevicesInConfig(defaultConfig,
+                            mAudioManagerWrapper)).isEmpty();
         }
     }
 
