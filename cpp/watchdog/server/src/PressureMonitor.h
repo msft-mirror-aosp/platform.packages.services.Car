@@ -129,7 +129,7 @@ public:
           mIsEnabled(false),
           mIsMonitorActive(false),
           mPsiEpollFd(-1),
-          mLastPollUptimeNs(0),
+          mLastPollElapsedRealTimeNs(0),
           mLatestPressureLevel(PRESSURE_LEVEL_NONE) {}
 
     // Overrides PressureMonitorInterface methods.
@@ -223,8 +223,9 @@ private:
     // Epoll fd used to monitor the psi triggers.
     int mPsiEpollFd GUARDED_BY(mMutex);
 
-    // Uptime NS when the last poll was performed. Used to calculate the next poll uptime.
-    nsecs_t mLastPollUptimeNs GUARDED_BY(mMutex);
+    // Elapsed real time NS when the last poll was performed.
+    // Used to calculate the next poll uptime.
+    nsecs_t mLastPollElapsedRealTimeNs GUARDED_BY(mMutex);
 
     // Latest highest active pressure level since the previous polling.
     PressureLevel mLatestPressureLevel GUARDED_BY(mMutex);
