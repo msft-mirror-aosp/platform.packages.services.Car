@@ -27,6 +27,7 @@ android_app {
 
     static_libs: [
         "CarSettings-core",
+        "car-portrait-ui-common",
     ],
 
     certificate: "platform",

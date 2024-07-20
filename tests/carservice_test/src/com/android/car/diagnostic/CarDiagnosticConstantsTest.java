@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-package com.android.car;
+package com.android.car.diagnostic;
 
 import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
+
+import com.android.car.MockedCarTestBase;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;

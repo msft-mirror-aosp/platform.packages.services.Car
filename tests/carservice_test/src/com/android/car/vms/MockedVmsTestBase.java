@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.car;
+package com.android.car.vms;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -36,6 +36,7 @@ import android.hardware.automotive.vehicle.VmsStartSessionMessageIntegerValuesIn
 import android.util.Log;
 import android.util.Pair;
 
+import com.android.car.MockedCarTestBase;
 import com.android.car.hal.test.AidlMockedVehicleHal;
 import com.android.car.hal.test.AidlVehiclePropValueBuilder;
 

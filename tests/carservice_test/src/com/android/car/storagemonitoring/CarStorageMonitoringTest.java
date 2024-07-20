@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.car;
+package com.android.car.storagemonitoring;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -44,13 +44,10 @@ import android.util.SparseArray;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
+import com.android.car.CarStorageMonitoringService;
+import com.android.car.MockedCarTestBase;
+import com.android.car.R;
 import com.android.car.procfsinspector.ProcessInfo;
-import com.android.car.storagemonitoring.LifetimeWriteInfoProvider;
-import com.android.car.storagemonitoring.UidIoStatsProvider;
-import com.android.car.storagemonitoring.WearEstimateRecord;
-import com.android.car.storagemonitoring.WearHistory;
-import com.android.car.storagemonitoring.WearInformation;
-import com.android.car.storagemonitoring.WearInformationProvider;
 import com.android.car.systeminterface.StorageMonitoringInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;

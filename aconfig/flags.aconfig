@@ -103,6 +103,14 @@ flag {
     bug: "315695829"
 }
 
+flag {
+    name: "audio_vendor_freeze_improvements"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Controls whether car audio vendor freeze improvements are enabled"
+    bug: "344678175"
+}
+
 # CarPropertyManager
 flag {
   name: "batched_subscriptions"

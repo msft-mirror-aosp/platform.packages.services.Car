@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.car;
+package com.android.car.pm;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -28,7 +28,9 @@ import androidx.test.filters.FlakyTest;
 import androidx.test.filters.SmallTest;
 import androidx.test.filters.Suppress;
 
-import com.android.car.pm.CarPackageManagerService;
+import com.android.car.CarLocalServices;
+import com.android.car.MockedCarTestBase;
+import com.android.car.TestAppBlockingPolicyService;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;

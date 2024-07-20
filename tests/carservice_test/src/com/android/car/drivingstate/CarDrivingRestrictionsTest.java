@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.car;
+package com.android.car.drivingstate;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -36,6 +36,7 @@ import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.car.MockedCarTestBase;
 import com.android.car.hal.test.AidlVehiclePropValueBuilder;
 import com.android.internal.annotations.GuardedBy;
 
