@@ -28,6 +28,7 @@ import static org.mockito.Mockito.mock;
 
 import android.automotive.powerpolicy.internal.ICarPowerPolicyDelegate;
 import android.car.Car;
+import android.car.ICarResultReceiver;
 import android.car.feature.Flags;
 import android.car.test.CarTestManager;
 import android.car.testapi.FakeRefactoredCarPowerPolicyDaemon;
@@ -42,6 +43,7 @@ import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemN
 import android.hardware.automotive.vehicle.VehiclePropertyAccess;
 import android.hardware.automotive.vehicle.VehiclePropertyChangeMode;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.IInterface;
@@ -309,6 +311,13 @@ public class MockedCarTestBase {
                 .startMocking();
     }
 
+    private static final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {
+        @Override
+        public void send(int resultCode, Bundle resultData) {
+            Log.i(TAG, "CarServiceConnectedCallback.send(int resultCode, Bundle resultData)");
+        }
+    }
+
     @Before
     @UiThreadTest
     public void setUp() throws Exception {
@@ -402,7 +411,7 @@ public class MockedCarTestBase {
                 .build();
 
         carImpl.setSystemServerConnections(mICarServiceHelper,
-                new ICarImplTest.CarServiceConnectedCallback());
+                new CarServiceConnectedCallback());
         spyOnBeforeCarImplInit(carImpl);
         carImpl.init();
         mCarImpl = carImpl;
