@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.car;
+package com.android.car.evs;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -31,6 +31,8 @@ import android.util.Log;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.MediumTest;
 import androidx.test.runner.AndroidJUnit4;
+
+import com.android.car.MockedCarTestBase;
 
 import org.junit.After;
 import org.junit.Before;
