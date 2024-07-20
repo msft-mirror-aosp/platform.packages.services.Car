@@ -1605,6 +1605,27 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
                 .isEqualTo(SERVICE_STATE_INACTIVE);
     }
 
+    @Test
+    public void testEvsEventTypeConversion() throws Exception {
+        int expected[] = {
+            CarEvsManager.STREAM_EVENT_STREAM_STARTED,
+            CarEvsManager.STREAM_EVENT_STREAM_STOPPED,
+            CarEvsManager.STREAM_EVENT_FRAME_DROPPED,
+            CarEvsManager.STREAM_EVENT_TIMEOUT,
+            CarEvsManager.STREAM_EVENT_PARAMETER_CHANGED,
+            CarEvsManager.STREAM_EVENT_PRIMARY_OWNER_CHANGED,
+            CarEvsManager.STREAM_EVENT_OTHER_ERRORS,
+
+            // Default value for any unknown event type.
+            CarEvsManager.STREAM_EVENT_NONE
+        };
+
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals(CarEvsServiceUtils.convertToStreamEvent(i),
+                    expected[i]);
+        }
+    }
+
     private void mockEvsHalService() throws Exception {
         when(mMockEvsHalService.isEvsServiceRequestSupported())
                 .thenReturn(true);

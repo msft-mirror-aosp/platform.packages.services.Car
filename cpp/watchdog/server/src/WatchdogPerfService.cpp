@@ -265,7 +265,7 @@ Result<void> WatchdogPerfService::start() {
             }
             notifySystemStartUpLocked();
             mCurrCollectionEvent = EventType::BOOT_TIME_COLLECTION;
-            mBoottimeCollection.lastPollUptimeNs = mHandlerLooper->now();
+            mBoottimeCollection.lastPollElapsedRealTimeNs = mHandlerLooper->now();
             mHandlerLooper->setLooper(Looper::prepare(/*opts=*/0));
             mHandlerLooper->sendMessage(sp<WatchdogPerfService>::fromExisting(this),
                                         EventType::BOOT_TIME_COLLECTION);
@@ -445,7 +445,7 @@ Result<void> WatchdogPerfService::onUserStateChange(userid_t userId, const UserS
 Result<void> WatchdogPerfService::startUserSwitchCollection() {
     auto thiz = sp<WatchdogPerfService>::fromExisting(this);
     mHandlerLooper->removeMessages(thiz);
-    mUserSwitchCollection.lastPollUptimeNs = mHandlerLooper->now();
+    mUserSwitchCollection.lastPollElapsedRealTimeNs = mHandlerLooper->now();
     // End |EventType::USER_SWITCH_COLLECTION| after a timeout because the user switch end
     // signal won't be received within a few seconds when the switch is blocked due to a
     // keyguard event. Otherwise, polling beyond a few seconds will lead to unnecessary data
@@ -475,7 +475,7 @@ Result<void> WatchdogPerfService::onSuspendExit() {
     auto thiz = sp<WatchdogPerfService>::fromExisting(this);
     mHandlerLooper->removeMessages(thiz);
     nsecs_t now = mHandlerLooper->now();
-    mWakeUpCollection.lastPollUptimeNs = now;
+    mWakeUpCollection.lastPollElapsedRealTimeNs = now;
     mHandlerLooper->sendMessageAtTime(now + mWakeUpDurationNs.count(), thiz,
                                       SwitchMessage::END_WAKE_UP_COLLECTION);
     mCurrCollectionEvent = EventType::WAKE_UP_COLLECTION;
@@ -689,7 +689,7 @@ Result<void> WatchdogPerfService::startCustomCollection(
     mCustomCollection = {
             .eventType = EventType::CUSTOM_COLLECTION,
             .pollingIntervalNs = interval,
-            .lastPollUptimeNs = now,
+            .lastPollElapsedRealTimeNs = now,
             .filterPackages = filterPackages,
     };
 
@@ -748,17 +748,18 @@ void WatchdogPerfService::switchToPeriodicLocked(bool startNow) {
     auto thiz = sp<WatchdogPerfService>::fromExisting(this);
     mHandlerLooper->removeMessages(thiz);
     mCurrCollectionEvent = EventType::PERIODIC_COLLECTION;
-    mPeriodicCollection.lastPollUptimeNs = mHandlerLooper->now();
+    mPeriodicCollection.lastPollElapsedRealTimeNs = mHandlerLooper->now();
     if (startNow) {
         mHandlerLooper->sendMessage(thiz, EventType::PERIODIC_COLLECTION);
     } else {
-        mPeriodicCollection.lastPollUptimeNs += mPeriodicCollection.pollingIntervalNs.count();
-        mHandlerLooper->sendMessageAtTime(mPeriodicCollection.lastPollUptimeNs, thiz,
+        mPeriodicCollection.lastPollElapsedRealTimeNs +=
+                mPeriodicCollection.pollingIntervalNs.count();
+        mHandlerLooper->sendMessageAtTime(mPeriodicCollection.lastPollElapsedRealTimeNs, thiz,
                                           EventType::PERIODIC_COLLECTION);
     }
-    mPeriodicMonitor.lastPollUptimeNs =
+    mPeriodicMonitor.lastPollElapsedRealTimeNs =
             mHandlerLooper->now() + mPeriodicMonitor.pollingIntervalNs.count();
-    mHandlerLooper->sendMessageAtTime(mPeriodicMonitor.lastPollUptimeNs, thiz,
+    mHandlerLooper->sendMessageAtTime(mPeriodicMonitor.lastPollElapsedRealTimeNs, thiz,
                                       EventType::PERIODIC_MONITOR);
     ALOGI("Switching to %s and %s", toString(mCurrCollectionEvent),
           toString(EventType::PERIODIC_MONITOR));
@@ -874,8 +875,8 @@ Result<void> WatchdogPerfService::processCollectionEvent(
     if (const auto result = collectLocked(metadata); !result.ok()) {
         return Error() << toString(metadata->eventType) << " collection failed: " << result.error();
     }
-    metadata->lastPollUptimeNs += metadata->pollingIntervalNs.count();
-    mHandlerLooper->sendMessageAtTime(metadata->lastPollUptimeNs,
+    metadata->lastPollElapsedRealTimeNs += metadata->pollingIntervalNs.count();
+    mHandlerLooper->sendMessageAtTime(metadata->lastPollElapsedRealTimeNs,
                                       sp<WatchdogPerfService>::fromExisting(this),
                                       metadata->eventType);
     return {};
@@ -1000,14 +1001,15 @@ Result<void> WatchdogPerfService::processMonitorEvent(
         if (requestedCollection) {
             return;
         }
-        const nsecs_t prevUptimeNs = currCollectionMetadata->lastPollUptimeNs -
+        const nsecs_t prevLastPollElapsedRealTimeNs =
+                currCollectionMetadata->lastPollElapsedRealTimeNs -
                 currCollectionMetadata->pollingIntervalNs.count();
-        nsecs_t uptimeNs = mHandlerLooper->now();
-        if (const auto delta = std::abs(uptimeNs - prevUptimeNs);
+        nsecs_t lastPollElapsedRealTimeNs = mHandlerLooper->now();
+        if (const auto delta = std::abs(lastPollElapsedRealTimeNs - prevLastPollElapsedRealTimeNs);
             delta < kMinEventInterval.count()) {
             return;
         }
-        currCollectionMetadata->lastPollUptimeNs = uptimeNs;
+        currCollectionMetadata->lastPollElapsedRealTimeNs = lastPollElapsedRealTimeNs;
         mHandlerLooper->removeMessages(thiz, currCollectionMetadata->eventType);
         mHandlerLooper->sendMessage(thiz, currCollectionMetadata->eventType);
         requestedCollection = true;
@@ -1020,15 +1022,16 @@ Result<void> WatchdogPerfService::processMonitorEvent(
                            << ": " << result.error();
         }
     }
-    metadata->lastPollUptimeNs += metadata->pollingIntervalNs.count();
-    if (metadata->lastPollUptimeNs == currCollectionMetadata->lastPollUptimeNs) {
+    metadata->lastPollElapsedRealTimeNs += metadata->pollingIntervalNs.count();
+    if (metadata->lastPollElapsedRealTimeNs == currCollectionMetadata->lastPollElapsedRealTimeNs) {
         /*
          * If the |PERIODIC_MONITOR| and  *_COLLECTION events overlap, skip the |PERIODIC_MONITOR|
          * event.
          */
-        metadata->lastPollUptimeNs += metadata->pollingIntervalNs.count();
+        metadata->lastPollElapsedRealTimeNs += metadata->pollingIntervalNs.count();
     }
-    mHandlerLooper->sendMessageAtTime(metadata->lastPollUptimeNs, thiz, metadata->eventType);
+    mHandlerLooper->sendMessageAtTime(metadata->lastPollElapsedRealTimeNs, thiz,
+                                      metadata->eventType);
     return {};
 }
 

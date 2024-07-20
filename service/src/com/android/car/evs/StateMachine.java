@@ -198,10 +198,6 @@ final class StateMachine {
             return mCallbacks.getRegisteredCallbackCount() == 0;
         }
 
-        RemoteCallbackList get() {
-            return mCallbacks;
-        }
-
         int size() {
             return mCallbacks.getRegisteredCallbackCount();
         }
