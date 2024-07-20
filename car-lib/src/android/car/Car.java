@@ -1932,7 +1932,9 @@ public final class Car implements ICarBase {
      *                make sure that its {@link ContextWrapper#getBaseContext() base context} is not
      *                {@code null} as well.
      *                Otherwise it will throw {@link java.lang.NullPointerException}.
-     * @param serviceConnectionListener listener for monitoring service connection.
+     * @param serviceConnectionListener listener for monitoring service connection. It is allowed
+     * but not recommended to pass {@code null}. If this is {@code null}, client has to periodically
+     * check {@link #isConnected()} to know when car service is connected.
      * @param handler the handler on which the callback should execute, or null to execute on the
      * service's main thread. Note: the service connection listener will be always on the main
      * thread regardless of the handler given.
@@ -2063,9 +2065,13 @@ public final class Car implements ICarBase {
 
         /**
          * See {@link Car#createCar}.
+         *
+         * Even though serviceConnectionListener is not marked as Nullable, existing client may
+         * pass null.
          */
         @Nullable
-        public Car createCar(Context context, ServiceConnection serviceConnectionListener) {
+        public Car createCar(Context context,
+                @Nullable ServiceConnection serviceConnectionListener) {
             return createCar(context, serviceConnectionListener, /* handler= */ null);
         }
 
@@ -2073,7 +2079,7 @@ public final class Car implements ICarBase {
          * See {@link Car#createCar}.
          */
         @Nullable
-        public Car createCar(Context context, ServiceConnection serviceConnectionListener,
+        public Car createCar(Context context, @Nullable ServiceConnection serviceConnectionListener,
                 @Nullable Handler handler) {
             assertNonNullContext(context);
             if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
