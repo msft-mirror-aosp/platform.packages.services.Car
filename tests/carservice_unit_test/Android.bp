@@ -122,6 +122,7 @@ android_ravenwood_test {
         "src/android/car/test/JUnitHelper.java",
         "src/android/car/test/PermissionsCheckerRuleTest.java",
         "src/com/android/car/CarPropertyServiceUnitTest.java",
+        "src/com/android/car/internal/PendingRequestPoolUnitTest.java",
         "src/com/android/car/hal/VehicleHalTest.java",
         "src/com/android/car/hal/fakevhal/FakeVhalConfigParserUnitTest.java",
         "src/com/android/car/hal/fakevhal/FakeVehicleStubUnitTest.java",
