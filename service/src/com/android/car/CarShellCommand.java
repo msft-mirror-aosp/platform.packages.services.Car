@@ -62,6 +62,7 @@ import android.car.builtin.widget.LockPatternHelper;
 import android.car.content.pm.CarPackageManager;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.feature.Flags;
+import android.car.hardware.power.CarPowerPolicy;
 import android.car.input.CarInputManager;
 import android.car.input.CustomInputEvent;
 import android.car.input.RotaryEvent;
@@ -249,6 +250,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String COMMAND_APPLY_POWER_POLICY = "apply-power-policy";
     private static final String COMMAND_DEFINE_POWER_POLICY_GROUP = "define-power-policy-group";
     private static final String COMMAND_SET_POWER_POLICY_GROUP = "set-power-policy-group";
+    private static final String COMMAND_GET_CURRENT_POWER_POLICY = "get-current-power-policy";
     private static final String COMMAND_APPLY_CTS_VERIFIER_POWER_OFF_POLICY =
             "apply-cts-verifier-power-off-policy";
     private static final String COMMAND_APPLY_CTS_VERIFIER_POWER_ON_POLICY =
@@ -876,6 +878,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t  Define and apply the cts_verifier_on power policy with "
                 + "--enable WIFI,LOCATION,BLUETOOTH");
 
+        pw.printf("\t%s\n", COMMAND_GET_CURRENT_POWER_POLICY);
+        pw.println("\t  Gets the current power policy.");
+
         pw.printf("\t%s [%s] [%s]\n", COMMAND_POWER_OFF, PARAM_SKIP_GARAGEMODE, PARAM_REBOOT);
         pw.println("\t  Powers off the car.");
 
@@ -1450,6 +1455,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 return definePowerPolicyGroup(args, writer);
             case COMMAND_SET_POWER_POLICY_GROUP:
                 return setPowerPolicyGroup(args, writer);
+            case COMMAND_GET_CURRENT_POWER_POLICY:
+                getCurrentPowerPolicy(writer);
+                break;
             case COMMAND_APPLY_CTS_VERIFIER_POWER_OFF_POLICY:
                 return applyCtsVerifierPowerOffPolicy(args, writer);
             case COMMAND_APPLY_CTS_VERIFIER_POWER_ON_POLICY:
@@ -3214,6 +3222,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
         writer.printf("\nUsage: cmd car_service %s <POLICY_GROUP_ID>\n",
                 COMMAND_SET_POWER_POLICY_GROUP);
         return RESULT_ERROR;
+    }
+
+    private void getCurrentPowerPolicy(IndentingPrintWriter writer) {
+        CarPowerPolicy powerPolicy = mCarPowerManagementService.getCurrentPowerPolicy();
+        writer.printf("Current power policy is: %s", powerPolicy);
     }
 
     private int applyCtsVerifierPowerPolicy(String policyId, String ops, String cmdName,
