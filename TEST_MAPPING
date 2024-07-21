@@ -26,6 +26,54 @@
     },
     {
       "name": "CarLibDeviceUnitTest"
+    },
+    {
+      "name": "CarServiceCarTest"
+    },
+    {
+      "name": "CarServiceClusterTest"
+    },
+    {
+      "name": "CarServiceDiagnosticTest"
+    },
+    {
+      "name": "CarServiceDrivingStateTest"
+    },
+    {
+      "name": "CarServiceEvsTest"
+    },
+    {
+      "name": "CarServiceGarageModeTest"
+    },
+    {
+      "name": "CarServiceInputTest"
+    },
+    {
+      "name": "CarServiceOsTest"
+    },
+    {
+      "name": "CarServicePmTest"
+    },
+    {
+      "name": "CarServicePowerTest"
+    },
+    {
+      "name": "CarServicePropertyTest"
+    },
+    {
+      "name": "CarServiceRemoteAccessTest"
+    },
+    {
+      "name": "CarServiceStorageMonitoringTest"
+    },
+    {
+      "name": "CarServiceTelemetryTest"
+    },
+    {
+      "name": "CarServiceVmsTest"
+    },
+    {
+      "name": "CarServiceWatchdogTest"
     }
   ],
   "ravenwood-presubmit": [
