@@ -289,12 +289,15 @@ public class LargeParcelable extends LargeParcelableBase {
             readMethod.invoke(retParcelable, in);
             if (keepSharedMemory) {
                 fieldSharedMemory.set(retParcelable, sharedMemoryFd);
+            } else {
+                closeFd(sharedMemoryFd);
             }
             if (DBG_PAYLOAD) {
                 Slog.d(TAG, "reconstructStableAIDLParcelable read shared memory, data size:"
                         + in.dataPosition());
             }
         } catch (Exception e) {
+            closeFd(sharedMemoryFd);
             throw new IllegalArgumentException("Cannot access Parcelable constructor/method", e);
         } finally {
             if (in != null) {
@@ -302,5 +305,13 @@ public class LargeParcelable extends LargeParcelableBase {
             }
         }
         return retParcelable;
+    }
+
+    private static void closeFd(ParcelFileDescriptor fd) {
+        try {
+            fd.close();
+        } catch (IOException e) {
+            Slog.w(TAG, "Failed to close ParceFileDescriptor", e);
+        }
     }
 }
