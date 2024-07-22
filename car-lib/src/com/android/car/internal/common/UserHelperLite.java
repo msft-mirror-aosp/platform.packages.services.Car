@@ -27,8 +27,6 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * Provides user information related helper methods.
- *
- * @hide
  */
 public final class UserHelperLite {
 

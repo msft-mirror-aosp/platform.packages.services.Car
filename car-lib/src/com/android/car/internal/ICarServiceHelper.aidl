@@ -26,9 +26,6 @@ import java.util.List;
  *
  * Only for interaction between system server and car service, so it can be changed (without
  * breaking Car Mainline)
- *
- *
- * @hide
  */
 interface ICarServiceHelper {
     /**

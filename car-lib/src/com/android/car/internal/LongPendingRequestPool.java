@@ -35,8 +35,6 @@ import java.util.List;
  * Note that this pool is not thread-safe. Caller must use lock to guard this object.
  *
  * @param <T> The request info type.
- *
- * @hide
  */
 public final class LongPendingRequestPool<T extends LongRequestIdWithTimeout> {
     private static final String TAG = LongPendingRequestPool.class.getSimpleName();

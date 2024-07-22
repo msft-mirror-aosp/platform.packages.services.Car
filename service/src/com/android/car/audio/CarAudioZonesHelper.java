@@ -600,7 +600,7 @@ import java.util.Set;
                 CarAudioParserUtils.skip(parser);
             }
         }
-        // If the configuration is not valid we can the config
+        // If the configuration is not valid we can skip the config
         if (!valid) {
             String message = "Skipped configuration " + zoneConfigName + " in zone " + zone.getId();
             Slogf.e(TAG, message);
@@ -964,6 +964,13 @@ import java.util.Set;
         if (requiresDeviceAddress && !mAddressToCarAudioDeviceInfo.containsKey(address)) {
             throw new IllegalStateException("Output device address " + address
                     + " does not belong to any configured output device.");
+        }
+        if (CarAudioUtils.isDynamicDeviceType(type) && !mUseCoreAudioVolume) {
+            mCarServiceLocalLog.log("Found invalid device setup,"
+                    + " dynamic device " + DebugUtils.constantToString(AudioDeviceInfo.class,
+                    /* prefix= */ "TYPE_", type) + " requires core audio volume management"
+                    + " but audioUseCoreVolume is false.");
+            return false;
         }
         return true;
     }

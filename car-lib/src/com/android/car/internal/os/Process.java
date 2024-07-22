@@ -18,8 +18,6 @@ package com.android.car.internal.os;
 
 /**
  * An interface to inject fake {@link android.os.Process}.
- *
- * @hide
  */
 public interface Process {
     /** Check {@link android.os.Process#killProcess}. */

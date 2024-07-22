@@ -26,8 +26,6 @@ import java.util.Objects;
 
 /**
  * A {@link CarPropertyEventTracker} implementation for continuous property
- *
- * @hide
  */
 public final class ContCarPropertyEventTracker implements CarPropertyEventTracker{
     private static final String TAG = "ContCarPropertyEventTracker";
