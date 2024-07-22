@@ -42,8 +42,6 @@ import java.util.concurrent.Callable;
  * #toLargeParcelable(Parcelable)} and deserialization
  * {@link #reconstructStableAIDLParcelable(Parcelable, boolean)}. Plz check included test for the
  * usage.
- *
- * @hide
  */
 public class LargeParcelable extends LargeParcelableBase {
     /**
