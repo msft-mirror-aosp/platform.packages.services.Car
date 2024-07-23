@@ -48,28 +48,14 @@ java_defaults {
         "truth",
         "vehicle-hal-support-lib",
     ],
-    srcs: [
-        "src/**/*.java",
-    ],
     libs: [
         "android.test.base",
         "framework-annotations-lib",
     ],
 }
 
-android_ravenwood_test {
-    name: "CarLibHostUnitTest",
-    static_libs: [
-        "android.car.builtin.testonly",
-    ],
-    defaults: [
-        "CarLibUnitTestDefault",
-    ],
-    auto_gen_config: true,
-}
-
-android_test {
-    name: "CarLibDeviceUnitTest",
+java_defaults {
+    name: "CarLibDeviceUnitTestDefault",
     static_libs: [
         "mockito-target-extended",
         "ravenwood-junit",
@@ -91,4 +77,120 @@ android_test {
         "libstaticjvmtiagent",
     ],
     platform_apis: true,
+}
+
+android_ravenwood_test {
+    name: "CarLibHostUnitTest",
+    static_libs: [
+        "android.car.builtin.testonly",
+    ],
+    defaults: [
+        "CarLibUnitTestDefault",
+    ],
+    auto_gen_config: true,
+    srcs: [
+        "src/**/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibCarUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/CarUnitTest.java",
+    ],
+}
+
+android_test {
+    name: "CarLibClusterUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/cluster/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibPmUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/content/pm/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibEvsUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/evs/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibPropertyUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/hardware/property/*.java",
+        "src/com/android/car/internal/property/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibMediaUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/media/*.java",
+        "src/com/android/car/audio/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibRemoteAccessUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/remoteaccess/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibUserUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/user/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibWifiUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/wifi/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibInternalUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/internal/util/*.java",
+    ],
 }
