@@ -42,6 +42,8 @@ java_defaults {
         "android.car-no-dep",
         "android.car.test.utils",
         "androidx.annotation_annotation",
+        "androidx.test.core",
+        "androidx.test.ext.junit",
         "androidx.test.rules",
         "flag-junit",
         "platform-test-annotations",
@@ -94,6 +96,8 @@ android_ravenwood_test {
     exclude_srcs: [
         // TODO(b/354795535): Enable CarLibAdminUnitTest on host.
         "src/android/car/admin/**/*.java",
+        // TODO(b/354785409): Enable CarLibAppUnitTest on host.
+        "src/android/car/app/**/*.java",
     ],
 }
 
@@ -105,6 +109,17 @@ android_test {
     srcs: [
         "src/android/car/admin/*.java",
     ],
+}
+
+android_test {
+    name: "CarLibAppUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/app/*.java",
+    ],
+    manifest: "AndroidManifest_AppUnitTest.xml",
 }
 
 android_test {

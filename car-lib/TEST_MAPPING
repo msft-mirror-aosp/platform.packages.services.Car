@@ -4,6 +4,9 @@
       "name": "CarLibAdminUnitTest"
     },
     {
+      "name": "CarLibAppUnitTest"
+    },
+    {
       "name": "CarLibCarUnitTest"
     },
     {
