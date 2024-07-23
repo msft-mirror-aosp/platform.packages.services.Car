@@ -98,6 +98,8 @@ android_ravenwood_test {
         "src/android/car/admin/**/*.java",
         // TODO(b/354785409): Enable CarLibAppUnitTest on host.
         "src/android/car/app/**/*.java",
+        // TODO(b/354796364): Enable cluster renderer test on host.
+        "src/android/car/cluster/renderer/*.java",
     ],
 }
 
