@@ -80,6 +80,7 @@ import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AsyncFuture;
 import android.car.watchdog.CarWatchdogManager;
 import android.car.watchdog.IoOveruseConfiguration;
+import android.car.watchdog.PackageKillableState;
 import android.car.watchdog.PerStateBytes;
 import android.car.watchdog.ResourceOveruseConfiguration;
 import android.content.ComponentName;
@@ -3666,10 +3667,30 @@ final class CarShellCommand extends BasicShellCommandHandler {
         } else {
             userId = ActivityManager.getCurrentUser();
         }
+
         boolean isKilled = mCarWatchdogService.performResourceOveruseKill(packageName, userId);
         if (isKilled) {
             writer.printf("Successfully killed package '%s' for user %d\n", packageName, userId);
         } else {
+            UserHandle userHandle = UserHandle.of(userId);
+            List<PackageKillableState> packageKillableStates =
+                    mCarWatchdogService.getPackageKillableStatesAsUser(userHandle);
+
+            for (int i = 0; i < packageKillableStates.size(); i++) {
+                PackageKillableState state = packageKillableStates.get(i);
+                if (packageName.equals(state.getPackageName())) {
+                    int killableState = state.getKillableState();
+                    if (killableState != PackageKillableState.KILLABLE_STATE_YES) {
+                        String stateName =
+                                PackageKillableState.killableStateToString(killableState);
+                        writer.printf("Failed to kill package '%s' for user %d because the "
+                                + "package has state '%s'\n", packageName, userId, stateName);
+                        return;
+                    }
+                    break;
+                }
+            }
+
             writer.printf("Failed to kill package '%s' for user %d\n", packageName, userId);
         }
     }
