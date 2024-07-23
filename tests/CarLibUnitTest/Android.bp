@@ -100,6 +100,11 @@ android_ravenwood_test {
         "src/android/car/app/**/*.java",
         // TODO(b/354796364): Enable cluster renderer test on host.
         "src/android/car/cluster/renderer/*.java",
+        // The following cannot be enabled because AudioAttributes is
+        // not supported on host.
+        "src/android/car/media/CarAudioZoneConfigInfoUnitTest.java",
+        "src/android/car/media/CarVolumeGroupEventUnitTest.java",
+        "src/android/car/media/CarVolumeGroupInfoUnitTest.java",
     ],
 }
 
