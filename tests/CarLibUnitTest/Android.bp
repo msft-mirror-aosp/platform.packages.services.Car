@@ -192,6 +192,16 @@ android_test {
 }
 
 android_test {
+    name: "CarLibNavigationUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/navigation/*.java",
+    ],
+}
+
+android_test {
     name: "CarLibOsUnitTest",
     defaults: [
         "CarLibDeviceUnitTestDefault",
