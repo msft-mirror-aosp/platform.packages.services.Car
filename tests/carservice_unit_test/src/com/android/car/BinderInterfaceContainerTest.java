@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.car;
+package com.android.car;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -23,7 +23,6 @@ import android.os.IInterface;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.car.BinderInterfaceContainer;
 import com.android.car.BinderInterfaceContainer.BinderInterface;
 
 import org.junit.Test;

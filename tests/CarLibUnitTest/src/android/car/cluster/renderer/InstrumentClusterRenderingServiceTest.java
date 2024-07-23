@@ -170,7 +170,7 @@ public final class InstrumentClusterRenderingServiceTest extends AbstractExtende
                 .when(mService.mSpyPackageManager).getPackagesForUid(userId);
         doReturn(PERMISSION_GRANTED)
                 .when(mService.mSpyPackageManager).checkPermission(
-                PERMISSION_CAR_DISPLAY_IN_CLUSTER, packageName);
+                        PERMISSION_CAR_DISPLAY_IN_CLUSTER, packageName);
         doReturn(createActivityResolveInfo(packageName)).when(mService.mSpyPackageManager)
                 .queryIntentActivitiesAsUser(any(), eq(GET_RESOLVED_FILTER),
                         eq(UserHandle.of(userId)));
@@ -229,7 +229,7 @@ public final class InstrumentClusterRenderingServiceTest extends AbstractExtende
                 .when(mService.mSpyPackageManager).getPackagesForUid(userId);
         doReturn(PERMISSION_DENIED)
                 .when(mService.mSpyPackageManager).checkPermission(
-                PERMISSION_CAR_DISPLAY_IN_CLUSTER, packageName);
+                        PERMISSION_CAR_DISPLAY_IN_CLUSTER, packageName);
 
         mRendererBinder.setNavigationContextOwner(userId, 123);
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
@@ -298,7 +298,7 @@ public final class InstrumentClusterRenderingServiceTest extends AbstractExtende
                 .when(mService.mSpyPackageManager).getPackagesForUid(userId);
         doReturn(PERMISSION_GRANTED)
                 .when(mService.mSpyPackageManager).checkPermission(
-                PERMISSION_CAR_DISPLAY_IN_CLUSTER, packageName);
+                        PERMISSION_CAR_DISPLAY_IN_CLUSTER, packageName);
         doReturn(createActivityResolveInfo(packageName)).when(mService.mSpyPackageManager)
                 .queryIntentActivitiesAsUser(any(), eq(GET_RESOLVED_FILTER),
                         eq(UserHandle.of(userId)));
