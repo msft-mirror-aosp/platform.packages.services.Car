@@ -92,7 +92,13 @@ android_ravenwood_test {
     auto_gen_config: true,
     srcs: [
         "src/**/*.java",
+        "src/**/*.aidl",
     ],
+    aidl: {
+        include_dirs: [
+            "packages/services/Car/car-lib/src",
+        ],
+    },
     exclude_srcs: [
         // TODO(b/354795535): Enable CarLibAdminUnitTest on host.
         "src/android/car/admin/**/*.java",
@@ -199,6 +205,22 @@ android_test {
     srcs: [
         "src/android/car/navigation/*.java",
     ],
+}
+
+android_test {
+    name: "CarLibOccupantConnectionUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/occupantconnection/*",
+    ],
+    aidl: {
+        include_dirs: [
+            "packages/services/Car/car-lib/src",
+        ],
+    },
+    manifest: "AndroidManifest_OccupantConnectionUnitTest.xml",
 }
 
 android_test {
