@@ -91,6 +91,20 @@ android_ravenwood_test {
     srcs: [
         "src/**/*.java",
     ],
+    exclude_srcs: [
+        // TODO(b/354795535): Enable CarLibAdminUnitTest on host.
+        "src/android/car/admin/**/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibAdminUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/admin/*.java",
+    ],
 }
 
 android_test {
