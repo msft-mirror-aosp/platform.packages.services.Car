@@ -16,17 +16,18 @@
 
 package com.android.car.hal;
 
+import static com.android.car.internal.common.CommonConstants.EMPTY_BYTE_ARRAY;
+import static com.android.car.internal.common.CommonConstants.EMPTY_FLOAT_ARRAY;
+import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
+import static com.android.car.internal.common.CommonConstants.EMPTY_LONG_ARRAY;
 import static com.android.car.CarServiceUtils.toByteArray;
 import static com.android.car.CarServiceUtils.toFloatArray;
 import static com.android.car.CarServiceUtils.toIntArray;
 import static com.android.car.CarServiceUtils.toLongArray;
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.car.hardware.CarPropertyValue;
 import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.VehiclePropertyStatus;
-
-import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -460,26 +461,20 @@ public final class HalPropValueBuilder {
                 return;
             }
             if (mVehiclePropValue.value.int32Values == null) {
-                mVehiclePropValue.value.int32Values = new int[0];
+                mVehiclePropValue.value.int32Values = EMPTY_INT_ARRAY;
             }
             if (mVehiclePropValue.value.floatValues == null) {
-                mVehiclePropValue.value.floatValues = new float[0];
+                mVehiclePropValue.value.floatValues = EMPTY_FLOAT_ARRAY;
             }
             if (mVehiclePropValue.value.int64Values == null) {
-                mVehiclePropValue.value.int64Values = new long[0];
+                mVehiclePropValue.value.int64Values = EMPTY_LONG_ARRAY;
             }
             if (mVehiclePropValue.value.byteValues == null) {
-                mVehiclePropValue.value.byteValues = new byte[0];
+                mVehiclePropValue.value.byteValues = EMPTY_BYTE_ARRAY;
             }
             if (mVehiclePropValue.value.stringValue == null) {
-                mVehiclePropValue.value.stringValue = new String();
+                mVehiclePropValue.value.stringValue = "";
             }
-        }
-
-        @Override
-        @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
-        public String toString() {
-            return mVehiclePropValue.toString();
         }
 
         public Object toVehiclePropValue() {
@@ -873,14 +868,8 @@ public final class HalPropValueBuilder {
                 mVehiclePropValue.value.bytes = new ArrayList<Byte>();
             }
             if (mVehiclePropValue.value.stringValue == null) {
-                mVehiclePropValue.value.stringValue = new String();
+                mVehiclePropValue.value.stringValue = "";
             }
-        }
-
-        @Override
-        @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
-        public String toString() {
-            return mVehiclePropValue.toString();
         }
 
         public Object toVehiclePropValue() {
@@ -1247,11 +1236,11 @@ public final class HalPropValueBuilder {
 
     private static RawPropValues emptyRawPropValues() {
         RawPropValues values = new RawPropValues();
-        values.int32Values = new int[0];
-        values.floatValues = new float[0];
-        values.int64Values = new long[0];
-        values.byteValues = new byte[0];
-        values.stringValue = new String();
+        values.int32Values = EMPTY_INT_ARRAY;
+        values.floatValues = EMPTY_FLOAT_ARRAY;
+        values.int64Values = EMPTY_LONG_ARRAY;
+        values.byteValues = EMPTY_BYTE_ARRAY;
+        values.stringValue = "";
         return values;
     }
 }

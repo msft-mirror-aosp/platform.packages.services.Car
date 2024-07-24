@@ -27,7 +27,7 @@ import android.os.Parcel;
 import java.util.ArrayList;
 import java.util.List;
 
-final class CoreAudioRoutingUtils {
+public final class CoreAudioRoutingUtils {
 
     public static final int MUSIC_MIN_INDEX = 0;
     public static final int MUSIC_MAX_INDEX = 40;
@@ -42,46 +42,53 @@ final class CoreAudioRoutingUtils {
     public static final String MUSIC_DEVICE_ADDRESS = "MUSIC_DEVICE_ADDRESS";
     public static final String NAV_DEVICE_ADDRESS = "NAV_DEVICE_ADDRESS";
     public static final String OEM_DEVICE_ADDRESS = "OEM_DEVICE_ADDRESS";
-    static final List<AudioVolumeGroup> VOLUME_GROUPS;
-    static final List<AudioProductStrategy> PRODUCT_STRATEGIES;
+    public static final List<AudioVolumeGroup> VOLUME_GROUPS;
+    public static final List<AudioProductStrategy> PRODUCT_STRATEGIES;
 
-    static final AudioAttributes MUSIC_ATTRIBUTES = new AudioAttributes.Builder()
+    public static final AudioAttributes MUSIC_ATTRIBUTES = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build();
-    static final int MUSIC_STRATEGY_ID = 777;
-    static final String MUSIC_CONTEXT_NAME = "MUSIC_CONTEXT";
-    static final int MUSIC_GROUP_ID = 666;
-    static final String MUSIC_GROUP_NAME = "MUSIC_GROUP";
-    static final AudioProductStrategy MUSIC_STRATEGY;
-    static final AudioVolumeGroup MUSIC_GROUP;
-    static final CarAudioContextInfo MEDIA_CONTEXT_INFO;
 
-    static final AudioAttributes NAV_ATTRIBUTES = new AudioAttributes.Builder()
+    public static final AudioAttributes MOVIE_ATTRIBUTES = new AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .build();
+    public static final int MUSIC_STRATEGY_ID = 777;
+    public static final String MUSIC_CONTEXT_NAME = "MUSIC_CONTEXT";
+    public static final int MUSIC_GROUP_ID = 666;
+    public static final String MUSIC_GROUP_NAME = "MUSIC_GROUP";
+    public static final AudioProductStrategy MUSIC_STRATEGY;
+    public static final AudioVolumeGroup MUSIC_GROUP;
+    public static final CarAudioContextInfo MEDIA_CONTEXT_INFO;
+
+    public static final AudioAttributes NAV_ATTRIBUTES = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build();
-    static final int NAV_STRATEGY_ID = 99;
-    static final String NAV_CONTEXT_NAME = "NAV_CONTEXT";
-    static final int NAV_GROUP_ID = 8;
-    static final String NAV_GROUP_NAME = "NAV_GROUP";
-    static final AudioProductStrategy NAV_STRATEGY;
-    static final AudioVolumeGroup NAV_GROUP;
-    static final CarAudioContextInfo NAV_CONTEXT_INFO;
+    public static final int NAV_STRATEGY_ID = 99;
+    public static final String NAV_CONTEXT_NAME = "NAV_CONTEXT";
+    public static final int NAV_GROUP_ID = 8;
+    public static final String NAV_GROUP_NAME = "NAV_GROUP";
+    public static final AudioProductStrategy NAV_STRATEGY;
+    public static final AudioVolumeGroup NAV_GROUP;
+    public static final CarAudioContextInfo NAV_CONTEXT_INFO;
 
-    static final AudioAttributes OEM_ATTRIBUTES;
-    static final int OEM_STRATEGY_ID = 1979;
-    static final String OEM_CONTEXT_NAME = "OEM_CONTEXT";
-    static final int OEM_GROUP_ID = 55;
-    static final String OEM_GROUP_NAME = "OEM_GROUP";
-    static final String OEM_FORMATTED_TAGS = "oem=extension_1979";
-    static final AudioProductStrategy OEM_STRATEGY;
-    static final AudioVolumeGroup OEM_GROUP;
-    static final CarAudioContextInfo OEM_CONTEXT_INFO;
+    public static final AudioAttributes OEM_ATTRIBUTES;
+    public static final int OEM_STRATEGY_ID = 1979;
+    public static final String OEM_CONTEXT_NAME = "OEM_CONTEXT";
+    public static final int OEM_GROUP_ID = 55;
+    public static final String OEM_GROUP_NAME = "OEM_GROUP";
+    public static final String OEM_FORMATTED_TAGS = "oem=extension_1979";
+    public static final AudioProductStrategy OEM_STRATEGY;
+    public static final AudioVolumeGroup OEM_GROUP;
+    public static final CarAudioContextInfo OEM_CONTEXT_INFO;
 
+    static final String INVALID_CONTEXT_NAME = "INVALID_CONTEXT";
     static final int INVALID_STRATEGY_ID = 999999;
     static final int INVALID_GROUP_ID = 999999;
     static final String INVALID_GROUP_NAME = "INVALID_GROUP";
+
+    static final int INVALID_STRATEGY = -1;
 
     static final AudioAttributes UNSUPPORTED_ATTRIBUTES = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
@@ -100,26 +107,33 @@ final class CoreAudioRoutingUtils {
         parcel.writeString(MUSIC_CONTEXT_NAME);
         parcel.writeInt(MUSIC_STRATEGY_ID);
 
-        parcel.writeInt(/* nb attributes groups= */ 1);
-        parcel.writeInt(/* volumeGroupId= */ MUSIC_GROUP_ID);
-        parcel.writeInt(/* stream type= */ 0);
-        parcel.writeInt(/* nb attributes= */ 2);
+        // nb attributes groups
+        parcel.writeInt(1);
+        parcel.writeInt(MUSIC_GROUP_ID);
+        // stream type
+        parcel.writeInt(0);
+        // nb attributes
+        parcel.writeInt(2);
 
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_MEDIA);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_MUSIC);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        parcel.writeInt(AudioAttributes.USAGE_MEDIA);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_MUSIC);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_UNKNOWN);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_UNKNOWN);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        parcel.writeInt(AudioAttributes.USAGE_UNKNOWN);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_UNKNOWN);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
         parcel.setDataPosition(0);
         MUSIC_STRATEGY = AudioProductStrategy.CREATOR.createFromParcel(parcel);
@@ -130,26 +144,33 @@ final class CoreAudioRoutingUtils {
         parcel.writeString(NAV_CONTEXT_NAME);
         parcel.writeInt(NAV_STRATEGY_ID);
 
-        parcel.writeInt(/* nb attributes groups= */ 1);
-        parcel.writeInt(/* volumeGroupId= */ NAV_GROUP_ID);
-        parcel.writeInt(/* stream type= */ 0);
-        parcel.writeInt(/* nb attributes= */ 2);
+        // nb attributes groups
+        parcel.writeInt(1);
+        parcel.writeInt(NAV_GROUP_ID);
+        // stream type
+        parcel.writeInt(0);
+        // nb attributes
+        parcel.writeInt(2);
 
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_SPEECH);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        parcel.writeInt(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_SPEECH);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_UNKNOWN);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        parcel.writeInt(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_UNKNOWN);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
         parcel.setDataPosition(0);
         NAV_STRATEGY = AudioProductStrategy.CREATOR.createFromParcel(parcel);
@@ -160,17 +181,21 @@ final class CoreAudioRoutingUtils {
         parcel.writeString(OEM_CONTEXT_NAME);
         parcel.writeInt(OEM_STRATEGY_ID);
 
-        parcel.writeInt(/* nb attributes groups= */ 1);
-        parcel.writeInt(/* volumeGroupId= */ OEM_GROUP_ID);
-        parcel.writeInt(/* stream type= */ 0);
-        parcel.writeInt(/* nb attributes= */ 1);
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_SPEECH);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        // nb attributes groups
+        parcel.writeInt(1);
+        parcel.writeInt(OEM_GROUP_ID);
+        // stream type
+        parcel.writeInt(0);
+        // nb attributes
+        parcel.writeInt(1);
+        parcel.writeInt(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_SPEECH);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ OEM_FORMATTED_TAGS);
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        parcel.writeString(OEM_FORMATTED_TAGS);
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
         parcel.setDataPosition(0);
         OEM_STRATEGY = AudioProductStrategy.CREATOR.createFromParcel(parcel);
@@ -185,24 +210,30 @@ final class CoreAudioRoutingUtils {
         parcel.writeString(MUSIC_GROUP_NAME);
         parcel.writeInt(MUSIC_GROUP_ID);
 
-        parcel.writeInt(/* nb attributes= */ 2);
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_MEDIA);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_MUSIC);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        // nb attributes
+        parcel.writeInt(2);
+        parcel.writeInt(AudioAttributes.USAGE_MEDIA);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_MUSIC);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_UNKNOWN);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_UNKNOWN);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        parcel.writeInt(AudioAttributes.USAGE_UNKNOWN);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_UNKNOWN);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
-        parcel.writeInt(/* nb stream types= */ 0);
+        // nb stream types
+        parcel.writeInt(0);
 
         parcel.setDataPosition(0);
         MUSIC_GROUP = AudioVolumeGroup.CREATOR.createFromParcel(parcel);
@@ -213,14 +244,17 @@ final class CoreAudioRoutingUtils {
         parcel.writeString(NAV_GROUP_NAME);
         parcel.writeInt(NAV_GROUP_ID);
 
-        parcel.writeInt(/* nb attributes= */ 1);
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_SPEECH);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        // nb attributes
+        parcel.writeInt(1);
+        parcel.writeInt(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_SPEECH);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
         parcel.writeInt(/* nb stream types= */ 0);
 
@@ -233,16 +267,20 @@ final class CoreAudioRoutingUtils {
         parcel.writeString(OEM_GROUP_NAME);
         parcel.writeInt(OEM_GROUP_ID);
 
-        parcel.writeInt(/* nb attributes= */ 1);
-        parcel.writeInt(/* mUsage= */ AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
-        parcel.writeInt(/* mContentType= */ AudioAttributes.CONTENT_TYPE_SPEECH);
-        parcel.writeInt(/* mSource= */ MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
-        parcel.writeInt(/* mFlags= */ AudioAttributes.FLAG_MUTE_HAPTIC);
+        // nb attributes
+        parcel.writeInt(1);
+        parcel.writeInt(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
+        parcel.writeInt(AudioAttributes.CONTENT_TYPE_SPEECH);
+        parcel.writeInt(MediaRecorder.AudioSource.AUDIO_SOURCE_INVALID);
+        parcel.writeInt(AudioAttributes.FLAG_MUTE_HAPTIC);
         parcel.writeInt(AudioAttributes.FLATTEN_TAGS);
-        parcel.writeString(/* mFormattedTags= */ "oem=extension_1979");
-        parcel.writeInt(/* ATTR_PARCEL_IS_NULL_BUNDLE= */ -1977);
+        // mFormattedTags
+        parcel.writeString("oem=extension_1979");
+        // ATTR_PARCEL_IS_NULL_BUNDLE
+        parcel.writeInt(-1977);
 
-        parcel.writeInt(/* nb stream types= */ 0);
+        // nb stream types
+        parcel.writeInt(0);
 
         parcel.setDataPosition(0);
         OEM_GROUP = AudioVolumeGroup.CREATOR.createFromParcel(parcel);
@@ -251,7 +289,7 @@ final class CoreAudioRoutingUtils {
         VOLUME_GROUPS = List.of(MUSIC_GROUP, NAV_GROUP, OEM_GROUP);
 
         AudioAttributes[] oemAttributesArray = { OEM_ATTRIBUTES };
-        AudioAttributes[] musicAttributesArray = { MUSIC_ATTRIBUTES };
+        AudioAttributes[] musicAttributesArray = { MUSIC_ATTRIBUTES, MOVIE_ATTRIBUTES };
         AudioAttributes[] navAttributesArray = { NAV_ATTRIBUTES };
 
         MEDIA_CONTEXT_INFO = new CarAudioContextInfo(musicAttributesArray, MUSIC_CONTEXT_NAME,
@@ -266,15 +304,15 @@ final class CoreAudioRoutingUtils {
         throw new UnsupportedOperationException("CoreAudioRoutingUtils class is non instantiable");
     }
 
-    static List<AudioVolumeGroup> getVolumeGroups() {
+    public static List<AudioVolumeGroup> getVolumeGroups() {
         return VOLUME_GROUPS;
     }
 
-    static List<AudioProductStrategy> getProductStrategies() {
+    public static List<AudioProductStrategy> getProductStrategies() {
         return PRODUCT_STRATEGIES;
     }
 
-    static List<CarAudioContextInfo> getCarAudioContextInfos() {
+    public static List<CarAudioContextInfo> getCarAudioContextInfos() {
         List<CarAudioContextInfo> carAudioContextInfos = new ArrayList<>(3);
 
         carAudioContextInfos.add(MEDIA_CONTEXT_INFO);

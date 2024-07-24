@@ -23,9 +23,8 @@ import static org.junit.Assume.assumeTrue;
 import android.car.Car;
 import android.car.diagnostic.CarDiagnosticEvent;
 import android.car.diagnostic.CarDiagnosticManager;
-import android.car.test.ApiCheckerRule.Builder;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.util.Log;
+
+import androidx.test.filters.MediumTest;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -36,13 +35,6 @@ public final class CarDiagnosticManagerTest extends CarApiTestBase {
     private static final String TAG = CarDiagnosticManagerTest.class.getSimpleName();
 
     private CarDiagnosticManager mCarDiagnosticManager;
-
-    // TODO(b/242350638): add missing annotations, remove (on child bug of 242350638)
-    @Override
-    protected void configApiCheckerRule(Builder builder) {
-        Log.w(TAG, "Disabling API requirements check");
-        builder.disableAnnotationsCheck();
-    }
 
     @Before
     public void setUp() throws Exception {

@@ -26,11 +26,13 @@
     <!-- Permission to manage USB -->
     <uses-permission android:name="android.permission.MANAGE_USB"/>
 
+    <!-- Permissions to support autoenhance -->
+    <uses-permission android:name="android.car.permission.QUERY_DISPLAY_COMPATIBILITY"/>
+
     <application
         android:label="@string/app_title"
         android:theme="@style/Theme.CarUi.NoToolbar"
         tools:replace="android:label,android:theme"
-        android:directBootAware="true"
         tools:node="merge">
 
         <activity
@@ -70,7 +72,6 @@
             </intent-filter>
         </activity>
 
-        <service android:name="com.android.car.carlauncher.recents.CarQuickStepService"/>
         <activity
             android:name=".recents.PortraitCarRecentsActivity"
             android:excludeFromRecents="true"
@@ -84,6 +85,32 @@
                 <action android:name="com.android.car.carlauncher.recents.OPEN_RECENT_TASK_ACTION"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name="com.android.car.carlauncher.calmmode.CalmModeActivity"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <!-- Disable the CalmModeActivity from CarLauncher as we don't want that in portrait
+                 launcher. -->
+            <intent-filter tools:node="removeAll" />
+        </activity>
+        <activity android:name=".calmmode.CalmModeActivity"
+            android:theme="@style/Theme.CalmMode"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleInstance">
+            <intent-filter>
+                <action android:name="com.android.settings.action.EXTRA_SETTINGS"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <meta-data
+                android:name="com.android.settings.title"
+                android:resource="@string/calm_mode_title"/>
+            <meta-data
+                android:name="com.android.settings.category"
+                android:value="com.android.settings.category.ia.display"/>
         </activity>
     </application>
 </manifest>

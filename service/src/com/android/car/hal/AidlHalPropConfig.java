@@ -16,10 +16,12 @@
 
 package com.android.car.hal;
 
+import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.hardware.automotive.vehicle.VehicleAreaConfig;
 import android.hardware.automotive.vehicle.VehiclePropConfig;
+import android.hardware.automotive.vehicle.VehiclePropertyAccess;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
@@ -27,20 +29,32 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
  * AidlHalPropConfig is a HalPropConfig with an AIDL backend.
  */
 public final class AidlHalPropConfig extends HalPropConfig {
+    private static final VehicleAreaConfig[] sEmptyAreaConfig = new VehicleAreaConfig[0];
+
     private final VehiclePropConfig mConfig;
+    private final HalAreaConfig[] mAreaConfigs;
 
     public AidlHalPropConfig(VehiclePropConfig config) {
         mConfig = config;
 
         // Do some validity checks to make sure we do not return null for get functions.
         if (mConfig.areaConfigs == null) {
-            mConfig.areaConfigs = new VehicleAreaConfig[0];
+            mConfig.areaConfigs = sEmptyAreaConfig;
         }
         if (mConfig.configString == null) {
-            mConfig.configString = new String();
+            mConfig.configString = "";
         }
         if (mConfig.configArray == null) {
-            mConfig.configArray = new int[0];
+            mConfig.configArray = EMPTY_INT_ARRAY;
+        }
+
+        int size = mConfig.areaConfigs.length;
+        mAreaConfigs = new HalAreaConfig[size];
+        for (int i = 0; i < size; i++) {
+            if (mConfig.areaConfigs[i].access == VehiclePropertyAccess.NONE) {
+                mConfig.areaConfigs[i].access = mConfig.access;
+            }
+            mAreaConfigs[i] = new AidlHalAreaConfig(mConfig.areaConfigs[i]);
         }
     }
 
@@ -73,12 +87,7 @@ public final class AidlHalPropConfig extends HalPropConfig {
      */
     @Override
     public HalAreaConfig[] getAreaConfigs() {
-        int size = mConfig.areaConfigs.length;
-        HalAreaConfig[] areaConfigs = new HalAreaConfig[size];
-        for (int i = 0; i < size; i++) {
-            areaConfigs[i] = new AidlHalAreaConfig(mConfig.areaConfigs[i]);
-        }
-        return areaConfigs;
+        return mAreaConfigs;
     }
 
     /**

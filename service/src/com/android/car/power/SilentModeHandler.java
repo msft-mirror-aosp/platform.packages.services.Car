@@ -21,12 +21,16 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DU
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
+import android.car.feature.FeatureFlags;
+import android.car.feature.FeatureFlagsImpl;
 import android.os.FileObserver;
 import android.os.SystemProperties;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarLog;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.power.CarPowerDumpProto.SilentModeHandlerProto;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -90,12 +94,16 @@ final class SilentModeHandler {
     @GuardedBy("mLock")
     private boolean mForcedMode;
 
+    // Allows for injecting feature flag values during testing
+    private FeatureFlags mFeatureFlags = new FeatureFlagsImpl();
+
     @VisibleForTesting
-    SilentModeHandler(@NonNull CarPowerManagementService service,
+    SilentModeHandler(@NonNull CarPowerManagementService service, FeatureFlags featureFlags,
             @Nullable String hwStateMonitoringFileName, @Nullable String kernelSilentModeFileName,
             @Nullable String bootReason) {
         Objects.requireNonNull(service, "CarPowerManagementService must not be null");
         mService = service;
+        mFeatureFlags = featureFlags;
         String sysfsDir = searchForSysfsDir();
         mHwStateMonitoringFileName = hwStateMonitoringFileName == null
                 ? sysfsDir + SYSFS_FILENAME_HW_STATE_MONITORING : hwStateMonitoringFileName;
@@ -130,7 +138,9 @@ final class SilentModeHandler {
         }
         if (forcedMode) {
             updateKernelSilentMode(silentMode);
-            mService.notifySilentModeChange(silentMode);
+            if (!mFeatureFlags.carPowerPolicyRefactoring()) {
+                mService.notifySilentModeChange(silentMode);
+            }
             Slogf.i(TAG, "Now in forced mode: monitoring %s is disabled",
                     mHwStateMonitoringFileName);
         } else {
@@ -152,6 +162,23 @@ final class SilentModeHandler {
             writer.printf("Monitoring HW state signal: %b\n", mFileObserver != null);
             writer.printf("Silent mode by HW state signal: %b\n", mSilentModeByHwState);
             writer.printf("Forced silent mode: %b\n", mForcedMode);
+        }
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    void dumpProto(ProtoOutputStream proto) {
+        synchronized (mLock) {
+            long silentModeHandlerToken = proto.start(
+                    CarPowerDumpProto.SILENT_MODE_HANDLER);
+            proto.write(SilentModeHandlerProto.HW_STATE_MONITORING_FILE_NAME,
+                    mHwStateMonitoringFileName);
+            proto.write(SilentModeHandlerProto.KERNEL_SILENT_MODE_FILE_NAME,
+                    mKernelSilentModeFileName);
+            proto.write(
+                    SilentModeHandlerProto.IS_MONITORING_HW_STATE_SIGNAL, mFileObserver != null);
+            proto.write(SilentModeHandlerProto.SILENT_MODE_BY_HW_STATE, mSilentModeByHwState);
+            proto.write(SilentModeHandlerProto.FORCED_SILENT_MODE, mForcedMode);
+            proto.end(silentModeHandlerToken);
         }
     }
 
@@ -214,7 +241,9 @@ final class SilentModeHandler {
         }
         if (updated) {
             updateKernelSilentMode(silentMode);
-            mService.notifySilentModeChange(silentMode);
+            if (!mFeatureFlags.carPowerPolicyRefactoring()) {
+                mService.notifySilentModeChange(silentMode);
+            }
         }
         Slogf.i(TAG, "Now in forced %s mode: monitoring %s is disabled",
                 silentMode ? "silent" : "non-silent", mHwStateMonitoringFileName);
@@ -267,7 +296,9 @@ final class SilentModeHandler {
                 }
                 if (newSilentMode != oldSilentMode) {
                     updateKernelSilentMode(newSilentMode);
-                    mService.notifySilentModeChange(newSilentMode);
+                    if (!mFeatureFlags.carPowerPolicyRefactoring()) {
+                        mService.notifySilentModeChange(newSilentMode);
+                    }
                 }
             }
         };

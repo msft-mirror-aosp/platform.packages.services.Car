@@ -15,6 +15,7 @@
 // Privapp permission allowlist files
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -143,6 +144,7 @@ prebuilt_etc {
     sub_dir: "permissions",
     src: "com.android.car.bugreport.xml",
     filename_from_src: true,
+    system_ext_specific: true,
 }
 
 prebuilt_etc {
@@ -250,6 +252,7 @@ prebuilt_etc {
     sub_dir: "permissions",
     src: "com.android.car.multidisplay.xml",
     filename_from_src: true,
+    system_ext_specific: true,
 }
 
 prebuilt_etc {
@@ -270,5 +273,13 @@ prebuilt_etc {
     name: "allowed_privapp_com.google.android.car.multidisplaytest",
     sub_dir: "permissions",
     src: "com.google.android.car.multidisplaytest.xml",
+    filename_from_src: true,
+    system_ext_specific: true,
+}
+
+prebuilt_etc {
+    name: "allowed_privapp_com.android.car.appgrid.test",
+    sub_dir: "permissions",
+    src: "com.android.car.appgrid.test.xml",
     filename_from_src: true,
 }

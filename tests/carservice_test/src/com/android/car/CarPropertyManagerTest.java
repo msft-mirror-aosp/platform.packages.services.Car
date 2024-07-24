@@ -143,9 +143,6 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             0x1103 | VehiclePropertyGroup.VENDOR | VehiclePropertyType.INT32_VEC
                     | VehicleArea.GLOBAL;
     private static final Integer[] FAKE_INT_ARRAY_VALUE = {1, 2};
-    private static final boolean FAKE_BOOLEAN_PROPERTY_VALUE = true;
-    private static final float FAKE_FLOAT_PROPERTY_VALUE = 3f;
-    private static final int FAKE_INT_PROPERTY_VALUE = 3;
 
     // A property that always returns null to simulate an unavailable property.
     private static final int NULL_VALUE_PROP =
@@ -223,7 +220,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             | VehicleAreaSeat.ROW_2_RIGHT;
     private static final float INIT_TEMP_VALUE = 16f;
     private static final float CHANGED_TEMP_VALUE = 20f;
-    private static final int CALLBACK_SHORT_TIMEOUT_MS = 350; // ms
+    private static final int CALLBACK_SHORT_TIMEOUT_MS = 1000; // ms
     // Wait for CarPropertyManager register/unregister listener
     private static final long WAIT_FOR_NO_EVENTS = 50;
     private static final int VENDOR_CODE_FOR_NOT_AVAILABLE = 0x00ab;
@@ -232,14 +229,6 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             | VehicleHalStatusCode.STATUS_NOT_AVAILABLE;
     private static final int INTERNAL_ERROR_WITH_VENDOR_CODE = VENDOR_CODE_FOR_INTERNAL_ERROR << 16
             | VehicleHalStatusCode.STATUS_INTERNAL_ERROR;
-
-    private static final List<Integer> USER_HAL_PROPERTIES = Arrays.asList(
-            VehiclePropertyIds.INITIAL_USER_INFO,
-            VehiclePropertyIds.SWITCH_USER,
-            VehiclePropertyIds.CREATE_USER,
-            VehiclePropertyIds.REMOVE_USER,
-            VehiclePropertyIds.USER_IDENTIFICATION_ASSOCIATION
-    );
 
     private CarPropertyManager mManager;
 
@@ -274,6 +263,9 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
             getContext().getApplicationInfo().targetSdkVersion = Build.VERSION_CODES.R;
         } else if (mTestName.getMethodName().endsWith("AfterS")) {
             getContext().getApplicationInfo().targetSdkVersion = Build.VERSION_CODES.S;
+        } else if (mTestName.getMethodName().endsWith("AfterU")) {
+            getContext().getApplicationInfo().targetSdkVersion =
+                    Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
         }
     }
 
@@ -321,6 +313,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 case VehiclePropertyIds.FUEL_DOOR_OPEN:
                 case VehiclePropertyIds.EPOCH_TIME:
                 case PROP_ERROR_EVENT_NOT_AVAILABLE_DISABLED:
+                case VehiclePropertyIds.DISTANCE_DISPLAY_UNITS:
                     break;
                 default:
                     Assert.fail("Unexpected CarPropertyConfig: " + cfg);
@@ -569,6 +562,111 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 VehicleAreaSeat.ROW_1_LEFT));
     }
 
+    // subscribePropertyEvents will throw SecurityException when the caller does not have read
+    // or write permission.
+    @Test
+    public void testSubscribePropertyEvents_noReadOrWritePermission() throws Exception {
+        // FUEL_DOOR_OPEN requires either Car.PERMISSION_ENERGY_PORTS or
+        // Car.PERMISSION_CONTROL_ENERGY_PORTS for read.
+        int propId = VehiclePropertyIds.FUEL_DOOR_OPEN;
+        ((MockedCarTestContext) getContext()).setDeniedPermissions(
+                new String[]{Car.PERMISSION_ENERGY_PORTS, Car.PERMISSION_CONTROL_ENERGY_PORTS});
+
+        TestCallback callback = new TestCallback(/* initValueCount= */ 0,
+                /* changeEventCount= */ 0, /* errorEventCount= */ 0);
+
+        assertThrows(SecurityException.class, () -> mManager.subscribePropertyEvents(
+                propId, callback));
+    }
+
+    // subscribePropertyEvents will throw SecurityException when the caller only has write
+    // permission.
+    @Test
+    public void testSubscribePropertyEvents_onlyWritePermission() throws Exception {
+        // DISTANCE_DISPLAY_UNITS requires Car.PERMISSION_READ_DISPLAY_UNITS for read.
+        // Car.PERMISSION_CONTROL_DISPLAY_UNITS and Car.PERMISSION_VENDOR_EXTENSION for write.
+        int propId = VehiclePropertyIds.DISTANCE_DISPLAY_UNITS;
+        ((MockedCarTestContext) getContext()).setDeniedPermissions(
+                new String[]{Car.PERMISSION_READ_DISPLAY_UNITS});
+
+        TestCallback callback = new TestCallback(/* initValueCount= */ 0,
+                /* changeEventCount= */ 0, /* errorEventCount= */ 0);
+
+        assertThrows(SecurityException.class, () -> mManager.subscribePropertyEvents(
+                propId, callback));
+    }
+
+    // subscribePropertyEvents will throw IllegalArgumentException when the property is not
+    // supported.
+    @Test
+    public void testSubscribePropertyEvents_unsupportedProperty() throws Exception {
+        TestCallback callback = new TestCallback(/* initValueCount= */ 0,
+                /* changeEventCount= */ 0, /* errorEventCount= */ 0);
+
+        // EV_BATTERY_LEVEL is not supported by mocked VHAL.
+        assertThrows(IllegalArgumentException.class, () -> mManager.subscribePropertyEvents(
+                VehiclePropertyIds.EV_BATTERY_LEVEL, callback));
+    }
+
+    // subscribePropertyEvents will throw IllegalArgumentException when the property is not
+    // supported even when the client does not have read permission.
+    @Test
+    public void testSubscribePropertyEvents_unsupportedProperty_noPermission() throws Exception {
+        ((MockedCarTestContext) getContext()).setDeniedPermissions(
+                new String[]{Car.PERMISSION_ENERGY});
+        TestCallback callback = new TestCallback(/* initValueCount= */ 0,
+                /* changeEventCount= */ 0, /* errorEventCount= */ 0);
+
+        // EV_BATTERY_LEVEL is not supported by mocked VHAL.
+        assertThrows(IllegalArgumentException.class, () -> mManager.subscribePropertyEvents(
+                VehiclePropertyIds.EV_BATTERY_LEVEL, callback));
+    }
+
+    // registerCallback will return False when caller does not have read or write permission.
+    @Test
+    public void testRegisterCallback_noReadOrWritePermission() throws Exception {
+        // FUEL_DOOR_OPEN requires either Car.PERMISSION_ENERGY_PORTS or
+        // Car.PERMISSION_CONTROL_ENERGY_PORTS for read.
+        int propId = VehiclePropertyIds.FUEL_DOOR_OPEN;
+        ((MockedCarTestContext) getContext()).setDeniedPermissions(
+                new String[]{Car.PERMISSION_ENERGY_PORTS, Car.PERMISSION_CONTROL_ENERGY_PORTS});
+
+        TestCallback callback = new TestCallback(/* initValueCount= */ 0,
+                /* changeEventCount= */ 0, /* errorEventCount= */ 0);
+
+        assertThat(mManager.registerCallback(
+                callback, propId, CarPropertyManager.SENSOR_RATE_ONCHANGE)).isFalse();
+    }
+
+    // registerCallback will return False when the property is not supported.
+    @Test
+    public void testRegisterCallback_unsupportedProperty() throws Exception {
+        TestCallback callback = new TestCallback(/* initValueCount= */ 0,
+                /* changeEventCount= */ 0, /* errorEventCount= */ 0);
+
+        // EV_BATTERY_LEVEL is not supported by mocked VHAL.
+        assertThat(mManager.registerCallback(
+                callback, VehiclePropertyIds.EV_BATTERY_LEVEL,
+                CarPropertyManager.SENSOR_RATE_ONCHANGE)).isFalse();
+    }
+
+    // registerCallback with a supported property with only the write permission will throw
+    // SecurityException.
+    @Test
+    public void testRegisterCallback_onlyWritePermission() throws Exception {
+        // DISTANCE_DISPLAY_UNITS requires Car.PERMISSION_READ_DISPLAY_UNITS for read.
+        // Car.PERMISSION_CONTROL_DISPLAY_UNITS and Car.PERMISSION_VENDOR_EXTENSION for write.
+        int propId = VehiclePropertyIds.DISTANCE_DISPLAY_UNITS;
+        ((MockedCarTestContext) getContext()).setDeniedPermissions(
+                new String[]{Car.PERMISSION_READ_DISPLAY_UNITS});
+
+        TestCallback callback = new TestCallback(/* initValueCount= */ 0,
+                /* changeEventCount= */ 0, /* errorEventCount= */ 0);
+
+        assertThrows(SecurityException.class, () -> mManager.registerCallback(
+                callback, propId, CarPropertyManager.SENSOR_RATE_ONCHANGE));
+    }
+
     @Test
     public void testRegisterPropertyGetInitialValueHandleNotAvailableStatusCode() throws Exception {
         TestCallback callback = new TestCallback(/* initValueCount= */ 1,
@@ -626,7 +724,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
 
         // We should not receive any initial value event.
         assertThrows(IllegalStateException.class, () -> callback.assertRegisterCompleted(
-                /* timeoutInMs=*/ 1000));
+                /* timeoutMs= */ 1000));
     }
 
     @Test
@@ -639,7 +737,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
 
         // We should not receive any initial value event.
         assertThrows(IllegalStateException.class, () -> callback.assertRegisterCompleted(
-                /* timeoutInMs=*/ 1000));
+                /* timeoutMs= */ 1000));
     }
 
     @Test
@@ -752,10 +850,9 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         assertThrows(IllegalStateException.class,
                 () -> mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_ACCESS_DENIED, 0));
 
-        assertThrows(IllegalArgumentException.class,
-                () -> mManager.getProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0));
-        assertThrows(IllegalArgumentException.class,
-                () -> mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0));
+        assertThat(mManager.getProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0)).isNull();
+        assertThat(mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0)).isEqualTo(0);
+        assertThat(mManager.getProperty(PROP_UNSUPPORTED, 0)).isNull();
 
         assertThrows(IllegalStateException.class,
                 () -> mManager.getProperty(PROP_CAUSE_STATUS_CODE_NOT_AVAILABLE, 0));
@@ -785,10 +882,10 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 () -> mManager.getProperty(PROP_CAUSE_STATUS_CODE_ACCESS_DENIED, 0));
         assertThrows(PropertyAccessDeniedSecurityException.class,
                 () -> mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_ACCESS_DENIED, 0));
-        assertThrows(IllegalArgumentException.class,
-                () -> mManager.getProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0));
-        assertThrows(IllegalArgumentException.class,
-                () -> mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0));
+
+        assertThat(mManager.getProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0)).isNull();
+        assertThat(mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0)).isEqualTo(0);
+        assertThat(mManager.getProperty(PROP_UNSUPPORTED, 0)).isNull();
 
         assertThrows(PropertyNotAvailableAndRetryException.class,
                 () -> mManager.getProperty(PROP_CAUSE_STATUS_CODE_TRY_AGAIN, 0));
@@ -809,10 +906,21 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
                 () -> mManager.getProperty(NULL_VALUE_PROP, 0));
         assertThrows(PropertyNotAvailableException.class,
                 () -> mManager.getIntProperty(NULL_VALUE_PROP, 0));
-        assertThrows(IllegalArgumentException.class,
-                () -> mManager.getProperty(PROP_UNSUPPORTED, 0));
         assertThrows(PropertyNotAvailableException.class,
                 () -> mManager.getIntProperty(NULL_VALUE_PROP, 0));
+    }
+
+    @Test
+    public void testGetter_notSupportedPropertyAfterU() {
+        Truth.assertThat(getContext().getApplicationInfo().targetSdkVersion)
+                .isAtLeast(Build.VERSION_CODES.UPSIDE_DOWN_CAKE);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> mManager.getProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> mManager.getIntProperty(PROP_CAUSE_STATUS_CODE_INVALID_ARG, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> mManager.getProperty(PROP_UNSUPPORTED, 0));
     }
 
     @Test
@@ -975,7 +1083,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         long wheelLeftFrontTimestampNanos = Duration.ofSeconds(1).toNanos();
 
         float notNewEnoughWheelLeftFrontValue = 22.22f;
-        long notNewEnoughWheelLeftFrontTimestampNanos = Duration.ofMillis(1999).toNanos();
+        long notNewEnoughWheelLeftFrontTimestampNanos = Duration.ofMillis(1899).toNanos();
 
         float newEnoughWheelLeftFrontValue = 33.33f;
         long newEnoughWheelLeftFrontTimestampNanos = Duration.ofSeconds(2).toNanos();
@@ -1374,6 +1482,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         tempValue.value = new RawPropValues();
         tempValue.value.floatValues = new float[]{INIT_TEMP_VALUE};
         tempValue.prop = VehicleProperty.HVAC_TEMPERATURE_SET;
+        tempValue.areaId = DRIVER_SIDE_AREA_ID;
         addAidlProperty(VehicleProperty.HVAC_TEMPERATURE_SET, tempValue)
                 .addAreaConfig(DRIVER_SIDE_AREA_ID, /* minValue = */ 10, /* maxValue = */ 20)
                 .addAreaConfig(PASSENGER_SIDE_AREA_ID, /* minValue = */ 10, /* maxValue = */ 20);
@@ -1421,6 +1530,7 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         addAidlProperty(PROP_WITH_WRITE_ONLY_PERMISSION, handler);
 
         addAidlProperty(PROP_UNSUPPORTED, handler);
+        addAidlProperty(VehicleProperty.DISTANCE_DISPLAY_UNITS);
     }
 
     private class PropertyHandler implements VehicleHalPropertyHandler {
@@ -1494,10 +1604,6 @@ public class CarPropertyManagerTest extends MockedCarTestBase {
         public synchronized void onPropertyUnsubscribe(int property) {
             Log.d(TAG, "onPropertyUnSubscribe property " + property);
         }
-    }
-
-    private static String propToString(int propertyId) {
-        return VehiclePropertyIds.toString(propertyId) + " (" + propertyId + ")";
     }
 
     private static int mapPropertyToVhalStatusCode(int propId) {

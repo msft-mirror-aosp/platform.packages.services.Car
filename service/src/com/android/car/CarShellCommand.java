@@ -22,6 +22,7 @@ import static android.car.Car.PERMISSION_CONTROL_CAR_POWER_POLICY;
 import static android.car.Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG;
 import static android.car.Car.PERMISSION_USE_CAR_WATCHDOG;
 import static android.car.VehicleAreaSeat.SEAT_UNKNOWN;
+import static android.car.settings.CarSettings.Global.FORCED_DAY_NIGHT_MODE;
 import static android.car.telemetry.CarTelemetryManager.STATUS_ADD_METRICS_CONFIG_SUCCEEDED;
 import static android.hardware.automotive.vehicle.UserIdentificationAssociationSetValue.ASSOCIATE_CURRENT_USER;
 import static android.hardware.automotive.vehicle.UserIdentificationAssociationSetValue.DISASSOCIATE_ALL_USERS;
@@ -34,6 +35,9 @@ import static android.hardware.automotive.vehicle.UserIdentificationAssociationT
 import static android.media.AudioManager.FLAG_SHOW_UI;
 
 import static com.android.car.CarServiceUtils.toIntArray;
+import static com.android.car.hal.property.HalPropertyDebugUtils.toAreaIdString;
+import static com.android.car.hal.property.HalPropertyDebugUtils.toPropertyIdString;
+import static com.android.car.hal.property.HalPropertyDebugUtils.toPropertyId;
 import static com.android.car.power.PolicyReader.POWER_STATE_ON;
 import static com.android.car.power.PolicyReader.POWER_STATE_WAIT_FOR_VHAL;
 
@@ -54,6 +58,8 @@ import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.widget.LockPatternHelper;
 import android.car.content.pm.CarPackageManager;
+import android.car.drivingstate.CarUxRestrictions;
+import android.car.feature.Flags;
 import android.car.input.CarInputManager;
 import android.car.input.CustomInputEvent;
 import android.car.input.RotaryEvent;
@@ -110,6 +116,7 @@ import android.os.ServiceSpecificException;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.SparseArray;
@@ -142,6 +149,7 @@ import com.android.car.telemetry.util.IoUtils;
 import com.android.car.user.CarUserService;
 import com.android.car.user.UserHandleHelper;
 import com.android.car.watchdog.CarWatchdogService;
+import com.android.car.wifi.CarWifiService;
 import com.android.internal.util.Preconditions;
 import com.android.modules.utils.BasicShellCommandHandler;
 
@@ -155,6 +163,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -299,6 +308,13 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String COMMAND_GENERATE_TEST_VENDOR_CONFIGS = "gen-test-vendor-configs";
     private static final String COMMAND_RESTORE_TEST_VENDOR_CONFIGS = "restore-vendor-configs";
 
+    private static final String COMMAND_GET_TETHERING_CAPABILITY = "get-tethering-capability";
+
+    private static final String COMMAND_GET_CURRENT_UX_RESTRICTIONS = "get-current-ux-restrictions";
+    private static final String COMMAND_SET_CURRENT_UXR_MODE = "set-current-uxr-mode";
+    private static final String COMMAND_GET_CURRENT_UXR_MODE = "get-current-uxr-mode";
+    private static final String COMMAND_GET_SUPPORTED_UXR_MODES = "get-supported-uxr-modes";
+    private static final String COMMAND_GET_UXR_CONFIG = "get-uxr-config";
 
     private static final String[] CREATE_OR_MANAGE_USERS_PERMISSIONS = new String[] {
             android.Manifest.permission.CREATE_USERS,
@@ -411,10 +427,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String PARAM_DAY_MODE = "day";
     private static final String PARAM_NIGHT_MODE = "night";
     private static final String PARAM_SENSOR_MODE = "sensor";
-    private static final String PARAM_VEHICLE_PROPERTY_AREA_GLOBAL = "0";
+    private static final String PARAM_VEHICLE_PROPERTY_GLOBAL_AREA_ID = "0";
     private static final String PARAM_INJECT_EVENT_DEFAULT_RATE = "10";
     private static final String PARAM_INJECT_EVENT_DEFAULT_DURATION = "60";
-    private static final String PARAM_ALL_PROPERTIES_OR_AREA = "-1";
+    private static final String PARAM_ALL_PROPERTIES_OR_AREA_IDS = "-1";
     private static final String PARAM_ON_MODE = "on";
     private static final String PARAM_OFF_MODE = "off";
     private static final String PARAM_QUERY_MODE = "query";
@@ -528,46 +544,44 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private final CarEvsService mCarEvsService;
     private final CarWatchdogService mCarWatchdogService;
     private final CarTelemetryService mCarTelemetryService;
+    private final CarUxRestrictionsManagerService mCarUxRestrictionsManagerService;
+    private final CarWifiService mCarWifiService;
+    private final Map<Class, CarSystemService> mAllServicesByClazz;
     private long mKeyDownTime;
     private long mMotionDownTime;
     private ServiceConnection mScriptExecutorConn;
     private IScriptExecutor mScriptExecutor;
     private AudioZoneMirrorStatusCallbackImpl mMirrorStatusCallback;
 
-    CarShellCommand(Context context,
-            VehicleHal hal,
-            CarAudioService carAudioService,
-            CarPackageManagerService carPackageManagerService,
-            CarProjectionService carProjectionService,
-            CarPowerManagementService carPowerManagementService,
-            FixedActivityService fixedActivityService,
-            CarFeatureController featureController,
-            CarInputService carInputService,
-            CarNightService carNightService,
-            SystemInterface systemInterface,
-            GarageModeService garageModeService,
-            CarUserService carUserService,
-            CarOccupantZoneService carOccupantZoneService,
-            CarEvsService carEvsService,
-            CarWatchdogService carWatchdogService,
-            CarTelemetryService carTelemetryService) {
+    CarShellCommand(Context context, VehicleHal hal, CarFeatureController featureController,
+            SystemInterface systemInterface, Map<Class, CarSystemService> allServicesByClazz) {
         mContext = context;
         mHal = hal;
-        mCarAudioService = carAudioService;
-        mCarPackageManagerService = carPackageManagerService;
-        mCarProjectionService = carProjectionService;
-        mCarPowerManagementService = carPowerManagementService;
-        mFixedActivityService = fixedActivityService;
         mFeatureController = featureController;
-        mCarInputService = carInputService;
-        mCarNightService = carNightService;
         mSystemInterface = systemInterface;
-        mGarageModeService = garageModeService;
-        mCarUserService = carUserService;
-        mCarOccupantZoneService = carOccupantZoneService;
-        mCarEvsService = carEvsService;
-        mCarWatchdogService = carWatchdogService;
-        mCarTelemetryService = carTelemetryService;
+        mCarAudioService = (CarAudioService) allServicesByClazz.get(CarAudioService.class);
+        mCarPackageManagerService = (CarPackageManagerService) allServicesByClazz.get(
+                CarPackageManagerService.class);
+        mCarProjectionService = (CarProjectionService) allServicesByClazz.get(
+                CarProjectionService.class);
+        mCarPowerManagementService = (CarPowerManagementService) allServicesByClazz.get(
+                CarPowerManagementService.class);
+        mFixedActivityService = (FixedActivityService) allServicesByClazz.get(
+                FixedActivityService.class);
+        mCarInputService = (CarInputService) allServicesByClazz.get(CarInputService.class);
+        mCarNightService = (CarNightService) allServicesByClazz.get(CarNightService.class);
+        mGarageModeService = (GarageModeService) allServicesByClazz.get(GarageModeService.class);
+        mCarUserService = (CarUserService) allServicesByClazz.get(CarUserService.class);
+        mCarOccupantZoneService = (CarOccupantZoneService)
+                allServicesByClazz.get(CarOccupantZoneService.class);
+        mCarEvsService = (CarEvsService) allServicesByClazz.get(CarEvsService.class);
+        mCarWatchdogService = (CarWatchdogService) allServicesByClazz.get(CarWatchdogService.class);
+        mCarTelemetryService = (CarTelemetryService)
+                allServicesByClazz.get(CarTelemetryService.class);
+        mCarUxRestrictionsManagerService = (CarUxRestrictionsManagerService)
+                allServicesByClazz.get(CarUxRestrictionsManagerService.class);
+        mCarWifiService = (CarWifiService) allServicesByClazz.get(CarWifiService.class);
+        mAllServicesByClazz = allServicesByClazz;
     }
 
     @Override
@@ -605,9 +619,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t  Print this help text.");
         pw.println("\tday-night-mode [day|night|sensor]");
         pw.println("\t  Force into day/night mode or restore to auto.");
-        pw.println("\tinject-vhal-event <PROPERTY_ID in Hex or Decimal> [zone] "
-                + "data(can be comma separated list) "
-                + "[-t delay_time_seconds]");
+        pw.println("\tinject-vhal-event <property name in SCREAMING_SNAKE_CASE or ID in Hex or "
+                + "Decimal> [area ID] data(can be comma separated list) [-t delay_time_seconds]");
         pw.println("\t  Inject a vehicle property for testing.");
         pw.println("\t  delay_time_seconds: the event timestamp is increased by certain second.");
         pw.println("\t  If not specified, it will be 0.");
@@ -618,7 +631,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 + "[-z zone]  [-s SampleRate in Hz] [-d time duration in seconds]");
         pw.println("\t  Inject continuous vehicle events for testing.");
         pw.printf("\t  If not specified, CarService will inject fake events with areaId:%s "
-                        + "at sample rate %s for %s seconds.", PARAM_VEHICLE_PROPERTY_AREA_GLOBAL,
+                        + "at sample rate %s for %s seconds.",
+                PARAM_VEHICLE_PROPERTY_GLOBAL_AREA_ID,
                 PARAM_INJECT_EVENT_DEFAULT_RATE, PARAM_INJECT_EVENT_DEFAULT_DURATION);
         pw.println("\tenable-uxr true|false");
         pw.println("\t  Enable/Disable UX restrictions and App blocking.");
@@ -627,9 +641,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t  With 'reboot', enter garage mode, then reboot when it completes.");
         pw.println("\tget-do-activities pkgname");
         pw.println("\t  Get Distraction Optimized activities in given package.");
-        pw.println("\tget-carpropertyconfig [PROPERTY_ID in Hex or Decimal]");
-        pw.println("\t  Get a CarPropertyConfig by Id or list all CarPropertyConfigs");
-        pw.println("\tget-property-value [PROPERTY_ID in Hex or Decimal] [areaId]");
+        pw.println("\tget-carpropertyconfig [property name in SCREAMING_SNAKE_CASE or ID in Hex or"
+                + " Decimal]");
+        pw.println("\t  Get a specific CarPropertyConfig or list all CarPropertyConfigs");
+        pw.println("\tget-property-value [property name in SCREAMING_SNAKE_CASE or ID in Hex or "
+                + "Decimal] [areaId]");
         pw.println("\t  Get a vehicle property value by property id and areaId");
         pw.println("\t  or list all property values for all areaId");
         pw.printf("\t%s\n", getSetPropertyValueUsage());
@@ -762,9 +778,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t  it will use a  default value).");
         pw.println("\t  The --hal-only option only calls HAL, without using CarUserService.");
 
-        pw.printf("\t%s <USER_ID> [--hal-only] [--timeout TIMEOUT_MS]\n", COMMAND_SWITCH_USER);
+        pw.printf("\t%s <USER_ID> [--hal-only] [--ignore-uxr] [--timeout TIMEOUT_MS]\n",
+                COMMAND_SWITCH_USER);
         pw.println("\t  Switches to user USER_ID using the HAL integration.");
         pw.println("\t  The --hal-only option only calls HAL, without switching the user,");
+        pw.println("\t  The --ignore-uxr option ignores any Ux restriction regarding user switch,");
         pw.println("\t  while the --timeout defines how long to wait for the response.");
 
         pw.printf("\t%s [--timeout TIMEOUT_MS]\n", COMMAND_LOGOUT_USER);
@@ -941,6 +959,21 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t Gets the display associated to the given user");
         pw.printf("\t%s <DISPLAY>", COMMAND_GET_USER_BY_DISPLAY);
         pw.println("\t Gets the user associated with the given display");
+
+        pw.printf("\t%s <DISPLAY>", COMMAND_GET_CURRENT_UX_RESTRICTIONS);
+        pw.println("\t Gets the current UX restriction on given display. If no display is "
+                + "provided, return current UX restrictions on default display.");
+        pw.printf("\t%s <mode>", COMMAND_SET_CURRENT_UXR_MODE);
+        pw.println("\t Sets current mode for UX restrictions.");
+        pw.printf("\t%s", COMMAND_GET_CURRENT_UXR_MODE);
+        pw.println("\t Gets current mode for UX restrictions.");
+        pw.printf("\t%s", COMMAND_GET_SUPPORTED_UXR_MODES);
+        pw.println("\t Gets all supported UX restrictions modes.");
+        pw.printf("\t%s", COMMAND_GET_UXR_CONFIG);
+        pw.println("\t Gets UX restrictions configuration.");
+
+        pw.printf("\t%s", COMMAND_GET_TETHERING_CAPABILITY);
+        pw.println("\t Gets the current tethering persistence capability.");
     }
 
     private static int showInvalidArguments(IndentingPrintWriter pw) {
@@ -1157,33 +1190,13 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 break;
             }
             case COMMAND_INJECT_VHAL_EVENT:
-                String zone = PARAM_VEHICLE_PROPERTY_AREA_GLOBAL;
-                String data;
-                int argNum = args.length;
-                if (argNum < 3 || argNum > 6) {
-                    return showInvalidArguments(writer);
-                }
-                String delayTime = Objects.equals(args[argNum - 2], "-t") ?  args[argNum - 1] : "0";
-                if (argNum == 4 || argNum == 6) {
-                    // Zoned
-                    zone = args[2];
-                    data = args[3];
-                } else {
-                    // Global
-                    data = args[2];
-                }
-                injectVhalEvent(args[1], zone, data, false, delayTime, writer);
+                injectVhalEvent(args, writer);
                 break;
             case COMMAND_INJECT_CONTINUOUS_EVENT:
                 injectContinuousEvents(args, writer);
                 break;
             case COMMAND_INJECT_ERROR_EVENT:
-                if (args.length != 4) {
-                    return showInvalidArguments(writer);
-                }
-                String errorAreaId = args[2];
-                String errorCode = args[3];
-                injectVhalEvent(args[1], errorAreaId, errorCode, true, "0", writer);
+                injectErrorEvent(args, writer);
                 break;
             case COMMAND_ENABLE_UXR:
                 if (args.length != 2) {
@@ -1191,7 +1204,14 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 }
                 boolean enableBlocking = Boolean.valueOf(args[1]);
                 if (mCarPackageManagerService != null) {
-                    mCarPackageManagerService.setEnableActivityBlocking(enableBlocking);
+                    // Need to clear the binder identity if calling process is root since
+                    // signature will not match with that of car service.
+                    final long identity = Binder.clearCallingIdentity();
+                    try {
+                        mCarPackageManagerService.setEnableActivityBlocking(enableBlocking);
+                    } finally {
+                        Binder.restoreCallingIdentity(identity);
+                    }
                 }
                 break;
             case COMMAND_GET_DO_ACTIVITIES:
@@ -1214,14 +1234,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 }
                 break;
             case COMMAND_GET_CARPROPERTYCONFIG:
-                String propertyId = args.length < 2 ? PARAM_ALL_PROPERTIES_OR_AREA : args[1];
-                mHal.dumpPropertyConfigs(writer, Integer.decode(propertyId));
+                getCarPropertyConfig(args, writer);
                 break;
             case COMMAND_GET_PROPERTY_VALUE:
-                String propId = args.length < 2 ? PARAM_ALL_PROPERTIES_OR_AREA : args[1];
-                String areaId = args.length < 3 ? PARAM_ALL_PROPERTIES_OR_AREA : args[2];
-                mHal.dumpPropertyValueByCommand(writer, Integer.decode(propId),
-                        Integer.decode(areaId));
+                getPropertyValue(args, writer);
                 break;
             case COMMAND_GENERATE_TEST_VENDOR_CONFIGS:
                 try (CarTestService.NativePipe pipe = CarTestService.NativePipe.newPipe()) {
@@ -1242,7 +1258,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 }
                 break;
             case COMMAND_SET_PROPERTY_VALUE:
-                runSetVehiclePropertyValue(args, writer);
+                setPropertyValue(args, writer);
                 break;
             case COMMAND_PROJECTION_UI_MODE:
                 if (args.length != 2) {
@@ -1502,12 +1518,65 @@ final class CarShellCommand extends BasicShellCommandHandler {
             case COMMAND_GET_USER_BY_DISPLAY:
                 getUserByDisplay(args, writer);
                 break;
+            case COMMAND_GET_TETHERING_CAPABILITY:
+                getTetheringCapability(writer);
+                break;
+            case COMMAND_GET_CURRENT_UX_RESTRICTIONS:
+                getCurrentUxRestrictions(args, writer);
+                break;
+            case COMMAND_SET_CURRENT_UXR_MODE:
+                setCurrentUxrMode(args, writer);
+                break;
+            case COMMAND_GET_CURRENT_UXR_MODE:
+                getCurrentUxrMode(args, writer);
+                break;
+            case COMMAND_GET_SUPPORTED_UXR_MODES:
+                getSupportedUxRModes(writer);
+                break;
+            case COMMAND_GET_UXR_CONFIG:
+                getUxrConfig(writer);
+                break;
             default:
                 writer.println("Unknown command: \"" + cmd + "\"");
                 showHelp(writer);
                 return RESULT_ERROR;
         }
         return RESULT_OK;
+    }
+
+    private void getUxrConfig(IndentingPrintWriter writer) {
+        writer.println(mCarUxRestrictionsManagerService.getConfigs());
+    }
+
+    private void getSupportedUxRModes(IndentingPrintWriter writer) {
+        writer.println(mCarUxRestrictionsManagerService.getSupportedRestrictionModes());
+    }
+
+    private void getCurrentUxrMode(String[] args, IndentingPrintWriter writer) {
+        writer.printf("Current Uxr restrictions mode: %s\n",
+                mCarUxRestrictionsManagerService.getRestrictionMode());
+    }
+
+    private void setCurrentUxrMode(String[] args, IndentingPrintWriter writer) {
+        if (args.length < 2) {
+            writer.println("Insufficient number of args");
+            return;
+        }
+
+        String mode = args[1];
+        mCarUxRestrictionsManagerService.setRestrictionMode(mode);
+        writer.printf("Current Uxr restrictions mode set to: %s\n", mode);
+    }
+
+    private void getCurrentUxRestrictions(String[] args, IndentingPrintWriter writer) {
+        int displayId = Display.DEFAULT_DISPLAY;
+        if (args.length == 2) {
+            displayId = Integer.parseInt(args[1]);
+        }
+
+        CarUxRestrictions restrictions = mCarUxRestrictionsManagerService
+                .getCurrentUxRestrictions(displayId);
+        writer.printf("Current Restrictions:\n %s", restrictions.getActiveRestrictionsString());
     }
 
     private void setStartBackgroundUsersOnGarageMode(String[] args, IndentingPrintWriter writer) {
@@ -1607,6 +1676,30 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 break;
         }
         Binder.restoreCallingIdentity(id);
+    }
+
+    private static int decodeAreaId(String areaIdString) {
+        try {
+            return Integer.decode(areaIdString);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException(
+                    "Failed to decode area ID from: " + areaIdString + " - exception: "
+                            + e);
+        }
+    }
+
+    private static int decodePropertyId(String propertyIdString) {
+        if (toPropertyId(propertyIdString) != null) {
+            return toPropertyId(propertyIdString).intValue();
+        }
+
+        try {
+            return Integer.decode(propertyIdString);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException(
+                    "Failed to decode property ID from: " + propertyIdString + " - exception: "
+                            + e);
+        }
     }
 
     private void injectKey(String[] args, IndentingPrintWriter writer) {
@@ -2118,6 +2211,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         int targetUserId = Integer.parseInt(args[1]);
         int timeout = DEFAULT_HAL_TIMEOUT_MS + DEFAULT_CAR_USER_SERVICE_TIMEOUT_MS;
         boolean halOnly = false;
+        boolean ignoreUxr = false;
 
         for (int i = 2; i < args.length; i++) {
             String arg = args[i];
@@ -2127,6 +2221,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
                     break;
                 case "--hal-only":
                     halOnly = true;
+                    break;
+                case "--ignore-uxr":
+                    ignoreUxr = true;
                     break;
                 default:
                     writer.println("Invalid option at index " + i + ": " + arg);
@@ -2182,9 +2279,16 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
         SyncResultCallback<UserSwitchResult> syncResultCallback = new SyncResultCallback<>();
 
-        carUserManager.switchUser(
-                new UserSwitchRequest.Builder(UserHandle.of(targetUserId)).build(), Runnable::run,
-                syncResultCallback);
+        if (ignoreUxr) {
+            carUserManager.switchUserIgnoringUxRestriction(
+                    new UserSwitchRequest.Builder(UserHandle.of(targetUserId)).build(),
+                    Runnable::run, syncResultCallback);
+
+        } else {
+            carUserManager.switchUser(
+                    new UserSwitchRequest.Builder(UserHandle.of(targetUserId)).build(),
+                    Runnable::run, syncResultCallback);
+        }
 
         try {
             showUserSwitchResult(writer, syncResultCallback.get(timeout, TimeUnit.MILLISECONDS));
@@ -2739,22 +2843,27 @@ final class CarShellCommand extends BasicShellCommandHandler {
                         arg, PARAM_DAY_MODE, PARAM_NIGHT_MODE, PARAM_SENSOR_MODE);
                 return;
         }
-        int current = mCarNightService.forceDayNightMode(mode);
-        String currentMode = null;
-        switch (current) {
-            case UiModeManager.MODE_NIGHT_AUTO:
-                currentMode = PARAM_SENSOR_MODE;
-                break;
-            case UiModeManager.MODE_NIGHT_YES:
-                currentMode = PARAM_NIGHT_MODE;
-                break;
-            case UiModeManager.MODE_NIGHT_NO:
-                currentMode = PARAM_DAY_MODE;
-                break;
-            default:
-                break;
+        if (Flags.carNightGlobalSetting()) {
+            Settings.Global.putInt(mContext.getContentResolver(), FORCED_DAY_NIGHT_MODE, mode);
+            writer.println("DayNightMode changed to: " + arg);
+        } else {
+            int current = mCarNightService.forceDayNightMode(mode);
+            String currentMode = null;
+            switch (current) {
+                case UiModeManager.MODE_NIGHT_AUTO:
+                    currentMode = PARAM_SENSOR_MODE;
+                    break;
+                case UiModeManager.MODE_NIGHT_YES:
+                    currentMode = PARAM_NIGHT_MODE;
+                    break;
+                case UiModeManager.MODE_NIGHT_NO:
+                    currentMode = PARAM_DAY_MODE;
+                    break;
+                default:
+                    break;
+            }
+            writer.println("DayNightMode changed to: " + currentMode);
         }
-        writer.println("DayNightMode changed to: " + currentMode);
     }
 
     private void runSuspendCommand(String[] args, IndentingPrintWriter writer) {
@@ -3063,41 +3172,91 @@ final class CarShellCommand extends BasicShellCommandHandler {
     }
 
     /**
-     * Inject a fake  VHAL event
+     * Get config for VHAL property
      *
-     * @param property the Vehicle property Id as defined in the HAL
-     * @param zone     Zone that this event services
-     * @param isErrorEvent indicates the type of event
-     * @param value    Data value of the event
-     * @param delayTime the event timestamp is increased by delayTime
-     * @param writer   IndentingPrintWriter
+     * @param args   the command line arguments to parse for VHAL property details
+     * @param writer IndentingPrintWriter
      */
-    private void injectVhalEvent(String property, String zone, String value,
-            boolean isErrorEvent, String delayTime, IndentingPrintWriter writer) {
-        Slogf.i(TAG, "Injecting VHAL event: prop="  + property + ", zone=" + zone + ", value="
-                + value + ", isError=" + isErrorEvent
-                + (TextUtils.isEmpty(delayTime) ?  "" : ", delayTime=" + delayTime));
-        if (zone.equalsIgnoreCase(PARAM_VEHICLE_PROPERTY_AREA_GLOBAL)) {
-            if (!isPropertyAreaTypeGlobal(property)) {
-                writer.printf("Property area type inconsistent with given zone: %s \n", zone);
+    private void getCarPropertyConfig(String[] args, IndentingPrintWriter writer) {
+        String propertyIdString = args.length < 2 ? PARAM_ALL_PROPERTIES_OR_AREA_IDS : args[1];
+        mHal.dumpPropertyConfigs(writer, decodePropertyId(propertyIdString));
+    }
+
+    /**
+     * Get current value for VHAL property
+     *
+     * @param args   the command line arguments to parse for VHAL property details
+     * @param writer IndentingPrintWriter
+     */
+    private void getPropertyValue(String[] args, IndentingPrintWriter writer) {
+        String propertyIdString =
+                args.length < 2 ? PARAM_ALL_PROPERTIES_OR_AREA_IDS : args[1];
+        String areaIdString = args.length < 3 ? PARAM_ALL_PROPERTIES_OR_AREA_IDS : args[2];
+        mHal.dumpPropertyValueByCommand(writer, decodePropertyId(propertyIdString),
+                decodeAreaId(areaIdString));
+    }
+    /**
+     * Inject a fake VHAL event
+     *
+     * @param args   the command line arguments to parse for VHAL event details
+     * @param writer IndentingPrintWriter
+     */
+    private void injectVhalEvent(String[] args, IndentingPrintWriter writer) {
+        int argNum = args.length;
+        if (argNum < 3 || argNum > 6) {
+            showInvalidArguments(writer);
+            return;
+        }
+        int propertyId = decodePropertyId(args[1]);
+        String delayTimeSeconds = Objects.equals(args[argNum - 2], "-t") ? args[argNum - 1] : "0";
+        int areaId;
+        String value;
+        if (argNum == 4 || argNum == 6) {
+            areaId = decodeAreaId(args[2]);
+            value = args[3];
+        } else {
+            // area ID is not specified, assume global area ID
+            if (!isPropertyAreaTypeGlobal(propertyId)) {
+                writer.println("Property " + toPropertyIdString(propertyId)
+                        + " is not a global area type property. The area ID must be specified. "
+                        + "Skipping injection.");
                 return;
             }
+            areaId = 0;
+            value = args[2];
         }
-        try {
-            if (isErrorEvent) {
-                VehiclePropError error = new VehiclePropError();
-                error.areaId = Integer.decode(zone);
-                error.propId = Integer.decode(property);
-                error.errorCode = Integer.decode(value);
-                mHal.onPropertySetError(new ArrayList<VehiclePropError>(Arrays.asList(error)));
-            } else {
-                mHal.injectVhalEvent(Integer.decode(property), Integer.decode(zone), value,
-                        Integer.decode(delayTime));
-            }
-        } catch (NumberFormatException e) {
-            writer.printf("Invalid property Id zone Id or value: %s \n", e);
-            showHelp(writer);
+        String debugOutput = "Injecting VHAL event: property=" + toPropertyIdString(propertyId)
+                + ", areaId=" + toAreaIdString(propertyId, areaId) + ", value=" + value + (
+                TextUtils.isEmpty(delayTimeSeconds) ? ""
+                        : ", delayTimeSeconds=" + delayTimeSeconds);
+        Slogf.i(TAG, debugOutput);
+        writer.println(debugOutput);
+        mHal.injectVhalEvent(propertyId, areaId, value, Integer.decode(delayTimeSeconds));
+    }
+
+    /**
+     * Inject a fake VHAL error error event
+     *
+     * @param args   the command line arguments to parse for error event details
+     * @param writer IndentingPrintWriter
+     */
+    private void injectErrorEvent(String[] args, IndentingPrintWriter writer) {
+        if (args.length != 4) {
+            showInvalidArguments(writer);
+            return;
         }
+        int propertyId = decodePropertyId(args[1]);
+        int areaId = decodeAreaId(args[2]);
+        int errorCode = Integer.decode(args[3]);
+        Slogf.i(TAG,
+                "Injecting VHAL error event: property=" + toPropertyIdString(
+                        propertyId) + ", areaId=" + toAreaIdString(propertyId, areaId)
+                        + ", errorCode=" + errorCode);
+        VehiclePropError vehiclePropError = new VehiclePropError();
+        vehiclePropError.propId = propertyId;
+        vehiclePropError.areaId = areaId;
+        vehiclePropError.errorCode = errorCode;
+        mHal.onPropertySetError(new ArrayList<VehiclePropError>(List.of(vehiclePropError)));
     }
 
     // Inject continuous vhal events.
@@ -3106,7 +3265,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
             showInvalidArguments(writer);
             return;
         }
-        String areaId = PARAM_VEHICLE_PROPERTY_AREA_GLOBAL;
+        String areaId = PARAM_VEHICLE_PROPERTY_GLOBAL_AREA_ID;
         String sampleRate = PARAM_INJECT_EVENT_DEFAULT_RATE;
         String durationTime = PARAM_INJECT_EVENT_DEFAULT_DURATION;
         String propId = args[1];
@@ -3147,44 +3306,34 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
     }
 
-    // Handles set-property-value command.
-    private void runSetVehiclePropertyValue(String[] args, IndentingPrintWriter writer) {
+    private void setPropertyValue(String[] args, IndentingPrintWriter writer) {
         if (args.length != 4) {
             writer.println("Invalid command syntax:");
             writer.printf("Usage: %s\n", getSetPropertyValueUsage());
             return;
         }
-        String strId = args[1];
-        String strAreaId = args[2];
+        int propertyId = decodePropertyId(args[1]);
+        int areaId = decodeAreaId(args[2]);
         String value = args[3];
-        int id;
-        int areaId;
-        try {
-            id = Integer.decode(strId);
-            areaId = Integer.decode(strAreaId);
-        } catch (NumberFormatException e) {
-            writer.printf("Cannot set a property: Invalid property ID(%s) or area ID(%s) format\n",
-                    strId, strAreaId);
-            return;
-        }
-        Slogf.i(TAG, "Setting vehicle property: id=%s, areaId=%s, value=%s", strId, strAreaId,
-                value);
-        if (strAreaId.equalsIgnoreCase(PARAM_VEHICLE_PROPERTY_AREA_GLOBAL)
-                && !isPropertyAreaTypeGlobal(strId)) {
+        Slogf.i(TAG, "Setting vehicle property ID= %s, areaId= %s, value= %s",
+                toPropertyIdString(propertyId), toAreaIdString(propertyId, areaId), value);
+        if (areaId == 0 && !isPropertyAreaTypeGlobal(propertyId)) {
             writer.printf("Property area type is inconsistent with given area ID: %s\n",
-                    strAreaId);
+                    toAreaIdString(propertyId, areaId));
             return;
         }
         try {
-            mHal.setPropertyFromCommand(id, areaId, value, writer);
-            writer.printf("Property(%s) is set to %s successfully\n", strId, value);
+            mHal.setPropertyFromCommand(propertyId, areaId, value, writer);
+            writer.printf("Property %s area ID %s is set to %s successfully\n",
+                    toPropertyIdString(propertyId), toAreaIdString(propertyId, areaId), value);
         } catch (Exception e) {
             writer.printf("Cannot set a property: %s\n", e);
         }
     }
 
     private static String getSetPropertyValueUsage() {
-        return COMMAND_SET_PROPERTY_VALUE + " <PROPERTY_ID in Hex or Decimal> <areaId> "
+        return COMMAND_SET_PROPERTY_VALUE
+                + " <property name in SCREAMING_SNAKE_CASE or ID in Hex or Decimal> <areaId> "
                 + "<data (can be comma-separated)>";
     }
 
@@ -3404,7 +3553,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
         }
         String packageName = args[1];
         int userId;
-        if (args.length > 2 && args[2].equals("--user")) {
+        if (args.length > 2 && Objects.equals(args[2], "--user")) {
             try {
                 userId = Integer.parseInt(args[3]);
             } catch (NumberFormatException e) {
@@ -4141,12 +4290,21 @@ final class CarShellCommand extends BasicShellCommandHandler {
         writer.println(userId);
     }
 
+    private void getTetheringCapability(IndentingPrintWriter writer) {
+        writer.printf("Persist tethering capabilities enabled: %b\n",
+                mCarWifiService.canControlPersistTetheringSettings());
+    }
+
     // Check if the given property is global
     private static boolean isPropertyAreaTypeGlobal(@Nullable String property) {
         if (property == null) {
             return false;
         }
-        return (Integer.decode(property) & VehicleArea.MASK) == VehicleArea.GLOBAL;
+        return isPropertyAreaTypeGlobal(Integer.decode(property));
+    }
+
+    private static boolean isPropertyAreaTypeGlobal(int propertyId) {
+        return (propertyId & VehicleArea.MASK) == VehicleArea.GLOBAL;
     }
 
     private static String getSuspendCommandUsage(String command) {

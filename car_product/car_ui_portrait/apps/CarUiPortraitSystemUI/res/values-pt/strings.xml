@@ -20,6 +20,11 @@
     <string name="default_sensor_string" msgid="3994996854548513870">"N/A"</string>
     <string name="task_view_not_ready_message" msgid="3019570837236183122">"Aguarde o carregamento do sistema"</string>
     <string name="current_profile_subtitle" msgid="2466874755719023023">"Perfil atual"</string>
-    <string name="aloha_welcome_message" msgid="4150763169818898412">"AAOS"</string>
-    <string name="aloha_action_button_text" msgid="168403306904814629">"Continuar"</string>
+    <string name="loading_welcome_message" msgid="2351582619179505398">"AAOS"</string>
+    <string name="loading_action_button_text" msgid="1296096984805774507">"Continuar"</string>
+    <string name="hvac_panel_header" msgid="1299061170810305529">"Controles do modo Confortável"</string>
+    <string name="confirm_pin_title" msgid="8340408103287697843">"Insira seu PIN"</string>
+    <string name="confirm_pattern_title" msgid="601765683212039890">"Insira seu padrão"</string>
+    <string name="confirm_password_title" msgid="4719840258132492554">"Insira sua senha"</string>
+    <string name="cancel" msgid="8552804384519299161">"Cancelar"</string>
 </resources>

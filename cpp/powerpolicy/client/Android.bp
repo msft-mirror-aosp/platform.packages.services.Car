@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -36,7 +37,7 @@ cc_defaults {
 cc_library {
     name: "libpowerpolicyclient",
     vendor_available: true,
-    system_ext_specific:true,
+    system_ext_specific: true,
     srcs: [
         "src/PowerPolicyClientBase.cpp",
     ],

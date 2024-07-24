@@ -55,6 +55,7 @@ constexpr const char kSystemPolicyIdSuspendPrep[] = "system_power_policy_suspend
 namespace internal {
 
 class PolicyManagerPeer;
+class CarPowerPolicyServerPeer;
 
 }  // namespace internal
 
@@ -83,8 +84,13 @@ public:
     android::base::Result<void> definePowerPolicy(
             const std::string& policyId, const std::vector<std::string>& enabledComponents,
             const std::vector<std::string>& disabledComponents);
+    android::base::Result<void> definePowerPolicyGroup(
+            const std::string& policyGroupId, const std::vector<std::string>& powerPolicyPerState);
     android::base::Result<void> dump(int fd, const android::Vector<String16>& args);
     std::string getDefaultPolicyGroup() const;
+    std::vector<int32_t> getCustomComponents() const;
+    std::vector<aidl::android::frameworks::automotive::powerpolicy::CarPowerPolicy>
+    getRegisteredPolicies() const;
 
 private:
     void initRegularPowerPolicy(bool override);
@@ -98,10 +104,11 @@ private:
     std::unordered_map<std::string, CarPowerPolicyPtr> mPreemptivePowerPolicies;
     std::unordered_map<std::string, PolicyGroup> mPolicyGroups;
     std::string mDefaultPolicyGroup;
-    std::unordered_map<std::string, int> mCustomComponents;
+    std::unordered_map<std::string, int32_t> mCustomComponents;
 
     // For unit tests.
-    friend class internal::PolicyManagerPeer;
+    friend class android::frameworks::automotive::powerpolicy::internal::PolicyManagerPeer;
+    friend class android::frameworks::automotive::powerpolicy::internal::CarPowerPolicyServerPeer;
 };
 
 }  // namespace powerpolicy

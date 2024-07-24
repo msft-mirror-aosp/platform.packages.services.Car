@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import android.car.Car;
+import android.car.feature.Flags;
 import android.car.hardware.power.CarPowerManager;
 import android.car.hardware.power.CarPowerPolicy;
 import android.car.hardware.power.CarPowerPolicyFilter;
@@ -29,6 +30,7 @@ import android.car.hardware.power.ICarPowerStateListener;
 import android.car.hardware.power.PowerComponent;
 import android.car.hardware.property.VehicleHalStatusCode;
 import android.car.test.mocks.JavaMockitoHelper;
+import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemNotification;
 import android.hardware.automotive.vehicle.VehicleApPowerStateConfigFlag;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReport;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
@@ -61,6 +63,7 @@ import com.google.android.collect.Lists;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -329,8 +332,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         PowerPolicyListener powerPolicyListener = new PowerPolicyListener(POWER_POLICY_S2R);
         CarPowerPolicyFilter filter = new CarPowerPolicyFilter.Builder()
                 .setComponents(PowerComponent.WIFI).build();
-        CarPowerManagementService cpms =
-                (CarPowerManagementService) getCarService(Car.POWER_SERVICE);
+        CarPowerManagementService cpms = getCarPowerManagementService();
         cpms.addPowerPolicyListener(filter, powerPolicyListener);
 
         assertWaitForVhal();
@@ -393,8 +395,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         PowerPolicyListener powerPolicyListener = new PowerPolicyListener(POWER_POLICY_S2R);
         CarPowerPolicyFilter filter = new CarPowerPolicyFilter.Builder()
                 .setComponents(PowerComponent.WIFI).build();
-        CarPowerManagementService cpms =
-                (CarPowerManagementService) getCarService(Car.POWER_SERVICE);
+        CarPowerManagementService cpms = getCarPowerManagementService();
         cpms.addPowerPolicyListener(filter, powerPolicyListener);
 
         assertWaitForVhal();
@@ -478,8 +479,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         // Semaphore to signal completion of PRE_SHUTDOWN_PREPARE
         Semaphore completionSemaphore = new Semaphore(0);
 
-        CarPowerManagementService cpms =
-                (CarPowerManagementService) getCarService(Car.POWER_SERVICE);
+        CarPowerManagementService cpms = getCarPowerManagementService();
         ICarPowerStateListener listener = new ICarPowerStateListener.Stub() {
             @Override
             public void onStateChanged(int state, long expirationTimeMs) {
@@ -545,8 +545,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         // Semaphore to signal completion of PRE_SHUTDOWN_PREPARE
         Semaphore completionSemaphore = new Semaphore(0);
 
-        CarPowerManagementService cpms =
-                (CarPowerManagementService) getCarService(Car.POWER_SERVICE);
+        CarPowerManagementService cpms = getCarPowerManagementService();
         ICarPowerStateListener listener = new ICarPowerStateListener.Stub() {
             @Override
             public void onStateChanged(int state, long expirationTimeMs) {
@@ -596,6 +595,33 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         assertThat(errorOccurred.get()).isFalse();
     }
 
+    @Test
+    public void testApplyPowerPolicy_vhalPropertyUpdated() throws Exception {
+        String policyIdWifiOff = "policy_id_wifi_off";
+        String policyIdWifiOn = "policy_id_wifi_on";
+        // This is how the other test cases in this file interact w/CPMS, but would it make sense
+        // to just define mService = (CarPowerManagementService) getCarService(Car.POWER_SERVICE)?
+        CarPowerManagementService cpms = getCarPowerManagementService();
+        cpms.definePowerPolicy(policyIdWifiOff, new String[]{}, new String[]{"WIFI"});
+        cpms.definePowerPolicy(policyIdWifiOn, new String[]{"WIFI"}, new String[]{});
+        PowerPolicyListener wifiOffListener = new PowerPolicyListener(policyIdWifiOff);
+        PowerPolicyListener wifiOnListener = new PowerPolicyListener(policyIdWifiOn);
+        CarPowerPolicyFilter filterWifi = new CarPowerPolicyFilter.Builder()
+                .setComponents(PowerComponent.WIFI).build();
+        cpms.addPowerPolicyListener(filterWifi, wifiOffListener);
+        cpms.addPowerPolicyListener(filterWifi, wifiOnListener);
+
+        cpms.applyPowerPolicy(policyIdWifiOn);
+        wifiOnListener.waitForPowerPolicy();
+        cpms.applyPowerPolicy(policyIdWifiOff);
+        wifiOffListener.waitForPowerPolicy();
+
+        if (!Flags.carPowerPolicyRefactoring()) {
+            Mockito.verify((ICarPowerPolicySystemNotification) getMockedPowerPolicyDaemon())
+                    .notifyPowerPolicyChange(policyIdWifiOff, /* force= */ false);
+        }
+    }
+
     private void testShutdownPostponeWhileListenerPendingInState(final int targetState,
             int stateRequestParam, int finalPowerState) throws Exception {
         assertWaitForVhal();
@@ -603,8 +629,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         Semaphore notificationSem = new Semaphore(0);
 
         AtomicBoolean errorOccurred = new AtomicBoolean(false);
-        CarPowerManagementService cpms =
-                (CarPowerManagementService) getCarService(Car.POWER_SERVICE);
+        CarPowerManagementService cpms = getCarPowerManagementService();
 
         ICarPowerStateListener listener = new ICarPowerStateListener.Stub() {
             @Override
@@ -683,8 +708,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
     }
 
     private void registerListenerToFakeGarageMode() {
-        CarPowerManagementService cpms =
-                (CarPowerManagementService) getCarService(Car.POWER_SERVICE);
+        CarPowerManagementService cpms = getCarPowerManagementService();
         ICarPowerStateListener listener = new ICarPowerStateListener.Stub() {
             @Override
             public void onStateChanged(int state, long expirationTimeMs) {
@@ -700,6 +724,15 @@ public class CarPowerManagementTest extends MockedCarTestBase {
             }
         };
         cpms.registerInternalListener(listener);
+    }
+
+    private CarPowerManagementService getCarPowerManagementService() {
+        CarPowerManagementService cpms =
+                (CarPowerManagementService) getCarService(Car.POWER_SERVICE);
+        if (Flags.carPowerPolicyRefactoring()) {
+            cpms.initializePowerPolicy();
+        }
+        return cpms;
     }
 
     private static final class MockDisplayInterface implements DisplayInterface {
@@ -985,7 +1018,8 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         }
 
         @Override
-        public void scheduleActionForBootCompleted(Runnable action, Duration delay) {}
+        public void scheduleActionForBootCompleted(Runnable action, Duration delay,
+                Duration delayRange) {}
 
         public void setExpectedSuspendStatus(boolean expectedStatus) {
             synchronized (mLock) {

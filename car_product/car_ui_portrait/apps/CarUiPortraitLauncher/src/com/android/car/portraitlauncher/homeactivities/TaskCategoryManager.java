@@ -57,6 +57,7 @@ class TaskCategoryManager {
     private final ComponentName mAppGridActivityComponent;
     private final ComponentName mNotificationActivityComponent;
     private final ComponentName mRecentsActivityComponent;
+    private final ComponentName mCalmModeComponent;
     private final ArraySet<ComponentName> mIgnoreOpeningRootTaskViewComponentsSet;
     private final Set<ComponentName> mFullScreenActivities;
     private final Set<ComponentName> mBackgroundActivities;
@@ -78,10 +79,11 @@ class TaskCategoryManager {
                 mContext.getResources().getString(R.string.config_notificationActivity));
         mRecentsActivityComponent = ComponentName.unflattenFromString(mContext.getResources()
                 .getString(com.android.internal.R.string.config_recentsComponentName));
-
+        mCalmModeComponent = ComponentName.unflattenFromString(mContext.getResources()
+                .getString(R.string.config_calmMode_componentName));
         mOnApplicationInstallUninstallListeners = new HashSet<>();
 
-        updateVoicePlateActivityMap();
+        updateFullScreenActivities();
         updateBackgroundActivityMap();
 
         mApplicationInstallUninstallReceiver = registerApplicationInstallUninstallReceiver(
@@ -92,7 +94,7 @@ class TaskCategoryManager {
      * Refresh {@code mFullScreenActivities} and {@code mBackgroundActivities}.
      */
     void refresh() {
-        updateVoicePlateActivityMap();
+        updateFullScreenActivities();
         updateBackgroundActivityMap();
     }
 
@@ -124,7 +126,7 @@ class TaskCategoryManager {
         return componentNames;
     }
 
-    void updateVoicePlateActivityMap() {
+    void updateFullScreenActivities() {
         mFullScreenActivities.clear();
         Intent voiceIntent = new Intent(Intent.ACTION_VOICE_ASSIST, /* uri= */ null);
         List<ResolveInfo> result = mContext.getPackageManager().queryIntentActivitiesAsUser(
@@ -158,8 +160,10 @@ class TaskCategoryManager {
             }
             mBackgroundActivities.add(info.getComponentInfo().getComponentName());
         }
+
         mBackgroundActivities.addAll(convertToComponentNames(mContext.getResources()
                 .getStringArray(R.array.config_backgroundActivities)));
+        mBackgroundActivities.add(mCalmModeComponent);
     }
 
     /**
@@ -213,12 +217,12 @@ class TaskCategoryManager {
         return mAppGridActivityComponent;
     }
 
-    Set<ComponentName> getFullScreenActivities() {
-        return mFullScreenActivities;
+    List<ComponentName> getFullScreenActivitiesList() {
+        return mFullScreenActivities.stream().toList();
     }
 
-    Set<ComponentName> getBackgroundActivities() {
-        return mBackgroundActivities;
+    List<ComponentName> getBackgroundActivitiesList() {
+        return mBackgroundActivities.stream().toList();
     }
 
     boolean isFullScreenActivity(TaskInfo taskInfo) {
@@ -231,6 +235,10 @@ class TaskCategoryManager {
 
     boolean isRecentsActivity(TaskInfo taskInfo) {
         return mRecentsActivityComponent.equals(taskInfo.baseActivity);
+    }
+
+    boolean isCalmModeActivity(TaskInfo taskInfo) {
+        return mCalmModeComponent.equals(taskInfo.baseActivity);
     }
 
     boolean shouldIgnoreOpeningForegroundDA(TaskInfo taskInfo) {
@@ -295,7 +303,8 @@ class TaskCategoryManager {
                 // Ignoring empty announcements
                 return;
             }
-            updateBackgroundActivityMap();
+
+            refresh();
 
             if (Intent.ACTION_PACKAGE_ADDED.equals(action)) {
                 for (OnApplicationInstallUninstallListener listener :

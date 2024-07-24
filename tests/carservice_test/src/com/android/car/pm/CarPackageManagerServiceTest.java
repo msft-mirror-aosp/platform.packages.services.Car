@@ -45,9 +45,9 @@ import android.support.test.uiautomator.Until;
 import android.view.Display;
 
 import androidx.car.app.activity.CarAppActivity;
-import androidx.test.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.After;
 import org.junit.Before;
@@ -174,6 +174,16 @@ public class CarPackageManagerServiceTest {
 
     @Test
     public void testBlockingActivity_nonDoActivity_isBlocked() throws Exception {
+        testBlockingActivityShownForNdoActivity();
+    }
+
+    @Test
+    public void testBlockingActivity_nonDoActivity_carIdling_isBlocked() throws Exception {
+        setDrivingStateIdling();
+        testBlockingActivityShownForNdoActivity();
+    }
+
+    private void testBlockingActivityShownForNdoActivity() {
         startNonDoActivity(NonDoActivity.EXTRA_DO_NOTHING);
 
         // The label should be 'Close app' since NonDoActivity is the root task.
@@ -370,6 +380,10 @@ public class CarPackageManagerServiceTest {
 
     private void setDrivingStateMoving() {
         mCarDrivingStateManager.injectDrivingState(CarDrivingStateEvent.DRIVING_STATE_MOVING);
+    }
+
+    private void setDrivingStateIdling() {
+        mCarDrivingStateManager.injectDrivingState(CarDrivingStateEvent.DRIVING_STATE_IDLING);
     }
 
     private void setDrivingStateParked() {

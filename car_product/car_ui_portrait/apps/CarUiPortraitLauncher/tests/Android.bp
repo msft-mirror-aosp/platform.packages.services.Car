@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_system_experience",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -27,6 +28,7 @@ android_test {
 
     libs: [
         "android.test.base",
+        "android.test.mock",
     ],
 
     optimize: {
@@ -34,6 +36,7 @@ android_test {
     },
 
     static_libs: [
+        "android.car",
         "android.car.testapi",
         "android.car.test.utils",
         "androidx.test.core",
@@ -41,8 +44,15 @@ android_test {
         "androidx.test.espresso.core",
         "androidx.test.espresso.intents",
         "androidx.test.ext.junit",
+        "mockito-target-extended-minus-junit4",
         "truth",
-        "CarLauncher-core",
+        "ub-uiautomator",
+        "CarUiPortraitLauncher-core",
+    ],
+
+    jni_libs: [
+        "libdexmakerjvmtiagent",
+        "libstaticjvmtiagent",
     ],
 
     platform_apis: true,
@@ -58,4 +68,9 @@ android_test {
     dex_preopt: {
         enabled: false,
     },
+
+    test_suites: [
+        "automotive-tests",
+        "device-tests",
+    ],
 }

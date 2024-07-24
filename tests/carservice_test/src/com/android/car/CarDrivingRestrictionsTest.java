@@ -17,7 +17,6 @@ package com.android.car;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -58,7 +57,7 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
             | CarUxRestrictions.UX_RESTRICTIONS_LIMIT_CONTENT
             | CarUxRestrictions.UX_RESTRICTIONS_NO_SETUP
             | CarUxRestrictions.UX_RESTRICTIONS_NO_TEXT_MESSAGE;
-
+    private static final int UX_RESTRICTIONS_IDLE = CarUxRestrictions.UX_RESTRICTIONS_NO_VIDEO;
 
     @Override
     protected void configureMockedHal() {
@@ -136,7 +135,7 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
         drivingEvent = listener.waitForDrivingStateChange();
         assertNotNull(drivingEvent);
         assertThat(drivingEvent.eventValue).isEqualTo(CarDrivingStateEvent.DRIVING_STATE_MOVING);
-        restrictions = listener.waitForUxRestrictionsChange();
+        restrictions = listener.waitForUxRestrictionsChange(UX_RESTRICTIONS_MOVING);
         assertNotNull(restrictions);
         assertTrue(restrictions.isRequiresDistractionOptimization());
         assertThat(restrictions.getActiveRestrictions()).isEqualTo(UX_RESTRICTIONS_MOVING);
@@ -152,11 +151,10 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
         drivingEvent = listener.waitForDrivingStateChange();
         assertNotNull(drivingEvent);
         assertThat(drivingEvent.eventValue).isEqualTo(CarDrivingStateEvent.DRIVING_STATE_IDLING);
-        restrictions = listener.waitForUxRestrictionsChange();
+        restrictions = listener.waitForUxRestrictionsChange(UX_RESTRICTIONS_IDLE);
         assertNotNull(restrictions);
-        assertFalse(restrictions.isRequiresDistractionOptimization());
-        assertThat(restrictions.getActiveRestrictions())
-                .isEqualTo(CarUxRestrictions.UX_RESTRICTIONS_BASELINE);
+        assertTrue(restrictions.isRequiresDistractionOptimization());
+        assertThat(restrictions.getActiveRestrictions()).isEqualTo(UX_RESTRICTIONS_IDLE);
 
         // Test Moving state and corresponding restrictions when driving in reverse.
         Log.d(TAG, "Injecting gear reverse");
@@ -176,7 +174,7 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
         drivingEvent = listener.waitForDrivingStateChange();
         assertNotNull(drivingEvent);
         assertThat(drivingEvent.eventValue).isEqualTo(CarDrivingStateEvent.DRIVING_STATE_MOVING);
-        restrictions = listener.waitForUxRestrictionsChange();
+        restrictions = listener.waitForUxRestrictionsChange(UX_RESTRICTIONS_MOVING);
         assertNotNull(restrictions);
         assertTrue(restrictions.isRequiresDistractionOptimization());
         assertThat(restrictions.getActiveRestrictions()).isEqualTo(UX_RESTRICTIONS_MOVING);
@@ -260,7 +258,8 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
             assertNotNull(drivingEvent);
             assertThat(drivingEvent.eventValue).isEqualTo(
                     CarDrivingStateEvent.DRIVING_STATE_UNKNOWN);
-            restrictions = listener.waitForUxRestrictionsChange();
+            restrictions = listener.waitForUxRestrictionsChange(
+                    CarUxRestrictions.UX_RESTRICTIONS_FULLY_RESTRICTED);
             assertNotNull(restrictions);
             assertTrue(restrictions.isRequiresDistractionOptimization());
             assertThat(restrictions.getActiveRestrictions())
@@ -273,7 +272,7 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
     /**
      * Callback function we register for driving state update notifications.
      */
-    private class DrivingStateListener implements
+    private static final class DrivingStateListener implements
             CarDrivingStateManager.CarDrivingStateEventListener,
             CarUxRestrictionsManager.OnUxRestrictionsChangedListener {
         private final Object mDrivingStateLock = new Object();
@@ -284,8 +283,12 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
         private CarUxRestrictions mLastRestrictions = null;
 
         void reset() {
-            mLastEvent = null;
-            mLastRestrictions = null;
+            synchronized (mDrivingStateLock) {
+                mLastEvent = null;
+            }
+            synchronized (mUxRLock) {
+                mLastRestrictions = null;
+            }
         }
 
         // Returns True to indicate receipt of a driving state event.  False indicates a timeout.
@@ -311,15 +314,17 @@ public class CarDrivingRestrictionsTest extends MockedCarTestBase {
             }
         }
 
-        CarUxRestrictions waitForUxRestrictionsChange() throws InterruptedException {
+        CarUxRestrictions waitForUxRestrictionsChange(int expectedRestrictions)
+                throws InterruptedException {
             long start = SystemClock.elapsedRealtime();
             synchronized (mUxRLock) {
-                while (mLastRestrictions == null
-                        && (start + DEFAULT_WAIT_TIMEOUT_MS > SystemClock.elapsedRealtime())) {
+                while ((mLastRestrictions == null
+                        || mLastRestrictions.getActiveRestrictions() != expectedRestrictions)
+                            && (start + DEFAULT_WAIT_TIMEOUT_MS > SystemClock.elapsedRealtime())) {
                     mUxRLock.wait(100L);
                 }
+                return mLastRestrictions;
             }
-            return mLastRestrictions;
         }
 
         @Override

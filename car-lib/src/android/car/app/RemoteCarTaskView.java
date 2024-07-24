@@ -16,19 +16,14 @@
 
 package android.car.app;
 
-import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
-
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.RequiresApi;
 import android.annotation.RequiresPermission;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.PendingIntent;
 import android.car.Car;
-import android.car.PlatformVersion;
-import android.car.annotation.ApiRequirements;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.view.SurfaceControlHelper;
 import android.car.builtin.view.TouchableInsetsProvider;
@@ -37,13 +32,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.graphics.Region;
-import android.os.Build;
 import android.os.DeadObjectException;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.SurfaceControl;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link SurfaceView} that can embed a Task inside of it. The task management is done remotely
@@ -52,13 +48,13 @@ import android.view.SurfaceView;
  *
  * @hide
  */
-@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public abstract class RemoteCarTaskView extends SurfaceView {
     private static final String TAG = RemoteCarTaskView.class.getSimpleName();
 
     private final TouchableInsetsProvider mTouchableInsetsProvider;
     private final SurfaceCallbackHandler mSurfaceCallbackHandler = new SurfaceCallbackHandler();
     private final Rect mTmpRect = new Rect();
+    private final AtomicBoolean mReleased = new AtomicBoolean(false);
     private boolean mInitialized = false;
     boolean mSurfaceCreated = false;
     private Region mObscuredTouchRegion;
@@ -66,15 +62,12 @@ public abstract class RemoteCarTaskView extends SurfaceView {
 
     RemoteCarTaskView(Context context) {
         super(context);
-        assertPlatformVersionAtLeast(PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
         mTouchableInsetsProvider = new TouchableInsetsProvider(this);
         getHolder().addCallback(mSurfaceCallbackHandler);
     }
 
     /** Brings the embedded task to the front. Does nothing if there is no task. */
     @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public void showEmbeddedTask() {
         try {
@@ -85,12 +78,40 @@ public abstract class RemoteCarTaskView extends SurfaceView {
     }
 
     /**
+     * Sets the visibility of the embedded task.
+     *
+     * @hide
+     */
+    @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
+    @MainThread
+    public void setTaskVisibility(boolean visibility) {
+        try {
+            mICarTaskViewHost.setTaskVisibility(visibility);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "exception in setTaskVisibility", e);
+        }
+    }
+
+    /**
+     * Reorders the embedded task.
+     *
+     * @hide
+     */
+    @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
+    @MainThread
+    public void reorderTask(boolean onTop) {
+        try {
+            mICarTaskViewHost.reorderTask(onTop);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "exception in reorderTask for task", e);
+        }
+    }
+
+    /**
      * Updates the WM bounds for the underlying task as per the current view bounds. Does nothing
      * if there is no task.
      */
     @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public void updateWindowBounds() {
         ViewHelper.getBoundsOnScreen(RemoteCarTaskView.this, mTmpRect);
@@ -102,12 +123,25 @@ public abstract class RemoteCarTaskView extends SurfaceView {
     }
 
     /**
+     * Sets the bounds of the window for the underlying Task.
+     *
+     * @param bounds the new bounds in screen coordinates.
+     *
+     * @hide
+     */
+    public void setWindowBounds(Rect bounds) {
+        try {
+            mICarTaskViewHost.setWindowBounds(bounds);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "exception in setWindowBounds", e);
+        }
+    }
+
+    /**
      * Indicates a region of the view that is not touchable.
      *
      * @param obscuredRect the obscured region of the view.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public void setObscuredTouchRect(@NonNull Rect obscuredRect) {
         mObscuredTouchRegion = obscuredRect != null ? new Region(obscuredRect) : null;
@@ -119,8 +153,6 @@ public abstract class RemoteCarTaskView extends SurfaceView {
      *
      * @param obscuredRegion the obscured region of the view.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public void setObscuredTouchRegion(@NonNull Region obscuredRegion) {
         mObscuredTouchRegion = obscuredRegion;
@@ -131,19 +163,25 @@ public abstract class RemoteCarTaskView extends SurfaceView {
      * @return the {@link android.app.ActivityManager.RunningTaskInfo} of the task currently
      * running in the TaskView.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     @Nullable public abstract ActivityManager.RunningTaskInfo getTaskInfo();
 
     /**
      * @return true, if the task view is initialized.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public boolean isInitialized() {
         return mInitialized;
+    }
+
+    /**
+     * @return true, if the task view is released.
+     *
+     * @hide
+     */
+    @MainThread
+    public boolean isReleased() {
+        return mReleased.get();
     }
 
     /**
@@ -163,8 +201,6 @@ public abstract class RemoteCarTaskView extends SurfaceView {
      * @param frame The rectangle area of the insets source.
      */
     @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public void addInsets(int index, int type, @NonNull Rect frame) {
         try {
@@ -185,8 +221,6 @@ public abstract class RemoteCarTaskView extends SurfaceView {
      * @param type  The insets type of the insets source. This doesn't accept the composite types.
      */
     @RequiresPermission(Car.PERMISSION_REGISTER_CAR_SYSTEM_UI_PROXY)
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void removeInsets(int index, int type) {
         try {
             mICarTaskViewHost.removeInsets(index, type);
@@ -247,12 +281,11 @@ public abstract class RemoteCarTaskView extends SurfaceView {
     }
 
     /** Release the resources associated with this task view. */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @MainThread
     public void release() {
         getHolder().removeCallback(mSurfaceCallbackHandler);
         try {
+            mReleased.set(true);
             mICarTaskViewHost.release();
         } catch (DeadObjectException e) {
             Slogf.w(TAG, "TaskView's host has already died", e);
@@ -299,16 +332,12 @@ public abstract class RemoteCarTaskView extends SurfaceView {
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void onAttachedToWindow() {
         super.onAttachedToWindow();
         mTouchableInsetsProvider.addToViewTreeObserver();
     }
 
     @Override
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_0,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         mTouchableInsetsProvider.removeFromViewTreeObserver();

@@ -20,7 +20,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.car.VehicleAreaType;
 import android.car.hardware.CarPropertyValue;
-import android.test.suitebuilder.annotation.MediumTest;
+
+import androidx.test.filters.MediumTest;
 
 import org.junit.Test;
 
@@ -146,6 +147,70 @@ public final class CarPropertyValueTest extends CarPropertyTestBase {
                 new CarPropertyValue<>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS, null).equals(
                         new CarPropertyValue<>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS, null)))
                 .isTrue();
+    }
+
+    @Test
+    public void equals_mixedValue() {
+        assertThat(
+                new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abcd", 1, false})
+                .equals(new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abcd", 1, false}
+                ))).isTrue();
+
+        assertThat(
+                new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abcd", 1, false})
+                .equals(new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"a", 1, false}
+                ))).isFalse();
+    }
+
+    @Test
+    public void equals_intArray() {
+        assertThat(
+                new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2})
+                .equals(new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2}
+                ))).isTrue();
+
+        assertThat(
+                new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2})
+                .equals(new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2, 3}
+                ))).isFalse();
+    }
+
+    @Test
+    public void hashCode_mixedValue() {
+        assertThat(
+                new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abcd", 1, false}).hashCode())
+                .isEqualTo(new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abcd", 1, false}).hashCode());
+
+        assertThat(
+                new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abcd", 1, false}).hashCode())
+                .isNotEqualTo(new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abc", 1, false}).hashCode());
+    }
+
+    @Test
+    public void hashCode_intArray() {
+        assertThat(
+                new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2}).hashCode())
+                .isEqualTo(new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2}).hashCode());
+
+        assertThat(
+                new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2}).hashCode())
+                .isNotEqualTo(new CarPropertyValue<Integer[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Integer[]{1, 2, 3}).hashCode());
     }
 
     @Test

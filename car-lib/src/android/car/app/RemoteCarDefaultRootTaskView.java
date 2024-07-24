@@ -18,14 +18,15 @@ package android.car.app;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.RequiresApi;
 import android.app.ActivityManager;
-import android.car.annotation.ApiRequirements;
+import android.car.builtin.util.Slogf;
 import android.car.builtin.view.ViewHelper;
 import android.content.Context;
 import android.graphics.Rect;
-import android.os.Build;
+import android.os.Binder;
 import android.view.SurfaceControl;
+
+import com.android.internal.annotations.GuardedBy;
 
 import java.util.concurrent.Executor;
 
@@ -39,7 +40,6 @@ import java.util.concurrent.Executor;
  *
  * @hide
  */
-@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public final class RemoteCarDefaultRootTaskView extends RemoteCarTaskView {
     private static final String TAG = RemoteCarDefaultRootTaskView.class.getSimpleName();
 
@@ -49,48 +49,109 @@ public final class RemoteCarDefaultRootTaskView extends RemoteCarTaskView {
     private final RemoteCarDefaultRootTaskViewConfig mConfig;
     private final Rect mTmpRect = new Rect();
     private final RootTaskStackManager mRootTaskStackManager = new RootTaskStackManager();
+    private final Object mLock = new Object();
 
+    @GuardedBy("mLock")
     private ActivityManager.RunningTaskInfo mRootTask;
 
     final ICarTaskViewClient mICarTaskViewClient = new ICarTaskViewClient.Stub() {
         @Override
         public void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo, SurfaceControl leash) {
-            if (mRootTask == null) {
-                mRootTask = taskInfo;
-                // If onTaskAppeared() is called, it implicitly means that super.isInitialized()
-                // is true, as the root task is created only after initialization.
-                mCallbackExecutor.execute(() -> mCallback.onTaskViewInitialized());
+            synchronized (mLock) {
+                if (mRootTask == null) {
+                    mRootTask = taskInfo;
+                    // If onTaskAppeared() is called, it implicitly means that super.isInitialized()
+                    // is true, as the root task is created only after initialization.
+                    long identity = Binder.clearCallingIdentity();
+                    try {
+                        mCallbackExecutor.execute(() -> {
+                            // Check for isReleased() because the car task view might have
+                            // already been released but this code path is executed later because
+                            // the executor was busy.
+                            if (isReleased()) {
+                                Slogf.w(TAG, "car task view has already been released");
+                                return;
+                            }
+                            mCallback.onTaskViewInitialized();
+                        });
+                    } finally {
+                        Binder.restoreCallingIdentity(identity);
+                    }
 
-                if (taskInfo.taskDescription != null) {
-                    ViewHelper.seResizeBackgroundColor(
-                            RemoteCarDefaultRootTaskView.this,
-                            taskInfo.taskDescription.getBackgroundColor());
+                    if (taskInfo.taskDescription != null) {
+                        ViewHelper.seResizeBackgroundColor(
+                                RemoteCarDefaultRootTaskView.this,
+                                taskInfo.taskDescription.getBackgroundColor());
+                    }
+                    updateWindowBounds();
                 }
-                updateWindowBounds();
             }
 
             mRootTaskStackManager.taskAppeared(taskInfo, leash);
-            mCallbackExecutor.execute(() -> mCallback.onTaskAppeared(taskInfo));
+            long identity = Binder.clearCallingIdentity();
+            try {
+                mCallbackExecutor.execute(() -> {
+                    if (isReleased()) {
+                        Slogf.w(TAG, "car task view has already been released");
+                        return;
+                    }
+                    mCallback.onTaskAppeared(taskInfo);
+                });
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
         }
 
         @Override
         public void onTaskInfoChanged(ActivityManager.RunningTaskInfo taskInfo) {
-            if (mRootTask.taskId == taskInfo.taskId && taskInfo.taskDescription != null) {
-                ViewHelper.seResizeBackgroundColor(
-                        RemoteCarDefaultRootTaskView.this,
-                        taskInfo.taskDescription.getBackgroundColor());
+            synchronized (mLock) {
+                if (mRootTask == null) {
+                    return;
+                }
+                if (mRootTask.taskId == taskInfo.taskId && taskInfo.taskDescription != null) {
+                    ViewHelper.seResizeBackgroundColor(
+                            RemoteCarDefaultRootTaskView.this,
+                            taskInfo.taskDescription.getBackgroundColor());
+                }
             }
             mRootTaskStackManager.taskInfoChanged(taskInfo);
-            mCallbackExecutor.execute(() -> mCallback.onTaskInfoChanged(taskInfo));
+            long identity = Binder.clearCallingIdentity();
+            try {
+                mCallbackExecutor.execute(() -> {
+                    if (isReleased()) {
+                        Slogf.w(TAG, "car task view has already been released");
+                        return;
+                    }
+                    mCallback.onTaskInfoChanged(taskInfo);
+                });
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
         }
 
         @Override
         public void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo) {
-            if (mRootTask.taskId == taskInfo.taskId) {
-                mRootTask = null;
+            synchronized (mLock) {
+                if (mRootTask == null) {
+                    return;
+                }
+                if (mRootTask.taskId == taskInfo.taskId) {
+                    mRootTask = null;
+                }
             }
             mRootTaskStackManager.taskVanished(taskInfo);
-            mCallbackExecutor.execute(() -> mCallback.onTaskVanished(taskInfo));
+            long identity = Binder.clearCallingIdentity();
+            try {
+                mCallbackExecutor.execute(() -> {
+                    if (isReleased()) {
+                        Slogf.w(TAG, "car task view has already been released");
+                        return;
+                    }
+                    mCallback.onTaskVanished(taskInfo);
+                });
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
         }
 
         @Override
@@ -125,8 +186,6 @@ public final class RemoteCarDefaultRootTaskView extends RemoteCarTaskView {
      *
      * @return task info object of the top task.
      */
-    @ApiRequirements(minCarVersion = ApiRequirements.CarVersion.UPSIDE_DOWN_CAKE_1,
-            minPlatformVersion = ApiRequirements.PlatformVersion.UPSIDE_DOWN_CAKE_1)
     @Nullable
     public ActivityManager.RunningTaskInfo getTopTaskInfo() {
         return mRootTaskStackManager.getTopTask();
@@ -142,7 +201,9 @@ public final class RemoteCarDefaultRootTaskView extends RemoteCarTaskView {
 
     @Override
     public boolean isInitialized() {
-        return super.isInitialized() && mRootTask != null;
+        synchronized (mLock) {
+            return super.isInitialized() && mRootTask != null;
+        }
     }
 
     @Override
@@ -154,7 +215,9 @@ public final class RemoteCarDefaultRootTaskView extends RemoteCarTaskView {
     @Nullable
     @Override
     public ActivityManager.RunningTaskInfo getTaskInfo() {
-        return mRootTask;
+        synchronized (mLock) {
+            return mRootTask;
+        }
     }
 
     RemoteCarDefaultRootTaskViewConfig getConfig() {

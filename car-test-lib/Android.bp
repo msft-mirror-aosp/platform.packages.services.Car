@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -22,6 +23,7 @@ java_library {
         "src/android/car/testapi/*.java",
     ],
     static_libs: [
+        "android.car.test.utils",
         "car-service-test-static-lib",
     ],
     libs: [
@@ -31,7 +33,7 @@ java_library {
     installable: false,
     dist: {
         targets: ["dist_files"],
-    }
+    },
 }
 
 java_library {
@@ -43,8 +45,8 @@ java_library {
         "android.car",
         "android.car.builtin",
         "android.hardware.automotive.vehicle-V2.0-java",
-        "android.hardware.automotive.vehicle-V2-java",
-        "android.hardware.automotive.vehicle.property-V2-java",
+        "android.hardware.automotive.vehicle-V3-java",
+        "android.hardware.automotive.vehicle.property-V3-java",
         "mockito-target-extended",
         "compatibility-device-util-axt",
         "android.test.mock",

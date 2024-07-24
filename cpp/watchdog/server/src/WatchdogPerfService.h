@@ -29,6 +29,7 @@
 #include <aidl/android/automotive/watchdog/internal/UserState.h>
 #include <android-base/chrono_utils.h>
 #include <android-base/result.h>
+#include <android/util/ProtoOutputStream.h>
 #include <cutils/multiuser.h>
 #include <gtest/gtest_prod.h>
 #include <utils/Errors.h>
@@ -71,12 +72,22 @@ enum SystemState {
     GARAGE_MODE = 1,
 };
 
+using time_point_millis =
+        std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>;
+
 /**
  * DataProcessor defines methods that must be implemented in order to process the data collected
  * by |WatchdogPerfService|.
  */
 class DataProcessorInterface : virtual public android::RefBase {
 public:
+    struct CollectionIntervals {
+        std::chrono::milliseconds mBoottimeIntervalMillis = std::chrono::milliseconds(0);
+        std::chrono::milliseconds mPeriodicIntervalMillis = std::chrono::milliseconds(0);
+        std::chrono::milliseconds mUserSwitchIntervalMillis = std::chrono::milliseconds(0);
+        std::chrono::milliseconds mWakeUpIntervalMillis = std::chrono::milliseconds(0);
+        std::chrono::milliseconds mCustomIntervalMillis = std::chrono::milliseconds(0);
+    };
     DataProcessorInterface() {}
     virtual ~DataProcessorInterface() {}
     // Returns the name of the data processor.
@@ -92,22 +103,24 @@ public:
     virtual void onCarWatchdogServiceRegistered() = 0;
     // Callback to process the data collected during boot-time.
     virtual android::base::Result<void> onBoottimeCollection(
-            time_t time, const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
+            time_point_millis time,
+            const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
             aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) = 0;
     // Callback to process the data collected during a wake-up event.
     virtual android::base::Result<void> onWakeUpCollection(
-            time_t time, const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
+            time_point_millis time,
+            const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector) = 0;
     // Callback to process the data collected periodically post boot complete.
     virtual android::base::Result<void> onPeriodicCollection(
-            time_t time, SystemState systemState,
+            time_point_millis time, SystemState systemState,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
             aidl::android::automotive::watchdog::internal::ResourceStats* resourceStats) = 0;
     // Callback to process the data collected during user switch.
     virtual android::base::Result<void> onUserSwitchCollection(
-            time_t time, userid_t from, userid_t to,
+            time_point_millis time, userid_t from, userid_t to,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector) = 0;
 
@@ -116,7 +129,7 @@ public:
      * the specified |filterPackages|.
      */
     virtual android::base::Result<void> onCustomCollection(
-            time_t time, SystemState systemState,
+            time_point_millis time, SystemState systemState,
             const std::unordered_set<std::string>& filterPackages,
             const android::wp<UidStatsCollectorInterface>& uidStatsCollector,
             const android::wp<ProcStatCollectorInterface>& procStatCollector,
@@ -128,8 +141,12 @@ public:
     virtual android::base::Result<void> onPeriodicMonitor(
             time_t time, const android::wp<ProcDiskStatsCollectorInterface>& procDiskStatsCollector,
             const std::function<void()>& alertHandler) = 0;
-    // Callback to dump the boot-time collected and periodically collected data.
+    // Callback to dump system event data and periodically collected data.
     virtual android::base::Result<void> onDump(int fd) const = 0;
+    // Callback to dump system event data and periodically collected data in proto format.
+    virtual android::base::Result<void> onDumpProto(
+            const CollectionIntervals& collectionIntervals,
+            android::util::ProtoOutputStream& outProto) const = 0;
     /**
      * Callback to dump the custom collected data. When fd == -1, clear the custom collection cache.
      */
@@ -228,15 +245,20 @@ public:
      */
     virtual android::base::Result<void> onCustomCollection(int fd, const char** args,
                                                            uint32_t numArgs) = 0;
-    // Generates a dump from the boot-time and periodic collection events.
+    // Generates a dump from the system events and periodic collection events.
     virtual android::base::Result<void> onDump(int fd) const = 0;
+    // Generates a proto dump from system events and periodic collection events.
+    virtual android::base::Result<void> onDumpProto(
+            android::util::ProtoOutputStream& outProto) const = 0;
     // Dumps the help text.
     virtual bool dumpHelpText(int fd) const = 0;
 };
 
 class WatchdogPerfService final : public WatchdogPerfServiceInterface {
 public:
-    WatchdogPerfService(const android::sp<WatchdogServiceHelperInterface>& watchdogServiceHelper) :
+    WatchdogPerfService(const android::sp<WatchdogServiceHelperInterface>& watchdogServiceHelper,
+                        const std::function<int64_t()>& getElapsedTimeSinceBootMsFunc) :
+          kGetElapsedTimeSinceBootMillisFunc(std::move(getElapsedTimeSinceBootMsFunc)),
           mPostSystemEventDurationNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
                   std::chrono::seconds(sysprop::postSystemEventDuration().value_or(
                           kDefaultPostSystemEventDurationSec.count())))),
@@ -254,6 +276,7 @@ public:
           mCustomCollection({}),
           mPeriodicMonitor({}),
           mUnsentResourceStats({}),
+          mLastCollectionTimeMillis(0),
           mCurrCollectionEvent(EventType::INIT),
           mUidStatsCollector(android::sp<UidStatsCollector>::make()),
           mProcStatCollector(android::sp<ProcStatCollector>::make()),
@@ -286,6 +309,8 @@ public:
                                                    uint32_t numArgs) override;
 
     android::base::Result<void> onDump(int fd) const override;
+    android::base::Result<void> onDumpProto(
+            android::util::ProtoOutputStream& outProto) const override;
 
     bool dumpHelpText(int fd) const override;
 
@@ -371,6 +396,8 @@ private:
      */
     EventMetadata* getCurrentCollectionMetadataLocked();
 
+    std::function<int64_t()> kGetElapsedTimeSinceBootMillisFunc;
+
     // Duration to extend a system event collection after the final signal is received.
     std::chrono::nanoseconds mPostSystemEventDurationNs;
 
@@ -414,6 +441,9 @@ private:
     // Cache of resource stats that have not been sent to CarWatchdogService.
     std::vector<std::tuple<nsecs_t, aidl::android::automotive::watchdog::internal::ResourceStats>>
             mUnsentResourceStats GUARDED_BY(mMutex);
+
+    // Tracks the latest collection time since boot in millis.
+    int64_t mLastCollectionTimeMillis GUARDED_BY(mMutex);
 
     // Tracks either the WatchdogPerfService's state or current collection event. Updated on
     // |start|, |onBootFinished|, |onUserStateChange|, |startCustomCollection|,

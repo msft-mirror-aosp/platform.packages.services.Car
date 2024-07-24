@@ -20,9 +20,11 @@ import static com.android.car.audio.FocusInteraction.AUDIO_FOCUS_NAVIGATION_REJE
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.car.builtin.util.Slogf;
 import android.car.media.CarAudioManager;
+import android.car.oem.CarAudioFeaturesInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.media.AudioFocusInfo;
@@ -31,9 +33,11 @@ import android.media.audiopolicy.AudioPolicy;
 import android.os.Bundle;
 import android.util.ArraySet;
 import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 
 import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
+import com.android.car.audio.CarAudioDumpProto.CarAudioZoneFocusProto;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.oem.CarOemProxyService;
@@ -59,11 +63,9 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
     private final SparseArray<CarAudioFocus> mFocusZones;
 
     public static CarZonesAudioFocus createCarZonesAudioFocus(AudioManager audioManager,
-            PackageManager packageManager,
-            SparseArray<CarAudioZone> carAudioZones,
-            CarAudioSettings carAudioSettings,
-            CarFocusCallback carFocusCallback,
-            CarVolumeInfoWrapper carVolumeInfoWrapper) {
+            PackageManager packageManager, SparseArray<CarAudioZone> carAudioZones,
+            CarAudioSettings carAudioSettings, CarFocusCallback carFocusCallback,
+            CarVolumeInfoWrapper carVolumeInfoWrapper, @Nullable CarAudioFeaturesInfo features) {
         Objects.requireNonNull(audioManager, "Audio manager cannot be null");
         Objects.requireNonNull(packageManager, "Package manager cannot be null");
         Objects.requireNonNull(carAudioZones, "Car audio zones cannot be null");
@@ -74,17 +76,16 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
 
         SparseArray<CarAudioFocus> audioFocusPerZone = new SparseArray<>();
 
+        ContentObserverFactory observerFactory = new ContentObserverFactory(
+                AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI);
         //Create focus for all the zones
         for (int i = 0; i < carAudioZones.size(); i++) {
             CarAudioZone audioZone = carAudioZones.valueAt(i);
             int audioZoneId = audioZone.getId();
             Slogf.d(TAG, "Adding new zone %d", audioZoneId);
-
-            CarAudioFocus zoneFocusListener = new CarAudioFocus(audioManager,
-                    packageManager, new FocusInteraction(carAudioSettings,
-                    new ContentObserverFactory(AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI),
-                    audioZone.getCarAudioContext()),
-                    audioZone.getCarAudioContext(), carVolumeInfoWrapper, audioZoneId);
+            FocusInteraction interaction = new FocusInteraction(carAudioSettings, observerFactory);
+            CarAudioFocus zoneFocusListener = new CarAudioFocus(audioManager, packageManager,
+                    interaction, audioZone, carVolumeInfoWrapper, features);
             audioFocusPerZone.put(audioZoneId, zoneFocusListener);
         }
         return new CarZonesAudioFocus(audioFocusPerZone, carFocusCallback);
@@ -296,6 +297,16 @@ final class CarZonesAudioFocus extends AudioPolicy.AudioPolicyFocusListener {
         }
         writer.decreaseIndent();
         writer.decreaseIndent();
+    }
+
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {
+        long focusHandlerToken = proto.start(CarAudioDumpProto.FOCUS_HANDLER);
+        proto.write(CarAudioZoneFocusProto.HAS_FOCUS_CALLBACK, mCarFocusCallback != null);
+        for (int i = 0; i < mFocusZones.size(); i++) {
+            mFocusZones.valueAt(i).dumpProto(proto);
+        }
+        proto.end(focusHandlerToken);
     }
 
     public void updateUserForZoneId(int audioZoneId, @UserIdInt int userId) {

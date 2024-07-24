@@ -69,6 +69,7 @@ import android.util.JsonReader;
 import android.util.JsonToken;
 import android.util.JsonWriter;
 import android.util.SparseArray;
+import android.util.proto.ProtoOutputStream;
 import android.view.Display;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -94,6 +95,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -651,6 +654,24 @@ public class CarUxRestrictionsManagerService extends ICarUxRestrictionsManager.S
     }
 
     /**
+     * Returns all supported restriction modes
+     */
+    @NonNull
+    public List<String> getSupportedRestrictionModes() {
+        Set<String> modes = new HashSet<>();
+        Collection<CarUxRestrictionsConfiguration> configs;
+        synchronized (mLock) {
+            configs = mCarUxRestrictionsConfigurations.values();
+        }
+
+        for (CarUxRestrictionsConfiguration config : configs) {
+            modes.addAll(config.getSupportedRestrictionModes());
+        }
+
+        return new ArrayList<>(modes);
+    }
+
+    /**
      * Writes configuration into the specified file.
      *
      * IO access on file is not thread safe. Caller should ensure threading protection.
@@ -854,6 +875,10 @@ public class CarUxRestrictionsManagerService extends ICarUxRestrictionsManager.S
             }
         }
     }
+
+    @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
+    public void dumpProto(ProtoOutputStream proto) {}
 
     /**
      * {@link CarDrivingStateEvent} listener registered with the {@link CarDrivingStateService}

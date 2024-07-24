@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -45,5 +46,5 @@ android_app {
     ],
 
     required: ["allowed_privapp_com.google.android.car.multidisplaytest"],
-
+    system_ext_specific: true,
 }

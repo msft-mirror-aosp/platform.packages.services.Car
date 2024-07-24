@@ -19,6 +19,7 @@
 // supported.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -32,7 +33,7 @@ android_library {
         "modules-utils-preconditions",
     ],
     resource_dirs: [
-        "src/main/res"
+        "src/main/res",
     ],
     sdk_version: "module_current",
 }

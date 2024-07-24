@@ -17,6 +17,7 @@
 // Build the Experimental Car service.
 
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -46,9 +47,6 @@ android_app {
         "car-service-common-util-static-lib",
         "car-experimental-api-static-lib",
     ],
-    lint: {
-        baseline_filename: "lint-baseline.xml",
-    },
 }
 
 //####################################################################################
