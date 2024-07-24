@@ -1,6 +1,12 @@
 {
   "auto-presubmit": [
     {
+      "name": "CarLibAdminUnitTest"
+    },
+    {
+      "name": "CarLibAppUnitTest"
+    },
+    {
       "name": "CarLibCarUnitTest"
     },
     {
