@@ -187,7 +187,6 @@ android_test {
     ],
     srcs: [
         "src/android/car/hardware/property/*.java",
-        "src/com/android/car/internal/property/*.java",
     ],
 }
 
@@ -284,6 +283,6 @@ android_test {
         "CarLibDeviceUnitTestDefault",
     ],
     srcs: [
-        "src/android/car/internal/util/*.java",
+        "src/com/android/car/internal/**/*.java",
     ],
 }
