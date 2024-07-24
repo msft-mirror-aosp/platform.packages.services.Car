@@ -111,6 +111,11 @@ android_ravenwood_test {
         "src/android/car/media/CarAudioZoneConfigInfoUnitTest.java",
         "src/android/car/media/CarVolumeGroupEventUnitTest.java",
         "src/android/car/media/CarVolumeGroupInfoUnitTest.java",
+        "src/android/car/oem/AudioFocusEntryUnitTest.java",
+        "src/android/car/oem/OemCarAudio*.java",
+        // The following cannot be enabled because FadeManagerConfiguration
+        // is not supported on host.
+        "src/android/car/oem/CarAudioFadeConfigurationUnitTest.java",
     ],
 }
 
@@ -221,6 +226,16 @@ android_test {
         ],
     },
     manifest: "AndroidManifest_OccupantConnectionUnitTest.xml",
+}
+
+android_test {
+    name: "CarLibOemUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/oem/*.java",
+    ],
 }
 
 android_test {
