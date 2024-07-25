@@ -278,6 +278,16 @@ android_test {
 }
 
 android_test {
+    name: "CarLibVmsUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/vms/*.java",
+    ],
+}
+
+android_test {
     name: "CarLibWifiUnitTest",
     defaults: [
         "CarLibDeviceUnitTestDefault",
