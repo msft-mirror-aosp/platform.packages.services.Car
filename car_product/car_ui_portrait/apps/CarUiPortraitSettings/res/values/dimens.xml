@@ -20,4 +20,6 @@
     <dimen name="top_level_menu_width">400dp</dimen>
     <dimen name="top_level_recyclerview_margin_right">@*android:dimen/car_padding_2</dimen>
     <dimen name="top_level_foreground_icon_inset">8dp</dimen>
+
+    <dimen name="colored_two_action_switch_preference_margin_end">16dp</dimen>
 </resources>
