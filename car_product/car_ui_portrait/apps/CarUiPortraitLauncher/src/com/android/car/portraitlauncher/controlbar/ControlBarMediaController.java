@@ -35,7 +35,6 @@ import com.android.car.apps.common.RoundedDrawable;
 import com.android.car.apps.common.util.ViewUtils;
 import com.android.car.carlauncher.homescreen.audio.media.MediaIntentRouter;
 import com.android.car.media.common.MediaItemMetadata;
-import com.android.car.media.common.R;
 import com.android.car.media.common.playback.PlaybackProgress;
 import com.android.car.media.common.playback.PlaybackViewModel;
 import com.android.car.media.common.playback.PlaybackViewModel.PlaybackController;
@@ -43,6 +42,7 @@ import com.android.car.media.common.source.MediaSource;
 import com.android.car.media.common.ui.PlaybackCardController;
 import com.android.car.media.common.ui.PlaybackHistoryController;
 import com.android.car.media.common.ui.PlaybackQueueController;
+import com.android.car.portraitlauncher.R;
 
 import java.util.ArrayList;
 import java.util.List;
