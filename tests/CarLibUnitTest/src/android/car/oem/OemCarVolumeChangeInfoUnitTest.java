@@ -18,23 +18,39 @@ package android.car.oem;
 
 import static org.junit.Assert.assertThrows;
 
+import android.car.feature.Flags;
 import android.car.media.CarVolumeGroupInfo;
 import android.car.test.AbstractExpectableTestCase;
 import android.os.Parcel;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 
+@EnableFlags({
+        Flags.FLAG_CAR_AUDIO_MIN_MAX_ACTIVATION_VOLUME,
+        Flags.FLAG_CAR_AUDIO_DYNAMIC_DEVICES,
+        Flags.FLAG_CAR_AUDIO_MUTE_AMBIGUITY
+})
 public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTestCase {
+    @ClassRule public static final SetFlagsRule.ClassRule mClassRule = new SetFlagsRule.ClassRule();
+    @Rule public final SetFlagsRule mSetFlagsRule = mClassRule.createSetFlagsRule();
 
     private static final int TEST_ZONE_ID = 8;
     private static final int TEST_PRIMARY_GROUP_ID = 7;
     private static final String TEST_GROUP_NAME = "3";
 
-    private static final CarVolumeGroupInfo TEST_VOLUME_INFO =
-            new CarVolumeGroupInfo.Builder(TEST_GROUP_NAME, TEST_ZONE_ID, TEST_PRIMARY_GROUP_ID)
-                    .setMaxVolumeGainIndex(9_000).setMinVolumeGainIndex(0)
-                    .setMaxActivationVolumeGainIndex(8_000).setMinActivationVolumeGainIndex(100)
-                    .build();
+    private final CarVolumeGroupInfo mTestVolumeInfo;
+
+    public OemCarVolumeChangeInfoUnitTest() {
+        mTestVolumeInfo = new CarVolumeGroupInfo.Builder(TEST_GROUP_NAME, TEST_ZONE_ID,
+                TEST_PRIMARY_GROUP_ID)
+                .setMaxVolumeGainIndex(9_000).setMinVolumeGainIndex(0)
+                .setMaxActivationVolumeGainIndex(8_000).setMinActivationVolumeGainIndex(100)
+                .build();
+    }
 
     @Test
     public void build() {
@@ -49,10 +65,10 @@ public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTest
     public void setChangedVolumeGroup() {
         OemCarVolumeChangeInfo info =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ false)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
 
         expectWithMessage("Car volume change build changed volume")
-                .that(info.getChangedVolumeGroup()).isEqualTo(TEST_VOLUME_INFO);
+                .that(info.getChangedVolumeGroup()).isEqualTo(mTestVolumeInfo);
     }
 
 
@@ -94,10 +110,10 @@ public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTest
     public void equals_forSameContent() {
         OemCarVolumeChangeInfo info =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ false)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
         OemCarVolumeChangeInfo info2 =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ false)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
 
         expectWithMessage("Car volume change with same content").that(info2).isEqualTo(info);
     }
@@ -106,10 +122,10 @@ public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTest
     public void equals_forDifferentContent() {
         OemCarVolumeChangeInfo info =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ true)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
         OemCarVolumeChangeInfo info2 =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ false)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
 
         expectWithMessage("Car volume change with different content").that(info2)
                 .isNotEqualTo(info);
@@ -119,7 +135,7 @@ public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTest
     public void equals_forNull() {
         OemCarVolumeChangeInfo info =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ false)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
 
         expectWithMessage("Car volume change equal for null").that(info.equals(null)).isFalse();
     }
@@ -128,10 +144,10 @@ public final class OemCarVolumeChangeInfoUnitTest extends AbstractExpectableTest
     public void hashCode_forSameContent() {
         OemCarVolumeChangeInfo info =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ false)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
         OemCarVolumeChangeInfo info2 =
                 new OemCarVolumeChangeInfo.Builder(/* volumeChanged= */ false)
-                        .setChangedVolumeGroup(TEST_VOLUME_INFO).build();
+                        .setChangedVolumeGroup(mTestVolumeInfo).build();
 
         expectWithMessage("Car volume change hash with same content")
                 .that(info2.hashCode()).isEqualTo(info.hashCode());
