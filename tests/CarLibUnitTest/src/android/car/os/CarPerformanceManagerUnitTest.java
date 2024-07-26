@@ -34,17 +34,23 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.platform.test.ravenwood.RavenwoodRule;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(MockitoJUnitRunner.Silent.class)
 public final class CarPerformanceManagerUnitTest {
 
-    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder().setProvideMainThread(true)
+            .build();
+
+    private Handler mMainHandler;
 
     @Mock private Context mContext;
     @Mock private Car mCar;
@@ -55,6 +61,8 @@ public final class CarPerformanceManagerUnitTest {
 
     @Before
     public void setUp() {
+        mMainHandler = new Handler(Looper.getMainLooper());
+
         when(mCar.getContext()).thenReturn(mContext);
         when(mCar.getEventHandler()).thenReturn(mMainHandler);
         when(mCar.handleRemoteExceptionFromCarService(any(RemoteException.class), any()))

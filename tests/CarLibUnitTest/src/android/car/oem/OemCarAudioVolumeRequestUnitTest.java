@@ -29,8 +29,6 @@ import android.media.AudioAttributes;
 import android.os.Parcel;
 import android.telephony.TelephonyManager;
 
-import com.android.car.audio.CarAudioContext;
-
 import org.junit.Test;
 
 import java.util.List;
@@ -60,11 +58,11 @@ public final class OemCarAudioVolumeRequestUnitTest extends AbstractExpectableTe
                     .setMinActivationVolumeGainIndex(TEST_MIN_ACTIVATION_GAIN_INDEX).build();
 
     private static final AudioAttributes TEST_MEDIA_ATTRIBUTE =
-            CarAudioContext.getAudioAttributeFromUsage(USAGE_MEDIA);
+            new AudioAttributes.Builder().setUsage(USAGE_MEDIA).build();
     private static final AudioAttributes TEST_NAVIGATION_ATTRIBUTE =
-            CarAudioContext.getAudioAttributeFromUsage(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
+            new AudioAttributes.Builder().setUsage(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE).build();
     private static final AudioAttributes TEST_ASSISTANT_ATTRIBUTE =
-            CarAudioContext.getAudioAttributeFromUsage(USAGE_ASSISTANT);
+            new AudioAttributes.Builder().setUsage(USAGE_ASSISTANT).build();
 
     private static final OemCarAudioVolumeRequest TEST_VOLUME_REQUEST =
             new OemCarAudioVolumeRequest.Builder(PRIMARY_AUDIO_ZONE)

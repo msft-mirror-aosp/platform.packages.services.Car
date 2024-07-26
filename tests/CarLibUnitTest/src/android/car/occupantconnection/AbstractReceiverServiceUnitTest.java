@@ -29,9 +29,12 @@ import android.content.Intent;
 import android.content.pm.SigningInfo;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.platform.test.annotations.DisabledOnRavenwood;
+import android.platform.test.ravenwood.RavenwoodClassRule;
 import android.util.Pair;
 
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -40,7 +43,10 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.util.Set;
 
 @RunWith(MockitoJUnitRunner.class)
+@DisabledOnRavenwood(blockedBy = android.app.Service.class)
 public final class AbstractReceiverServiceUnitTest {
+    @ClassRule
+    public static final RavenwoodClassRule sRavenwood = new RavenwoodClassRule();
 
     private static final String RECEIVER_ENDPOINT_ID = "test_receiver_endpoint";
 
