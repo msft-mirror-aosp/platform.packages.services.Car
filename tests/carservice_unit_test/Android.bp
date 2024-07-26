@@ -122,10 +122,13 @@ android_ravenwood_test {
         "src/android/car/test/JUnitHelper.java",
         "src/android/car/test/PermissionsCheckerRuleTest.java",
         "src/com/android/car/CarPropertyServiceUnitTest.java",
+        "src/com/android/car/internal/PendingRequestPoolUnitTest.java",
         "src/com/android/car/hal/VehicleHalTest.java",
         "src/com/android/car/hal/fakevhal/FakeVhalConfigParserUnitTest.java",
         "src/com/android/car/hal/fakevhal/FakeVehicleStubUnitTest.java",
         "src/com/android/car/hal/property/PropertyHalServiceConfigsUnitTest.java",
+        "src/com/android/car/user/InitialUserSetterTest.java",
+        "src/com/android/car/user/MockedUserHandleBuilder.java",
         // Don't depends on "com.android.car.test" because it uses
         // "mockito-target-extended" which might not be the same mockito
         // library used on host.

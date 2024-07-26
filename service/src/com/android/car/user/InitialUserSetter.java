@@ -25,7 +25,6 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
-import android.app.ActivityManager;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
@@ -34,6 +33,7 @@ import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.widget.LockPatternHelper;
 import android.car.settings.CarSettings;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.hardware.automotive.vehicle.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.UserInfo;
@@ -50,6 +50,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.car.internal.dep.Trace;
 import com.android.car.internal.os.CarSystemProperties;
+import com.android.car.user.CarUserService.GlobalSettings;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
@@ -60,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -124,6 +126,26 @@ final class InitialUserSetter {
     public @interface InitialUserInfoType {
     }
 
+    @VisibleForTesting
+    interface ActivityManagerHelperIntf {
+        boolean startUserInForeground(@UserIdInt int userId);
+    }
+
+    @VisibleForTesting
+    interface CarSystemPropertiesIntf {
+        Optional<Integer> getBootUserOverrideId();
+    }
+
+    @VisibleForTesting
+    interface LockPatternHelperIntf {
+        boolean isSecure(@NonNull Context context, @UserIdInt int userId);
+    }
+
+    @VisibleForTesting
+    interface SystemSettings {
+        boolean putString(ContentResolver resolver, String name, String value);
+    }
+
     private final Context mContext;
 
     // TODO(b/150413304): abstract AM / UM into interfaces, then provide local and remote
@@ -137,34 +159,67 @@ final class InitialUserSetter {
     private final Consumer<UserHandle> mListener;
 
     private final UserHandleHelper mUserHandleHelper;
+    private final GlobalSettings mGlobalSettings;
+    private final SystemSettings mSystemSettings;
+    private final CurrentUserFetcher mCurrentUserFetcher;
+    private final boolean mIsHeadlessSystemUserMode;
+    private final ActivityManagerHelperIntf mActivityManagerHelper;
+    private final CarSystemPropertiesIntf mCarSystemProperties;
+    private final LockPatternHelperIntf mLockPatternHelper;
 
     private final boolean mIsVisibleBackgroundUsersOnDefaultDisplaySupported;
 
-    InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
-            @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper) {
-        this(context, carUserService, listener, userHandleHelper,
-                context.getString(R.string.default_guest_name));
-    }
+    @VisibleForTesting
+    record Deps(
+            UserManager userManager,
+            String newUserName,
+            String newGuestName,
+            boolean isHeadlessSystemUserMode,
+            ActivityManagerHelperIntf activityManagerHelper,
+            CarSystemPropertiesIntf carSystemProperties,
+            LockPatternHelperIntf lockPatternHelper,
+            CurrentUserFetcher currentUserFetcher,
+            GlobalSettings globalSettings,
+            SystemSettings systemSettings) {}
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
             @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper,
-            @Nullable String newGuestName) {
-        this(context, context.getSystemService(UserManager.class), carUserService, listener,
-                userHandleHelper, UserManagerHelper.getDefaultUserName(context), newGuestName);
+            CarUserService.Deps carUserServiceDeps) {
+        this(context, carUserService, listener, userHandleHelper,
+                new Deps(
+                        context.getSystemService(UserManager.class),
+                        UserManagerHelper.getDefaultUserName(context),
+                        context.getString(R.string.default_guest_name),
+                        UserManager.isHeadlessSystemUserMode(),
+                        (userId) -> ActivityManagerHelper.startUserInForeground(userId),
+                        () -> CarSystemProperties.getBootUserOverrideId(),
+                        (ctx, userId) -> LockPatternHelper.isSecure(ctx, userId),
+                        carUserServiceDeps.currentUserFetcher(),
+                        carUserServiceDeps.globalSettings(),
+                        (resolver, name, value) -> Settings.System.putString(resolver, name, value)
+                ));
     }
 
     @VisibleForTesting
-    InitialUserSetter(@NonNull Context context, @NonNull UserManager um,
-            @NonNull CarUserService carUserService, @NonNull Consumer<UserHandle> listener,
-            @NonNull UserHandleHelper userHandleHelper, @Nullable String newUserName,
-            @Nullable String newGuestName) {
+    InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
+            @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper,
+            @NonNull Deps deps) {
         mContext = context;
-        mUm = um;
         mCarUserService = carUserService;
         mListener = listener;
         mUserHandleHelper = userHandleHelper;
-        mNewUserName = newUserName;
-        mNewGuestName = newGuestName;
+
+        mUm = deps.userManager();
+        mNewUserName = deps.newUserName();
+        mNewGuestName = deps.newGuestName();
+        mIsHeadlessSystemUserMode = deps.isHeadlessSystemUserMode();
+        mActivityManagerHelper = deps.activityManagerHelper();
+        mCarSystemProperties = deps.carSystemProperties();
+        mLockPatternHelper = deps.lockPatternHelper();
+        mCurrentUserFetcher = deps.currentUserFetcher();
+        mGlobalSettings = deps.globalSettings();
+        mSystemSettings = deps.systemSettings();
+
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
                 isVisibleBackgroundUsersOnDefaultDisplaySupported(mUm);
     }
@@ -396,7 +451,7 @@ final class InitialUserSetter {
     }
 
     private void replaceUser(InitialUserInfo info, boolean fallback) {
-        int currentUserId = ActivityManager.getCurrentUser();
+        int currentUserId = mCurrentUserFetcher.getCurrentUser();
         UserHandle currentUser = mUserHandleHelper.getExistingUserHandle(currentUserId);
 
         if (currentUser == null) {
@@ -500,7 +555,7 @@ final class InitialUserSetter {
 
         int actualUserId = actualUser.getIdentifier();
 
-        int currentUserId = ActivityManager.getCurrentUser();
+        int currentUserId = mCurrentUserFetcher.getCurrentUser();
 
         if (DBG) {
             Slogf.d(TAG, "switchUser: currentUserId = %d, actualUserId = %d",
@@ -533,7 +588,7 @@ final class InitialUserSetter {
             return false;
         }
 
-        if (LockPatternHelper.isSecure(mContext, user.getIdentifier())) {
+        if (mLockPatternHelper.isSecure(mContext, user.getIdentifier())) {
             if (DBG) {
                 Slogf.d(TAG, "replaceGuestIfNeeded(), skipped, since user "
                         + user.getIdentifier() + " has secure lock pattern");
@@ -668,7 +723,7 @@ final class InitialUserSetter {
                 Slogf.d(TAG, "setting locale for user " + user.getIdentifier() + " to "
                         + info.userLocales);
             }
-            Settings.System.putString(
+            mSystemSettings.putString(
                     getContentResolverForUser(mContext, user.getIdentifier()),
                     SettingsHelper.SYSTEM_LOCALES, info.userLocales);
         }
@@ -680,7 +735,7 @@ final class InitialUserSetter {
     boolean startForegroundUser(InitialUserInfo info, @UserIdInt int userId) {
         EventLogHelper.writeCarInitialUserStartFgUser(userId);
 
-        if (UserHelperLite.isHeadlessSystemUser(userId)) {
+        if (UserHelperLite.isHeadlessSystemUser(userId, mIsHeadlessSystemUserMode)) {
             if (!mIsVisibleBackgroundUsersOnDefaultDisplaySupported) {
                 // System User is not associated with real person, can not be switched to.
                 // But in Multi User No Driver mode, we'll need to put system user to foreground as
@@ -695,7 +750,7 @@ final class InitialUserSetter {
         }
 
         if (info.requestType == InitialUserInfoRequestType.RESUME) {
-            return ActivityManagerHelper.startUserInForeground(userId);
+            return mActivityManagerHelper.startUserInForeground(userId);
         } else {
             Slogf.i(TAG, "Setting boot user to: %d", userId);
             mUm.setBootUser(UserHandle.of(userId));
@@ -727,7 +782,7 @@ final class InitialUserSetter {
     public void setLastActiveUser(@UserIdInt int userId) {
         EventLogHelper.writeCarInitialUserSetLastActive(userId);
 
-        if (UserHelperLite.isHeadlessSystemUser(userId)) {
+        if (UserHelperLite.isHeadlessSystemUser(userId, mIsHeadlessSystemUserMode)) {
             if (DBG) {
                 Slogf.d(TAG, "setLastActiveUser(): ignoring headless system user " + userId);
             }
@@ -750,7 +805,7 @@ final class InitialUserSetter {
             Slogf.d(TAG, "setting global property " + name + " to " + userId);
         }
 
-        Settings.Global.putInt(mContext.getContentResolver(), name, userId);
+        mGlobalSettings.putInt(mContext.getContentResolver(), name, userId);
     }
 
     /**
@@ -779,7 +834,7 @@ final class InitialUserSetter {
 
         // TODO(b/150416512): Check if it is still supported, if not remove it.
         if (usesOverrideUserIdProperty) {
-            int bootUserOverride = CarSystemProperties.getBootUserOverrideId()
+            int bootUserOverride = mCarSystemProperties.getBootUserOverrideId()
                     .orElse(BOOT_USER_NOT_FOUND);
 
             // If an override user is present and a real user, return it
@@ -824,7 +879,7 @@ final class InitialUserSetter {
      * @return List of {@code UserHandle} for users that associated with a real person.
      */
     private List<UserHandle> getAllUsers() {
-        if (UserManager.isHeadlessSystemUserMode()) {
+        if (mIsHeadlessSystemUserMode) {
             return getAllUsersExceptSystemUserAndSpecifiedUser(UserHandle.SYSTEM.getIdentifier());
         }
 
@@ -900,11 +955,11 @@ final class InitialUserSetter {
     private void resetUserIdGlobalProperty(@NonNull String name) {
         EventLogHelper.writeCarInitialUserResetGlobalProperty(name);
 
-        Settings.Global.putInt(mContext.getContentResolver(), name, UserManagerHelper.USER_NULL);
+        mGlobalSettings.putInt(mContext.getContentResolver(), name, UserManagerHelper.USER_NULL);
     }
 
     private int getUserIdGlobalProperty(@NonNull String name) {
-        int userId = Settings.Global.getInt(mContext.getContentResolver(), name,
+        int userId = mGlobalSettings.getInt(mContext.getContentResolver(), name,
                 UserManagerHelper.USER_NULL);
         if (DBG) {
             Slogf.d(TAG, "getting global property " + name + ": " + userId);

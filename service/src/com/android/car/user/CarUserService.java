@@ -51,6 +51,7 @@ import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
+import android.car.builtin.widget.LockPatternHelper;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
 import android.car.settings.CarSettings;
@@ -72,6 +73,7 @@ import android.car.user.UserStopResponse;
 import android.car.user.UserStopResult;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AndroidFuture;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -215,6 +217,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private static final String BG_HANDLER_THREAD_NAME = "UserService.BG";
 
+    private final GlobalSettings mGlobalSettings;
     private final CurrentUserFetcher mCurrentUserFetcher;
     private final Context mContext;
     private final ActivityManager mAm;
@@ -295,6 +298,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     // TODO(b/163566866): Use mSwitchGuestUserBeforeSleep for new create guest request
     private final boolean mSwitchGuestUserBeforeSleep;
+    private final boolean mSupportsSecurePassengerUsers;
 
     @Nullable
     @GuardedBy("mLockUser")
@@ -347,40 +351,88 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @NonNull CarUxRestrictionsManagerService uxRestrictionService,
             @NonNull CarPackageManagerService carPackageManagerService,
             @NonNull CarOccupantZoneService carOccupantZoneService) {
-        this(context, hal, userManager, new UserHandleHelper(context, userManager),
-                context.getSystemService(DevicePolicyManager.class),
-                context.getSystemService(ActivityManager.class), maxRunningUsers,
-                /* initialUserSetter= */ null, uxRestrictionService, /* handler= */ null,
+        this(context, hal, userManager, maxRunningUsers, uxRestrictionService,
                 carPackageManagerService, carOccupantZoneService,
-                new ActivityManagerCurrentUserFetcher());
+                new Deps(
+                        new UserHandleHelper(context, userManager),
+                        context.getSystemService(DevicePolicyManager.class),
+                        context.getSystemService(ActivityManager.class),
+                        // The default initial user setter requires access to CarUserService
+                        // reference, so we cannot create it here before the constructor.
+                        /* initialUserSetter= */ null,
+                        // The handler constructor requires mHandlerThread which cannot be
+                        // accessed before the constructor.
+                        /* handler= */ null,
+                        new ActivityManagerCurrentUserFetcher(),
+                        new SystemGlobalSettings()));
+    }
+
+    /**
+     * An interface for injecting fake {@link Settings.Global} implementation.
+     */
+    public interface GlobalSettings {
+        /** See {@link Settings.Global.getString} */
+        String getString(ContentResolver resolver, String name);
+        /** See {@link Settings.Global.getInt} */
+        int getInt(ContentResolver cr, String name, int def);
+        /** See {@link Settings.Global.putInt} */
+        boolean putInt(ContentResolver cr, String name, int value);
+    }
+
+    // A real implementation for {@link GlobalSettings}.
+    // Need to be accessed from com.android.car.user.BaseCarUserServiceTestCase.
+    static final class SystemGlobalSettings implements GlobalSettings {
+        @Override
+        public String getString(ContentResolver resolver, String name) {
+            return Settings.Global.getString(resolver, name);
+        }
+
+        @Override
+        public int getInt(ContentResolver cr, String name, int def) {
+            return Settings.Global.getInt(cr, name, def);
+        }
+
+        @Override
+        public boolean putInt(ContentResolver cr, String name, int value) {
+            return Settings.Global.putInt(cr, name, value);
+        }
     }
 
     @VisibleForTesting
-    public CarUserService(@NonNull Context context, @NonNull UserHalService hal,
-            @NonNull UserManager userManager,
-            @NonNull UserHandleHelper userHandleHelper,
-            @NonNull DevicePolicyManager dpm,
-            @NonNull ActivityManager am,
-            int maxRunningUsers,
+    public record Deps(UserHandleHelper userHandleHelper,
+            DevicePolicyManager dpm,
+            ActivityManager am,
             @Nullable InitialUserSetter initialUserSetter,
+            Handler handler,
+            CurrentUserFetcher currentUserFetcher,
+            GlobalSettings globalSettings) {}
+
+    @VisibleForTesting
+    public CarUserService(
+            @NonNull Context context, @NonNull UserHalService hal,
+            @NonNull UserManager userManager,
+            int maxRunningUsers,
             @NonNull CarUxRestrictionsManagerService uxRestrictionService,
-            @Nullable Handler handler,
             @NonNull CarPackageManagerService carPackageManagerService,
             @NonNull CarOccupantZoneService carOccupantZoneService,
-            @NonNull CurrentUserFetcher currentUserFetcher) {
+            @NonNull Deps deps) {
         Slogf.d(TAG, "CarUserService(): DBG=%b, user=%s", DBG, context.getUser());
-        mCurrentUserFetcher = currentUserFetcher;
         mContext = context;
         mHal = hal;
-        mAm = am;
         mMaxRunningUsers = maxRunningUsers;
         mUserManager = userManager;
-        mDpm = dpm;
-        mUserHandleHelper = userHandleHelper;
-        mHandler = handler == null ? new Handler(mHandlerThread.getLooper()) : handler;
-        mInitialUserSetter =
-                initialUserSetter == null ? new InitialUserSetter(context, this,
-                        (u) -> setInitialUser(u), mUserHandleHelper) : initialUserSetter;
+
+        mAm = deps.am();
+        mDpm = deps.dpm();
+        mUserHandleHelper = deps.userHandleHelper();
+        mHandler = deps.handler() != null ? deps.handler() :
+                new Handler(mHandlerThread.getLooper());
+        mInitialUserSetter = deps.initialUserSetter() != null ? deps.initialUserSetter() :
+                new InitialUserSetter(context, this, (u) -> setInitialUser(u), mUserHandleHelper,
+                        deps);
+        mCurrentUserFetcher = deps.currentUserFetcher();
+        mGlobalSettings = deps.globalSettings();
+
         Resources resources = context.getResources();
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
                 R.bool.config_switchGuestUserBeforeGoingSleep);
@@ -388,6 +440,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mCarPackageManagerService = carPackageManagerService;
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
                 isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager);
+        mSupportsSecurePassengerUsers = context.getResources().getBoolean(
+                R.bool.config_supportsSecurePassengerUsers);
         // Set the initial capacity of the user creation queue to avoid potential resizing.
         // The max number of running users can be a good estimate because CreateUser request comes
         // from a running user.
@@ -529,7 +583,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void dumpGlobalProperty(IndentingPrintWriter writer, String property) {
-        String value = Settings.Global.getString(mContext.getContentResolver(), property);
+        String value = mGlobalSettings.getString(mContext.getContentResolver(), property);
         writer.printf("%s=%s\n", property, value);
     }
 
@@ -1845,7 +1899,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     private void updateDefaultUserRestriction() {
         // We want to set restrictions on system and guest users only once. These are persisted
         // onto disk, so it's sufficient to do it once + we minimize the number of disk writes.
-        if (Settings.Global.getInt(mContext.getContentResolver(),
+        if (mGlobalSettings.getInt(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, /* default= */ 0) != 0) {
             return;
         }
@@ -1853,7 +1907,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (UserManager.isHeadlessSystemUserMode()) {
             setSystemUserRestrictions();
         }
-        Settings.Global.putInt(mContext.getContentResolver(),
+        mGlobalSettings.putInt(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, 1);
     }
 
@@ -2121,6 +2175,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         // If the requested user does not exist.
         if (mUserHandleHelper.getExistingUserHandle(userId) == null) {
             return UserStartResponse.STATUS_USER_DOES_NOT_EXIST;
+        }
+
+        if (!mSupportsSecurePassengerUsers && LockPatternHelper.isSecure(mContext, userId)) {
+            // Passenger lock screen not currently supported - reject user start
+            Slogf.w(TAG, "Secure user %d cannot be started as a passenger", userId);
+            return UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
         }
 
         // If the specified display is not a valid display for assigning user to.
