@@ -36,8 +36,6 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * This class provide utility methods for CarEvsService clients.
- *
- * @hide
  */
 public final class CarEvsUtils {
     private static final String TAG = CarEvsUtils.class.getSimpleName();
