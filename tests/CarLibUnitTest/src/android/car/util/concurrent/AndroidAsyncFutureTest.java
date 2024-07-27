@@ -15,25 +15,23 @@
  */
 package android.car.util.concurrent;
 
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoSession;
-import org.mockito.quality.Strictness;
+import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
+@RunWith(MockitoJUnitRunner.class)
 public final class AndroidAsyncFutureTest {
 
     @Mock
@@ -44,23 +42,8 @@ public final class AndroidAsyncFutureTest {
     private AndroidAsyncFuture<Integer> mAndroidAsyncFuture;
 
     @Before
-    public void setupMocks() {
-        mMockSession = mockitoSession()
-                .initMocks(this)
-                .strictness(Strictness.LENIENT)
-                .startMocking();
+    public void setup() {
         mAndroidAsyncFuture = new AndroidAsyncFuture<Integer>(mFuture);
-    }
-
-    @After
-    public void tearDown() {
-        try {
-            mMockSession.finishMocking();
-        } finally {
-            // When using inline mock maker, clean up inline mocks to prevent OutOfMemory errors.
-            // See https://github.com/mockito/mockito/issues/1614 and b/259280359.
-            Mockito.framework().clearInlineMocks();
-        }
     }
 
     @Test

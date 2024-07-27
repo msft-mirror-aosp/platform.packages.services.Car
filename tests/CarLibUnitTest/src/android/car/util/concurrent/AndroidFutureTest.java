@@ -23,7 +23,11 @@ import static org.junit.Assert.assertThrows;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.os.Parcel;
+import android.platform.test.annotations.DisabledOnRavenwood;
+import android.platform.test.ravenwood.RavenwoodRule;
 
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -32,16 +36,25 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 
 public final class AndroidFutureTest {
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder().setProvideMainThread(true)
+            .build();
 
     private static final String STRING_VALUE = "test-future-string";
     private static final String EXCEPTION_MESSAGE = "An exception was thrown!";
     private static final long TIMEOUT_MS = 100;
 
-    private AndroidFuture<String> mUncompletedFuture = new AndroidFuture<>();
-    private AndroidFuture<String> mCompletedFuture = AndroidFuture.completedFuture(STRING_VALUE);
+    private AndroidFuture<String> mUncompletedFuture;
+    private AndroidFuture<String> mCompletedFuture;
 
     private CountDownLatch mLatch = new CountDownLatch(1);
     private Parcel mParcel = Parcel.obtain();
+
+    @Before
+    public void setup() {
+        mUncompletedFuture = new AndroidFuture<>();
+        mCompletedFuture = AndroidFuture.completedFuture(STRING_VALUE);
+    }
 
     @Test
     public void testComplete_uncompleted() throws Exception {
@@ -206,6 +219,7 @@ public final class AndroidFutureTest {
         assertThat(thrown.getMessage()).contains(EXCEPTION_MESSAGE);
     }
 
+    @DisabledOnRavenwood(reason = "android.os.Parcel.writeStronBinder not supported")
     @Test
     public void testWriteToParcel_uncompleted() throws Exception {
         mUncompletedFuture.writeToParcel(mParcel, /* flags= */0);
@@ -217,6 +231,7 @@ public final class AndroidFutureTest {
         assertThat(mUncompletedFuture.get()).isEqualTo(STRING_VALUE);
     }
 
+    @DisabledOnRavenwood(reason = "android.os.Parcel.writeStronBinder not supported")
     @Test
     public void testWriteToParcel_uncompleted_Exception() throws Exception {
         mUncompletedFuture.writeToParcel(mParcel, /* flags= */0);

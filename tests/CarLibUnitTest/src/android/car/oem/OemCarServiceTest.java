@@ -22,17 +22,25 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assert.assertThrows;
 
 import android.car.CarVersion;
-import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.pm.PackageManager;
+import android.platform.test.annotations.DisabledOnRavenwood;
+import android.platform.test.ravenwood.RavenwoodClassRule;
 
 import androidx.annotation.NonNull;
 
 import com.android.internal.annotations.GuardedBy;
 
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
-public final class OemCarServiceTest extends AbstractExtendedMockitoTestCase {
+@DisabledOnRavenwood(blockedBy = android.app.Service.class)
+@RunWith(MockitoJUnitRunner.class)
+public final class OemCarServiceTest {
+    @ClassRule
+    public static final RavenwoodClassRule sRavenwood = new RavenwoodClassRule();
 
     private final CarVersion mCarVersionForTesting = CarVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 

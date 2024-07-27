@@ -33,6 +33,7 @@ import java.util.List;
 
 @RunWith(JUnit4.class)
 public final class CarVolumeGroupEventUnitTest extends AbstractExpectableTestCase {
+
     private static final String TEST_GROUP_NAME_MEDIA = "MEDIA";
     private static final int TEST_ZONE_ID = 1;
     private static final int TEST_ID = 1;

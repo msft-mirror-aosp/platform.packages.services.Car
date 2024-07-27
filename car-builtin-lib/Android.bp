@@ -82,7 +82,7 @@ java_sdk_library {
         "//packages/services/Car/tests/CarLibUnitTest:__subpackages__",
         "//packages/services/Car/tests/carservice_test",
         "//packages/services/Car/tests/carservice_unit_test",
-        "//packages/services/Car/cpp/watchdog/car-watchdog-lib",
+        "//packages/services/Car/libs/car-watchdog-lib",
         "//cts/tests/tests/car_builtin",
         "//frameworks/opt/car/services/builtInServices",
         "//frameworks/opt/car/services/builtInServices/tests",

@@ -92,7 +92,13 @@ android_ravenwood_test {
     auto_gen_config: true,
     srcs: [
         "src/**/*.java",
+        "src/**/*.aidl",
     ],
+    aidl: {
+        include_dirs: [
+            "packages/services/Car/car-lib/src",
+        ],
+    },
     exclude_srcs: [
         // TODO(b/354795535): Enable CarLibAdminUnitTest on host.
         "src/android/car/admin/**/*.java",
@@ -100,6 +106,16 @@ android_ravenwood_test {
         "src/android/car/app/**/*.java",
         // TODO(b/354796364): Enable cluster renderer test on host.
         "src/android/car/cluster/renderer/*.java",
+        // The following cannot be enabled because AudioAttributes is
+        // not supported on host.
+        "src/android/car/media/CarAudioZoneConfigInfoUnitTest.java",
+        "src/android/car/media/CarVolumeGroupEventUnitTest.java",
+        "src/android/car/media/CarVolumeGroupInfoUnitTest.java",
+        "src/android/car/oem/AudioFocusEntryUnitTest.java",
+        "src/android/car/oem/OemCarAudio*.java",
+        // The following cannot be enabled because FadeManagerConfiguration
+        // is not supported on host.
+        "src/android/car/oem/CarAudioFadeConfigurationUnitTest.java",
     ],
 }
 
@@ -171,7 +187,6 @@ android_test {
     ],
     srcs: [
         "src/android/car/hardware/property/*.java",
-        "src/com/android/car/internal/property/*.java",
     ],
 }
 
@@ -183,6 +198,52 @@ android_test {
     srcs: [
         "src/android/car/media/*.java",
         "src/com/android/car/audio/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibNavigationUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/navigation/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibOccupantConnectionUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/occupantconnection/*",
+    ],
+    aidl: {
+        include_dirs: [
+            "packages/services/Car/car-lib/src",
+        ],
+    },
+    manifest: "AndroidManifest_OccupantConnectionUnitTest.xml",
+}
+
+android_test {
+    name: "CarLibOemUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/oem/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibOsUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/os/*.java",
     ],
 }
 
@@ -207,6 +268,26 @@ android_test {
 }
 
 android_test {
+    name: "CarLibUtilConcurrentUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/util/concurrent/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibVmsUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/vms/*.java",
+    ],
+}
+
+android_test {
     name: "CarLibWifiUnitTest",
     defaults: [
         "CarLibDeviceUnitTestDefault",
@@ -222,6 +303,6 @@ android_test {
         "CarLibDeviceUnitTestDefault",
     ],
     srcs: [
-        "src/android/car/internal/util/*.java",
+        "src/com/android/car/internal/**/*.java",
     ],
 }

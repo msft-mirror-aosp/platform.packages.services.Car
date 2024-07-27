@@ -16,12 +16,11 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
-        package="com.android.car.car_lib_unit_test">
+        package="android.car.watchdoglib.test">
     <application android:debuggable="true">
         <uses-library android:name="android.test.runner" />
-        <activity android:name="android.car.app.CarTaskViewControllerHostLifecycleFactoryTest$TestActivity"/>
     </application>
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
-            android:targetPackage="com.android.car.car_lib_unit_test"
-            android:label="Unit Tests for Car Lib APIs"/>
+            android:targetPackage="android.car.watchdoglib.test"
+            android:label="Unit Tests for android.car.watchdoglib"/>
 </manifest>

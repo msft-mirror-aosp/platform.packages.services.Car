@@ -1,40 +1,7 @@
 {
   "auto-presubmit": [
     {
-      "name": "CarLibAdminUnitTest"
-    },
-    {
-      "name": "CarLibAppUnitTest"
-    },
-    {
       "name": "CarLibCarUnitTest"
-    },
-    {
-      "name": "CarLibClusterUnitTest"
-    },
-    {
-      "name": "CarLibPmUnitTest"
-    },
-    {
-      "name": "CarLibEvsUnitTest"
-    },
-    {
-      "name": "CarLibPropertyUnitTest"
-    },
-    {
-      "name": "CarLibMediaUnitTest"
-    },
-    {
-      "name": "CarLibRemoteAccessUnitTest"
-    },
-    {
-      "name": "CarLibUserUnitTest"
-    },
-    {
-      "name": "CarLibWifiUnitTest"
-    },
-    {
-      "name": "CarLibInternalUnitTest"
     }
   ],
   "ravenwood-presubmit": [

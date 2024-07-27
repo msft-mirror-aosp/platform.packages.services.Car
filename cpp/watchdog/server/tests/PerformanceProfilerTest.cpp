@@ -1115,21 +1115,28 @@ public:
         mCollector.clear();
     }
 
-    Result<void> init() { return mCollector->init(); }
+    Result<void> init(int topNStatsPerCategory, int topNStatsPerSubcategory,
+                      int maxUserSwitchEvents, std::chrono::seconds systemEventDataCacheDuration,
+                      size_t bufferSize, bool doSendResourceUsageStatsEnabled,
+                      bool isSmapsRollupSupported) {
+        if (auto result = mCollector->init(); !result.ok()) {
+            return result;
+        }
+
+        mCollector->mTopNStatsPerCategory = topNStatsPerCategory;
+        mCollector->mTopNStatsPerSubcategory = topNStatsPerSubcategory;
+        mCollector->mMaxUserSwitchEvents = maxUserSwitchEvents;
+        mCollector->mSystemEventDataCacheDurationSec = systemEventDataCacheDuration;
+        mCollector->mPeriodicCollection.maxCacheSize = bufferSize;
+        mCollector->mDoSendResourceUsageStats = doSendResourceUsageStatsEnabled;
+        mCollector->mIsSmapsRollupSupported = isSmapsRollupSupported;
+
+        return {};
+    }
 
     void setTopNStatsPerCategory(int value) { mCollector->mTopNStatsPerCategory = value; }
 
     void setTopNStatsPerSubcategory(int value) { mCollector->mTopNStatsPerSubcategory = value; }
-
-    void setMaxUserSwitchEvents(int value) { mCollector->mMaxUserSwitchEvents = value; }
-
-    void setSystemEventDataCacheDuration(std::chrono::seconds value) {
-        mCollector->mSystemEventDataCacheDurationSec = value;
-    }
-
-    void setPeriodicCollectionBufferSize(size_t bufferSize) {
-        mCollector->mPeriodicCollection.maxCacheSize = bufferSize;
-    }
 
     void setSendResourceUsageStatsEnabled(bool enable) {
         mCollector->mDoSendResourceUsageStats = enable;
@@ -1189,15 +1196,12 @@ protected:
         EXPECT_CALL(*mMockPressureMonitor, registerPressureChangeCallback(Eq(mCollector)))
                 .Times(car_watchdog_memory_profiling() ? 1 : 0);
 
-        ASSERT_RESULT_OK(mCollectorPeer->init());
-
-        mCollectorPeer->setTopNStatsPerCategory(kTestTopNStatsPerCategory);
-        mCollectorPeer->setTopNStatsPerSubcategory(kTestTopNStatsPerSubcategory);
-        mCollectorPeer->setMaxUserSwitchEvents(kTestMaxUserSwitchEvents);
-        mCollectorPeer->setSystemEventDataCacheDuration(kTestSystemEventDataCacheDurationSec);
-        mCollectorPeer->setSendResourceUsageStatsEnabled(true);
-        mCollectorPeer->setSmapsRollupSupportedEnabled(true);
-        mCollectorPeer->setPeriodicCollectionBufferSize(kTestPeriodicCollectionBufferSize);
+        ASSERT_RESULT_OK(
+                mCollectorPeer->init(kTestTopNStatsPerCategory, kTestTopNStatsPerSubcategory,
+                                     kTestMaxUserSwitchEvents, kTestSystemEventDataCacheDurationSec,
+                                     kTestPeriodicCollectionBufferSize,
+                                     /*doSendResourceUsageStatsEnabled=*/true,
+                                     /*isSmapsRollupSupported=*/true));
     }
 
     void TearDown() override {

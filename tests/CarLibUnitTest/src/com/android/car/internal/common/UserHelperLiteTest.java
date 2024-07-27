@@ -14,28 +14,18 @@
  * limitations under the License.
  */
 
-package android.car.userlib;
+package com.android.car.internal.common;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.os.UserHandle;
-import android.os.UserManager;
-
-import com.android.car.internal.common.UserHelperLite;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.junit.MockitoJUnitRunner;
 
-public final class UserHelperLiteTest extends AbstractExtendedMockitoTestCase {
-
-    public UserHelperLiteTest() {
-        super(NO_LOG_TAGS);
-    }
-
-    @Override
-    protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        session.spyStatic(UserManager.class);
-    }
+@RunWith(MockitoJUnitRunner.class)
+public final class UserHelperLiteTest {
 
     @Test
     public void testSafeName_nullCheck() {
@@ -52,29 +42,21 @@ public final class UserHelperLiteTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testIsHeadlessSystemUser_system_headlessMode() {
-        mockIsHeadlessSystemUserMode(true);
-
-        assertThat(UserHelperLite.isHeadlessSystemUser(UserHandle.USER_SYSTEM)).isTrue();
+        assertThat(UserHelperLite.isHeadlessSystemUser(UserHandle.USER_SYSTEM, true)).isTrue();
     }
 
     @Test
     public void testIsHeadlessSystemUser_system_nonHeadlessMode() {
-        mockIsHeadlessSystemUserMode(false);
-
-        assertThat(UserHelperLite.isHeadlessSystemUser(UserHandle.USER_SYSTEM)).isFalse();
+        assertThat(UserHelperLite.isHeadlessSystemUser(UserHandle.USER_SYSTEM, false)).isFalse();
     }
 
     @Test
     public void testIsHeadlessSystemUser_nonSystem_headlessMode() {
-        mockIsHeadlessSystemUserMode(true);
-
-        assertThat(UserHelperLite.isHeadlessSystemUser(10)).isFalse();
+        assertThat(UserHelperLite.isHeadlessSystemUser(10, true)).isFalse();
     }
 
     @Test
     public void testIsHeadlessSystemUser_nonSystem_nonHeadlessMode() {
-        mockIsHeadlessSystemUserMode(false);
-
-        assertThat(UserHelperLite.isHeadlessSystemUser(10)).isFalse();
+        assertThat(UserHelperLite.isHeadlessSystemUser(10, false)).isFalse();
     }
 }
