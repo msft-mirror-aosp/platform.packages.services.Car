@@ -187,7 +187,6 @@ android_test {
     ],
     srcs: [
         "src/android/car/hardware/property/*.java",
-        "src/com/android/car/internal/property/*.java",
     ],
 }
 
@@ -269,6 +268,26 @@ android_test {
 }
 
 android_test {
+    name: "CarLibUtilConcurrentUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/util/concurrent/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibVmsUnitTest",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    srcs: [
+        "src/android/car/vms/*.java",
+    ],
+}
+
+android_test {
     name: "CarLibWifiUnitTest",
     defaults: [
         "CarLibDeviceUnitTestDefault",
@@ -284,6 +303,6 @@ android_test {
         "CarLibDeviceUnitTestDefault",
     ],
     srcs: [
-        "src/android/car/internal/util/*.java",
+        "src/com/android/car/internal/**/*.java",
     ],
 }
