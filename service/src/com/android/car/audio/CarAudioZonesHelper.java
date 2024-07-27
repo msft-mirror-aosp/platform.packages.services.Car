@@ -80,6 +80,9 @@ import java.util.Set;
     private static final String TAG_OEM_CONTEXT = "oemContext";
     private static final String OEM_CONTEXT_NAME = "name";
 
+    private static final String TAG_DEVICE_CONFIGURATIONS = "deviceConfigurations";
+    private static final String DEVICE_CONFIG_CORE_VOLUME = "useCoreAudioVolume";
+
     private static final String TAG_AUDIO_ZONES = "zones";
     private static final String TAG_AUDIO_ZONE = "zone";
     private static final String TAG_AUDIO_ZONE_CONFIGS = "zoneConfigs";
@@ -128,6 +131,7 @@ import java.util.Set;
     private static final int SUPPORTED_VERSION_3 = 3;
     private static final int SUPPORTED_VERSION_4 = 4;
     private static final SparseIntArray SUPPORTED_VERSIONS;
+    public static final String TRUE_FALSE_REGEX = "(?i)^(true|false)$";
 
     static {
         SUPPORTED_VERSIONS = new SparseIntArray(4);
@@ -155,7 +159,6 @@ import java.util.Set;
     private final Set<String> mAssignedInputAudioDevices;
     private final Set<String> mAudioZoneConfigNames;
     private final boolean mUseCarVolumeGroupMute;
-    private final boolean mUseCoreAudioVolume;
     private final boolean mUseCoreAudioRouting;
     private final boolean mUseFadeManagerConfiguration;
     private final CarAudioFadeConfigurationHelper mCarAudioFadeConfigurationHelper;
@@ -163,6 +166,7 @@ import java.util.Set;
     private final Map<String, CarActivationVolumeConfig> mConfigNameToActivationVolumeConfig =
             new ArrayMap<>();
 
+    private boolean mUseCoreAudioVolume;
     private final ArrayMap<String, Integer> mContextNameToId = new ArrayMap<>();
     private final LocalLog mCarServiceLocalLog;
     private CarAudioContext mCarAudioContext;
@@ -209,6 +213,19 @@ import java.util.Set;
 
     SparseArray<CarAudioZone> loadAudioZones() throws IOException, XmlPullParserException {
         return parseCarAudioZones(mInputStream);
+    }
+
+    /**
+     * Returns the updated use core volume device configuration
+     *
+     * <p><b>Note</b> The value will depend on the device configuration obtained from the car audio
+     * configuration file. With value obtained from the configuration file having higher priority
+     * over the passed in value (which was obtained from the legacy RRO).
+     *
+     * @return {@code true} if core volume management should be used, {@code false} otherwise.
+     */
+    boolean useCoreAudioVolume() {
+        return mUseCoreAudioVolume;
     }
 
     private static Map<String, CarAudioDeviceInfo> generateAddressToInfoMap(
@@ -259,7 +276,10 @@ import java.util.Set;
         // Get all zones configured under <zones> tag
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
-            if (Objects.equals(parser.getName(), TAG_OEM_CONTEXTS)) {
+            if (Flags.audioVendorFreezeImprovements()
+                    && Objects.equals(parser.getName(), TAG_DEVICE_CONFIGURATIONS)) {
+                parseDeviceConfigurations(parser);
+            } else if (Objects.equals(parser.getName(), TAG_OEM_CONTEXTS)) {
                 parseCarAudioContexts(parser);
             } else if (Objects.equals(parser.getName(), TAG_MIRRORING_DEVICES)) {
                 parseMirroringDevices(parser);
@@ -379,6 +399,36 @@ import java.util.Set;
                         + contextName);
             }
         }
+    }
+
+    private void parseDeviceConfigurations(XmlPullParser parser)
+            throws XmlPullParserException, IOException {
+        mUseCoreAudioVolume = parseUseCoreAudioVolume(parser);
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.getEventType() != XmlPullParser.START_TAG) continue;
+            CarAudioParserUtils.skip(parser);
+        }
+    }
+
+    private boolean parseUseCoreAudioVolume(XmlPullParser parser) {
+        String useCoreVolumeString = parser.getAttributeValue(NAMESPACE, DEVICE_CONFIG_CORE_VOLUME);
+        return parseBoolean(useCoreVolumeString, DEVICE_CONFIG_CORE_VOLUME, mUseCoreAudioVolume);
+    }
+
+    private boolean parseBoolean(String booleanString, String configName, boolean defaultValue) {
+        if (TextUtils.isEmpty(booleanString)) {
+            return defaultValue;
+        }
+
+        // Need to check for "true" or "false", since Boolean parse will return false for anything
+        // not "true" and we are specifically checking for "true" or "false".
+        if (!booleanString.matches(TRUE_FALSE_REGEX)) {
+            mCarServiceLocalLog.log(configName + " was declared with the value of "
+                    + booleanString + " but should be either true or false");
+            return defaultValue;
+        }
+
+        return Boolean.parseBoolean(booleanString);
     }
 
     private SparseArray<CarAudioZone> parseAudioZones(XmlPullParser parser)
