@@ -197,8 +197,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             }
 
             ActivityOptions options = ActivityOptions.makeBasic();
-            options.setLaunchDisplayId(getDisplay().getDisplayId());
-
             startActivity(intent, options.toBundle());
         }
     };
@@ -388,7 +386,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
         mCurrentTaskInRootTaskView = taskInfo;
 
-        if (!shouldOpenPanelForAppGrid(reason)) {
+        if (mIsAppGridOnTop && !shouldOpenPanelForAppGrid(reason)) {
+            logIfDebuggable("Panel should not open for app grid, check previous log for details");
             return;
         }
 
@@ -413,9 +412,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
      * {@link mSkipAppGridOnRestartAttempt}.
      */
     private boolean shouldOpenPanelForAppGrid(TaskViewPanelStateChangeReason reason) {
-        if (!mIsAppGridOnTop) {
-            return false;
-        } else if (ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
+        if (ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
             logIfDebuggable("Skip panel action for app grid in onTaskMovedToFront");
             return false;
         } else if (ON_ACTIVITY_RESTART_ATTEMPT.equals(reason.getReason())
@@ -673,6 +670,10 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        mTaskViewControllerWrapper.updateAllowListedActivities(BACKGROUND,
+                mTaskCategoryManager.getBackgroundActivitiesList());
+        mTaskViewControllerWrapper.updateAllowListedActivities(FULLSCREEN,
+                mTaskCategoryManager.getFullScreenActivitiesList());
         // the showEmbeddedTasks will make the task visible which will lead to opening of the panel
         // and that should be skipped for application panel  when the  home intent is sent. Because
         // that leads to CTS failures.

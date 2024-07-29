@@ -62,6 +62,7 @@ import android.car.builtin.widget.LockPatternHelper;
 import android.car.content.pm.CarPackageManager;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.feature.Flags;
+import android.car.hardware.power.CarPowerPolicy;
 import android.car.input.CarInputManager;
 import android.car.input.CustomInputEvent;
 import android.car.input.RotaryEvent;
@@ -79,6 +80,7 @@ import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AsyncFuture;
 import android.car.watchdog.CarWatchdogManager;
 import android.car.watchdog.IoOveruseConfiguration;
+import android.car.watchdog.PackageKillableState;
 import android.car.watchdog.PerStateBytes;
 import android.car.watchdog.ResourceOveruseConfiguration;
 import android.content.ComponentName;
@@ -249,6 +251,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
     private static final String COMMAND_APPLY_POWER_POLICY = "apply-power-policy";
     private static final String COMMAND_DEFINE_POWER_POLICY_GROUP = "define-power-policy-group";
     private static final String COMMAND_SET_POWER_POLICY_GROUP = "set-power-policy-group";
+    private static final String COMMAND_GET_CURRENT_POWER_POLICY = "get-current-power-policy";
     private static final String COMMAND_APPLY_CTS_VERIFIER_POWER_OFF_POLICY =
             "apply-cts-verifier-power-off-policy";
     private static final String COMMAND_APPLY_CTS_VERIFIER_POWER_ON_POLICY =
@@ -876,6 +879,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t  Define and apply the cts_verifier_on power policy with "
                 + "--enable WIFI,LOCATION,BLUETOOTH");
 
+        pw.printf("\t%s\n", COMMAND_GET_CURRENT_POWER_POLICY);
+        pw.println("\t  Gets the current power policy.");
+
         pw.printf("\t%s [%s] [%s]\n", COMMAND_POWER_OFF, PARAM_SKIP_GARAGEMODE, PARAM_REBOOT);
         pw.println("\t  Powers off the car.");
 
@@ -1450,6 +1456,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 return definePowerPolicyGroup(args, writer);
             case COMMAND_SET_POWER_POLICY_GROUP:
                 return setPowerPolicyGroup(args, writer);
+            case COMMAND_GET_CURRENT_POWER_POLICY:
+                getCurrentPowerPolicy(writer);
+                break;
             case COMMAND_APPLY_CTS_VERIFIER_POWER_OFF_POLICY:
                 return applyCtsVerifierPowerOffPolicy(args, writer);
             case COMMAND_APPLY_CTS_VERIFIER_POWER_ON_POLICY:
@@ -3216,6 +3225,11 @@ final class CarShellCommand extends BasicShellCommandHandler {
         return RESULT_ERROR;
     }
 
+    private void getCurrentPowerPolicy(IndentingPrintWriter writer) {
+        CarPowerPolicy powerPolicy = mCarPowerManagementService.getCurrentPowerPolicy();
+        writer.printf("Current power policy is: %s", powerPolicy);
+    }
+
     private int applyCtsVerifierPowerPolicy(String policyId, String ops, String cmdName,
             IndentingPrintWriter writer) {
         String[] defArgs = {"define-power-policy", policyId, ops, "WIFI,BLUETOOTH,LOCATION"};
@@ -3653,10 +3667,30 @@ final class CarShellCommand extends BasicShellCommandHandler {
         } else {
             userId = ActivityManager.getCurrentUser();
         }
+
         boolean isKilled = mCarWatchdogService.performResourceOveruseKill(packageName, userId);
         if (isKilled) {
             writer.printf("Successfully killed package '%s' for user %d\n", packageName, userId);
         } else {
+            UserHandle userHandle = UserHandle.of(userId);
+            List<PackageKillableState> packageKillableStates =
+                    mCarWatchdogService.getPackageKillableStatesAsUser(userHandle);
+
+            for (int i = 0; i < packageKillableStates.size(); i++) {
+                PackageKillableState state = packageKillableStates.get(i);
+                if (packageName.equals(state.getPackageName())) {
+                    int killableState = state.getKillableState();
+                    if (killableState != PackageKillableState.KILLABLE_STATE_YES) {
+                        String stateName =
+                                PackageKillableState.killableStateToString(killableState);
+                        writer.printf("Failed to kill package '%s' for user %d because the "
+                                + "package has state '%s'\n", packageName, userId, stateName);
+                        return;
+                    }
+                    break;
+                }
+            }
+
             writer.printf("Failed to kill package '%s' for user %d\n", packageName, userId);
         }
     }
