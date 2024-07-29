@@ -13,19 +13,19 @@
 // limitations under the License.
 
 android_test {
-    name: "android.car.watchdoglib.test",
+    name: "CarTestLibUnitTest",
     srcs: [
         "src/**/*.java",
     ],
     static_libs: [
         "android.car",
+        "android.car.testapi",
         "android.car.test.utils",
-        "android.car.watchdoglib",
         "androidx.test.runner",
         "mockito-target-extended",
         "truth",
     ],
-    // mockito-target-inline dependency
+    // mockito-target-extended dependency
     jni_libs: [
         "libdexmakerjvmtiagent",
         "libstaticjvmtiagent",
