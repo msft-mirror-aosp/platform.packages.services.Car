@@ -46,6 +46,7 @@ import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.SparseArray;
@@ -2108,6 +2109,98 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
             CarAudioZoneConfig defaultConfig = configs.get(0);
             expectWithMessage("Default configuration for zone with invalid input device type "
                     + " and dynamic devices disabled").that(defaultConfig.isDefault()).isTrue();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withInvalidDeviceConfig()
+            throws Exception {
+        boolean useCoreVolume = true;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_invalid_device_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    useCoreVolume, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with invalid device config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with invalid device config")
+                    .that(cazh.useCoreAudioVolume()).isEqualTo(useCoreVolume);
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withUseCoreVolumeDeviceConfig()
+            throws Exception {
+        boolean useCoreVolume = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_use_core_volume)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    useCoreVolume, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with invalid device config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with use core volume device config")
+                    .that(cazh.useCoreAudioVolume()).isTrue();
+        }
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withUseCoreVolumeDeviceConfigAndVendorFreezeFlagDisabled()
+            throws Exception {
+        boolean useCoreVolume = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_use_core_volume)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    useCoreVolume, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with invalid device config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with invalid use core volume device config")
+                    .that(cazh.useCoreAudioVolume()).isEqualTo(useCoreVolume);
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withEmptyUseCoreVolumeDeviceConfig()
+            throws Exception {
+        boolean useCoreVolume = true;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_empty_use_core_volume_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    useCoreVolume, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with empty use core volume config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with empty use core volume device config")
+                    .that(cazh.useCoreAudioVolume()).isEqualTo(useCoreVolume);
         }
     }
 
