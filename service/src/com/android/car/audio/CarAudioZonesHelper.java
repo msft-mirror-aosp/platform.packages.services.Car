@@ -82,6 +82,7 @@ import java.util.Set;
 
     private static final String TAG_DEVICE_CONFIGURATIONS = "deviceConfigurations";
     private static final String DEVICE_CONFIG_CORE_VOLUME = "useCoreAudioVolume";
+    private static final String DEVICE_CONFIG_CORE_ROUTING = "useCoreAudioRouting";
 
     private static final String TAG_AUDIO_ZONES = "zones";
     private static final String TAG_AUDIO_ZONE = "zone";
@@ -159,7 +160,6 @@ import java.util.Set;
     private final Set<String> mAssignedInputAudioDevices;
     private final Set<String> mAudioZoneConfigNames;
     private final boolean mUseCarVolumeGroupMute;
-    private final boolean mUseCoreAudioRouting;
     private final boolean mUseFadeManagerConfiguration;
     private final CarAudioFadeConfigurationHelper mCarAudioFadeConfigurationHelper;
     private final List<CarAudioDeviceInfo> mMirroringDevices = new ArrayList<>();
@@ -167,6 +167,7 @@ import java.util.Set;
             new ArrayMap<>();
 
     private boolean mUseCoreAudioVolume;
+    private boolean mUseCoreAudioRouting;
     private final ArrayMap<String, Integer> mContextNameToId = new ArrayMap<>();
     private final LocalLog mCarServiceLocalLog;
     private CarAudioContext mCarAudioContext;
@@ -220,12 +221,27 @@ import java.util.Set;
      *
      * <p><b>Note</b> The value will depend on the device configuration obtained from the car audio
      * configuration file. With value obtained from the configuration file having higher priority
-     * over the passed in value (which was obtained from the legacy RRO).
+     * over the passed in value (which was obtained from the legacy RRO). If the value is not
+     * defined in the audio configuration file the original passed in value will be returned.
      *
      * @return {@code true} if core volume management should be used, {@code false} otherwise.
      */
     boolean useCoreAudioVolume() {
         return mUseCoreAudioVolume;
+    }
+
+    /**
+     * Returns the updated use core routing device configuration
+     *
+     * <p><b>Note</b> The value will depend on the device configuration obtained from the car audio
+     * configuration file. With value obtained from the configuration file having higher priority
+     * over the passed in value (which was obtained from the legacy RRO). If the value is not
+     * defined in the audio configuration file the original passed in value will be returned.
+     *
+     * @return {@code true} if core routing management should be used, {@code false} otherwise.
+     */
+    boolean useCoreAudioRouting() {
+        return mUseCoreAudioRouting;
     }
 
     private static Map<String, CarAudioDeviceInfo> generateAddressToInfoMap(
@@ -404,6 +420,7 @@ import java.util.Set;
     private void parseDeviceConfigurations(XmlPullParser parser)
             throws XmlPullParserException, IOException {
         mUseCoreAudioVolume = parseUseCoreAudioVolume(parser);
+        mUseCoreAudioRouting = parseUseCoreAudioRouting(parser);
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
             CarAudioParserUtils.skip(parser);
@@ -413,6 +430,13 @@ import java.util.Set;
     private boolean parseUseCoreAudioVolume(XmlPullParser parser) {
         String useCoreVolumeString = parser.getAttributeValue(NAMESPACE, DEVICE_CONFIG_CORE_VOLUME);
         return parseBoolean(useCoreVolumeString, DEVICE_CONFIG_CORE_VOLUME, mUseCoreAudioVolume);
+    }
+
+    private boolean parseUseCoreAudioRouting(XmlPullParser parser) {
+        String useCoreVolumeString = parser.getAttributeValue(NAMESPACE,
+                DEVICE_CONFIG_CORE_ROUTING);
+        return parseBoolean(useCoreVolumeString, DEVICE_CONFIG_CORE_ROUTING,
+                mUseCoreAudioRouting);
     }
 
     private boolean parseBoolean(String booleanString, String configName, boolean defaultValue) {

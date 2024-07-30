@@ -40,6 +40,7 @@
 #include <IVhalClient.h>
 #include <VehicleHalTypes.h>
 
+#include <atomic>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -267,8 +268,11 @@ private:
     int32_t getNewSessionId();
     android::base::Result<void> updateVhal(
             const aidl::android::hardware::automotive::vehicle::VehiclePropValue& value);
-    android::base::Result<void> connectToVhal();
-    void subscribeToVhalHeartBeat();
+    void connectToVhal();
+    void subscribeToVhalHeartBeat(
+            android::frameworks::automotive::vhal::IVhalClient& vhalClient,
+            const std::unordered_set<aidl::android::hardware::automotive::vehicle::VehicleProperty>&
+                    notSupportedProperties);
     const sp<WatchdogServiceHelperInterface> getWatchdogServiceHelperLocked();
     void cacheVhalProcessIdentifier();
     void cacheVhalProcessIdentifierForPid(int32_t pid);
@@ -279,7 +283,6 @@ private:
                     processesNotResponding);
     android::base::Result<std::string> readProcCmdLine(int32_t pid);
     void handleVhalDeath();
-    void queryVhalProperties();
     void updateVhalHeartBeat(int64_t value);
     void checkVhalHealth();
     void resetVhalInfoLocked();
@@ -299,12 +302,13 @@ private:
 
 private:
     const std::function<std::shared_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
-            kTryCreateVhalClientFunc;
+            kCreateVhalClientFunc;
     const std::function<android::sp<android::hidl::manager::V1_0::IServiceManager>()>
             kTryGetHidlServiceManagerFunc;
     const std::function<int64_t(pid_t)> kGetStartTimeForPidFunc;
     const std::chrono::nanoseconds kVhalPidCachingRetryDelayNs;
 
+    std::thread mConnectToVhalThread;
     android::sp<Looper> mHandlerLooper;
     android::sp<MessageHandlerImpl> mMessageHandler;
     ndk::ScopedAIBinder_DeathRecipient mClientBinderDeathRecipient;
