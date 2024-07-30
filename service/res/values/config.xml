@@ -433,6 +433,7 @@
 
     -->
     <string-array translatable="false" name="config_occupant_display_mapping">
+        <item>displayPort=0,displayType=MAIN,occupantZoneId=0,inputTypes=TOUCH_SCREEN|DPAD_KEYS|NAVIGATE_KEYS|ROTARY_NAVIGATION</item>
     </string-array>
 
     <!-- Specifies notice UI that will be launched when user starts a car or do user
@@ -447,6 +448,12 @@
          allocation when the system boots and when a visible user stops.
     -->
     <string name="config_userPickerActivity" translatable="false">com.android.systemui/.car.userpicker.UserPickerActivity</string>
+
+    <!-- Specifies whether the system CarUserService should start secure users on passenger
+         displays. This should remain false unless a keyguard (or keyguard-equivalent) auth
+         implementation for visible background users is implemented and enabled on this device.
+    -->
+    <bool name="config_supportsSecurePassengerUsers">false</bool>
 
     <!-- Configuration to enable media center to autoplay when the media source is changed.
          There are 3 supported configurations:

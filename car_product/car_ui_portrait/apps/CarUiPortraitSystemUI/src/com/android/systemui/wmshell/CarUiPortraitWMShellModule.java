@@ -37,6 +37,7 @@ import com.android.wm.shell.fullscreen.FullscreenTaskListener;
 import com.android.wm.shell.pip.Pip;
 import com.android.wm.shell.recents.RecentTasksController;
 import com.android.wm.shell.sysui.ShellInit;
+import com.android.wm.shell.taskview.TaskViewTransitions;
 import com.android.wm.shell.windowdecor.WindowDecorViewModel;
 
 import dagger.BindsOptionalOf;
@@ -81,13 +82,15 @@ public abstract class CarUiPortraitWMShellModule {
             ShellTaskOrganizer shellTaskOrganizer,
             SyncTransactionQueue syncQueue,
             Optional<RecentTasksController> recentTasksOptional,
-            Optional<WindowDecorViewModel> windowDecorViewModelOptional) {
+            Optional<WindowDecorViewModel> windowDecorViewModelOptional,
+            TaskViewTransitions taskViewTransitions) {
         return new CarFullscreenTaskMonitorListener(context,
                 carServiceProvider,
                 shellInit,
                 shellTaskOrganizer,
                 syncQueue,
                 recentTasksOptional,
-                windowDecorViewModelOptional);
+                windowDecorViewModelOptional,
+                taskViewTransitions);
     }
 }

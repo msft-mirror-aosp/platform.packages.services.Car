@@ -103,6 +103,22 @@ flag {
     bug: "315695829"
 }
 
+flag {
+    name: "audio_vendor_freeze_improvements"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Controls whether car audio vendor freeze improvements are enabled"
+    bug: "344678175"
+}
+
+flag {
+    name: "audio_legacy_mode_navigation_volume"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Enables navigation audio usage in legacy volume mode."
+    bug: "353872512"
+}
+
 # CarPropertyManager
 flag {
   name: "batched_subscriptions"
@@ -142,6 +158,13 @@ flag {
   namespace: "car_framework"
   description: "Controls whether dump to proto is an option for car services"
   bug: "302596493"
+}
+
+flag {
+  name: "create_car_use_notifications"
+  namespace: "car_framework"
+  description: "Optimized Car.createCar implementation using ServiceManagerHelper.registerForNotifications and binder death recipient"
+  bug: "343489611"
 }
 
 # ClusterHomeManager

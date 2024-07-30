@@ -55,6 +55,25 @@ public final class CarResolverActivity extends ResolverActivity
                 com.android.car.activityresolver.R.dimen.background_blur_radius));
     }
 
+    /**
+     * Override to use corresponding Car optimized layouts (supporting rotary) for content view.
+     */
+    @Override
+    public void setContentView(int layoutResID) {
+        int carLayoutResId = layoutResID;
+        switch (layoutResID) {
+            case R.layout.resolver_list:
+                carLayoutResId = com.android.car.activityresolver.R.layout.resolver_list;
+                break;
+            case R.layout.resolver_list_with_default:
+                carLayoutResId =
+                    com.android.car.activityresolver.R.layout.resolver_list_with_default;
+                break;
+        }
+
+        super.setContentView(carLayoutResId);
+    }
+
     @Override
     protected void onDestroy() {
         mProfilePager.getViewTreeObserver().removeOnGlobalLayoutListener(this);
@@ -78,8 +97,16 @@ public final class CarResolverActivity extends ResolverActivity
                 });
             }
 
+            // Set a max height on the list of apps so that the list does not cut off the "Just
+            // Once"/"Always" buttons of the activity
             int resolverListMaxHeight = getResources().getDimensionPixelSize(
                     com.android.car.activityresolver.R.dimen.resolver_list_max_height);
+            // The activity has a preselected default app option, so subract that height from max
+            // height which is applied to the list of app choices
+            if (useLayoutWithDefault()) {
+                resolverListMaxHeight -= getResources().getDimensionPixelSize(
+                        com.android.car.activityresolver.R.dimen.resolver_list_item_height);
+            }
             if (listView.getHeight() > resolverListMaxHeight) {
                 listView.getLayoutParams().height = resolverListMaxHeight;
                 listView.setLayoutParams(listView.getLayoutParams());
