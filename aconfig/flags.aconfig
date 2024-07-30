@@ -111,6 +111,14 @@ flag {
     bug: "344678175"
 }
 
+flag {
+    name: "audio_legacy_mode_navigation_volume"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Enables navigation audio usage in legacy volume mode."
+    bug: "353872512"
+}
+
 # CarPropertyManager
 flag {
   name: "batched_subscriptions"

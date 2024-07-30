@@ -2204,6 +2204,52 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
         }
     }
 
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withUseCoreRoutingDeviceConfig()
+            throws Exception {
+        boolean useCoreRouting = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_use_core_routing)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ true, useCoreRouting,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with use core routing enabled")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with use core routing enabled")
+                    .that(cazh.useCoreAudioRouting()).isTrue();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withInvalidUseCoreRoutingDeviceConfig()
+            throws Exception {
+        boolean useCoreRouting = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_invalid_use_core_routing)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioRouting= */ true, useCoreRouting,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with invalid use core routing enabled")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with invalid use core routing enabled")
+                    .that(cazh.useCoreAudioRouting()).isEqualTo(useCoreRouting);
+        }
+    }
+
     private CarAudioFadeConfigurationHelper getCarAudioFadeConfigurationHelper(int resource) {
         try (InputStream inputStream = mContext.getResources().openRawResource(resource)) {
             return new CarAudioFadeConfigurationHelper(inputStream);
