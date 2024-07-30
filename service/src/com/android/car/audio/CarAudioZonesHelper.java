@@ -433,8 +433,8 @@ import java.util.Set;
     }
 
     private boolean parseUseCoreAudioRouting(XmlPullParser parser) {
-        String useCoreVolumeString = parser.getAttributeValue(NAMESPACE,
-                DEVICE_CONFIG_CORE_ROUTING);
+        String useCoreVolumeString =
+                parser.getAttributeValue(NAMESPACE, DEVICE_CONFIG_CORE_ROUTING);
         return parseBoolean(useCoreVolumeString, DEVICE_CONFIG_CORE_ROUTING,
                 mUseCoreAudioRouting);
     }
