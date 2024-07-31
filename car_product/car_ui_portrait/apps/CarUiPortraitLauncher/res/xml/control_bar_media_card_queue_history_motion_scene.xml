@@ -66,6 +66,11 @@
                 motion:visibilityMode="ignore"/>
         </ConstraintOverride>
         <ConstraintOverride
+            android:id="@id/custom_action_overflow_conceal_container">
+            <PropertySet
+                motion:visibilityMode="ignore"/>
+        </ConstraintOverride>
+        <ConstraintOverride
             android:id="@id/media_widget_app_icon">
             <PropertySet
                 motion:visibilityMode="ignore"/>
@@ -186,6 +191,12 @@
         </ConstraintOverride>
         <ConstraintOverride
             android:id="@id/custom_action_overflow_container"
+            android:alpha="0">
+            <PropertySet
+                motion:visibilityMode="ignore"/>
+        </ConstraintOverride>
+        <ConstraintOverride
+            android:id="@id/custom_action_overflow_conceal_container"
             android:alpha="0">
             <PropertySet
                 motion:visibilityMode="ignore"/>
