@@ -96,11 +96,11 @@ public class StatusBarSensorInfoManager {
         mSensorStringLiveData = sensorStringLiveData;
         mSensorAvailabilityData = sensorAvailabilityData;
         mExecutor = executor;
-        carServiceProvider.addListener(mCarServiceLifecycleListener);
         mTemperatureFormatCelsius = resources.getString(
                 R.string.statusbar_temperature_format_celsius);
         mTemperatureFormatFahrenheit = resources.getString(
                 R.string.statusbar_temperature_format_fahrenheit);
+        carServiceProvider.addListener(mCarServiceLifecycleListener);
     }
 
     private void initializeHvacProperties() {
