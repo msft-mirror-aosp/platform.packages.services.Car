@@ -52,6 +52,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.car.builtin.view.DisplayHelper;
 import android.car.feature.FakeFeatureFlagsImpl;
 import android.car.feature.Flags;
 import android.car.test.util.FakeContext;
@@ -71,6 +72,7 @@ import android.view.DisplayAddress;
 
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.hal.test.AidlVehiclePropConfigBuilder;
+import com.android.car.systeminterface.DisplayHelperInterface;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -129,6 +131,8 @@ public final class PowerHalServiceUnitTest {
     private VehicleHal mHal;
     @Mock
     private DisplayManager mDisplayManager;
+    @Mock
+    private DisplayHelperInterface mDisplayHelper;
     private PowerHalService mPowerHalService;
 
     private FakeFeatureFlagsImpl mFakeFeatureFlags = new FakeFeatureFlagsImpl();
@@ -137,8 +141,10 @@ public final class PowerHalServiceUnitTest {
     public void setUp() {
         mFakeContext.setSystemService(DisplayManager.class, mDisplayManager);
         mFakeFeatureFlags.setFlag(Flags.FLAG_PER_DISPLAY_MAX_BRIGHTNESS, false);
+        mFakeFeatureFlags.setFlag(Flags.FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL, false);
 
-        mPowerHalService = new PowerHalService(mFakeContext, mFakeFeatureFlags, mHal);
+        mPowerHalService = new PowerHalService(mFakeContext, mFakeFeatureFlags, mHal,
+                mDisplayHelper);
         mPowerHalService.setListener(mEventListener);
     }
 
@@ -264,12 +270,7 @@ public final class PowerHalServiceUnitTest {
 
     @Test
     public void testHalEventListenerDisplayBrightnessChange() {
-        AidlHalPropConfig config = new AidlHalPropConfig(
-                AidlVehiclePropConfigBuilder.newBuilder(DISPLAY_BRIGHTNESS)
-                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
-        mPowerHalService.takeProperties(List.of(config));
-        mPowerHalService.init();
-        mPowerHalService.setListener(mEventListener);
+        setupVhalSupportGlobalBrightnessOnly();
 
         int expectedBrightness = 73;
         HalPropValue value = mPropValueBuilder.build(DISPLAY_BRIGHTNESS, /* areaId= */ 0,
@@ -300,7 +301,7 @@ public final class PowerHalServiceUnitTest {
         HalPropValue value2 = mPropValueBuilder.build(DISPLAY_BRIGHTNESS, /* areaId= */ 0,
                 brightness2);
 
-        mPowerHalService.sendDisplayBrightness(brightness1);
+        mPowerHalService.sendDisplayBrightnessLegacy(brightness1);
         mPowerHalService.onHalEvents(List.of(value2));
         // This must be ignored.
         mPowerHalService.onHalEvents(List.of(value1));
@@ -331,13 +332,36 @@ public final class PowerHalServiceUnitTest {
     }
 
     @Test
+    public void testHalEventListenerDisplayBrightnessChange_multiDisplaySupport() {
+        // If multi display is supported and VHAL only supports global DISPLAY_BRIGHTNESS, we treat
+        // it as the brightness for all displays.
+        mFakeFeatureFlags.setFlag(Flags.FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL, true);
+        setupVhalSupportGlobalBrightnessOnly();
+
+        int displayId1 = 2;
+        int displayPort1 = 3;
+        int displayId2 = 4;
+        int displayPort2 = 5;
+        Display display1 = createMockDisplay(displayId1, displayPort1);
+        Display display2 = createMockDisplay(displayId2, displayPort2);
+        when(mDisplayManager.getDisplays()).thenReturn(new Display[]{display1, display2});
+
+        int expectedBrightness = 73;
+        HalPropValue value = mPropValueBuilder.build(DISPLAY_BRIGHTNESS, /* areaId= */ 0,
+                expectedBrightness);
+        mPowerHalService.onHalEvents(List.of(value));
+
+        assertWithMessage("Display brightness for display 1")
+                .that(mEventListener.getDisplayBrightness(displayId1))
+                .isEqualTo(expectedBrightness);
+        assertWithMessage("Display brightness for display 2")
+                .that(mEventListener.getDisplayBrightness(displayId2))
+                .isEqualTo(expectedBrightness);
+    }
+
+    @Test
     public void testPerDisplayBrightnessChange_perDisplayMaxNotSupported() {
-        AidlHalPropConfig config = new AidlHalPropConfig(
-                AidlVehiclePropConfigBuilder.newBuilder(PER_DISPLAY_BRIGHTNESS)
-                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
-        mPowerHalService.takeProperties(List.of(config));
-        mPowerHalService.init();
-        mPowerHalService.setListener(mEventListener);
+        setupVhalSupportPerDisplayBrightnessOnly();
 
         int displayId, displayPort;
         displayPort = displayId = 11;
@@ -351,7 +375,7 @@ public final class PowerHalServiceUnitTest {
         mPowerHalService.onHalEvents(List.of(value));
 
         assertWithMessage("Display brightness")
-                .that(mEventListener.getDisplayBrightness(displayPort))
+                .that(mEventListener.getDisplayBrightness(displayId))
                 .isEqualTo(expectedBrightness);
     }
 
@@ -379,7 +403,7 @@ public final class PowerHalServiceUnitTest {
         mPowerHalService.onHalEvents(List.of(value));
 
         assertWithMessage("Display brightness")
-                .that(mEventListener.getDisplayBrightness(displayPort))
+                .that(mEventListener.getDisplayBrightness(displayId))
                 .isEqualTo(expectedBrightness);
     }
 
@@ -416,7 +440,7 @@ public final class PowerHalServiceUnitTest {
         mPowerHalService.onHalEvents(List.of(value));
 
         assertWithMessage("Display brightness")
-                .that(mEventListener.getDisplayBrightness(displayPort))
+                .that(mEventListener.getDisplayBrightness(displayId))
                 .isEqualTo(expectedBrightness);
     }
 
@@ -500,30 +524,26 @@ public final class PowerHalServiceUnitTest {
         mPowerHalService.onHalEvents(List.of(value));
 
         assertWithMessage("Display brightness")
-                .that(mEventListener.getDisplayBrightness(displayPort))
+                .that(mEventListener.getDisplayBrightness(displayId))
                 .isEqualTo(expectedBrightness);
     }
 
     @Test
-    public void testSendDisplayBrightness() {
+    public void testSendDisplayBrightnessLegacy() {
         VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
         when(mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0))
                 .thenReturn(propValueSetter);
 
-        AidlHalPropConfig config = new AidlHalPropConfig(
-                AidlVehiclePropConfigBuilder.newBuilder(DISPLAY_BRIGHTNESS)
-                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
-        mPowerHalService.takeProperties(List.of(config));
-        mPowerHalService.init();
-
+        setupVhalSupportGlobalBrightnessOnly();
         int brightnessToSet = 77;
-        mPowerHalService.sendDisplayBrightness(brightnessToSet);
+
+        mPowerHalService.sendDisplayBrightnessLegacy(brightnessToSet);
 
         verify(propValueSetter).to(brightnessToSet);
     }
 
     @Test
-    public void testSendDisplayBrightness_non100MaxBrightness() {
+    public void testSendDisplayBrightnessLegacy_non100MaxBrightness() {
         VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
         when(mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0))
                 .thenReturn(propValueSetter);
@@ -536,13 +556,13 @@ public final class PowerHalServiceUnitTest {
         mPowerHalService.init();
 
         int brightnessToSet = 77;
-        mPowerHalService.sendDisplayBrightness(brightnessToSet);
+        mPowerHalService.sendDisplayBrightnessLegacy(brightnessToSet);
 
         verify(propValueSetter).to(77 * maxBrightness / 100);
     }
 
     @Test
-    public void testSendDisplayBrightness_perDisplayBrightnessSupported() {
+    public void testSendDisplayBrightnessLegacy_perDisplayBrightnessSupported() {
         VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
         when(mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0))
                 .thenReturn(propValueSetter);
@@ -557,17 +577,13 @@ public final class PowerHalServiceUnitTest {
                 List.of(configDisplayBrightness, configPerDisplayBrightness));
         mPowerHalService.init();
 
-        mPowerHalService.sendDisplayBrightness(10);
+        mPowerHalService.sendDisplayBrightnessLegacy(10);
 
         verify(propValueSetter, never()).to(anyInt());
     }
 
     @Test
     public void testSendDisplayBrightnessPerDisplay() {
-        VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
-        when(mHal.set(VehicleProperty.PER_DISPLAY_BRIGHTNESS, /* areaId= */ 0))
-                .thenReturn(propValueSetter);
-
         int displayId, displayPort;
         displayId = displayPort = 2;
         Display display = createMockDisplay(displayId, displayPort);
@@ -580,11 +596,7 @@ public final class PowerHalServiceUnitTest {
                 /* areaId= */ 0, new int[]{displayPort, brightnessToSet});
         when(mHal.getHalPropValueBuilder()).thenReturn(propValueBuilder);
 
-        AidlHalPropConfig config = new AidlHalPropConfig(
-                AidlVehiclePropConfigBuilder.newBuilder(PER_DISPLAY_BRIGHTNESS)
-                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
-        mPowerHalService.takeProperties(List.of(config));
-        mPowerHalService.init();
+        setupVhalSupportPerDisplayBrightnessOnly();
 
         mPowerHalService.sendDisplayBrightness(displayId, brightnessToSet);
 
@@ -631,6 +643,22 @@ public final class PowerHalServiceUnitTest {
                 /* areaId= */ 0, new int[]{displayPort, brightnessSet});
 
         verify(mHal).set(eq(message));
+    }
+
+    @Test
+    public void testSendDisplayBrightnessPerDisplay_perDisplayBrightnessNotSupported() {
+        mFakeFeatureFlags.setFlag(Flags.FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL, true);
+        setupVhalSupportGlobalBrightnessOnly();
+
+        VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
+        when(mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0))
+                .thenReturn(propValueSetter);
+        int brightnessToSet = 41;
+
+        mPowerHalService.sendDisplayBrightness(/* displayId= */ 2, brightnessToSet);
+
+        // If only global brightness is supported, any set request will set the global brightness.
+        verify(propValueSetter).to(41);
     }
 
     @Test
@@ -822,6 +850,24 @@ public final class PowerHalServiceUnitTest {
                 PowerHalService.BOOTUP_REASON_UNKNOWN);
     }
 
+    private void setupVhalSupportGlobalBrightnessOnly() {
+        AidlHalPropConfig config = new AidlHalPropConfig(
+                AidlVehiclePropConfigBuilder.newBuilder(DISPLAY_BRIGHTNESS)
+                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
+        mPowerHalService.takeProperties(List.of(config));
+        mPowerHalService.init();
+        mPowerHalService.setListener(mEventListener);
+    }
+
+    private void setupVhalSupportPerDisplayBrightnessOnly() {
+        AidlHalPropConfig config = new AidlHalPropConfig(
+                AidlVehiclePropConfigBuilder.newBuilder(PER_DISPLAY_BRIGHTNESS)
+                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
+        mPowerHalService.takeProperties(List.of(config));
+        mPowerHalService.init();
+        mPowerHalService.setListener(mEventListener);
+    }
+
     private PowerHalService.PowerState createShutdownPrepare(int flag) {
         return new PowerHalService.PowerState(SHUTDOWN_PREPARE, flag);
     }
@@ -851,6 +897,8 @@ public final class PowerHalServiceUnitTest {
         when(displayAddress.getPort()).thenReturn(displayPort);
         when(display.getDisplayId()).thenReturn(displayId);
         when(display.getAddress()).thenReturn(displayAddress);
+        when(mDisplayHelper.getPhysicalPort(display)).thenReturn(displayPort);
+        when(mDisplayHelper.getType(display)).thenReturn(DisplayHelper.TYPE_INTERNAL);
         return display;
     }
 

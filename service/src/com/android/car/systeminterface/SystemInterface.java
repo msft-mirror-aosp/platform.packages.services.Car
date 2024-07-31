@@ -26,6 +26,7 @@ import com.android.car.provider.Settings;
 import com.android.car.storagemonitoring.LifetimeWriteInfoProvider;
 import com.android.car.storagemonitoring.UidIoStatsProvider;
 import com.android.car.storagemonitoring.WearInformationProvider;
+import com.android.car.user.ActivityManagerCurrentUserFetcher;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -131,13 +132,8 @@ public class SystemInterface implements ActivityManagerInterface,
     }
 
     @Override
-    public void setDisplayBrightness(int brightness) {
-        mDisplayInterface.setDisplayBrightness(brightness);
-    }
-
-    @Override
-    public void setDisplayBrightness(int displayId, int brightness) {
-        mDisplayInterface.setDisplayBrightness(displayId, brightness);
+    public void onDisplayBrightnessChangeFromVhal(int displayId, int brightness) {
+        mDisplayInterface.onDisplayBrightnessChangeFromVhal(displayId, brightness);
     }
 
     @Override
@@ -235,8 +231,8 @@ public class SystemInterface implements ActivityManagerInterface,
     }
 
     @Override
-    public void refreshDisplayBrightness() {
-        mDisplayInterface.refreshDisplayBrightness();
+    public void refreshDefaultDisplayBrightness() {
+        mDisplayInterface.refreshDefaultDisplayBrightness();
     }
 
     @Override
@@ -279,7 +275,8 @@ public class SystemInterface implements ActivityManagerInterface,
             builder.withSettings(new Settings.DefaultImpl());
             builder.withDisplayInterface(new DisplayInterface.DefaultImpl(context,
                     wakeLockInterface, builder.mSettings,
-                    new DisplayInterface.DisplayTypeGetter.DefaultImpl()));
+                    new DisplayHelperInterface.DefaultImpl(),
+                    new ActivityManagerCurrentUserFetcher()));
             builder.withIOInterface(new IOInterface.DefaultImpl());
             builder.withStorageMonitoringInterface(new StorageMonitoringInterface.DefaultImpl());
             builder.withSystemStateInterface(new SystemStateInterface.DefaultImpl(context));

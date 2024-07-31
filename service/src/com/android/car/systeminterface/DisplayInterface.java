@@ -30,6 +30,7 @@ import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.power.PowerManagerHelper;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.view.DisplayHelper;
+import android.car.feature.Flags;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.UserLifecycleEventFilter;
 import android.content.Context;
@@ -52,6 +53,7 @@ import com.android.car.internal.util.IntArray;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.provider.Settings;
 import com.android.car.user.CarUserService;
+import com.android.car.user.CurrentUserFetcher;
 import com.android.car.util.BrightnessUtils;
 import com.android.internal.annotations.GuardedBy;
 
@@ -73,19 +75,14 @@ public interface DisplayInterface {
     void init(CarPowerManagementService carPowerManagementService, CarUserService carUserService);
 
     /**
-     * Sets display brightness.
+     * Sets display brightness with the given displayId according to brightness change from VHAL.
      *
-     * @param brightness Level from 0 to 100%
-     */
-    void setDisplayBrightness(int brightness);
-
-    /**
-     * Sets display brightness with the given displayId.
+     * This is used to sync the system settings with VHAL.
      *
      * @param displayId ID of a display.
      * @param brightness Level from 0 to 100.
      */
-    void setDisplayBrightness(int displayId, int brightness);
+    void onDisplayBrightnessChangeFromVhal(int displayId, int brightness);
 
     /**
      * Turns on or off display with the given displayId.
@@ -128,9 +125,9 @@ public interface DisplayInterface {
     boolean isDisplayEnabled(int displayId);
 
     /**
-     * Refreshing display brightness. Used when user is switching and car turned on.
+     * Refreshing default display brightness. Used when user is switching and car turned on.
      */
-    void refreshDisplayBrightness();
+    void refreshDefaultDisplayBrightness();
 
     /**
      * Refreshing display brightness with the given displayId.
@@ -139,26 +136,6 @@ public interface DisplayInterface {
      * @param displayId ID of a display.
      */
     void refreshDisplayBrightness(int displayId);
-
-    /**
-     * An interface to get display type.
-     */
-    interface DisplayTypeGetter {
-        /**
-         * Gets the display type.
-         */
-        int getDisplayType(Display display);
-
-        /**
-         * A default implementation that uses DisplayHelper.
-         */
-        class DefaultImpl implements DisplayTypeGetter {
-            @Override
-            public int getDisplayType(Display display) {
-                return DisplayHelper.getType(display);
-            }
-        }
-    }
 
     /**
      * Default implementation of display operations
@@ -185,8 +162,9 @@ public interface DisplayInterface {
         private final int mMinimumBacklight;
         private final WakeLockInterface mWakeLockInterface;
         private final Settings mSettings;
-        private final DisplayTypeGetter mDisplayTypeGetter;
         private final Handler mHandler = new Handler(Looper.getMainLooper());
+        private final DisplayHelperInterface mDisplayHelper;
+        private final CurrentUserFetcher mCurrentUserFetcher;
         @GuardedBy("mLock")
         private CarPowerManagementService mCarPowerManagementService;
         @GuardedBy("mLock")
@@ -203,13 +181,14 @@ public interface DisplayInterface {
         // short time frame.
         @GuardedBy("mLock")
         private final LinkedList<Integer> mRecentlySetGlobalBrightness = new LinkedList<>();
+        private final UserLifecycleListener mUserLifecycleListener;
 
         private final ContentObserver mBrightnessObserver =
                 new ContentObserver(mHandler) {
                     @Override
                     public void onChange(boolean selfChange) {
                         Slogf.i(TAG, "Brightness change from Settings: selfChange=%b", selfChange);
-                        refreshDisplayBrightness();
+                        refreshDefaultDisplayBrightness();
                     }
                 };
 
@@ -239,14 +218,15 @@ public interface DisplayInterface {
         };
 
         DefaultImpl(Context context, WakeLockInterface wakeLockInterface, Settings settings,
-                DisplayTypeGetter displayTypeGetter) {
+                DisplayHelperInterface displayHelper, CurrentUserFetcher currentUserFetcher) {
             mContext = context;
             mDisplayManager = context.getSystemService(DisplayManager.class);
             mMaximumBacklight = PowerManagerHelper.getMaximumScreenBrightnessSetting(context);
             mMinimumBacklight = PowerManagerHelper.getMinimumScreenBrightnessSetting(context);
             mWakeLockInterface = wakeLockInterface;
             mSettings = settings;
-            mDisplayTypeGetter = displayTypeGetter;
+            mDisplayHelper = displayHelper;
+            mCurrentUserFetcher = currentUserFetcher;
             synchronized (mLock) {
                 for (Display display : mDisplayManager.getDisplays()) {
                     int displayId = display.getDisplayId();
@@ -256,21 +236,26 @@ public interface DisplayInterface {
                 }
             }
             mUserManager = context.getSystemService(UserManager.class);
+            mUserLifecycleListener = event -> {
+                if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
+                    return;
+                }
+                if (DEBUG) {
+                    Slogf.d(TAG, "DisplayInterface.DefaultImpl.onEvent(%s)", event);
+                }
+                if (Flags.multiDisplayBrightnessControl()) {
+                    if (event.getUserId() != mCurrentUserFetcher.getCurrentUser()) {
+                        Slogf.w(TAG, "The switched user is not the driver user, "
+                                + "ignore refreshing display brightness");
+                        return;
+                    }
+                }
+                onDriverUserUpdate();
+            };
         }
 
-        private final UserLifecycleListener mUserLifecycleListener = event -> {
-            if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
-                return;
-            }
-            if (DEBUG) {
-                Slogf.d(TAG, "DisplayInterface.DefaultImpl.onEvent(%s)", event);
-            }
-
-            onUsersUpdate();
-        };
-
         @Override
-        public void refreshDisplayBrightness() {
+        public void refreshDefaultDisplayBrightness() {
             refreshDisplayBrightness(DEFAULT_DISPLAY);
         }
 
@@ -286,14 +271,15 @@ public interface DisplayInterface {
                         + "no CarPowerManagementService");
                 return;
             }
-            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
-                refreshDisplayBrightnessFromDisplay(carPowerManagementService, displayId);
+            if (Flags.multiDisplayBrightnessControl()
+                    || UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+                setDisplayBrightnessThroughVhal(carPowerManagementService, displayId);
             } else {
-                refreshDisplayBrigtnessFromSetting(carPowerManagementService);
+                setDisplayBrightnessThroughVhalLegacy(carPowerManagementService);
             }
         }
 
-        private void refreshDisplayBrightnessFromDisplay(
+        private void setDisplayBrightnessThroughVhal(
                 CarPowerManagementService carPowerManagementService, int displayId) {
             float displayManagerBrightness = DisplayManagerHelper.getBrightness(
                     mContext, displayId);
@@ -303,12 +289,13 @@ public interface DisplayInterface {
             int linear = BrightnessUtils.brightnessFloatToInt(displayManagerBrightness);
             int gamma = convertLinearToGamma(linear, mMinimumBacklight, mMaximumBacklight);
             int percentBright = convertGammaToPercentBright(gamma);
+
             Slogf.i(TAG, "Refreshing percent brightness(from display %d) to %d", displayId,
                     percentBright);
             carPowerManagementService.sendDisplayBrightness(displayId, percentBright);
         }
 
-        private void refreshDisplayBrigtnessFromSetting(
+        private void setDisplayBrightnessThroughVhalLegacy(
                 CarPowerManagementService carPowerManagementService) {
             int gamma = GAMMA_SPACE_MAX;
             try {
@@ -324,7 +311,7 @@ public interface DisplayInterface {
             int percentBright = convertGammaToPercentBright(gamma);
 
             Slogf.i(TAG, "Refreshing percent brightness(from Setting) to %d", percentBright);
-            carPowerManagementService.sendDisplayBrightness(percentBright);
+            carPowerManagementService.sendDisplayBrightnessLegacy(percentBright);
         }
 
         private static int convertGammaToPercentBright(int gamma) {
@@ -354,22 +341,18 @@ public interface DisplayInterface {
         }
 
         @Override
-        public void setDisplayBrightness(int percentBright) {
-            setDisplayBrightness(DEFAULT_DISPLAY, percentBright);
-        }
-
-        @Override
-        public void setDisplayBrightness(int displayId, int percentBright) {
+        public void onDisplayBrightnessChangeFromVhal(int displayId, int percentBright) {
             int gamma = (percentBright * GAMMA_SPACE_MAX + 50) / 100;
             int linear = convertGammaToLinear(gamma, mMinimumBacklight, mMaximumBacklight);
-            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+            if (Flags.multiDisplayBrightnessControl()
+                    || UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
                 Slogf.i(TAG, "set brightness: %d", percentBright);
                 float displayManagerBrightness = BrightnessUtils.brightnessIntToFloat(linear);
                 addRecentlySetBrightness(displayManagerBrightness, displayId);
                 DisplayManagerHelper.setBrightness(mContext, displayId, displayManagerBrightness);
             } else {
                 addRecentlySetBrightness(linear);
-                System.putInt(
+                mSettings.putIntSystem(
                         getContentResolverForUser(mContext, UserHandle.CURRENT.getIdentifier()),
                         System.SCREEN_BRIGHTNESS,
                         linear);
@@ -399,7 +382,8 @@ public interface DisplayInterface {
                             .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING).build();
             carUserService.addUserLifecycleListener(userSwitchingEventFilter,
                     mUserLifecycleListener);
-            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+            if (Flags.multiDisplayBrightnessControl()
+                    || UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
                 DisplayManagerHelper.registerDisplayListener(mContext, mDisplayListener,
                         carPowerManagementService.getHandler(),
                         DisplayManagerHelper.EVENT_FLAG_DISPLAY_ADDED
@@ -412,18 +396,7 @@ public interface DisplayInterface {
                                 System.SCREEN_BRIGHTNESS), false, mBrightnessObserver);
             }
 
-            for (Display display : mDisplayManager.getDisplays()) {
-                int displayId = display.getDisplayId();
-                int displayType = mDisplayTypeGetter.getDisplayType(display);
-                if (displayType == DisplayHelper.TYPE_VIRTUAL
-                        || displayType == DisplayHelper.TYPE_OVERLAY) {
-                    Slogf.i(TAG,
-                            "Ignore refreshDisplayBrightness for virtual or overlay display: "
-                            + displayId);
-                    continue;
-                }
-                refreshDisplayBrightness(displayId);
-            }
+            refreshAllDisplaysBrightness();
         }
 
         @Override
@@ -433,7 +406,8 @@ public interface DisplayInterface {
                 carUserService = mCarUserService;
             }
             carUserService.removeUserLifecycleListener(mUserLifecycleListener);
-            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+            if (Flags.multiDisplayBrightnessControl()
+                    || UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
                 mDisplayManager.unregisterDisplayListener(mDisplayListener);
             } else {
                 getContentResolverForUser(mContext, UserHandle.ALL.getIdentifier())
@@ -504,14 +478,36 @@ public interface DisplayInterface {
             return isDisplayOn(displayId);
         }
 
-        private void onUsersUpdate() {
+        // When the driver users is updated, the brightness settings associated with the driver
+        // user changes. As a result, all display's brightness should be refreshed to represent
+        // the new driver user's settings.
+        private void onDriverUserUpdate() {
             synchronized (mLock) {
                 if (mCarPowerManagementService == null) {
                     // CarPowerManagementService is not connected yet
                     return;
                 }
             }
-            refreshDisplayBrightness();
+            if (Flags.multiDisplayBrightnessControl()) {
+                refreshAllDisplaysBrightness();
+            } else {
+                refreshDefaultDisplayBrightness();
+            }
+        }
+
+        private void refreshAllDisplaysBrightness() {
+            for (Display display : mDisplayManager.getDisplays()) {
+                int displayId = display.getDisplayId();
+                int displayType = mDisplayHelper.getType(display);
+                if (displayType == DisplayHelper.TYPE_VIRTUAL
+                        || displayType == DisplayHelper.TYPE_OVERLAY) {
+                    Slogf.i(TAG,
+                            "Ignore refreshDisplayBrightness for virtual or overlay display: "
+                            + displayId);
+                    continue;
+                }
+                refreshDisplayBrightness(displayId);
+            }
         }
 
         private boolean hasRecentlySetBrightness(float brightness, int displayId) {

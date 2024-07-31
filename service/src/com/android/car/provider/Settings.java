@@ -30,6 +30,11 @@ public interface Settings {
     int getIntSystem(ContentResolver cr, String name) throws SettingNotFoundException;
 
     /**
+     * @see android.provider.Settings.System#putInt
+     */
+    void putIntSystem(ContentResolver cr, String name, int value);
+
+    /**
      * @see android.provider.Settings.System#getUriFor
      */
     Uri getUriForSystem(String name);
@@ -61,6 +66,11 @@ public interface Settings {
         @Override
         public int getIntSystem(ContentResolver cr, String name) throws SettingNotFoundException {
             return android.provider.Settings.System.getInt(cr, name);
+        }
+
+        @Override
+        public void putIntSystem(ContentResolver cr, String name, int value) {
+            android.provider.Settings.System.putInt(cr, name, value);
         }
 
         @Override
