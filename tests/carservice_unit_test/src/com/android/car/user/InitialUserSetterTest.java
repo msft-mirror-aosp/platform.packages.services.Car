@@ -15,7 +15,6 @@
  */
 package com.android.car.user;
 
-import static android.car.test.mocks.AndroidMockitoHelper.mockUmGetUserHandles;
 import static android.car.test.mocks.CarArgumentMatchers.isUserHandle;
 import static android.os.UserHandle.USER_SYSTEM;
 
@@ -25,9 +24,6 @@ import static com.android.car.user.MockedUserHandleBuilder.expectGuestUserExists
 import static com.android.car.user.MockedUserHandleBuilder.expectManagedProfileExists;
 import static com.android.car.user.MockedUserHandleBuilder.expectRegularUserExists;
 import static com.android.car.user.MockedUserHandleBuilder.expectSystemUserExists;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doThrow;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -39,37 +35,41 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
-import android.app.ActivityManager;
-import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
-import android.car.builtin.widget.LockPatternHelper;
 import android.car.settings.CarSettings;
-import android.car.test.mocks.AbstractExtendedMockitoTestCase;
-import android.car.test.mocks.MockSettings;
+import android.car.test.util.UserTestingHelper;
 import android.content.Context;
 import android.hardware.automotive.vehicle.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.UserInfo;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.platform.test.ravenwood.RavenwoodRule;
 import android.provider.Settings;
+import android.util.ArrayMap;
 
-import com.android.car.internal.os.CarSystemProperties;
-import com.android.car.user.CarUserService.SystemGlobalSettings;
+import com.android.internal.annotations.GuardedBy;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Optional;
 import java.util.function.Consumer;
 
-public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase {
+@RunWith(MockitoJUnitRunner.Silent.class)
+public final class InitialUserSetterTest {
 
     private static final int NO_FLAGS = 0;
 
@@ -85,50 +85,93 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
                     .setRequestType(InitialUserInfoRequestType.RESUME)
                     .build();
 
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder().setProvideMainThread(true)
+            .build();
+
     @Mock
     private Context mContext;
-
     @Mock
     private UserManager mUm;
-
     @Mock
     private CarUserService mCarUserService;
-
     @Mock
     private UserHandleHelper mMockedUserHandleHelper;
-
-    private MockSettings mMockSettings;
+    @Mock
+    private InitialUserSetter.LockPatternHelperIntf mLockPatternHelper;
+    @Mock
+    private InitialUserSetter.ActivityManagerHelperIntf mActivityManagerHelper;
+    @Mock
+    private InitialUserSetter.CarSystemPropertiesIntf mCarSystemProperties;
+    @Mock
+    private CurrentUserFetcher mCurrentUserFetcher;
+    @Mock
+    private CarUserService.GlobalSettings mGlobalSettings;
+    @Mock
+    private InitialUserSetter.SystemSettings mSystemSettings;
 
     // Spy used in tests that need to verify the default behavior as fallback
     private InitialUserSetter mSetter;
 
     private final MyListener mListener = new MyListener();
 
-    public InitialUserSetterTest() {
-        super(InitialUserSetter.TAG);
+    private final Object mLock = new Object();
+    @GuardedBy("mLock")
+    private int mCurrentUserId = 0;
+    @GuardedBy("mLock")
+    private final ArrayMap<String, Integer> mFakeGlobalSettings = new ArrayMap<>();
+    @GuardedBy("mLock")
+    private final ArrayMap<String, String> mFakeSystemSettings = new ArrayMap<>();
+
+    private void mockGetCurrentUser(int userId) {
+        synchronized (mLock) {
+            mCurrentUserId = userId;
+        }
     }
 
-    @Override
-    protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        mMockSettings = new MockSettings(session);
-        session
-            .spyStatic(ActivityManager.class)
-            .spyStatic(ActivityManagerHelper.class)
-            .spyStatic(CarSystemProperties.class)
-            .spyStatic(UserManager.class)
-            .spyStatic(LockPatternHelper.class);
+    private InitialUserSetter newSetter(boolean isHeadlessSystemUserMode) {
+        return spy(new InitialUserSetter(mContext, mCarUserService, mListener,
+                mMockedUserHandleHelper, new InitialUserSetter.Deps(
+                        mUm, OWNER_NAME, GUEST_NAME, isHeadlessSystemUserMode,
+                        mActivityManagerHelper, mCarSystemProperties, mLockPatternHelper,
+                        mCurrentUserFetcher, mGlobalSettings, mSystemSettings
+                )));
     }
 
     @Before
     public void setFixtures() {
+        when(mGlobalSettings.putInt(any(), any(), anyInt())).thenAnswer((inv) -> {
+            synchronized (mLock) {
+                mFakeGlobalSettings.put(inv.getArgument(1), inv.getArgument(2));
+            }
+            return true;
+        });
+        when(mGlobalSettings.getInt(any(), any(), anyInt())).thenAnswer((inv) -> {
+            synchronized (mLock) {
+                String key = inv.getArgument(1);
+                Integer result = mFakeGlobalSettings.get(key);
+                if (result == null) {
+                    return inv.getArgument(2);
+                }
+                return result;
+            }
+        });
+        when(mSystemSettings.putString(any(), any(), any())).thenAnswer((inv) -> {
+            synchronized (mLock) {
+                mFakeSystemSettings.put(inv.getArgument(1), inv.getArgument(2));
+            }
+            return true;
+        });
+        when(mCurrentUserFetcher.getCurrentUser()).thenAnswer((inv) -> {
+            synchronized (mLock) {
+                return mCurrentUserId;
+            }
+        });
         when(mContext.createContextAsUser(any(), anyInt())).thenReturn(mContext);
-        mSetter = spy(new InitialUserSetter(mContext, mUm, mCarUserService, mListener,
-                mMockedUserHandleHelper, new SystemGlobalSettings(), OWNER_NAME, GUEST_NAME));
+        when(mLockPatternHelper.isSecure(any(), anyInt())).thenReturn(false);
         mockGetCurrentUser(CURRENT_USER_ID);
 
-        // Need explicitly mock this call, otherwise the test will fail because the real method
-        // will be called and it doesn't have the required permissions to use that API
-        doReturn(false).when(()->LockPatternHelper.isSecure(any(), anyInt()));
+        mSetter = newSetter(/* isHeadlessSystemUserMode= */ true);
     }
 
     @Test
@@ -851,9 +894,14 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         assertThat(mSetter.startForegroundUser(INITIAL_USER_INFO_RESUME, 10)).isFalse();
     }
 
+    private void mockIsHeadlessSystemUserMode(boolean isHeadlessSystemUserMode) {
+        mSetter = newSetter(isHeadlessSystemUserMode);
+    }
+
     @Test
     public void testStartForegroundUser_nonHeadlessSystemUser() throws Exception {
         mockIsHeadlessSystemUserMode(false);
+
         expectAmStartFgUser(UserHandle.USER_SYSTEM, /* toBeReturned= */ true);
 
         assertThat(mSetter.startForegroundUser(INITIAL_USER_INFO_RESUME, UserHandle.USER_SYSTEM))
@@ -867,7 +915,7 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         assertThat(mSetter.startForegroundUser(INITIAL_USER_INFO_RESUME, UserHandle.USER_SYSTEM))
                 .isFalse();
 
-        verify(() -> ActivityManagerHelper.startUserInForeground(UserHandle.USER_SYSTEM), never());
+        verify(mActivityManagerHelper, never()).startUserInForeground(UserHandle.USER_SYSTEM);
     }
 
     @Test
@@ -888,7 +936,7 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         assertThat(mSetter.getInitialUser(/* usesOverrideUserIdProperty= */ true))
                 .isEqualTo(110);
         // should have reset last active user
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_USER_ID))
                 .isEqualTo(UserHandle.USER_NULL);
     }
 
@@ -901,9 +949,9 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         assertThat(mSetter.getInitialUser(/* usesOverrideUserIdProperty= */ true))
                 .isEqualTo(100);
         // should have reset both settions
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_USER_ID))
                 .isEqualTo(UserHandle.USER_NULL);
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
                 .isEqualTo(UserHandle.USER_NULL);
     }
 
@@ -1012,8 +1060,9 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
 
         mSetter.setLastActiveUser(UserHandle.USER_SYSTEM);
 
-        mMockSettings.assertDoesNotContainsKey(CarSettings.Global.LAST_ACTIVE_USER_ID);
-        mMockSettings.assertDoesNotContainsKey(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID);
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_USER_ID)).isNull();
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
+                .isNull();
     }
 
     @Test
@@ -1023,9 +1072,9 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
 
         mSetter.setLastActiveUser(UserHandle.USER_SYSTEM);
 
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_USER_ID))
                 .isEqualTo(UserHandle.USER_SYSTEM);
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
                 .isEqualTo(UserHandle.USER_SYSTEM);
     }
 
@@ -1034,8 +1083,9 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         // Don't need to mock um.getUser(), it will return null by default
         mSetter.setLastActiveUser(42);
 
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_USER_ID)).isEqualTo(42);
-        mMockSettings.assertDoesNotContainsKey(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID);
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_USER_ID)).isEqualTo(42);
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
+                .isNull();
     }
 
     @Test
@@ -1048,9 +1098,9 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         mSetter.setLastActiveUser(persistentUserId);
         mSetter.setLastActiveUser(ephemeralUserid);
 
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_USER_ID))
                 .isEqualTo(ephemeralUserid);
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
                 .isEqualTo(persistentUserId);
     }
 
@@ -1059,29 +1109,35 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
         expectRegularUserExists(mMockedUserHandleHelper, 42);
         mSetter.setLastActiveUser(42);
 
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_USER_ID)).isEqualTo(42);
-        assertThat(mMockSettings.getInt(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_USER_ID)).isEqualTo(42);
+        assertThat(getFromFakeGlobalSettings(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID))
                 .isEqualTo(42);
     }
 
     private void mockGetAliveUsers(@UserIdInt int... userIds) {
-        mockUmGetUserHandles(mUm, /* excludeDying= */ false, userIds);
+        when(mUm.getUserHandles(/* excludeDying= */ false)).thenReturn(
+                UserTestingHelper.newUserHandles(userIds));
     }
 
     private void mockGetAliveUsers(UserHandle... users) {
-        mockUmGetUserHandles(mUm, /* excludeDying= */ false, users);
+        when(mUm.getUserHandles(/* excludeDying= */ false)).thenReturn(
+                UserTestingHelper.toList(users));
     }
 
     private void setLastActiveUser(@UserIdInt int userId) {
-        mMockSettings.putInt(CarSettings.Global.LAST_ACTIVE_USER_ID, userId);
+        synchronized (mLock) {
+            mFakeGlobalSettings.put(CarSettings.Global.LAST_ACTIVE_USER_ID, userId);
+        }
     }
 
     private void setLastPersistentActiveUser(@UserIdInt int userId) {
-        mMockSettings.putInt(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID, userId);
+        synchronized (mLock) {
+            mFakeGlobalSettings.put(CarSettings.Global.LAST_ACTIVE_PERSISTENT_USER_ID, userId);
+        }
     }
 
     private void setDefaultBootUserOverride(@UserIdInt int userId) {
-        doReturn(Optional.of(userId)).when(() -> CarSystemProperties.getBootUserOverrideId());
+        when(mCarSystemProperties.getBootUserOverrideId()).thenReturn(Optional.of(userId));
     }
 
     private UserHandle expectHasInitialUser(@UserIdInt int userId) {
@@ -1108,7 +1164,7 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
     }
 
     private void expectUserIsSecure(@UserIdInt int userId) {
-        doReturn(true).when(()->LockPatternHelper.isSecure(any(), eq(userId)));
+        when(mLockPatternHelper.isSecure(any(), eq(userId))).thenReturn(true);
     }
 
     private void expectGuestReplaced(int existingGuestId, UserHandle newGuest) {
@@ -1146,9 +1202,8 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
                 .thenThrow(new RuntimeException("Cannot create user. D'OH!"));
     }
 
-    private static void expectAmStartFgUser(@UserIdInt int userId, boolean toBeReturned)
-            throws Exception {
-        doReturn(toBeReturned).when(() -> ActivityManagerHelper.startUserInForeground(userId));
+    private void expectAmStartFgUser(@UserIdInt int userId, boolean toBeReturned) throws Exception {
+        when(mActivityManagerHelper.startUserInForeground(userId)).thenReturn(toBeReturned);
     }
 
     private void verifyUserSwitched(@UserIdInt int userId) throws Exception {
@@ -1232,11 +1287,23 @@ public final class InitialUserSetterTest extends AbstractExtendedMockitoTestCase
 
     private void assertSystemLocales(String expected) {
         // TODO(b/156033195): should test specific userId
-        assertThat(mMockSettings.getString(Settings.System.SYSTEM_LOCALES)).isEqualTo(expected);
+        assertThat(getFromFakeSystemSettings(Settings.System.SYSTEM_LOCALES)).isEqualTo(expected);
     }
 
     private void assertSystemLocalesToBeNull() {
-        assertThat(mMockSettings.getString(Settings.System.SYSTEM_LOCALES)).isNull();
+        assertThat(getFromFakeSystemSettings(Settings.System.SYSTEM_LOCALES)).isNull();
+    }
+
+    private Integer getFromFakeGlobalSettings(String key) {
+        synchronized (mLock) {
+            return mFakeGlobalSettings.get(key);
+        }
+    }
+
+    private String getFromFakeSystemSettings(String key) {
+        synchronized (mLock) {
+            return mFakeSystemSettings.get(key);
+        }
     }
 
     private static final class MyListener implements Consumer<UserHandle> {

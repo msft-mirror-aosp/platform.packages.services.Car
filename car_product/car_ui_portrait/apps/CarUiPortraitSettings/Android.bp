@@ -27,6 +27,7 @@ android_app {
 
     static_libs: [
         "CarSettings-core",
+        "car-portrait-ui-common",
     ],
 
     certificate: "platform",
@@ -44,4 +45,7 @@ android_app {
     required: ["allowed_privapp_com.android.car.settings"],
 
     dxflags: ["--multi-dex"],
+
+    // TODO(b/319708040): re-enable use_resource_processor
+    use_resource_processor: false,
 }

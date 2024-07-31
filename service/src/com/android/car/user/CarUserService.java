@@ -51,6 +51,7 @@ import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
+import android.car.builtin.widget.LockPatternHelper;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
 import android.car.settings.CarSettings;
@@ -297,6 +298,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     // TODO(b/163566866): Use mSwitchGuestUserBeforeSleep for new create guest request
     private final boolean mSwitchGuestUserBeforeSleep;
+    private final boolean mSupportsSecurePassengerUsers;
 
     @Nullable
     @GuardedBy("mLockUser")
@@ -415,19 +417,22 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @NonNull CarOccupantZoneService carOccupantZoneService,
             @NonNull Deps deps) {
         Slogf.d(TAG, "CarUserService(): DBG=%b, user=%s", DBG, context.getUser());
-        mCurrentUserFetcher = deps.currentUserFetcher;
-        mGlobalSettings = deps.globalSettings;
         mContext = context;
         mHal = hal;
         mMaxRunningUsers = maxRunningUsers;
         mUserManager = userManager;
-        mAm = deps.am;
-        mDpm = deps.dpm;
-        mUserHandleHelper = deps.userHandleHelper;
-        mHandler = deps.handler != null ? deps.handler : new Handler(mHandlerThread.getLooper());
-        mInitialUserSetter = deps.initialUserSetter != null ? deps.initialUserSetter :
+
+        mAm = deps.am();
+        mDpm = deps.dpm();
+        mUserHandleHelper = deps.userHandleHelper();
+        mHandler = deps.handler() != null ? deps.handler() :
+                new Handler(mHandlerThread.getLooper());
+        mInitialUserSetter = deps.initialUserSetter() != null ? deps.initialUserSetter() :
                 new InitialUserSetter(context, this, (u) -> setInitialUser(u), mUserHandleHelper,
-                        mGlobalSettings);
+                        deps);
+        mCurrentUserFetcher = deps.currentUserFetcher();
+        mGlobalSettings = deps.globalSettings();
+
         Resources resources = context.getResources();
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
                 R.bool.config_switchGuestUserBeforeGoingSleep);
@@ -435,6 +440,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mCarPackageManagerService = carPackageManagerService;
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
                 isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager);
+        mSupportsSecurePassengerUsers = context.getResources().getBoolean(
+                R.bool.config_supportsSecurePassengerUsers);
         // Set the initial capacity of the user creation queue to avoid potential resizing.
         // The max number of running users can be a good estimate because CreateUser request comes
         // from a running user.
@@ -2168,6 +2175,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         // If the requested user does not exist.
         if (mUserHandleHelper.getExistingUserHandle(userId) == null) {
             return UserStartResponse.STATUS_USER_DOES_NOT_EXIST;
+        }
+
+        if (!mSupportsSecurePassengerUsers && LockPatternHelper.isSecure(mContext, userId)) {
+            // Passenger lock screen not currently supported - reject user start
+            Slogf.w(TAG, "Secure user %d cannot be started as a passenger", userId);
+            return UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
         }
 
         // If the specified display is not a valid display for assigning user to.
