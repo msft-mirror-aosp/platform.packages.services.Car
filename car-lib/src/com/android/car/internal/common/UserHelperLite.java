@@ -27,8 +27,6 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 /**
  * Provides user information related helper methods.
- *
- * @hide
  */
 public final class UserHelperLite {
 
@@ -51,7 +49,15 @@ public final class UserHelperLite {
      * user mode.
      */
     public static boolean isHeadlessSystemUser(@UserIdInt int userId) {
-        return userId == UserHandle.SYSTEM.getIdentifier()
-                && UserManager.isHeadlessSystemUserMode();
+        return isHeadlessSystemUser(userId, UserManager.isHeadlessSystemUserMode());
+    }
+
+    /**
+     * Checks whether the given user is both {@code SYSTEM} and the device is in headless system
+     * user mode.
+     */
+    public static boolean isHeadlessSystemUser(@UserIdInt int userId,
+            boolean isHeadlessSystemUserMode) {
+        return userId == UserHandle.SYSTEM.getIdentifier() && isHeadlessSystemUserMode;
     }
 }

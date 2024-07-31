@@ -490,7 +490,6 @@ public final class WatchdogPerfHandler {
         }
     }
 
-
     /** Retries any pending requests on re-connecting to the daemon */
     public void onDaemonConnectionChange(boolean isConnected) {
         Trace.beginSection("WatchdogPerfHandler-daemonConnectionChanged-" + isConnected);
@@ -498,24 +497,28 @@ public final class WatchdogPerfHandler {
         synchronized (mLock) {
             mIsConnectedToDaemon = isConnected;
             hasPendingRequest = mPendingSetResourceOveruseConfigurationsRequest != null;
-        }
-        if (isConnected) {
-            if (hasPendingRequest) {
-                /*
-                 * Retry pending set resource overuse configuration request before processing any
-                 * new set/get requests. Thus notify the waiting requests only after the retry
-                 * completes.
-                 */
-                retryPendingSetResourceOveruseConfigurations();
-            } else {
-                /* Start fetch/sync configs only when there are no pending set requests because the
-                 * above retry starts fetch/sync configs on success. If the retry fails, the daemon
-                 * has crashed and shouldn't start fetchAndSyncResourceOveruseConfigurations.
-                 */
-                mMainHandler.post(this::fetchAndSyncResourceOveruseConfigurations);
+            if (isConnected) {
+                if (hasPendingRequest) {
+                    /*
+                     * Retry pending set resource overuse configuration request before processing
+                     * any new set/get requests. Thus notify the waiting requests only after the
+                     * retry completes.
+                     *
+                     * Note: Binder call to CarWatchdog daemon being made while holding the lock.
+                     * It is necessary to avoid isConnectedToDaemon() method from early exiting
+                     * because of interrupts or spurious wakeups.
+                     */
+                    retryPendingSetResourceOveruseConfigurations();
+                } else {
+                    /*
+                     * Start fetch/sync configs only when there are no pending set requests because
+                     * the above retry starts fetch/sync configs on success. If the retry fails,
+                     * the daemon has crashed and shouldn't start
+                     * fetchAndSyncResourceOveruseConfigurations.
+                     */
+                    mMainHandler.post(this::fetchAndSyncResourceOveruseConfigurations);
+                }
             }
-        }
-        synchronized (mLock) {
             mLock.notifyAll();
         }
         Trace.endSection();
@@ -1842,11 +1845,9 @@ public final class WatchdogPerfHandler {
                     mLock.wait(MAX_WAIT_TIME_MILLS - sleptDurationMillis);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    continue;
                 } finally {
                     sleptDurationMillis = SystemClock.uptimeMillis() - startTimeMillis;
                 }
-                break;
             }
             return mIsConnectedToDaemon;
         }
