@@ -466,6 +466,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             return;
         }
 
+        mFullScreenAppArea = findViewById(R.id.fullscreen_container);
+        mBackgroundAppArea = findViewById(R.id.background_app_area);
+
         mCarUiPortraitServiceManager = new CarUiPortraitServiceManager(/* activity= */ this,
                 new IncomingHandler());
         initializeCards();
@@ -814,8 +817,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private void setUpBackgroundTaskView() {
-        mBackgroundAppArea = findViewById(R.id.background_app_area);
-
         TaskViewControllerWrapper.TaskViewCallback callback =
                 new TaskViewControllerWrapper.TaskViewCallback() {
                     @Override
@@ -1061,7 +1062,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private void setUpFullScreenTaskView() {
-        mFullScreenAppArea = findViewById(R.id.fullscreen_container);
         TaskViewControllerWrapper.TaskViewCallback callback =
                 new TaskViewControllerWrapper.TaskViewCallback() {
                     @Override
