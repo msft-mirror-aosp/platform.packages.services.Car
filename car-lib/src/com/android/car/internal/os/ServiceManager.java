@@ -24,8 +24,6 @@ import android.os.RemoteException;
 /**
  * An interface to inject fake
  * {@link android.car.builtin.os.ServiceManagerHelper}.
- *
- * @hide
  */
 public interface ServiceManager {
     /** Check {@link ServiceManagerHelper#getService(String)} */

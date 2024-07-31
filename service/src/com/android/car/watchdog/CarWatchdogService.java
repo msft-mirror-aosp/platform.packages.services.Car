@@ -557,6 +557,25 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
      */
     public boolean performResourceOveruseKill(String packageName, @UserIdInt int userId) {
         assertPermission(mContext, Car.PERMISSION_USE_CAR_WATCHDOG);
+
+        UserHandle userHandle = UserHandle.of(userId);
+        List<PackageKillableState> packageKillableStates =
+                getPackageKillableStatesAsUser(userHandle);
+
+        for (int i = 0; i < packageKillableStates.size(); i++) {
+            PackageKillableState state = packageKillableStates.get(i);
+            if (packageName.equals(state.getPackageName())) {
+                int killableState = state.getKillableState();
+                if (killableState != PackageKillableState.KILLABLE_STATE_YES) {
+                    String stateName = PackageKillableState.killableStateToString(killableState);
+                    Slogf.d(TAG, "Failed to kill package '%s' for user %d because the "
+                            + "package has state '%s'\n", packageName, userId, stateName);
+                    return false;
+                }
+                break;
+            }
+        }
+
         return mWatchdogPerfHandler.disablePackageForUser(packageName, userId);
     }
 
