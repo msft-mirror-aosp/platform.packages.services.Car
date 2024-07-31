@@ -169,6 +169,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * Service responsible for interaction with car's audio system.
@@ -218,8 +219,6 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private final TelephonyManager mTelephonyManager;
     private final AudioManagerWrapper mAudioManagerWrapper;
     private final boolean mUseDynamicRouting;
-    private final boolean mUseCoreAudioVolume;
-    private final boolean mUseCoreAudioRouting;
     private final boolean mUseCarVolumeGroupEvents;
     private final boolean mUseCarVolumeGroupMuting;
     private final boolean mUseHalDuckingSignals;
@@ -258,6 +257,10 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private @Nullable CarAudioPlaybackMonitor mCarAudioPlaybackMonitor;
     @GuardedBy("mImplLock")
     private boolean mIsAudioServerDown;
+    @GuardedBy("mImplLock")
+    private boolean mUseCoreAudioVolume;
+    @GuardedBy("mImplLock")
+    private boolean mUseCoreAudioRouting;
 
 
     /**
@@ -1848,11 +1851,13 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                     mServiceEventLogger, mUseCarVolumeGroupMuting, mUseCoreAudioVolume,
                     mUseCoreAudioRouting, mUseFadeManagerConfiguration,
                     mCarAudioFadeConfigurationHelper);
+            SparseArray<CarAudioZone> zones = zonesHelper.loadAudioZones();
             mAudioZoneIdToOccupantZoneIdMapping =
                     zonesHelper.getCarAudioZoneIdToOccupantZoneIdMapping();
-            SparseArray<CarAudioZone> zones = zonesHelper.loadAudioZones();
             mCarAudioMirrorRequestHandler.setMirrorDeviceInfos(zonesHelper.getMirrorDeviceInfos());
             mCarAudioContext = zonesHelper.getCarAudioContext();
+            mUseCoreAudioRouting = zonesHelper.useCoreAudioRouting();
+            mUseCoreAudioVolume = zonesHelper.useCoreAudioVolume();
             return zones;
         } catch (IOException | XmlPullParserException e) {
             throw new RuntimeException("Failed to parse audio zone configuration", e);
@@ -2458,7 +2463,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     public CarVolumeGroupInfo getVolumeGroupInfo(int zoneId, int groupId) {
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
         if (runInLegacyMode()) {
-            return null;
+            return getVolumeGroupInfoForLegacyMode(zoneId, groupId);
         }
         synchronized (mImplLock) {
             return getCarVolumeGroupLocked(zoneId, groupId).getCarVolumeGroupInfo();
@@ -2469,7 +2474,11 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     public List<CarVolumeGroupInfo> getVolumeGroupInfosForZone(int zoneId) {
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
         if (runInLegacyMode()) {
-            return EMPTY_LIST;
+            List<CarVolumeGroupInfo> infos = new ArrayList<CarVolumeGroupInfo>();
+            for (int groupId = 0; groupId < getVolumeGroupCount(zoneId); groupId++) {
+                infos.add(getVolumeGroupInfoForLegacyMode(zoneId, groupId));
+            }
+            return infos;
         }
         synchronized (mImplLock) {
             return getVolumeGroupInfosForZoneLocked(zoneId);
@@ -2481,13 +2490,41 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         Objects.requireNonNull(groupInfo, "Car volume group info can not be null");
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
         if (runInLegacyMode()) {
-            return EMPTY_LIST;
+            return getVolumeGroupInfoForLegacyMode(groupInfo.getZoneId(), groupInfo.getId())
+                    .getAudioAttributes();
         }
 
         synchronized (mImplLock) {
             return getCarAudioZoneLocked(groupInfo.getZoneId())
                     .getCurrentVolumeGroup(groupInfo.getId()).getAudioAttributes();
         }
+    }
+
+    private CarVolumeGroupInfo getVolumeGroupInfoForLegacyMode(int zoneId, int groupId) {
+        int maxIndex = getGroupMaxVolume(zoneId, groupId);
+        int minIndex = getGroupMinVolume(zoneId, groupId);
+        AudioAttributes audioAttributes = CarAudioContext.getAudioAttributeFromUsage(
+                CarAudioDynamicRouting.STREAM_TYPE_USAGES[groupId]);
+
+        List<AudioDeviceAttributes> deviceAttributesList = mAudioManagerWrapper
+                .getAudioDevicesForAttributes(audioAttributes)
+                .stream()
+                .map(AudioDeviceAttributes::new)
+                .collect(Collectors.toList());
+
+        return new CarVolumeGroupInfo.Builder("legacy_zone" + zoneId, zoneId, groupId)
+                .setVolumeGainIndex(getGroupVolume(zoneId, groupId))
+                .setMaxVolumeGainIndex(maxIndex)
+                .setMinVolumeGainIndex(minIndex)
+                .setAudioAttributes(Arrays.asList(audioAttributes))
+                .setAudioDeviceAttributes(deviceAttributesList)
+                .setMuted(mAudioManagerWrapper.isStreamMute(
+                        CarAudioDynamicRouting.STREAM_TYPES[groupId]))
+                .setBlocked(false)
+                .setAttenuated(false)
+                .setMaxActivationVolumeGainIndex(maxIndex)
+                .setMinActivationVolumeGainIndex(minIndex)
+                .setMutedBySystem(false).build();
     }
 
     @GuardedBy("mImplLock")
@@ -3885,7 +3922,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     private boolean runInLegacyMode() {
-        return !mUseDynamicRouting && !mUseCoreAudioRouting;
+        synchronized (mImplLock) {
+            return !mUseDynamicRouting && !mUseCoreAudioRouting;
+        }
     }
 
     List<CarVolumeGroupInfo> getMutedVolumeGroups(int zoneId) {

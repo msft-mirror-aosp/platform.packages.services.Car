@@ -1,0 +1,12 @@
+{
+  "auto-presubmit": [
+    {
+      "name": "CarLibCarUnitTest"
+    }
+  ],
+  "ravenwood-presubmit": [
+    {
+      "name": "CarLibHostUnitTest"
+    }
+  ]
+}

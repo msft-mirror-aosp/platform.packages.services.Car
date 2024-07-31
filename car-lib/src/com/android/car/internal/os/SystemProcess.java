@@ -18,8 +18,6 @@ package com.android.car.internal.os;
 
 /**
  * A real implementation for Process.
- *
- * @hide
  */
 public final class SystemProcess implements Process {
     @Override
