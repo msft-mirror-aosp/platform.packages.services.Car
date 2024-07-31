@@ -63,6 +63,10 @@ import java.util.Objects;
  * Translates HAL power events to higher-level semantic information.
  */
 public class PowerHalService extends HalServiceBase {
+    // This is the same as android.view.Display.TYPE_OVERLAY, in the future release this is replaced
+    // with DisplayHelper.TYPE_OVERLAY.
+    private static final int DISPLAY_TYPE_OVERLAY = 4;
+
     // Set display brightness from 0-100%
     public static final int MAX_BRIGHTNESS = 100;
 
@@ -412,8 +416,10 @@ public class PowerHalService extends HalServiceBase {
      * Sets the display brightness for the vehicle.
      * @param brightness value from 0 to 100.
      */
-    public void sendDisplayBrightness(int brightness) {
-        Slogf.i(CarLog.TAG_POWER, "brightness from system: %d", brightness);
+    public void sendDisplayBrightnessLegacy(int brightness) {
+        // This method should not be called if multiDisplayBrightnessControl is enabled.
+        Slogf.i(CarLog.TAG_POWER, "brightness from system: " + brightness);
+
         int brightnessToSet = adjustBrightness(brightness, /* minBrightness= */ 0,
                 /* maxBrightness= */ MAX_BRIGHTNESS);
         // Adjust brightness back from 0-100 back to 0-maxDisplayBrightness scale.
@@ -426,20 +432,14 @@ public class PowerHalService extends HalServiceBase {
                 return;
             }
             if (mPerDisplayBrightnessSupported) {
-                Slogf.w(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is supported and "
+                Slogf.e(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is supported and "
                         + "sendDisplayBrightness(int displayId, int brightness) should be used "
-                        + "instead of DISPLAY_BRIGHTNESS");
+                        + "instead of sendDisplayBrightnessLegacy");
                 return;
             }
-            addRecentlySetBrightnessChangeLocked(brightnessToSet, GLOBAL_PORT);
         }
-        Slogf.i(CarLog.TAG_POWER, "brightness to VHAL: " + brightnessToSet);
-        try {
-            mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, 0).to(brightnessToSet);
-            Slogf.i(CarLog.TAG_POWER, "send display brightness = " + brightnessToSet);
-        } catch (ServiceSpecificException | IllegalArgumentException e) {
-            Slogf.e(CarLog.TAG_POWER, "cannot set DISPLAY_BRIGHTNESS", e);
-        }
+
+        setGlobalBrightness(brightnessToSet);
     }
 
     /**
@@ -452,13 +452,22 @@ public class PowerHalService extends HalServiceBase {
                 + ", displayId: " + displayId);
         int brightnessToSet = adjustBrightness(brightness, /* minBrightness= */ 0,
                 /* maxBrightness= */ 100);
-
+        boolean perDisplayBrightnessSupported;
         synchronized (mLock) {
-            if (!mPerDisplayBrightnessSupported) {
-                Slogf.w(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is not supported");
-                return;
-            }
+            perDisplayBrightnessSupported = mPerDisplayBrightnessSupported;
         }
+
+        if (!perDisplayBrightnessSupported) {
+            Slogf.w(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is not supported, always set the"
+                    + " default display brightness");
+            setGlobalBrightness(brightness);
+            return;
+        }
+
+        setBrightnessForDisplayId(displayId, brightness);
+    }
+
+    private void setBrightnessForDisplayId(int displayId, int brightness) {
         int displayPort = getDisplayPort(displayId);
         if (displayPort == DisplayHelper.INVALID_PORT) {
             return;
@@ -467,22 +476,36 @@ public class PowerHalService extends HalServiceBase {
         synchronized (mLock) {
             // Adjust brightness back from 0-100 back to 0-maxDisplayBrightness scale.
             int maxDisplayBrightnessForPort = getMaxPerDisplayBrightnessLocked(displayPort);
-            brightnessToSet = brightnessToSet * maxDisplayBrightnessForPort / MAX_BRIGHTNESS;
-            addRecentlySetBrightnessChangeLocked(brightnessToSet, displayPort);
+            brightness = brightness * maxDisplayBrightnessForPort / MAX_BRIGHTNESS;
+            addRecentlySetBrightnessChangeLocked(brightness, displayPort);
         }
 
-        Slogf.i(CarLog.TAG_POWER, "brightness to VHAL: " + brightnessToSet
+        Slogf.i(CarLog.TAG_POWER, "brightness to VHAL: " + brightness
                 + ", displayPort: " + displayPort);
         try {
             HalPropValue value = mHal.getHalPropValueBuilder()
-                    .build(VehicleProperty.PER_DISPLAY_BRIGHTNESS, /* areaId= */ 0,
-                            new int[]{displayPort, brightnessToSet});
+                    .build(PER_DISPLAY_BRIGHTNESS, /* areaId= */ 0,
+                            new int[]{displayPort, brightness});
             mHal.set(value);
-            Slogf.i(CarLog.TAG_POWER, "send display brightness = %d, port = %d",
-                    brightnessToSet, displayPort);
-        } catch (ServiceSpecificException e) {
+            Slogf.i(CarLog.TAG_POWER, "sent display brightness = %d, port = %d",
+                    brightness, displayPort);
+        } catch (ServiceSpecificException | IllegalArgumentException e) {
             Slogf.e(CarLog.TAG_POWER, e, "cannot set PER_DISPLAY_BRIGHTNESS port = %d",
                     displayPort);
+        }
+    }
+
+    private void setGlobalBrightness(int brightness) {
+        Slogf.i(CarLog.TAG_POWER, "brightness to VHAL: " + brightness);
+        synchronized (mLock) {
+            addRecentlySetBrightnessChangeLocked(brightness, GLOBAL_PORT);
+        }
+
+        try {
+            mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0).to(brightness);
+            Slogf.i(CarLog.TAG_POWER, "sent global display brightness = %d", brightness);
+        } catch (ServiceSpecificException | IllegalArgumentException e) {
+            Slogf.e(CarLog.TAG_POWER, e, "cannot set DISPLAY_BRIGHTNESS");
         }
     }
 
@@ -646,7 +669,7 @@ public class PowerHalService extends HalServiceBase {
                 if (maxDisplayBrightness <= 0) {
                     Slogf.w(CarLog.TAG_POWER,
                             "Max display brightness from vehicle HAL for display port: %d is "
-                            + "invalid:  %d", displayPort, maxDisplayBrightness);
+                            + "invalid: %d", displayPort, maxDisplayBrightness);
                     maxDisplayBrightness = 1;
                 }
                 mMaxPerDisplayBrightness.put(displayPort, maxDisplayBrightness);
@@ -752,7 +775,8 @@ public class PowerHalService extends HalServiceBase {
                     brightness = adjustBrightness(brightness, /* minBrightness= */ 0,
                             MAX_BRIGHTNESS);
                     Slogf.i(CarLog.TAG_POWER, "brightness to system: " + brightness);
-                    listener.onDisplayBrightnessChange(brightness);
+                    // DISPLAY_BRIGHNTESS represents the brightness for all displays.
+                    onDisplayBrightnessChangeForAllDisplays(listener, brightness);
                     break;
                 }
                 case PER_DISPLAY_BRIGHTNESS:
@@ -782,7 +806,6 @@ public class PowerHalService extends HalServiceBase {
                     brightness = brightness * MAX_BRIGHTNESS / maxBrightness;
                     brightness = adjustBrightness(brightness, /* minBrightness= */ 0,
                             MAX_BRIGHTNESS);
-
                     int displayId = getDisplayId(displayPort);
                     Slogf.i(CarLog.TAG_POWER, "brightness to system: " + brightness
                             + ", displayId=" + displayId);
@@ -842,6 +865,19 @@ public class PowerHalService extends HalServiceBase {
                     /* valueIfKeyNotFound= */ 1);
         }
         return maxBrightness;
+    }
+
+    private void onDisplayBrightnessChangeForAllDisplays(PowerEventListener listener,
+            int brightness) {
+        DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
+        for (Display display : displayManager.getDisplays()) {
+            int displayId = display.getDisplayId();
+            int displayType = DisplayHelper.getType(display);
+            if (displayType == DisplayHelper.TYPE_VIRTUAL || displayType == DISPLAY_TYPE_OVERLAY) {
+                continue;
+            }
+            listener.onDisplayBrightnessChange(displayId, brightness);
+        }
     }
 
     private int getDisplayId(int displayPort) {
