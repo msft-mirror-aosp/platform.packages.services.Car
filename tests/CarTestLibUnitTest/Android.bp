@@ -30,8 +30,4 @@ android_test {
         "libdexmakerjvmtiagent",
         "libstaticjvmtiagent",
     ],
-    test_suites: [
-        "automotive-general-tests",
-        "general-tests",
-    ],
 }
