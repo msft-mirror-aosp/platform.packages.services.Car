@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.MissingResourceException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -83,6 +84,8 @@ import java.util.Set;
     private static final String TAG_DEVICE_CONFIGURATIONS = "deviceConfigurations";
     private static final String DEVICE_CONFIG_CORE_VOLUME = "useCoreAudioVolume";
     private static final String DEVICE_CONFIG_CORE_ROUTING = "useCoreAudioRouting";
+    private static final String DEVICE_CONFIG_DUCKING_SIGNALS = "useHalDuckingSignals";
+    private static final String DEVICE_CONFIG_GROUP_MUTING = "useCarVolumeGroupMuting";
 
     private static final String TAG_AUDIO_ZONES = "zones";
     private static final String TAG_AUDIO_ZONE = "zone";
@@ -159,7 +162,6 @@ import java.util.Set;
     private final Set<Integer> mAudioZoneIds;
     private final Set<String> mAssignedInputAudioDevices;
     private final Set<String> mAudioZoneConfigNames;
-    private final boolean mUseCarVolumeGroupMute;
     private final boolean mUseFadeManagerConfiguration;
     private final CarAudioFadeConfigurationHelper mCarAudioFadeConfigurationHelper;
     private final List<CarAudioDeviceInfo> mMirroringDevices = new ArrayList<>();
@@ -168,6 +170,8 @@ import java.util.Set;
 
     private boolean mUseCoreAudioVolume;
     private boolean mUseCoreAudioRouting;
+    private boolean mUseCarVolumeGroupMute;
+    private Optional<Boolean> mUseHalDuckingSignals = Optional.empty();
     private final ArrayMap<String, Integer> mContextNameToId = new ArrayMap<>();
     private final LocalLog mCarServiceLocalLog;
     private CarAudioContext mCarAudioContext;
@@ -222,7 +226,7 @@ import java.util.Set;
      * <p><b>Note</b> The value will depend on the device configuration obtained from the car audio
      * configuration file. With value obtained from the configuration file having higher priority
      * over the passed in value (which was obtained from the legacy RRO). If the value is not
-     * defined in the audio configuration file the original passed in value will be returned.
+     * defined in the audio configuration file, the original passed in value will be returned.
      *
      * @return {@code true} if core volume management should be used, {@code false} otherwise.
      */
@@ -236,12 +240,43 @@ import java.util.Set;
      * <p><b>Note</b> The value will depend on the device configuration obtained from the car audio
      * configuration file. With value obtained from the configuration file having higher priority
      * over the passed in value (which was obtained from the legacy RRO). If the value is not
-     * defined in the audio configuration file the original passed in value will be returned.
+     * defined in the audio configuration file, the original passed in value will be returned.
      *
      * @return {@code true} if core routing management should be used, {@code false} otherwise.
      */
     boolean useCoreAudioRouting() {
         return mUseCoreAudioRouting;
+    }
+
+    /**
+     * Returns the updated use volume group muting device configuration
+     *
+     * <p><b>Note</b> The value will depend on the device configuration obtained from the car audio
+     * configuration file. With value obtained from the configuration file having higher priority
+     * over the passed in value (which was obtained from the legacy RRO). If the value is not
+     * defined in the audio configuration file, the original passed in value will be returned.
+     *
+     * @return {@code true} if volume group muting should be used, {@code false} otherwise.
+     */
+    public boolean useVolumeGroupMuting() {
+        return mUseCarVolumeGroupMute;
+    }
+
+    /**
+     * Returns the updated use HAL ducking device configuration
+     *
+     * <p><b>Note</b> The value will depend on the device configuration obtained from the car audio
+     * configuration file. With value obtained from the configuration file having higher priority
+     * over the passed in default value (which was obtained from the legacy RRO). If the value is
+     * not defined in the audio configuration file, the passed in value will be returned.
+     *
+     * @param defaultUseHalDuckingSignal default value that should be returned if the config was
+     *                                   not present in the audio configuration file.
+     *
+     * @return {@code true} if volume group muting should be used, {@code false} otherwise.
+     */
+    public boolean useHalDuckingSignalOrDefault(boolean defaultUseHalDuckingSignal) {
+        return mUseHalDuckingSignals.orElse(defaultUseHalDuckingSignal);
     }
 
     private static Map<String, CarAudioDeviceInfo> generateAddressToInfoMap(
@@ -421,10 +456,24 @@ import java.util.Set;
             throws XmlPullParserException, IOException {
         mUseCoreAudioVolume = parseUseCoreAudioVolume(parser);
         mUseCoreAudioRouting = parseUseCoreAudioRouting(parser);
+        mUseCarVolumeGroupMute = parseUseCarVolumeGroupMuting(parser);
+        mUseHalDuckingSignals = parseUseHalDuckingSignals(parser);
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
             CarAudioParserUtils.skip(parser);
         }
+    }
+
+    private Optional<Boolean> parseUseHalDuckingSignals(XmlPullParser parser) {
+        String useHalDuckingSignals = parser.getAttributeValue(NAMESPACE,
+                DEVICE_CONFIG_DUCKING_SIGNALS);
+        return parseOptionalBoolean(useHalDuckingSignals, DEVICE_CONFIG_DUCKING_SIGNALS);
+    }
+
+    private boolean parseUseCarVolumeGroupMuting(XmlPullParser parser) {
+        String useHalGroupMuting = parser.getAttributeValue(NAMESPACE,
+                DEVICE_CONFIG_GROUP_MUTING);
+        return parseBoolean(useHalGroupMuting, DEVICE_CONFIG_GROUP_MUTING, mUseCarVolumeGroupMute);
     }
 
     private boolean parseUseCoreAudioVolume(XmlPullParser parser) {
@@ -440,8 +489,14 @@ import java.util.Set;
     }
 
     private boolean parseBoolean(String booleanString, String configName, boolean defaultValue) {
+        Optional<Boolean> parsedValue = parseOptionalBoolean(booleanString, configName);
+
+        return parsedValue.orElse(defaultValue);
+    }
+
+    private Optional<Boolean> parseOptionalBoolean(String booleanString, String configName) {
         if (TextUtils.isEmpty(booleanString)) {
-            return defaultValue;
+            return Optional.empty();
         }
 
         // Need to check for "true" or "false", since Boolean parse will return false for anything
@@ -449,10 +504,10 @@ import java.util.Set;
         if (!booleanString.matches(TRUE_FALSE_REGEX)) {
             mCarServiceLocalLog.log(configName + " was declared with the value of "
                     + booleanString + " but should be either true or false");
-            return defaultValue;
+            return Optional.empty();
         }
 
-        return Boolean.parseBoolean(booleanString);
+        return Optional.of(Boolean.parseBoolean(booleanString));
     }
 
     private SparseArray<CarAudioZone> parseAudioZones(XmlPullParser parser)
