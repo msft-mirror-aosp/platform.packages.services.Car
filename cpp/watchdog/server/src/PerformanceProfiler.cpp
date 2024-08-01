@@ -278,7 +278,7 @@ std::string pressureLevelDurationMapToString(
                 static_cast<PressureMonitorInterface::PressureLevel>(i);
         if (const auto& it = pressureLevelDurations.find(pressureLevel);
             it != pressureLevelDurations.end()) {
-            StringAppendF(&buffer, "\tPressure level: %s, Duration: %" PRIi64 " ms\n",
+            StringAppendF(&buffer, "\tPressure level: %s, Duration: %lld ms\n",
                           PressureMonitorInterface::PressureLevelToString(pressureLevel).c_str(),
                           it->second.count());
         }
