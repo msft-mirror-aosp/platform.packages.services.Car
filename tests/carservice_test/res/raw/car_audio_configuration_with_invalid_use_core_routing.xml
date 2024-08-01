@@ -14,7 +14,9 @@
      limitations under the License.
 -->
 <carAudioConfiguration version="4">
-    <deviceConfigurations useCoreAudioRouting="wrong"/>
+    <deviceConfigurations>
+        <deviceConfiguration name="useCoreAudioRouting" value="wrong"/>
+    </deviceConfigurations>
     <oemContexts>
         <oemContext name="OEM_CONTEXT">
             <audioAttributes>
