@@ -219,8 +219,6 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private final TelephonyManager mTelephonyManager;
     private final AudioManagerWrapper mAudioManagerWrapper;
     private final boolean mUseDynamicRouting;
-    private final boolean mUseCoreAudioVolume;
-    private final boolean mUseCoreAudioRouting;
     private final boolean mUseCarVolumeGroupEvents;
     private final boolean mUseCarVolumeGroupMuting;
     private final boolean mUseHalDuckingSignals;
@@ -259,6 +257,10 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private @Nullable CarAudioPlaybackMonitor mCarAudioPlaybackMonitor;
     @GuardedBy("mImplLock")
     private boolean mIsAudioServerDown;
+    @GuardedBy("mImplLock")
+    private boolean mUseCoreAudioVolume;
+    @GuardedBy("mImplLock")
+    private boolean mUseCoreAudioRouting;
 
 
     /**
@@ -1849,11 +1851,13 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                     mServiceEventLogger, mUseCarVolumeGroupMuting, mUseCoreAudioVolume,
                     mUseCoreAudioRouting, mUseFadeManagerConfiguration,
                     mCarAudioFadeConfigurationHelper);
+            SparseArray<CarAudioZone> zones = zonesHelper.loadAudioZones();
             mAudioZoneIdToOccupantZoneIdMapping =
                     zonesHelper.getCarAudioZoneIdToOccupantZoneIdMapping();
-            SparseArray<CarAudioZone> zones = zonesHelper.loadAudioZones();
             mCarAudioMirrorRequestHandler.setMirrorDeviceInfos(zonesHelper.getMirrorDeviceInfos());
             mCarAudioContext = zonesHelper.getCarAudioContext();
+            mUseCoreAudioRouting = zonesHelper.useCoreAudioRouting();
+            mUseCoreAudioVolume = zonesHelper.useCoreAudioVolume();
             return zones;
         } catch (IOException | XmlPullParserException e) {
             throw new RuntimeException("Failed to parse audio zone configuration", e);
@@ -3918,7 +3922,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     private boolean runInLegacyMode() {
-        return !mUseDynamicRouting && !mUseCoreAudioRouting;
+        synchronized (mImplLock) {
+            return !mUseDynamicRouting && !mUseCoreAudioRouting;
+        }
     }
 
     List<CarVolumeGroupInfo> getMutedVolumeGroups(int zoneId) {
