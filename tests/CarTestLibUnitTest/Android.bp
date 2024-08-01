@@ -30,4 +30,5 @@ android_test {
         "libdexmakerjvmtiagent",
         "libstaticjvmtiagent",
     ],
+    platform_apis: true,
 }
