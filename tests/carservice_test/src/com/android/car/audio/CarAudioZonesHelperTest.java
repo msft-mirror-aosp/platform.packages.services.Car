@@ -2204,6 +2204,164 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
         }
     }
 
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withMultipleDefinitionsOfUseCoreVolumeDeviceConfig()
+            throws Exception {
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_multiple_use_core_volume_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioRouting= */ false, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with multiple use core volume config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with multiple use core volume device config")
+                    .that(cazh.useCoreAudioVolume()).isTrue();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withUseCoreRoutingDeviceConfig()
+            throws Exception {
+        boolean useCoreRouting = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_use_core_routing)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ true, useCoreRouting,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with use core routing enabled")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with use core routing enabled")
+                    .that(cazh.useCoreAudioRouting()).isTrue();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withInvalidUseCoreRoutingDeviceConfig()
+            throws Exception {
+        boolean useCoreRouting = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_invalid_use_core_routing)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioRouting= */ true, useCoreRouting,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with invalid use core routing enabled")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with invalid use core routing enabled")
+                    .that(cazh.useCoreAudioRouting()).isEqualTo(useCoreRouting);
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withUseCarVolumeGroupMutingConfig()
+            throws Exception {
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_valid_use_group_muting_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ true, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with valid use group muting config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use group muting config with valid use group muting config")
+                    .that(cazh.useVolumeGroupMuting()).isTrue();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withInvalidUseCarVolumeGroupMutingConfig()
+            throws Exception {
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_invalid_use_group_muting_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ true, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with invalid use group muting config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use group muting config with invalid use group muting config")
+                    .that(cazh.useVolumeGroupMuting()).isFalse();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withUseHalDuckingSignalsConfig()
+            throws Exception {
+        boolean defaultUseHalDuckingSignal = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_valid_use_hal_ducking_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ false, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with valid use HAL ducking config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use HAL ducking config with valid use HAL ducking config")
+                    .that(cazh.useHalDuckingSignalOrDefault(defaultUseHalDuckingSignal)).isTrue();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withInvalidUseHalDuckingSignalsConfig()
+            throws Exception {
+        boolean defaultUseHalDuckingSignal = false;
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_invalid_use_hal_ducking_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ false, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with invalid use HAL ducking config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use HAL ducking config with invalid use HAL ducking config")
+                    .that(cazh.useHalDuckingSignalOrDefault(defaultUseHalDuckingSignal)).isFalse();
+        }
+    }
+
     private CarAudioFadeConfigurationHelper getCarAudioFadeConfigurationHelper(int resource) {
         try (InputStream inputStream = mContext.getResources().openRawResource(resource)) {
             return new CarAudioFadeConfigurationHelper(inputStream);
