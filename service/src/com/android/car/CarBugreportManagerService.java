@@ -38,7 +38,6 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.ParcelFileDescriptor;
-import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
 
@@ -134,7 +133,6 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
             ICarBugreportCallback callback, boolean dumpstateDryRun) {
         mContext.enforceCallingOrSelfPermission(
                 android.Manifest.permission.DUMP, "requestBugreport");
-        ensureTheCallerIsSignedWithPlatformKeys();
         ensureTheCallerIsDesignatedBugReportApp();
         synchronized (mLock) {
             if (mIsServiceRunning.getAndSet(true)) {
@@ -151,7 +149,6 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
     public void cancelBugreport() {
         mContext.enforceCallingOrSelfPermission(
                 android.Manifest.permission.DUMP, "cancelBugreport");
-        ensureTheCallerIsSignedWithPlatformKeys();
         ensureTheCallerIsDesignatedBugReportApp();
         synchronized (mLock) {
             if (!mIsServiceRunning.getAndSet(false)) {
@@ -187,15 +184,6 @@ public class CarBugreportManagerService extends ICarBugreportService.Stub implem
             SystemPropertiesHelper.set("dumpstate.dry_run", dryRun ? "true" : null);
         } catch (RuntimeException e) {
             Slogf.e(TAG, "Failed to set dumpstate.dry_run", e);
-        }
-    }
-
-    private void ensureTheCallerIsSignedWithPlatformKeys() {
-        PackageManager pm = mContext.getPackageManager();
-        int callingUid = Binder.getCallingUid();
-        if (pm.checkSignatures(Process.myUid(), callingUid) != PackageManager.SIGNATURE_MATCH) {
-            throw new SecurityException("Caller " + pm.getNameForUid(callingUid)
-                            + " does not have the right signature");
         }
     }
 
