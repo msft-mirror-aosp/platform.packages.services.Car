@@ -15,7 +15,7 @@
 -->
 <carAudioConfiguration version="4">
     <deviceConfigurations>
-        <deviceConfiguration name="useCoreAudioVolume" value="true"/>
+        <deviceConfiguration name="useCarVolumeGroupMuting" value="wrong"/>
     </deviceConfigurations>
     <oemContexts>
         <oemContext name="OEM_CONTEXT">
