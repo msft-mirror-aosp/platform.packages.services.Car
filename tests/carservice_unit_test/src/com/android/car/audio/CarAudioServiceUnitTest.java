@@ -2383,6 +2383,58 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     }
 
     @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forEnabledVolumeGroupMutingFromConfigFileWithMatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_group_muting_config_enabled,
+                        /* useGroupMuting= */ true);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forEnabledVolumeGroupMutingFromConfigFileWithUnmatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_group_muting_config_enabled,
+                        /* useGroupMuting= */ false);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forDisabledVolumeGroupMutingFromConfigFileWithMatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                R.raw.car_audio_configuration_with_group_muting_config_disabled,
+                /* useGroupMuting= */ false);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToMuteChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forDisabledVolumeGroupMutingFromConfigFileWithUnmatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                R.raw.car_audio_configuration_with_group_muting_config_disabled,
+                /* useGroupMuting= */ true);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToMuteChange(any());
+    }
+
+    @Test
     public void setAudioEnabled_forDisabledVolumeGroupMuting() throws Exception {
         CarAudioService nonVolumeGroupMutingAudioService =
                 setUpAudioServiceWithDisabledResource(audioUseCarVolumeGroupMuting);
@@ -6380,6 +6432,73 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         expectWithMessage("Volume event callback reception status with callback unregistered")
                 .that(volumeEventCallback.waitForCallback()).isFalse();
     }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigEnabledAndMatchedRRO() throws Exception {
+        boolean useHALDucking = true;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                R.raw.car_audio_configuration_with_HAL_ducking_config_enabled,
+                useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        ArgumentCaptor<List<CarDuckingInfo>> carDuckingInfosCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAudioControlWrapperAidl).onDevicesToDuckChange(carDuckingInfosCaptor.capture());
+
+        verifyMediaDuckingInfoInZone(carDuckingInfosCaptor, TEST_REAR_RIGHT_ZONE_ID,
+                " with HAL ducking config enabled and matched RRO");
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigEnabledAndUnmatchedRRO() throws Exception {
+        boolean useHALDucking = false;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                R.raw.car_audio_configuration_with_HAL_ducking_config_enabled,
+                useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        ArgumentCaptor<List<CarDuckingInfo>> carDuckingInfosCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAudioControlWrapperAidl).onDevicesToDuckChange(carDuckingInfosCaptor.capture());
+
+        verifyMediaDuckingInfoInZone(carDuckingInfosCaptor, TEST_REAR_RIGHT_ZONE_ID,
+                " with HAL ducking config enabled and unmatched RRO");
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigDisabledAndMatchedRRO() throws Exception {
+        boolean useHALDucking = false;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_HAL_ducking_config_disabled,
+                        useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToDuckChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigDisabledAndUnmatchedRRO() throws Exception {
+        boolean useHALDucking = true;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_HAL_ducking_config_disabled,
+                        useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToDuckChange(any());
+    }
+
     private void waitForInternalCallback() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         mHandler.post(latch::countDown);
@@ -6735,6 +6854,31 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 /* audioFadeConfigurationPath= */ null);
         useCoreAudioCarAudioService.init();
         return useCoreAudioCarAudioService;
+    }
+
+    private CarAudioService setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+            int resourceId, boolean useGroupMuting)
+            throws Exception {
+        setUpTempFileForAudioConfiguration(resourceId);
+        when(mMockResources.getBoolean(audioUseCarVolumeGroupMuting)).thenReturn(useGroupMuting);
+
+        CarAudioService audioCarAudioService = new CarAudioService(mMockContext, mAudioManager,
+                mTempCarAudioConfigFile.getFile().getAbsolutePath(), mCarVolumeCallbackHandler,
+                /* audioFadeConfigurationPath= */ null);
+        audioCarAudioService.init();
+        return audioCarAudioService;
+    }
+
+    private CarAudioService setUpCarAudioServiceWithDuckingConfiguredInFile(int resourceId,
+            boolean useHALDucking) throws Exception {
+        setUpTempFileForAudioConfiguration(resourceId);
+        when(mMockResources.getBoolean(audioUseHalDuckingSignals)).thenReturn(useHALDucking);
+
+        CarAudioService audioCarAudioService = new CarAudioService(mMockContext, mAudioManager,
+                mTempCarAudioConfigFile.getFile().getAbsolutePath(), mCarVolumeCallbackHandler,
+                /* audioFadeConfigurationPath= */ null);
+        audioCarAudioService.init();
+        return audioCarAudioService;
     }
 
     private void mockGrantCarControlAudioSettingsPermission() {

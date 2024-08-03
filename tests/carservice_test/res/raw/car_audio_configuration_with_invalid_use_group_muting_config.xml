@@ -14,7 +14,9 @@
      limitations under the License.
 -->
 <carAudioConfiguration version="4">
-    <deviceConfigurations useCarVolumeGroupMuting="wrong"/>
+    <deviceConfigurations>
+        <deviceConfiguration name="useCarVolumeGroupMuting" value="wrong"/>
+    </deviceConfigurations>
     <oemContexts>
         <oemContext name="OEM_CONTEXT">
             <audioAttributes>

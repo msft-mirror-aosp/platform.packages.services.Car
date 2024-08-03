@@ -82,6 +82,9 @@ import java.util.Set;
     private static final String OEM_CONTEXT_NAME = "name";
 
     private static final String TAG_DEVICE_CONFIGURATIONS = "deviceConfigurations";
+    private static final String TAG_DEVICE_CONFIG = "deviceConfiguration";
+    private static final String TAG_DEVICE_CONFIG_NAME = "name";
+    private static final String TAG_DEVICE_CONFIG_VALUE = "value";
     private static final String DEVICE_CONFIG_CORE_VOLUME = "useCoreAudioVolume";
     private static final String DEVICE_CONFIG_CORE_ROUTING = "useCoreAudioRouting";
     private static final String DEVICE_CONFIG_DUCKING_SIGNALS = "useHalDuckingSignals";
@@ -168,6 +171,7 @@ import java.util.Set;
     private final Map<String, CarActivationVolumeConfig> mConfigNameToActivationVolumeConfig =
             new ArrayMap<>();
 
+    private final ArrayMap<String, String> mDeviceConfigNameToValue = new ArrayMap<>();
     private boolean mUseCoreAudioVolume;
     private boolean mUseCoreAudioRouting;
     private boolean mUseCarVolumeGroupMute;
@@ -454,36 +458,60 @@ import java.util.Set;
 
     private void parseDeviceConfigurations(XmlPullParser parser)
             throws XmlPullParserException, IOException {
-        mUseCoreAudioVolume = parseUseCoreAudioVolume(parser);
-        mUseCoreAudioRouting = parseUseCoreAudioRouting(parser);
-        mUseCarVolumeGroupMute = parseUseCarVolumeGroupMuting(parser);
-        mUseHalDuckingSignals = parseUseHalDuckingSignals(parser);
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.getEventType() != XmlPullParser.START_TAG) continue;
+            if (Objects.equals(parser.getName(), TAG_DEVICE_CONFIG)) {
+                parseAudioConfig(parser);
+            } else {
+                CarAudioParserUtils.skip(parser);
+            }
+        }
+        mUseCoreAudioVolume = parseUseCoreAudioVolume();
+        mUseCoreAudioRouting = parseUseCoreAudioRouting();
+        mUseCarVolumeGroupMute = parseUseCarVolumeGroupMuting();
+        mUseHalDuckingSignals = parseUseHalDuckingSignals();
+    }
+
+    private void parseAudioConfig(XmlPullParser parser)
+            throws XmlPullParserException, IOException {
+        String name = parser.getAttributeValue(NAMESPACE, TAG_DEVICE_CONFIG_NAME);
+        String value = parser.getAttributeValue(NAMESPACE, TAG_DEVICE_CONFIG_VALUE);
+        if (!TextUtils.isEmpty(name) && !TextUtils.isEmpty(value)
+                && !mDeviceConfigNameToValue.containsKey(name)) {
+            mDeviceConfigNameToValue.put(name, value);
+        } else if (mDeviceConfigNameToValue.containsKey(name)) {
+            // If the name already exist consistently keep the previous value
+            mCarServiceLocalLog.log("Device configuration " + name
+                    + " has a duplicate definition with a new value of " + value
+                    + ", keeping the previously assigned value of "
+                    + mDeviceConfigNameToValue.get(name));
+        } else {
+            Slogf.w(TAG, "Device configuration with empty name or value was encountered: [name="
+                    + name + ", value= " + value + "]");
+        }
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
             CarAudioParserUtils.skip(parser);
         }
     }
 
-    private Optional<Boolean> parseUseHalDuckingSignals(XmlPullParser parser) {
-        String useHalDuckingSignals = parser.getAttributeValue(NAMESPACE,
-                DEVICE_CONFIG_DUCKING_SIGNALS);
+    private Optional<Boolean> parseUseHalDuckingSignals() {
+        String useHalDuckingSignals = mDeviceConfigNameToValue.get(DEVICE_CONFIG_DUCKING_SIGNALS);
         return parseOptionalBoolean(useHalDuckingSignals, DEVICE_CONFIG_DUCKING_SIGNALS);
     }
 
-    private boolean parseUseCarVolumeGroupMuting(XmlPullParser parser) {
-        String useHalGroupMuting = parser.getAttributeValue(NAMESPACE,
-                DEVICE_CONFIG_GROUP_MUTING);
+    private boolean parseUseCarVolumeGroupMuting() {
+        String useHalGroupMuting = mDeviceConfigNameToValue.get(DEVICE_CONFIG_GROUP_MUTING);
         return parseBoolean(useHalGroupMuting, DEVICE_CONFIG_GROUP_MUTING, mUseCarVolumeGroupMute);
     }
 
-    private boolean parseUseCoreAudioVolume(XmlPullParser parser) {
-        String useCoreVolumeString = parser.getAttributeValue(NAMESPACE, DEVICE_CONFIG_CORE_VOLUME);
+    private boolean parseUseCoreAudioVolume() {
+        String useCoreVolumeString = mDeviceConfigNameToValue.get(DEVICE_CONFIG_CORE_VOLUME);
         return parseBoolean(useCoreVolumeString, DEVICE_CONFIG_CORE_VOLUME, mUseCoreAudioVolume);
     }
 
-    private boolean parseUseCoreAudioRouting(XmlPullParser parser) {
-        String useCoreVolumeString =
-                parser.getAttributeValue(NAMESPACE, DEVICE_CONFIG_CORE_ROUTING);
+    private boolean parseUseCoreAudioRouting() {
+        String useCoreVolumeString = mDeviceConfigNameToValue.get(DEVICE_CONFIG_CORE_ROUTING);
         return parseBoolean(useCoreVolumeString, DEVICE_CONFIG_CORE_ROUTING,
                 mUseCoreAudioRouting);
     }

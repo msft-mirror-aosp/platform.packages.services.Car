@@ -2206,6 +2206,28 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
 
     @Test
     @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_withMultipleDefinitionsOfUseCoreVolumeDeviceConfig()
+            throws Exception {
+        try (InputStream inputStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_with_multiple_use_core_volume_config)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, inputStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioRouting= */ false, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Primary zone with multiple use core volume config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config with multiple use core volume device config")
+                    .that(cazh.useCoreAudioVolume()).isTrue();
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
     public void loadAudioZones_withUseCoreRoutingDeviceConfig()
             throws Exception {
         boolean useCoreRouting = false;
