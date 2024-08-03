@@ -38,6 +38,8 @@ import android.os.HandlerThread;
 import android.util.ArraySet;
 import android.util.Log;
 
+import androidx.test.filters.FlakyTest;
+
 import com.android.car.test.TestPropertyAsyncCallback;
 import com.android.compatibility.common.util.ApiTest;
 
@@ -110,6 +112,7 @@ public final class CarPropertyManagerTest extends CarApiTestBase {
         assertThat(thrown.getVendorErrorCode()).isEqualTo(EXPECTED_VENDOR_ERROR_CODE);
     }
 
+    @FlakyTest(bugId = 357135536)
     @ApiTest(apis = {"android.car.hardware.property.CarPropertyManager#getPropertyList()"})
     @Test
     public void testGetPropertyListWithLargeNumberOfConfigs() throws Exception {
@@ -148,6 +151,7 @@ public final class CarPropertyManagerTest extends CarApiTestBase {
         }
     }
 
+    @FlakyTest(bugId = 357135536)
     @ApiTest(apis = {"android.car.hardware.property.CarPropertyManager#setPropertiesAsync"
             + "(List, long, CancellationSignal, Executor, SetPropertyCallback)"})
     @Test
@@ -192,6 +196,7 @@ public final class CarPropertyManagerTest extends CarApiTestBase {
         }
     }
 
+    @FlakyTest(bugId = 357135536)
     @ApiTest(apis = {"android.car.hardware.property.CarPropertyManager#getPropertiesAsync"
             + "(List, long, CancellationSignal, Executor, GetPropertyCallback)"})
     @Test

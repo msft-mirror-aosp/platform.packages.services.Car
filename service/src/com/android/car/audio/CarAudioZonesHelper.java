@@ -789,14 +789,7 @@ import java.util.Set;
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
             if (Objects.equals(parser.getName(), TAG_VOLUME_GROUP)) {
                 String groupName = parser.getAttributeValue(NAMESPACE, VOLUME_GROUP_NAME);
-                Preconditions.checkArgument(!mUseCoreAudioVolume || groupName != null,
-                        "%s %s attribute can not be empty when relying on core volume groups",
-                        TAG_VOLUME_GROUP, VOLUME_GROUP_NAME);
-                if (groupName == null) {
-                    groupName = new StringBuilder().append("config ")
-                            .append(zoneConfigBuilder.getZoneConfigId()).append(" group ")
-                            .append(groupId).toString();
-                }
+                groupName = verifyGroupNameAndCreateIfNeeded(zoneConfigBuilder, groupName, groupId);
 
                 CarActivationVolumeConfig activationVolumeConfig =
                         getActivationVolumeConfig(parser);
@@ -819,6 +812,33 @@ import java.util.Set;
             }
         }
         return valid;
+    }
+
+    private String verifyGroupNameAndCreateIfNeeded(
+            CarAudioZoneConfig.Builder zoneConfigBuilder, String groupName, int groupId) {
+        verifyGroupName(groupName);
+        if (groupName == null) {
+            groupName = new StringBuilder().append("config ")
+                    .append(zoneConfigBuilder.getZoneConfigId()).append(" group ")
+                    .append(groupId).toString();
+        }
+        return groupName;
+    }
+
+    private void verifyGroupName(String groupName) {
+        if (!Flags.audioVendorFreezeImprovements()) {
+            Preconditions.checkArgument(!mUseCoreAudioVolume || groupName != null,
+                    "%s %s attribute can not be empty when relying on core volume groups",
+                    TAG_VOLUME_GROUP, VOLUME_GROUP_NAME);
+            return;
+        }
+        if (!mUseCoreAudioVolume || groupName != null) {
+            return;
+        }
+        mCarServiceLocalLog.log("Found " + TAG_VOLUME_GROUP + " " + VOLUME_GROUP_NAME
+                + " empty while relying on core volume groups,"
+                + " resetting use core volume to false");
+        mUseCoreAudioVolume = false;
     }
 
     private CarActivationVolumeConfig getActivationVolumeConfig(XmlPullParser parser) {
