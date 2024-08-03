@@ -180,6 +180,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.Settings;
@@ -980,6 +981,32 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         verify(mAudioManager).setAudioServerStateCallback(any(), any());
         verify(mAudioManager, never()).registerAudioDeviceCallback(any(), any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withCoreVolumeMisconfigured() throws Exception {
+        when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        service.init();
+
+        verify(mAudioManager).setAudioServerStateCallback(any(), any());
+        verify(mAudioManager).registerAudioDeviceCallback(any(), any());
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withCoreVolumeMisconfigured_failsOnInit() throws Exception {
+        when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        IllegalArgumentException thrown =
+                assertThrows(IllegalArgumentException.class, service::init);
+
+        expectWithMessage("Exception on service init with empty group and using core volume")
+                .that(thrown).hasMessageThat().contains("group name attribute can not be empty when"
+                        + " relying on core volume groups");
     }
 
     @Test
