@@ -14,7 +14,9 @@
      limitations under the License.
 -->
 <carAudioConfiguration version="4">
-    <deviceConfigurations useCoreAudioVolume="true"/>
+    <deviceConfigurations>
+        <deviceConfiguration name="useCoreAudioVolume" value="true"/>
+    </deviceConfigurations>
     <oemContexts>
         <oemContext name="OEM_CONTEXT">
             <audioAttributes>
