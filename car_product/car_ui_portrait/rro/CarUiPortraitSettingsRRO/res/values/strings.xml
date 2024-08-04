@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Copyright 2018 The Android Open Source Project
+    Copyright 2024 The Android Open Source Project
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -15,9 +15,7 @@
     limitations under the License.
 -->
 
-<resources>
-    <!-- Top-level menu -->
-    <dimen name="top_level_menu_width">400dp</dimen>
-    <dimen name="top_level_recyclerview_margin_right">@*android:dimen/car_padding_2</dimen>
-    <dimen name="top_level_foreground_icon_inset">8dp</dimen>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Text for show password ListItem -->
+    <string name="show_password">Show password</string>
 </resources>

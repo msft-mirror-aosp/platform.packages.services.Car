@@ -28,6 +28,13 @@ flag {
   bug: "281791498"
 }
 
+flag {
+  name: "use_wifi_manager_for_available_channels"
+  namespace: "car_framework"
+  description: "This flag controls if apps can query available WiFi channels using the WifiManager."
+  bug: "325395533"
+}
+
 # CarRemoteAccessManager
 flag {
   name: "serverless_remote_access"
@@ -253,4 +260,12 @@ flag {
   namespace: "car_framework"
   description: "Enables use of Car App Card APIs"
   bug: "331282711"
+}
+
+# DistantDisplayTransitions
+flag {
+    name: "distant_display_transitions"
+    namespace: "car_framework"
+    description: "Enables shell transitions handler in distant display"
+    bug: "316069815"
 }
