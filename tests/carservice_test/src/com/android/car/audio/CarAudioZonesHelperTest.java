@@ -1350,6 +1350,7 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
     }
 
     @Test
+    @DisableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
     public void loadAudioZones_usingCoreAudioVersionThree_failsOnEmptyGroupName()
             throws Exception {
         try (InputStream versionOneStream = mContext.getResources().openRawResource(
@@ -1366,6 +1367,27 @@ public final class CarAudioZonesHelperTest extends AbstractExpectableTestCase {
 
             assertWithMessage("Empty group name exception").that(thrown).hasMessageThat().contains(
                     "group name attribute can not be empty when relying on core volume groups");
+        }
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void loadAudioZones_usingCoreVolumeAndWithoutVolumeGroupNames()
+            throws Exception {
+        try (InputStream versionOneStream = mContext.getResources().openRawResource(
+                R.raw.car_audio_configuration_using_core_volume_config_and_without_group_names)) {
+            CarAudioZonesHelper cazh = new CarAudioZonesHelper(mAudioManagerWrapper,
+                    mCarAudioSettings, versionOneStream, mCarAudioOutputDeviceInfos,
+                    mInputAudioDeviceInfos, mServiceEventLogger, /* useCarVolumeGroupMute= */ false,
+                    /* useCoreAudioVolume= */ true, /* useCoreAudioRouting= */ false,
+                    /* useFadeManagerConfiguration= */ false,
+                    /* carAudioFadeConfigurationHelper= */ null);
+
+            SparseArray<CarAudioZone> zones = cazh.loadAudioZones();
+
+            expectWithMessage("Parsed zones with wrong use volume group config")
+                    .that(zones.size()).isEqualTo(1);
+            expectWithMessage("Use core volume config").that(cazh.useCoreAudioVolume()).isFalse();
         }
     }
 
