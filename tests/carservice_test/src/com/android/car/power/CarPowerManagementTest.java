@@ -53,9 +53,9 @@ import androidx.test.filters.MediumTest;
 import com.android.car.MockedCarTestBase;
 import com.android.car.hal.test.AidlMockedVehicleHal.VehicleHalPropertyHandler;
 import com.android.car.hal.test.AidlVehiclePropValueBuilder;
-import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
+import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
 import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 
@@ -735,7 +735,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         return cpms;
     }
 
-    private static final class MockDisplayInterface implements DisplayInterface {
+    private static final class MockDisplayInterface extends DisplayInterfaceEmptyImpl {
         private final Object mLock = new Object();
         @GuardedBy("mLock")
         private final SparseBooleanArray mDisplayOn = new SparseBooleanArray();
@@ -750,12 +750,6 @@ public class CarPowerManagementTest extends MockedCarTestBase {
                 mDisplayOn.put(Display.DEFAULT_DISPLAY, true);
             }
         }
-
-        @Override
-        public void setDisplayBrightness(int brightness) {}
-
-        @Override
-        public void setDisplayBrightness(int displayId, int brightness) {}
 
         @Override
         public void setDisplayState(int displayId, boolean on) {
