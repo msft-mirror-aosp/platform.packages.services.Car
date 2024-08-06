@@ -29,6 +29,7 @@ import android.car.builtin.display.DisplayManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.power.PowerManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.car.builtin.view.DisplayHelper;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.UserLifecycleEventFilter;
 import android.content.Context;
@@ -231,6 +232,7 @@ public interface DisplayInterface {
         @Override
         public void refreshDisplayBrightness(int displayId) {
             CarPowerManagementService carPowerManagementService = null;
+            int mainDisplayIdForDriver;
             synchronized (mLock) {
                 carPowerManagementService = mCarPowerManagementService;
             }
@@ -364,6 +366,14 @@ public interface DisplayInterface {
 
             for (Display display : mDisplayManager.getDisplays()) {
                 int displayId = display.getDisplayId();
+                int displayType = DisplayHelper.getType(display);
+                if (displayType == DisplayHelper.TYPE_VIRTUAL
+                        || displayType == DisplayHelper.TYPE_OVERLAY) {
+                    Slogf.i(CarLog.TAG_POWER,
+                            "Ignore refreshDisplayBrightness for virtual or overlay display: "
+                            + displayId);
+                    continue;
+                }
                 refreshDisplayBrightness(displayId);
             }
         }

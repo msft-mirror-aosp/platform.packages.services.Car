@@ -818,9 +818,7 @@ import java.util.Set;
             CarAudioZoneConfig.Builder zoneConfigBuilder, String groupName, int groupId) {
         verifyGroupName(groupName);
         if (groupName == null) {
-            groupName = new StringBuilder().append("config ")
-                    .append(zoneConfigBuilder.getZoneConfigId()).append(" group ")
-                    .append(groupId).toString();
+            groupName = "config " + zoneConfigBuilder.getZoneConfigId() + " group " + groupId;
         }
         return groupName;
     }

@@ -74,9 +74,9 @@ import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.power.PowerComponentHandler;
-import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
+import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
 import com.android.car.user.CarUserService;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.internal.annotations.GuardedBy;
@@ -561,20 +561,10 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         }
     }
 
-    private static final class MockDisplayInterface implements DisplayInterface {
+    private static final class MockDisplayInterface extends DisplayInterfaceEmptyImpl {
         @GuardedBy("sLock")
         private final SparseBooleanArray mDisplayOn = new SparseBooleanArray();
         private final Semaphore mDisplayStateWait = new Semaphore(0);
-
-        @Override
-        public void init(CarPowerManagementService carPowerManagementService,
-                CarUserService carUserService) {}
-
-        @Override
-        public void setDisplayBrightness(int brightness) {}
-
-        @Override
-        public void setDisplayBrightness(int displayId, int brightness) {}
 
         @Override
         public void setDisplayState(int displayId, boolean on) {
@@ -593,18 +583,6 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 }
             }
         }
-
-        @Override
-        public void startDisplayStateMonitoring() {}
-
-        @Override
-        public void stopDisplayStateMonitoring() {}
-
-        @Override
-        public void refreshDisplayBrightness() {}
-
-        @Override
-        public void refreshDisplayBrightness(int displayId) {}
 
         @Override
         public boolean isAnyDisplayEnabled() {
