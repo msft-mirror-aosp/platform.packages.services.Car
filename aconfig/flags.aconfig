@@ -262,6 +262,14 @@ flag {
   bug: "331282711"
 }
 
+# CarInputService
+flag {
+  name: "car_input_start_btpairing_lptt"
+  namespace: "car_framework"
+  description: "Start BT pairing form long press PTT"
+  bug: "352562350"
+}
+
 # DistantDisplayTransitions
 flag {
     name: "distant_display_transitions"
