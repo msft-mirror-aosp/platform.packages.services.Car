@@ -10,6 +10,17 @@ flag {
   bug: "320545306"
 }
 
+flag {
+  name: "visible_background_user_restrictions"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Apply user restrictions on visible background users"
+  bug: "356522177"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
 # CarPackageManager
 flag {
   name: "display_compatibility"
