@@ -70,6 +70,7 @@ android_test {
     ],
 
     static_libs: [
+        "android.car.feature-aconfig-java",
         "android.car.testapi",
         "android.car.test.utils",
         "androidx.test.core",
@@ -84,6 +85,7 @@ android_test {
         "flag-junit",
         "ravenwood-junit",
         "mockito-target-extended",
+        "platform-test-annotations",
         "ravenwood-junit",
         "SettingsLib",
         "servicestests-utils",

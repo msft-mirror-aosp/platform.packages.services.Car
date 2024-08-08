@@ -176,7 +176,14 @@ public interface DisplayInterface {
             public void onDisplayAdded(int displayId) {
                 Slogf.i(TAG, "onDisplayAdded: displayId=%d", displayId);
                 synchronized (mLock) {
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
+                    if (isDisplayOn) {
+                        // Need to obtain the wake lock to prevent the display being turned off
+                        // by core framework. We take control of the display in car service and may
+                        // turn it off via ScreenOffHandler.
+                        mWakeLockInterface.switchToFullWakeLock(displayId);
+                    }
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
@@ -206,7 +213,14 @@ public interface DisplayInterface {
             synchronized (mLock) {
                 for (Display display : mDisplayManager.getDisplays()) {
                     int displayId = display.getDisplayId();
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
+                    if (isDisplayOn) {
+                        // Need to obtain the wake lock to prevent the display being turned off
+                        // by core framework. We take control of the display in car service and may
+                        // turn it off via ScreenOffHandler.
+                        mWakeLockInterface.switchToFullWakeLock(displayId);
+                    }
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
