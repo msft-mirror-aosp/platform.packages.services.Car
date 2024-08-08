@@ -160,12 +160,6 @@ public:
         mWatchdogProcessService->mPackageInfoResolver = packageInfoResolver;
     }
 
-    void waitForConnectToVhal() {
-        if (mWatchdogProcessService->mConnectToVhalThread.joinable()) {
-            mWatchdogProcessService->mConnectToVhalThread.join();
-        }
-    }
-
 private:
     sp<WatchdogProcessService> mWatchdogProcessService;
 };
@@ -220,10 +214,6 @@ protected:
         expectGetPropConfigs(mSupportedVehicleProperties, mNotSupportedVehicleProperties);
 
         mWatchdogProcessService->start();
-
-        // Wait for connectToVhal thread to finish.
-        mWatchdogProcessServicePeer->waitForConnectToVhal();
-
         // Sync with the looper before proceeding to ensure that all startup looper messages are
         // processed before testing the service.
         syncLooper();

@@ -403,8 +403,15 @@ public final class CarOccupantZoneService extends ICarOccupantZone.Stub
         }
     }
 
-    /** Return cloned mOccupantsConfig for testing */
-    @VisibleForTesting
+    /**
+     * Returns the cloned occupant zone configs as read from the config_occupant_zones RRO config.
+     *
+     * <p><b>Note:</b> If the config_occupant_zones string value is empty, an occupant zone info
+     * will be automatically created for the driver and added to the occupant zone configs as the
+     * sole occupant zone info.
+     *
+     * @return cloned occupant zone configs mapped from occupant zone id to occupant zone info
+     */
     @NonNull
     public SparseArray<OccupantZoneInfo> getOccupantsConfig() {
         synchronized (mLock) {

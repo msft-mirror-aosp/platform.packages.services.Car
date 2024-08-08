@@ -275,10 +275,10 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 /*isDeepSleepAllowed=*/true,
                 /*isHibernationAllowed=*/true,
                 /*isTimedWakeupAllowed=*/true);
-        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext)
+        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext,
+                mWakeLockInterface)
             .withDisplayInterface(mDisplayInterface)
             .withSystemStateInterface(mSystemStateInterface)
-            .withWakeLockInterface(mWakeLockInterface)
             .withIOInterface(mIOInterface).build();
         HandlerThread handlerThread = CarServiceUtils.getHandlerThread(TAG);
         mScreenOffHandler = new FakeScreenOffHandler(
