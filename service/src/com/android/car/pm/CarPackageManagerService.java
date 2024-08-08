@@ -657,6 +657,10 @@ public final class CarPackageManagerService extends ICarPackageManager.Stub
         CarLocalServices.getService(CarPowerManagementService.class).addPowerPolicyListener(
                 new CarPowerPolicyFilter.Builder().setComponents(PowerComponent.DISPLAY).build(),
                 mDisplayPowerPolicyListener);
+
+        CarServiceHelperWrapper.getInstance().runOnConnection(() ->
+              CarServiceHelperWrapper.getInstance()
+                  .setAllowedAppInstallSources(mAllowedAppInstallSources));
     }
 
     @Override

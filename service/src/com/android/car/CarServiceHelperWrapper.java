@@ -319,6 +319,17 @@ public final class CarServiceHelperWrapper {
         return false;
     }
 
+    /**
+     * See {@code ICarServiceHelper}.
+     */
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        try {
+            waitForCarServiceHelper()
+                  .setAllowedAppInstallSources(allowedAppInstallSources);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+    }
 
     private CarServiceHelperWrapper(long carServiceHelperWaitTimeoutMs) {
         mCarServiceHelperWaitTimeoutMs = carServiceHelperWaitTimeoutMs;

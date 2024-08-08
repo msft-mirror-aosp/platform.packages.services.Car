@@ -150,4 +150,9 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
 
         return false;
     }
+
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppinstallSources) {
+        Log.d(TAG, "setAllowedAppInstallSources " + allowedAppinstallSources);
+    }
 }
