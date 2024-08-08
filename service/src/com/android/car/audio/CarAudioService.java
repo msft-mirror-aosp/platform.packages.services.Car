@@ -1864,14 +1864,40 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                     mUseCoreAudioRouting, mUseFadeManagerConfiguration,
                     mCarAudioFadeConfigurationHelper);
             SparseArray<CarAudioZone> zones = zonesHelper.loadAudioZones();
-            mAudioZoneIdToOccupantZoneIdMapping =
-                    zonesHelper.getCarAudioZoneIdToOccupantZoneIdMapping();
+            mAudioZoneIdToOccupantZoneIdMapping = getValidAudioZoneIdToOccupantZoneId(
+                    zonesHelper.getCarAudioZoneIdToOccupantZoneIdMapping());
             mCarAudioMirrorRequestHandler.setMirrorDeviceInfos(zonesHelper.getMirrorDeviceInfos());
             updateConfigValueFromZoneHelperLocked(zonesHelper);
             return zones;
         } catch (IOException | XmlPullParserException e) {
             throw new RuntimeException("Failed to parse audio zone configuration", e);
         }
+    }
+
+
+    private SparseIntArray getValidAudioZoneIdToOccupantZoneId(
+            SparseIntArray carAudioZoneIdToOccupantZoneIdMapping) {
+        if (!Flags.audioVendorFreezeImprovements()) {
+            return carAudioZoneIdToOccupantZoneIdMapping;
+        }
+
+        SparseArray<CarOccupantZoneManager.OccupantZoneInfo> occupants =
+                getCarOccupantZoneService().getOccupantsConfig();
+
+        SparseIntArray validAudioZoneIdToOccupantZoneId = new SparseIntArray();
+        for (int index = 0; index < carAudioZoneIdToOccupantZoneIdMapping.size(); index++) {
+            int occupantZoneId = carAudioZoneIdToOccupantZoneIdMapping.valueAt(index);
+            int audioZoneId = carAudioZoneIdToOccupantZoneIdMapping.keyAt(index);
+            if (!occupants.contains(occupantZoneId)) {
+                mServiceEventLogger.log("Occupant zone id " + occupantZoneId
+                        + " is assigned to audio zone id " + audioZoneId
+                        + " but the occupant zone id does not exist,"
+                        + " skipping audio zone configuration.");
+                continue;
+            }
+            validAudioZoneIdToOccupantZoneId.put(audioZoneId, occupantZoneId);
+        }
+        return validAudioZoneIdToOccupantZoneId;
     }
 
     @GuardedBy("mImplLock")

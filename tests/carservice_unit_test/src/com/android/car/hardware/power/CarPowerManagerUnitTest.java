@@ -76,6 +76,7 @@ import com.android.car.power.CarPowerManagementService;
 import com.android.car.power.PowerComponentHandler;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
+import com.android.car.systeminterface.WakeLockInterface;
 import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
 import com.android.car.user.CarUserService;
 import com.android.compatibility.common.util.PollingCheck;
@@ -137,6 +138,8 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     @Mock
     private UserManager mUserManager;
     @Mock
+    private WakeLockInterface mWakeLockInterface;
+    @Mock
     private CarUserService mCarUserService;
     //TODO(286303350): replace this with refactored power policy daemon once refactor is complete
     @Mock
@@ -153,7 +156,8 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 /*isDeepSleepAllowed=*/true,
                 /*isHibernationAllowed=*/true,
                 /*isTimedWakeupAllowed=*/true);
-        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext)
+        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext,
+                mWakeLockInterface)
                 .withDisplayInterface(mDisplayInterface)
                 .withSystemStateInterface(mSystemStateInterface)
                 .build();
