@@ -175,4 +175,9 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
         Log.d(TAG, "setLaunchBehaviorForRootTask = " + rootTaskToken + " , behavior = "
                 + launchBehavior);
     }
+
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppinstallSources) {
+        Log.d(TAG, "setAllowedAppInstallSources " + allowedAppinstallSources);
+    }
 }
