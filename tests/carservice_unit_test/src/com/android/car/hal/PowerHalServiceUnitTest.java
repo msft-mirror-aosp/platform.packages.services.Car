@@ -274,10 +274,39 @@ public final class PowerHalServiceUnitTest {
         int expectedBrightness = 73;
         HalPropValue value = mPropValueBuilder.build(DISPLAY_BRIGHTNESS, /* areaId= */ 0,
                 expectedBrightness);
+
         mPowerHalService.onHalEvents(List.of(value));
 
         assertWithMessage("Display brightness").that(mEventListener.getDisplayBrightness())
                 .isEqualTo(expectedBrightness);
+    }
+
+    @Test
+    public void testHalEventListenerDisplayBrightnessChange_ignoreRecentlySet() {
+        VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
+        when(mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0))
+                .thenReturn(propValueSetter);
+        AidlHalPropConfig config = new AidlHalPropConfig(
+                AidlVehiclePropConfigBuilder.newBuilder(DISPLAY_BRIGHTNESS)
+                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
+        mPowerHalService.takeProperties(List.of(config));
+        mPowerHalService.init();
+        mPowerHalService.setListener(mEventListener);
+
+        int brightness1 = 73;
+        int brightness2 = 68;
+        HalPropValue value1 = mPropValueBuilder.build(DISPLAY_BRIGHTNESS, /* areaId= */ 0,
+                brightness1);
+        HalPropValue value2 = mPropValueBuilder.build(DISPLAY_BRIGHTNESS, /* areaId= */ 0,
+                brightness2);
+
+        mPowerHalService.sendDisplayBrightness(brightness1);
+        mPowerHalService.onHalEvents(List.of(value2));
+        // This must be ignored.
+        mPowerHalService.onHalEvents(List.of(value1));
+
+        assertWithMessage("Display brightness").that(mEventListener.getDisplayBrightness())
+                .isEqualTo(brightness2);
     }
 
     @Test
@@ -389,6 +418,50 @@ public final class PowerHalServiceUnitTest {
         assertWithMessage("Display brightness")
                 .that(mEventListener.getDisplayBrightness(displayPort))
                 .isEqualTo(expectedBrightness);
+    }
+
+    @Test
+    public void testPerDisplayBrightnessChange_perDisplayMaxSupported_ignoreRecentlySet() {
+        mFakeFeatureFlags.setFlag(Flags.FLAG_PER_DISPLAY_MAX_BRIGHTNESS, true);
+
+        when(mHal.getHalPropValueBuilder()).thenReturn(mPropValueBuilder);
+        var config1 = new AidlHalPropConfig(
+                AidlVehiclePropConfigBuilder.newBuilder(PER_DISPLAY_BRIGHTNESS)
+                .build());
+        var config2 = new AidlHalPropConfig(
+                AidlVehiclePropConfigBuilder.newBuilder(PER_DISPLAY_MAX_BRIGHTNESS)
+                .build());
+        mPowerHalService.takeProperties(List.of(config1, config2));
+
+        int displayId = 11;
+        int displayPort = 11;
+        int displayPort2 = 12;
+        // Set the max display brightness for display port to be 100.
+        when(mHal.get(PER_DISPLAY_MAX_BRIGHTNESS)).thenReturn(mPropValueBuilder.build(
+                PER_DISPLAY_MAX_BRIGHTNESS, /* areaId= */ 0,
+                new int[] {displayPort, 100, displayPort2, 50}));
+
+        mPowerHalService.init();
+        mPowerHalService.setListener(mEventListener);
+
+        Display display = createMockDisplay(displayId, displayPort);
+        when(mDisplayManager.getDisplays()).thenReturn(new Display[]{display});
+        when(mDisplayManager.getDisplay(displayId)).thenReturn(display);
+
+        int brightness1 = 73;
+        int brightness2 = 68;
+        HalPropValue value1 = mPropValueBuilder.build(PER_DISPLAY_BRIGHTNESS, /* areaId= */ 0,
+                new int[]{displayPort, brightness1});
+        HalPropValue value2 = mPropValueBuilder.build(PER_DISPLAY_BRIGHTNESS, /* areaId= */ 0,
+                new int[]{displayPort, brightness2});
+        mPowerHalService.sendDisplayBrightness(displayId, brightness2);
+        mPowerHalService.onHalEvents(List.of(value1));
+        // Must ignore this event.
+        mPowerHalService.onHalEvents(List.of(value2));
+
+        assertWithMessage("Display brightness")
+                .that(mEventListener.getDisplayBrightness(displayPort))
+                .isEqualTo(brightness1);
     }
 
     @Test
