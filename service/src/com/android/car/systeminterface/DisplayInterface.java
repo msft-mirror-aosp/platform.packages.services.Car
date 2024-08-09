@@ -31,6 +31,7 @@ import android.car.builtin.display.DisplayManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.power.PowerManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.car.builtin.view.DisplayHelper;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.UserLifecycleEventFilter;
 import android.content.Context;
@@ -47,7 +48,6 @@ import android.provider.Settings.SettingNotFoundException;
 import android.provider.Settings.System;
 import android.util.Log;
 import android.util.SparseBooleanArray;
-import android.util.SparseIntArray;
 import android.view.Display;
 
 import com.android.car.CarLog;
@@ -56,6 +56,8 @@ import com.android.car.power.CarPowerManagementService;
 import com.android.car.user.CarUserService;
 import com.android.car.util.BrightnessUtils;
 import com.android.internal.annotations.GuardedBy;
+
+import java.util.LinkedList;
 
 /**
  * Interface that abstracts display operations
@@ -146,7 +148,17 @@ public interface DisplayInterface {
     class DefaultImpl implements DisplayInterface {
         private static final String TAG = DisplayInterface.class.getSimpleName();
         private static final boolean DEBUG = Slogf.isLoggable(TAG, Log.DEBUG);
-        private static final int INVALID_DISPLAY_BRIGHTNESS = -1;
+
+        // In order to prevent flickering caused by
+        // vhal_report_brightness_1 -> vhal_report_brightness_2 -> set_1_to_display_manager
+        // -> set_2_to_display_manager -> on_display_change_1 -> set_vhal_to_1
+        // -> on_display_change_2 -> set_vhal_to_2 -> vhal_report_brightness_1 -> ...
+        // We ignore the display brightness change event from DisplayManager if the value matches
+        // a request we have sent to Displaymanager in a short period. This change is likely caused
+        // by our request (caused by VHAL), rather than user inputs.
+        private static final int PREVENT_LOOP_REQUEST_TIME_WINDOW_MS = 1000;
+
+        private record BrightnessForDisplayId(float brightness, int displayId) {}
 
         private final Context mContext;
         private final DisplayManager mDisplayManager;
@@ -154,18 +166,26 @@ public interface DisplayInterface {
         private final int mMaximumBacklight;
         private final int mMinimumBacklight;
         private final WakeLockInterface mWakeLockInterface;
+        private final Handler mHandler = new Handler(Looper.getMainLooper());
         @GuardedBy("mLock")
         private CarPowerManagementService mCarPowerManagementService;
         @GuardedBy("mLock")
         private CarUserService mCarUserService;
         @GuardedBy("mLock")
         private final SparseBooleanArray mDisplayStateSet = new SparseBooleanArray();
-        @GuardedBy("mLock")
-        private final SparseIntArray mDisplayBrightnessSet = new SparseIntArray();
         private final UserManager mUserManager;
+        // A FIFO queue that stores the brightness value we recently set to DisplayManagerHelper in
+        // a short time frame.
+        @GuardedBy("mLock")
+        private final LinkedList<BrightnessForDisplayId> mRecentlySetBrightnessForDisplayId =
+                new LinkedList<>();
+        // A FIFO queue that stores the brightness value we recently set to System Settings in a
+        // short time frame.
+        @GuardedBy("mLock")
+        private final LinkedList<Integer> mRecentlySetGlobalBrightness = new LinkedList<>();
 
         private final ContentObserver mBrightnessObserver =
-                new ContentObserver(new Handler(Looper.getMainLooper())) {
+                new ContentObserver(mHandler) {
                     @Override
                     public void onChange(boolean selfChange) {
                         Slogf.i(TAG, "Brightness change from Settings: selfChange=%b", selfChange);
@@ -177,8 +197,8 @@ public interface DisplayInterface {
             @Override
             public void onDisplayAdded(int displayId) {
                 synchronized (mLock) {
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
-                    mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
                 }
             }
 
@@ -186,7 +206,6 @@ public interface DisplayInterface {
             public void onDisplayRemoved(int displayId) {
                 synchronized (mLock) {
                     mDisplayStateSet.delete(displayId);
-                    mDisplayBrightnessSet.delete(displayId);
                 }
             }
 
@@ -205,8 +224,9 @@ public interface DisplayInterface {
             synchronized (mLock) {
                 for (Display display : mDisplayManager.getDisplays()) {
                     int displayId = display.getDisplayId();
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
-                    mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
+                    Slogf.d(TAG, "Initial display state: " + displayId + "=" + isDisplayOn);
                 }
             }
             mUserManager = context.getSystemService(UserManager.class);
@@ -250,8 +270,12 @@ public interface DisplayInterface {
         @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
         private void refreshDisplayBrightnessFromDisplay(
                 CarPowerManagementService carPowerManagementService, int displayId) {
-            int linear = BrightnessUtils.brightnessFloatToInt(
-                    DisplayManagerHelper.getBrightness(mContext, displayId));
+            float displayManagerBrightness = DisplayManagerHelper.getBrightness(
+                    mContext, displayId);
+            if (hasRecentlySetBrightness(displayManagerBrightness, displayId)) {
+                return;
+            }
+            int linear = BrightnessUtils.brightnessFloatToInt(displayManagerBrightness);
             int gamma = convertLinearToGamma(linear, mMinimumBacklight, mMaximumBacklight);
             int percentBright = convertGammaToPercentBright(gamma);
             Slogf.i(TAG, "Refreshing percent brightness(from display %d) to %d", displayId,
@@ -265,11 +289,15 @@ public interface DisplayInterface {
             try {
                 int linear = System.getInt(getContentResolverForUser(mContext,
                         UserHandle.CURRENT.getIdentifier()), System.SCREEN_BRIGHTNESS);
+                if (hasRecentlySetBrightness(linear)) {
+                    return;
+                }
                 gamma = convertLinearToGamma(linear, mMinimumBacklight, mMaximumBacklight);
             } catch (SettingNotFoundException e) {
                 Slogf.e(CarLog.TAG_POWER, "Could not get SCREEN_BRIGHTNESS: ", e);
             }
             int percentBright = convertGammaToPercentBright(gamma);
+
             Slogf.i(TAG, "Refreshing percent brightness(from Setting) to %d", percentBright);
             carPowerManagementService.sendDisplayBrightness(percentBright);
         }
@@ -307,20 +335,15 @@ public interface DisplayInterface {
 
         @Override
         public void setDisplayBrightness(int displayId, int percentBright) {
-            synchronized (mLock) {
-                if (percentBright == mDisplayBrightnessSet.get(displayId)) {
-                    // We have already set the value last time. Skipping
-                    return;
-                }
-                mDisplayBrightnessSet.put(displayId, percentBright);
-            }
             int gamma = (percentBright * GAMMA_SPACE_MAX + 50) / 100;
             int linear = convertGammaToLinear(gamma, mMinimumBacklight, mMaximumBacklight);
-            if (isPlatformVersionAtLeastU()
-                    && UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
-                DisplayManagerHelper.setBrightness(mContext, displayId,
-                        BrightnessUtils.brightnessIntToFloat(linear));
+            if (UserManagerHelper.isVisibleBackgroundUsersSupported(mUserManager)) {
+                Slogf.i(TAG, "set brightness: %d", percentBright);
+                float displayManagerBrightness = BrightnessUtils.brightnessIntToFloat(linear);
+                addRecentlySetBrightness(displayManagerBrightness, displayId);
+                DisplayManagerHelper.setBrightness(mContext, displayId, displayManagerBrightness);
             } else {
+                addRecentlySetBrightness(linear);
                 System.putInt(
                         getContentResolverForUser(mContext, UserHandle.CURRENT.getIdentifier()),
                         System.SCREEN_BRIGHTNESS,
@@ -367,6 +390,13 @@ public interface DisplayInterface {
 
             for (Display display : mDisplayManager.getDisplays()) {
                 int displayId = display.getDisplayId();
+                int displayType = DisplayHelper.getType(display);
+                if (displayType == DisplayHelper.TYPE_VIRTUAL) {
+                    Slogf.i(TAG,
+                            "Ignore refreshDisplayBrightness for virtual display: "
+                            + displayId);
+                    continue;
+                }
                 refreshDisplayBrightness(displayId);
             }
         }
@@ -456,10 +486,67 @@ public interface DisplayInterface {
                     // CarPowerManagementService is not connected yet
                     return;
                 }
-                // We need to reset last value
-                mDisplayBrightnessSet.put(DEFAULT_DISPLAY, INVALID_DISPLAY_BRIGHTNESS);
             }
             refreshDisplayBrightness();
+        }
+
+        private boolean hasRecentlySetBrightness(float brightness, int displayId) {
+            synchronized (mLock) {
+                for (int i = 0; i < mRecentlySetBrightnessForDisplayId.size(); i++) {
+                    if (isSameBrightnessForDisplayId(mRecentlySetBrightnessForDisplayId.get(i),
+                            brightness, displayId)) {
+                        Slogf.v(TAG,
+                                "Ignore brightness change from DisplayManager, brightness=%f, "
+                                + "displayId=%d, same as recently change set to DisplayManager",
+                                brightness, displayId);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private void addRecentlySetBrightness(float brightness, int displayId) {
+            synchronized (mLock) {
+                mRecentlySetBrightnessForDisplayId.add(
+                        new BrightnessForDisplayId(brightness, displayId));
+                mHandler.postDelayed(() -> {
+                    synchronized (mLock) {
+                        mRecentlySetBrightnessForDisplayId.removeFirst();
+                    }
+                }, PREVENT_LOOP_REQUEST_TIME_WINDOW_MS);
+            }
+        }
+
+        private boolean hasRecentlySetBrightness(int brightness) {
+            synchronized (mLock) {
+                for (int i = 0; i < mRecentlySetGlobalBrightness.size(); i++) {
+                    if (mRecentlySetGlobalBrightness.get(i) == brightness) {
+                        Slogf.v(TAG,
+                                "Ignore brightness change from System Settings, brightness=%d"
+                                + ", same as recently change set to System Settings", brightness);
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        @GuardedBy("mLock")
+        private void addRecentlySetBrightness(int brightness) {
+            synchronized (mLock) {
+                mRecentlySetGlobalBrightness.add(brightness);
+                mHandler.postDelayed(() -> {
+                    synchronized (mLock) {
+                        mRecentlySetGlobalBrightness.removeFirst();
+                    }
+                }, PREVENT_LOOP_REQUEST_TIME_WINDOW_MS);
+            }
+        }
+
+        private boolean isSameBrightnessForDisplayId(BrightnessForDisplayId toCheck,
+                float brightness, int displayId) {
+            return toCheck.brightness() == brightness && toCheck.displayId() == displayId;
         }
     }
 }
