@@ -371,7 +371,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         // Request stopping a current activity. CarEvsService should give us a callback with
         // STREAM_STOPPED event and ehter INACTIVE state.
         mCarEvsService.mEvsTriggerListener.onEvent(SERVICE_TYPE_REARVIEW, /* on= */ false);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
         assertThat(spiedCallback.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         assertThat(mCarEvsService.getCurrentStatus(SERVICE_TYPE_REARVIEW).getState())
@@ -380,7 +381,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         // Request an unsupported service. CarEvsService should decline a request and stay at the
         // same state.
         mCarEvsService.mEvsTriggerListener.onEvent(SERVICE_TYPE_SURROUNDVIEW, /* on= */ true);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isFalse();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_SURROUNDVIEW, SERVICE_STATE_REQUESTED))
+                .isFalse();
     }
 
     @Test
@@ -418,7 +420,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         for (int type : SERVICE_TYPES) {
             mCarEvsService.setServiceState(type, SERVICE_STATE_UNAVAILABLE);
             mCarEvsService.stopActivity();
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_INACTIVE)).isFalse();
             assertThat(mCarEvsService.getCurrentStatus(type).getState())
                     .isEqualTo(SERVICE_STATE_UNAVAILABLE);
             verify(mMockEvsHalWrapper).connectToHalServiceIfNecessary();
@@ -427,7 +429,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.addStreamCallback(type, null);
             when(mMockEvsHalWrapper.connectToHalServiceIfNecessary()).thenReturn(false);
             mCarEvsService.mEvsTriggerListener.onEvent(type, /* on= */ false);
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_ACTIVE)).isFalse();
             verify(mMockEvsHalWrapper, atLeastOnce()).connectToHalServiceIfNecessary();
             assertThat(mCarEvsService.getCurrentStatus(type).getState())
                     .isEqualTo(SERVICE_STATE_UNAVAILABLE);
@@ -435,7 +437,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.setServiceState(type, SERVICE_STATE_UNAVAILABLE);
             mCarEvsService.addStreamCallback(type, spiedCallback);
             mCarEvsService.stopVideoStream(spiedCallback);
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_INACTIVE)).isFalse();
             assertThat(mCarEvsService.getCurrentStatus(type).getState())
                     .isEqualTo(SERVICE_STATE_UNAVAILABLE);
 
@@ -443,13 +445,13 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             when(spiedCallback.asBinder()).thenReturn(null);
             assertThrows(NullPointerException.class,
                     () -> mCarEvsService.addStreamCallback(type, spiedCallback));
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_INACTIVE)).isFalse();
             assertThat(mCarEvsService.getCurrentStatus(type).getState())
                     .isEqualTo(SERVICE_STATE_UNAVAILABLE);
 
             mCarEvsService.setServiceState(type, SERVICE_STATE_UNAVAILABLE);
             mCarEvsService.stopActivity();
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_INACTIVE)).isFalse();
             assertThat(mCarEvsService.getCurrentStatus(type).getState())
                     .isEqualTo(SERVICE_STATE_UNAVAILABLE);
         }
@@ -497,7 +499,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.setServiceState(type, SERVICE_STATE_UNAVAILABLE);
             assertThat(mCarEvsService.startVideoStream(type, /* token= */ null, streamCallback))
                     .isEqualTo(ERROR_NONE);
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isTrue();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_ACTIVE)).isTrue();
             assertThat(mCarEvsService.getCurrentStatus(type).getState())
                     .isEqualTo(SERVICE_STATE_ACTIVE);
         }
@@ -513,7 +515,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.setServiceState(type, SERVICE_STATE_INACTIVE);
             assertThat(mCarEvsService.startVideoStream(type, null, streamCallback))
                     .isEqualTo(ERROR_NONE);
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isTrue();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_ACTIVE)).isTrue();
             verify(spiedStatusListener).onStatusChanged(argThat(
                     received -> received.getState() == SERVICE_STATE_ACTIVE));
 
@@ -521,7 +523,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.setServiceState(type, SERVICE_STATE_INACTIVE);
             assertThat(mCarEvsService.startVideoStream(type, null, streamCallback))
                     .isEqualTo(ERROR_UNAVAILABLE);
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_ACTIVE)).isFalse();
             assertThat(mCarEvsService.getCurrentStatus(0).getState())
                     .isEqualTo(SERVICE_STATE_INACTIVE);
 
@@ -529,7 +531,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.setServiceState(type, SERVICE_STATE_INACTIVE);
             assertThat(mCarEvsService.startVideoStream(type, null, streamCallback))
                     .isEqualTo(ERROR_UNAVAILABLE);
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_ACTIVE)).isFalse();
             assertThat(mCarEvsService.getCurrentStatus(0).getState())
                     .isEqualTo(SERVICE_STATE_INACTIVE);
 
@@ -578,7 +580,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.registerStatusListener(spiedStatusListener);
             assertThat(mCarEvsService.startVideoStream(type, null, streamCallback))
                     .isEqualTo(ERROR_NONE);
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_ACTIVE)).isFalse();
             assertThat(mCarEvsService.getCurrentStatus(type).getState())
                     .isEqualTo(SERVICE_STATE_ACTIVE);
 
@@ -586,7 +588,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
             mCarEvsService.setServiceState(type, SERVICE_STATE_UNKNOWN);
             IllegalStateException thrown = assertThrows(IllegalStateException.class,
                     () -> mCarEvsService.startActivity(type));
-            assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isFalse();
+            assertThat(spiedStatusListener.waitFor(type, SERVICE_STATE_ACTIVE)).isFalse();
             assertWithMessage("Verify current status of CarEvsService")
                     .that(thrown).hasMessageThat()
                     .contains("CarEvsService is in the unknown state.");
@@ -611,7 +613,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         assertThat(mCarEvsService.getCurrentStatus(0).getState())
                 .isEqualTo(SERVICE_STATE_REQUESTED);
 
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED))
+                .isTrue();
         verify(spiedStatusListener).onStatusChanged(argThat(
                 received -> received.getState() == SERVICE_STATE_REQUESTED));
     }
@@ -712,9 +715,11 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mDisplayListenerCaptor.getValue().onDisplayChanged(Display.DEFAULT_DISPLAY);
 
         // Confirm that we have received onStatusChanged() callback only once.
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED))
+                .isTrue();
         verify(spiedStatusListener).onStatusChanged(argThat(
-                received -> received.getState() == SERVICE_STATE_REQUESTED));
+                received -> received.getServiceType() == SERVICE_TYPE_REARVIEW &&
+                        received.getState() == SERVICE_STATE_REQUESTED));
         verify(mMockContext).startActivity(any());
 
         // Also, verify that we have received an intent for a camera activity.
@@ -799,12 +804,14 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.registerStatusListener(spiedStatusListener);
 
         mCarEvsService.startActivity(SERVICE_TYPE_REARVIEW);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED))
+                .isTrue();
 
         assertThat(mCarEvsService
                 .startVideoStream(SERVICE_TYPE_REARVIEW, null, spiedCallback))
                 .isEqualTo(ERROR_NONE);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_ACTIVE))
+                .isTrue();
 
         mHalCallbackCaptor.getValue().onFrameEvent(bufferId, buffer);
         assertThat(spiedCallback.waitForFrames(/* from= */ SERVICE_TYPE_REARVIEW,
@@ -840,7 +847,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.setServiceState(SERVICE_TYPE_REARVIEW, SERVICE_STATE_ACTIVE);
 
         mCarEvsService.startActivity(SERVICE_TYPE_REARVIEW);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED))
+                .isTrue();
         assertThat(mCarEvsService.getCurrentStatus(0).getState())
                 .isEqualTo(SERVICE_STATE_REQUESTED);
     }
@@ -855,7 +863,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.setServiceState(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED);
 
         mCarEvsService.startActivity(SERVICE_TYPE_REARVIEW);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isFalse();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED))
+                .isFalse();
         assertThat(mCarEvsService.getCurrentStatus(0).getState())
                 .isEqualTo(SERVICE_STATE_REQUESTED);
     }
@@ -869,7 +878,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.registerStatusListener(spiedStatusListener);
         mCarEvsService.setServiceState(SERVICE_TYPE_REARVIEW, SERVICE_STATE_ACTIVE);
         mCarEvsService.startActivity(SERVICE_TYPE_REARVIEW);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED))
+                .isTrue();
         assertThat(mCarEvsService.getCurrentStatus(0).getState())
                 .isEqualTo(SERVICE_STATE_REQUESTED);
 
@@ -896,7 +906,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
 
         // Request starting an activity. CarEvsService should enter REQUESTED state.
         mCarEvsService.startActivity(SERVICE_TYPE_REARVIEW);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_REQUESTED)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_REQUESTED))
+                .isTrue();
         assertThat(mCarEvsService.getCurrentStatus(0).getState())
                 .isEqualTo(SERVICE_STATE_REQUESTED);
         assertThat(mCarEvsService.getCurrentStatus(0).getServiceType())
@@ -910,7 +921,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         int type = extras.getShort(Integer.toString(SERVICE_TYPE_REARVIEW));
         assertThat(mCarEvsService.startVideoStream(type, /* token= */ null, spiedStreamCallback))
                 .isEqualTo(ERROR_NONE);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_ACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_ACTIVE))
+                .isTrue();
 
         mHalCallbackCaptor.getValue().onFrameEvent(bufferId, buffer);
         assertThat(spiedStreamCallback.waitForFrames(/* from= */ SERVICE_TYPE_REARVIEW,
@@ -919,7 +931,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         // Request stopping a current activity. CarEvsService should give us a callback with
         // STREAM_STOPPED event and ehter INACTIVE state.
         mCarEvsService.stopVideoStream(spiedStreamCallback);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
         assertThat(spiedStreamCallback.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         assertThat(mCarEvsService.getCurrentStatus(0).getState())
@@ -1215,12 +1228,14 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.stopVideoStream(spiedStreamCallback1);
         assertThat(spiedStreamCallback1.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isFalse();
 
         mCarEvsService.stopVideoStream(spiedStreamCallback0);
         assertThat(spiedStreamCallback0.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
     }
 
     @Test
@@ -1249,7 +1264,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
 
         // Verify that the service entered the active state.
         verify(spiedStatusListener).onStatusChanged(argThat(
-                received -> received.getState() == CarEvsManager.SERVICE_STATE_ACTIVE));
+                received -> received.getServiceType() == SERVICE_TYPE_REARVIEW &&
+                        received.getState() == CarEvsManager.SERVICE_STATE_ACTIVE));
 
         // Send a buffer.
         mHalCallbackCaptor.getValue().onFrameEvent(bufferId, buffer);
@@ -1265,7 +1281,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.stopVideoStream(spiedCallback0);
         assertThat(spiedCallback0.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isFalse();
         assertThat(mCarEvsService.getCurrentStatus(0).getState()).isEqualTo(SERVICE_STATE_ACTIVE);
 
         // Stop a video stream for the second client and verify that the service entered the
@@ -1273,7 +1290,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.stopVideoStream(spiedCallback1);
         assertThat(spiedCallback1.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
         assertThat(mCarEvsService.getCurrentStatus(0).getState()).isEqualTo(SERVICE_STATE_INACTIVE);
         verify(spiedStatusListener, times(2)).onStatusChanged(argThat(
                 received -> received.getState() == SERVICE_STATE_ACTIVE ||
@@ -1348,12 +1366,14 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.stopVideoStream(spiedRearviewCallback);
         assertThat(spiedRearviewCallback.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
 
         // Stop a video stream for the frontview client and verify that the service is stopped
         // properly.
         mCarEvsService.stopVideoStream(spiedFrontviewCallback);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_FRONTVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
         assertThat(spiedFrontviewCallback.waitForEvent(SERVICE_TYPE_FRONTVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         verify(spiedStatusListener, times(2)).onStatusChanged(argThat(
@@ -1398,7 +1418,7 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         verify(spiedStatusListener, times(2)).onStatusChanged(argThat(
                 received -> received.getState() == CarEvsManager.SERVICE_STATE_ACTIVE &&
                         (received.getServiceType() == SERVICE_TYPE_REARVIEW ||
-                                received.getServiceType() == SERVICE_TYPE_FRONTVIEW)));
+                                received.getServiceType() == SERVICE_TYPE_LEFTVIEW)));
 
         // Send buffers in separate thread.
         mHandler.post(() -> {
@@ -1433,7 +1453,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.stopVideoStream(spiedLeftviewCallback0);
         assertThat(spiedLeftviewCallback0.waitForEvent(SERVICE_TYPE_LEFTVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isFalse();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_LEFTVIEW, SERVICE_STATE_INACTIVE))
+                .isFalse();
 
         // Stop a video stream for the second clients and verify that the services entered the
         // inactive state.
@@ -1443,7 +1464,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.stopVideoStream(spiedLeftviewCallback1);
         assertThat(spiedLeftviewCallback1.waitForEvent(SERVICE_TYPE_LEFTVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_LEFTVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
         verify(spiedStatusListener, times(2)).onStatusChanged(argThat(
                 received -> received.getState() == CarEvsManager.SERVICE_STATE_INACTIVE &&
                         (received.getServiceType() == SERVICE_TYPE_REARVIEW ||
@@ -1538,12 +1560,14 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         mCarEvsService.stopVideoStreamFrom(SERVICE_TYPE_REARVIEW, spiedCallback);
         assertThat(spiedCallback.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
 
         // Stop a video stream for the frontview client and verify that the service is stopped
         // properly.
         mCarEvsService.stopVideoStreamFrom(SERVICE_TYPE_FRONTVIEW, spiedCallback);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_FRONTVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
         assertThat(spiedCallback.waitForEvent(SERVICE_TYPE_FRONTVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         verify(spiedStatusListener, times(2)).onStatusChanged(argThat(
@@ -1598,7 +1622,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
         // Request stopping a current activity. CarEvsService should give us a callback with
         // STREAM_STOPPED event and ehter INACTIVE state.
         mCarEvsService.mEvsTriggerListener.onEvent(SERVICE_TYPE_REARVIEW, /* on= */ false);
-        assertThat(spiedStatusListener.waitFor(SERVICE_STATE_INACTIVE)).isTrue();
+        assertThat(spiedStatusListener.waitFor(SERVICE_TYPE_REARVIEW, SERVICE_STATE_INACTIVE))
+                .isTrue();
         assertThat(spiedCallback.waitForEvent(SERVICE_TYPE_REARVIEW,
                 CarEvsManager.STREAM_EVENT_STREAM_STOPPED)).isTrue();
         assertThat(mCarEvsService.getCurrentStatus(SERVICE_TYPE_REARVIEW).getState())
@@ -1650,7 +1675,8 @@ public final class CarEvsServiceUnitTest extends AbstractExtendedMockitoTestCase
 
         @Override
         public void onStatusChanged(CarEvsStatus status) {
-            Log.i(TAG, "Received a status change notification: " + status.getState());
+            Log.i(TAG, "Received a status change notification: " + status.getState() + " from " +
+                    status.getServiceType());
             mLastUpdate = status;
             mSemaphore.release();
         }

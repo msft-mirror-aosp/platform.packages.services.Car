@@ -647,7 +647,7 @@ final class StateMachine {
         if (result == ERROR_NONE) {
             if (previousState != newState) {
                 Slogf.i(mLogTag, "Transition completed: %s", stateToString(destination));
-                mService.broadcastStateTransition(CarEvsManager.SERVICE_TYPE_REARVIEW, newState);
+                mService.broadcastStateTransition(mServiceType, newState);
 
                 // Log a successful state transition.
                 synchronized (mLock) {
