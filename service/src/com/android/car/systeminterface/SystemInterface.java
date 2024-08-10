@@ -26,6 +26,7 @@ import com.android.car.storagemonitoring.LifetimeWriteInfoProvider;
 import com.android.car.storagemonitoring.UidIoStatsProvider;
 import com.android.car.storagemonitoring.WearInformationProvider;
 import com.android.car.user.CarUserService;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.File;
 import java.time.Duration;
@@ -257,12 +258,23 @@ public class SystemInterface implements ActivityManagerInterface,
         }
 
         public static Builder defaultSystemInterface(Context context) {
+            return defaultSystemInterface(context, new WakeLockInterface.DefaultImpl(context));
+        }
+
+        /**
+         * Creates a system interface with injected WakeLockInterface.
+         *
+         * WakeLockInterface will be used during DisplayInterface constructor.
+         */
+        @VisibleForTesting
+        public static Builder defaultSystemInterface(Context context,
+                WakeLockInterface wakeLockInterface) {
             Objects.requireNonNull(context);
             Builder builder = newSystemInterface();
             builder.withActivityManagerInterface(new ActivityManagerInterface.DefaultImpl(context));
-            builder.withWakeLockInterface(new WakeLockInterface.DefaultImpl(context));
+            builder.withWakeLockInterface(wakeLockInterface);
             builder.withDisplayInterface(new DisplayInterface.DefaultImpl(context,
-                    builder.mWakeLockInterface));
+                    wakeLockInterface));
             builder.withIOInterface(new IOInterface.DefaultImpl());
             builder.withStorageMonitoringInterface(new StorageMonitoringInterface.DefaultImpl());
             builder.withSystemStateInterface(new SystemStateInterface.DefaultImpl(context));

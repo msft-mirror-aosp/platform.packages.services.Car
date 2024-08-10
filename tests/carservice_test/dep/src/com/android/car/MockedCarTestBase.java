@@ -68,13 +68,13 @@ import com.android.car.internal.StaticBinderInterface;
 import com.android.car.os.CarPerformanceService;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.systeminterface.ActivityManagerInterface;
-import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.IOInterface;
 import com.android.car.systeminterface.StorageMonitoringInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.systeminterface.TimeInterface;
 import com.android.car.systeminterface.WakeLockInterface;
+import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
 import com.android.car.telemetry.CarTelemetryService;
 import com.android.car.test.utils.TemporaryDirectory;
 import com.android.car.user.CarUserService;
@@ -648,35 +648,7 @@ public class MockedCarTestBase {
         }
     }
 
-    static final class MockDisplayInterface implements DisplayInterface {
-
-        @Override
-        public void init(CarPowerManagementService carPowerManagementService,
-                CarUserService carUserService) {}
-
-        @Override
-        public void setDisplayBrightness(int brightness) {}
-
-        @Override
-        public void setDisplayBrightness(int displayId, int brightness) {}
-
-        @Override
-        public void setDisplayState(int displayId, boolean on) {}
-
-        @Override
-        public void setAllDisplayState(boolean on) {}
-
-        @Override
-        public void startDisplayStateMonitoring() {}
-
-        @Override
-        public void stopDisplayStateMonitoring() {}
-
-        @Override
-        public void refreshDisplayBrightness() {}
-
-        @Override
-        public void refreshDisplayBrightness(int displayid) {}
+    static final class MockDisplayInterface extends DisplayInterfaceEmptyImpl {
 
         @Override
         public boolean isAnyDisplayEnabled() {
