@@ -29,6 +29,7 @@ import android.car.builtin.display.DisplayManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.power.PowerManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.car.builtin.view.DisplayHelper;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.UserLifecycleEventFilter;
 import android.content.Context;
@@ -175,7 +176,14 @@ public interface DisplayInterface {
             public void onDisplayAdded(int displayId) {
                 Slogf.i(TAG, "onDisplayAdded: displayId=%d", displayId);
                 synchronized (mLock) {
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
+                    if (isDisplayOn) {
+                        // Need to obtain the wake lock to prevent the display being turned off
+                        // by core framework. We take control of the display in car service and may
+                        // turn it off via ScreenOffHandler.
+                        mWakeLockInterface.switchToFullWakeLock(displayId);
+                    }
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
@@ -205,7 +213,14 @@ public interface DisplayInterface {
             synchronized (mLock) {
                 for (Display display : mDisplayManager.getDisplays()) {
                     int displayId = display.getDisplayId();
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
+                    if (isDisplayOn) {
+                        // Need to obtain the wake lock to prevent the display being turned off
+                        // by core framework. We take control of the display in car service and may
+                        // turn it off via ScreenOffHandler.
+                        mWakeLockInterface.switchToFullWakeLock(displayId);
+                    }
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
@@ -231,6 +246,7 @@ public interface DisplayInterface {
         @Override
         public void refreshDisplayBrightness(int displayId) {
             CarPowerManagementService carPowerManagementService = null;
+            int mainDisplayIdForDriver;
             synchronized (mLock) {
                 carPowerManagementService = mCarPowerManagementService;
             }
@@ -364,6 +380,14 @@ public interface DisplayInterface {
 
             for (Display display : mDisplayManager.getDisplays()) {
                 int displayId = display.getDisplayId();
+                int displayType = DisplayHelper.getType(display);
+                if (displayType == DisplayHelper.TYPE_VIRTUAL
+                        || displayType == DisplayHelper.TYPE_OVERLAY) {
+                    Slogf.i(CarLog.TAG_POWER,
+                            "Ignore refreshDisplayBrightness for virtual or overlay display: "
+                            + displayId);
+                    continue;
+                }
                 refreshDisplayBrightness(displayId);
             }
         }
