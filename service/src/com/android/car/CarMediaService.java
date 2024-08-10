@@ -1262,7 +1262,10 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
 
             for (MediaSession.Token token : mCallbacks.keySet()) {
                 if (!updatedCallbacks.containsKey(token)) {
-                    mCallbacks.get(token).unregister();
+                    MediaControllerCallback callback = mCallbacks.get(token);
+                    if (callback != null) {
+                        callback.unregister();
+                    }
                 }
             }
 

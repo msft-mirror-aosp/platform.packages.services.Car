@@ -138,7 +138,6 @@ import java.util.Set;
     private static final int SUPPORTED_VERSION_3 = 3;
     private static final int SUPPORTED_VERSION_4 = 4;
     private static final SparseIntArray SUPPORTED_VERSIONS;
-    public static final String TRUE_FALSE_REGEX = "(?i)^(true|false)$";
 
     static {
         SUPPORTED_VERSIONS = new SparseIntArray(4);
@@ -529,12 +528,15 @@ import java.util.Set;
 
         // Need to check for "true" or "false", since Boolean parse will return false for anything
         // not "true" and we are specifically checking for "true" or "false".
-        if (!booleanString.matches(TRUE_FALSE_REGEX)) {
+        if (!booleanString.equalsIgnoreCase("true")
+                && !booleanString.equalsIgnoreCase("false")) {
             mCarServiceLocalLog.log(configName + " was declared with the value of "
                     + booleanString + " but should be either true or false");
             return Optional.empty();
         }
 
+        mCarServiceLocalLog.log("Found " + configName + " = " + booleanString
+                + " in car_audio_configuration.xml file");
         return Optional.of(Boolean.parseBoolean(booleanString));
     }
 
