@@ -10,6 +10,17 @@ flag {
   bug: "320545306"
 }
 
+flag {
+  name: "visible_background_user_restrictions"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Apply user restrictions on visible background users"
+  bug: "356522177"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
 # CarPackageManager
 flag {
   name: "display_compatibility"
@@ -262,10 +273,26 @@ flag {
   bug: "331282711"
 }
 
+# CarInputService
+flag {
+  name: "car_input_start_btpairing_lptt"
+  namespace: "car_framework"
+  description: "Start BT pairing form long press PTT"
+  bug: "352562350"
+}
+
 # DistantDisplayTransitions
 flag {
     name: "distant_display_transitions"
     namespace: "car_framework"
     description: "Enables shell transitions handler in distant display"
     bug: "316069815"
+}
+
+# Features that Support SDV on IVI
+flag {
+    name: "package_manager_extensions_for_sdv"
+    namespace: "car_framework"
+    description: "Enables SDV to access packages manager functions"
+    bug: "344832846"
 }
