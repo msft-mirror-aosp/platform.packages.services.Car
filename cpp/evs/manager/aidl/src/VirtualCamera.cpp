@@ -742,8 +742,7 @@ bool VirtualCamera::deliverFrame(const BufferDesc& bufDesc) {
     }
 
     // Keep a record of this frame so we can clean up if we have to in case of client death
-    mFramesHeld[bufDesc.deviceId].push_back(
-            std::move(Utils::dupBufferDesc(bufDesc, /* doDup= */ true)));
+    mFramesHeld[bufDesc.deviceId].push_back(Utils::dupBufferDesc(bufDesc, /* doDup= */ true));
 
     // v1.0 client uses an old frame-delivery mechanism.
     if (mCaptureThread.joinable()) {
