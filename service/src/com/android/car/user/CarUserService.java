@@ -196,7 +196,13 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     /** List of user restrictions that will be set on a visible background user. */
     private static final String[] VISIBLE_BACKGROUND_USER_RESTRICTIONS = new String[] {
-            UserManager.DISALLOW_CONFIG_BLUETOOTH
+            UserManager.DISALLOW_CONFIG_BLUETOOTH,
+            UserManager.DISALLOW_CONFIG_DATE_TIME,
+            UserManager.DISALLOW_CONFIG_LOCALE,
+            UserManager.DISALLOW_MICROPHONE_TOGGLE,
+            UserManager.DISALLOW_CAMERA_TOGGLE,
+            UserManager.DISALLOW_CHANGE_WIFI_STATE,
+            UserManager.DISALLOW_WIFI_TETHERING,
     };
 
     // Constants below must match value of same constants defined by ActivityManager
