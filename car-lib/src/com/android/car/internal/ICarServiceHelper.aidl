@@ -100,4 +100,14 @@ interface ICarServiceHelper {
      * Returns true if the given package requires launching in automotive compatibility mode.
      */
     boolean requiresDisplayCompat(String packageName) = 15;
+
+    /**
+     * See {@link com.android.server.pm.UserManagerInternal#assignUserToExtraDisplay(int, int)}.
+     */
+    boolean assignUserToExtraDisplay(int userId, int displayId) = 16;
+
+    /**
+     * See {@link com.android.server.pm.UserManagerInternal#unassignUserFromExtraDisplay(int, int)}.
+     */
+    boolean unassignUserFromExtraDisplay(int userId, int displayId) = 17;
 }
