@@ -134,11 +134,11 @@ public final class CarActivityService extends ICarActivityService.Stub
         void onActivityCameOnTop(TaskInfo topTask);
 
         /**
-         * Notify change or vanish of an activity in the backstack.
+         * Notify vanish of an activity or task in the backstack.
          *
-         * @param taskInfo task information for what is currently changed or vanished.
+         * @param taskInfo task information for what is currently vanished.
          */
-        void onActivityChangedInBackstack(TaskInfo taskInfo);
+        void onTaskVanished(TaskInfo taskInfo);
     }
 
     @GuardedBy("mLock")
@@ -286,13 +286,13 @@ public final class CarActivityService extends ICarActivityService.Stub
         }
     }
 
-    private void notifyActivityChangedInBackStack(TaskInfo taskInfo) {
+    private void notifyTaskVanished(TaskInfo taskInfo) {
         ActivityListener listener;
         synchronized (mLock) {
             listener = mActivityListener;
         }
         if (listener != null) {
-            listener.onActivityChangedInBackstack(taskInfo);
+            listener.onTaskVanished(taskInfo);
         }
     }
 
@@ -325,7 +325,7 @@ public final class CarActivityService extends ICarActivityService.Stub
             // mLastKnownDisplayIdForTask come in sync when the blocking ui is finished.
             mTasks.remove(taskInfo.taskId);
             mTaskToSurfaceMap.remove(taskInfo.taskId);
-            mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
+            mHandler.post(() -> notifyTaskVanished(taskInfo));
         }
     }
 
@@ -347,8 +347,6 @@ public final class CarActivityService extends ICarActivityService.Stub
                     || !Objects.equals(oldTaskInfo.topActivity, taskInfo.topActivity))
                     && TaskInfoHelper.isVisible(taskInfo)) {
                 mHandler.post(() -> notifyActivityCameOnTop(taskInfo));
-            } else {
-                mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
             }
         }
     }
