@@ -13,12 +13,10 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<!-- On the portrait implementation of AAOS, the lower root TaskView (which houses non-maps
-     applications) is technically landscape because the window bounds width > height. This means
-     layout-land qualified resources take highest precedence in this TaskView.
-
-     This layout will override the corresponding one in car-ui-lib when the plugin is being used.
-     An RRO cannot achieve this behavior because this layout is private in car-ui-lib.
+<!-- On the portrait implementation of AAOS, it is possible for the application panel to have
+     width > height, so a landscape resource is still relevant. This layout will override the
+     corresponding one in car-ui-lib when the plugin is being used. An RRO cannot achieve this
+     behavior because this layout is private in car-ui-lib.
      -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
