@@ -13,6 +13,5 @@ service carbugreportd /system/bin/carbugreportd
 service cardumpstatez /system/bin/dumpstate -S -d -z
     socket dumpstate stream 0660 shell log
     class main
-    user shell
     disabled
     oneshot
