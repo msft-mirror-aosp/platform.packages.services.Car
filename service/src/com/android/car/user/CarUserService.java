@@ -201,8 +201,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             UserManager.DISALLOW_CONFIG_LOCALE,
             UserManager.DISALLOW_MICROPHONE_TOGGLE,
             UserManager.DISALLOW_CAMERA_TOGGLE,
-            UserManager.DISALLOW_CHANGE_WIFI_STATE,
-            UserManager.DISALLOW_WIFI_TETHERING,
     };
 
     // Constants below must match value of same constants defined by ActivityManager
