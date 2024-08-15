@@ -55,6 +55,7 @@ cc_defaults {
         "libgtest_prod_headers",
     ],
     defaults: [
+        "aconfig_lib_cc_shared_link.defaults",
         "vhalclient_defaults",
     ],
 }
