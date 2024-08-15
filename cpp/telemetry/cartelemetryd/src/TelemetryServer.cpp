@@ -237,9 +237,7 @@ void TelemetryServer::writeCarData(const std::vector<CarData>& dataList, uid_t p
             LOG(VERBOSE) << "Ignoring CarData with ID=" << data.id;
             continue;
         }
-        mRingBuffer.push({.mId = data.id,
-                          .mContent = std::move(data.content),
-                          .mPublisherUid = publisherUid});
+        mRingBuffer.push({data.id, data.content, publisherUid});
     }
     // If the mRingBuffer was not empty, the message is already scheduled. It prevents scheduling
     // too many unnecessary idendical messages in the looper.
@@ -262,7 +260,7 @@ void TelemetryServer::pushCarDataToListeners() {
         // Push elements to pendingCarDataInternals in reverse order so we can send data
         // from the back of the pendingCarDataInternals vector.
         while (mRingBuffer.size() > 0) {
-            auto carData = std::move(mRingBuffer.popBack());
+            auto carData = mRingBuffer.popBack();
             CarDataInternal data;
             data.id = carData.mId;
             data.content = std::move(carData.mContent);

@@ -17,6 +17,7 @@
 #include "HalCamera.h"
 
 #include "Enumerator.h"
+#include "ScopedTrace.h"
 #include "VirtualCamera.h"
 #include "utils/include/Utils.h"
 
@@ -48,7 +49,7 @@ std::shared_ptr<VirtualCamera> HalCamera::makeVirtualCamera() {
     // Create the client camera interface object
     std::vector<std::shared_ptr<HalCamera>> sourceCameras;
     sourceCameras.reserve(1);
-    sourceCameras.push_back(std::move(ref<HalCamera>()));
+    sourceCameras.push_back(ref<HalCamera>());
     std::shared_ptr<VirtualCamera> client =
             ::ndk::SharedRefBase::make<VirtualCamera>(sourceCameras);
     if (!client || !ownVirtualCamera(client)) {
@@ -56,7 +57,7 @@ std::shared_ptr<VirtualCamera> HalCamera::makeVirtualCamera() {
         return nullptr;
     }
 
-    return std::move(client);
+    return client;
 }
 
 bool HalCamera::ownVirtualCamera(const std::shared_ptr<VirtualCamera>& virtualCamera) {
@@ -201,6 +202,7 @@ bool HalCamera::changeFramesInFlight(const std::vector<BufferDesc>& buffers, int
 }
 
 void HalCamera::requestNewFrame(std::shared_ptr<VirtualCamera> client, int64_t lastTimestamp) {
+    ScopedTrace trace("Camera " + getId(), __PRETTY_FUNCTION__);
     FrameRequest req;
     req.client = client;
     req.timestamp = lastTimestamp;
@@ -272,7 +274,10 @@ void HalCamera::clientStreamEnding(const VirtualCamera* client) {
 }
 
 ScopedAStatus HalCamera::doneWithFrame(BufferDesc buffer) {
-    std::lock_guard<std::mutex> lock(mFrameMutex);
+    ScopedTrace trace("Camera " + getId(), __PRETTY_FUNCTION__, buffer.bufferId);
+    std::unique_lock lock(mFrameMutex);
+    ::android::base::ScopedLockAssertion lock_assertion(mFrameMutex);
+    mFrameOpDone.wait(lock, [this]() REQUIRES(mFrameMutex) { return mFrameOpInProgress != true; });
 
     // Find this frame in our list of outstanding frames
     auto it = std::find_if(mFrames.begin(), mFrames.end(),
@@ -316,6 +321,9 @@ ScopedAStatus HalCamera::doneWithFrame(BufferDesc buffer) {
 ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
     LOG(VERBOSE) << "Received a frame";
 
+    ScopedTrace trace("Camera " + getId(), __PRETTY_FUNCTION__,
+                      buffers.empty() ? std::numeric_limits<int>::min() : buffers[0].bufferId);
+
     // Reports the number of received buffers
     mUsageStats->framesReceived(buffers);
 
@@ -333,6 +341,7 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
                                std::make_move_iterator(mNextRequests.begin()),
                                std::make_move_iterator(mNextRequests.end()));
         mNextRequests.clear();
+        mFrameOpInProgress = true;
     }
 
     while (!currentRequests.empty()) {
@@ -375,9 +384,10 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
 
         // Adding skipped capture requests back to the queue.
         std::lock_guard<std::mutex> lock(mFrameMutex);
-        mNextRequests.insert(mNextRequests.end(),
-                             std::make_move_iterator(puntedRequests.begin()),
+        mNextRequests.insert(mNextRequests.end(), std::make_move_iterator(puntedRequests.begin()),
                              std::make_move_iterator(puntedRequests.end()));
+        mFrameOpInProgress = false;
+        mFrameOpDone.notify_all();
     } else {
         std::lock_guard lock(mFrameMutex);
 
@@ -397,9 +407,10 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
         }
 
         // Adding skipped capture requests back to the queue.
-        mNextRequests.insert(mNextRequests.end(),
-                             std::make_move_iterator(puntedRequests.begin()),
+        mNextRequests.insert(mNextRequests.end(), std::make_move_iterator(puntedRequests.begin()),
                              std::make_move_iterator(puntedRequests.end()));
+        mFrameOpInProgress = false;
+        mFrameOpDone.notify_all();
     }
 
     return ScopedAStatus::ok();
@@ -407,6 +418,7 @@ ScopedAStatus HalCamera::deliverFrame(const std::vector<BufferDesc>& buffers) {
 
 ScopedAStatus HalCamera::notify(const EvsEventDesc& event) {
     LOG(DEBUG) << "Received an event id: " << static_cast<int32_t>(event.aType);
+    ScopedTrace trace("Camera " + getId(), __PRETTY_FUNCTION__, static_cast<int>(event.aType));
     if (event.aType == EvsEventType::STREAM_STOPPED) {
         // This event happens only when there is no more active client.
         std::lock_guard lock(mFrameMutex);
@@ -570,8 +582,9 @@ std::string HalCamera::toString(Stream configuration, const char* indent) {
                   "%srotation: 0x%X\n\n",
                   indent, double_indent.data(), configuration.id, double_indent.data(),
                   configuration.width, double_indent.data(), configuration.height,
-                  double_indent.data(), configuration.format, double_indent.data(),
-                  configuration.usage, double_indent.data(), configuration.rotation);
+                  double_indent.data(), static_cast<unsigned int>(configuration.format),
+                  double_indent.data(), static_cast<int64_t>(configuration.usage),
+                  double_indent.data(), static_cast<unsigned int>(configuration.rotation));
 
     return streamInfo;
 }

@@ -80,6 +80,7 @@ import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.power.CarPowerManagementService;
@@ -143,6 +144,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
+            Trace.beginSection("CarWatchdogService-broadcast-" + action);
             switch (action) {
                 case CAR_WATCHDOG_ACTION_DISMISS_RESOURCE_OVERUSE_NOTIFICATION:
                 case CAR_WATCHDOG_ACTION_LAUNCH_APP_SETTINGS:
@@ -206,6 +208,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 default:
                     Slogf.i(TAG, "Ignoring unknown intent %s", intent);
             }
+            Trace.endSection();
         }
     };
 
@@ -218,7 +221,13 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             if (powerService == null) {
                 return;
             }
-            int powerCycle = carPowerStateToPowerCycle(powerService.getPowerState());
+            int powerState = powerService.getPowerState();
+            int powerCycle = carPowerStateToPowerCycle(powerState);
+            if (powerCycle < 0) {
+                return;
+            }
+            Trace.beginSection("CarWatchdogService-powerStateChanged-"
+                    + CarPowerManagementService.powerStateToString(powerState));
             switch (powerCycle) {
                 case PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE:
                     // Perform time consuming disk I/O operation during shutdown prepare to avoid
@@ -242,6 +251,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                     return;
             }
             notifyPowerCycleChange(powerCycle);
+            Trace.endSection();
         }
     };
 
@@ -250,6 +260,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 @Override
                 public void onPolicyChanged(CarPowerPolicy appliedPolicy,
                         CarPowerPolicy accumulatedPolicy) {
+                    Trace.beginSection("CarWatchdogService-carPowerPolicyChanged-"
+                            + appliedPolicy.getPolicyId());
                     boolean isDisplayEnabled =
                             appliedPolicy.isComponentEnabled(PowerComponent.DISPLAY);
                     boolean didStateChange = false;
@@ -260,6 +272,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                     if (didStateChange) {
                         mWatchdogPerfHandler.onDisplayStateChanged(isDisplayEnabled);
                     }
+                    Trace.endSection();;
                 }
             };
 
@@ -321,6 +334,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
 
     @Override
     public void init() {
+        Trace.beginSection("CarWatchdogService.init");
         // TODO(b/266008677): The daemon reads the sendResourceUsageStatsEnabled sysprop at the
         // moment the CarWatchdogService connects to it. Therefore, the property must be set by
         // CarWatchdogService before connecting with the CarWatchdog daemon. Set the property to
@@ -339,16 +353,19 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         if (DEBUG) {
             Slogf.d(TAG, "CarWatchdogService is initialized");
         }
+        Trace.endSection();
     }
 
     @Override
     public void release() {
+        Trace.beginSection("CarWatchdogService.release");
         mContext.unregisterReceiver(mBroadcastReceiver);
         unsubscribePowerManagementService();
         mWatchdogPerfHandler.release();
         mWatchdogStorage.release();
         unregisterFromDaemon();
         mCarWatchdogDaemonHelper.disconnect();
+        Trace.endSection();
     }
 
     @Override
@@ -540,6 +557,25 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
      */
     public boolean performResourceOveruseKill(String packageName, @UserIdInt int userId) {
         assertPermission(mContext, Car.PERMISSION_USE_CAR_WATCHDOG);
+
+        UserHandle userHandle = UserHandle.of(userId);
+        List<PackageKillableState> packageKillableStates =
+                getPackageKillableStatesAsUser(userHandle);
+
+        for (int i = 0; i < packageKillableStates.size(); i++) {
+            PackageKillableState state = packageKillableStates.get(i);
+            if (packageName.equals(state.getPackageName())) {
+                int killableState = state.getKillableState();
+                if (killableState != PackageKillableState.KILLABLE_STATE_YES) {
+                    String stateName = PackageKillableState.killableStateToString(killableState);
+                    Slogf.d(TAG, "Failed to kill package '%s' for user %d because the "
+                            + "package has state '%s'\n", packageName, userId, stateName);
+                    return false;
+                }
+                break;
+            }
+        }
+
         return mWatchdogPerfHandler.disablePackageForUser(packageName, userId);
     }
 
@@ -596,6 +632,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     }
 
     private void notifyAllUserStates() {
+        Trace.beginSection("CarWatchdogService.notifyAllUserStates");
         UserManager userManager = mContext.getSystemService(UserManager.class);
         List<UserHandle> users = userManager.getUserHandles(/* excludeDying= */ false);
         try {
@@ -618,6 +655,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             // throws IllegalStateException. Catch the exception to avoid crashing the process.
             Slogf.w(TAG, e, "Notifying latest user states failed");
         }
+        Trace.endSection();
     }
 
     private void notifyPowerCycleChange(@PowerCycle int powerCycle) {
@@ -663,6 +701,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 return;
             }
         }
+        Trace.beginSection("CarWatchdogService.registerToDaemon");
         try {
             mCarWatchdogDaemonHelper.registerCarWatchdogService(mWatchdogServiceForSystem);
             if (DEBUG) {
@@ -694,9 +733,11 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             garageMode = mCurrentGarageMode;
         }
         notifyGarageModeChange(garageMode);
+        Trace.endSection();
     }
 
     private void unregisterFromDaemon() {
+        Trace.beginSection("CarWatchdogService.unregisterFromDaemon");
         try {
             mCarWatchdogDaemonHelper.unregisterCarWatchdogService(mWatchdogServiceForSystem);
             if (DEBUG) {
@@ -707,6 +748,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             // throws IllegalStateException. Catch the exception to avoid crashing the process.
             Slogf.w(TAG, e, "Cannot unregister from car watchdog daemon");
         }
+        Trace.endSection();
     }
 
     private void subscribePowerManagementService() {
