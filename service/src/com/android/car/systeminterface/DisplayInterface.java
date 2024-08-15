@@ -29,6 +29,7 @@ import android.car.builtin.display.DisplayManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.power.PowerManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.car.builtin.view.DisplayHelper;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.car.user.UserLifecycleEventFilter;
 import android.content.Context;
@@ -175,7 +176,8 @@ public interface DisplayInterface {
             public void onDisplayAdded(int displayId) {
                 Slogf.i(TAG, "onDisplayAdded: displayId=%d", displayId);
                 synchronized (mLock) {
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
@@ -205,7 +207,9 @@ public interface DisplayInterface {
             synchronized (mLock) {
                 for (Display display : mDisplayManager.getDisplays()) {
                     int displayId = display.getDisplayId();
-                    mDisplayStateSet.put(displayId, isDisplayOn(displayId));
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
+                    Slogf.d(TAG, "Initial display state: " + displayId + "=" + isDisplayOn);
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
@@ -231,6 +235,7 @@ public interface DisplayInterface {
         @Override
         public void refreshDisplayBrightness(int displayId) {
             CarPowerManagementService carPowerManagementService = null;
+            int mainDisplayIdForDriver;
             synchronized (mLock) {
                 carPowerManagementService = mCarPowerManagementService;
             }
@@ -364,6 +369,14 @@ public interface DisplayInterface {
 
             for (Display display : mDisplayManager.getDisplays()) {
                 int displayId = display.getDisplayId();
+                int displayType = DisplayHelper.getType(display);
+                if (displayType == DisplayHelper.TYPE_VIRTUAL
+                        || displayType == DisplayHelper.TYPE_OVERLAY) {
+                    Slogf.i(CarLog.TAG_POWER,
+                            "Ignore refreshDisplayBrightness for virtual or overlay display: "
+                            + displayId);
+                    continue;
+                }
                 refreshDisplayBrightness(displayId);
             }
         }
@@ -398,10 +411,10 @@ public interface DisplayInterface {
             }
             if (on) {
                 mWakeLockInterface.switchToFullWakeLock(displayId);
-                Slogf.i(CarLog.TAG_POWER, "on display %d", displayId);
+                Slogf.i(CarLog.TAG_POWER, "on display %d, obtain full wake lock", displayId);
             } else {
                 mWakeLockInterface.switchToPartialWakeLock(displayId);
-                Slogf.i(CarLog.TAG_POWER, "off display %d", displayId);
+                Slogf.i(CarLog.TAG_POWER, "off display %d, obtain partial wake lock", displayId);
                 PowerManagerHelper.goToSleep(mContext, displayId, SystemClock.uptimeMillis());
             }
             if (carPowerManagementService != null) {
