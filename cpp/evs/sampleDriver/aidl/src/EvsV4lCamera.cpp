@@ -382,8 +382,7 @@ ScopedAStatus EvsV4lCamera::importExternalBuffers(const std::vector<BufferDesc>&
 
     // If we've been displaced by another owner of the camera, then we can't do anything else
     if (!mVideo.isOpen()) {
-        LOG(WARNING) << "Ignoring a request add external buffers "
-                     << "when camera has been lost.";
+        LOG(WARNING) << "Ignoring a request add external buffers " << "when camera has been lost.";
         *_aidl_return = 0;
         return ScopedAStatus::fromServiceSpecificError(static_cast<int>(EvsResult::OWNERSHIP_LOST));
     }
@@ -437,7 +436,7 @@ ScopedAStatus EvsV4lCamera::importExternalBuffers(const std::vector<BufferDesc>&
 
             if (!stored) {
                 // Add a BufferRecord wrapping this handle to our set of available buffers
-                mBuffers.push_back(std::move(BufferRecord(memHandle)));
+                mBuffers.push_back(BufferRecord(memHandle));
             }
 
             ++mFramesAllowed;
@@ -615,7 +614,7 @@ unsigned EvsV4lCamera::increaseAvailableFrames_Locked(unsigned numToAdd) {
         }
         if (!stored) {
             // Add a BufferRecord wrapping this handle to our set of available buffers
-            mBuffers.push_back(std::move(BufferRecord(memHandle)));
+            mBuffers.push_back(BufferRecord(memHandle));
         }
 
         ++mFramesAllowed;

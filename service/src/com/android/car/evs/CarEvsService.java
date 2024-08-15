@@ -18,6 +18,7 @@ package com.android.car.evs;
 
 import static android.car.evs.CarEvsManager.ERROR_NONE;
 import static android.car.evs.CarEvsManager.ERROR_UNAVAILABLE;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
 
 import static com.android.car.CarLog.TAG_EVS;
 import static com.android.car.evs.StateMachine.REQUEST_PRIORITY_NORMAL;
@@ -42,6 +43,8 @@ import android.car.evs.ICarEvsStreamCallback;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.ICarPropertyEventListener;
+import android.car.user.CarUserManager.UserLifecycleListener;
+import android.car.user.UserLifecycleEventFilter;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -54,6 +57,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.ArrayMap;
@@ -63,6 +67,7 @@ import android.util.SparseArray;
 import android.util.proto.ProtoOutputStream;
 import android.view.Display;
 
+import com.android.car.CarLocalServices;
 import com.android.car.CarPropertyService;
 import com.android.car.CarServiceBase;
 import com.android.car.CarServiceUtils;
@@ -71,6 +76,7 @@ import com.android.car.hal.EvsHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.evs.CarEvsUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.user.CarUserService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -106,6 +112,10 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
         implements CarServiceBase {
 
     private static final boolean DBG = Slogf.isLoggable(TAG_EVS, Log.DEBUG);
+    private static final String EVS_INTERFACE_NAME =
+            "android.hardware.automotive.evs.IEvsEnumerator";
+    private static final String EVS_DEFAULT_INSTANCE_NAME = "default";
+
 
     static final class EvsHalEvent {
         private long mTimestamp;
@@ -144,6 +154,7 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
     private final DisplayManager mDisplayManager;  // To monitor the default display's state
     private final Object mLock = new Object();
     private final ArraySet<IBinder> mSessionTokens = new ArraySet<>();
+    private final boolean mIsEvsAvailable;
 
     // This handler is to monitor the client sends a video stream request within a given time
     // after a state transition to the REQUESTED state.
@@ -257,6 +268,8 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
             }
         };
 
+    private final UserLifecycleListener mUserLifecycleListener;
+
     // Service instances per each type.
     private final SparseArray<StateMachine> mServiceInstances;
 
@@ -280,11 +293,38 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
     private EvsHalEvent mLastEvsHalEvent = new EvsHalEvent(/* timestamp= */ 0,
             CarEvsManager.SERVICE_TYPE_REARVIEW, /* on= */ false);
 
+    private CarUserService mCarUserService;
+
     /** Creates an Extended View System service instance given a {@link Context}. */
     public CarEvsService(Context context, Context builtinContext, EvsHalService halService,
             CarPropertyService propertyService) {
+        this(context, builtinContext, halService, propertyService, /* checkDependencies= */ true);
+    }
+
+    @VisibleForTesting
+    CarEvsService(Context context, Context builtinContext, EvsHalService halService,
+            CarPropertyService propertyService, boolean checkDependencies) {
         mContext = context;
         mBuiltinContext = builtinContext;
+
+        // CarEvsService should become ineffective if the EVS service is not available. We confirm
+        // this by checking whether IEvsEnumerator/default instance is declared in VINTF. This check
+        // could be skipped only for testing purposes.
+        String instanceName = EVS_INTERFACE_NAME + "/" + EVS_DEFAULT_INSTANCE_NAME;
+        mIsEvsAvailable = !checkDependencies || ServiceManager.isDeclared(instanceName);
+        if (!mIsEvsAvailable) {
+            Slogf.e(TAG_EVS, "%s does not exist. CarEvsService won't be available.", instanceName);
+
+            // Set all final variables ineffective.
+            mPropertyService = null;
+            mEvsHalService = null;
+            mServiceInstances = new SparseArray<>();
+            mDisplayManager = null;
+            mUserLifecycleListener = null;
+
+            return;
+        }
+
         mPropertyService = propertyService;
         mEvsHalService = halService;
 
@@ -305,6 +345,7 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
                 Slogf.e(TAG_EVS, "No valid configuration has been found. " +
                         "CarEvsService won't be available.");
                 mDisplayManager = null;
+                mUserLifecycleListener = null;
                 return;
             }
         } else {
@@ -331,6 +372,24 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
 
         mDisplayManager = context.getSystemService(DisplayManager.class);
         mDisplayManager.registerDisplayListener(mDisplayListener, mHandler);
+
+        mUserLifecycleListener = event -> {
+            synchronized (mLock) {
+                if (!needToStartActivityLocked()) {
+                    // No action required.
+                    return;
+                }
+
+                StateMachine instance = mServiceInstances.get(CarEvsManager.SERVICE_TYPE_REARVIEW);
+                if (instance == null) {
+                    // No action required if SERVICE_TYPE_REARVIEW is not activated.
+                    return;
+                }
+
+                // Ensure a registered activity at the top of the back stack.
+                instance.bringActivityToForeground();
+            }
+        };
     }
 
     @VisibleForTesting
@@ -376,6 +435,11 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
     public void init() {
         if (DBG) {
             Slogf.d(TAG_EVS, "Initializing the service");
+        }
+
+        if (!mIsEvsAvailable) {
+            Slogf.e(TAG_EVS, "CarEvsService cannot be initialized due to missing dependencies.");
+            return;
         }
 
         for (int i = mServiceInstances.size() - 1; i >= 0; i--) {
@@ -430,6 +494,13 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
         }
 
         instance.connectToHalServiceIfNecessary();
+
+        mCarUserService = CarLocalServices.getService(CarUserService.class);
+        if (mCarUserService != null) {
+            UserLifecycleEventFilter userEventFilter = new UserLifecycleEventFilter.Builder()
+                    .addEventType(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED).build();
+            mCarUserService.addUserLifecycleListener(userEventFilter, mUserLifecycleListener);
+        }
     }
 
     @Override
@@ -439,6 +510,9 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
         }
 
         mDisplayManager.unregisterDisplayListener(mDisplayListener);
+        if (mCarUserService != null) {
+            mCarUserService.removeUserLifecycleListener(mUserLifecycleListener);
+        }
 
         if (mUseGearSelection && mPropertyService != null) {
             if (DBG) {
@@ -771,6 +845,11 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_USE_CAR_EVS_CAMERA);
         Objects.requireNonNull(id);
 
+        if (!mIsEvsAvailable) {
+            Slogf.e(TAG_EVS, "CarEvsService is not available.");
+            return false;
+        }
+
         if (!BuildHelper.isDebuggableBuild()) {
             // This method is not allowed in the release build.
             Slogf.e(TAG_EVS, "It is not allowed to change a camera assigned to the rearview " +
@@ -823,10 +902,18 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
      *
      * @return A string identifier of current rearview camera device.
      */
-    @NonNull
+    @Nullable
     public String getRearviewCameraIdFromCommand() {
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_MONITOR_CAR_EVS_STATUS);
-        return mServiceInstances.get(CarEvsManager.SERVICE_TYPE_REARVIEW).getCameraId();
+
+        StateMachine instance = mServiceInstances.get(CarEvsManager.SERVICE_TYPE_REARVIEW);
+        if (instance == null) {
+            Slogf.e(TAG_EVS, "Ignores a request to get a camera id for unavailable " +
+                    "REARVIEW service.");
+            return null;
+        }
+
+        return instance.getCameraId();
     }
 
     /**
@@ -845,6 +932,8 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
         @CarEvsServiceType int serviceType = CarEvsUtils.convertToServiceType(type);
         StateMachine instance = mServiceInstances.get(serviceType);
         if (instance == null) {
+            Slogf.e(TAG_EVS, "Ignores a request to get a camera id for unavailable service %s.",
+                    type);
             return null;
         }
 
@@ -867,6 +956,12 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
     public boolean enableServiceTypeFromCommand(@NonNull String typeString,
             @NonNull String cameraId) {
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_USE_CAR_EVS_CAMERA);
+
+        if (!mIsEvsAvailable) {
+            Slogf.e(TAG_EVS, "Failed to enable %s service due to missing dependencies.",
+                    typeString);
+            return false;
+        }
 
         @CarEvsServiceType int serviceType = CarEvsUtils.convertToServiceType(typeString);
         for (int i = 0; i < mServiceInstances.size(); i++) {
@@ -950,8 +1045,13 @@ public final class CarEvsService extends android.car.evs.ICarEvsService.Stub
     /** Tells whether or not the latest EVS HAL event was requesting to start an activity. */
     boolean needToStartActivity() {
         synchronized (mLock) {
-            return mLastEvsHalEvent != null && mLastEvsHalEvent.isRequestingToStartActivity();
+            return needToStartActivityLocked();
         }
+    }
+
+    @GuardedBy("mLock")
+    boolean needToStartActivityLocked() {
+        return mLastEvsHalEvent != null && mLastEvsHalEvent.isRequestingToStartActivity();
     }
 
     /**
