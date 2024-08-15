@@ -178,12 +178,6 @@ public interface DisplayInterface {
                 synchronized (mLock) {
                     boolean isDisplayOn = isDisplayOn(displayId);
                     mDisplayStateSet.put(displayId, isDisplayOn);
-                    if (isDisplayOn) {
-                        // Need to obtain the wake lock to prevent the display being turned off
-                        // by core framework. We take control of the display in car service and may
-                        // turn it off via ScreenOffHandler.
-                        mWakeLockInterface.switchToFullWakeLock(displayId);
-                    }
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
@@ -215,12 +209,7 @@ public interface DisplayInterface {
                     int displayId = display.getDisplayId();
                     boolean isDisplayOn = isDisplayOn(displayId);
                     mDisplayStateSet.put(displayId, isDisplayOn);
-                    if (isDisplayOn) {
-                        // Need to obtain the wake lock to prevent the display being turned off
-                        // by core framework. We take control of the display in car service and may
-                        // turn it off via ScreenOffHandler.
-                        mWakeLockInterface.switchToFullWakeLock(displayId);
-                    }
+                    Slogf.d(TAG, "Initial display state: " + displayId + "=" + isDisplayOn);
                     mDisplayBrightnessSet.put(displayId, INVALID_DISPLAY_BRIGHTNESS);
                 }
             }
@@ -422,10 +411,10 @@ public interface DisplayInterface {
             }
             if (on) {
                 mWakeLockInterface.switchToFullWakeLock(displayId);
-                Slogf.i(CarLog.TAG_POWER, "on display %d", displayId);
+                Slogf.i(CarLog.TAG_POWER, "on display %d, obtain full wake lock", displayId);
             } else {
                 mWakeLockInterface.switchToPartialWakeLock(displayId);
-                Slogf.i(CarLog.TAG_POWER, "off display %d", displayId);
+                Slogf.i(CarLog.TAG_POWER, "off display %d, obtain partial wake lock", displayId);
                 PowerManagerHelper.goToSleep(mContext, displayId, SystemClock.uptimeMillis());
             }
             if (carPowerManagementService != null) {
