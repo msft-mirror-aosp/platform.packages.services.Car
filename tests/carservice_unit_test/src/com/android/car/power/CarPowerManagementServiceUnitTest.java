@@ -104,11 +104,11 @@ import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.hal.VehicleHal;
 import com.android.car.internal.util.IndentingPrintWriter;
-import com.android.car.systeminterface.DisplayInterface;
 import com.android.car.systeminterface.IOInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.systeminterface.WakeLockInterface;
+import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
 import com.android.car.test.utils.TemporaryDirectory;
 import com.android.car.user.CarUserService;
 import com.android.compatibility.common.util.PollingCheck;
@@ -275,10 +275,10 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 /*isDeepSleepAllowed=*/true,
                 /*isHibernationAllowed=*/true,
                 /*isTimedWakeupAllowed=*/true);
-        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext)
+        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext,
+                mWakeLockInterface)
             .withDisplayInterface(mDisplayInterface)
             .withSystemStateInterface(mSystemStateInterface)
-            .withWakeLockInterface(mWakeLockInterface)
             .withIOInterface(mIOInterface).build();
         HandlerThread handlerThread = CarServiceUtils.getHandlerThread(TAG);
         mScreenOffHandler = new FakeScreenOffHandler(
@@ -3097,7 +3097,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 .checkCallingOrSelfPermission(Car.PERMISSION_CONTROL_SHUTDOWN_PROCESS);
     }
 
-    private static final class MockDisplayInterface implements DisplayInterface {
+    private static final class MockDisplayInterface extends DisplayInterfaceEmptyImpl {
         private static final int WAIT_FOR_DISPLAY_BRIGHTNESS_RETRIES = 5;
         @GuardedBy("sLock")
         private final SparseBooleanArray mDisplayOn = new SparseBooleanArray();

@@ -110,7 +110,7 @@ std::shared_ptr<IEvsEnumerator> Enumerator::connectToAidlHal(
         LOG(WARNING) << "Failed to register a device status callback";
     }
 
-    return std::move(service);
+    return service;
 }
 
 std::shared_ptr<IEvsEnumerator> Enumerator::connectToHidlHal(
@@ -122,7 +122,7 @@ std::shared_ptr<IEvsEnumerator> Enumerator::connectToHidlHal(
         return nullptr;
     }
 
-    return std::move(::ndk::SharedRefBase::make<AidlEnumerator>(service));
+    return ::ndk::SharedRefBase::make<AidlEnumerator>(service);
 }
 
 bool Enumerator::init(const std::string_view& hardwareServiceName) {
@@ -194,8 +194,8 @@ bool Enumerator::init(const std::string_view& hardwareServiceName) {
 bool Enumerator::checkPermission() const {
     const auto uid = AIBinder_getCallingUid();
     if (!mDisablePermissionCheck && kAllowedUids.find(uid) == kAllowedUids.end()) {
-        LOG(ERROR) << "EVS access denied: "
-                   << "pid = " << AIBinder_getCallingPid() << ", uid = " << uid;
+        LOG(ERROR) << "EVS access denied: " << "pid = " << AIBinder_getCallingPid()
+                   << ", uid = " << uid;
         return false;
     }
 

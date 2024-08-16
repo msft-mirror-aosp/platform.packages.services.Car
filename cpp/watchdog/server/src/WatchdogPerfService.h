@@ -321,7 +321,7 @@ private:
         // Interval between subsequent events.
         std::chrono::nanoseconds pollingIntervalNs = 0ns;
         // Used to calculate the uptime for next event.
-        nsecs_t lastPollUptimeNs = 0;
+        nsecs_t lastPollElapsedRealTimeNs = 0;
         // Filter the results only to the specified packages.
         std::unordered_set<std::string> filterPackages;
 
