@@ -131,7 +131,6 @@ droidstubs {
     name: "android.car-stubs-docs",
     defaults: ["android.car-docs-default"],
     args: "--hide UnavailableSymbol --hide HiddenSuperclass --stub-packages android.car* " +
-        "--hide-package com.android.internal --hide-package com.android.car.internal " +
         "--error UnflaggedApi",
     installable: false,
     check_api: {
@@ -157,8 +156,8 @@ droidstubs {
     // TODO(b/174572385): Remove CallbackInterface once this b/174572385 is fixed
     args: "--hide CallbackInterface --hide UnavailableSymbol --hide HiddenSuperclass " +
         "--stub-packages android.car* " +
-        "--show-annotation android.annotation.SystemApi --hide-package com.android.internal " +
-        "--hide-package com.android.car.internal --error UnflaggedApi",
+        "--show-annotation android.annotation.SystemApi " +
+        "--error UnflaggedApi",
     installable: false,
     check_api: {
         last_released: {
@@ -297,6 +296,7 @@ java_library {
     dist: {
         targets: ["dist_files"],
     },
+    is_stubs_module: true,
 }
 
 java_library {

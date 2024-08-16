@@ -433,6 +433,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$ManageAdaptiveNotificationsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$LanguageSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -578,6 +587,24 @@
 
         <activity
             android:name="com.android.settings.Settings$ZenModeAutomationSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ModesSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ModeSettingsActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2952,6 +2979,15 @@
             tools:replace="android:exported">
             <intent-filter tools:node="removeAll"/>
        </activity>
+
+        <activity
+            android:name="com.android.settings.spa.search.SpaSearchLandingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
 
         <activity-alias
             android:name="com.android.settings.ConfirmDeviceCredentialActivity"

@@ -160,6 +160,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             "SAVED_BACKGROUND_APP_COMPONENT_NAME";
     private static final IActivityTaskManager sActivityTaskManager =
             ActivityTaskManager.getService();
+    private static final int INVALID_TASK_ID = -1;
     private final UserEventReceiver mUserEventReceiver = new UserEventReceiver();
     private final Configuration mConfiguration = new Configuration();
 
@@ -183,7 +184,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     private TaskInfoCache mTaskInfoCache;
     private TaskViewPanel mRootTaskViewPanel;
     private boolean mSkipAppGridOnRestartAttempt;
-    private int mAppGridTaskId;
+    private int mAppGridTaskId = INVALID_TASK_ID;
     private final IntentHandler mMediaIntentHandler = new IntentHandler() {
         @Override
         public void handleIntent(Intent intent) {
@@ -194,11 +195,10 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 mRootTaskViewPanel.closePanel(createReason(ON_MEDIA_INTENT, intent.getComponent()));
                 return;
             }
-
-            ActivityOptions options = ActivityOptions.makeBasic();
-            options.setLaunchDisplayId(getDisplay().getDisplayId());
-
-            startActivity(intent, options.toBundle());
+            if (intent != null) {
+                ActivityOptions options = ActivityOptions.makeBasic();
+                startActivity(intent, options.toBundle());
+            }
         }
     };
     /**
@@ -280,6 +280,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             logIfDebuggable("onTaskRemoved taskId=" + taskId);
             if (mAppGridTaskId == taskId) {
                 Log.e(TAG, "onTaskRemoved, App Grid task is removed.");
+                mAppGridTaskId = INVALID_TASK_ID;
             }
         }
 
@@ -386,7 +387,8 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
 
         mCurrentTaskInRootTaskView = taskInfo;
 
-        if (!shouldOpenPanelForAppGrid(reason)) {
+        if (mIsAppGridOnTop && !shouldOpenPanelForAppGrid(reason)) {
+            logIfDebuggable("Panel should not open for app grid, check previous log for details");
             return;
         }
 
@@ -411,9 +413,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
      * {@link mSkipAppGridOnRestartAttempt}.
      */
     private boolean shouldOpenPanelForAppGrid(TaskViewPanelStateChangeReason reason) {
-        if (!mIsAppGridOnTop) {
-            return false;
-        } else if (ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
+        if (ON_TASK_MOVED_TO_FRONT.equals(reason.getReason())) {
             logIfDebuggable("Skip panel action for app grid in onTaskMovedToFront");
             return false;
         } else if (ON_ACTIVITY_RESTART_ATTEMPT.equals(reason.getReason())
@@ -553,6 +553,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
             return;
         }
 
+        mFullScreenAppArea = findViewById(R.id.fullscreen_container);
+        mBackgroundAppArea = findViewById(R.id.background_app_area);
+
         mCarUiPortraitServiceManager = new CarUiPortraitServiceManager(/* activity= */ this,
                 new IncomingHandler());
         initializeCards();
@@ -671,6 +674,10 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        mTaskViewControllerWrapper.updateAllowListedActivities(BACKGROUND,
+                mTaskCategoryManager.getBackgroundActivitiesList());
+        mTaskViewControllerWrapper.updateAllowListedActivities(FULLSCREEN,
+                mTaskCategoryManager.getFullScreenActivitiesList());
         // the showEmbeddedTasks will make the task visible which will lead to opening of the panel
         // and that should be skipped for application panel  when the  home intent is sent. Because
         // that leads to CTS failures.
@@ -888,8 +895,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private void setUpBackgroundTaskView() {
-        mBackgroundAppArea = findViewById(R.id.background_app_area);
-
         TaskViewControllerWrapper.TaskViewCallback callback =
                 new TaskViewControllerWrapper.TaskViewCallback() {
                     @Override
@@ -1127,7 +1132,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private void setUpFullScreenTaskView() {
-        mFullScreenAppArea = findViewById(R.id.fullscreen_container);
         TaskViewControllerWrapper.TaskViewCallback callback =
                 new TaskViewControllerWrapper.TaskViewCallback() {
                     @Override
