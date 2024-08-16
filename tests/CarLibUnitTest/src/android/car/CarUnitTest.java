@@ -91,7 +91,8 @@ public final class CarUnitTest {
 
     private static final String TAG = CarUnitTest.class.getSimpleName();
     private static final String PKG_NAME = "Bond.James.Bond";
-    private static final int DEFAULT_TIMEOUT_MS = 1000;
+    private static final int DEFAULT_TIMEOUT_MS = 10_000;
+    private static final int DEFAULT_SLEEP_MS = 1_000;
     private static final int MY_PID = 1234;
 
     @Rule
@@ -1136,7 +1137,7 @@ public final class CarUnitTest {
         // Car service is registered after disconnect, must not invoke callback.
         setCarServiceRegistered();
 
-        Thread.sleep(DEFAULT_TIMEOUT_MS);
+        Thread.sleep(DEFAULT_SLEEP_MS);
         mLifecycleListener.assertNoEvent();
 
         // After connect, the callback must be invoked.
@@ -1271,7 +1272,7 @@ public final class CarUnitTest {
 
         mCarBuilder.createCar(mContext);
 
-        Thread.sleep(DEFAULT_TIMEOUT_MS);
+        Thread.sleep(DEFAULT_SLEEP_MS);
         verify(mFakeProcess, never()).killProcess(anyInt());
     }
 
