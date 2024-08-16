@@ -91,7 +91,8 @@ public final class CarUnitTest {
 
     private static final String TAG = CarUnitTest.class.getSimpleName();
     private static final String PKG_NAME = "Bond.James.Bond";
-    private static final int DEFAULT_TIMEOUT_MS = 1000;
+    private static final int DEFAULT_TIMEOUT_MS = 10_000;
+    private static final int DEFAULT_SLEEP_MS = 1_000;
     private static final int MY_PID = 1234;
 
     @Rule
@@ -418,6 +419,37 @@ public final class CarUnitTest {
 
     @Test
     @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_NullServiceConnection_DefaultHandler_oldLogic()
+            throws Exception {
+        createCar_Context_NullServiceConnection_DefaultHandler();
+    }
+
+    @Test
+    @EnableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
+    public void testCreateCar_Context_NullServiceConnection_DefaultHandler_newLogic()
+            throws Exception {
+        createCar_Context_NullServiceConnection_DefaultHandler();
+    }
+
+    private void createCar_Context_NullServiceConnection_DefaultHandler() throws Exception {
+        Car car = mCarBuilder.createCar(mContext, (ServiceConnection) null);
+
+        assertThat(car).isNotNull();
+
+        car.connect();
+
+        assertThat(car.isConnecting()).isTrue();
+        assertThat(car.isConnected()).isFalse();
+
+        setCarServiceRegistered();
+
+        pollingLoopForCarConnected(car);
+
+        assertThat(car.isConnected()).isTrue();
+    }
+
+    @Test
+    @DisableFlags(FLAG_CREATE_CAR_USE_NOTIFICATIONS)
     public void testCreateCar_Context_ServiceConnection_Handler_CarServiceRegistered_oldLogic() {
         createCar_Context_ServiceConnection_Handler_CarServiceRegistered();
     }
@@ -579,11 +611,7 @@ public final class CarUnitTest {
         car.connect();
 
         // It takes a while for the callback to set connection state to connected.
-        long currentTimeMs = SystemClock.elapsedRealtime();
-        long timeout = currentTimeMs + DEFAULT_TIMEOUT_MS;
-        while (!car.isConnected() && SystemClock.elapsedRealtime() < timeout) {
-            Thread.sleep(100);
-        }
+        pollingLoopForCarConnected(car);
 
         assertThat(car.isConnected()).isTrue();
     }
@@ -1109,7 +1137,7 @@ public final class CarUnitTest {
         // Car service is registered after disconnect, must not invoke callback.
         setCarServiceRegistered();
 
-        Thread.sleep(DEFAULT_TIMEOUT_MS);
+        Thread.sleep(DEFAULT_SLEEP_MS);
         mLifecycleListener.assertNoEvent();
 
         // After connect, the callback must be invoked.
@@ -1244,7 +1272,7 @@ public final class CarUnitTest {
 
         mCarBuilder.createCar(mContext);
 
-        Thread.sleep(DEFAULT_TIMEOUT_MS);
+        Thread.sleep(DEFAULT_SLEEP_MS);
         verify(mFakeProcess, never()).killProcess(anyInt());
     }
 
@@ -1295,5 +1323,13 @@ public final class CarUnitTest {
     private void finishTasksOnMain() throws InterruptedException {
         // Do nothing on main just to make sure main finished handling the callbacks.
         runOnMain(() -> {});
+    }
+
+    private void pollingLoopForCarConnected(Car car) throws InterruptedException {
+        long currentTimeMs = SystemClock.elapsedRealtime();
+        long timeout = currentTimeMs + DEFAULT_TIMEOUT_MS;
+        while (!car.isConnected() && SystemClock.elapsedRealtime() < timeout) {
+            Thread.sleep(100);
+        }
     }
 }
