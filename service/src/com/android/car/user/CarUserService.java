@@ -75,7 +75,6 @@ import android.car.user.UserStopResponse;
 import android.car.user.UserStopResult;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AndroidFuture;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -105,7 +104,6 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
@@ -137,6 +135,7 @@ import com.android.car.internal.util.FunctionalUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.pm.CarPackageManagerService;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.provider.Settings;
 import com.android.car.user.InitialUserSetter.InitialUserInfo;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -196,7 +195,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     /** List of user restrictions that will be set on a visible background user. */
     private static final String[] VISIBLE_BACKGROUND_USER_RESTRICTIONS = new String[] {
-            UserManager.DISALLOW_CONFIG_BLUETOOTH
+            UserManager.DISALLOW_CONFIG_BLUETOOTH,
+            UserManager.DISALLOW_CONFIG_DATE_TIME,
+            UserManager.DISALLOW_CONFIG_LOCALE,
+            UserManager.DISALLOW_MICROPHONE_TOGGLE,
+            UserManager.DISALLOW_CAMERA_TOGGLE,
     };
 
     // Constants below must match value of same constants defined by ActivityManager
@@ -224,7 +227,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private static final String BG_HANDLER_THREAD_NAME = "UserService.BG";
 
-    private final GlobalSettings mGlobalSettings;
+    private final Settings mSettings;
     private final CurrentUserFetcher mCurrentUserFetcher;
     private final Context mContext;
     private final ActivityManager mAm;
@@ -371,38 +374,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         // accessed before the constructor.
                         /* handler= */ null,
                         new ActivityManagerCurrentUserFetcher(),
-                        new SystemGlobalSettings()));
-    }
-
-    /**
-     * An interface for injecting fake {@link Settings.Global} implementation.
-     */
-    public interface GlobalSettings {
-        /** See {@link Settings.Global.getString} */
-        String getString(ContentResolver resolver, String name);
-        /** See {@link Settings.Global.getInt} */
-        int getInt(ContentResolver cr, String name, int def);
-        /** See {@link Settings.Global.putInt} */
-        boolean putInt(ContentResolver cr, String name, int value);
-    }
-
-    // A real implementation for {@link GlobalSettings}.
-    // Need to be accessed from com.android.car.user.BaseCarUserServiceTestCase.
-    static final class SystemGlobalSettings implements GlobalSettings {
-        @Override
-        public String getString(ContentResolver resolver, String name) {
-            return Settings.Global.getString(resolver, name);
-        }
-
-        @Override
-        public int getInt(ContentResolver cr, String name, int def) {
-            return Settings.Global.getInt(cr, name, def);
-        }
-
-        @Override
-        public boolean putInt(ContentResolver cr, String name, int value) {
-            return Settings.Global.putInt(cr, name, value);
-        }
+                        new Settings.DefaultImpl()));
     }
 
     @VisibleForTesting
@@ -412,7 +384,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @Nullable InitialUserSetter initialUserSetter,
             Handler handler,
             CurrentUserFetcher currentUserFetcher,
-            GlobalSettings globalSettings) {}
+            Settings settings) {}
 
     @VisibleForTesting
     public CarUserService(
@@ -438,7 +410,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 new InitialUserSetter(context, this, (u) -> setInitialUser(u), mUserHandleHelper,
                         deps);
         mCurrentUserFetcher = deps.currentUserFetcher();
-        mGlobalSettings = deps.globalSettings();
+        mSettings = deps.settings();
 
         Resources resources = context.getResources();
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
@@ -590,7 +562,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void dumpGlobalProperty(IndentingPrintWriter writer, String property) {
-        String value = mGlobalSettings.getString(mContext.getContentResolver(), property);
+        String value = mSettings.getStringGlobal(mContext.getContentResolver(), property);
         writer.printf("%s=%s\n", property, value);
     }
 
@@ -1906,7 +1878,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     private void updateDefaultUserRestriction() {
         // We want to set restrictions on system and guest users only once. These are persisted
         // onto disk, so it's sufficient to do it once + we minimize the number of disk writes.
-        if (mGlobalSettings.getInt(mContext.getContentResolver(),
+        if (mSettings.getIntGlobal(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, /* default= */ 0) != 0) {
             return;
         }
@@ -1914,7 +1886,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (UserManager.isHeadlessSystemUserMode()) {
             setSystemUserRestrictions();
         }
-        mGlobalSettings.putInt(mContext.getContentResolver(),
+        mSettings.putIntGlobal(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, 1);
     }
 

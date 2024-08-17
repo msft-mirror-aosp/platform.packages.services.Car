@@ -58,8 +58,8 @@ import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.HandlerExecutor;
 import com.android.wm.shell.common.SyncTransactionQueue;
-import com.android.wm.shell.common.TransactionPool;
 import com.android.wm.shell.fullscreen.FullscreenTaskListener;
+import com.android.wm.shell.shared.TransactionPool;
 
 import com.google.common.truth.Expect;
 
