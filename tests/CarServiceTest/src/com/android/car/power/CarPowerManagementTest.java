@@ -805,7 +805,7 @@ public class CarPowerManagementTest extends MockedCarTestBase {
         public void stopDisplayStateMonitoring() {}
 
         @Override
-        public void refreshDisplayBrightness() {}
+        public void refreshDefaultDisplayBrightness() {}
 
         @Override
         public void refreshDisplayBrightness(int displayId) {}

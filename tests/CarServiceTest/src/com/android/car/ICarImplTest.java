@@ -50,6 +50,7 @@ import com.android.car.hal.PowerHalService;
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.StaticBinderInterface;
 import com.android.car.os.CarPerformanceService;
+import com.android.car.provider.Settings;
 import com.android.car.remoteaccess.CarRemoteAccessService;
 import com.android.car.systeminterface.ActivityManagerInterface;
 import com.android.car.systeminterface.DisplayInterface;
@@ -154,6 +155,7 @@ public final class ICarImplTest {
                 .withIOInterface(mMockIOInterface)
                 .withStorageMonitoringInterface(mMockStorageMonitoringInterface)
                 .withTimeInterface(mMockTimeInterface)
+                .withSettings(new Settings.DefaultImpl())
                 .withWakeLockInterface(mMockWakeLockInterface).build();
         // ICarImpl will register new CarLocalServices services.
         // This prevents one test failure in tearDown from triggering assertion failure for single
