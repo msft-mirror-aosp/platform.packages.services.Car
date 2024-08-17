@@ -115,6 +115,7 @@ import com.android.car.internal.common.UserHelperLite;
 import com.android.car.internal.os.CarSystemProperties;
 import com.android.car.internal.user.UserHelper;
 import com.android.car.pm.CarPackageManagerService;
+import com.android.car.provider.Settings;
 import com.android.internal.R;
 import com.android.internal.util.Preconditions;
 
@@ -652,7 +653,7 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
                     new CarUserService.Deps(mMockedUserHandleHelper, mMockedDevicePolicyManager,
                             mMockedActivityManager, mInitialUserSetter, mHandler,
                             new ActivityManagerCurrentUserFetcher(),
-                            new CarUserService.SystemGlobalSettings()));
+                            new Settings.DefaultImpl()));
         }
     }
 
