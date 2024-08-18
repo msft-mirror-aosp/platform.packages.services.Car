@@ -74,6 +74,16 @@ flag {
 }
 
 flag {
+  name: "multi_display_brightness_control"
+  namespace: "car_framework"
+  description: "Support multi display brightness control"
+  bug: "356419293"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
   name: "car_power_cancel_shell_command"
   is_exported: true
   namespace: "car_framework"
@@ -168,6 +178,14 @@ flag {
   namespace: "car_framework"
   description: "Controls whether to round incoming property events to the resolution requested"
   bug: "276124296"
+}
+
+flag {
+  name: "handle_property_events_in_binder_thread"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Controls whether to directly handle property evnets in binder thread in CarPropertyManager"
+  bug: "355703549"
 }
 
 # CarServiceBase
