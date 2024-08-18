@@ -1056,24 +1056,7 @@ public class CarPropertyManager extends CarManagerBase {
         mHandler = new SingleMessageHandler<>(eventHandler.getLooper(), MSG_GENERIC_EVENT) {
             @Override
             protected void handleEvent(CarPropertyEvent carPropertyEvent) {
-                int propertyId = carPropertyEvent.getCarPropertyValue().getPropertyId();
-                List<CarPropertyEventCallbackController> cpeCallbacks = new ArrayList<>();
-                synchronized (mLock) {
-                    ArraySet<CarPropertyEventCallbackController> cpeCallbackControllerSet =
-                            mPropIdToCpeCallbackControllerList.get(propertyId);
-                    if (cpeCallbackControllerSet == null) {
-                        Slog.w(TAG, "handleEvent: could not find any callbacks for propertyId="
-                                + VehiclePropertyIds.toString(propertyId));
-                        return;
-                    }
-                    for (int i = 0; i < cpeCallbackControllerSet.size(); i++) {
-                        cpeCallbacks.add(cpeCallbackControllerSet.valueAt(i));
-                    }
-                }
-
-                for (int i = 0; i < cpeCallbacks.size(); i++) {
-                    cpeCallbacks.get(i).onEvent(carPropertyEvent);
-                }
+                handleCarPropertyEvents(List.of(carPropertyEvent));
             }
         };
     }
@@ -1641,7 +1624,14 @@ public class CarPropertyManager extends CarManagerBase {
     }
 
     private void handleEvents(List<CarPropertyEvent> carPropertyEvents) {
-        if (mHandler != null) {
+        if (mHandler == null) {
+            Slog.wtf(TAG,
+                    "Event handler was not created successfully, ignore all property events");
+            return;
+        }
+        if (mFeatureFlags.handlePropertyEventsInBinderThread()) {
+            handleCarPropertyEvents(carPropertyEvents);
+        } else {
             mHandler.sendEvents(carPropertyEvents);
         }
     }
@@ -3259,6 +3249,54 @@ public class CarPropertyManager extends CarManagerBase {
             @NonNull SetPropertyCallback setPropertyCallback) {
         setPropertiesAsync(setPropertyRequests, ASYNC_GET_DEFAULT_TIMEOUT_MS, cancellationSignal,
                 callbackExecutor, setPropertyCallback);
+    }
+
+    private void handleCarPropertyEvents(List<CarPropertyEvent> carPropertyEvents) {
+        SparseArray<List<CarPropertyEvent>> carPropertyEventsByPropertyId = new SparseArray<>();
+        for (int i = 0; i < carPropertyEvents.size(); i++) {
+            CarPropertyEvent carPropertyEvent = carPropertyEvents.get(i);
+            int propertyId = carPropertyEvent.getCarPropertyValue().getPropertyId();
+            if (carPropertyEventsByPropertyId.get(propertyId) == null) {
+                carPropertyEventsByPropertyId.put(propertyId, new ArrayList<>());
+            }
+            carPropertyEventsByPropertyId.get(propertyId).add(carPropertyEvent);
+        }
+
+        ArrayMap<CarPropertyEventCallbackController, List<CarPropertyEvent>> eventsByCallback =
+                new ArrayMap<>();
+
+        synchronized (mLock) {
+            for (int i = 0; i < carPropertyEventsByPropertyId.size(); i++) {
+                int propertyId = carPropertyEventsByPropertyId.keyAt(i);
+                List<CarPropertyEvent> eventsForPropertyId =
+                        carPropertyEventsByPropertyId.valueAt(i);
+                ArraySet<CarPropertyEventCallbackController> cpeCallbackControllerSet =
+                        mPropIdToCpeCallbackControllerList.get(propertyId);
+                if (cpeCallbackControllerSet == null) {
+                    Slog.w(TAG, "handleEvent: could not find any callbacks for propertyId="
+                            + VehiclePropertyIds.toString(propertyId));
+                    return;
+                }
+                for (int j = 0; j < cpeCallbackControllerSet.size(); j++) {
+                    var callback = cpeCallbackControllerSet.valueAt(j);
+                    if (eventsByCallback.get(callback) == null) {
+                        eventsByCallback.put(callback, new ArrayList<>());
+                    }
+                    eventsByCallback.get(callback).addAll(eventsForPropertyId);
+                }
+            }
+        }
+
+        // This might be invoked from a binder thread (CarPropertyEventListenerToService.onEvent),
+        // so we must clear calling identity before calling client executor.
+        Binder.clearCallingIdentity();
+        for (int i = 0; i < eventsByCallback.size(); i++) {
+            var callback = eventsByCallback.keyAt(i);
+            var events = eventsByCallback.valueAt(i);
+            for (int j = 0; j < events.size(); j++) {
+                callback.onEvent(events.get(j));
+            }
+        }
     }
 
     private void assertPropertyIdIsSupported(int propertyId) {

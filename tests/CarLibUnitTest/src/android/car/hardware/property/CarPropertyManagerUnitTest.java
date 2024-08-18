@@ -296,6 +296,7 @@ public final class CarPropertyManagerUnitTest {
         mCarPropertyManager = new CarPropertyManager(mCar, mICarProperty);
         // Enable the features.
         when(mFeatureFlags.variableUpdateRate()).thenReturn(true);
+        when(mFeatureFlags.handlePropertyEventsInBinderThread()).thenReturn(true);
         mCarPropertyManager.setFeatureFlags(mFeatureFlags);
     }
 
