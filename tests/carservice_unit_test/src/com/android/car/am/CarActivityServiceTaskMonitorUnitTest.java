@@ -54,11 +54,12 @@ import android.view.SurfaceControl;
 import androidx.test.filters.MediumTest;
 
 import com.android.compatibility.common.util.PollingCheck;
+import com.android.internal.protolog.ProtoLog;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.HandlerExecutor;
 import com.android.wm.shell.common.SyncTransactionQueue;
-import com.android.wm.shell.common.TransactionPool;
 import com.android.wm.shell.fullscreen.FullscreenTaskListener;
+import com.android.wm.shell.shared.TransactionPool;
 
 import com.google.common.truth.Expect;
 
@@ -114,6 +115,9 @@ public class CarActivityServiceTaskMonitorUnitTest {
 
     @Before
     public void setUp() throws Exception {
+        // The test doesn't have access to the ProtoLog viewer config files
+        ProtoLog.REQUIRE_PROTOLOGTOOL = false;
+
         long timeOutMs = DEFAULT_TIMEOUT_MS;
         if (mTestName.getMethodName().contains("ExpiredToken")) {
             timeOutMs = SHORT_MIRRORING_TOKEN_TIMEOUT_MS;

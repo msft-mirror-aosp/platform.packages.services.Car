@@ -40,6 +40,7 @@ import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.HandlerHelper;
 import android.car.builtin.os.ServiceManagerHelper;
+import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
@@ -99,6 +100,7 @@ import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.BootupReason;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.DebugUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.Lists;
@@ -603,6 +605,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
 
     @Override
     public void init() {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "init");
         mPolicyReader.init(mFeatureFlags);
         mPowerComponentHandler.init(mPolicyReader.getCustomComponents());
         mHal.setListener(this);
@@ -617,6 +620,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
         mSystemInterface.startDisplayStateMonitoring();
         connectToPowerPolicyDaemon();
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     @Override
@@ -676,6 +680,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     mSystemInterface.isSystemSupportingHibernation());
             writer.printf("mLastShutdownState: %d\n", mLastShutdownState);
             writer.printf("mReadyForCallback: %b\n", mReadyForCallback.get());
+            if (mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
+                writer.printf("Suspend to disk importance level: %d\n", getS2dImportanceLevel());
+            }
         }
 
         synchronized (mSimulationWaitObject) {
@@ -754,12 +761,14 @@ public class CarPowerManagementService extends ICarPower.Stub implements
 
     @Override
     public void onApPowerStateChange(PowerState state) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "onApPowerStateChange");
         EventLogHelper.writeCarPowerManagerStateRequest(state.mState, state.mParam);
         synchronized (mLock) {
             mPendingPowerStates.addFirst(new CpmsState(state));
             mLock.notifyAll();
         }
         mHandler.handlePowerStateChange();
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     @VisibleForTesting
@@ -781,6 +790,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      */
     private void onApPowerStateChange(int apState,
             @CarPowerManager.CarPowerState int carPowerStateListenerState) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE,
+                "onApPowerStateChange_internally_triggered");
         CpmsState newState = new CpmsState(apState, carPowerStateListenerState,
                 /* canPostpone= */ false);
         BiFunction<CpmsState, CpmsState, Boolean> eventFilter = null;
@@ -813,6 +824,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 for (int idx = 0; idx < mPendingPowerStates.size(); idx++) {
                     CpmsState pendingState = mPendingPowerStates.get(idx);
                     if (eventFilter.apply(newState, pendingState)) {
+                        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                         return;
                     }
                 }
@@ -821,6 +833,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             mLock.notifyAll();
         }
         mHandler.handlePowerStateChange();
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private void doHandlePowerStateChange() {
@@ -1855,7 +1868,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void doHandleDisplayBrightnessChange(int displayId, int brightness) {
-        mSystemInterface.setDisplayBrightness(displayId, brightness);
+        mSystemInterface.onDisplayBrightnessChangeFromVhal(displayId, brightness);
     }
 
     private void doHandleDisplayStateChange(int displayId, boolean on) {
@@ -1904,8 +1917,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      * Sends display brightness to VHAL.
      * @param brightness value 0-100%
      */
-    public void sendDisplayBrightness(int brightness) {
-        mHal.sendDisplayBrightness(brightness);
+    public void sendDisplayBrightnessLegacy(int brightness) {
+        mHal.sendDisplayBrightnessLegacy(brightness);
     }
 
     /**
@@ -2548,6 +2561,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private int applyPowerPolicy(@Nullable String policyId, boolean delayNotification,
             boolean upToDaemon, boolean force) {
         if (mFeatureFlags.carPowerPolicyRefactoring()) {
+            Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "applyPowerPolicy");
             AsyncPolicyRequest request = generateAsyncPolicyRequest(
                     DEFAULT_POWER_POLICY_REQUEST_TIMEOUT_MS);
             int requestId = request.getRequestId();
@@ -2559,11 +2573,13 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             if (daemon == null) {
                 Slogf.w(TAG, "Cannot call applyPowerPolicyAsync(requestId=%d, policyId=%s) to CPPD:"
                         + " CPPD is not available", requestId, policyId);
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return PolicyOperationStatus.ERROR_APPLY_POWER_POLICY;
             }
             if (!mReadyForCallback.get()) {
                 Slogf.w(TAG, "Cannot call applyPowerPolicyAsync(requestId=%d, policyId=%s) to CPPD:"
                         + " not ready for calling to CPPD", requestId, policyId);
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return PolicyOperationStatus.ERROR_APPLY_POWER_POLICY;
             }
             try {
@@ -2574,25 +2590,31 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 if (!policyRequestServed) {
                     Slogf.w(TAG, "Power policy request (ID: %d) successful application timed out"
                             + " after %d ms", requestId, DEFAULT_POWER_POLICY_REQUEST_TIMEOUT_MS);
+                    Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                     return PolicyOperationStatus.ERROR_APPLY_POWER_POLICY;
                 }
             } catch (IllegalArgumentException e) {
                 int error = PolicyOperationStatus.ERROR_INVALID_POWER_POLICY_ID;
                 Slogf.w(TAG, PolicyOperationStatus.errorCodeToString(error, policyId));
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return error;
             } catch (IllegalStateException e) {
                 int error = PolicyOperationStatus.ERROR_APPLY_POWER_POLICY;
                 Slogf.w(TAG, PolicyOperationStatus.errorCodeToString(error, policyId));
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return error;
             } catch (SecurityException e) {
                 Slogf.w(TAG, e, "Failed to apply power policy, insufficient permissions");
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return PolicyOperationStatus.ERROR_APPLY_POWER_POLICY;
             } catch (InterruptedException e) {
                 Slogf.w(TAG, e, "Wait for power policy change request interrupted");
                 Thread.currentThread().interrupt();
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return PolicyOperationStatus.ERROR_APPLY_POWER_POLICY;
             } catch (RemoteException e) {
                 Slogf.w(TAG, e, "Failed to apply power policy, connection issue");
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return PolicyOperationStatus.ERROR_APPLY_POWER_POLICY;
             } finally {
                 synchronized (mLock) {
@@ -2602,10 +2624,12 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             if (!request.isSuccessful()) {
                 Slogf.w(TAG, "Failed to apply power policy, failure reason = %d",
                         request.getFailureReason());
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return getPolicyRequestError(requestId, request.getFailureReason());
             }
             if (request.isDeferred()) {
                 Slogf.i(TAG, "Applying power policy(%s) is deferred", policyId);
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return PolicyOperationStatus.OK;
             }
             CarPowerPolicy accumulatedPolicy = request.getAccumulatedPolicy();
@@ -2617,6 +2641,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             } else {
                 notifyPowerPolicyChange(accumulatedPolicy);
             }
+            Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
         } else {
             CarPowerPolicy policy = mPolicyReader.getPowerPolicy(policyId);
             if (policy == null) {
@@ -2769,6 +2794,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
         Slogf.i(TAG, "Power policy change to %s is notified to apps", policyId);
         mBroadcastHandler.post(() -> {
+            Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "notifyPowerPolicyChange");
             int idx = mPowerPolicyListeners.beginBroadcast();
 
             while (idx-- > 0) {
@@ -2786,6 +2812,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 }
             }
             mPowerPolicyListeners.finishBroadcast();
+            Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
         });
     }
 
@@ -2814,9 +2841,13 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void connectToPowerPolicyDaemon() {
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "connectToPowerPolicyDaemon",
+                /* cookie= */ 0);
         synchronized (mLock) {
             android.os.IInterface powerPolicyDaemon = getPowerPolicyDaemonLocked();
             if (powerPolicyDaemon != null || mConnectionInProgress) {
+                Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE,
+                        "connectToPowerPolicyDaemon", /* cookie= */ 0);
                 return;
             }
             mConnectionInProgress = true;
@@ -2831,11 +2862,15 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             }
             Slogf.e(TAG, "Cannot reconnect to car power policyd daemon after retrying %d times",
                     CAR_POWER_POLICY_DAEMON_BIND_MAX_RETRY);
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "connectToPowerPolicyDaemon",
+                    /* cookie= */ 0);
             return;
         }
         if (makeBinderConnection()) {
             Slogf.i(TAG, "Connected to car power policy daemon");
             initializePowerPolicy();
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "connectToPowerPolicyDaemon",
+                    /* cookie= */ 0);
             return;
         }
         final int numRetry = retryCount - 1;
@@ -3925,42 +3960,55 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      * Utility method to help with memory freeing before entering Suspend-To-Disk
      */
     private void freeMemory() {
-        ActivityManagerHelper.killAllBackgroundProcesses();
-        if (!mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
-            return;
-        }
-        List<ActivityManager.RunningAppProcessInfo> allRunningAppProcesses =
-                ActivityManagerHelper.getRunningAppProcesses();
-        ArraySet<Integer> safeUids = new ArraySet<>();
-        ArraySet<String> suspendToDiskAllowList = getS2dAllowList();
-        int suspendToDiskImportanceLevel = getS2dImportanceLevel();
-        for (int i = 0; i < allRunningAppProcesses.size(); i++) {
-            ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
-            boolean isCarServiceOrMyPid = ICarImpl.class.getPackage().getName()
-                    .equals(info.processName)
-                    || info.pid == android.os.Process.myPid();
-            boolean isSystemOrShellUid = info.uid == Process.SYSTEM_UID
-                    || info.uid == Process.SHELL_UID;
-            boolean isProcessPersistent = (ActivityManagerHelper
-                    .getFlagsForRunningAppProcessInfo(info)
-                    & ActivityManagerHelper.PROCESS_INFO_PERSISTENT_FLAG) != 0;
-            boolean isWithinConfig = suspendToDiskImportanceLevel > info.importance;
-            boolean isProcessAllowListed = suspendToDiskAllowList.contains(info.processName);
-            if (isCarServiceOrMyPid || isSystemOrShellUid || isProcessPersistent
-                    || isWithinConfig || isProcessAllowListed) {
-                safeUids.add(info.uid);
+        try {
+            Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "freeMemory");
+            ActivityManagerHelper.killAllBackgroundProcesses();
+            if (!mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
+                return;
             }
-        }
-
-        for (int i = 0; i < allRunningAppProcesses.size(); i++) {
-            ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
-            if (!safeUids.contains(info.uid)) {
-                for (int j = 0; j < info.pkgList.length; j++) {
-                    String pkgToStop = info.pkgList[j];
-                    PackageManagerHelper.forceStopPackageAsUser(mContext, pkgToStop,
-                            UserManagerHelper.USER_ALL);
+            int suspendToDiskImportanceLevel = getS2dImportanceLevel();
+            switch (suspendToDiskImportanceLevel) {
+                case ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE:
+                    return;
+                case ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED:
+                    ActivityManagerHelper.killAllBackgroundProcesses();
+                    return;
+            }
+            List<ActivityManager.RunningAppProcessInfo> allRunningAppProcesses =
+                    ActivityManagerHelper.getRunningAppProcesses();
+            ArraySet<Integer> safeUids = new ArraySet<>();
+            ArraySet<String> suspendToDiskAllowList = getS2dAllowList();
+            for (int i = 0; i < allRunningAppProcesses.size(); i++) {
+                ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
+                boolean isCarServiceOrMyPid = ICarImpl.class.getPackage().getName()
+                        .equals(info.processName)
+                        || info.pid == android.os.Process.myPid();
+                boolean isSystemOrShellUid = info.uid == Process.SYSTEM_UID
+                        || info.uid == Process.SHELL_UID;
+                boolean isProcessPersistent = (ActivityManagerHelper
+                        .getFlagsForRunningAppProcessInfo(info)
+                        & ActivityManagerHelper.PROCESS_INFO_PERSISTENT_FLAG) != 0;
+                boolean isWithinConfig = suspendToDiskImportanceLevel > info.importance;
+                boolean isProcessAllowListed = suspendToDiskAllowList.contains(info.processName);
+                if (isCarServiceOrMyPid || isSystemOrShellUid || isProcessPersistent
+                        || isWithinConfig || isProcessAllowListed) {
+                    safeUids.add(info.uid);
                 }
             }
+
+            for (int i = 0; i < allRunningAppProcesses.size(); i++) {
+                ActivityManager.RunningAppProcessInfo info = allRunningAppProcesses.get(i);
+                if (!safeUids.contains(info.uid)) {
+                    for (int j = 0; j < info.pkgList.length; j++) {
+                        String pkgToStop = info.pkgList[j];
+                        PackageManagerHelper.forceStopPackageAsUser(mContext, pkgToStop,
+                                UserManagerHelper.USER_ALL);
+                    }
+                }
+            }
+        } finally {
+            Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
         }
     }
 
