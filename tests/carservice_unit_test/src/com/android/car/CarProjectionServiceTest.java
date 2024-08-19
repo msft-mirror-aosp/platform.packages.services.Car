@@ -424,7 +424,7 @@ public class CarProjectionServiceTest {
             int freq = expectedWifiChannels.get(i);
             wifiAvailableChannels.add(new WifiAvailableChannel(freq, OP_MODE_SAP));
         }
-        when(mWifiManager.getAllowedChannels(anyInt(), anyInt())).thenReturn(wifiAvailableChannels);
+        when(mWifiManager.getUsableChannels(anyInt(), anyInt())).thenReturn(wifiAvailableChannels);
         when(mContext.getSystemService(WifiManager.class)).thenReturn(mWifiManager);
 
         int[] wifiChannels = mService.getAvailableWifiChannels(WifiScanner.WIFI_BAND_BOTH_WITH_DFS);
