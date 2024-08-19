@@ -16,22 +16,15 @@
 
 package com.android.systemui;
 
-import android.content.Context;
-
-import com.android.systemui.dagger.GlobalRootComponent;
-
+import dagger.Binds;
+import dagger.Module;
 
 /**
- * Class factory to provide AAECarSystemUI specific SystemUI components.
+ * Dagger module for including the CarUiDistantDisplaySysUIComponent.
  */
-public class DistantDisplaySystemUIInitializer extends CarSystemUIInitializer {
-    public DistantDisplaySystemUIInitializer(Context context) {
-        super(context);
-    }
-
-    @Override
-    protected GlobalRootComponent.Builder getGlobalRootComponentBuilder() {
-        return DaggerGlobalRootComponent.builder();
-    }
-
+@Module(subcomponents = {CarDistantDisplaySysUIComponent.class})
+public abstract class CarDistantDisplaySysUIComponentModule {
+    @Binds
+    abstract CarGlobalRootComponent bindSystemUIRootComponent(
+            CarDistantDisplayGlobalRootComponent systemUIRootComponent);
 }

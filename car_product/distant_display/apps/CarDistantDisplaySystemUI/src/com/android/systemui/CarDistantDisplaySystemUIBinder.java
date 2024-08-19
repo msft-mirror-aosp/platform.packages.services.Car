@@ -27,7 +27,7 @@ import dagger.multibindings.IntoMap;
 
 /** Binder for AAECarSystemUI specific {@link CoreStartable} modules and components. */
 @Module(includes = {ActivityWindowModule.class, DistantDisplayQuickControlsModule.class})
-abstract class SystemUIBinder extends CarSystemUIBinder {
+abstract class CarDistantDisplaySystemUIBinder extends CarSystemUIBinder {
 
     @Binds
     @IntoMap

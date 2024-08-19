@@ -18,6 +18,7 @@ package com.android.systemui;
 
 import com.android.systemui.car.dagger.CarGlobalModule;
 import com.android.systemui.dagger.GlobalModule;
+import com.android.systemui.wmshell.CarDistantDisplayWMComponent;
 
 import dagger.Component;
 
@@ -31,14 +32,20 @@ import javax.inject.Singleton;
         modules = {
                 GlobalModule.class,
                 CarGlobalModule.class,
-                SysUIComponentModule.class
+                CarDistantDisplaySysUIComponentModule.class
         })
-interface GlobalRootComponent extends CarGlobalRootComponent {
+interface CarDistantDisplayGlobalRootComponent extends CarGlobalRootComponent {
     @Component.Builder
     interface Builder extends CarGlobalRootComponent.Builder {
-        GlobalRootComponent build();
+        CarDistantDisplayGlobalRootComponent build();
     }
 
+    /**
+     * Builder for a WMComponent.
+     */
     @Override
-    SysUIComponent.Builder getSysUIComponent();
+    CarDistantDisplayWMComponent.Builder getWMComponentBuilder();
+
+    @Override
+    CarDistantDisplaySysUIComponent.Builder getSysUIComponent();
 }

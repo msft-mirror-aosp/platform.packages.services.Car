@@ -25,10 +25,10 @@ import android.content.Context;
  *
  * @see SystemUIAppComponentFactoryBase
  */
-public class SystemUIAppComponentFactory extends
+public class CarDistantDisplaySystemUIAppComponentFactory extends
         SystemUIAppComponentFactoryBase {
     @Override
     protected SystemUIInitializer createSystemUIInitializer(Context context) {
-        return new DistantDisplaySystemUIInitializer(context);
+        return new CarDistantDisplaySystemUIInitializer(context);
     }
 }
