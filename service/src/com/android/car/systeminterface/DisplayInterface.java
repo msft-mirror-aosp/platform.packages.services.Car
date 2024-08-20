@@ -217,7 +217,7 @@ public interface DisplayInterface {
             }
         };
 
-        DefaultImpl(Context context, WakeLockInterface wakeLockInterface, Settings settings,
+        public DefaultImpl(Context context, WakeLockInterface wakeLockInterface, Settings settings,
                 DisplayHelperInterface displayHelper, CurrentUserFetcher currentUserFetcher) {
             mContext = context;
             mDisplayManager = context.getSystemService(DisplayManager.class);
