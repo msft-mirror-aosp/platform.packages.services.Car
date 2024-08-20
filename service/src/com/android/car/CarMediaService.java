@@ -1123,6 +1123,18 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
         public void onPlaybackStateChanged(PlaybackState state) {
             savePlaybackState(state, mUserId);
         }
+
+        // Media Controller should be cleared for the active media source,
+        // allowing for its recreation during the next session.
+        @Override
+        public void onSessionDestroyed() {
+            synchronized (mLock) {
+                UserMediaPlayContext userMediaPlayContext = mUserMediaPlayContexts.get(
+                        mUserId, null
+                );
+                clearActiveMediaControllerLocked(userMediaPlayContext);
+            }
+        }
     }
 
     private class SessionChangedListener implements OnActiveSessionsChangedListener {
@@ -1239,7 +1251,10 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
 
             for (MediaSession.Token token : mCallbacks.keySet()) {
                 if (!updatedCallbacks.containsKey(token)) {
-                    mCallbacks.get(token).unregister();
+                    MediaControllerCallback callback = mCallbacks.get(token);
+                    if (callback != null) {
+                        callback.unregister();
+                    }
                 }
             }
 
@@ -1619,11 +1634,7 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
         if (userMediaPlayContext.mPrimaryMediaComponents[MEDIA_SOURCE_MODE_PLAYBACK] == null) {
             return;
         }
-        if (userMediaPlayContext.mActiveMediaController != null) {
-            userMediaPlayContext.mActiveMediaController.unregisterCallback(
-                    userMediaPlayContext.mMediaControllerCallback);
-            userMediaPlayContext.mActiveMediaController = null;
-        }
+        clearActiveMediaControllerLocked(userMediaPlayContext);
         for (MediaController controller : mediaControllers) {
             if (matchPrimaryMediaSource(controller.getPackageName(), getClassName(controller),
                     MEDIA_SOURCE_MODE_PLAYBACK, userId)) {
@@ -1639,6 +1650,22 @@ public final class CarMediaService extends ICarMedia.Stub implements CarServiceB
                 return;
             }
         }
+    }
+
+    @GuardedBy("mLock")
+    private void clearActiveMediaControllerLocked(
+            @Nullable UserMediaPlayContext userMediaPlayContext) {
+        if (userMediaPlayContext == null) {
+            Slogf.w(TAG, "Can't clear active media controller, media context is null");
+            return;
+        }
+        if (userMediaPlayContext.mActiveMediaController == null) {
+            Slogf.w(TAG, "Can't clear active media controller, it is null");
+            return;
+        }
+        userMediaPlayContext.mActiveMediaController.unregisterCallback(
+                userMediaPlayContext.mMediaControllerCallback);
+        userMediaPlayContext.mActiveMediaController = null;
     }
 
     /**

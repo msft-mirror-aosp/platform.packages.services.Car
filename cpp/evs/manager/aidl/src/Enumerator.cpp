@@ -110,7 +110,7 @@ std::shared_ptr<IEvsEnumerator> Enumerator::connectToAidlHal(
         LOG(WARNING) << "Failed to register a device status callback";
     }
 
-    return std::move(service);
+    return service;
 }
 
 std::shared_ptr<IEvsEnumerator> Enumerator::connectToHidlHal(
@@ -122,7 +122,7 @@ std::shared_ptr<IEvsEnumerator> Enumerator::connectToHidlHal(
         return nullptr;
     }
 
-    return std::move(::ndk::SharedRefBase::make<AidlEnumerator>(service));
+    return ::ndk::SharedRefBase::make<AidlEnumerator>(service);
 }
 
 bool Enumerator::init(const std::string_view& hardwareServiceName) {

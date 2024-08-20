@@ -343,5 +343,5 @@ std::set<uint32_t> VideoCapture::enumerateCameraControls() {
         PLOG(WARNING) << "Failed to run VIDIOC_QUERYCTRL";
     }
 
-    return std::move(ctrlIDs);
+    return ctrlIDs;
 }
