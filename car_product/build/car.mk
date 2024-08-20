@@ -144,6 +144,7 @@ PRODUCT_PACKAGES += \
     CarService \
     CarShell \
     CarDialerApp \
+    CarDocumentsUI \
     CarRadioApp \
     OverviewApp \
     CarLauncher \
