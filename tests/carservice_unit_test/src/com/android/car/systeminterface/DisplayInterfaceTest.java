@@ -69,7 +69,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.ArrayList;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(MockitoJUnitRunner.Silent.class)
 public final class DisplayInterfaceTest {
 
     private static final int MAIN_DISPLAY_ID = Display.DEFAULT_DISPLAY;
@@ -462,6 +462,55 @@ public final class DisplayInterfaceTest {
         // Because the brightness event is caused by VHAL, so we must ignore it
         // and not report back to VHAL again.
         verify(mCarPowerManagementService, never()).sendDisplayBrightness(anyInt(), anyInt());
+    }
+
+    @Test
+    @EnableFlags(FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL)
+    public void testIsAnyDisplayEnabled_on_beforeStartMonitoring() {
+        when(mDisplayManager.getDisplays()).thenReturn(new Display[]{
+                mDisplay, mDistantDisplay, mVirtualDisplay, mOverlayDisplay});
+        when(mDisplay.getState()).thenReturn(Display.STATE_ON);
+        when(mDistantDisplay.getState()).thenReturn(Display.STATE_OFF);
+        when(mDisplayManager.getBrightness(MAIN_DISPLAY_ID)).thenReturn(
+                DISPLAY_MANAGER_BRIGHTNESS_1);
+        when(mDisplayManager.getBrightness(DISTANT_DISPLAY_ID)).thenReturn(
+                DISPLAY_MANAGER_BRIGHTNESS_2);
+
+        createDisplayInterface(/* visibleBgUsersSupported= */ true);
+
+        assertThat(mDisplayInterface.isAnyDisplayEnabled()).isTrue();
+    }
+
+    @Test
+    @EnableFlags(FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL)
+    public void testIsAnyDisplayEnabled_off_beforeStartMonitoring() {
+        when(mDisplayManager.getDisplays()).thenReturn(new Display[]{
+                mDisplay, mDistantDisplay, mVirtualDisplay, mOverlayDisplay});
+        when(mDisplay.getState()).thenReturn(Display.STATE_OFF);
+        when(mDistantDisplay.getState()).thenReturn(Display.STATE_OFF);
+        when(mDisplayManager.getBrightness(MAIN_DISPLAY_ID)).thenReturn(
+                DISPLAY_MANAGER_BRIGHTNESS_1);
+        when(mDisplayManager.getBrightness(DISTANT_DISPLAY_ID)).thenReturn(
+                DISPLAY_MANAGER_BRIGHTNESS_2);
+
+        createDisplayInterface(/* visibleBgUsersSupported= */ true);
+
+        assertThat(mDisplayInterface.isAnyDisplayEnabled()).isFalse();
+    }
+
+    @Test
+    @EnableFlags(FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL)
+    public void testSetAllDisplayState_beforeStartMonitoring() {
+        when(mDisplayManager.getDisplays()).thenReturn(new Display[]{
+                mDisplay, mDistantDisplay, mVirtualDisplay, mOverlayDisplay});
+        when(mCarPowerManagementService.canTurnOnDisplay(anyInt())).thenReturn(true);
+
+        createDisplayInterface(/* visibleBgUsersSupported= */ true);
+
+        mDisplayInterface.setAllDisplayState(true);
+
+        verify(mWakeLockInterface).switchToFullWakeLock(MAIN_DISPLAY_ID);
+        verify(mWakeLockInterface).switchToFullWakeLock(DISTANT_DISPLAY_ID);
     }
 
     private void createDisplayInterface(boolean visibleBgUsersSupported) {
