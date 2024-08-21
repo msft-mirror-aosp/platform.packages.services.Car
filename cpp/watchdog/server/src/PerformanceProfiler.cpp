@@ -219,17 +219,26 @@ std::string UserPackageStats::toString(MetricType metricsType,
 
 std::string UserPackageStats::toString(int64_t totalValue) const {
     std::string buffer;
+    int64_t totalProcessTimeMs = 0;
     auto procCpuStatsView = std::get_if<UserPackageStats::ProcCpuStatsView>(&statsView);
     if (procCpuStatsView != nullptr) {
+        // Sometimes, the CPU time used by a specific process (reported in /proc/<pid>/stat) is
+        // higher than the total CPU time used by all processes belonging to the same UID (reported
+        // in /proc/uid_cputime/show_uid_stat). This can happen if the UID only has one process
+        // running. The reason is likely a difference in how the kernel calculates and reports CPU
+        // usage in these two places. To ensure accuracy, use the higher of the two reported total
+        // CPU times when calculating percentage.
+        for (const auto& processCpuValue : procCpuStatsView->topNProcesses) {
+            totalProcessTimeMs += processCpuValue.cpuTimeMs;
+        }
+        totalProcessTimeMs = std::max(totalProcessTimeMs, procCpuStatsView->cpuTimeMs);
         StringAppendF(&buffer, "%" PRIu32 ", %s, %" PRIu64 ", %.2f%%, %" PRIu64 "\n",
-                      multiuser_get_user_id(uid), genericPackageName.c_str(),
-                      procCpuStatsView->cpuTimeMs,
-                      percentage(procCpuStatsView->cpuTimeMs, totalValue),
-                      procCpuStatsView->cpuCycles);
+                      multiuser_get_user_id(uid), genericPackageName.c_str(), totalProcessTimeMs,
+                      percentage(totalProcessTimeMs, totalValue), procCpuStatsView->cpuCycles);
         for (const auto& processCpuValue : procCpuStatsView->topNProcesses) {
             StringAppendF(&buffer, "\t%s, %" PRIu64 ", %.2f%%, %" PRIu64 "\n",
                           processCpuValue.comm.c_str(), processCpuValue.cpuTimeMs,
-                          percentage(processCpuValue.cpuTimeMs, procCpuStatsView->cpuTimeMs),
+                          percentage(processCpuValue.cpuTimeMs, totalProcessTimeMs),
                           processCpuValue.cpuCycles);
         }
         return buffer;
