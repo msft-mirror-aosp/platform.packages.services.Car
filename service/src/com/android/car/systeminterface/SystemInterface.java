@@ -128,13 +128,8 @@ public class SystemInterface implements ActivityManagerInterface,
     }
 
     @Override
-    public void setDisplayBrightness(int brightness) {
-        mDisplayInterface.setDisplayBrightness(brightness);
-    }
-
-    @Override
-    public void setDisplayBrightness(int displayId, int brightness) {
-        mDisplayInterface.setDisplayBrightness(displayId, brightness);
+    public void onDisplayBrightnessChangeFromVhal(int displayId, int brightness) {
+        mDisplayInterface.onDisplayBrightnessChangeFromVhal(displayId, brightness);
     }
 
     @Override
@@ -226,8 +221,8 @@ public class SystemInterface implements ActivityManagerInterface,
     }
 
     @Override
-    public void refreshDisplayBrightness() {
-        mDisplayInterface.refreshDisplayBrightness();
+    public void refreshDefaultDisplayBrightness() {
+        mDisplayInterface.refreshDefaultDisplayBrightness();
     }
 
     @Override

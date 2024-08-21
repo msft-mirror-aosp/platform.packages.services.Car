@@ -1407,10 +1407,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         }
 
         @Override
-        public void setDisplayBrightness(int brightness) {}
-
-        @Override
-        public void setDisplayBrightness(int displayId, int brightness) {}
+        public void onDisplayBrightnessChangeFromVhal(int displayId, int percentBright) {}
 
         @Override
         public void setDisplayState(int displayId, boolean on) {
@@ -1485,7 +1482,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         public void stopDisplayStateMonitoring() {}
 
         @Override
-        public void refreshDisplayBrightness() {}
+        public void refreshDefaultDisplayBrightness() {}
 
         @Override
         public void refreshDisplayBrightness(int displayId) {}
