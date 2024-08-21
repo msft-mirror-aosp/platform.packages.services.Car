@@ -171,6 +171,8 @@ public interface DisplayInterface {
         private CarUserService mCarUserService;
         @GuardedBy("mLock")
         private final SparseBooleanArray mDisplayStateSet = new SparseBooleanArray();
+        @GuardedBy("mLock")
+        private boolean mDisplayStateInitiated;
         private final UserManager mUserManager;
         // A FIFO queue that stores the brightness value we recently set to DisplayManagerHelper in
         // a short time frame.
@@ -195,6 +197,11 @@ public interface DisplayInterface {
         private final DisplayManager.DisplayListener mDisplayListener = new DisplayListener() {
             @Override
             public void onDisplayAdded(int displayId) {
+                // If in rare case, this is called before initDisplayStateOnce is called, init here.
+                if (initDisplayStateOnce()) {
+                    return;
+                }
+
                 Slogf.i(TAG, "onDisplayAdded: displayId=%d", displayId);
                 synchronized (mLock) {
                     boolean isDisplayOn = isDisplayOn(displayId);
@@ -204,6 +211,11 @@ public interface DisplayInterface {
 
             @Override
             public void onDisplayRemoved(int displayId) {
+                // If in rare case, this is called before initDisplayStateOnce is called, init here.
+                if (initDisplayStateOnce()) {
+                    return;
+                }
+
                 Slogf.i(TAG, "onDisplayRemoved: displayId=%d", displayId);
                 synchronized (mLock) {
                     mDisplayStateSet.delete(displayId);
@@ -212,6 +224,11 @@ public interface DisplayInterface {
 
             @Override
             public void onDisplayChanged(int displayId) {
+                // If in rare case, this is called before initDisplayStateOnce is called, init here.
+                if (initDisplayStateOnce()) {
+                    return;
+                }
+
                 Slogf.i(TAG, "onDisplayChanged: displayId=%d", displayId);
                 handleDisplayChanged(displayId);
             }
@@ -227,14 +244,6 @@ public interface DisplayInterface {
             mSettings = settings;
             mDisplayHelper = displayHelper;
             mCurrentUserFetcher = currentUserFetcher;
-            synchronized (mLock) {
-                for (Display display : mDisplayManager.getDisplays()) {
-                    int displayId = display.getDisplayId();
-                    boolean isDisplayOn = isDisplayOn(displayId);
-                    mDisplayStateSet.put(displayId, isDisplayOn);
-                    Slogf.d(TAG, "Initial display state: " + displayId + "=" + isDisplayOn);
-                }
-            }
             mUserManager = context.getSystemService(UserManager.class);
             mUserLifecycleListener = event -> {
                 if (!isEventOfType(TAG, event, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) {
@@ -396,6 +405,7 @@ public interface DisplayInterface {
                                 System.SCREEN_BRIGHTNESS), false, mBrightnessObserver);
             }
 
+            initDisplayStateOnce();
             refreshAllDisplaysBrightness();
         }
 
@@ -443,11 +453,9 @@ public interface DisplayInterface {
 
         @Override
         public void setAllDisplayState(boolean on) {
-            IntArray displayIds = new IntArray();
+            IntArray displayIds;
             synchronized (mLock) {
-                for (int i = 0; i < mDisplayStateSet.size(); i++) {
-                    displayIds.add(mDisplayStateSet.keyAt(i));
-                }
+                displayIds = getDisplayIdsLocked();
             }
             // setDisplayState has a binder call to system_server. Should not wrap setDisplayState
             // with a lock.
@@ -464,8 +472,9 @@ public interface DisplayInterface {
         @Override
         public boolean isAnyDisplayEnabled() {
             synchronized (mLock) {
-                for (int i = 0; i < mDisplayStateSet.size(); i++) {
-                    if (isDisplayEnabled(mDisplayStateSet.keyAt(i))) {
+                IntArray displayIds = getDisplayIdsLocked();
+                for (int i = 0; i < displayIds.size(); i++) {
+                    if (isDisplayEnabled(displayIds.get(i))) {
                         return true;
                     }
                 }
@@ -476,6 +485,41 @@ public interface DisplayInterface {
         @Override
         public boolean isDisplayEnabled(int displayId) {
             return isDisplayOn(displayId);
+        }
+
+        // Gets the initial display state (on/off) if not already initiated.
+        // Returns true if this is the first init.
+        private boolean initDisplayStateOnce() {
+            synchronized (mLock) {
+                if (mDisplayStateInitiated) {
+                    return false;
+                }
+                for (Display display : mDisplayManager.getDisplays()) {
+                    int displayId = display.getDisplayId();
+                    boolean isDisplayOn = isDisplayOn(displayId);
+                    mDisplayStateSet.put(displayId, isDisplayOn);
+                    Slogf.d(TAG, "Initial display state: " + displayId + "=" + isDisplayOn);
+                }
+                mDisplayStateInitiated = true;
+            }
+            return true;
+        }
+
+        @GuardedBy("mLock")
+        private IntArray getDisplayIdsLocked() {
+            IntArray displayIds = new IntArray();
+            if (mDisplayStateInitiated) {
+                for (int i = 0; i < mDisplayStateSet.size(); i++) {
+                    displayIds.add(mDisplayStateSet.keyAt(i));
+                }
+                return displayIds;
+            }
+            Slogf.d(TAG, "Display state not initiated yet, use displayManager");
+            for (Display display : mDisplayManager.getDisplays()) {
+                int displayId = display.getDisplayId();
+                displayIds.add(displayId);
+            }
+            return displayIds;
         }
 
         // When the driver users is updated, the brightness settings associated with the driver
