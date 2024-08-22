@@ -91,6 +91,9 @@
         <item>android.server.wm.cts/android.server.wm.animations.ActivityTransitionTests$EdgeExtensionActivity</item>
         <item>android.server.wm.cts/android.server.wm.animations.ActivityTransitionTests$CustomWindowAnimationActivity</item>
         <item>android.server.wm.cts/android.server.wm.animations.ActivityTransitionTests$TransitionActivity</item>
+        <!-- TODO(b/308859591): Remove activities from full screen config once proper solution
+            found. This is only a temporary solution for showing this activity in full screen. -->
+        <item>com.android.car.settings/com.android.car.settings.sound.AudioRouteSelectionActivity</item>
         <!-- END -->
     </string-array>
 

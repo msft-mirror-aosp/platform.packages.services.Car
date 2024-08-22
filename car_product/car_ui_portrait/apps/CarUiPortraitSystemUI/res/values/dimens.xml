@@ -128,4 +128,6 @@
     <dimen name="data_subscription_pop_up_button_width">240dp</dimen>
     <dimen name="data_subscription_pop_up_radius">48dp</dimen>
     <dimen name="data_subscription_pop_up_arrow_offset">116dp</dimen>
+
+    <dimen name="qc_row_bottom_divider_margin_top">0dp</dimen>
 </resources>
