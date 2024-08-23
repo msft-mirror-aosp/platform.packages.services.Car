@@ -39,57 +39,90 @@ public final class AudioFocusInfoBuilder {
     private boolean mDelayedFocusRequestEnabled;
     private boolean mPausesOnDuckRequestEnabled;
 
+    /**
+     * Set audio focus info usage
+     */
     public AudioFocusInfoBuilder setUsage(int usage) {
         mUsage = usage;
         return this;
     }
 
+    /**
+     * Set client UID info usage
+     */
     public AudioFocusInfoBuilder setClientUid(int clientUid) {
         mClientUid = clientUid;
         return this;
     }
 
+    /**
+     * Set audio focus info client ID
+     */
     public AudioFocusInfoBuilder setClientId(String clientId) {
         mClientId = clientId;
         return this;
     }
 
+    /**
+     * Set audio focus info package name
+     */
     public AudioFocusInfoBuilder setPackageName(String packageName) {
         mPackageName = packageName;
         return this;
     }
 
+    /**
+     * Set audio focus info gain request
+     */
     public AudioFocusInfoBuilder setGainRequest(int gainRequest) {
         mGainRequest = gainRequest;
         return this;
     }
 
+    /**
+     * Set audio focus info loss request
+     */
     public AudioFocusInfoBuilder setLossReceived(int lossReceived) {
         mLossReceived = lossReceived;
         return this;
     }
 
+    /**
+     * Set audio focus info sdk
+     */
     public AudioFocusInfoBuilder setSdk(int sdk) {
         mSdk = sdk;
         return this;
     }
 
+    /**
+     * Set audio focus info bundle
+     */
     public AudioFocusInfoBuilder setBundle(Bundle bundle) {
         mBundle = bundle;
         return this;
     }
 
+    /**
+     * Set whether delayed focus request should be enabled in audio focus info
+     */
     public AudioFocusInfoBuilder setDelayedFocusRequestEnable(boolean delayedFocusRequestEnabled) {
         mDelayedFocusRequestEnabled = delayedFocusRequestEnabled;
         return this;
     }
 
+    /**
+     * Set whether pause on duck should be enabled in audio focus info
+     */
     public AudioFocusInfoBuilder setPausesOnDuckRequestEnable(boolean pausesOnDuckRequestEnabled) {
         mPausesOnDuckRequestEnabled = pausesOnDuckRequestEnabled;
         return this;
     }
 
 
+    /**
+     * Build audio focus info
+     */
     public AudioFocusInfo createAudioFocusInfo() {
         AudioAttributes.Builder builder = new AudioAttributes.Builder();
         if (AudioAttributes.isSystemUsage(mUsage)) {
