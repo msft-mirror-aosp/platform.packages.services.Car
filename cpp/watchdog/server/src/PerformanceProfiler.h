@@ -185,7 +185,7 @@ struct UserPackageSummaryStats {
 };
 
 // TODO(b/268402964): Calculate the total CPU cycles using the per-UID BPF tool.
-// System performance stats collected from the `/proc/stats` file.
+// System performance stats collected from the `/proc/stat` file.
 struct SystemSummaryStats {
     int64_t cpuIoWaitTimeMillis = 0;
     int64_t cpuIdleTimeMillis = 0;
@@ -246,6 +246,7 @@ public:
           mWakeUpCollection({}),
           mCustomCollection({}),
           mLastMajorFaults(0),
+          mKernelStartTimeEpochSeconds(0),
           mDoSendResourceUsageStats(false),
           mMemoryPressureLevelDeltaInfo(PressureLevelDeltaInfo(getElapsedTimeSinceBootMillisFunc)) {
     }
@@ -364,7 +365,7 @@ private:
                     uidResourceUsageStats,
             UserPackageSummaryStats* userPackageSummaryStats);
 
-    // Processes system performance data from the `/proc/stats` file.
+    // Processes system performance data from the `/proc/stat` file.
     void processProcStatLocked(const android::sp<ProcStatCollectorInterface>& procStatCollector,
                                SystemSummaryStats* systemSummaryStats) const;
 
@@ -438,6 +439,9 @@ private:
     // Major faults delta from last collection. Useful when calculating the percentage change in
     // major faults since last collection.
     uint64_t mLastMajorFaults GUARDED_BY(mMutex);
+
+    // Boot start time collected from /proc/stat.
+    time_t mKernelStartTimeEpochSeconds GUARDED_BY(mMutex);
 
     // Enables the sending of resource usage stats to CarService.
     bool mDoSendResourceUsageStats GUARDED_BY(mMutex);
