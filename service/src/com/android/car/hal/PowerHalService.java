@@ -413,32 +413,6 @@ public class PowerHalService extends HalServiceBase {
     }
 
     /**
-     * Sets the display brightness for the vehicle.
-     * @param brightness value from 0 to 100.
-     */
-    public void sendDisplayBrightnessLegacy(int brightness) {
-        // This method should not be called if multiDisplayBrightnessControl is enabled.
-        Slogf.i(CarLog.TAG_POWER, "brightness from system: " + brightness);
-
-        int brightnessToSet = adjustBrightness(brightness, /* minBrightness= */ 0,
-                /* maxBrightness= */ MAX_BRIGHTNESS);
-
-        synchronized (mLock) {
-            if (mProperties.get(DISPLAY_BRIGHTNESS) == null) {
-                return;
-            }
-            if (mPerDisplayBrightnessSupported) {
-                Slogf.e(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is supported and "
-                        + "sendDisplayBrightness(int displayId, int brightness) should be used "
-                        + "instead of sendDisplayBrightnessLegacy");
-                return;
-            }
-        }
-
-        setGlobalBrightness(brightnessToSet);
-    }
-
-    /**
      * Received display brightness change event.
      * @param displayId the display id.
      * @param brightness in percentile. 100% full.
