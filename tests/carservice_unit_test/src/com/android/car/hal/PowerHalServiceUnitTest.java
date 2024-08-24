@@ -604,6 +604,27 @@ public final class PowerHalServiceUnitTest {
     }
 
     @Test
+    public void testSendDisplayBrightnessPerDisplay_outOfRange() {
+        int displayId, displayPort;
+        displayId = displayPort = 2;
+        Display display = createMockDisplay(displayId, displayPort);
+        when(mDisplayManager.getDisplays()).thenReturn(new Display[]{display});
+        when(mDisplayManager.getDisplay(displayId)).thenReturn(display);
+
+        int brightnessToSet = 101;
+        HalPropValueBuilder propValueBuilder = new HalPropValueBuilder(/*isAidl=*/true);
+        HalPropValue message = propValueBuilder.build(VehicleProperty.PER_DISPLAY_BRIGHTNESS,
+                /* areaId= */ 0, new int[]{displayPort, 100});
+        when(mHal.getHalPropValueBuilder()).thenReturn(propValueBuilder);
+
+        setupVhalSupportPerDisplayBrightnessOnly();
+
+        mPowerHalService.sendDisplayBrightness(displayId, brightnessToSet);
+
+        verify(mHal).set(eq(message));
+    }
+
+    @Test
     public void testSendDisplayBrightnessPerDisplay_non100MaxBrightness() {
         mFakeFeatureFlags.setFlag(Flags.FLAG_PER_DISPLAY_MAX_BRIGHTNESS, true);
 
@@ -659,6 +680,38 @@ public final class PowerHalServiceUnitTest {
 
         // If only global brightness is supported, any set request will set the global brightness.
         verify(propValueSetter).to(41);
+    }
+
+    @Test
+    public void testSendDisplayBrightnessPerDisplay_perDisplayBrightnessNotSupported_non100Max() {
+        mFakeFeatureFlags.setFlag(Flags.FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL, true);
+        setupVhalSupportGlobalBrightnessOnly(/* maxValue= */ 200);
+
+        VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
+        when(mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0))
+                .thenReturn(propValueSetter);
+        int brightnessToSet = 41;
+
+        mPowerHalService.sendDisplayBrightness(/* displayId= */ 2, brightnessToSet);
+
+        // If only global brightness is supported, any set request will set the global brightness.
+        verify(propValueSetter).to(82);
+    }
+
+    @Test
+    public void testSendDisplayBrightnessPerDisplay_perDisplayBrightnessNotSupported_outOfRange() {
+        mFakeFeatureFlags.setFlag(Flags.FLAG_MULTI_DISPLAY_BRIGHTNESS_CONTROL, true);
+        setupVhalSupportGlobalBrightnessOnly(/* maxValue= */ 100);
+
+        VehicleHal.HalPropValueSetter propValueSetter = mock(VehicleHal.HalPropValueSetter.class);
+        when(mHal.set(VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 0))
+                .thenReturn(propValueSetter);
+        int brightnessToSet = 101;
+
+        mPowerHalService.sendDisplayBrightness(/* displayId= */ 2, brightnessToSet);
+
+        // If only global brightness is supported, any set request will set the global brightness.
+        verify(propValueSetter).to(100);
     }
 
     @Test
@@ -851,9 +904,13 @@ public final class PowerHalServiceUnitTest {
     }
 
     private void setupVhalSupportGlobalBrightnessOnly() {
+        setupVhalSupportGlobalBrightnessOnly(/* maxValue= */ 100);
+    }
+
+    private void setupVhalSupportGlobalBrightnessOnly(int maxValue) {
         AidlHalPropConfig config = new AidlHalPropConfig(
                 AidlVehiclePropConfigBuilder.newBuilder(DISPLAY_BRIGHTNESS)
-                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, /* maxValue= */ 100).build());
+                .addAreaConfig(/* areaId= */ 0, /* minValue= */ 0, maxValue).build());
         mPowerHalService.takeProperties(List.of(config));
         mPowerHalService.init();
         mPowerHalService.setListener(mEventListener);
