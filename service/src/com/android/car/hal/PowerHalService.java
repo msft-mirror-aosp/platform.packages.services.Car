@@ -480,10 +480,6 @@ public class PowerHalService extends HalServiceBase {
 
         int brightnessToSet = adjustBrightness(brightness, /* minBrightness= */ 0,
                 /* maxBrightness= */ MAX_BRIGHTNESS);
-        // Adjust brightness back from 0-100 back to 0-maxDisplayBrightness scale.
-        synchronized (mLock) {
-            brightnessToSet = brightnessToSet * mMaxDisplayBrightness / MAX_BRIGHTNESS;
-        }
 
         synchronized (mLock) {
             if (mProperties.get(DISPLAY_BRIGHTNESS) == null) {
@@ -523,11 +519,11 @@ public class PowerHalService extends HalServiceBase {
             }
             Slogf.w(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is not supported, always set the"
                     + " default display brightness");
-            setGlobalBrightness(brightness);
+            setGlobalBrightness(brightnessToSet);
             return;
         }
 
-        setBrightnessForDisplayId(displayId, brightness);
+        setBrightnessForDisplayId(displayId, brightnessToSet);
     }
 
     private void setBrightnessForDisplayId(int displayId, int brightness) {
@@ -558,7 +554,13 @@ public class PowerHalService extends HalServiceBase {
         }
     }
 
+    // The brightness is in 0-100 scale.
     private void setGlobalBrightness(int brightness) {
+        // Adjust brightness back from 0-100 back to 0-maxDisplayBrightness scale.
+        synchronized (mLock) {
+            brightness = brightness * mMaxDisplayBrightness / MAX_BRIGHTNESS;
+        }
+
         Slogf.i(CarLog.TAG_POWER, "brightness to VHAL: " + brightness);
         synchronized (mLock) {
             addRecentlySetBrightnessChangeLocked(brightness, GLOBAL_PORT);
