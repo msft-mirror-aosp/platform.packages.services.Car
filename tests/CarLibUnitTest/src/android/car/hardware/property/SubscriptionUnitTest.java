@@ -16,6 +16,7 @@
 
 package android.car.hardware.property;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
@@ -26,7 +27,22 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-public final class SubscriptionTest {
+public final class SubscriptionUnitTest {
+
+    @Test
+    public void testGetUpdateRateConstants() {
+        Subscription subscription = new Subscription.Builder(/* propertyId= */0).build();
+
+        assertThat(subscription.getUpdateRateUi()).isEqualTo(
+                CarPropertyManager.SENSOR_RATE_UI);
+        assertThat(subscription.getUpdateRateNormal()).isEqualTo(
+                CarPropertyManager.SENSOR_RATE_NORMAL);
+        assertThat(subscription.getUpdateRateFast()).isEqualTo(
+                CarPropertyManager.SENSOR_RATE_FAST);
+        assertThat(subscription.getUpdateRateFastest()).isEqualTo(
+                CarPropertyManager.SENSOR_RATE_FASTEST);
+    }
+
     @Test
     public void testBuilder_noUpdateRateSet() {
         Subscription.Builder builder = new Subscription.Builder(/* propertyId= */ 52);
