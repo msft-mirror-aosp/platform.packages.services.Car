@@ -19,6 +19,7 @@ package com.android.car.watchdog;
 import static android.car.watchdog.CarWatchdogManager.TIMEOUT_CRITICAL;
 import static android.car.watchdog.CarWatchdogManager.TIMEOUT_MODERATE;
 import static android.car.watchdog.CarWatchdogManager.TIMEOUT_NORMAL;
+import static android.car.watchdog.CarWatchdogManager.TimeoutLengthEnum;
 
 import static com.android.car.CarServiceUtils.getHandlerThread;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
@@ -191,7 +192,7 @@ public final class WatchdogProcessHandler {
     }
 
     /** Registers the client callback */
-    public void registerClient(ICarWatchdogServiceCallback client, int timeout) {
+    public void registerClient(ICarWatchdogServiceCallback client, @TimeoutLengthEnum int timeout) {
         synchronized (mLock) {
             ArrayList<ClientInfo> clients = mClientMap.get(timeout);
             if (clients == null) {
@@ -315,7 +316,7 @@ public final class WatchdogProcessHandler {
     }
 
     /** Returns the registered and alive client count. */
-    public int getClientCount(int timeout) {
+    public int getClientCount(@TimeoutLengthEnum int timeout) {
         synchronized (mLock) {
             ArrayList<ClientInfo> clients = mClientMap.get(timeout);
             return clients != null ? clients.size() : 0;
@@ -369,7 +370,7 @@ public final class WatchdogProcessHandler {
         Trace.endSection();
     }
 
-    private void onClientDeath(ICarWatchdogServiceCallback client, int timeout) {
+    private void onClientDeath(ICarWatchdogServiceCallback client, @TimeoutLengthEnum int timeout) {
         synchronized (mLock) {
             removeClientLocked(client.asBinder(), timeout);
         }
@@ -388,7 +389,7 @@ public final class WatchdogProcessHandler {
         Trace.endSection();
     }
 
-    private void analyzeClientResponse(int timeout) {
+    private void analyzeClientResponse(@TimeoutLengthEnum int timeout) {
         // Clients which are not responding are stored in mClientsNotResponding, and will be dumped
         // and killed at the next response of CarWatchdogService to car watchdog daemon.
         Trace.beginSection("WatchdogProcessHandler.analyzeClientResponse");
@@ -407,7 +408,7 @@ public final class WatchdogProcessHandler {
         Trace.endSection();
     }
 
-    private void sendPingToClients(int timeout) {
+    private void sendPingToClients(@TimeoutLengthEnum int timeout) {
         Trace.beginSection("WatchdogProcessHandler.sendPingToClients");
         ArrayList<ClientInfo> clientsToCheck;
         synchronized (mLock) {
@@ -442,7 +443,7 @@ public final class WatchdogProcessHandler {
         Trace.endSection();
     }
 
-    private void sendPingToClientsAndCheck(int timeout) {
+    private void sendPingToClientsAndCheck(@TimeoutLengthEnum int timeout) {
         synchronized (mLock) {
             if (mClientCheckInProgress.get(timeout)) {
                 return;
@@ -463,7 +464,7 @@ public final class WatchdogProcessHandler {
     }
 
     @GuardedBy("mLock")
-    private void removeClientLocked(IBinder clientBinder, int timeout) {
+    private void removeClientLocked(IBinder clientBinder, @TimeoutLengthEnum int timeout) {
         ArrayList<ClientInfo> clients = mClientMap.get(timeout);
         for (int i = 0; i < clients.size(); i++) {
             ClientInfo clientInfo = clients.get(i);
@@ -518,7 +519,7 @@ public final class WatchdogProcessHandler {
         return processIdentifiers;
     }
 
-    private String timeoutToString(int timeout) {
+    private String timeoutToString(@TimeoutLengthEnum int timeout) {
         switch (timeout) {
             case TIMEOUT_CRITICAL:
                 return "critical";
@@ -532,7 +533,7 @@ public final class WatchdogProcessHandler {
         }
     }
 
-    private long getTimeoutDurationMs(int timeout) {
+    private long getTimeoutDurationMs(@TimeoutLengthEnum int timeout) {
         if (mOverriddenClientHealthCheckWindowMs != MISSING_INT_PROPERTY_VALUE) {
             return mOverriddenClientHealthCheckWindowMs;
         }
@@ -554,12 +555,12 @@ public final class WatchdogProcessHandler {
         public final int pid;
         public final long startTimeMillis;
         @UserIdInt public final int userId;
-        public final int timeout;
+        @TimeoutLengthEnum public final int timeout;
         public volatile int sessionId;
         public String packageName;
 
         ClientInfo(ICarWatchdogServiceCallback client, int pid, @UserIdInt int userId,
-                int timeout) {
+                @TimeoutLengthEnum int timeout) {
             this.client = client;
             this.pid = pid;
             // CarService doesn't have sepolicy access to read per-pid proc files, so it cannot

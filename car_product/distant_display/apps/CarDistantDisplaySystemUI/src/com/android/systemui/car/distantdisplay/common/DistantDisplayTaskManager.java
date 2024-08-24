@@ -42,6 +42,7 @@ import com.android.car.apps.common.util.IntentUtils;
 import com.android.car.ui.utils.CarUxRestrictionsUtil;
 import com.android.systemui.R;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.car.CarDistantDisplayMediator;
 import com.android.systemui.car.distantdisplay.activity.DistantDisplayCompanionActivity;
 import com.android.systemui.car.distantdisplay.activity.DistantDisplayGameController;
 import com.android.systemui.car.distantdisplay.activity.MoveTaskReceiver;
@@ -65,15 +66,15 @@ import java.util.Objects;
 import javax.inject.Inject;
 
 /**
- * TaskView Controller that manages the implementation details for task views on a distant display.
+ * Distant Display Task Manager that manages the tasks on a distant display.
  * <p>
  * This is also a common class used between two different technical implementation where in one
  * TaskViews are hosted in a window created by systemUI Vs in another where TaskView are created
  * via an activity.
  */
 @SysUISingleton
-public class TaskViewController {
-    public static final String TAG = TaskViewController.class.getSimpleName();
+public class DistantDisplayTaskManager {
+    public static final String TAG = DistantDisplayTaskManager.class.getSimpleName();
     private static final boolean DEBUG = Build.IS_ENG || Build.IS_USERDEBUG;
     private static final int DEFAULT_DISPLAY_ID = 0;
     private static final int INVALID_TASK_ID = -1;
@@ -123,7 +124,8 @@ public class TaskViewController {
         public void onTaskMovedToFront(ActivityManager.RunningTaskInfo taskInfo) {
             logIfDebuggable("onTaskMovedToFront: displayId: " + taskInfo.displayId + ", " + taskInfo
                     + " token: " + taskInfo.token);
-            mForegroundTasks.put(taskInfo.taskId, taskInfo.displayId, taskInfo.baseIntent);
+            mForegroundTasks.put(taskInfo.taskId, taskInfo.displayId, taskInfo.baseIntent,
+                    taskInfo.token);
             if (taskInfo.displayId == DEFAULT_DISPLAY_ID) {
                 notifyListeners(DEFAULT_DISPLAY_ID);
             } else if (taskInfo.displayId == mDistantDisplayId) {
@@ -148,9 +150,9 @@ public class TaskViewController {
                 // the top of the same display, it should be handled by onTaskMovedToFront
                 if (oldData.mDisplayId == newDisplayId) return;
                 mForegroundTasks.remove(taskId);
-                mForegroundTasks.put(taskId, newDisplayId, oldData.mBaseIntent);
+                mForegroundTasks.put(taskId, newDisplayId, oldData.mBaseIntent, oldData.mToken);
             } else {
-                mForegroundTasks.put(taskId, newDisplayId, null);
+                mForegroundTasks.put(taskId, newDisplayId, null, null);
             }
 
             if (newDisplayId == DEFAULT_DISPLAY_ID || (oldData != null
@@ -175,12 +177,14 @@ public class TaskViewController {
     };
 
     @Inject
-    public TaskViewController(Context context, BroadcastDispatcher broadcastDispatcher,
+    public DistantDisplayTaskManager(Context context,
+            BroadcastDispatcher broadcastDispatcher,
+            CarDistantDisplayMediator carDistantDisplayMediator,
             UserTracker userTracker) {
-
         mContext = context;
         mBroadcastDispatcher = broadcastDispatcher;
         mUserTracker = userTracker;
+        carDistantDisplayMediator.setDistantDisplayTaskManager(this);
         mUserManager = context.getSystemService(UserManager.class);
         mInputManager = context.getSystemService(InputManager.class);
         mDisplayManager = context.getSystemService(DisplayManager.class);
@@ -297,8 +301,7 @@ public class TaskViewController {
         mDistantDisplayService = displayDisplayService;
     }
 
-    @VisibleForTesting
-    int getDistantDisplayId() {
+    public int getDistantDisplayId() {
         return mDistantDisplayId;
     }
 
@@ -473,6 +476,13 @@ public class TaskViewController {
                 callback.topAppOnDisplayChanged(displayId, componentName);
             }
         }
+    }
+
+    /**
+     * Return the top task on the distant display.
+     */
+    public TaskData getTopTaskOnDisplay(int displayId) {
+        return mForegroundTasks.getTopTaskOnDisplay(displayId);
     }
 
     /** Callback to listen to task changes on the default and distant displays. */
