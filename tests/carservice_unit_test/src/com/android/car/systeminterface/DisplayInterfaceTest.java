@@ -69,7 +69,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.ArrayList;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(MockitoJUnitRunner.Silent.class)
 public final class DisplayInterfaceTest {
 
     private static final int MAIN_DISPLAY_ID = Display.DEFAULT_DISPLAY;
