@@ -32,6 +32,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.dx.mockito.inline.extended.ExtendedMockito;
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.car.CarDistantDisplayMediator;
 import com.android.systemui.car.users.CarSystemUIUserUtil;
 import com.android.systemui.settings.UserTracker;
 
@@ -50,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 @SmallTest
-public class TaskViewControllerTest extends SysuiTestCase {
+public class DistantDisplayTaskManagerTest extends SysuiTestCase {
 
     private static final int DEFAULT_DISPLAY_ID = 0;
     private final UserHandle mUserHandle = UserHandle.of(1000);
@@ -66,8 +67,11 @@ public class TaskViewControllerTest extends SysuiTestCase {
     @Mock
     private DistantDisplayService mDistantDisplayService;
 
+    @Mock
+    private CarDistantDisplayMediator mCarDistantDisplayMediator;
 
-    private TaskViewController mTaskViewController;
+
+    private DistantDisplayTaskManager mDistantDisplayTaskManager;
 
     @Before
     public void setUp() {
@@ -78,11 +82,11 @@ public class TaskViewControllerTest extends SysuiTestCase {
                 .startMocking();
 
         when(mUserTracker.getUserHandle()).thenReturn(mUserHandle);
-        mTaskViewController = new TaskViewController(getContext(), mBroadcastDispatcher,
-                mUserTracker);
-        mTaskViewController.setDistantDisplayService(mDistantDisplayService);
+        mDistantDisplayTaskManager = new DistantDisplayTaskManager(getContext(),
+                mBroadcastDispatcher, mCarDistantDisplayMediator, mUserTracker);
+        mDistantDisplayTaskManager.setDistantDisplayService(mDistantDisplayService);
         // TODO: read the display id using DisplayManager
-        mTaskViewController.initialize(3);
+        mDistantDisplayTaskManager.initialize(3);
 
     }
 
@@ -108,31 +112,31 @@ public class TaskViewControllerTest extends SysuiTestCase {
 
     private void testLaunchOnDefaultDisplay() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        TaskViewController.Callback callback = createCallback(latch, DEFAULT_DISPLAY_ID);
+        DistantDisplayTaskManager.Callback callback = createCallback(latch, DEFAULT_DISPLAY_ID);
 
-        mTaskViewController.addCallback(callback);
+        mDistantDisplayTaskManager.addCallback(callback);
 
         Intent intent = new Intent(mContext, TestActivity.class);
         startActivity(mContext, intent);
 
         verifyCallbackCompletion(latch, "Callback timed out on default display");
 
-        mTaskViewController.removeCallback(callback);
+        mDistantDisplayTaskManager.removeCallback(callback);
         waitForIdleSync();
     }
 
     private void testMoveTaskOnDistantDisplay() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        TaskViewController.Callback callback = createCallback(latch,
-                mTaskViewController.getDistantDisplayId());
+        DistantDisplayTaskManager.Callback callback = createCallback(latch,
+                mDistantDisplayTaskManager.getDistantDisplayId());
 
-        mTaskViewController.addCallback(callback);
-        mTaskViewController.moveTaskToDistantDisplay();
+        mDistantDisplayTaskManager.addCallback(callback);
+        mDistantDisplayTaskManager.moveTaskToDistantDisplay();
 
         verifyCallbackCompletion(latch, "Callback timed out on distant display");
     }
 
-    private TaskViewController.Callback createCallback(CountDownLatch latch,
+    private DistantDisplayTaskManager.Callback createCallback(CountDownLatch latch,
             int expectedDisplayId) {
         return (displayId, componentName) -> {
             if (componentName == null) {
