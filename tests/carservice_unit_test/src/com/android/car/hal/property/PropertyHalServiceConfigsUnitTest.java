@@ -49,6 +49,7 @@ import com.android.car.hal.property.PropertyPermissionInfo.AllOfPermissions;
 import com.android.car.hal.property.PropertyPermissionInfo.AnyOfPermissions;
 import com.android.car.hal.property.PropertyPermissionInfo.PermissionCondition;
 import com.android.car.hal.property.PropertyPermissionInfo.PropertyPermissions;
+import com.android.car.hal.property.PropertyPermissionInfo.PropertyPermissionsBuilder;
 import com.android.car.hal.property.PropertyPermissionInfo.SinglePermission;
 
 import org.junit.Before;
@@ -466,7 +467,7 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         int halPropId = 2345;
         String propertyName = "PROP_NAME";
         String description = "DESCRIPTION";
-        var permissions =  new PropertyPermissions.Builder()
+        var permissions =  new PropertyPermissionsBuilder()
                 .setReadPermission(new AnyOfPermissions(
                         new SinglePermission("PERM1"),
                         new SinglePermission("PERM2")
@@ -512,7 +513,7 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         int halPropId = 1234;
         String propertyName = "PROP_NAME";
         String description = "DESCRIPTION";
-        PropertyPermissions permissions =  new PropertyPermissions.Builder()
+        PropertyPermissions permissions =  new PropertyPermissionsBuilder()
                 .setReadPermission(new SinglePermission("PERM1"))
                 .build();
 
@@ -550,7 +551,7 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         int halPropId = 1234;
         String propertyName = "PROP_NAME";
         String description = "DESCRIPTION";
-        PropertyPermissions permissions =  new PropertyPermissions.Builder()
+        PropertyPermissions permissions =  new PropertyPermissionsBuilder()
                 .setReadPermission(new SinglePermission("PERM1"))
                 .build();
         // Bit: 1111
