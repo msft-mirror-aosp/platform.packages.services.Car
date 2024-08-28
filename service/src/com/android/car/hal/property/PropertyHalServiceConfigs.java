@@ -18,6 +18,8 @@ package com.android.car.hal.property;
 
 import static android.car.Car.PERMISSION_VENDOR_EXTENSION;
 
+import static java.util.Objects.requireNonNull;
+
 import android.annotation.Nullable;
 import android.car.VehiclePropertyIds;
 import android.car.builtin.os.TraceHelper;
@@ -50,7 +52,6 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -77,58 +78,16 @@ public class PropertyHalServiceConfigs {
      * listed in {@code validBitFlag}.
      */
     @VisibleForTesting
-    /* package */ static final class CarSvcPropertyConfig {
-        public int propertyId;
-        public int halPropId;
-        public String propertyName;
-        public String description;
-        public PropertyPermissions permissions;
-        public Set<Integer> dataEnums;
-        public Integer validBitFlag;
-
-        @Override
-        public boolean equals(Object object) {
-            if (object == this) {
-                return true;
-            }
-            // instanceof will return false if object is null.
-            if (!(object instanceof CarSvcPropertyConfig)) {
-                return false;
-            }
-            CarSvcPropertyConfig other = (CarSvcPropertyConfig) object;
-            return (propertyId == other.propertyId
-                    && halPropId == other.halPropId
-                    && Objects.equals(propertyName, other.propertyName)
-                    && Objects.equals(description, other.description)
-                    && Objects.equals(permissions, other.permissions)
-                    && Objects.equals(dataEnums, other.dataEnums)
-                    && Objects.equals(validBitFlag, other.validBitFlag));
+    /* package */ record CarSvcPropertyConfig(
+            int propertyId, int halPropId, String propertyName, String description,
+            PropertyPermissions permissions, @Nullable Set<Integer> dataEnums,
+            @Nullable Integer validBitFlag) {
+        public CarSvcPropertyConfig {
+            requireNonNull(propertyName);
+            requireNonNull(description);
+            requireNonNull(permissions);
         }
-
-        @Override
-        public int hashCode() {
-            return propertyId + halPropId + Objects.hashCode(propertyName)
-                    + Objects.hashCode(description) + Objects.hashCode(permissions)
-                    + Objects.hashCode(dataEnums) + Objects.hashCode(validBitFlag);
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder stringBuffer = new StringBuilder().append("CarSvcPropertyConfig{");
-            stringBuffer.append("propertyId: ").append(propertyId)
-                    .append(", halPropId: ").append(halPropId)
-                    .append(", propertyName: ").append(propertyName)
-                    .append(", description: ").append(description)
-                    .append(", permissions: ").append(permissions);
-            if (dataEnums != null) {
-                stringBuffer.append(", dataEnums: ").append(dataEnums);
-            }
-            if (validBitFlag != null) {
-                stringBuffer.append(", validBitFlag: ").append(validBitFlag);
-            }
-            return stringBuffer.append("}").toString();
-        }
-    };
+    }
 
     private static final String CONFIG_RESOURCE_NAME = "CarSvcProps.json";
     private static final String JSON_FIELD_NAME_PROPERTIES = "properties";
@@ -172,9 +131,9 @@ public class PropertyHalServiceConfigs {
         List<Integer> halPropIdMgrIds = new ArrayList<>();
         for (int i = 0; i < mHalPropIdToCarSvcConfig.size(); i++) {
             CarSvcPropertyConfig config = mHalPropIdToCarSvcConfig.valueAt(i);
-            if (config.halPropId != config.propertyId) {
-                halPropIdMgrIds.add(config.propertyId);
-                halPropIdMgrIds.add(config.halPropId);
+            if (config.halPropId() != config.propertyId()) {
+                halPropIdMgrIds.add(config.propertyId());
+                halPropIdMgrIds.add(config.halPropId());
             }
         }
         int[] halPropIdMgrIdArray = new int[halPropIdMgrIds.size()];
@@ -265,11 +224,11 @@ public class PropertyHalServiceConfigs {
             // This is not a system property.
             return true;
         }
-        if (carSvcPropertyConfig.dataEnums != null) {
-            return checkDataEnum(propValue, carSvcPropertyConfig.dataEnums);
+        if (carSvcPropertyConfig.dataEnums() != null) {
+            return checkDataEnum(propValue, carSvcPropertyConfig.dataEnums());
         }
-        if (carSvcPropertyConfig.validBitFlag != null) {
-            return checkValidBitFlag(propValue, carSvcPropertyConfig.validBitFlag);
+        if (carSvcPropertyConfig.validBitFlag() != null) {
+            return checkValidBitFlag(propValue, carSvcPropertyConfig.validBitFlag());
         }
         return true;
     }
@@ -292,7 +251,7 @@ public class PropertyHalServiceConfigs {
                     + " no read permission");
             return null;
         }
-        return carSvcPropertyConfig.permissions.getReadPermission();
+        return carSvcPropertyConfig.permissions().getReadPermission();
     }
 
     @Nullable
@@ -331,7 +290,7 @@ public class PropertyHalServiceConfigs {
                     + " no write permission");
             return null;
         }
-        return carSvcPropertyConfig.permissions.getWritePermission();
+        return carSvcPropertyConfig.permissions().getWritePermission();
     }
 
     @Nullable
@@ -500,7 +459,7 @@ public class PropertyHalServiceConfigs {
                         if (config == null) {
                             return;
                         }
-                        configs.put(config.halPropId, config);
+                        configs.put(config.halPropId(), config);
                     });
                 });
             }
@@ -597,28 +556,26 @@ public class PropertyHalServiceConfigs {
                         + featureFlag + " for property: " + propertyName);
             }
         }
-        CarSvcPropertyConfig config = new CarSvcPropertyConfig();
-        config.propertyName = propertyName;
         if (description == null) {
             throw new IllegalArgumentException("Missing required description field for property: "
                     + propertyName);
         }
-        config.description = description;
         if (propertyId == 0) {
             throw new IllegalArgumentException("Missing required propertyId field for property: "
                     + propertyName);
         }
-        config.propertyId = propertyId;
+        int halPropId;
         if (vhalPropertyId != 0) {
-            config.halPropId = vhalPropertyId;
+            halPropId = vhalPropertyId;
         } else {
-            config.halPropId = propertyId;
+            halPropId = propertyId;
         }
-        if (!dataEnums.isEmpty()) {
-            config.dataEnums = dataEnums;
+        if (dataEnums.isEmpty()) {
+            dataEnums = null;
         }
+        Integer validBitFlag = null;
         if (!dataFlags.isEmpty()) {
-            config.validBitFlag = generateAllCombination(dataFlags);
+            validBitFlag = generateAllCombination(dataFlags);
         }
         if (readPermission == null && writePermission == null) {
             throw new IllegalArgumentException(
@@ -631,8 +588,9 @@ public class PropertyHalServiceConfigs {
         if (writePermission != null) {
             builder.setWritePermission(writePermission);
         }
-        config.permissions = builder.build();
-        return config;
+        PropertyPermissions permissions = builder.build();
+        return new CarSvcPropertyConfig(propertyId, halPropId, propertyName, description,
+                permissions, dataEnums, validBitFlag);
     }
 
     private interface RunanbleWithException {
