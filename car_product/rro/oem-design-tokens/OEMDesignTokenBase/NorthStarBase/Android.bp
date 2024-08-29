@@ -12,28 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
-runtime_resource_overlay {
-    name: "OEMDesignTokenFrameworkResRRO",
+android_library {
+    name: "NorthStarBase",
     resource_dirs: ["res"],
-    certificate: "platform",
     manifest: "AndroidManifest.xml",
-    static_libs: [
-        "OEMDesignTokenBase",
-        "OEMDesignTokenShim",
-    ],
-}
-
-runtime_resource_overlay {
-    name: "OEMNorthStarFrameworkResRRO",
-    resource_dirs: ["res"],
-    certificate: "platform",
-    manifest: "AndroidManifest.xml",
-    static_libs: [
-        "NorthStarBase",
-        "NorthStarShim",
-    ],
+    sdk_version: "current",
 }

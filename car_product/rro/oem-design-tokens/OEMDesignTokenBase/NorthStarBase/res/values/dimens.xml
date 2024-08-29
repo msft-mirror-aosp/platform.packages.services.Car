@@ -16,11 +16,10 @@
 -->
 <resources>
     <dimen name="shape_corner_none">0dp</dimen>
-    <dimen name="shape_corner_extra_small">8dp</dimen>
-    <dimen name="shape_corner_small">16dp</dimen>
-    <dimen name="shape_corner_medium">24dp</dimen>
-    <dimen name="shape_corner_large">32dp</dimen>
-    <dimen name="shape_corner_extra_large">48dp</dimen>
-    <!-- Set to arbitrarily large value ensure full corner radius for shapes of all sizes-->
-    <dimen name="shape_corner_full">1000dp</dimen>
+    <dimen name="shape_corner_extra_small">0dp</dimen>
+    <dimen name="shape_corner_small">0dp</dimen>
+    <dimen name="shape_corner_medium">0dp</dimen>
+    <dimen name="shape_corner_large">0dp</dimen>
+    <dimen name="shape_corner_extra_large">0dp</dimen>
+    <dimen name="shape_corner_full">0dp</dimen>
 </resources>

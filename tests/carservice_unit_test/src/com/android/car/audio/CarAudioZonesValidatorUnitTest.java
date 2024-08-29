@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
-public class CarAudioZonesValidatorTest extends AbstractExpectableTestCase {
+public class CarAudioZonesValidatorUnitTest extends AbstractExpectableTestCase {
 
     @Test
     public void validate_thereIsAtLeastOneZone() {
