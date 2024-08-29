@@ -41,6 +41,7 @@ import com.android.car.hal.property.PropertyPermissionInfo.AllOfPermissions;
 import com.android.car.hal.property.PropertyPermissionInfo.AnyOfPermissions;
 import com.android.car.hal.property.PropertyPermissionInfo.PermissionCondition;
 import com.android.car.hal.property.PropertyPermissionInfo.PropertyPermissions;
+import com.android.car.hal.property.PropertyPermissionInfo.PropertyPermissionsBuilder;
 import com.android.car.hal.property.PropertyPermissionInfo.SinglePermission;
 import com.android.car.internal.property.CarPropertyHelper;
 import com.android.internal.annotations.GuardedBy;
@@ -251,7 +252,7 @@ public class PropertyHalServiceConfigs {
                     + " no read permission");
             return null;
         }
-        return carSvcPropertyConfig.permissions().getReadPermission();
+        return carSvcPropertyConfig.permissions().readPermission();
     }
 
     @Nullable
@@ -264,7 +265,7 @@ public class PropertyHalServiceConfigs {
                         + ", default to PERMISSION_VENDOR_EXTENSION");
                 return SINGLE_PERMISSION_VENDOR_EXTENSION;
             }
-            PermissionCondition readPermission = propertyPermissions.getReadPermission();
+            PermissionCondition readPermission = propertyPermissions.readPermission();
             if (readPermission == null) {
                 Slogf.v(TAG, "vendor propId is not available for reading: " + halPropIdName);
             }
@@ -290,7 +291,7 @@ public class PropertyHalServiceConfigs {
                     + " no write permission");
             return null;
         }
-        return carSvcPropertyConfig.permissions().getWritePermission();
+        return carSvcPropertyConfig.permissions().writePermission();
     }
 
     @Nullable
@@ -303,7 +304,7 @@ public class PropertyHalServiceConfigs {
                         + ", default to PERMISSION_VENDOR_EXTENSION");
                 return SINGLE_PERMISSION_VENDOR_EXTENSION;
             }
-            PermissionCondition writePermission = propertyPermissions.getWritePermission();
+            PermissionCondition writePermission = propertyPermissions.writePermission();
             if (writePermission == null) {
                 Slogf.v(TAG, "vendor propId is not available for writing: " + halPropIdName);
             }
@@ -383,8 +384,8 @@ public class PropertyHalServiceConfigs {
                     continue;
                 }
 
-                PropertyPermissions.Builder propertyPermissionBuilder =
-                        new PropertyPermissions.Builder();
+                PropertyPermissionsBuilder propertyPermissionBuilder =
+                        new PropertyPermissionsBuilder();
                 if (readPermissionStr != null) {
                     propertyPermissionBuilder.setReadPermission(
                             new SinglePermission(readPermissionStr));
@@ -581,7 +582,7 @@ public class PropertyHalServiceConfigs {
             throw new IllegalArgumentException(
                     "No read or write permission specified for: " + propertyName);
         }
-        var builder = new PropertyPermissions.Builder();
+        var builder = new PropertyPermissionsBuilder();
         if (readPermission != null) {
             builder.setReadPermission(readPermission);
         }
