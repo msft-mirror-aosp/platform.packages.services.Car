@@ -413,36 +413,6 @@ public class PowerHalService extends HalServiceBase {
     }
 
     /**
-     * Sets the display brightness for the vehicle.
-     * @param brightness value from 0 to 100.
-     */
-    public void sendDisplayBrightnessLegacy(int brightness) {
-        // This method should not be called if multiDisplayBrightnessControl is enabled.
-        Slogf.i(CarLog.TAG_POWER, "brightness from system: " + brightness);
-
-        int brightnessToSet = adjustBrightness(brightness, /* minBrightness= */ 0,
-                /* maxBrightness= */ MAX_BRIGHTNESS);
-        // Adjust brightness back from 0-100 back to 0-maxDisplayBrightness scale.
-        synchronized (mLock) {
-            brightnessToSet = brightnessToSet * mMaxDisplayBrightness / MAX_BRIGHTNESS;
-        }
-
-        synchronized (mLock) {
-            if (mProperties.get(DISPLAY_BRIGHTNESS) == null) {
-                return;
-            }
-            if (mPerDisplayBrightnessSupported) {
-                Slogf.e(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is supported and "
-                        + "sendDisplayBrightness(int displayId, int brightness) should be used "
-                        + "instead of sendDisplayBrightnessLegacy");
-                return;
-            }
-        }
-
-        setGlobalBrightness(brightnessToSet);
-    }
-
-    /**
      * Received display brightness change event.
      * @param displayId the display id.
      * @param brightness in percentile. 100% full.
@@ -460,11 +430,11 @@ public class PowerHalService extends HalServiceBase {
         if (!perDisplayBrightnessSupported) {
             Slogf.w(CarLog.TAG_POWER, "PER_DISPLAY_BRIGHTNESS is not supported, always set the"
                     + " default display brightness");
-            setGlobalBrightness(brightness);
+            setGlobalBrightness(brightnessToSet);
             return;
         }
 
-        setBrightnessForDisplayId(displayId, brightness);
+        setBrightnessForDisplayId(displayId, brightnessToSet);
     }
 
     private void setBrightnessForDisplayId(int displayId, int brightness) {
@@ -495,7 +465,13 @@ public class PowerHalService extends HalServiceBase {
         }
     }
 
+    // The brightness is in 0-100 scale.
     private void setGlobalBrightness(int brightness) {
+        // Adjust brightness back from 0-100 back to 0-maxDisplayBrightness scale.
+        synchronized (mLock) {
+            brightness = brightness * mMaxDisplayBrightness / MAX_BRIGHTNESS;
+        }
+
         Slogf.i(CarLog.TAG_POWER, "brightness to VHAL: " + brightness);
         synchronized (mLock) {
             addRecentlySetBrightnessChangeLocked(brightness, GLOBAL_PORT);
