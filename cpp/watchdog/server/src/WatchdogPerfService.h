@@ -366,7 +366,7 @@ private:
     // Switch to periodic collection and periodic monitor.
     void switchToPeriodicLocked(bool startNow);
 
-    // Handles the messages received by the lopper.
+    // Handles the messages received by the looper.
     void handleMessage(const Message& message) override;
 
     // Processes the collection events received by |handleMessage|.
