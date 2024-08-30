@@ -58,9 +58,9 @@ android_test {
         "android.car",
         "android.car.builtin.impl",
         "android.car.watchdoglib",
-        "android.test.runner",
-        "android.test.base",
-        "android.test.mock",
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
+        "android.test.mock.stubs",
         // The following three lines are needed for tests that build against framework-bluetooth's
         // @hide APIs. Order matters for the first two: classes in framework-bluetooth are
         // resolved before framework, meaning @hide APIs in framework-bluetooth are resolved
