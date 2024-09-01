@@ -33,7 +33,7 @@ import java.io.InputStream;
 import java.util.MissingResourceException;
 
 @RunWith(MockitoJUnitRunner.class)
-public class CarAudioFadeConfigurationHelperTest extends AbstractExtendedMockitoTestCase {
+public class CarAudioFadeConfigurationHelperUnitTest extends AbstractExtendedMockitoTestCase {
 
     private static final String TEST_RELAXED_FADING = "relaxed fading";
     private static final String TEST_AGGRESSIVE_FADING = "aggressive fading";
@@ -65,9 +65,9 @@ public class CarAudioFadeConfigurationHelperTest extends AbstractExtendedMockito
     }
 
     @Test
-    public void constructor_withNoConfigs_fails() throws Exception {
+    public void constructor_withoutConfigs_fails() throws Exception {
         try (InputStream inputStream = mContext.getResources().openRawResource(
-                R.raw.car_audio_fade_configuration_withNoConfigs)) {
+                R.raw.car_audio_fade_configuration_missing_configs)) {
 
             MissingResourceException thrown = assertThrows(MissingResourceException.class,
                     () -> new CarAudioFadeConfigurationHelper(inputStream));
@@ -80,7 +80,7 @@ public class CarAudioFadeConfigurationHelperTest extends AbstractExtendedMockito
     @Test
     public void constructor_configWithNoName_fails() throws Exception {
         try (InputStream inputStream = mContext.getResources().openRawResource(
-                R.raw.car_audio_fade_configuration_withNullConfigName)) {
+                R.raw.car_audio_fade_configuration_with_null_config_name)) {
 
             NullPointerException thrown = assertThrows(NullPointerException.class,
                     () -> new CarAudioFadeConfigurationHelper(inputStream));
@@ -93,7 +93,7 @@ public class CarAudioFadeConfigurationHelperTest extends AbstractExtendedMockito
     @Test
     public void constructor_configWithEmptyName_fails() throws Exception {
         try (InputStream inputStream = mContext.getResources().openRawResource(
-                R.raw.car_audio_fade_configuration_withEmptyConfigName)) {
+                R.raw.car_audio_fade_configuration_with_empty_config_name)) {
 
             IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
                     () -> new CarAudioFadeConfigurationHelper(inputStream));
