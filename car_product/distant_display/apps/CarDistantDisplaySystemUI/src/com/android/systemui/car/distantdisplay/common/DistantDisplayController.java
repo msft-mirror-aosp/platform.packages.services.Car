@@ -63,7 +63,7 @@ public class DistantDisplayController {
     private final MediaSessionManager mMediaSessionManager;
     private final Context mContext;
     private final UserTracker mUserTracker;
-    private final TaskViewController mTaskViewController;
+    private final DistantDisplayTaskManager mDistantDisplayTaskManager;
     private final List<ComponentName> mRestrictedActivities;
     private final Drawable mDistantDisplayDrawable;
     private final Drawable mDefaultDisplayDrawable;
@@ -91,8 +91,8 @@ public class DistantDisplayController {
         default void onVisibilityChanged(boolean visible) {}
     }
 
-    private final TaskViewController.Callback mTaskViewControllerCallback =
-            new TaskViewController.Callback() {
+    private final DistantDisplayTaskManager.Callback mTaskViewControllerCallback =
+            new DistantDisplayTaskManager.Callback() {
                 @Override
                 public void topAppOnDisplayChanged(int displayId, ComponentName componentName) {
                     if (displayId == Display.DEFAULT_DISPLAY) {
@@ -128,10 +128,10 @@ public class DistantDisplayController {
 
     @Inject
     public DistantDisplayController(Context context, UserTracker userTracker,
-            TaskViewController taskViewController) {
+            DistantDisplayTaskManager distantDisplayTaskManager) {
         mContext = context;
         mUserTracker = userTracker;
-        mTaskViewController = taskViewController;
+        mDistantDisplayTaskManager = distantDisplayTaskManager;
         mPackageManager = context.getPackageManager();
         mDistantDisplayId = mContext.getResources().getInteger(R.integer.config_distantDisplayId);
         mDistantDisplayDrawable = mContext.getResources().getDrawable(
@@ -150,7 +150,7 @@ public class DistantDisplayController {
                 userTracker.getUserHandle(),
                 mContext.getMainExecutor(), mOnActiveSessionsChangedListener);
         mUserTracker.addCallback(mUserChangedCallback, context.getMainExecutor());
-        mTaskViewController.addCallback(mTaskViewControllerCallback);
+        mDistantDisplayTaskManager.addCallback(mTaskViewControllerCallback);
     }
 
     /**
@@ -246,9 +246,9 @@ public class DistantDisplayController {
             public void onAction(@NonNull QCItem item, @NonNull Context context,
                     @NonNull Intent intent) {
                 switch (state) {
-                    case DEFAULT -> mTaskViewController.moveTaskFromDistantDisplay();
-                    case DRIVER_DD -> mTaskViewController.moveTaskToDistantDisplay();
-                    case PASSENGER_DD -> mTaskViewController.moveTaskToRightDistantDisplay();
+                    case DEFAULT -> mDistantDisplayTaskManager.moveTaskFromDistantDisplay();
+                    case DRIVER_DD -> mDistantDisplayTaskManager.moveTaskToDistantDisplay();
+                    case PASSENGER_DD -> mDistantDisplayTaskManager.moveTaskToRightDistantDisplay();
                 }
             }
 

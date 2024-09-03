@@ -313,6 +313,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
 
     private static final String COMMAND_GET_DISPLAY_BY_USER = "get-display-by-user";
     private static final String COMMAND_GET_USER_BY_DISPLAY = "get-user-by-display";
+    private static final String COMMAND_ASSIGN_EXTRA_DISPLAY = "assign-extra-display";
+    private static final String COMMAND_UNASSIGN_EXTRA_DISPLAY = "unassign-extra-display";
     private static final String COMMAND_GENERATE_TEST_VENDOR_CONFIGS = "gen-test-vendor-configs";
     private static final String COMMAND_RESTORE_TEST_VENDOR_CONFIGS = "restore-vendor-configs";
 
@@ -368,6 +370,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 CREATE_OR_MANAGE_OR_QUERY_USERS_PERMISSIONS);
         USER_BUILD_COMMAND_TO_PERMISSIONS_MAP.put(COMMAND_GET_USER_BY_DISPLAY,
                 CREATE_OR_MANAGE_OR_QUERY_USERS_PERMISSIONS);
+        USER_BUILD_COMMAND_TO_PERMISSIONS_MAP.put(COMMAND_ASSIGN_EXTRA_DISPLAY,
+                CREATE_OR_MANAGE_USERS_PERMISSIONS);
+        USER_BUILD_COMMAND_TO_PERMISSIONS_MAP.put(COMMAND_UNASSIGN_EXTRA_DISPLAY,
+                CREATE_OR_MANAGE_USERS_PERMISSIONS);
     }
 
     // List of commands allowed in user build. All these command should be protected with
@@ -824,7 +830,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 COMMAND_GET_USER_AUTH_ASSOCIATION);
         pw.println("\t  Gets the N user authentication values for the N types for the given user");
         pw.println("\t  (or current user when not specified).");
-        pw.println("\t  By defautt it calls CarUserManager, but using --hal-only will call just "
+        pw.println("\t  By default it calls CarUserManager, but using --hal-only will call just "
                 + "UserHalService.");
 
         pw.printf("\t%s [--hal-only] [--user USER_ID] TYPE1 VALUE1 [..TYPE_N VALUE_N]\n",
@@ -974,6 +980,10 @@ final class CarShellCommand extends BasicShellCommandHandler {
         pw.println("\t Gets the display associated to the given user");
         pw.printf("\t%s <DISPLAY>", COMMAND_GET_USER_BY_DISPLAY);
         pw.println("\t Gets the user associated with the given display");
+        pw.printf("\t%s <USER_ID> <DISPLAY_ID>", COMMAND_ASSIGN_EXTRA_DISPLAY);
+        pw.println("\t Assigns the user to the extra display.");
+        pw.printf("\t%s <USER_ID> <DISPLAY_ID>", COMMAND_UNASSIGN_EXTRA_DISPLAY);
+        pw.println("\t Unassigns the user from the extra display.");
 
         pw.printf("\t%s <DISPLAY>", COMMAND_GET_CURRENT_UX_RESTRICTIONS);
         pw.println("\t Gets the current UX restriction on given display. If no display is "
@@ -1541,6 +1551,12 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 break;
             case COMMAND_GET_USER_BY_DISPLAY:
                 getUserByDisplay(args, writer);
+                break;
+            case COMMAND_ASSIGN_EXTRA_DISPLAY:
+                assignExtraDisplay(args, writer);
+                break;
+            case COMMAND_UNASSIGN_EXTRA_DISPLAY:
+                unassignExtraDisplay(args, writer);
                 break;
             case COMMAND_GET_CURRENT_UX_RESTRICTIONS:
                 getCurrentUxRestrictions(args, writer);
@@ -4412,6 +4428,58 @@ final class CarShellCommand extends BasicShellCommandHandler {
             return;
         }
         writer.println(userId);
+    }
+
+    private void assignExtraDisplay(String[] args, IndentingPrintWriter writer) {
+        assignOrUnassignExtraDisplay(args, writer, true);
+    }
+
+    private void unassignExtraDisplay(String[] args, IndentingPrintWriter writer) {
+        assignOrUnassignExtraDisplay(args, writer, false);
+    }
+
+    private void assignOrUnassignExtraDisplay(
+            String[] args, IndentingPrintWriter writer, boolean assign) {
+        if (args.length != 3) {
+            showInvalidArguments(writer);
+            return;
+        }
+
+        int userId;
+        if (Objects.equals(args[1], "current") || Objects.equals(args[1], "cur")) {
+            userId = ActivityManager.getCurrentUser();
+        } else {
+            try {
+                userId = Integer.parseInt(args[1]);
+            } catch (NumberFormatException e) {
+                writer.printf("Invalid userId provided: %s\n", args[1]);
+                return;
+            }
+        }
+        int displayId;
+        try {
+            displayId = Integer.parseInt(args[2]);
+        } catch (NumberFormatException e) {
+            writer.printf("Invalid displayId provided: %s\n", args[2]);
+            return;
+        }
+
+        boolean success;
+        if (assign) {
+            success = CarServiceHelperWrapper.getInstance()
+                    .assignUserToExtraDisplay(userId, displayId);
+        } else {
+            success = CarServiceHelperWrapper.getInstance()
+                    .unassignUserFromExtraDisplay(userId, displayId);
+        }
+        if (success) {
+            writer.printf("Successfully %sassigned user %d %s display %d.\n",
+                    (assign ? "" : "un"), userId, (assign ? "to" : "from"), displayId);
+        } else {
+            writer.printf("Failed to %sassign user %d %s display %d.\n",
+                    (assign ? "" : "un"), userId, (assign ? "to" : "from"), displayId);
+
+        }
     }
 
     private static boolean isPropertyAreaTypeGlobal(int propertyId) {

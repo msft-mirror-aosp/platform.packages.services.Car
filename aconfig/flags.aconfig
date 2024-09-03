@@ -10,6 +10,17 @@ flag {
   bug: "320545306"
 }
 
+flag {
+  name: "visible_background_user_restrictions"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Apply user restrictions on visible background users"
+  bug: "356522177"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
 # CarPackageManager
 flag {
   name: "display_compatibility"
@@ -26,6 +37,13 @@ flag {
   namespace: "car_framework"
   description: "This flag controls if apps can query the inhibit state or bluetooth profiles."
   bug: "281791498"
+}
+
+flag {
+  name: "use_wifi_manager_for_available_channels"
+  namespace: "car_framework"
+  description: "This flag controls if apps can query available WiFi channels using the WifiManager."
+  bug: "325395533"
 }
 
 # CarRemoteAccessManager
@@ -50,6 +68,16 @@ flag {
   namespace: "car_framework"
   description: "Use per display max brightness defined by VHAL"
   bug: "336831738"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "multi_display_brightness_control"
+  namespace: "car_framework"
+  description: "Support multi display brightness control"
+  bug: "356419293"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -111,6 +139,14 @@ flag {
     bug: "344678175"
 }
 
+flag {
+    name: "audio_legacy_mode_navigation_volume"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Enables navigation audio usage in legacy volume mode."
+    bug: "353872512"
+}
+
 # CarPropertyManager
 flag {
   name: "batched_subscriptions"
@@ -142,6 +178,14 @@ flag {
   namespace: "car_framework"
   description: "Controls whether to round incoming property events to the resolution requested"
   bug: "276124296"
+}
+
+flag {
+  name: "handle_property_events_in_binder_thread"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Controls whether to directly handle property evnets in binder thread in CarPropertyManager"
+  bug: "355703549"
 }
 
 # CarServiceBase
@@ -245,4 +289,28 @@ flag {
   namespace: "car_framework"
   description: "Enables use of Car App Card APIs"
   bug: "331282711"
+}
+
+# CarInputService
+flag {
+  name: "car_input_start_btpairing_lptt"
+  namespace: "car_framework"
+  description: "Start BT pairing form long press PTT"
+  bug: "352562350"
+}
+
+# DistantDisplayTransitions
+flag {
+    name: "distant_display_transitions"
+    namespace: "car_framework"
+    description: "Enables shell transitions handler in distant display"
+    bug: "316069815"
+}
+
+# Features that Support SDV on IVI
+flag {
+    name: "package_manager_extensions_for_sdv"
+    namespace: "car_framework"
+    description: "Enables SDV to access packages manager functions"
+    bug: "344832846"
 }
