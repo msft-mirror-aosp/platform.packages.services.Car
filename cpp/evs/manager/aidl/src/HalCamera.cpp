@@ -49,7 +49,7 @@ std::shared_ptr<VirtualCamera> HalCamera::makeVirtualCamera() {
     // Create the client camera interface object
     std::vector<std::shared_ptr<HalCamera>> sourceCameras;
     sourceCameras.reserve(1);
-    sourceCameras.push_back(std::move(ref<HalCamera>()));
+    sourceCameras.push_back(ref<HalCamera>());
     std::shared_ptr<VirtualCamera> client =
             ::ndk::SharedRefBase::make<VirtualCamera>(sourceCameras);
     if (!client || !ownVirtualCamera(client)) {
@@ -57,7 +57,7 @@ std::shared_ptr<VirtualCamera> HalCamera::makeVirtualCamera() {
         return nullptr;
     }
 
-    return std::move(client);
+    return client;
 }
 
 bool HalCamera::ownVirtualCamera(const std::shared_ptr<VirtualCamera>& virtualCamera) {
