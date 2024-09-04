@@ -33,13 +33,11 @@ import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.widget.LockPatternHelper;
 import android.car.settings.CarSettings;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.hardware.automotive.vehicle.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.UserInfo;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.util.Log;
 import android.util.Pair;
 
@@ -50,7 +48,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.car.internal.dep.Trace;
 import com.android.car.internal.os.CarSystemProperties;
-import com.android.car.user.CarUserService.GlobalSettings;
+import com.android.car.provider.Settings;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
@@ -141,11 +139,6 @@ final class InitialUserSetter {
         boolean isSecure(@NonNull Context context, @UserIdInt int userId);
     }
 
-    @VisibleForTesting
-    interface SystemSettings {
-        boolean putString(ContentResolver resolver, String name, String value);
-    }
-
     private final Context mContext;
 
     // TODO(b/150413304): abstract AM / UM into interfaces, then provide local and remote
@@ -159,8 +152,7 @@ final class InitialUserSetter {
     private final Consumer<UserHandle> mListener;
 
     private final UserHandleHelper mUserHandleHelper;
-    private final GlobalSettings mGlobalSettings;
-    private final SystemSettings mSystemSettings;
+    private final Settings mSettings;
     private final CurrentUserFetcher mCurrentUserFetcher;
     private final boolean mIsHeadlessSystemUserMode;
     private final ActivityManagerHelperIntf mActivityManagerHelper;
@@ -179,8 +171,7 @@ final class InitialUserSetter {
             CarSystemPropertiesIntf carSystemProperties,
             LockPatternHelperIntf lockPatternHelper,
             CurrentUserFetcher currentUserFetcher,
-            GlobalSettings globalSettings,
-            SystemSettings systemSettings) {}
+            Settings settings) {}
 
     InitialUserSetter(@NonNull Context context, @NonNull CarUserService carUserService,
             @NonNull Consumer<UserHandle> listener, @NonNull UserHandleHelper userHandleHelper,
@@ -195,8 +186,7 @@ final class InitialUserSetter {
                         () -> CarSystemProperties.getBootUserOverrideId(),
                         (ctx, userId) -> LockPatternHelper.isSecure(ctx, userId),
                         carUserServiceDeps.currentUserFetcher(),
-                        carUserServiceDeps.globalSettings(),
-                        (resolver, name, value) -> Settings.System.putString(resolver, name, value)
+                        carUserServiceDeps.settings()
                 ));
     }
 
@@ -217,8 +207,7 @@ final class InitialUserSetter {
         mCarSystemProperties = deps.carSystemProperties();
         mLockPatternHelper = deps.lockPatternHelper();
         mCurrentUserFetcher = deps.currentUserFetcher();
-        mGlobalSettings = deps.globalSettings();
-        mSystemSettings = deps.systemSettings();
+        mSettings = deps.settings();
 
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
                 isVisibleBackgroundUsersOnDefaultDisplaySupported(mUm);
@@ -723,7 +712,7 @@ final class InitialUserSetter {
                 Slogf.d(TAG, "setting locale for user " + user.getIdentifier() + " to "
                         + info.userLocales);
             }
-            mSystemSettings.putString(
+            mSettings.putStringSystem(
                     getContentResolverForUser(mContext, user.getIdentifier()),
                     SettingsHelper.SYSTEM_LOCALES, info.userLocales);
         }
@@ -805,7 +794,7 @@ final class InitialUserSetter {
             Slogf.d(TAG, "setting global property " + name + " to " + userId);
         }
 
-        mGlobalSettings.putInt(mContext.getContentResolver(), name, userId);
+        mSettings.putIntGlobal(mContext.getContentResolver(), name, userId);
     }
 
     /**
@@ -955,11 +944,11 @@ final class InitialUserSetter {
     private void resetUserIdGlobalProperty(@NonNull String name) {
         EventLogHelper.writeCarInitialUserResetGlobalProperty(name);
 
-        mGlobalSettings.putInt(mContext.getContentResolver(), name, UserManagerHelper.USER_NULL);
+        mSettings.putIntGlobal(mContext.getContentResolver(), name, UserManagerHelper.USER_NULL);
     }
 
     private int getUserIdGlobalProperty(@NonNull String name) {
-        int userId = mGlobalSettings.getInt(mContext.getContentResolver(), name,
+        int userId = mSettings.getIntGlobal(mContext.getContentResolver(), name,
                 UserManagerHelper.USER_NULL);
         if (DBG) {
             Slogf.d(TAG, "getting global property " + name + ": " + userId);
