@@ -127,21 +127,6 @@ enum RegistrationError {
     ERR_DUPLICATE_REGISTRATION,
 };
 
-std::unordered_set<VehicleProperty> queryVhalProperties(IVhalClient& vhalService) {
-    std::unordered_set<VehicleProperty> notSupportedProperties;
-    std::vector<VehicleProperty> propIds = {VehicleProperty::WATCHDOG_ALIVE,
-                                            VehicleProperty::WATCHDOG_TERMINATED_PROCESS,
-                                            VehicleProperty::VHAL_HEARTBEAT};
-    for (const auto& propId : propIds) {
-        if (auto result = vhalService.getPropConfigs({static_cast<int32_t>(propId)});
-            !result.ok()) {
-            notSupportedProperties.insert(propId);
-        }
-    }
-
-    return notSupportedProperties;
-}
-
 ScopedAStatus toScopedAStatus(Result<void> resultWithRegistrationError) {
     if (resultWithRegistrationError.ok()) {
         return ScopedAStatus::ok();
@@ -243,17 +228,17 @@ std::string timeoutToString(TimeoutLength timeout) {
 }
 
 WatchdogProcessService::WatchdogProcessService(const sp<Looper>& handlerLooper) :
-      WatchdogProcessService(IVhalClient::create, kDefaultTryGetHidlServiceManager,
+      WatchdogProcessService(IVhalClient::tryCreate, kDefaultTryGetHidlServiceManager,
                              getStartTimeForPid, kDefaultVhalPidCachingRetryDelayNs, handlerLooper,
                              sp<AIBinderDeathRegistrationWrapper>::make()) {}
 
 WatchdogProcessService::WatchdogProcessService(
-        const std::function<std::shared_ptr<IVhalClient>()>& createVhalClientFunc,
+        const std::function<std::shared_ptr<IVhalClient>()>& tryCreateVhalClientFunc,
         const std::function<sp<IServiceManager>()>& tryGetHidlServiceManagerFunc,
         const std::function<int64_t(pid_t)>& getStartTimeForPidFunc,
         const std::chrono::nanoseconds& vhalPidCachingRetryDelayNs, const sp<Looper>& handlerLooper,
         const sp<AIBinderDeathRegistrationWrapperInterface>& deathRegistrationWrapper) :
-      kCreateVhalClientFunc(createVhalClientFunc),
+      kTryCreateVhalClientFunc(tryCreateVhalClientFunc),
       kTryGetHidlServiceManagerFunc(tryGetHidlServiceManagerFunc),
       kGetStartTimeForPidFunc(getStartTimeForPidFunc),
       kVhalPidCachingRetryDelayNs(vhalPidCachingRetryDelayNs),
@@ -718,7 +703,7 @@ Result<void> WatchdogProcessService::start() {
     mMessageHandler = sp<MessageHandlerImpl>::make(thiz);
     mPropertyChangeListener = std::make_shared<PropertyChangeListener>(thiz);
     mServiceStarted = true;
-    mConnectToVhalThread = std::thread([this] { connectToVhal(); });
+    reportWatchdogAliveToVhal();
     return {};
 }
 
@@ -760,9 +745,6 @@ void WatchdogProcessService::terminate() {
         if (!result.ok()) {
             ALOGW("Failed to unsubscribe from VHAL_HEARTBEAT.");
         }
-    }
-    if (mConnectToVhalThread.joinable()) {
-        mConnectToVhalThread.join();
     }
 }
 
@@ -1065,16 +1047,16 @@ void WatchdogProcessService::reportTerminatedProcessToVhal(
 
 Result<void> WatchdogProcessService::updateVhal(const VehiclePropValue& value) {
     ATRACE_CALL();
+    const auto& connectRet = connectToVhal();
+    if (!connectRet.ok()) {
+        std::string errorMsg = "VHAL is not connected: " + connectRet.error().message();
+        ALOGW("%s", errorMsg.c_str());
+        return Error() << errorMsg;
+    }
     int32_t propId = value.prop;
     std::shared_ptr<IVhalClient> vhalService;
     {
         Mutex::Autolock lock(mMutex);
-        if (mVhalService == nullptr) {
-            std::string errorMsg = "VHAL is not connected";
-            ALOGW("%s", errorMsg.c_str());
-            return Error() << errorMsg;
-        }
-
         if (mNotSupportedVhalProperties.count(static_cast<VehicleProperty>(propId)) > 0) {
             std::string errorMsg = StringPrintf("VHAL doesn't support property(id: %d)", propId);
             ALOGW("%s", errorMsg.c_str());
@@ -1106,28 +1088,69 @@ Result<std::string> WatchdogProcessService::readProcCmdLine(int32_t pid) {
     return Error() << "Failed to read " << cmdLinePath;
 }
 
-void WatchdogProcessService::connectToVhal() {
-    auto vhalService = kCreateVhalClientFunc();
-    if (vhalService == nullptr) {
-        ALOGE("Failed to connect to VHAL.");
-        return;
-    }
-
-    auto notSupportedProperties = queryVhalProperties(*vhalService);
-
+Result<void> WatchdogProcessService::connectToVhal() {
     {
         Mutex::Autolock lock(mMutex);
-        mVhalService = vhalService;
+        if (mVhalService != nullptr) {
+            return {};
+        }
+        mVhalService = kTryCreateVhalClientFunc();
+        if (mVhalService == nullptr) {
+            return Error() << "Failed to connect to VHAL.";
+        }
         mVhalService->addOnBinderDiedCallback(mVhalBinderDiedCallback);
-        mNotSupportedVhalProperties = notSupportedProperties;
+    }
+    queryVhalProperties();
+    subscribeToVhalHeartBeat();
+    ALOGI("Successfully connected to VHAL.");
+    return {};
+}
+
+void WatchdogProcessService::queryVhalProperties() {
+    std::shared_ptr<IVhalClient> vhalService;
+    {
+        Mutex::Autolock lock(mMutex);
+        vhalService = mVhalService;
+    }
+    std::unordered_set<VehicleProperty> notSupportedProperties;
+    std::vector<VehicleProperty> propIds = {VehicleProperty::WATCHDOG_ALIVE,
+                                            VehicleProperty::WATCHDOG_TERMINATED_PROCESS,
+                                            VehicleProperty::VHAL_HEARTBEAT};
+    for (const auto& propId : propIds) {
+        if (auto result = vhalService->getPropConfigs({static_cast<int32_t>(propId)});
+            !result.ok()) {
+            notSupportedProperties.insert(propId);
+        }
+    }
+    {
+        Mutex::Autolock lock(mMutex);
+        mNotSupportedVhalProperties = std::move(notSupportedProperties);
+    }
+}
+
+void WatchdogProcessService::subscribeToVhalHeartBeat() {
+    std::unique_ptr<ISubscriptionClient> propertySubscriptionClient;
+    {
+        Mutex::Autolock lock(mMutex);
+        if (mNotSupportedVhalProperties.count(VehicleProperty::VHAL_HEARTBEAT) > 0) {
+            ALOGW("VHAL doesn't support VHAL_HEARTBEAT. Checking VHAL health is disabled.");
+            return;
+        }
+
         mVhalHeartBeat = {
                 .eventTime = 0,
                 .value = 0,
         };
+        propertySubscriptionClient = mVhalService->getSubscriptionClient(mPropertyChangeListener);
     }
-    subscribeToVhalHeartBeat(*vhalService, notSupportedProperties);
-    ALOGI("Successfully connected to VHAL.");
-
+    std::vector<SubscribeOptions> options = {
+            {.propId = static_cast<int32_t>(VehicleProperty::VHAL_HEARTBEAT), .areaIds = {}},
+    };
+    if (auto result = propertySubscriptionClient->subscribe(options); !result.ok()) {
+        ALOGW("Failed to subscribe to VHAL_HEARTBEAT. Checking VHAL health is disabled. '%s'",
+              result.error().message().c_str());
+        return;
+    }
     std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMillis + kHealthCheckDelayMillis;
     mHandlerLooper->sendMessageDelayed(intervalNs.count(), mMessageHandler,
                                        Message(MSG_VHAL_HEALTH_CHECK));
@@ -1138,27 +1161,6 @@ void WatchdogProcessService::connectToVhal() {
     // handle the caching in the handler thread after successfully subscribing to the VHAL_HEARTBEAT
     // property.
     mHandlerLooper->sendMessage(mMessageHandler, Message(MSG_CACHE_VHAL_PROCESS_IDENTIFIER));
-    mHandlerLooper->sendMessage(mMessageHandler, Message(MSG_VHAL_WATCHDOG_ALIVE));
-}
-
-void WatchdogProcessService::subscribeToVhalHeartBeat(
-        IVhalClient& vhalClient,
-        const std::unordered_set<VehicleProperty>& notSupportedProperties) {
-    if (notSupportedProperties.count(VehicleProperty::VHAL_HEARTBEAT) > 0) {
-        ALOGW("VHAL doesn't support VHAL_HEARTBEAT. Checking VHAL health is disabled.");
-        return;
-    }
-
-    auto propertySubscriptionClient = vhalClient.getSubscriptionClient(mPropertyChangeListener);
-    std::vector<SubscribeOptions> options = {
-            {.propId = static_cast<int32_t>(VehicleProperty::VHAL_HEARTBEAT), .areaIds = {}},
-    };
-    if (auto result = propertySubscriptionClient->subscribe(options); !result.ok()) {
-        ALOGW("Failed to subscribe to VHAL_HEARTBEAT. Checking VHAL health is disabled. '%s'",
-              result.error().message().c_str());
-        return;
-    }
-
     return;
 }
 
