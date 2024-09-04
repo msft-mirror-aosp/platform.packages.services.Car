@@ -66,6 +66,7 @@ import com.google.android.car.kitchensink.bluetooth.MapMceTestFragment;
 import com.google.android.car.kitchensink.carboard.KeyboardTestFragment;
 import com.google.android.car.kitchensink.cluster.InstrumentClusterFragment;
 import com.google.android.car.kitchensink.connectivity.ConnectivityFragment;
+import com.google.android.car.kitchensink.connectivity.datasubscription.DataSubscriptionTestFragment;
 import com.google.android.car.kitchensink.cube.CubesTestFragment;
 import com.google.android.car.kitchensink.customizationtool.CustomizationToolFragment;
 import com.google.android.car.kitchensink.diagnostic.DiagnosticTestFragment;
@@ -255,6 +256,7 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("carboard", KeyboardTestFragment.class),
             new FragmentMenuEntry("connectivity", ConnectivityFragment.class),
             new FragmentMenuEntry("cubes test", CubesTestFragment.class),
+            new FragmentMenuEntry("data subscription", DataSubscriptionTestFragment.class),
             new FragmentMenuEntry("device policy", DevicePolicyFragment.class),
             new FragmentMenuEntry("customization tool", CustomizationToolFragment.class),
             new FragmentMenuEntry("diagnostic", DiagnosticTestFragment.class),
