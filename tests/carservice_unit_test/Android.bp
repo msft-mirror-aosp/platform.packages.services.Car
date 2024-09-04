@@ -70,6 +70,7 @@ android_test {
     ],
 
     static_libs: [
+        "android.car.feature-aconfig-java",
         "android.car.testapi",
         "android.car.test.utils",
         "androidx.test.core",
@@ -84,6 +85,7 @@ android_test {
         "flag-junit",
         "ravenwood-junit",
         "mockito-target-extended",
+        "platform-test-annotations",
         "ravenwood-junit",
         "SettingsLib",
         "servicestests-utils",
@@ -118,6 +120,8 @@ android_ravenwood_test {
         "src/com/android/car/hal/fakevhal/FakeVhalConfigParserUnitTest.java",
         "src/com/android/car/hal/fakevhal/FakeVehicleStubUnitTest.java",
         "src/com/android/car/hal/property/PropertyHalServiceConfigsUnitTest.java",
+        "src/com/android/car/hal/property/PropertyPermissionInfoTest.java",
+        "src/com/android/car/systeminterface/DisplayInterfaceTest.java",
         "src/com/android/car/user/InitialUserSetterTest.java",
         "src/com/android/car/user/MockedUserHandleBuilder.java",
         // Don't depends on "com.android.car.test" because it uses
