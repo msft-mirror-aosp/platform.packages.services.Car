@@ -138,7 +138,6 @@ import java.util.Set;
     private static final int SUPPORTED_VERSION_3 = 3;
     private static final int SUPPORTED_VERSION_4 = 4;
     private static final SparseIntArray SUPPORTED_VERSIONS;
-    public static final String TRUE_FALSE_REGEX = "(?i)^(true|false)$";
 
     static {
         SUPPORTED_VERSIONS = new SparseIntArray(4);
@@ -529,12 +528,15 @@ import java.util.Set;
 
         // Need to check for "true" or "false", since Boolean parse will return false for anything
         // not "true" and we are specifically checking for "true" or "false".
-        if (!booleanString.matches(TRUE_FALSE_REGEX)) {
+        if (!booleanString.equalsIgnoreCase("true")
+                && !booleanString.equalsIgnoreCase("false")) {
             mCarServiceLocalLog.log(configName + " was declared with the value of "
                     + booleanString + " but should be either true or false");
             return Optional.empty();
         }
 
+        mCarServiceLocalLog.log("Found " + configName + " = " + booleanString
+                + " in car_audio_configuration.xml file");
         return Optional.of(Boolean.parseBoolean(booleanString));
     }
 
@@ -789,14 +791,7 @@ import java.util.Set;
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
             if (Objects.equals(parser.getName(), TAG_VOLUME_GROUP)) {
                 String groupName = parser.getAttributeValue(NAMESPACE, VOLUME_GROUP_NAME);
-                Preconditions.checkArgument(!mUseCoreAudioVolume || groupName != null,
-                        "%s %s attribute can not be empty when relying on core volume groups",
-                        TAG_VOLUME_GROUP, VOLUME_GROUP_NAME);
-                if (groupName == null) {
-                    groupName = new StringBuilder().append("config ")
-                            .append(zoneConfigBuilder.getZoneConfigId()).append(" group ")
-                            .append(groupId).toString();
-                }
+                groupName = verifyGroupNameAndCreateIfNeeded(zoneConfigBuilder, groupName, groupId);
 
                 CarActivationVolumeConfig activationVolumeConfig =
                         getActivationVolumeConfig(parser);
@@ -819,6 +814,31 @@ import java.util.Set;
             }
         }
         return valid;
+    }
+
+    private String verifyGroupNameAndCreateIfNeeded(
+            CarAudioZoneConfig.Builder zoneConfigBuilder, String groupName, int groupId) {
+        verifyGroupName(groupName);
+        if (groupName == null) {
+            groupName = "config " + zoneConfigBuilder.getZoneConfigId() + " group " + groupId;
+        }
+        return groupName;
+    }
+
+    private void verifyGroupName(String groupName) {
+        if (!Flags.audioVendorFreezeImprovements()) {
+            Preconditions.checkArgument(!mUseCoreAudioVolume || groupName != null,
+                    "%s %s attribute can not be empty when relying on core volume groups",
+                    TAG_VOLUME_GROUP, VOLUME_GROUP_NAME);
+            return;
+        }
+        if (!mUseCoreAudioVolume || groupName != null) {
+            return;
+        }
+        mCarServiceLocalLog.log("Found " + TAG_VOLUME_GROUP + " " + VOLUME_GROUP_NAME
+                + " empty while relying on core volume groups,"
+                + " resetting use core volume to false");
+        mUseCoreAudioVolume = false;
     }
 
     private CarActivationVolumeConfig getActivationVolumeConfig(XmlPullParser parser) {

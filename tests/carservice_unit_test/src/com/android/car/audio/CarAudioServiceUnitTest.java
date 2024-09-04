@@ -180,6 +180,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.Settings;
@@ -188,6 +189,8 @@ import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.util.NoSuchPropertyException;
+import android.util.SparseArray;
+import android.util.SparseIntArray;
 import android.view.KeyEvent;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -656,11 +659,18 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 .thenReturn(TEST_FRONT_PASSENGER_OCCUPANT);
         when(mMockOccupantZoneService.getOccupantForAudioZoneId(TEST_REAR_LEFT_ZONE_ID))
                 .thenReturn(TEST_REAR_LEFT_PASSENGER_OCCUPANT);
-        when(mMockOccupantZoneService.getOccupantForAudioZoneId(TEST_REAR_ROW_3_ZONE_ID))
-                .thenReturn(TEST_REAR_ROW_3_PASSENGER_OCCUPANT);
 
         // Initially set occupant zone service at uninitialized
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(UserHandle.USER_SYSTEM);
+
+        SparseArray<CarOccupantZoneManager.OccupantZoneInfo> configs = new SparseArray<>();
+        configs.put(TEST_DRIVER_OCCUPANT_ZONE_ID, TEST_DRIVER_OCCUPANT);
+        configs.put(TEST_FRONT_OCCUPANT_ZONE_ID, TEST_FRONT_PASSENGER_OCCUPANT);
+        configs.put(TEST_REAR_RIGHT_OCCUPANT_ZONE_ID, TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        configs.put(TEST_REAR_LEFT_OCCUPANT_ZONE_ID, TEST_REAR_LEFT_PASSENGER_OCCUPANT);
+        configs.put(TEST_REAR_ROW_3_OCCUPANT_ZONE_ID, TEST_REAR_ROW_3_PASSENGER_OCCUPANT);
+
+        when(mMockOccupantZoneService.getOccupantsConfig()).thenReturn(configs);
 
         CarLocalServices.removeServiceForTest(CarOccupantZoneService.class);
         CarLocalServices.addService(CarOccupantZoneService.class, mMockOccupantZoneService);
@@ -980,6 +990,69 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         verify(mAudioManager).setAudioServerStateCallback(any(), any());
         verify(mAudioManager, never()).registerAudioDeviceCallback(any(), any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withCoreVolumeMisconfigured() throws Exception {
+        when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        service.init();
+
+        verify(mAudioManager).setAudioServerStateCallback(any(), any());
+        verify(mAudioManager).registerAudioDeviceCallback(any(), any());
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withCoreVolumeMisconfigured_failsOnInit() throws Exception {
+        when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        IllegalArgumentException thrown =
+                assertThrows(IllegalArgumentException.class, service::init);
+
+        expectWithMessage("Exception on service init with empty group and using core volume")
+                .that(thrown).hasMessageThat().contains("group name attribute can not be empty when"
+                        + " relying on core volume groups");
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withMissingOccupantZones_captureActiveZonesOnly() throws Exception {
+        SparseArray<CarOccupantZoneManager.OccupantZoneInfo> configs = new SparseArray<>();
+        configs.put(TEST_DRIVER_OCCUPANT_ZONE_ID, TEST_DRIVER_OCCUPANT);
+        when(mMockOccupantZoneService.getOccupantsConfig()).thenReturn(configs);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        service.init();
+
+        ArgumentCaptor<SparseIntArray> captor =
+                ArgumentCaptor.forClass(SparseIntArray.class);
+        verify(mMockOccupantZoneService).setAudioZoneIdsForOccupantZoneIds(captor.capture());
+        int[] audioZoneZones = captor.getValue().copyKeys();
+        expectWithMessage("Configured audio zones with missing occupant zones")
+                .that(audioZoneZones).asList().containsExactly(PRIMARY_AUDIO_ZONE);
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withMissingOccupantZones_captureActiveAllZones() throws Exception {
+        SparseArray<CarOccupantZoneManager.OccupantZoneInfo> configs = new SparseArray<>();
+        configs.put(TEST_DRIVER_OCCUPANT_ZONE_ID, TEST_DRIVER_OCCUPANT);
+        when(mMockOccupantZoneService.getOccupantsConfig()).thenReturn(configs);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        service.init();
+
+        ArgumentCaptor<SparseIntArray> captor =
+                ArgumentCaptor.forClass(SparseIntArray.class);
+        verify(mMockOccupantZoneService).setAudioZoneIdsForOccupantZoneIds(captor.capture());
+        int[] audioZoneZones = captor.getValue().copyKeys();
+        expectWithMessage("Configured audio zones with all audio zones").that(audioZoneZones)
+                .asList().containsExactly(PRIMARY_AUDIO_ZONE, TEST_REAR_LEFT_ZONE_ID,
+                        TEST_REAR_RIGHT_ZONE_ID, TEST_FRONT_ZONE_ID, TEST_REAR_ROW_3_ZONE_ID);
     }
 
     @Test
