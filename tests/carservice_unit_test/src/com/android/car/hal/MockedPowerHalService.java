@@ -28,6 +28,7 @@ import android.view.Display;
 
 import com.android.car.CarServiceUtils;
 import com.android.car.VehicleStub;
+import com.android.car.systeminterface.DisplayHelperInterface;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.LinkedList;
@@ -90,7 +91,7 @@ public class MockedPowerHalService extends PowerHalService {
     public MockedPowerHalService(boolean isPowerStateSupported, boolean isDeepSleepAllowed,
             boolean isHibernationAllowed, boolean isTimedWakeupAllowed) {
         super(mock(Context.class), new FeatureFlagsImpl(),
-                createVehicleHalWithMockedServices());
+                createVehicleHalWithMockedServices(), new DisplayHelperInterface.DefaultImpl());
         mIsPowerStateSupported = isPowerStateSupported;
         mIsDeepSleepAllowed = isDeepSleepAllowed;
         mIsHibernationAllowed = isHibernationAllowed;
@@ -172,7 +173,7 @@ public class MockedPowerHalService extends PowerHalService {
     }
 
     @Override
-    public void sendDisplayBrightness(int brightness) {
+    public void sendDisplayBrightnessLegacy(int brightness) {
         sendDisplayBrightness(Display.DEFAULT_DISPLAY, brightness);
     }
 

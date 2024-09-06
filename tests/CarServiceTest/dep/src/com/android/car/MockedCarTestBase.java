@@ -67,6 +67,7 @@ import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.StaticBinderInterface;
 import com.android.car.os.CarPerformanceService;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.provider.Settings;
 import com.android.car.systeminterface.ActivityManagerInterface;
 import com.android.car.systeminterface.IOInterface;
 import com.android.car.systeminterface.StorageMonitoringInterface;
@@ -262,7 +263,8 @@ public class MockedCarTestBase {
                 .withIOInterface(mMockIOInterface)
                 .withStorageMonitoringInterface(new MockStorageMonitoringInterface())
                 .withTimeInterface(new MockTimeInterface())
-                .withWakeLockInterface(new MockWakeLockInterface());
+                .withWakeLockInterface(new MockWakeLockInterface())
+                .withSettings(new Settings.DefaultImpl());
     }
 
     protected SystemStateInterface createMockSystemStateInterface() {
