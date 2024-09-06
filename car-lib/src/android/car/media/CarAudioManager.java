@@ -44,9 +44,10 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
-import android.util.Log;
+import android.util.Slog;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.ICarBase;
 import com.android.car.internal.annotation.AttributeUsage;
 import com.android.internal.annotations.GuardedBy;
 
@@ -378,7 +379,7 @@ public final class CarAudioManager extends CarManagerBase {
                     synchronized (mLock) {
                         if (mPrimaryZoneMediaAudioRequestCallbackExecutor == null
                                 || mPrimaryZoneMediaAudioRequestCallback == null) {
-                            Log.w(TAG, "Media request removed before change dispatched");
+                            Slog.w(TAG, "Media request removed before change dispatched");
                             return;
                         }
                         callback = mPrimaryZoneMediaAudioRequestCallback;
@@ -1069,7 +1070,7 @@ public final class CarAudioManager extends CarManagerBase {
 
         synchronized (mLock) {
             if (mZoneConfigurationsChangeCallbackWrapper == null) {
-                Log.w(TAG, "Audio zone configs callback was already cleared");
+                Slog.w(TAG, "Audio zone configs callback was already cleared");
                 return;
             }
             wrapper = mZoneConfigurationsChangeCallbackWrapper;
@@ -1742,7 +1743,7 @@ public final class CarAudioManager extends CarManagerBase {
     }
 
     /** @hide */
-    public CarAudioManager(Car car, IBinder service) {
+    public CarAudioManager(ICarBase car, IBinder service) {
         super(car);
         mService = ICarAudio.Stub.asInterface(service);
         mAudioManager = getContext().getSystemService(AudioManager.class);
@@ -1785,7 +1786,7 @@ public final class CarAudioManager extends CarManagerBase {
         try {
             mService.registerVolumeCallback(mCarVolumeCallbackImpl.asBinder());
         } catch (RemoteException e) {
-            Log.e(CarLibLog.TAG_CAR, "registerVolumeCallback failed", e);
+            Slog.e(CarLibLog.TAG_CAR, "registerVolumeCallback failed", e);
         }
     }
 
@@ -1833,7 +1834,7 @@ public final class CarAudioManager extends CarManagerBase {
                 return false;
             }
         } catch (RemoteException e) {
-            Log.e(CarLibLog.TAG_CAR, "registerCarVolumeEventCallback failed", e);
+            Slog.e(CarLibLog.TAG_CAR, "registerCarVolumeEventCallback failed", e);
             return handleRemoteExceptionFromCarService(e, /* returnValue= */ false);
         }
 
@@ -1870,12 +1871,12 @@ public final class CarAudioManager extends CarManagerBase {
     private boolean unregisterVolumeGroupEventCallback() {
         try {
             if (!mService.unregisterCarVolumeEventCallback(mCarVolumeEventCallbackImpl)) {
-                Log.e(CarLibLog.TAG_CAR,
+                Slog.e(CarLibLog.TAG_CAR,
                         "unregisterCarVolumeEventCallback failed with service");
                 return false;
             }
         } catch (RemoteException e) {
-            Log.e(CarLibLog.TAG_CAR,
+            Slog.e(CarLibLog.TAG_CAR,
                     "unregisterCarVolumeEventCallback failed with exception", e);
             handleRemoteExceptionFromCarService(e);
         }
@@ -1978,7 +1979,7 @@ public final class CarAudioManager extends CarManagerBase {
                     List<CarVolumeGroupEvent> events = (List<CarVolumeGroupEvent>) msg.obj;
                     handleOnVolumeGroupEvent(events);
                 default:
-                    Log.e(CarLibLog.TAG_CAR, "Unknown message not handled:" + msg.what);
+                    Slog.e(CarLibLog.TAG_CAR, "Unknown message not handled:" + msg.what);
                     break;
             }
         }
@@ -2070,11 +2071,12 @@ public final class CarAudioManager extends CarManagerBase {
          *
          * <p><b>Notes:</b>
          * <ul>
-         *     <li>If both {@link CarVolumeCallback} and {@link CarVolumeGroupEventCallback}
+         *     <li>If both {@link CarVolumeCallback} and {@code CarVolumeGroupEventCallback}
          *     are registered by the same app, then volume group index changes are <b>only</b>
-         *     propagated through CarVolumeGroupEventCallback (until it is unregistered)</li>
+         *     propagated through {@code CarVolumeGroupEventCallback}
+         *     (until it is unregistered)</li>
          *     <li>Apps are encouraged to migrate to the new callback
-         *     {@link CarVolumeGroupEventCallback}</li>
+         *     {@code CarVolumeGroupEventCallback}</li>
          * </ul>
          *
          * @param zoneId Id of the audio zone that volume change happens
@@ -2110,11 +2112,12 @@ public final class CarAudioManager extends CarManagerBase {
          *     <li>If {@link CarAudioManager#AUDIO_FEATURE_VOLUME_GROUP_MUTING} is enabled
          *     this will be triggered on mute changes. Otherwise, car audio mute changes will
          *     trigger {@link #onMasterMuteChanged(int, int)}</li>
-         *     <li>If both {@link CarVolumeCallback} and {@link CarVolumeGroupEventCallback}
+         *     <li>If both {@link CarVolumeCallback} and {@code CarVolumeGroupEventCallback}
          *     are registered by the same app, then volume group mute changes are <b>only</b>
-         *     propagated through CarVolumeGroupEventCallback (until it is unregistered)</li>
+         *     propagated through {@code CarVolumeGroupEventCallback}
+         *     (until it is unregistered)</li>
          *     <li>Apps are encouraged to migrate to the new callback
-         *     {@link CarVolumeGroupEventCallback}</li>
+         *     {@code CarVolumeGroupEventCallback}</li>
          * </ul>
          *
          * @param zoneId Id of the audio zone that volume change happens

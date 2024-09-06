@@ -291,6 +291,15 @@ private:
     // Makes sure only one collection is running at any given time.
     mutable std::shared_mutex mRwMutex;
 
+    // This is the thread on which the write to disk is performed. In the event the monitor begins
+    // to terminate before the write has completed, the termination procedure should wait for this
+    // thread to complete. Otherwise, this thread will run independently, which will cause
+    // the thread to access stale lock or member fields leading to crashing the process.
+    std::thread mWriteToDiskThread;
+
+    // Tracks if mWriteToDiskThread is actively writing to disk.
+    bool mIsWriteToDiskPending GUARDED_BY(mRwMutex);
+
     // Indicates whether or not today's I/O usage stats, that were collected during previous boot,
     // are read from CarService because CarService persists these stats in database across reboot.
     bool mDidReadTodayPrevBootStats GUARDED_BY(mRwMutex);

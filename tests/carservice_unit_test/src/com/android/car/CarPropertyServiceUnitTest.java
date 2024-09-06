@@ -18,7 +18,6 @@ package com.android.car;
 
 import static android.car.hardware.property.CarPropertyManager.SENSOR_RATE_ONCHANGE;
 
-import static com.android.car.hal.PropertyHalServiceTest.createCarSubscriptionOption;
 import static com.android.car.internal.property.CarPropertyHelper.SYNC_OP_LIMIT_TRY_AGAIN;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -26,6 +25,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -53,6 +53,7 @@ import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -61,14 +62,16 @@ import com.android.car.internal.property.AsyncPropertyServiceRequest;
 import com.android.car.internal.property.AsyncPropertyServiceRequestList;
 import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.logging.HistogramFactoryInterface;
+import com.android.modules.expresslog.Histogram;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.MockitoAnnotations;
 
 import java.time.Duration;
 import java.util.List;
@@ -77,10 +80,14 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class CarPropertyServiceUnitTest {
-
     private static final String TAG = CarLog.tagFor(CarPropertyServiceUnitTest.class);
+
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
+            .setProcessSystem()
+            .setProvideMainThread(true)
+            .build();
 
     @Mock
     private Context mContext;
@@ -93,9 +100,9 @@ public final class CarPropertyServiceUnitTest {
     @Mock
     private IAsyncPropertyResultCallback mAsyncPropertyResultCallback;
     @Mock
-    private CarPropertyConfig<?> mCarPropertyConfig;
-    @Mock
     private FeatureFlags mFeatureFlags;
+    @Mock
+    private HistogramFactoryInterface mHistogramFactory;
     @Captor
     private ArgumentCaptor<List<CarPropertyEvent>> mPropertyEventCaptor;
 
@@ -139,6 +146,7 @@ public final class CarPropertyServiceUnitTest {
 
     @Before
     public void setUp() {
+        MockitoAnnotations.initMocks(this);
 
         when(mICarPropertyEventListener.asBinder()).thenReturn(mIBinder);
 
@@ -284,8 +292,17 @@ public final class CarPropertyServiceUnitTest {
         when(mFeatureFlags.variableUpdateRate()).thenReturn(true);
         when(mFeatureFlags.subscriptionWithResolution()).thenReturn(true);
 
-        mService = new CarPropertyService(mContext, mHalService);
-        mService.setFeatureFlags(mFeatureFlags);
+        when(mHistogramFactory.newUniformHistogram(any(), anyInt(), anyFloat(), anyFloat()))
+                .thenReturn(mock(Histogram.class));
+        when(mHistogramFactory.newScaledRangeHistogram(any(), anyInt(), anyInt(), anyFloat(),
+                anyFloat())).thenReturn(mock(Histogram.class));
+
+        mService = new CarPropertyService.Builder()
+                .setContext(mContext)
+                .setPropertyHalService(mHalService)
+                .setFeatureFlags(mFeatureFlags)
+                .setHistogramFactory(mHistogramFactory)
+                .build();
         mService.init();
     }
 
@@ -613,7 +630,7 @@ public final class CarPropertyServiceUnitTest {
         when(mHalService.getProperty(SPEED_ID, 0)).thenReturn(mValue);
 
         // Register the first listener.
-        mService.registerListener(SPEED_ID, /* rate= */ 10, mMockHandler1);
+        mService.registerListener(SPEED_ID, /* updateRateHz= */ 10, mMockHandler1);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler1, timeout(5000)).onEvent(any());
@@ -626,7 +643,7 @@ public final class CarPropertyServiceUnitTest {
         clearInvocations(mHalService);
 
         // Register the second listener.
-        mService.registerListener(SPEED_ID, /* rate= */ 20, mMockHandler2);
+        mService.registerListener(SPEED_ID, /* updateRateHz= */ 20, mMockHandler2);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler2, timeout(5000)).onEvent(any());
@@ -707,7 +724,8 @@ public final class CarPropertyServiceUnitTest {
         when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(mValue);
 
         // Register the first listener.
-        mService.registerListener(HVAC_TEMP, /* rate= */ SENSOR_RATE_ONCHANGE, mMockHandler1);
+        mService.registerListener(HVAC_TEMP, /* updateRateHz= */ SENSOR_RATE_ONCHANGE,
+                mMockHandler1);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler1, timeout(5000)).onEvent(any());
@@ -720,7 +738,8 @@ public final class CarPropertyServiceUnitTest {
         clearInvocations(mHalService);
 
         // Register the second listener.
-        mService.registerListener(HVAC_TEMP, /* rate= */ SENSOR_RATE_ONCHANGE, mMockHandler2);
+        mService.registerListener(HVAC_TEMP, /* updateRateHz= */ SENSOR_RATE_ONCHANGE,
+                mMockHandler2);
 
         // Wait until we get the on property change event for the initial value.
         verify(mMockHandler2, timeout(5000)).onEvent(any());
@@ -894,6 +913,9 @@ public final class CarPropertyServiceUnitTest {
 
         assertThrows(ServiceSpecificException.class, () ->
                 mService.registerListener(subscribeOptions, mockHandler));
+
+        // Finish the async get initial value task.
+        mService.finishHandlerTasks(/*timeoutInMs=*/ 1000);
 
         // Simulate the error goes away.
         clearInvocations(mHalService);
@@ -1122,6 +1144,9 @@ public final class CarPropertyServiceUnitTest {
         assertThrows(ServiceSpecificException.class, () ->
                 mService.unregisterListener(SPEED_ID, mockHandler));
 
+        // Finish the async get initial value task.
+        mService.finishHandlerTasks(/*timeoutInMs=*/ 1000);
+
         // Simulate the error goes away.
         clearInvocations(mHalService);
         doNothing().when(mHalService).unsubscribeProperty(anyInt());
@@ -1229,7 +1254,7 @@ public final class CarPropertyServiceUnitTest {
         when(mHalService.getProperty(HVAC_TEMP, 0)).thenReturn(value);
         EventListener listener = new EventListener(mService);
 
-        mService.registerListener(HVAC_TEMP, /* rate= */ SENSOR_RATE_ONCHANGE, listener);
+        mService.registerListener(HVAC_TEMP, /* updateRateHz= */ SENSOR_RATE_ONCHANGE, listener);
         List<CarPropertyEvent> events = List.of(new CarPropertyEvent(0, value));
         mService.onPropertyChange(events);
 
@@ -1422,7 +1447,8 @@ public final class CarPropertyServiceUnitTest {
     public void registerListener_throwsExceptionBecauseOfNullListener() {
         assertThrows(NullPointerException.class,
                 () -> mService.registerListener(ON_CHANGE_READ_WRITE_PROPERTY_ID,
-                        CarPropertyManager.SENSOR_RATE_NORMAL, /* listener= */ null));
+                        CarPropertyManager.SENSOR_RATE_NORMAL,
+                        /* carPropertyEventListener= */ null));
     }
 
     @Test
@@ -1575,8 +1601,8 @@ public final class CarPropertyServiceUnitTest {
     @Test
     public void unregisterListener_throwsExceptionBecauseOfNullListener() {
         assertThrows(NullPointerException.class,
-                () -> mService.unregisterListener(ON_CHANGE_READ_WRITE_PROPERTY_ID, /* listener= */
-                        null));
+                () -> mService.unregisterListener(ON_CHANGE_READ_WRITE_PROPERTY_ID,
+                        /* iCarPropertyEventListener= */ null));
     }
 
     @Test
@@ -1674,5 +1700,31 @@ public final class CarPropertyServiceUnitTest {
     public void isSupportedAndHasWritePermissionOnly_readOnly() throws Exception {
         assertThat(mService.isSupportedAndHasWritePermissionOnly(CONTINUOUS_READ_ONLY_PROPERTY_ID))
                 .isFalse();
+    }
+
+    /** Creates a {@code CarSubscription} with Vur off. */
+    private static CarSubscription createCarSubscriptionOption(int propertyId,
+            int[] areaId, float updateRateHz) {
+        return createCarSubscriptionOption(propertyId, areaId, updateRateHz,
+                /* enableVur= */ false, /*resolution*/ 0.0f);
+    }
+
+    /** Creates a {@code CarSubscription}. */
+    private static CarSubscription createCarSubscriptionOption(int propertyId,
+            int[] areaId, float updateRateHz, boolean enableVur) {
+        return createCarSubscriptionOption(propertyId, areaId, updateRateHz,
+                enableVur, /*resolution*/ 0.0f);
+    }
+
+    /** Creates a {@code CarSubscription}. */
+    private static CarSubscription createCarSubscriptionOption(int propertyId,
+            int[] areaId, float updateRateHz, boolean enableVur, float resolution) {
+        CarSubscription options = new CarSubscription();
+        options.propertyId = propertyId;
+        options.areaIds = areaId;
+        options.updateRateHz = updateRateHz;
+        options.enableVariableUpdateRate = enableVur;
+        options.resolution = resolution;
+        return options;
     }
 }

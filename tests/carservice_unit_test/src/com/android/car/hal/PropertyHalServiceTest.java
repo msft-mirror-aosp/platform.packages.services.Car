@@ -151,8 +151,6 @@ public class PropertyHalServiceTest {
             new AsyncPropertyServiceRequest(REQUEST_ID_2, HVAC_TEMPERATURE_SET, /* areaId= */ 0);
     private static final AsyncPropertyServiceRequest GET_PROPERTY_SERVICE_REQUEST_STATIC_1 =
             new AsyncPropertyServiceRequest(REQUEST_ID_1, INT32_PROP, /* areaId= */ 0);
-    private static final AsyncPropertyServiceRequest GET_PROPERTY_SERVICE_REQUEST_STATIC_2 =
-            new AsyncPropertyServiceRequest(REQUEST_ID_2, INT32_PROP, /* areaId= */ 0);
     private static final AsyncPropertyServiceRequest SET_HVAC_REQUEST_ID_1 =
             new AsyncPropertyServiceRequest(REQUEST_ID_1, HVAC_TEMPERATURE_SET, /* areaId= */ 0,
                     new CarPropertyValue(HVAC_TEMPERATURE_SET, /* areaId= */ 0, SAMPLE_RATE_HZ));
@@ -200,7 +198,7 @@ public class PropertyHalServiceTest {
         HalPropConfig mockPropConfig1 = mock(HalPropConfig.class);
         when(mockPropConfig1.getPropId()).thenReturn(VehicleProperty.HVAC_TEMPERATURE_SET);
         when(mockPropConfig1.getChangeMode()).thenReturn(VehiclePropertyChangeMode.ON_CHANGE);
-        when(mockPropConfig1.toCarPropertyConfig(VehicleProperty.HVAC_TEMPERATURE_SET))
+        when(mockPropConfig1.toCarPropertyConfig(eq(VehicleProperty.HVAC_TEMPERATURE_SET), any()))
                 .thenReturn(mMockCarPropertyConfig1);
         when(mMockCarPropertyConfig1.getChangeMode())
                 .thenReturn(VehiclePropertyChangeMode.ON_CHANGE);
@@ -211,7 +209,7 @@ public class PropertyHalServiceTest {
         when(mockPropConfig2.getChangeMode()).thenReturn(VehiclePropertyChangeMode.CONTINUOUS);
         when(mockPropConfig2.getMinSampleRate()).thenReturn(20.0f);
         when(mockPropConfig2.getMaxSampleRate()).thenReturn(100.0f);
-        when(mockPropConfig2.toCarPropertyConfig(VehicleProperty.PERF_VEHICLE_SPEED))
+        when(mockPropConfig2.toCarPropertyConfig(eq(VehicleProperty.PERF_VEHICLE_SPEED), any()))
                 .thenReturn(mMockCarPropertyConfig2);
         when(mMockCarPropertyConfig2.getChangeMode())
                 .thenReturn(VehiclePropertyChangeMode.CONTINUOUS);
@@ -889,8 +887,8 @@ public class PropertyHalServiceTest {
     public void testSetCarPropertyValuesAsync_configNotFound() {
         doReturn(mSetAsyncPropertyResultBinder).when(mSetAsyncPropertyResultCallback).asBinder();
         AsyncPropertyServiceRequest request = new AsyncPropertyServiceRequest(
-                REQUEST_ID_1, /* propId= */ 1, /* areaId= */ 0,
-                new CarPropertyValue(/* propId= */ 1, /* areaId= */ 0, SAMPLE_RATE_HZ));
+                REQUEST_ID_1, /* propertyId= */ 1, /* areaId= */ 0,
+                new CarPropertyValue(/* propertyId= */ 1, /* areaId= */ 0, SAMPLE_RATE_HZ));
 
         assertThrows(IllegalArgumentException.class, () -> {
             mPropertyHalService.setCarPropertyValuesAsync(List.of(request),
@@ -2545,10 +2543,10 @@ public class PropertyHalServiceTest {
 
     @Test
     public void testHalSubscribeOptions_equals() {
-        HalSubscribeOptions options1 = new HalSubscribeOptions(/* propId= */ 5,
-                /* areaId= */ new int[]{0, 3}, /* updateRateHz= */ 53f);
-        HalSubscribeOptions options2 = new HalSubscribeOptions(/* propId= */ 5,
-                /* areaId= */ new int[]{0, 3}, /* updateRateHz= */ 53f);
+        HalSubscribeOptions options1 = new HalSubscribeOptions(/* halPropId= */ 5,
+                /* areaIds= */ new int[]{0, 3}, /* updateRateHz= */ 53f);
+        HalSubscribeOptions options2 = new HalSubscribeOptions(/* halPropId= */ 5,
+                /* areaIds= */ new int[]{0, 3}, /* updateRateHz= */ 53f);
 
         assertWithMessage("Equal hal subscribe options")
                 .that(options1.equals(options2)).isTrue();
@@ -2556,11 +2554,11 @@ public class PropertyHalServiceTest {
 
     @Test
     public void testHalSubscribeOptions_notEquals() {
-        HalSubscribeOptions options1 = new HalSubscribeOptions(/* propId= */ 5,
-                /* areaId= */ new int[]{0, 3}, /* updateRateHz= */ 55f,
+        HalSubscribeOptions options1 = new HalSubscribeOptions(/* halPropId= */ 5,
+                /* areaIds= */ new int[]{0, 3}, /* updateRateHz= */ 55f,
                 /* enableVariableUpdateRate= */ true);
-        HalSubscribeOptions options2 = new HalSubscribeOptions(/* propId= */ 5,
-                /* areaId= */ new int[]{0, 3}, /* updateRateHz= */ 53f,
+        HalSubscribeOptions options2 = new HalSubscribeOptions(/* halPropId= */ 5,
+                /* areaIds= */ new int[]{0, 3}, /* updateRateHz= */ 53f,
                 /* enableVariableUpdateRate= */ true);
 
         assertWithMessage("Non-equal hal subscribe options")
@@ -2569,11 +2567,11 @@ public class PropertyHalServiceTest {
 
     @Test
     public void testHalSubscribeOptions_hashcode() {
-        HalSubscribeOptions options1 = new HalSubscribeOptions(/* propId= */ 5,
-                /* areaId= */ new int[]{0, 3}, /* updateRateHz= */ 53f,
+        HalSubscribeOptions options1 = new HalSubscribeOptions(/* halPropId= */ 5,
+                /* areaIds= */ new int[]{0, 3}, /* updateRateHz= */ 53f,
                 /* enableVariableUpdateRate= */ true);
-        HalSubscribeOptions options2 = new HalSubscribeOptions(/* propId= */ 5,
-                /* areaId= */ new int[]{0, 3}, /* updateRateHz= */ 53f,
+        HalSubscribeOptions options2 = new HalSubscribeOptions(/* halPropId= */ 5,
+                /* areaIds= */ new int[]{0, 3}, /* updateRateHz= */ 53f,
                 /* enableVariableUpdateRate= */ true);
 
         assertWithMessage("Hashcode hal subscribe options")
@@ -2588,17 +2586,12 @@ public class PropertyHalServiceTest {
     public void testOnHalEvnts_unsubscribeAndUpdateSampleRates()
             throws Exception {
         List<InvocationOnMock> setInvocationWrap = new ArrayList<>();
-        List<InvocationOnMock> getInvocationWrap = new ArrayList<>();
         List<HalServiceBase> serviceWrap = new ArrayList<>();
 
         doAnswer((invocation) -> {
             setInvocationWrap.add(invocation);
             return null;
         }).when(mVehicleHal).setAsync(anyList(), any(VehicleStubCallbackInterface.class));
-        doAnswer((invocation) -> {
-            getInvocationWrap.add(invocation);
-            return null;
-        }).when(mVehicleHal).getAsync(anyList(), any(VehicleStubCallbackInterface.class));
         doAnswer((invocation) -> {
             serviceWrap.add(invocation.getArgument(0));
             return null;

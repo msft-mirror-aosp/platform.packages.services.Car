@@ -18,6 +18,9 @@ package com.android.car.audio.hal;
 
 import static android.media.AudioAttributes.USAGE_MEDIA;
 import static android.media.AudioAttributes.USAGE_NOTIFICATION;
+import static android.media.audio.common.AudioDeviceDescription.CONNECTION_BUS;
+import static android.media.audio.common.AudioDeviceType.OUT_DEVICE;
+import static android.media.audio.common.AudioGainMode.JOINT;
 import static android.os.IBinder.DeathRecipient;
 
 import static com.android.car.audio.CarHalAudioUtils.usageToMetadata;
@@ -26,6 +29,7 @@ import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE
 import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_FOCUS_WITH_METADATA;
 import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_GAIN_CALLBACK;
 import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_GROUP_MUTING;
+import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_MODULE_CALLBACK;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -36,8 +40,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,10 +57,14 @@ import android.hardware.automotive.audiocontrol.DuckingInfo;
 import android.hardware.automotive.audiocontrol.IAudioControl;
 import android.hardware.automotive.audiocontrol.IAudioGainCallback;
 import android.hardware.automotive.audiocontrol.IFocusListener;
+import android.hardware.automotive.audiocontrol.IModuleChangeCallback;
 import android.hardware.automotive.audiocontrol.MutingInfo;
 import android.hardware.automotive.audiocontrol.Reasons;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
+import android.media.audio.common.AudioGain;
+import android.media.audio.common.AudioPort;
+import android.media.audio.common.AudioPortDeviceExt;
 import android.os.IBinder;
 import android.os.RemoteException;
 
@@ -82,6 +93,7 @@ import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
 public final class AudioControlWrapperAidlTest extends AbstractExtendedMockitoTestCase {
+    private static final long TEST_CALLBACK_TIMEOUT_MS = 100;
     private static final float FADE_VALUE = 5;
     private static final float BALANCE_VALUE = 6;
     private static final int USAGE = USAGE_MEDIA;
@@ -100,7 +112,25 @@ public final class AudioControlWrapperAidlTest extends AbstractExtendedMockitoTe
     private static final String SECONDARY_NOTIFICATION_ADDRESS = "secondary notification";
     private static final PlaybackTrackMetadata METADATA = usageToMetadata(USAGE);
 
+    private static final int PORT_ID_MEDIA = 0;
+    private static final String PORT_NAME_MEDIA = "Media Port";
+    private static final String ADDRESS_BUS_MEDIA = "BUS100_MEDIA";
+    private static final int PORT_ID_NAV = 1;
+    private static final String PORT_NAME_NAV = "Nav Port";
+    private static final String ADDRESS_BUS_NAV = "BUS101_NAV";
+    private static final AudioGain[] GAINS = new AudioGain[] {
+            new AudioGain() {{
+                mode = JOINT;
+                minValue = 0;
+                maxValue = 100;
+                defaultValue = 50;
+                stepValue = 2;
+            }}
+    };
+
     private static final int AIDL_AUDIO_CONTROL_VERSION_1 = 1;
+    private static final int AIDL_AUDIO_CONTROL_VERSION_2 = 2;
+    private static final int AIDL_AUDIO_CONTROL_VERSION_3 = 3;
     private static final CarAudioContext TEST_CAR_AUDIO_CONTEXT =
             new CarAudioContext(CarAudioContext.getAllContextsInfo(),
                     /* useCoreAudioRouting= */ false);
@@ -126,6 +156,8 @@ public final class AudioControlWrapperAidlTest extends AbstractExtendedMockitoTe
 
     @Mock
     private AudioControlDeathRecipient mDeathRecipient;
+    @Mock
+    HalAudioModuleChangeCallback mHalAudioModuleChangeCallback;
 
     private AudioControlWrapperAidl mAudioControlWrapperAidl;
     private MutingInfo mPrimaryZoneMutingInfo;
@@ -141,7 +173,8 @@ public final class AudioControlWrapperAidlTest extends AbstractExtendedMockitoTe
     }
 
     @Before
-    public void setUp() {
+    public void setUp() throws RemoteException {
+        when(mAudioControl.getInterfaceVersion()).thenReturn(AIDL_AUDIO_CONTROL_VERSION_3);
         when(mBinder.queryLocalInterface(anyString())).thenReturn(mAudioControl);
         doReturn(mBinder).when(AudioControlWrapperAidl::getService);
         mAudioControlWrapperAidl = new AudioControlWrapperAidl(mBinder);
@@ -191,6 +224,25 @@ public final class AudioControlWrapperAidlTest extends AbstractExtendedMockitoTe
     @Test
     public void supportsFeature_forUnknownFeature_returnsFalse() {
         assertThat(mAudioControlWrapperAidl.supportsFeature(-1)).isFalse();
+    }
+
+    @Test
+    public void supportsFeature_forGainCallbackEithRemoteException_returnsTrue() throws Exception {
+        doThrow(new RemoteException()).when(mAudioControl).getInterfaceVersion();
+
+        assertWithMessage("Gain callback support with failure for getting version")
+                .that(mAudioControlWrapperAidl.supportsFeature(
+                        AUDIOCONTROL_FEATURE_AUDIO_GAIN_CALLBACK)).isFalse();
+    }
+
+    @Test
+    public void supportsFeature_forModuleCallbackEithRemoteException_returnsTrue()
+            throws Exception {
+        doThrow(new RemoteException()).when(mAudioControl).getInterfaceVersion();
+
+        assertWithMessage("Module callback support with failure for getting version")
+                .that(mAudioControlWrapperAidl.supportsFeature(
+                        AUDIOCONTROL_FEATURE_AUDIO_MODULE_CALLBACK)).isFalse();
     }
 
     @Test
@@ -693,6 +745,15 @@ public final class AudioControlWrapperAidlTest extends AbstractExtendedMockitoTe
     }
 
     @Test
+    public void registerAudioGainCallback_withLowerVersion() throws Exception {
+        when(mAudioControl.getInterfaceVersion()).thenReturn(AIDL_AUDIO_CONTROL_VERSION_1);
+
+        mAudioControlWrapperAidl.registerAudioGainCallback(mHalAudioGainCallback);
+
+        verify(mAudioControl, never()).registerGainCallback(any());
+    }
+
+    @Test
     public void onAudioDeviceGainsChanged_succeeds() throws Exception {
         ArgumentCaptor<IAudioGainCallback.Stub> captor =
                 ArgumentCaptor.forClass(IAudioGainCallback.Stub.class);
@@ -797,6 +858,77 @@ public final class AudioControlWrapperAidlTest extends AbstractExtendedMockitoTe
                 .onAudioDeviceGainsChanged(eq(validReasons), captorGains.capture());
 
         assertThat(captorGains.getValue()).containsExactlyElementsIn(carGains);
+    }
+
+    @Test
+    public void setModuleChangeCallback() throws Exception {
+        mAudioControlWrapperAidl.setModuleChangeCallback(mHalAudioModuleChangeCallback);
+
+        verify(mAudioControl, timeout(TEST_CALLBACK_TIMEOUT_MS)).setModuleChangeCallback(any());
+    }
+
+    @Test
+    public void setModuleChangeCallback_withLowerVersion() throws Exception {
+        when(mAudioControl.getInterfaceVersion()).thenReturn(AIDL_AUDIO_CONTROL_VERSION_2);
+
+        mAudioControlWrapperAidl.setModuleChangeCallback(mHalAudioModuleChangeCallback);
+
+        verify(mAudioControl, after(TEST_CALLBACK_TIMEOUT_MS).never())
+                .setModuleChangeCallback(any());
+    }
+
+    @Test
+    public void setModuleChangeCallback_withIllegalStateException_retries() throws Exception {
+        doThrow(new IllegalStateException()).when(mAudioControl).setModuleChangeCallback(any());
+
+        mAudioControlWrapperAidl.setModuleChangeCallback(mHalAudioModuleChangeCallback);
+
+        verify(mAudioControl, timeout(TEST_CALLBACK_TIMEOUT_MS)).clearModuleChangeCallback();
+    }
+
+    @Test
+    public void onAudioPortsChanged() throws Exception {
+        AudioPortDeviceExt mediaDeviceExt = CarAudioHalTestUtils.createAudioPortDeviceExt(
+                OUT_DEVICE, CONNECTION_BUS, ADDRESS_BUS_MEDIA);
+        AudioPort mediaAudioPort = CarAudioHalTestUtils.createAudioPort(PORT_ID_MEDIA,
+                PORT_NAME_MEDIA, GAINS, mediaDeviceExt);
+        AudioPortDeviceExt navDeviceExt = CarAudioHalTestUtils.createAudioPortDeviceExt(
+                OUT_DEVICE, CONNECTION_BUS, ADDRESS_BUS_NAV);
+        AudioPort navAudioPort = CarAudioHalTestUtils.createAudioPort(PORT_ID_NAV,
+                PORT_NAME_NAV, GAINS, navDeviceExt);
+        HalAudioDeviceInfo mediaDeviceInfo = new HalAudioDeviceInfo(mediaAudioPort);
+        HalAudioDeviceInfo navDeviceInfo = new HalAudioDeviceInfo(navAudioPort);
+        mAudioControlWrapperAidl.setModuleChangeCallback(mHalAudioModuleChangeCallback);
+        ArgumentCaptor<IModuleChangeCallback> callbackCaptor =
+                ArgumentCaptor.forClass(IModuleChangeCallback.class);
+        verify(mAudioControl, timeout(TEST_CALLBACK_TIMEOUT_MS)).setModuleChangeCallback(
+                callbackCaptor.capture());
+        IModuleChangeCallback moduleChangeCallback = callbackCaptor.getValue();
+
+        moduleChangeCallback.onAudioPortsChanged(new AudioPort[]{mediaAudioPort, navAudioPort});
+
+        ArgumentCaptor<List<HalAudioDeviceInfo>> audioDeviceInfoCaptor = ArgumentCaptor.forClass(
+                List.class);
+        verify(mHalAudioModuleChangeCallback).onAudioPortsChanged(audioDeviceInfoCaptor.capture());
+        assertWithMessage("Hal audio device info changed").that(audioDeviceInfoCaptor.getValue())
+                .containsExactly(mediaDeviceInfo, navDeviceInfo);
+    }
+
+    @Test
+    public void clearModuleChangeCallback() throws Exception {
+        mAudioControlWrapperAidl.clearModuleChangeCallback();
+
+        verify(mAudioControl, timeout(TEST_CALLBACK_TIMEOUT_MS)).clearModuleChangeCallback();
+    }
+
+    @Test
+    public void clearModuleChangeCallback_withLowerVersion() throws Exception {
+        when(mAudioControl.getInterfaceVersion()).thenReturn(AIDL_AUDIO_CONTROL_VERSION_2);
+
+        mAudioControlWrapperAidl.clearModuleChangeCallback();
+
+        verify(mAudioControl, after(TEST_CALLBACK_TIMEOUT_MS).never())
+                .clearModuleChangeCallback();
     }
 
     private static CarAudioZone generateAudioZoneMock() {

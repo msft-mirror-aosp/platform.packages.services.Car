@@ -23,16 +23,13 @@ import static android.car.evs.CarEvsManager.SERVICE_STATE_ACTIVE;
 import static android.car.evs.CarEvsManager.SERVICE_STATE_INACTIVE;
 import static android.car.evs.CarEvsManager.SERVICE_STATE_REQUESTED;
 import static android.car.evs.CarEvsManager.SERVICE_STATE_UNAVAILABLE;
-import static android.car.evs.CarEvsManager.STREAM_EVENT_STREAM_STOPPED;
 
 import static com.android.car.CarLog.TAG_EVS;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
 
 import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
-import android.car.feature.Flags;
 import android.car.evs.CarEvsBufferDescriptor;
 import android.car.evs.CarEvsManager;
 import android.car.evs.CarEvsManager.CarEvsError;
@@ -41,21 +38,19 @@ import android.car.evs.CarEvsManager.CarEvsServiceType;
 import android.car.evs.CarEvsManager.CarEvsStreamEvent;
 import android.car.evs.CarEvsStatus;
 import android.car.evs.ICarEvsStreamCallback;
+import android.car.feature.Flags;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.HardwareBuffer;
-import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
-import android.util.ArraySet;
-import android.util.SparseIntArray;
 import android.util.Log;
+import android.util.SparseIntArray;
 
 import com.android.car.BuiltinPackageDependency;
 import com.android.car.CarServiceUtils;
@@ -63,11 +58,12 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.evs.CarEvsUtils;
 import com.android.car.internal.evs.EvsHalWrapper;
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.util.TransitionLog;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
-import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.Objects;
 
 /** CarEvsService state machine implementation to handle all state transitions. */
@@ -87,6 +83,8 @@ final class StateMachine {
     // Object to recognize Runnable objects.
     private static final String CALLBACK_RUNNABLE_TOKEN = StateMachine.class.getSimpleName();
     private static final String DEFAULT_CAMERA_ALIAS = "default";
+    // Maximum length of state transition logs.
+    private static final int MAX_TRANSITION_LOG_LENGTH = 20;
 
     private final SparseIntArray mBufferRecords = new SparseIntArray();
     private final CarEvsService mService;
@@ -123,8 +121,11 @@ final class StateMachine {
         }
     }
 
+    // For the dumpsys logging.
     @GuardedBy("mLock")
-    private String mCameraId;
+    private final ArrayList<TransitionLog> mTransitionLogs = new ArrayList<>();
+
+    private final String mCameraId;
 
     // Current state.
     @GuardedBy("mLock")
@@ -237,8 +238,7 @@ final class StateMachine {
                 while (idx-- > 0) {
                     ICarEvsStreamCallback callback = mCallbacks.getBroadcastItem(idx);
                     try {
-                        int taggedEvent = CarEvsUtils.putTag(mServiceType, event);
-                        callback.onStreamEvent(taggedEvent);
+                        callback.onStreamEvent(mServiceType, event);
                     } catch (RemoteException e) {
                         Slogf.w(mLogTag, "Failed to forward an event to %s", callback);
                     }
@@ -262,12 +262,12 @@ final class StateMachine {
                 while (idx-- > 0) {
                     ICarEvsStreamCallback callback = mCallbacks.getBroadcastItem(idx);
                     try {
-                        int bufferId = CarEvsUtils.putTag(mServiceType, id);
                         CarEvsBufferDescriptor descriptor;
                         if (Flags.carEvsStreamManagement()) {
-                            descriptor = new CarEvsBufferDescriptor(bufferId, mServiceType, buffer);
+                            descriptor = new CarEvsBufferDescriptor(id, mServiceType, buffer);
                         } else {
-                            descriptor = new CarEvsBufferDescriptor(bufferId, buffer);
+                            descriptor = new CarEvsBufferDescriptor(
+                                    CarEvsUtils.putTag(mServiceType, id), buffer);
                         }
                         callback.onNewFrame(descriptor);
                         refcount += 1;
@@ -469,8 +469,10 @@ final class StateMachine {
 
     /** Requests to cancel a pending activity request. */
     void cancelActivityRequest() {
-        if (mState != SERVICE_STATE_REQUESTED) {
-            return;
+        synchronized (mLock) {
+            if (mState != SERVICE_STATE_REQUESTED) {
+                return;
+            }
         }
 
         if (execute(REQUEST_PRIORITY_HIGH, SERVICE_STATE_INACTIVE) != ERROR_NONE) {
@@ -552,9 +554,19 @@ final class StateMachine {
                             CarEvsUtils.convertToString(mServiceType));
             writer.printf("SessionToken = %s.\n",
                     mSessionToken == null ? "Not exist" : mSessionToken);
+            writer.printf("Camera Id = %s.\n", mCameraId);
+
+            writer.println("Current state: " + mState);
             writer.increaseIndent();
-            mHalCallback.dump(writer);
+            writer.println("State transition log:");
+            writer.increaseIndent();
+            for (int i = 0; i < mTransitionLogs.size(); i++) {
+                writer.println(mTransitionLogs.get(i));
+            }
             writer.decreaseIndent();
+            writer.decreaseIndent();
+
+            mHalCallback.dump(writer);
             writer.printf("\n");
         }
     }
@@ -640,6 +652,12 @@ final class StateMachine {
             if (previousState != newState) {
                 Slogf.i(mLogTag, "Transition completed: %s", stateToString(destination));
                 mService.broadcastStateTransition(CarEvsManager.SERVICE_TYPE_REARVIEW, newState);
+
+                // Log a successful state transition.
+                synchronized (mLock) {
+                    addTransitionLogLocked(mLogTag, previousState, newState,
+                            System.currentTimeMillis());
+                }
             } else {
                 Slogf.i(mLogTag, "Stay at %s", stateToString(newState));
             }
@@ -679,6 +697,7 @@ final class StateMachine {
      * @return true if we should launch an activity.
      *         false otherwise.
      */
+    @GuardedBy("mLock")
     private boolean needToStartActivityLocked() {
         if (mActivityName == null || mHandler.hasCallbacks(mActivityRequestTimeoutRunnable)) {
             // No activity has been registered yet or it is already requested.
@@ -772,7 +791,7 @@ final class StateMachine {
     /**
      * Try to connect to the EVS HAL service until it succeeds at a given interval.
      *
-     * @param internalInMillis an interval to try again if current attempt fails.
+     * @param intervalInMillis an interval to try again if current attempt fails.
      */
     private void connectToHalServiceIfNecessary(long intervalInMillis) {
         if (execute(REQUEST_PRIORITY_HIGH, SERVICE_STATE_INACTIVE) != ERROR_NONE) {
@@ -795,9 +814,7 @@ final class StateMachine {
         }
 
         try {
-            int taggedEvent = CarEvsUtils.putTag(mServiceType,
-                    CarEvsManager.STREAM_EVENT_STREAM_STOPPED);
-            callback.onStreamEvent(taggedEvent);
+            callback.onStreamEvent(mServiceType, CarEvsManager.STREAM_EVENT_STREAM_STOPPED);
         } catch (RemoteException e) {
             // Likely the binder death incident
             Slogf.w(TAG_EVS, Log.getStackTraceString(e));
@@ -1154,6 +1171,17 @@ final class StateMachine {
             default:
                 return "UNKNOWN: " + state;
         }
+    }
+
+    @GuardedBy("mLock")
+    private void addTransitionLogLocked(String name, int from, int to, long timestamp) {
+        if (mTransitionLogs.size() >= MAX_TRANSITION_LOG_LENGTH) {
+            // Remove the least recently added entry.
+            mTransitionLogs.remove(0);
+        }
+
+        mTransitionLogs.add(
+                new TransitionLog(name, stateToString(from), stateToString(to), timestamp));
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)

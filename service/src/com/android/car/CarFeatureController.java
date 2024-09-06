@@ -27,6 +27,8 @@ import android.car.builtin.util.AtomicFileHelper;
 import android.car.builtin.util.Slogf;
 import android.car.feature.Flags;
 import android.content.Context;
+import android.content.res.Resources;
+import android.hardware.automotive.vehicle.VehicleProperty;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.ArraySet;
@@ -34,6 +36,8 @@ import android.util.AtomicFile;
 import android.util.Pair;
 import android.util.proto.ProtoOutputStream;
 
+import com.android.car.hal.HalPropValue;
+import com.android.car.hal.VehicleHal;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
@@ -52,7 +56,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -61,6 +64,7 @@ import java.util.List;
 public final class CarFeatureController implements CarServiceBase {
 
     private static final String TAG = CarLog.tagFor(CarFeatureController.class);
+    private static final int INITIAL_VHAL_GET_RETRY = 2;
 
     // We define this here for compatibility with older feature lists only
     private static final String BLUETOOTH_SERVICE = "car_bluetooth";
@@ -130,9 +134,11 @@ public final class CarFeatureController implements CarServiceBase {
             Car.CAR_INSTRUMENT_CLUSTER_SERVICE
     );
 
-    private static final ArraySet<String> FLAGGED_OPTIONAL_FEATURES = new ArraySet<>();
+    private static final ArraySet<String> FLAGGED_OPTIONAL_FEATURES = new ArraySet<>(1);
 
     static {
+        // TODO(b/327682912): Move to packages/services/Car/service/res/values/config.xml,
+        //  when removing the feature flag
         if (Flags.displayCompatibility()) {
             FLAGGED_OPTIONAL_FEATURES.add(Car.CAR_DISPLAY_COMPAT_SERVICE);
         }
@@ -189,15 +195,28 @@ public final class CarFeatureController implements CarServiceBase {
     @GuardedBy("mLock")
     private ArraySet<String> mAvailableExperimentalFeatures = new ArraySet<>();
 
-    public CarFeatureController(@NonNull Context context,
-            @NonNull String[] defaultEnabledFeaturesFromConfig,
-            @NonNull String[] disabledFeaturesFromVhal, @NonNull File dataDir) {
+    public CarFeatureController(@NonNull Context context, @NonNull File dataDir, VehicleHal hal) {
         if (!BuildHelper.isUserBuild()) {
             OPTIONAL_FEATURES.addAll(NON_USER_ONLY_FEATURES);
         }
         mContext = context;
-        Arrays.sort(defaultEnabledFeaturesFromConfig);
-        mDefaultEnabledFeaturesFromConfig = Arrays.asList(defaultEnabledFeaturesFromConfig);
+        String[] disabledFeaturesFromVhal = null;
+        HalPropValue disabledOptionalFeatureValue = hal.getIfSupportedOrFailForEarlyStage(
+                VehicleProperty.DISABLED_OPTIONAL_FEATURES, INITIAL_VHAL_GET_RETRY);
+        if (disabledOptionalFeatureValue != null) {
+            String disabledFeatures = disabledOptionalFeatureValue.getStringValue();
+            if (disabledFeatures != null && !disabledFeatures.isEmpty()) {
+                disabledFeaturesFromVhal = disabledFeatures.split(",");
+            }
+        }
+        if (disabledFeaturesFromVhal == null) {
+            disabledFeaturesFromVhal = new String[0];
+        }
+        Resources res = mContext.getResources();
+        String[] defaultEnabledFeatures = res.getStringArray(
+                R.array.config_allowed_optional_car_features);
+        Arrays.sort(defaultEnabledFeatures);
+        mDefaultEnabledFeaturesFromConfig = Arrays.asList(defaultEnabledFeatures);
         mDisabledFeaturesFromVhal = Arrays.asList(disabledFeaturesFromVhal);
         Slogf.i(TAG, "mDefaultEnabledFeaturesFromConfig:" + mDefaultEnabledFeaturesFromConfig
                 + ",mDisabledFeaturesFromVhal:" + mDisabledFeaturesFromVhal);
@@ -459,12 +478,12 @@ public final class CarFeatureController implements CarServiceBase {
 
     /** Returns currently enabled experimental features */
     public @NonNull List<String> getEnabledExperimentalFeatures() {
+        ArrayList<String> experimentalFeature = new ArrayList<>();
         if (BuildHelper.isUserBuild()) {
             Slogf.e(TAG, "getEnabledExperimentalFeatures called in USER build",
                     new RuntimeException());
-            return Collections.emptyList();
+            return experimentalFeature;
         }
-        ArrayList<String> experimentalFeature = new ArrayList<>();
         for (int i = 0; i < mEnabledFeatures.size(); i++) {
             String enabledFeature = mEnabledFeatures.valueAt(i);
             if (MANDATORY_FEATURES.contains(enabledFeature)) {
@@ -617,24 +636,27 @@ public final class CarFeatureController implements CarServiceBase {
                 Slogf.e(TAG, "config_default_enabled_optional_car_features including "
                         + "user build only feature, will be ignored:" + defaultEnabledFeature);
             } else {
-                throw new IllegalArgumentException(
-                        "config_default_enabled_optional_car_features include non-optional "
-                                + "features:" + defaultEnabledFeature);
+                Slogf.e(TAG, "config_default_enabled_optional_car_features include "
+                                + "non-optional features:" + defaultEnabledFeature);
             }
         }
         Slogf.i(TAG, "Loaded default features:" + mEnabledFeatures);
     }
 
     private static void addSupportFeatures(Collection<String> features) {
-        SUPPORT_FEATURES.stream()
-                .filter(entry -> features.contains(entry.first))
-                .forEach(entry -> features.add(entry.second));
+        for (int index = 0; index < SUPPORT_FEATURES.size(); index++) {
+            if (features.contains(SUPPORT_FEATURES.get(index).first)) {
+                features.add(SUPPORT_FEATURES.get(index).second);
+            }
+        }
     }
 
     private static void removeSupportFeatures(Collection<String> features) {
-        SUPPORT_FEATURES.stream()
-                .filter(entry -> features.contains(entry.first))
-                .forEach(entry -> features.remove(entry.second));
+        for (int index = 0; index < SUPPORT_FEATURES.size(); index++) {
+            if (features.contains(SUPPORT_FEATURES.get(index).first)) {
+                features.remove(SUPPORT_FEATURES.get(index).second);
+            }
+        }
     }
 
     private static ArraySet<String> combineFeatures(List<String> features,

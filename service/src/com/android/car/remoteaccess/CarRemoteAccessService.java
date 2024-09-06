@@ -102,7 +102,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -366,7 +365,6 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
     @GuardedBy("mLock")
     private boolean mRunGarageMode;
     private CarPowerManagementService mPowerService;
-    private AtomicBoolean mInitialized;
 
     private CarRemoteAccessServiceDep mDep;
 
@@ -394,7 +392,7 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
     }
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    private class CarRemoteAccessServiceDepImpl implements CarRemoteAccessServiceDep {
+    private static class CarRemoteAccessServiceDepImpl implements CarRemoteAccessServiceDep {
         public int getCallingUid() {
             return Binder.getCallingUid();
         }
@@ -1124,6 +1122,24 @@ public final class CarRemoteAccessService extends ICarRemoteAccessService.Stub
         if (isAllClientReadyForShutDown) {
             mHandler.postWrapUpRemoteAccessService(/* delayMs= */ 0);
         }
+    }
+
+    /**
+     * Returns whether {@code VEHICLE_IN_USE} is supported and getting it returns a valid value.
+     */
+    @Override
+    public boolean isVehicleInUseSupported() {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CONTROL_REMOTE_ACCESS);
+        return mPowerHalService.isVehicleInUseSupported();
+    }
+
+    /**
+     * Returns whether {@code SHUTDOWN_REQUEST} is supported.
+     */
+    @Override
+    public boolean isShutdownRequestSupported() {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CONTROL_REMOTE_ACCESS);
+        return mPowerHalService.isShutdownRequestSupported();
     }
 
     @VisibleForTesting

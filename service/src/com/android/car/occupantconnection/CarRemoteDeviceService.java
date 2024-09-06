@@ -29,7 +29,9 @@ import static android.car.CarRemoteDeviceManager.FLAG_OCCUPANT_ZONE_SCREEN_UNLOC
 import static android.car.builtin.display.DisplayManagerHelper.EVENT_FLAG_DISPLAY_CHANGED;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 import static android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES;
 
 import static com.android.car.CarServiceUtils.assertPermission;
@@ -435,11 +437,15 @@ public class CarRemoteDeviceService extends ICarRemoteDevice.Stub implements
                 // It listens to user STARTING event because it needs to initialize PerUserInfo for
                 // the new user as early as possible (b/300676850).
                 // It listens to user UNLOCKED and INVISIBLE events because it needs to update the
-                // OccupantZoneState. UNLOCKED event indicates the connection becomes ready,
-                // while INVISIBLE event indicates the connection changes to not ready.
+                // OccupantZoneState. UNLOCKED or VISIBLE event indicates the connection becomes
+                // ready, while INVISIBLE event indicates the connection changes to not ready.
+                // It listens to user SWITCHING event because it needs to update PerUserInfo through
+                // CarOccupantZoneService (b/331780823).
                 .addEventType(USER_LIFECYCLE_EVENT_TYPE_STARTING)
                 .addEventType(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)
+                .addEventType(USER_LIFECYCLE_EVENT_TYPE_VISIBLE)
                 .addEventType(USER_LIFECYCLE_EVENT_TYPE_INVISIBLE)
+                .addEventType(USER_LIFECYCLE_EVENT_TYPE_SWITCHING)
                 .build();
         userService.addUserLifecycleListener(userEventFilter, mUserLifecycleListener);
     }

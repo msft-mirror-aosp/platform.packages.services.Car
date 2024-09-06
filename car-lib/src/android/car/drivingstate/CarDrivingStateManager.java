@@ -31,7 +31,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.SystemClock;
-import android.util.Log;
+import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -45,7 +45,6 @@ import java.lang.ref.WeakReference;
 @SystemApi
 public final class CarDrivingStateManager extends CarManagerBase {
     private static final String TAG = "CarDrivingStateMgr";
-    private static final boolean DBG = false;
     private static final boolean VDBG = false;
     private static final int MSG_HANDLE_DRIVING_STATE_CHANGE = 0;
 
@@ -101,7 +100,7 @@ public final class CarDrivingStateManager extends CarManagerBase {
     public void registerListener(@NonNull CarDrivingStateEventListener listener) {
         if (listener == null) {
             if (VDBG) {
-                Log.v(TAG, "registerCarDrivingStateEventListener(): null listener");
+                Slog.v(TAG, "registerCarDrivingStateEventListener(): null listener");
             }
             throw new IllegalArgumentException("Listener is null");
         }
@@ -109,7 +108,7 @@ public final class CarDrivingStateManager extends CarManagerBase {
         synchronized (mLock) {
             // Check if the listener has been already registered for this event type
             if (mDrvStateEventListener != null) {
-                Log.w(TAG, "Listener already registered");
+                Slog.w(TAG, "Listener already registered");
                 return;
             }
             if (mListenerToService == null) {
@@ -137,7 +136,7 @@ public final class CarDrivingStateManager extends CarManagerBase {
         CarDrivingStateChangeListenerToService localListenerToService;
         synchronized (mLock) {
             if (mDrvStateEventListener == null) {
-                Log.w(TAG, "Listener was not previously registered");
+                Slog.w(TAG, "Listener was not previously registered");
                 return;
             }
             localListenerToService = mListenerToService;
