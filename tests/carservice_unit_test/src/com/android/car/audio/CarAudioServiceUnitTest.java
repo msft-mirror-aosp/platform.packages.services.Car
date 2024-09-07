@@ -880,7 +880,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void init_withRepeatedDynamicDevicesInConfig_fails() throws Exception {
         setUpTempFileForAudioConfiguration(
-                R.raw.car_audio_configuration_with_repeated_dynamic_devices_in_config);
+                R.raw.car_audio_configuration_repeated_dynamic_devices_in_config);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         CarAudioService service = setUpAudioServiceWithDynamicDevices(mTempCarAudioConfigFile,
                 mTempCarAudioFadeConfigFile);
@@ -5000,8 +5000,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void switchZoneToConfig_toDynamicConfig_withDynamicDevicesInMultipleZones()
             throws Exception {
-        setUpTempFileForAudioConfiguration(
-                R.raw.car_audio_configuration_with_dynamic_devices_for_primary_zone);
+        setUpTempFileForAudioConfiguration(R.raw.car_audio_configuration_using_dynamic_devices);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         CarAudioService dynamicDeviceService =
                 setUpAudioServiceWithDynamicDevices(mTempCarAudioConfigFile,
@@ -5035,8 +5034,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void switchZoneToConfig_backFromDynamicConfig_withDynamicDevicesInMultipleZones()
             throws Exception {
-        setUpTempFileForAudioConfiguration(
-                R.raw.car_audio_configuration_with_dynamic_devices_for_primary_zone);
+        setUpTempFileForAudioConfiguration(R.raw.car_audio_configuration_using_dynamic_devices);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         CarAudioService dynamicDeviceService =
                 setUpAudioServiceWithDynamicDevices(mTempCarAudioConfigFile,
@@ -6668,8 +6666,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
     private CarAudioService setUpAudioServiceWithMinMaxActivationVolume(boolean enabled)
             throws Exception {
-        setUpTempFileForAudioConfiguration(
-                R.raw.car_audio_configuration_with_min_max_activation_volume);
+        setUpTempFileForAudioConfiguration(R.raw.car_audio_configuration_using_activation_volumes);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         when(mMockResources.getBoolean(audioUseMinMaxActivationVolume)).thenReturn(enabled);
         CarAudioService service = new CarAudioService(mMockContext, mAudioManager,
@@ -6893,7 +6890,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
         when(mMockResources.getBoolean(audioUseCoreRouting)).thenReturn(true);
         setUpTempFileForAudioConfiguration(
-                R.raw.car_audio_configuration_using_core_routing_and_volume);
+                R.raw.car_audio_configuration_using_core_audio_routing_and_volume);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
 
         CarAudioService useCoreAudioCarAudioService = new CarAudioService(mMockContext,
