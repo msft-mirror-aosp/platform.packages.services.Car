@@ -24,7 +24,6 @@ import static android.car.hardware.power.PowerComponentUtil.toPowerComponent;
 import static android.frameworks.automotive.powerpolicy.PowerComponent.MINIMUM_CUSTOM_COMPONENT_VALUE;
 
 import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
-import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import static org.xmlpull.v1.XmlPullParser.END_DOCUMENT;
@@ -40,7 +39,6 @@ import android.car.hardware.power.PowerComponent;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReport;
 import android.util.ArrayMap;
 import android.util.ArraySet;
-import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 import android.util.Xml;
@@ -70,7 +68,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Helper class to read and manage vendor power policies.
@@ -824,7 +821,7 @@ public final class PolicyReader {
 
         if ((defaultGroupPolicyId == null || defaultGroupPolicyId.isEmpty())
                 && !policyGroups.isEmpty()) {
-            Log.w(TAG, "No defaultGroupPolicyId is defined");
+            Slogf.w(TAG, "No defaultGroupPolicyId is defined");
         }
 
         if (defaultGroupPolicyId != null && !policyGroups.containsKey(defaultGroupPolicyId)) {
@@ -836,10 +833,10 @@ public final class PolicyReader {
     private void reconstructSystemPowerPolicy(@Nullable CarPowerPolicy policyOverride) {
         if (policyOverride == null) return;
 
-        List<Integer> enabledComponents = Arrays.stream(NO_USER_INTERACTION_ENABLED_COMPONENTS)
-                .boxed().collect(Collectors.toList());
-        List<Integer> disabledComponents = Arrays.stream(NO_USER_INTERACTION_DISABLED_COMPONENTS)
-                .boxed().collect(Collectors.toList());
+        List<Integer> enabledComponents = CarServiceUtils.asList(
+                NO_USER_INTERACTION_ENABLED_COMPONENTS);
+        List<Integer> disabledComponents = CarServiceUtils.asList(
+                NO_USER_INTERACTION_DISABLED_COMPONENTS);
         int[] overrideEnabledComponents = policyOverride.getEnabledComponents();
         int[] overrideDisabledComponents = policyOverride.getDisabledComponents();
         for (int i = 0; i < overrideEnabledComponents.length; i++) {
@@ -927,16 +924,6 @@ public final class PolicyReader {
     boolean isOverridableComponent(int component) {
         return component >= MINIMUM_CUSTOM_COMPONENT_VALUE // custom components are overridable
             || SYSTEM_POLICY_CONFIGURABLE_COMPONENTS.contains(component);
-    }
-
-    @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
-    private String componentsToString(int[] components) {
-        StringBuffer buffer = new StringBuffer();
-        for (int i = 0; i < components.length; i++) {
-            if (i > 0) buffer.append(", ");
-            buffer.append(powerComponentToString(components[i]));
-        }
-        return buffer.toString();
     }
 
     @PolicyOperationStatus.ErrorCode

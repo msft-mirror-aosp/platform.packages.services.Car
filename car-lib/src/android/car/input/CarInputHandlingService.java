@@ -32,6 +32,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Slog;
 import android.view.KeyEvent;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -64,7 +65,7 @@ import java.lang.ref.WeakReference;
 @ExcludeFromCodeCoverageGeneratedReport(reason = DEPRECATED_CODE)
 public abstract class CarInputHandlingService extends Service {
     private static final String TAG = CarLibLog.TAG_INPUT;
-    private static final boolean DBG = false;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     public static final String INPUT_CALLBACK_BINDER_KEY = "callback_binder";
     public static final int INPUT_CALLBACK_BINDER_CODE = IBinder.FIRST_CALL_TRANSACTION;
@@ -86,7 +87,7 @@ public abstract class CarInputHandlingService extends Service {
     @CallSuper
     public IBinder onBind(Intent intent) {
         if (DBG) {
-            Log.d(TAG, "onBind, intent: " + intent);
+            Slog.d(TAG, "onBind, intent: " + intent);
         }
 
         doCallbackIfPossible(intent.getExtras());
@@ -100,12 +101,12 @@ public abstract class CarInputHandlingService extends Service {
 
     private void doCallbackIfPossible(Bundle extras) {
         if (extras == null) {
-            Log.i(TAG, "doCallbackIfPossible: extras are null");
+            Slog.i(TAG, "doCallbackIfPossible: extras are null");
             return;
         }
         IBinder callbackBinder = extras.getBinder(INPUT_CALLBACK_BINDER_KEY);
         if (callbackBinder == null) {
-            Log.i(TAG, "doCallbackIfPossible: callback IBinder is null");
+            Slog.i(TAG, "doCallbackIfPossible: callback IBinder is null");
             return;
         }
         Parcel dataIn = Parcel.obtain();

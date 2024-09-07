@@ -72,9 +72,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -268,9 +268,12 @@ public final class CarServiceUtils {
                 return true;
             }
         }
+        StringJoiner expectedTyepsStringJoiner = new StringJoiner(",");
+        for (int index = 0; index < expectedTypes.length; index++) {
+            expectedTyepsStringJoiner.add(lifecycleEventTypeToString(expectedTypes[index]));
+        }
         Slogf.wtf(tag, "Received an unexpected event: %s. Expected types: [%s]", event,
-                Arrays.stream(expectedTypes).mapToObj(t -> lifecycleEventTypeToString(t)).collect(
-                        Collectors.joining(",")));
+                expectedTyepsStringJoiner.toString());
         return false;
     }
 
@@ -481,6 +484,20 @@ public final class CarServiceUtils {
     }
 
     /**
+     * Converts int-value array set to values array
+     */
+    public static int[] toIntArray(ArraySet<Integer> set) {
+        Preconditions.checkArgument(set != null,
+                "Int array set to converted to array must not be null");
+        int size = set.size();
+        int[] array = new int[size];
+        for (int i = 0; i < size; ++i) {
+            array[i] = set.valueAt(i);
+        }
+        return array;
+    }
+
+    /**
      * Returns delta between elapsed time to uptime = {@link SystemClock#elapsedRealtime()} -
      * {@link SystemClock#uptimeMillis()}. Note that this value will be always >= 0.
      */
@@ -527,29 +544,33 @@ public final class CarServiceUtils {
     }
 
     /**
-     * Finishes all queued {@code Handler} tasks for {@code HandlerThread} created via
+     * Quits all the {@code HandlerThread} created via
      * {@link#getHandlerThread(String)}. This is useful only for testing.
      */
     @VisibleForTesting
-    public static void finishAllHandlerTasks() {
+    public static void quitHandlerThreads() throws InterruptedException {
         ArrayList<HandlerThread> threads;
         synchronized (sHandlerThreads) {
             threads = new ArrayList<>(sHandlerThreads.values());
         }
-        ArrayList<SyncRunnable> syncs = new ArrayList<>(threads.size());
         for (int i = 0; i < threads.size(); i++) {
-            if (!threads.get(i).isAlive()) {
+            var thread = threads.get(i);
+            if (!thread.isAlive()) {
                 continue;
             }
-            Handler handler = new Handler(threads.get(i).getLooper());
-            SyncRunnable sr = new SyncRunnable(() -> { });
-            if (handler.post(sr)) {
-                // Track the threads only where SyncRunnable is posted successfully.
-                syncs.add(sr);
+            if (thread.quitSafely()) {
+                thread.join();
             }
         }
-        for (int i = 0; i < syncs.size(); i++) {
-            syncs.get(i).waitForComplete();
+        synchronized (sHandlerThreads) {
+            for (int i = 0; i < sHandlerThreads.size(); i++) {
+                if (sHandlerThreads.valueAt(i).isAlive()) {
+                    throw new IllegalStateException(
+                            "Thread: " + sHandlerThreads.keyAt(i) + " is still alive after "
+                            + "finishing all the tasks in the handler threads, maybe one of the "
+                            + " pending task is creating a new handler thread?");
+                }
+            }
         }
     }
 

@@ -19,12 +19,20 @@ package {
 android_app {
     name: "CarDistantDisplaySystemUI",
 
-    srcs: ["src/**/*.java"],
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.kt",
+    ],
 
     resource_dirs: ["res"],
 
     static_libs: [
         "CarSystemUI-core",
+        "displaycompat-service",
+
+        // Kotlin
+        "kotlin-stdlib",
+        "kotlinx-coroutines-android",
     ],
 
     libs: [
@@ -60,4 +68,12 @@ android_app {
         "privapp_whitelist_com.android.systemui",
         "allowed_privapp_com.android.carsystemui",
     ],
+}
+
+android_library_import {
+    name: "displaycompat-service",
+    aars: [
+        "displaycompat-service.aar",
+    ],
+    sdk_version: "34",
 }

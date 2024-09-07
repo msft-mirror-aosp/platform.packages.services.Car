@@ -18,6 +18,7 @@ package android.car.evs;
 
 import static android.car.feature.Flags.FLAG_CAR_EVS_QUERY_SERVICE_STATUS;
 import static android.car.feature.Flags.FLAG_CAR_EVS_STREAM_MANAGEMENT;
+
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.annotation.CallbackExecutor;
@@ -31,15 +32,20 @@ import android.annotation.SystemApi;
 import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.annotation.RequiredFeature;
+import android.car.builtin.os.TraceHelper;
 import android.car.builtin.util.Slogf;
-import android.car.feature.Flags;
+import android.car.feature.FeatureFlags;
+import android.car.feature.FeatureFlagsImpl;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.Trace;
 import android.util.Log;
 import android.util.SparseArray;
+import android.util.SparseIntArray;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.ICarBase;
 import com.android.car.internal.evs.CarEvsUtils;
 import com.android.internal.annotations.GuardedBy;
 
@@ -66,6 +72,8 @@ public final class CarEvsManager extends CarManagerBase {
 
     private final ICarEvsService mService;
     private final Object mStreamLock = new Object();
+
+    private final FeatureFlags mFeatureFlags;
 
     // This array maintains mappings between service type and its client.
     @GuardedBy("mStreamLock")
@@ -280,9 +288,10 @@ public final class CarEvsManager extends CarManagerBase {
      *
      * @hide
      */
-    public CarEvsManager(Car car, IBinder service) {
+    public CarEvsManager(ICarBase car, IBinder service, @Nullable FeatureFlags featureFlags) {
         super(car);
 
+        mFeatureFlags = Objects.requireNonNullElse(featureFlags, new FeatureFlagsImpl());
         // Gets CarEvsService
         mService = ICarEvsService.Stub.asInterface(service);
     }
@@ -418,8 +427,7 @@ public final class CarEvsManager extends CarManagerBase {
     }
 
     /**
-     * Application registers {@link #CarEvsStreamCallback} object to listen to EVS services' status
-     * changes.
+     * Application registers {@link #CarEvsStreamCallback} object to listen to EVS streams.
      *
      * CarEvsManager supports two client types; one is a System UI type client and another is a
      * normal Android activity type client.  The former client type has a priority over
@@ -433,9 +441,26 @@ public final class CarEvsManager extends CarManagerBase {
          * Called when any EVS stream events occur.
          *
          * @param event {@link #CarEvsStreamEvent}; e.g. a stream started
+         *
+         * @deprecated Use {@link CarEvsStreamCallback#onStreamEvent(origin, event) instead.
          */
+        @Deprecated
         @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
         default void onStreamEvent(@CarEvsStreamEvent int event) {}
+
+        /**
+         * Called when any EVS stream events occur with its origin and event type.
+         *
+         * @param origin {@link #CarEvsServiceType}; e.g. SERVICE_TYPE_REARVIEW
+         * @param event {@link #CarEvsStreamEvent}; e.g. a stream started
+         */
+        @ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
+        @FlaggedApi(FLAG_CAR_EVS_STREAM_MANAGEMENT)
+        default void onStreamEvent(@CarEvsServiceType int origin, @CarEvsStreamEvent int event) {
+            // By default, we forward this event callback to
+            // {@link CarEvsStreamCallback#onStreamEvent(int)}.
+            onStreamEvent(CarEvsUtils.putTag(origin, event));
+        }
 
         /**
          * Called when new frame arrives.
@@ -452,23 +477,34 @@ public final class CarEvsManager extends CarManagerBase {
      */
     private static class CarEvsStreamListenerToService extends ICarEvsStreamCallback.Stub {
         private static final int DEFAULT_STREAM_EVENT_WAIT_TIMEOUT_IN_SEC = 1;
+        private static final int KEY_NOT_EXIST = Integer.MIN_VALUE;
         private final WeakReference<CarEvsManager> mManager;
         private final Semaphore mStreamEventOccurred = new Semaphore(/* permits= */ 0);
-        private @CarEvsStreamEvent int mLastStreamEvent;
+        private final SparseIntArray mLastStreamEvent = new SparseIntArray();
+        private final Object mLock = new Object();
 
         CarEvsStreamListenerToService(CarEvsManager manager) {
             mManager = new WeakReference<>(manager);
         }
 
         @Override
-        public void onStreamEvent(@CarEvsStreamEvent int event) {
-            mLastStreamEvent = event;
-            mStreamEventOccurred.release();
+        public void onStreamEvent(@CarEvsServiceType int origin, @CarEvsStreamEvent int event) {
+            Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                    "CarEvsManager#onStreamEvent", origin);
+            if (DBG) {
+                Slogf.d(TAG, "Received an event %d from %d.", event, origin);
+            }
+            synchronized (mLock) {
+                mLastStreamEvent.append(origin, event);
+                mStreamEventOccurred.release();
+            }
 
             CarEvsManager manager = mManager.get();
             if (manager != null) {
-                manager.handleStreamEvent(event);
+                manager.handleStreamEvent(origin, event);
             }
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                    "CarEvsManager#onStreamEvent", origin);
         }
 
         @Override
@@ -479,26 +515,44 @@ public final class CarEvsManager extends CarManagerBase {
             }
         }
 
-        public boolean waitForStreamEvent(@CarEvsStreamEvent int expected) {
-            return waitForStreamEvent(expected, DEFAULT_STREAM_EVENT_WAIT_TIMEOUT_IN_SEC);
+        public boolean waitForStreamEvent(@CarEvsServiceType int from,
+                @CarEvsStreamEvent int expected) {
+            return waitForStreamEvent(from, expected, DEFAULT_STREAM_EVENT_WAIT_TIMEOUT_IN_SEC);
         }
 
-        public boolean waitForStreamEvent(@CarEvsStreamEvent int expected, int timeoutInSeconds) {
-            while (true) {
-                try {
+        public boolean waitForStreamEvent(@CarEvsServiceType int from,
+                @CarEvsStreamEvent int expected, int timeoutInSeconds) {
+            Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                    "CarEvsManager#waitForStreamEvent", from);
+            try {
+                while (true) {
                     if (!mStreamEventOccurred.tryAcquire(timeoutInSeconds, TimeUnit.SECONDS)) {
                         Slogf.w(TAG, "Timer for a new stream event expired.");
                         return false;
                     }
 
-                    if (mLastStreamEvent == expected) {
-                        return true;
+                    int lastEvent;
+                    synchronized (mLock) {
+                        lastEvent = mLastStreamEvent.get(from, KEY_NOT_EXIST);
+
+                        if (lastEvent == KEY_NOT_EXIST) {
+                            // We have not received any event from a target service type yet.
+                            continue;
+                        }
+
+                        if (lastEvent == expected) {
+                            mLastStreamEvent.delete(from);
+                            return true;
+                        }
                     }
-                } catch (InterruptedException e) {
-                    Slogf.w(TAG, "Interrupted while waiting for an event %d.\nException = %s",
-                            expected, Log.getStackTraceString(e));
-                    return false;
                 }
+            } catch (InterruptedException e) {
+                Slogf.w(TAG, "Interrupted while waiting for an event %d.\nException = %s",
+                        expected, Log.getStackTraceString(e));
+                return false;
+            } finally {
+                Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                        "CarEvsManager#waitForStreamEvent", from);
             }
         }
     }
@@ -510,24 +564,37 @@ public final class CarEvsManager extends CarManagerBase {
      *
      * @param event {@link #CarEvsStreamEvent} from the service this manager subscribes to.
      */
-    private void handleStreamEvent(@CarEvsStreamEvent int event) {
+    private void handleStreamEvent(@CarEvsServiceType int origin, @CarEvsStreamEvent int event) {
         synchronized(mStreamLock) {
-            handleStreamEventLocked(event);
+            handleStreamEventLocked(origin, event);
         }
     }
 
     @GuardedBy("mStreamLock")
-    private void handleStreamEventLocked(@CarEvsStreamEvent int event) {
+    private void handleStreamEventLocked(@CarEvsServiceType int origin,
+            @CarEvsStreamEvent int event) {
         if (DBG) {
             Slogf.d(TAG, "Received: " + event);
         }
 
-        CarEvsStreamCallback callback = mStreamCallbacks.get(CarEvsUtils.getTag(event));
+        CarEvsStreamCallback callback = mStreamCallbacks.get(origin);
         Executor executor = mStreamCallbackExecutor;
         if (callback != null) {
-            executor.execute(() -> callback.onStreamEvent(CarEvsUtils.getValue(event)));
-        } else if (DBG) {
+            handleStreamEventLocked(origin, event, callback, executor);
+        }
+
+        if (DBG) {
             Slogf.w(TAG, "No client seems active; a current stream event is ignored.");
+        }
+    }
+
+    @GuardedBy("mStreamLock")
+    private void handleStreamEventLocked(@CarEvsServiceType int origin,
+            @CarEvsStreamEvent int event, CarEvsStreamCallback cb, Executor executor) {
+        if (mFeatureFlags.carEvsStreamManagement()) {
+            executor.execute(() -> cb.onStreamEvent(origin, event));
+        } else {
+            executor.execute(() -> cb.onStreamEvent(CarEvsUtils.putTag(origin, event)));
         }
     }
 
@@ -539,6 +606,11 @@ public final class CarEvsManager extends CarManagerBase {
      * @param buffer {@link android.car.evs.CarEvsBufferDescriptor}
      */
     private void handleNewFrame(@NonNull CarEvsBufferDescriptor buffer) {
+        int type = mFeatureFlags.carEvsStreamManagement() ?
+                buffer.getType() : CarEvsUtils.getTag(buffer.getId());
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                "CarEvsManager#handleNewFrame", type);
+
         Objects.requireNonNull(buffer);
         if (DBG) {
             Slogf.d(TAG, "Received a buffer: " + buffer);
@@ -546,20 +618,26 @@ public final class CarEvsManager extends CarManagerBase {
 
         final CarEvsStreamCallback callback;
         final Executor executor;
+
         synchronized (mStreamLock) {
-            callback = mStreamCallbacks.get(CarEvsUtils.getTag(buffer.getId()));
+            callback = mStreamCallbacks.get(type);
             executor = mStreamCallbackExecutor;
         }
 
         if (callback != null) {
             executor.execute(() -> callback.onNewFrame(buffer));
-        } else {
-            if (DBG) {
-                Slogf.w(TAG, "A buffer is being returned back to the service because no active "
-                        + "clients exist.");
-            }
-            returnFrameBuffer(buffer);
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                    "CarEvsManager#handleNewFrame", type);
+            return;
         }
+
+        if (DBG) {
+            Slogf.w(TAG, "A buffer is being returned back to the service because no active "
+                    + "clients exist.");
+        }
+        returnFrameBuffer(buffer);
+        Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                "CarEvsManager#handleNewFrame", type);
     }
 
 
@@ -578,13 +656,17 @@ public final class CarEvsManager extends CarManagerBase {
         }
 
         // Wait for a confirmation.
-        if (!mStreamListenerToService.waitForStreamEvent(STREAM_EVENT_STREAM_STOPPED)) {
-            Slogf.w(TAG, "EVS did not notify us that target streams are stopped " +
-                    "before a time expires.");
-        }
+        for (int i = 0; i < mStreamCallbacks.size(); i++) {
+            if (!mStreamListenerToService.waitForStreamEvent(mStreamCallbacks.keyAt(i),
+                      STREAM_EVENT_STREAM_STOPPED)) {
+                Slogf.w(TAG, "EVS did not notify us that target streams are stopped "
+                        + "before a time expires.");
+            }
 
-        // Notify clients that streams are stopped.
-        handleStreamEventLocked(STREAM_EVENT_STREAM_STOPPED);
+            // Notify clients that streams are stopped.
+            handleStreamEventLocked(mStreamCallbacks.keyAt(i), STREAM_EVENT_STREAM_STOPPED,
+                    mStreamCallbacks.valueAt(i), mStreamCallbackExecutor);
+        }
 
         // We're not interested in frames and events anymore.  The client can safely assume
         // the service is stopped properly.
@@ -597,7 +679,7 @@ public final class CarEvsManager extends CarManagerBase {
     private void stopVideoStreamLocked(@CarEvsServiceType int type) {
         CarEvsStreamCallback cb = mStreamCallbacks.get(type);
         if (cb == null) {
-            Slogf.i(TAG, "A requested service type %d is not active.", type);
+            Slogf.i(TAG, "A requested service type " + type + " is not active.");
             return;
         }
 
@@ -609,13 +691,13 @@ public final class CarEvsManager extends CarManagerBase {
 
         // Wait for a confirmation.
         // TODO(b/321913871): Check whether or not we need to verify the origin of a received event.
-        if (!mStreamListenerToService.waitForStreamEvent(STREAM_EVENT_STREAM_STOPPED)) {
-            Slogf.w(TAG, "EVS did not notify us that target streams are stopped " +
-                    "before a time expires.");
+        if (!mStreamListenerToService.waitForStreamEvent(type, STREAM_EVENT_STREAM_STOPPED)) {
+            Slogf.w(TAG, "EVS did not notify us that target streams are stopped "
+                    + "before a time expires.");
         }
 
         // Notify clients that streams are stopped.
-        handleStreamEventLocked(STREAM_EVENT_STREAM_STOPPED);
+        handleStreamEventLocked(type, STREAM_EVENT_STREAM_STOPPED);
 
         // We're not interested in frames and events anymore from a given stream type.
         mStreamCallbacks.remove(type);
@@ -633,6 +715,10 @@ public final class CarEvsManager extends CarManagerBase {
      */
     @RequiresPermission(Car.PERMISSION_USE_CAR_EVS_CAMERA)
     public void returnFrameBuffer(@NonNull CarEvsBufferDescriptor buffer) {
+        int type = mFeatureFlags.carEvsStreamManagement() ?
+                buffer.getType() : CarEvsUtils.getTag(buffer.getId());
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                "CarEvsManager#returnFrameBuffer", type);
         Objects.requireNonNull(buffer);
         try {
             mService.returnFrameBuffer(buffer);
@@ -641,6 +727,8 @@ public final class CarEvsManager extends CarManagerBase {
         } finally {
             // We are done with this HardwareBuffer object.
             buffer.getHardwareBuffer().close();
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_EVS_SERVICE,
+                    "CarEvsManager#returnFrameBuffer", type);
         }
     }
 
@@ -693,7 +781,8 @@ public final class CarEvsManager extends CarManagerBase {
      *         {@link #ERROR_UNAVAILABLE} will be returned if the CarEvsService is not connected to
      *         the native EVS service or the binder transaction fails.
      *         {@link #ERROR_BUSY} will be returned if the CarEvsService is handling a service
-     *         request with a valid session token.
+     *         request with a valid session token or the same service is already active via another
+     *         version of callback object.
      *         {@link #ERROR_NONE} for all other cases.
      */
     @RequiresPermission(Car.PERMISSION_USE_CAR_EVS_CAMERA)

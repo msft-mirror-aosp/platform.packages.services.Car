@@ -110,6 +110,8 @@ public class BugReportActivity extends Activity {
     /** Look up string length, e.g. [ABCDEF]. */
     static final int LOOKUP_STRING_LENGTH = 6;
 
+    private static boolean sIsOnActivityStartedWithBugReportServiceBoundCalled = false;
+
     private TextView mInProgressTitleText;
     private ProgressBar mProgressBar;
     private TextView mProgressText;
@@ -128,7 +130,6 @@ public class BugReportActivity extends Activity {
     /** Audio recording using MIC is running (permission given). */
     private boolean mAudioRecordingIsRunning;
     private boolean mIsNewBugReport;
-    private boolean mIsOnActivityStartedWithBugReportServiceBoundCalled;
     private boolean mIsSubmitButtonClicked;
     private BugReportService mService;
     private MediaRecorder mRecorder;
@@ -179,6 +180,10 @@ public class BugReportActivity extends Activity {
         return intent;
     }
 
+    static boolean isOnActivityStarted() {
+        return sIsOnActivityStartedWithBugReportServiceBoundCalled;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Preconditions.checkState(Config.isBugReportEnabled(), "BugReport is disabled.");
@@ -214,7 +219,7 @@ public class BugReportActivity extends Activity {
         mAudioRecordingStarted = false;
         mAudioRecordingIsRunning = false;
         mIsSubmitButtonClicked = false;
-        mIsOnActivityStartedWithBugReportServiceBoundCalled = false;
+        sIsOnActivityStartedWithBugReportServiceBoundCalled = false;
         mMetaBugReport = null;
         mTempAudioFile = null;
     }
@@ -268,7 +273,7 @@ public class BugReportActivity extends Activity {
 
         // Connect to the services here, because they are used only when showing the dialog.
         // We need to minimize system state change when performing TYPE_AUDIO_LATER bug report.
-        mConfig = Config.create();
+        mConfig = Config.create(getApplicationContext());
         mCar = Car.createCar(this, /* handler= */ null,
                 Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT, this::onCarLifecycleChanged);
 
@@ -355,10 +360,10 @@ public class BugReportActivity extends Activity {
      * <p>This method expected to be called when the activity is started and bound to the service.
      */
     private void onActivityStartedWithBugReportServiceBound() {
-        if (mIsOnActivityStartedWithBugReportServiceBoundCalled) {
+        if (sIsOnActivityStartedWithBugReportServiceBoundCalled) {
             return;
         }
-        mIsOnActivityStartedWithBugReportServiceBoundCalled = true;
+        sIsOnActivityStartedWithBugReportServiceBoundCalled = true;
 
         if (mService.isCollectingBugReport()) {
             Log.i(TAG, "Bug report is already being collected.");
@@ -632,7 +637,9 @@ public class BugReportActivity extends Activity {
     }
 
     private CountDownTimer createCountDownTimer() {
-        return new CountDownTimer(VOICE_MESSAGE_MAX_DURATION_MILLIS, 1000) {
+        return new CountDownTimer(VOICE_MESSAGE_MAX_DURATION_MILLIS,
+                /* countDownInterval= */ 1000) {
+            @Override
             public void onTick(long millisUntilFinished) {
                 long secondsRemaining = millisUntilFinished / 1000;
                 String secondText = secondsRemaining > 1 ? "seconds" : "second";
@@ -640,6 +647,7 @@ public class BugReportActivity extends Activity {
                         secondText));
             }
 
+            @Override
             public void onFinish() {
                 Log.i(TAG, "Timed out while recording voice message.");
                 stopAudioRecording();
@@ -673,7 +681,7 @@ public class BugReportActivity extends Activity {
     }
 
     private static String getCurrentUserName(Context context) {
-        UserManager um = UserManager.get(context);
+        UserManager um = context.getSystemService(UserManager.class);
         return um.getUserName();
     }
 
