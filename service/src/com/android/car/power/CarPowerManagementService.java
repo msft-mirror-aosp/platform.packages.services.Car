@@ -1428,7 +1428,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void doHandleDisplayBrightnessChange(int displayId, int brightness) {
-        mSystemInterface.setDisplayBrightness(displayId, brightness);
+        mSystemInterface.onDisplayBrightnessChangeFromVhal(displayId, brightness);
     }
 
     private void doHandleDisplayStateChange(int displayId, boolean on) {
@@ -1467,14 +1467,6 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     public void notifyUserActivity(int displayId) {
         CarServiceUtils.assertPermission(mContext, Car.PERMISSION_CAR_POWER);
         notifyUserActivity(displayId, SystemClock.uptimeMillis());
-    }
-
-    /**
-     * Sends display brightness to VHAL.
-     * @param brightness value 0-100%
-     */
-    public void sendDisplayBrightness(int brightness) {
-        mHal.sendDisplayBrightness(brightness);
     }
 
     /**

@@ -547,10 +547,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
                 CarUserService carUserService) {}
 
         @Override
-        public void setDisplayBrightness(int brightness) {}
-
-        @Override
-        public void setDisplayBrightness(int displayId, int brightness) {}
+        public void onDisplayBrightnessChangeFromVhal(int displayId, int brightness) {}
 
         @Override
         public void setDisplayState(int displayId, boolean on) {
@@ -577,7 +574,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
         public void stopDisplayStateMonitoring() {}
 
         @Override
-        public void refreshDisplayBrightness() {}
+        public void refreshDefaultDisplayBrightness() {}
 
         @Override
         public void refreshDisplayBrightness(int displayId) {}

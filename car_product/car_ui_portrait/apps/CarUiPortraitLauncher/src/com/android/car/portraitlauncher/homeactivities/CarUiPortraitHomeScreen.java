@@ -193,10 +193,11 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 return;
             }
 
-            ActivityOptions options = ActivityOptions.makeBasic();
-            options.setLaunchDisplayId(getDisplay().getDisplayId());
-
-            startActivity(intent, options.toBundle());
+            if (intent != null) {
+                ActivityOptions options = ActivityOptions.makeBasic();
+                options.setLaunchDisplayId(getDisplay().getDisplayId());
+                startActivity(intent, options.toBundle());
+            }
         }
     };
     /**
@@ -465,6 +466,9 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         if (isInMultiWindowMode() || isInPictureInPictureMode()) {
             return;
         }
+
+        mFullScreenAppArea = findViewById(R.id.fullscreen_container);
+        mBackgroundAppArea = findViewById(R.id.background_app_area);
 
         mCarUiPortraitServiceManager = new CarUiPortraitServiceManager(/* activity= */ this,
                 new IncomingHandler());
@@ -814,8 +818,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private void setUpBackgroundTaskView() {
-        mBackgroundAppArea = findViewById(R.id.background_app_area);
-
         TaskViewControllerWrapper.TaskViewCallback callback =
                 new TaskViewControllerWrapper.TaskViewCallback() {
                     @Override
@@ -1061,7 +1063,6 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     }
 
     private void setUpFullScreenTaskView() {
-        mFullScreenAppArea = findViewById(R.id.fullscreen_container);
         TaskViewControllerWrapper.TaskViewCallback callback =
                 new TaskViewControllerWrapper.TaskViewCallback() {
                     @Override
