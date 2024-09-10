@@ -52,7 +52,7 @@ java_defaults {
         "src/**/*.java",
     ],
     libs: [
-        "android.test.base",
+        "android.test.base.stubs.system",
         "framework-annotations-lib",
     ],
 }
