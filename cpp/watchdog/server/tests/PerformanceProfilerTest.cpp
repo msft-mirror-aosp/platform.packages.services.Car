@@ -651,7 +651,8 @@ std::tuple<ProcStatInfo, SystemSummaryStats> sampleProcStat(auto int64Multiplier
                                          int64Multiplier(2'930)},
                               /*ctxtSwitches=*/uint64Multiplier(500),
                               /*runnableCnt=*/uint32Multiplier(100),
-                              /*ioBlockedCnt=*/uint32Multiplier(57)};
+                              /*ioBlockedCnt=*/uint32Multiplier(57),
+                              /*kernelStartTimeEpochSeconds=*/0};
     SystemSummaryStats systemSummaryStats{/*cpuIoWaitTimeMillis=*/int64Multiplier(5'900),
                                           /*cpuIdleTimeMillis=*/int64Multiplier(8'900),
                                           /*totalCpuTimeMillis=*/int64Multiplier(48'376),
