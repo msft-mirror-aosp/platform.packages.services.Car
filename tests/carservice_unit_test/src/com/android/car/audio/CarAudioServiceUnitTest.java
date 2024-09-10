@@ -180,6 +180,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.Settings;
@@ -188,6 +189,8 @@ import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.util.NoSuchPropertyException;
+import android.util.SparseArray;
+import android.util.SparseIntArray;
 import android.view.KeyEvent;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -656,11 +659,18 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 .thenReturn(TEST_FRONT_PASSENGER_OCCUPANT);
         when(mMockOccupantZoneService.getOccupantForAudioZoneId(TEST_REAR_LEFT_ZONE_ID))
                 .thenReturn(TEST_REAR_LEFT_PASSENGER_OCCUPANT);
-        when(mMockOccupantZoneService.getOccupantForAudioZoneId(TEST_REAR_ROW_3_ZONE_ID))
-                .thenReturn(TEST_REAR_ROW_3_PASSENGER_OCCUPANT);
 
         // Initially set occupant zone service at uninitialized
         when(mMockOccupantZoneService.getDriverUserId()).thenReturn(UserHandle.USER_SYSTEM);
+
+        SparseArray<CarOccupantZoneManager.OccupantZoneInfo> configs = new SparseArray<>();
+        configs.put(TEST_DRIVER_OCCUPANT_ZONE_ID, TEST_DRIVER_OCCUPANT);
+        configs.put(TEST_FRONT_OCCUPANT_ZONE_ID, TEST_FRONT_PASSENGER_OCCUPANT);
+        configs.put(TEST_REAR_RIGHT_OCCUPANT_ZONE_ID, TEST_REAR_RIGHT_PASSENGER_OCCUPANT);
+        configs.put(TEST_REAR_LEFT_OCCUPANT_ZONE_ID, TEST_REAR_LEFT_PASSENGER_OCCUPANT);
+        configs.put(TEST_REAR_ROW_3_OCCUPANT_ZONE_ID, TEST_REAR_ROW_3_PASSENGER_OCCUPANT);
+
+        when(mMockOccupantZoneService.getOccupantsConfig()).thenReturn(configs);
 
         CarLocalServices.removeServiceForTest(CarOccupantZoneService.class);
         CarLocalServices.addService(CarOccupantZoneService.class, mMockOccupantZoneService);
@@ -870,7 +880,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void init_withRepeatedDynamicDevicesInConfig_fails() throws Exception {
         setUpTempFileForAudioConfiguration(
-                R.raw.car_audio_configuration_repeated_dynamic_devices_in_config);
+                R.raw.car_audio_configuration_with_repeated_dynamic_devices_in_config);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         CarAudioService service = setUpAudioServiceWithDynamicDevices(mTempCarAudioConfigFile,
                 mTempCarAudioFadeConfigFile);
@@ -980,6 +990,69 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         verify(mAudioManager).setAudioServerStateCallback(any(), any());
         verify(mAudioManager, never()).registerAudioDeviceCallback(any(), any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withCoreVolumeMisconfigured() throws Exception {
+        when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        service.init();
+
+        verify(mAudioManager).setAudioServerStateCallback(any(), any());
+        verify(mAudioManager).registerAudioDeviceCallback(any(), any());
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withCoreVolumeMisconfigured_failsOnInit() throws Exception {
+        when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        IllegalArgumentException thrown =
+                assertThrows(IllegalArgumentException.class, service::init);
+
+        expectWithMessage("Exception on service init with empty group and using core volume")
+                .that(thrown).hasMessageThat().contains("group name attribute can not be empty when"
+                        + " relying on core volume groups");
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withMissingOccupantZones_captureActiveZonesOnly() throws Exception {
+        SparseArray<CarOccupantZoneManager.OccupantZoneInfo> configs = new SparseArray<>();
+        configs.put(TEST_DRIVER_OCCUPANT_ZONE_ID, TEST_DRIVER_OCCUPANT);
+        when(mMockOccupantZoneService.getOccupantsConfig()).thenReturn(configs);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        service.init();
+
+        ArgumentCaptor<SparseIntArray> captor =
+                ArgumentCaptor.forClass(SparseIntArray.class);
+        verify(mMockOccupantZoneService).setAudioZoneIdsForOccupantZoneIds(captor.capture());
+        int[] audioZoneZones = captor.getValue().copyKeys();
+        expectWithMessage("Configured audio zones with missing occupant zones")
+                .that(audioZoneZones).asList().containsExactly(PRIMARY_AUDIO_ZONE);
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void init_withMissingOccupantZones_captureActiveAllZones() throws Exception {
+        SparseArray<CarOccupantZoneManager.OccupantZoneInfo> configs = new SparseArray<>();
+        configs.put(TEST_DRIVER_OCCUPANT_ZONE_ID, TEST_DRIVER_OCCUPANT);
+        when(mMockOccupantZoneService.getOccupantsConfig()).thenReturn(configs);
+        CarAudioService service = setUpAudioServiceWithoutInit();
+
+        service.init();
+
+        ArgumentCaptor<SparseIntArray> captor =
+                ArgumentCaptor.forClass(SparseIntArray.class);
+        verify(mMockOccupantZoneService).setAudioZoneIdsForOccupantZoneIds(captor.capture());
+        int[] audioZoneZones = captor.getValue().copyKeys();
+        expectWithMessage("Configured audio zones with all audio zones").that(audioZoneZones)
+                .asList().containsExactly(PRIMARY_AUDIO_ZONE, TEST_REAR_LEFT_ZONE_ID,
+                        TEST_REAR_RIGHT_ZONE_ID, TEST_FRONT_ZONE_ID, TEST_REAR_ROW_3_ZONE_ID);
     }
 
     @Test
@@ -2380,6 +2453,58 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         service.setAudioEnabled(/* isAudioEnabled= */ true);
 
         verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forEnabledVolumeGroupMutingFromConfigFileWithMatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_group_muting_config_enabled,
+                        /* useGroupMuting= */ true);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forEnabledVolumeGroupMutingFromConfigFileWithUnmatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_group_muting_config_enabled,
+                        /* useGroupMuting= */ false);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl).onDevicesToMuteChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forDisabledVolumeGroupMutingFromConfigFileWithMatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                R.raw.car_audio_configuration_with_group_muting_config_disabled,
+                /* useGroupMuting= */ false);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToMuteChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void setAudioEnabled_forDisabledVolumeGroupMutingFromConfigFileWithUnmatchedRRO()
+            throws Exception {
+        CarAudioService service = setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+                R.raw.car_audio_configuration_with_group_muting_config_disabled,
+                /* useGroupMuting= */ true);
+
+        service.setAudioEnabled(/* isAudioEnabled= */ true);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToMuteChange(any());
     }
 
     @Test
@@ -4875,7 +5000,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void switchZoneToConfig_toDynamicConfig_withDynamicDevicesInMultipleZones()
             throws Exception {
-        setUpTempFileForAudioConfiguration(R.raw.car_audio_configuration_using_dynamic_devices);
+        setUpTempFileForAudioConfiguration(
+                R.raw.car_audio_configuration_with_dynamic_devices_for_primary_zone);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         CarAudioService dynamicDeviceService =
                 setUpAudioServiceWithDynamicDevices(mTempCarAudioConfigFile,
@@ -4909,7 +5035,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
     @Test
     public void switchZoneToConfig_backFromDynamicConfig_withDynamicDevicesInMultipleZones()
             throws Exception {
-        setUpTempFileForAudioConfiguration(R.raw.car_audio_configuration_using_dynamic_devices);
+        setUpTempFileForAudioConfiguration(
+                R.raw.car_audio_configuration_with_dynamic_devices_for_primary_zone);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         CarAudioService dynamicDeviceService =
                 setUpAudioServiceWithDynamicDevices(mTempCarAudioConfigFile,
@@ -6380,6 +6507,73 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         expectWithMessage("Volume event callback reception status with callback unregistered")
                 .that(volumeEventCallback.waitForCallback()).isFalse();
     }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigEnabledAndMatchedRRO() throws Exception {
+        boolean useHALDucking = true;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                R.raw.car_audio_configuration_with_HAL_ducking_config_enabled,
+                useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        ArgumentCaptor<List<CarDuckingInfo>> carDuckingInfosCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAudioControlWrapperAidl).onDevicesToDuckChange(carDuckingInfosCaptor.capture());
+
+        verifyMediaDuckingInfoInZone(carDuckingInfosCaptor, TEST_REAR_RIGHT_ZONE_ID,
+                " with HAL ducking config enabled and matched RRO");
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigEnabledAndUnmatchedRRO() throws Exception {
+        boolean useHALDucking = false;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                R.raw.car_audio_configuration_with_HAL_ducking_config_enabled,
+                useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+        ArgumentCaptor<List<CarDuckingInfo>> carDuckingInfosCaptor =
+                ArgumentCaptor.forClass(List.class);
+
+        verify(mAudioControlWrapperAidl).onDevicesToDuckChange(carDuckingInfosCaptor.capture());
+
+        verifyMediaDuckingInfoInZone(carDuckingInfosCaptor, TEST_REAR_RIGHT_ZONE_ID,
+                " with HAL ducking config enabled and unmatched RRO");
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigDisabledAndMatchedRRO() throws Exception {
+        boolean useHALDucking = false;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_HAL_ducking_config_disabled,
+                        useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToDuckChange(any());
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_AUDIO_VENDOR_FREEZE_IMPROVEMENTS})
+    public void onDevicesToDuckChange_withDuckingConfigDisabledAndUnmatchedRRO() throws Exception {
+        boolean useHALDucking = true;
+        CarAudioService service = setUpCarAudioServiceWithDuckingConfiguredInFile(
+                        R.raw.car_audio_configuration_with_HAL_ducking_config_disabled,
+                        useHALDucking);
+        assignOccupantToAudioZones();
+        AudioFocusInfo audioFocusInfo = createAudioFocusInfoForMedia(TEST_REAR_RIGHT_UID);
+        service.requestAudioFocusForTest(audioFocusInfo, AUDIOFOCUS_REQUEST_GRANTED);
+
+        verify(mAudioControlWrapperAidl, never()).onDevicesToDuckChange(any());
+    }
+
     private void waitForInternalCallback() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         mHandler.post(latch::countDown);
@@ -6474,7 +6668,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
     private CarAudioService setUpAudioServiceWithMinMaxActivationVolume(boolean enabled)
             throws Exception {
-        setUpTempFileForAudioConfiguration(R.raw.car_audio_configuration_using_activation_volumes);
+        setUpTempFileForAudioConfiguration(
+                R.raw.car_audio_configuration_with_min_max_activation_volume);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
         when(mMockResources.getBoolean(audioUseMinMaxActivationVolume)).thenReturn(enabled);
         CarAudioService service = new CarAudioService(mMockContext, mAudioManager,
@@ -6698,7 +6893,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         when(mMockResources.getBoolean(audioUseCoreVolume)).thenReturn(true);
         when(mMockResources.getBoolean(audioUseCoreRouting)).thenReturn(true);
         setUpTempFileForAudioConfiguration(
-                R.raw.car_audio_configuration_using_core_audio_routing_and_volume);
+                R.raw.car_audio_configuration_using_core_routing_and_volume);
         setUpTempFileForAudioFadeConfiguration(R.raw.car_audio_fade_configuration);
 
         CarAudioService useCoreAudioCarAudioService = new CarAudioService(mMockContext,
@@ -6735,6 +6930,31 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
                 /* audioFadeConfigurationPath= */ null);
         useCoreAudioCarAudioService.init();
         return useCoreAudioCarAudioService;
+    }
+
+    private CarAudioService setUpCarAudioServiceWithVolumeGroupMutingConfiguredInFile(
+            int resourceId, boolean useGroupMuting)
+            throws Exception {
+        setUpTempFileForAudioConfiguration(resourceId);
+        when(mMockResources.getBoolean(audioUseCarVolumeGroupMuting)).thenReturn(useGroupMuting);
+
+        CarAudioService audioCarAudioService = new CarAudioService(mMockContext, mAudioManager,
+                mTempCarAudioConfigFile.getFile().getAbsolutePath(), mCarVolumeCallbackHandler,
+                /* audioFadeConfigurationPath= */ null);
+        audioCarAudioService.init();
+        return audioCarAudioService;
+    }
+
+    private CarAudioService setUpCarAudioServiceWithDuckingConfiguredInFile(int resourceId,
+            boolean useHALDucking) throws Exception {
+        setUpTempFileForAudioConfiguration(resourceId);
+        when(mMockResources.getBoolean(audioUseHalDuckingSignals)).thenReturn(useHALDucking);
+
+        CarAudioService audioCarAudioService = new CarAudioService(mMockContext, mAudioManager,
+                mTempCarAudioConfigFile.getFile().getAbsolutePath(), mCarVolumeCallbackHandler,
+                /* audioFadeConfigurationPath= */ null);
+        audioCarAudioService.init();
+        return audioCarAudioService;
     }
 
     private void mockGrantCarControlAudioSettingsPermission() {

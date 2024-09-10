@@ -46,6 +46,7 @@ import android.car.ICarUserService;
 import android.car.VehicleAreaSeat;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.content.pm.PackageManagerHelper;
+import android.car.builtin.devicepolicy.DevicePolicyManagerHelper;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -54,6 +55,7 @@ import android.car.builtin.util.TimingsTraceLog;
 import android.car.builtin.widget.LockPatternHelper;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
+import android.car.feature.Flags;
 import android.car.settings.CarSettings;
 import android.car.user.CarUserManager;
 import android.car.user.CarUserManager.UserIdentificationAssociationSetValue;
@@ -73,7 +75,6 @@ import android.car.user.UserStopResponse;
 import android.car.user.UserStopResult;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AndroidFuture;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -103,7 +104,6 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
@@ -135,6 +135,7 @@ import com.android.car.internal.util.FunctionalUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.pm.CarPackageManagerService;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.provider.Settings;
 import com.android.car.user.InitialUserSetter.InitialUserInfo;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -192,6 +193,15 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     public static final String HANDLER_THREAD_NAME = "UserService";
 
+    /** List of user restrictions that will be set on a visible background user. */
+    private static final String[] VISIBLE_BACKGROUND_USER_RESTRICTIONS = new String[] {
+            UserManager.DISALLOW_CONFIG_BLUETOOTH,
+            UserManager.DISALLOW_CONFIG_DATE_TIME,
+            UserManager.DISALLOW_CONFIG_LOCALE,
+            UserManager.DISALLOW_MICROPHONE_TOGGLE,
+            UserManager.DISALLOW_CAMERA_TOGGLE,
+    };
+
     // Constants below must match value of same constants defined by ActivityManager
     public static final int USER_OP_SUCCESS = 0;
     public static final int USER_OP_UNKNOWN_USER = -1;
@@ -217,7 +227,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private static final String BG_HANDLER_THREAD_NAME = "UserService.BG";
 
-    private final GlobalSettings mGlobalSettings;
+    private final Settings mSettings;
     private final CurrentUserFetcher mCurrentUserFetcher;
     private final Context mContext;
     private final ActivityManager mAm;
@@ -364,38 +374,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         // accessed before the constructor.
                         /* handler= */ null,
                         new ActivityManagerCurrentUserFetcher(),
-                        new SystemGlobalSettings()));
-    }
-
-    /**
-     * An interface for injecting fake {@link Settings.Global} implementation.
-     */
-    public interface GlobalSettings {
-        /** See {@link Settings.Global.getString} */
-        String getString(ContentResolver resolver, String name);
-        /** See {@link Settings.Global.getInt} */
-        int getInt(ContentResolver cr, String name, int def);
-        /** See {@link Settings.Global.putInt} */
-        boolean putInt(ContentResolver cr, String name, int value);
-    }
-
-    // A real implementation for {@link GlobalSettings}.
-    // Need to be accessed from com.android.car.user.BaseCarUserServiceTestCase.
-    static final class SystemGlobalSettings implements GlobalSettings {
-        @Override
-        public String getString(ContentResolver resolver, String name) {
-            return Settings.Global.getString(resolver, name);
-        }
-
-        @Override
-        public int getInt(ContentResolver cr, String name, int def) {
-            return Settings.Global.getInt(cr, name, def);
-        }
-
-        @Override
-        public boolean putInt(ContentResolver cr, String name, int value) {
-            return Settings.Global.putInt(cr, name, value);
-        }
+                        new Settings.DefaultImpl()));
     }
 
     @VisibleForTesting
@@ -405,7 +384,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @Nullable InitialUserSetter initialUserSetter,
             Handler handler,
             CurrentUserFetcher currentUserFetcher,
-            GlobalSettings globalSettings) {}
+            Settings settings) {}
 
     @VisibleForTesting
     public CarUserService(
@@ -431,7 +410,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 new InitialUserSetter(context, this, (u) -> setInitialUser(u), mUserHandleHelper,
                         deps);
         mCurrentUserFetcher = deps.currentUserFetcher();
-        mGlobalSettings = deps.globalSettings();
+        mSettings = deps.settings();
 
         Resources resources = context.getResources();
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
@@ -583,7 +562,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void dumpGlobalProperty(IndentingPrintWriter writer, String property) {
-        String value = mGlobalSettings.getString(mContext.getContentResolver(), property);
+        String value = mSettings.getStringGlobal(mContext.getContentResolver(), property);
         writer.printf("%s=%s\n", property, value);
     }
 
@@ -1899,7 +1878,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     private void updateDefaultUserRestriction() {
         // We want to set restrictions on system and guest users only once. These are persisted
         // onto disk, so it's sufficient to do it once + we minimize the number of disk writes.
-        if (mGlobalSettings.getInt(mContext.getContentResolver(),
+        if (mSettings.getIntGlobal(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, /* default= */ 0) != 0) {
             return;
         }
@@ -1907,7 +1886,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (UserManager.isHeadlessSystemUserMode()) {
             setSystemUserRestrictions();
         }
-        mGlobalSettings.putInt(mContext.getContentResolver(),
+        mSettings.putIntGlobal(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, 1);
     }
 
@@ -2108,6 +2087,47 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
         stopSystemUiForUser(mContext, userId);
         unassignInvisibleUserFromZone(userId);
+        if (Flags.visibleBackgroundUserRestrictions()) {
+            // Clear the visible background user restrictions, set by onUserVisible().
+            clearVisibleBackgroundUserRestrictions(userId);
+        }
+    }
+
+    private void setVisibleBackgroundUserRestrictions(@UserIdInt int userId) {
+        int displayId = getMainDisplayAssignedToUser(userId);
+        if (mCarOccupantZoneService.getDisplayIdForDriver(CarOccupantZoneManager.DISPLAY_TYPE_MAIN)
+                == displayId) {
+            if (DBG) {
+                Slogf.d(TAG, "Skip setting restrictions on visible user %d"
+                        + ", because it is visible on the driver display %d", userId, displayId);
+            }
+            return;
+        }
+        if (DBG) {
+            Slogf.d(TAG, "Setting user restrictions for a visible background user %d", userId);
+        }
+        synchronized (mLockUser) {
+            UserHandle userHandle = UserHandle.of(userId);
+            for (int i = 0; i < VISIBLE_BACKGROUND_USER_RESTRICTIONS.length; i++) {
+                String restrictionKey = VISIBLE_BACKGROUND_USER_RESTRICTIONS[i];
+                DevicePolicyManagerHelper.addUserRestriction(
+                        mDpm, mContext.getPackageName(), restrictionKey, userHandle);
+            }
+        }
+    }
+
+    private void clearVisibleBackgroundUserRestrictions(@UserIdInt int userId) {
+        if (DBG) {
+            Slogf.d(TAG, "Clearing user restrictions for a visible background user %d", userId);
+        }
+        synchronized (mLockUser) {
+            UserHandle userHandle = UserHandle.of(userId);
+            for (int i = 0; i < VISIBLE_BACKGROUND_USER_RESTRICTIONS.length; i++) {
+                String restrictionKey = VISIBLE_BACKGROUND_USER_RESTRICTIONS[i];
+                DevicePolicyManagerHelper.clearUserRestriction(
+                        mDpm, mContext.getPackageName(), restrictionKey, userHandle);
+            }
+        }
     }
 
     private void startUsersOrHomeOnSecondaryDisplays(@UserIdInt int userId) {
@@ -2212,8 +2232,15 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_USER_ASSIGNED_TO_ANOTHER_DISPLAY;
         }
 
-        return ActivityManagerHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId)
-                ? UserStartResponse.STATUS_SUCCESSFUL : UserStartResponse.STATUS_ANDROID_FAILURE;
+        if (ActivityManagerHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId)) {
+            if (Flags.visibleBackgroundUserRestrictions()) {
+                // Set user restrictions for a visible background user that just started.
+                setVisibleBackgroundUserRestrictions(userId);
+            }
+            return UserStartResponse.STATUS_SUCCESSFUL;
+        }
+
+        return UserStartResponse.STATUS_ANDROID_FAILURE;
     }
 
     /**
