@@ -131,11 +131,11 @@ public final class CarActivityService extends ICarActivityService.Stub
         void onActivityCameOnTop(TaskInfo topTask);
 
         /**
-         * Notify change or vanish of an activity in the backstack.
+         * Notify vanish of an activity or task in the backstack.
          *
-         * @param taskInfo task information for what is currently changed or vanished.
+         * @param taskInfo task information for what is currently vanished.
          */
-        void onActivityChangedInBackstack(TaskInfo taskInfo);
+        void onTaskVanished(TaskInfo taskInfo);
     }
 
     @GuardedBy("mLock")
@@ -294,10 +294,10 @@ public final class CarActivityService extends ICarActivityService.Stub
         }
     }
 
-    private void notifyActivityChangedInBackStack(TaskInfo taskInfo) {
+    private void notifyTaskVanished(TaskInfo taskInfo) {
         synchronized (mLock) {
             for (int i = 0, size = mActivityListeners.size(); i < size; ++i) {
-                mActivityListeners.get(i).onActivityChangedInBackstack(taskInfo);
+                mActivityListeners.get(i).onTaskVanished(taskInfo);
             }
         }
     }
@@ -331,7 +331,7 @@ public final class CarActivityService extends ICarActivityService.Stub
             // mLastKnownDisplayIdForTask come in sync when the blocking ui is finished.
             mTasks.remove(taskInfo.taskId);
             mTaskToSurfaceMap.remove(taskInfo.taskId);
-            mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
+            mHandler.post(() -> notifyTaskVanished(taskInfo));
         }
     }
 
@@ -353,8 +353,6 @@ public final class CarActivityService extends ICarActivityService.Stub
                     || !Objects.equals(oldTaskInfo.topActivity, taskInfo.topActivity))
                     && TaskInfoHelper.isVisible(taskInfo)) {
                 mHandler.post(() -> notifyActivityCameOnTop(taskInfo));
-            } else {
-                mHandler.post(() -> notifyActivityChangedInBackStack(taskInfo));
             }
         }
     }
@@ -696,9 +694,13 @@ public final class CarActivityService extends ICarActivityService.Stub
         // Starts ABA as User 0 consistenly since the target apps can be any users (User 0 -
         // UserPicker, Driver/Passegners - general NDO apps) and launching ABA as passengers
         // have some issue (b/294447050).
-        mContext.startActivity(newActivityIntent, options.toBundle());
-        // Now make stack with new activity focused.
-        findTaskAndGrantFocus(newActivityIntent.getComponent());
+        try {
+             mContext.startActivity(newActivityIntent, options.toBundle());
+            // Now make stack with new activity focused.
+            findTaskAndGrantFocus(newActivityIntent.getComponent());
+        } catch (SecurityException e) {
+            Slogf.e(CarLog.TAG_AM, "cannot start the activity on display(" + displayId + ")", e);
+        }
     }
 
     private void findTaskAndGrantFocus(ComponentName activity) {

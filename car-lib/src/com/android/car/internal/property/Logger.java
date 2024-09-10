@@ -22,8 +22,6 @@ import android.util.Log;
 /**
  * A logger that would use {@link Slogf} or {@link Log} depending on whether
  * to use system logger.
- *
- * @hide
  */
 public final class Logger {
 

@@ -595,6 +595,24 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$ModesSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ModeSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$WallpaperSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -1632,6 +1650,15 @@
 
         <activity
             android:name="com.android.settings.Settings$BugReportHandlerPickerActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.bluetooth.BluetoothKeyMissingDialog"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2962,6 +2989,15 @@
             <intent-filter tools:node="removeAll"/>
        </activity>
 
+        <activity
+            android:name="com.android.settings.spa.search.SpaSearchLandingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
         <activity-alias
             android:name="com.android.settings.ConfirmDeviceCredentialActivity"
             android:enabled="false"
@@ -3089,6 +3125,15 @@
 
         <receiver
             android:name="com.android.settings.bluetooth.BluetoothPairingRequest"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
+        <receiver
+            android:name="com.android.settings.bluetooth.BluetoothKeyMissingReceiver"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
