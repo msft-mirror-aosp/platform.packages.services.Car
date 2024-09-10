@@ -17,6 +17,7 @@
 package android.car.apitest;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 
@@ -25,11 +26,14 @@ import android.car.CarVersion;
 import android.car.ICar;
 import android.car.PlatformVersion;
 import android.car.hardware.CarSensorManager;
+import android.car.test.CarTestManager;
 import android.content.ComponentName;
 import android.content.ServiceConnection;
+import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
 
+import androidx.test.filters.LargeTest;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Test;
@@ -117,28 +121,28 @@ public final class CarTest extends CarLessApiTestBase {
     public void testApiVersion_deprecated() throws Exception {
         int ApiVersionTooHigh = 1000000;
         int MinorApiVersionTooHigh = 1000000;
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT)).isTrue();
+        int apiVersionMajorInt = Car.getCarVersion().getMajorVersion();
+        int apiVersionMinorInt = Car.getCarVersion().getMinorVersion();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt)).isTrue();
         expectThat(Car.isApiVersionAtLeast(ApiVersionTooHigh)).isFalse();
 
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT - 1,
-                MinorApiVersionTooHigh)).isTrue();
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Car.API_VERSION_MINOR_INT)).isTrue();
-        expectThat(Car.isApiVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                MinorApiVersionTooHigh)).isFalse();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt - 1, MinorApiVersionTooHigh))
+                .isTrue();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt, apiVersionMinorInt)).isTrue();
+        expectThat(Car.isApiVersionAtLeast(apiVersionMajorInt, MinorApiVersionTooHigh)).isFalse();
         expectThat(Car.isApiVersionAtLeast(ApiVersionTooHigh, 0)).isFalse();
 
-        expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Build.VERSION.SDK_INT)).isTrue();
-        expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT)).isTrue();
+        expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt, Build.VERSION.SDK_INT))
+                .isTrue();
+        expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt,
+                apiVersionMinorInt, Build.VERSION.SDK_INT)).isTrue();
 
         // SDK + 1 only works for released platform.
         if (CODENAME_REL.equals(Build.VERSION.CODENAME)) {
-            expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
+            expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt,
                     Build.VERSION.SDK_INT + 1)).isFalse();
-            expectThat(Car.isApiAndPlatformVersionAtLeast(Car.API_VERSION_MAJOR_INT,
-                    Car.API_VERSION_MINOR_INT, Build.VERSION.SDK_INT + 1)).isFalse();
+            expectThat(Car.isApiAndPlatformVersionAtLeast(apiVersionMajorInt,
+                    apiVersionMinorInt, Build.VERSION.SDK_INT + 1)).isFalse();
         }
     }
 
@@ -161,5 +165,22 @@ public final class CarTest extends CarLessApiTestBase {
                 CODENAME_REL.equals(Build.VERSION.CODENAME) ? Build.VERSION.SDK_INT
                         : Build.VERSION_CODES.CUR_DEVELOPMENT);
         assertThat(platformVersion.getMinorVersion()).isAtLeast(0);
+    }
+
+    // This test need to wait for car service release and initialization.
+    @Test
+    @LargeTest
+    public void testCarServiceReleaseReInit() throws Exception {
+        Car car = Car.createCar(mContext);
+
+        CarTestManager carTestManager = (CarTestManager) (car.getCarManager(Car.TEST_SERVICE));
+
+        assertWithMessage("Could not get service %s", Car.TEST_SERVICE).that(carTestManager)
+                .isNotNull();
+
+        Binder token = new Binder("testCarServiceReleaseReInit");
+        // Releaseing car service and re-initialize must not crash car service.
+        carTestManager.stopCarService(token);
+        carTestManager.startCarService(token);
     }
 }

@@ -17,9 +17,9 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-// This library is internal only and should not be used outside core car stack.
-java_sdk_library {
-    name: "android.car.builtin",
+java_defaults {
+    name: "android.car.builtin-defaults",
+
     srcs: [
         "src/**/*.java",
         "src/**/*.aidl",
@@ -47,20 +47,37 @@ java_sdk_library {
     ],
 
     stub_only_libs: [
-        "framework-bluetooth",
         "framework-annotations-lib",
     ],
+}
 
+// This library is internal only and should not be used outside core car stack.
+java_sdk_library {
+    name: "android.car.builtin",
+
+    defaults: ["android.car.builtin-defaults"],
+
+    public: {
+        libs: [
+            "framework-bluetooth.stubs",
+        ],
+    },
     test: {
         enabled: false,
     },
     system: {
         enabled: true,
         sdk_version: "module_current",
+        libs: [
+            "framework-bluetooth.stubs.module_lib",
+        ],
     },
     module_lib: {
         enabled: true,
         sdk_version: "module_current",
+        libs: [
+            "framework-bluetooth.stubs.module_lib",
+        ],
     },
 
     // Only allowed car modules only. Allowed to add tests here.
@@ -68,11 +85,11 @@ java_sdk_library {
         "//external/robolectric",
         "//packages/services/Car/car-lib",
         "//packages/services/Car/car-lib-module",
-        "//packages/services/Car/car-test-lib",
-        "//packages/services/Car/procfs-inspector/client",
+        "//packages/services/Car/libs/car-test-lib",
+        "//packages/services/Car/libs/procfs-inspector/client",
         "//packages/services/Car/service-builtin",
         "//packages/services/Car/service",
-        "//packages/services/Car/tests/CarLibHostUnitTest",
+        "//packages/services/Car/tests/CarLibUnitTest:__subpackages__",
         "//packages/services/Car/tests/carservice_test",
         "//packages/services/Car/tests/carservice_unit_test",
         "//packages/services/Car/cpp/watchdog/car-watchdog-lib",
@@ -94,4 +111,15 @@ java_sdk_library {
     compile_dex: true,
 
     installable: true,
+}
+
+java_library {
+    name: "android.car.builtin.testonly",
+
+    defaults: ["android.car.builtin-defaults"],
+
+    visibility: [
+        "//packages/services/Car/service",
+        "//packages/services/Car/tests/CarLibUnitTest",
+    ],
 }

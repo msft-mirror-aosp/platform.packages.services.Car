@@ -19,6 +19,8 @@ package com.android.car.audio;
 
 import static android.media.AudioAttributes.USAGE_MEDIA;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -26,10 +28,14 @@ import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioPlaybackConfiguration;
 
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+
+@ExcludeFromCodeCoverageGeneratedReport(reason = BOILERPLATE_CODE)
 final class AudioPlaybackConfigurationBuilder {
     private @AudioAttributes.AttributeUsage int mUsage = USAGE_MEDIA;
     private boolean mIsActive = true;
     private String mDeviceAddress = "";
+    private int mClientUid = 0;
 
     AudioPlaybackConfigurationBuilder setUsage(@AudioAttributes.AttributeUsage int usage) {
         mUsage = usage;
@@ -46,6 +52,11 @@ final class AudioPlaybackConfigurationBuilder {
         return this;
     }
 
+    AudioPlaybackConfigurationBuilder setClientUid(int clientUid) {
+        mClientUid = clientUid;
+        return this;
+    }
+
     AudioPlaybackConfiguration build() {
         AudioPlaybackConfiguration configuration = mock(AudioPlaybackConfiguration.class);
         AudioAttributes attributes = new AudioAttributes.Builder().setUsage(mUsage).build();
@@ -53,6 +64,7 @@ final class AudioPlaybackConfigurationBuilder {
         when(configuration.getAudioAttributes()).thenReturn(attributes);
         when(configuration.getAudioDeviceInfo()).thenReturn(outputDevice);
         when(configuration.isActive()).thenReturn(mIsActive);
+        when(configuration.getClientUid()).thenReturn(mClientUid);
         return configuration;
     }
 

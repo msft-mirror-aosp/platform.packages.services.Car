@@ -16,7 +16,6 @@
 package com.android.car.audio;
 
 import static android.car.builtin.media.AudioManagerHelper.UNDEFINED_STREAM_TYPE;
-import static android.car.builtin.media.AudioManagerHelper.isMasterMute;
 import static android.car.feature.Flags.carAudioFadeManagerConfiguration;
 import static android.car.media.CarAudioManager.AUDIO_FEATURE_AUDIO_MIRRORING;
 import static android.car.media.CarAudioManager.AUDIO_FEATURE_DYNAMIC_ROUTING;
@@ -112,6 +111,7 @@ import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.ArraySet;
@@ -161,6 +161,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -180,8 +181,6 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private static final String MIRROR_COMMAND_SOURCE = "mirroring_src=";
     private static final String MIRROR_COMMAND_DESTINATION = "mirroring_dst=";
     private static final String DISABLE_AUDIO_MIRRORING = "mirroring=off";
-
-    private static final String CAR_AUDIO_SERVICE_THREAD_NAME = "CarAudioService";
 
     static final AudioAttributes CAR_DEFAULT_AUDIO_ATTRIBUTE =
             CarAudioContext.getAudioAttributeFromUsage(USAGE_MEDIA);
@@ -210,14 +209,14 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private static final int EVENT_LOGGER_QUEUE_SIZE = 50;
 
     private final HandlerThread mHandlerThread = CarServiceUtils.getHandlerThread(
-            CAR_AUDIO_SERVICE_THREAD_NAME);
+            CarAudioService.class.getSimpleName());
     private final Handler mHandler = new Handler(mHandlerThread.getLooper());
 
     private final Object mImplLock = new Object();
 
     private final Context mContext;
     private final TelephonyManager mTelephonyManager;
-    private final AudioManager mAudioManager;
+    private final AudioManagerWrapper mAudioManagerWrapper;
     private final boolean mUseDynamicRouting;
     private final boolean mUseCoreAudioVolume;
     private final boolean mUseCoreAudioRouting;
@@ -226,6 +225,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private final boolean mUseHalDuckingSignals;
     private final boolean mUseMinMaxActivationVolume;
     private final boolean mUseIsolatedFocusForDynamicDevices;
+    private final boolean mUseKeyEventsForDynamicDevices;
     private final @CarVolume.CarVolumeListVersion int mAudioVolumeAdjustmentContextsVersion;
     private final boolean mPersistMasterMuteState;
     private final boolean mUseFadeManagerConfiguration;
@@ -237,21 +237,28 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private final CarVolumeEventHandler mCarVolumeEventHandler = new CarVolumeEventHandler();
     private final AudioServerStateCallback mAudioServerStateCallback;
 
-    private final CarAudioDeviceCallback mAudioDeviceInfoCallback;
-
     private final LocalLog mServiceEventLogger = new LocalLog(EVENT_LOGGER_QUEUE_SIZE);
 
-    private AudioControlWrapper mAudioControlWrapper;
+    @GuardedBy("mImplLock")
+    private @Nullable AudioControlWrapper mAudioControlWrapper;
     private CarDucking mCarDucking;
     private CarVolumeGroupMuting mCarVolumeGroupMuting;
-    private HalAudioFocus mHalAudioFocus;
+    @GuardedBy("mImplLock")
+    private @Nullable HalAudioFocus mHalAudioFocus;
+
     private @Nullable CarAudioGainMonitor mCarAudioGainMonitor;
     @GuardedBy("mImplLock")
     private @Nullable CoreAudioVolumeGroupCallback mCoreAudioVolumeGroupCallback;
+    @GuardedBy("mImplLock")
+    private CarAudioDeviceCallback mAudioDeviceInfoCallback;
 
-    private CarOccupantZoneService mOccupantZoneService;
+    @GuardedBy("mImplLock")
     private CarAudioModuleChangeMonitor mCarAudioModuleChangeMonitor;
+    @GuardedBy("mImplLock")
     private @Nullable CarAudioPlaybackMonitor mCarAudioPlaybackMonitor;
+    @GuardedBy("mImplLock")
+    private boolean mIsAudioServerDown;
+
 
     /**
      * Simulates {@link ICarVolumeCallback} when it's running in legacy mode.
@@ -287,8 +294,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             if (event.getAction() != ACTION_DOWN) {
                 return;
             }
-            int audioZoneId = mOccupantZoneService.getAudioZoneIdForOccupant(
-                    mOccupantZoneService.getOccupantZoneIdForSeat(seat));
+            CarOccupantZoneService carOccupantZoneService = getCarOccupantZoneService();
+            int audioZoneId = carOccupantZoneService.getAudioZoneIdForOccupant(
+                    carOccupantZoneService.getOccupantZoneIdForSeat(seat));
             if (!isAudioZoneIdValid(audioZoneId)) {
                 Slogf.e(TAG, "Audio zone is invalid for event %s, displayType %d, and seat %d",
                         event, displayType, seat);
@@ -310,19 +318,22 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                     break;
             }
             synchronized (mImplLock) {
+                if (mCarAudioPolicyVolumeCallback == null) {
+                    return;
+                }
                 mCarAudioPolicyVolumeCallback.onVolumeAdjustment(adjustment, audioZoneId);
             }
         }
     };
 
     @GuardedBy("mImplLock")
-    private AudioPolicy mVolumeControlAudioPolicy;
+    @Nullable private AudioPolicy mVolumeControlAudioPolicy;
     @GuardedBy("mImplLock")
-    private AudioPolicy mFocusControlAudioPolicy;
+    @Nullable private AudioPolicy mFocusControlAudioPolicy;
     @GuardedBy("mImplLock")
-    private AudioPolicy mRoutingAudioPolicy;
+    @Nullable private AudioPolicy mRoutingAudioPolicy;
     @GuardedBy("mImplLock")
-    private AudioPolicy mFadeManagerConfigAudioPolicy;
+    @Nullable private AudioPolicy mFadeManagerConfigAudioPolicy;
     private CarZonesAudioFocus mFocusHandler;
     private String mCarAudioConfigurationPath;
     private String mCarAudioFadeConfigurationPath;
@@ -378,7 +389,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 }
             };
     @GuardedBy("mImplLock")
-    private CarAudioPolicyVolumeCallback mCarAudioPolicyVolumeCallback;
+    private @Nullable CarAudioPolicyVolumeCallback mCarAudioPolicyVolumeCallback;
 
     private final HalAudioModuleChangeCallback mHalAudioModuleChangeCallback =
             new HalAudioModuleChangeCallback() {
@@ -391,21 +402,23 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             };
 
     public CarAudioService(Context context) {
-        this(context, getAudioConfigurationPath(), new CarVolumeCallbackHandler(),
-                getAudioFadeConfigurationPath());
+        this(context, /* audioManagerWrapper = */ null, getAudioConfigurationPath(),
+                new CarVolumeCallbackHandler(), getAudioFadeConfigurationPath());
     }
 
     @VisibleForTesting
-    CarAudioService(Context context, @Nullable String audioConfigurationPath,
+    CarAudioService(Context context, @Nullable AudioManagerWrapper audioManagerWrapper,
+            @Nullable String audioConfigurationPath,
             CarVolumeCallbackHandler carVolumeCallbackHandler,
             @Nullable String audioFadeConfigurationPath) {
         mContext = Objects.requireNonNull(context,
                 "Context to create car audio service can not be null");
         mCarAudioConfigurationPath = audioConfigurationPath;
         mCarAudioFadeConfigurationPath = audioFadeConfigurationPath;
-        mTelephonyManager = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
-        mAudioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
-
+        mTelephonyManager = mContext.getSystemService(TelephonyManager.class);
+        mAudioManagerWrapper = audioManagerWrapper == null
+                ? new AudioManagerWrapper(mContext.getSystemService(AudioManager.class))
+                : audioManagerWrapper;
         mUseDynamicRouting = mContext.getResources().getBoolean(R.bool.audioUseDynamicRouting);
         mUseCoreAudioVolume = mContext.getResources().getBoolean(R.bool.audioUseCoreVolume);
         mUseCoreAudioRouting = mContext.getResources().getBoolean(R.bool.audioUseCoreRouting);
@@ -435,9 +448,11 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         mUseIsolatedFocusForDynamicDevices = Flags.carAudioDynamicDevices() && !runInLegacyMode()
                 && mContext.getResources().getBoolean(
                         R.bool.audioUseIsolatedAudioFocusForDynamicDevices);
+        mUseKeyEventsForDynamicDevices = Flags.carAudioDynamicDevices() && !runInLegacyMode()
+                && mContext.getResources().getBoolean(
+                        R.bool.audioEnableVolumeKeyEventsToDynamicDevices);
         validateFeatureFlagSettings();
         mAudioServerStateCallback = new CarAudioServerStateCallback(this);
-        mAudioDeviceInfoCallback = new CarAudioDeviceCallback(this);
     }
 
     private void validateFeatureFlagSettings() {
@@ -451,13 +466,21 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
      */
     @Override
     public void init() {
+        boolean isAudioServerDown = !mAudioManagerWrapper.isAudioServerRunning();
+        mAudioManagerWrapper.setAudioServerStateCallback(mContext.getMainExecutor(),
+                mAudioServerStateCallback);
         synchronized (mImplLock) {
-            mOccupantZoneService = CarLocalServices.getService(CarOccupantZoneService.class);
             mCarInputService = CarLocalServices.getService(CarInputService.class);
-            if (!runInLegacyMode()) {
+            mIsAudioServerDown = isAudioServerDown;
+            if (mIsAudioServerDown) {
+                mServiceEventLogger.log("Audio server is down at init");
+                Slogf.e(TAG, "Audio server is down at init, will wait for server state callback"
+                        + " to initialize");
+                return;
+            } else if (!runInLegacyMode()) {
                 // Must be called before setting up policies or audio control hal
                 loadAndInitCarAudioZonesLocked();
-                setupCarAudioPlaybackMonitor();
+                setupCarAudioPlaybackMonitorLocked();
                 setupAudioControlDuckingAndVolumeControlLocked();
                 setupControlAndRoutingAudioPoliciesLocked();
                 setupFadeManagerConfigAudioPolicyLocked();
@@ -468,32 +491,37 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 setupPowerPolicyListener();
                 mCarInputService.registerKeyEventListener(mCarKeyEventListener,
                         KEYCODES_OF_INTEREST);
-                setupAudioDeviceInfoCallback();
+                setupAudioDeviceInfoCallbackLocked();
             } else {
                 Slogf.i(TAG, "Audio dynamic routing not enabled, run in legacy mode");
                 setupLegacyVolumeChangedListener();
             }
-
-            mAudioManager.setSupportedSystemUsages(CarAudioContext.getSystemUsages());
-            mAudioManager.setAudioServerStateCallback(mContext.getMainExecutor(),
-                    mAudioServerStateCallback);
         }
-
+        setSupportedUsages();
         restoreMasterMuteState();
+
     }
 
-    private void setupAudioDeviceInfoCallback() {
+    private void setSupportedUsages() {
+        mAudioManagerWrapper.setSupportedSystemUsages(CarAudioContext.getSystemUsages());
+    }
+
+    @GuardedBy("mImplLock")
+    private void setupAudioDeviceInfoCallbackLocked() {
         if (!Flags.carAudioDynamicDevices()) {
             return;
         }
-        mAudioManager.registerAudioDeviceCallback(mAudioDeviceInfoCallback, mHandler);
+        mAudioDeviceInfoCallback = new CarAudioDeviceCallback(this);
+        mAudioManagerWrapper.registerAudioDeviceCallback(mAudioDeviceInfoCallback, mHandler);
     }
 
-    private void releaseAudioDeviceInfoCallback() {
+    @GuardedBy("mImplLock")
+    private void releaseAudioDeviceInfoCallbackLocked() {
         if (!Flags.carAudioDynamicDevices()) {
             return;
         }
-        mAudioManager.unregisterAudioDeviceCallback(mAudioDeviceInfoCallback);
+        mAudioManagerWrapper.unregisterAudioDeviceCallback(mAudioDeviceInfoCallback);
+        mAudioDeviceInfoCallback = null;
     }
 
     private void setupPowerPolicyListener() {
@@ -514,46 +542,113 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
     @Override
     public void release() {
+        mAudioManagerWrapper.clearAudioServerStateCallback();
+        releaseAudioCallbacks(/* isAudioServerDown= */ false);
         synchronized (mImplLock) {
-            if (!runInLegacyMode()) {
-                releaseAudioPoliciesLocked();
-                releaseAudioDeviceInfoCallback();
-            } else {
-                AudioManagerHelper.unregisterVolumeAndMuteReceiver(mContext,
-                        mLegacyVolumeChangedHelper);
-            }
-            if (mCoreAudioVolumeGroupCallback != null) {
-                mCoreAudioVolumeGroupCallback.release();
-            }
             mCarVolumeCallbackHandler.release();
-            mOccupantZoneService.unregisterCallback(mOccupantZoneCallback);
+        }
+    }
 
-            if (mHalAudioFocus != null) {
-                mHalAudioFocus.unregisterFocusListener();
-            }
-
-            if (mAudioControlWrapper != null) {
-                try {
-                    mAudioControlWrapper.clearModuleChangeCallback();
-                } catch (Exception e) {
-                    Slogf.w(TAG, "Failed to clear audio control wrapper module change callback",
-                            e);
-                }
-                mAudioControlWrapper.unlinkToDeath();
-                mAudioControlWrapper = null;
-            }
-
-            if (mCarAudioPowerListener != null) {
-                mCarAudioPowerListener.stopListeningForPolicyChanges();
-            }
-            mAudioManager.clearAudioServerStateCallback();
+    void releaseAudioCallbacks(boolean isAudioServerDown) {
+        synchronized (mImplLock) {
+            mIsAudioServerDown = isAudioServerDown;
+            releaseLegacyVolumeAndMuteReceiverLocked();
+            // If the audio server is down prevent from unregistering the audio policy
+            // otherwise car audio service may run into a lock contention with the audio server
+            // until it fully recovers
+            releaseAudioPoliciesLocked(!isAudioServerDown);
+            releaseAudioPlaybackCallbackLocked();
+            // There is an inherent dependency from HAL audio focus (AFH)
+            // to audio control HAL (ACH), since AFH holds a reference to ACH
+            releaseHalAudioFocusLocked();
+            releaseCoreVolumeGroupCallbackLocked();
+            releaseAudioPlaybackMonitorLocked();
+            releasePowerListenerLocked();
+            releaseAudioDeviceInfoCallbackLocked();
+            releaseHalAudioModuleChangeCallbackLocked();
+            CarOccupantZoneService occupantZoneService = getCarOccupantZoneService();
+            occupantZoneService.unregisterCallback(mOccupantZoneCallback);
             mCarInputService.unregisterKeyEventListener(mCarKeyEventListener);
+            // Audio control may be running in the same process as audio server.
+            // Thus we can not release the audio control wrapper for now
+            if (mIsAudioServerDown) {
+                return;
+            }
+            // Audio control wrapper must be released last
+            releaseAudioControlWrapperLocked();
+        }
+    }
+
+    private CarOccupantZoneService getCarOccupantZoneService() {
+        return CarLocalServices.getService(CarOccupantZoneService.class);
+    }
+
+    @GuardedBy("mImplLock")
+    private void releaseLegacyVolumeAndMuteReceiverLocked() {
+        if (!runInLegacyMode()) {
+            return;
+        }
+        AudioManagerHelper.unregisterVolumeAndMuteReceiver(mContext, mLegacyVolumeChangedHelper);
+    }
+
+    @GuardedBy("mImplLock")
+    private void releasePowerListenerLocked() {
+        if (mCarAudioPowerListener == null) {
+            return;
+        }
+        mCarAudioPowerListener.stopListeningForPolicyChanges();
+        mCarAudioPowerListener = null;
+    }
+
+    @GuardedBy("mImplLock")
+    private void releaseAudioPlaybackMonitorLocked() {
+        if (mCarAudioPlaybackMonitor == null) {
+            return;
+        }
+        mCarAudioPlaybackMonitor.reset();
+        mCarAudioPlaybackMonitor = null;
+    }
+
+    @GuardedBy("mImplLock")
+    private void releaseCoreVolumeGroupCallbackLocked() {
+        if (mCoreAudioVolumeGroupCallback == null) {
+            return;
+        }
+        mCoreAudioVolumeGroupCallback.release();
+        mCoreAudioVolumeGroupCallback = null;
+    }
+
+    @GuardedBy("mImplLock")
+    private void releaseAudioControlWrapperLocked() {
+        if (mAudioControlWrapper != null) {
+            mAudioControlWrapper.unlinkToDeath();
+            mAudioControlWrapper = null;
         }
     }
 
     @GuardedBy("mImplLock")
-    private void releaseAudioPoliciesLocked() {
-        releaseAudioRoutingPolicyLocked();
+    private void releaseHalAudioFocusLocked() {
+        if (mHalAudioFocus == null) {
+            return;
+        }
+        mHalAudioFocus.unregisterFocusListener();
+        mHalAudioFocus = null;
+    }
+
+    @GuardedBy("mImplLock")
+    private void releaseAudioPlaybackCallbackLocked() {
+        if (mCarAudioPlaybackCallback == null) {
+            return;
+        }
+        mAudioManagerWrapper.unregisterAudioPlaybackCallback(mCarAudioPlaybackCallback);
+        mCarAudioPlaybackCallback = null;
+    }
+
+    @GuardedBy("mImplLock")
+    private void releaseAudioPoliciesLocked(boolean unregisterRoutingPolicy) {
+        if (unregisterRoutingPolicy) {
+            releaseAudioRoutingPolicyLocked();
+        }
         releaseVolumeControlAudioPolicyLocked();
         releaseFocusControlAudioPolicyLocked();
         releaseFadeManagerConfigAudioPolicyLocked();
@@ -564,7 +659,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         if (mVolumeControlAudioPolicy == null) {
             return;
         }
-        mAudioManager.unregisterAudioPolicyAsync(mVolumeControlAudioPolicy);
+        mAudioManagerWrapper.unregisterAudioPolicy(mVolumeControlAudioPolicy);
         mVolumeControlAudioPolicy = null;
         mCarAudioPolicyVolumeCallback = null;
     }
@@ -574,7 +669,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         if (mFocusControlAudioPolicy == null) {
             return;
         }
-        mAudioManager.unregisterAudioPolicyAsync(mFocusControlAudioPolicy);
+        mAudioManagerWrapper.unregisterAudioPolicy(mFocusControlAudioPolicy);
         mFocusControlAudioPolicy = null;
         mFocusHandler.setOwningPolicy(null, null);
         mFocusHandler = null;
@@ -585,7 +680,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         if (mRoutingAudioPolicy == null) {
             return;
         }
-        mAudioManager.unregisterAudioPolicyAsync(mRoutingAudioPolicy);
+        mAudioManagerWrapper.unregisterAudioPolicyAsync(mRoutingAudioPolicy);
         mRoutingAudioPolicy = null;
     }
 
@@ -595,7 +690,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return;
         }
 
-        mAudioManager.unregisterAudioPolicyAsync(mFadeManagerConfigAudioPolicy);
+        mAudioManagerWrapper.unregisterAudioPolicy(mFadeManagerConfigAudioPolicy);
         mFadeManagerConfigAudioPolicy = null;
     }
 
@@ -623,7 +718,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
             writer.println("Current State:");
             writer.increaseIndent();
-            writer.printf("Master muted? %b\n", isMasterMute(mAudioManager));
+            writer.printf("Master muted? %b\n", mAudioManagerWrapper.isMasterMuted());
             if (mCarAudioPowerListener != null) {
                 writer.printf("Audio enabled? %b\n", mCarAudioPowerListener.isAudioEnabled());
             }
@@ -637,6 +732,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 writer.printf("Use min/max activation volume? %b\n", mUseMinMaxActivationVolume);
                 writer.printf("Use isolated focus for dynamic devices? %b\n",
                         mUseIsolatedFocusForDynamicDevices);
+                writer.printf("Allow key events to dynamic devices? %b\n",
+                        mUseKeyEventsForDynamicDevices);
                 writer.println();
                 mCarVolume.dump(writer);
                 writer.println();
@@ -724,7 +821,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     public void dumpProto(ProtoOutputStream proto) {
         synchronized (mImplLock) {
             long currentStateToken = proto.start(CarAudioDumpProto.CURRENT_STATE);
-            proto.write(CarAudioState.MASTER_MUTED, isMasterMute(mAudioManager));
+            proto.write(CarAudioState.MASTER_MUTED, mAudioManagerWrapper.isMasterMuted());
             if (mCarAudioPowerListener != null) {
                 proto.write(CarAudioState.AUDIO_ENABLED, mCarAudioPowerListener.isAudioEnabled());
             }
@@ -855,7 +952,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         // For legacy stream type based volume control
         boolean wasMute;
         if (runInLegacyMode()) {
-            mAudioManager.setStreamVolume(
+            mAudioManagerWrapper.setStreamVolume(
                     CarAudioDynamicRouting.STREAM_TYPES[groupId], index, flags);
             return;
         }
@@ -876,20 +973,24 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 getVolumeGroupInfo(zoneId, groupId), callbackFlags, eventTypes)));
     }
 
-    void handleActivationVolumeWithAudioAttributes(List<AudioAttributes> audioAttributesList,
-                                                   int zoneId) {
+    void handleActivationVolumeWithActivationInfos(
+            List<CarAudioPlaybackMonitor.ActivationInfo> activationInfoList, int zoneId,
+            int zoneConfigId) {
         ArrayList<Integer> groupIdList = new ArrayList<>();
         synchronized (mImplLock) {
-            for (int i = 0; i < audioAttributesList.size(); i++) {
-                AudioAttributes audioAttributes = audioAttributesList.get(i);
+            if (mCarAudioZones.get(zoneId).getCurrentCarAudioZoneConfig().getZoneConfigId()
+                    != zoneConfigId) {
+                Slogf.w(CarLog.TAG_AUDIO, "Zone configuration for zone %d is changed, no "
+                                + "activation volume is invoked", zoneId);
+                return;
+            }
+            for (int i = 0; i < activationInfoList.size(); i++) {
+                int volumeGroupId = activationInfoList.get(i)
+                        .mGroupId;
                 CarVolumeGroup volumeGroup = mCarAudioZones.get(zoneId)
-                        .getVolumeGroupForAudioAttributes(audioAttributes);
-                if (volumeGroup == null) {
-                    Slogf.w(CarLog.TAG_AUDIO, "Audio attributes %s is not found in zone %d",
-                            audioAttributes, zoneId);
-                    continue;
-                }
-                if (!volumeGroup.handleActivationVolume()) {
+                        .getCurrentVolumeGroup(volumeGroupId);
+                if (!volumeGroup.handleActivationVolume(
+                        activationInfoList.get(i).mInvocationType)) {
                     continue;
                 }
                 groupIdList.add(volumeGroup.getId());
@@ -913,6 +1014,14 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                         EXTRA_INFO_SHOW_UI))));
     }
 
+    @GuardedBy("mImplLock")
+    private void resetActivationTypeLocked(int zoneId) {
+        if (mCarAudioPlaybackMonitor == null) {
+            return;
+        }
+        mCarAudioPlaybackMonitor.resetActivationTypesForZone(zoneId);
+    }
+
     private void handleMuteChanged(int zoneId, int groupId, int flags) {
         if (!mUseCarVolumeGroupMuting) {
             return;
@@ -934,7 +1043,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     void setMasterMute(boolean mute, int flags) {
-        AudioManagerHelper.setMasterMute(mAudioManager, mute, flags);
+        mAudioManagerWrapper.setMasterMute(mute, flags);
 
         // Master Mute only applies to primary zone
         callbackMasterMuteChange(PRIMARY_AUDIO_ZONE, flags);
@@ -945,7 +1054,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
         // Persists master mute state if applicable
         if (mPersistMasterMuteState) {
-            mCarAudioSettings.storeMasterMute(isMasterMute(mAudioManager));
+            mCarAudioSettings.storeMasterMute(mAudioManagerWrapper.isMasterMuted());
         }
     }
 
@@ -965,7 +1074,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
 
         if (runInLegacyMode()) {
-            return mAudioManager.getStreamMaxVolume(
+            return mAudioManagerWrapper.getStreamMaxVolume(
                     CarAudioDynamicRouting.STREAM_TYPES[groupId]);
         }
 
@@ -983,7 +1092,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_VOLUME);
 
         if (runInLegacyMode()) {
-            return mAudioManager.getStreamMinVolume(
+            return mAudioManagerWrapper.getStreamMinVolume(
                     CarAudioDynamicRouting.STREAM_TYPES[groupId]);
         }
 
@@ -1002,7 +1111,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
         // For legacy stream type based volume control
         if (runInLegacyMode()) {
-            return mAudioManager.getStreamVolume(
+            return mAudioManagerWrapper.getStreamVolume(
                     CarAudioDynamicRouting.STREAM_TYPES[groupId]);
         }
 
@@ -1054,7 +1163,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         Objects.requireNonNull(callback, "Media audio request callback can not be null");
         Objects.requireNonNull(info, "Occupant zone info can not be null");
 
-        int audioZoneId = mOccupantZoneService.getAudioZoneIdForOccupant(info.zoneId);
+        int audioZoneId = getCarOccupantZoneService().getAudioZoneIdForOccupant(info.zoneId);
         if (audioZoneId == PRIMARY_AUDIO_ZONE) {
             throw new IllegalArgumentException("Occupant " + info
                     + " already owns the primary audio zone");
@@ -1078,7 +1187,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         if (mCarAudioMirrorRequestHandler.isMirrorEnabledForZone(audioZoneId)) {
             long mirrorId = mCarAudioMirrorRequestHandler.getRequestIdForAudioZone(audioZoneId);
             CarOccupantZoneManager.OccupantZoneInfo info =
-                    mOccupantZoneService.getOccupantForAudioZoneId(audioZoneId);
+                    getCarOccupantZoneService().getOccupantForAudioZoneId(audioZoneId);
             if (runIfFailed != null) {
                 runIfFailed.run();
             }
@@ -1116,13 +1225,14 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return false;
         }
 
-        int audioZoneId = mOccupantZoneService.getAudioZoneIdForOccupant(info.zoneId);
+        CarOccupantZoneService carOccupantZoneService = getCarOccupantZoneService();
+        int audioZoneId = carOccupantZoneService.getAudioZoneIdForOccupant(info.zoneId);
 
         verifyMirrorNotEnabledForZone(() -> mMediaRequestHandler
                 .rejectMediaAudioRequest(requestId), "allow",  audioZoneId);
 
+        int userId = carOccupantZoneService.getUserForOccupant(info.zoneId);
         synchronized (mImplLock) {
-            int userId = mOccupantZoneService.getUserForOccupant(info.zoneId);
             return handleAssignAudioFromUserIdToPrimaryAudioZoneLocked(token,
                     userId, audioZoneId, requestId);
         }
@@ -1374,7 +1484,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                         "Audio zone must have an active user to allow mirroring");
             }
 
-            CarOccupantZoneManager.OccupantZoneInfo info = mOccupantZoneService
+            CarOccupantZoneManager.OccupantZoneInfo info = getCarOccupantZoneService()
                     .getOccupantForAudioZoneId(zoneId);
 
             if (mMediaRequestHandler.isMediaAudioAllowedInPrimaryZone(info)) {
@@ -1442,7 +1552,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 return;
             }
 
-            CarOccupantZoneManager.OccupantZoneInfo info = mOccupantZoneService
+            CarOccupantZoneManager.OccupantZoneInfo info = getCarOccupantZoneService()
                     .getOccupantForAudioZoneId(audioZoneId);
 
             if (mMediaRequestHandler.isMediaAudioAllowedInPrimaryZone(info)) {
@@ -1511,7 +1621,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         builder.append(MIRROR_COMMAND_SEPARATOR);
 
         Slogf.i(TAG, "Sending mirror command to audio HAL: %s", builder);
-        mAudioManager.setParameters(builder.toString());
+        mAudioManagerWrapper.setParameters(builder.toString());
     }
 
     private String getAudioMirroringOffCommand(String mirrorSource) {
@@ -1598,7 +1708,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         if (newConfig.length == 0) {
             Slogf.i(TAG, "Sending mirror off command to audio HAL for address %s",
                     mirrorDevice.getAddress());
-            mAudioManager.setParameters(getAudioMirroringOffCommand(mirrorDevice.getAddress()));
+            mAudioManagerWrapper.setParameters(
+                    getAudioMirroringOffCommand(mirrorDevice.getAddress()));
         }
 
         //Send the signal to current listeners at the end
@@ -1699,7 +1810,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     private List<CarAudioDeviceInfo> generateCarAudioDeviceInfos() {
-        AudioDeviceInfo[] deviceInfos = mAudioManager.getDevices(
+        AudioDeviceInfo[] deviceInfos = mAudioManagerWrapper.getDevices(
                 AudioManager.GET_DEVICES_OUTPUTS);
 
         List<CarAudioDeviceInfo> carInfos = new ArrayList<>();
@@ -1711,7 +1822,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
             AudioDeviceInfo info = deviceInfos[index];
             AudioDeviceAttributes attributes = new AudioDeviceAttributes(info);
-            CarAudioDeviceInfo carInfo = new CarAudioDeviceInfo(mAudioManager, attributes);
+            CarAudioDeviceInfo carInfo = new CarAudioDeviceInfo(mAudioManagerWrapper, attributes);
             // TODO(b/305301155): Move set audio device info closer to where it is used.
             //  On dynamic configuration change for example
             carInfo.setAudioDeviceInfo(info);
@@ -1722,7 +1833,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     private AudioDeviceInfo[] getAllInputDevices() {
-        return mAudioManager.getDevices(
+        return mAudioManagerWrapper.getDevices(
                 AudioManager.GET_DEVICES_INPUTS);
     }
 
@@ -1732,7 +1843,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
         try (InputStream fileStream = new FileInputStream(mCarAudioConfigurationPath);
                  InputStream inputStream = new BufferedInputStream(fileStream)) {
-            CarAudioZonesHelper zonesHelper = new CarAudioZonesHelper(mAudioManager,
+            CarAudioZonesHelper zonesHelper = new CarAudioZonesHelper(mAudioManagerWrapper,
                     mCarAudioSettings, inputStream, carAudioDeviceInfos, inputDevices,
                     mServiceEventLogger, mUseCarVolumeGroupMuting, mUseCoreAudioVolume,
                     mUseCoreAudioRouting, mUseFadeManagerConfiguration,
@@ -1813,10 +1924,14 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     @GuardedBy("mImplLock")
-    private void setupCarAudioPlaybackMonitor() {
-        if (mUseMinMaxActivationVolume) {
-            mCarAudioPlaybackMonitor = new CarAudioPlaybackMonitor(this);
+    private void setupCarAudioPlaybackMonitorLocked() {
+        if (!mUseMinMaxActivationVolume) {
+            return;
         }
+        int telephonyDefaultDataSubscriptionId = SubscriptionManager
+                .getDefaultDataSubscriptionId();
+        mCarAudioPlaybackMonitor = new CarAudioPlaybackMonitor(this, mCarAudioZones,
+                mTelephonyManager.createForSubscriptionId(telephonyDefaultDataSubscriptionId));
     }
 
     @GuardedBy("mImplLock")
@@ -1849,7 +1964,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return;
         }
         mCoreAudioVolumeGroupCallback = new CoreAudioVolumeGroupCallback(
-                new CarVolumeInfoWrapper(this), mAudioManager);
+                new CarVolumeInfoWrapper(this), mAudioManagerWrapper);
         mCoreAudioVolumeGroupCallback.init(mContext.getMainExecutor());
     }
 
@@ -1867,13 +1982,13 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         // Mirror policy has to be set before general audio policy
         log.traceBegin("routing-policy-setup");
         setupMirrorDevicePolicyLocked(builder);
-        CarAudioDynamicRouting.setupAudioDynamicRouting(mCarAudioContext, mAudioManager, builder,
-                mCarAudioZones);
+        CarAudioDynamicRouting.setupAudioDynamicRouting(mCarAudioContext, mAudioManagerWrapper,
+                builder, mCarAudioZones);
         log.traceEnd();
 
         AudioPolicy routingAudioPolicy = builder.build();
         log.traceBegin("routing-policy-register");
-        int r = mAudioManager.registerAudioPolicy(routingAudioPolicy);
+        int r = mAudioManagerWrapper.registerAudioPolicy(routingAudioPolicy);
         log.traceEnd();
 
         log.traceEnd();
@@ -1910,14 +2025,14 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 };
 
         mCarAudioPolicyVolumeCallback = new CarAudioPolicyVolumeCallback(volumeCallbackInternal,
-                mAudioManager, new CarVolumeInfoWrapper(this), mUseCarVolumeGroupMuting);
+                mAudioManagerWrapper, new CarVolumeInfoWrapper(this), mUseCarVolumeGroupMuting);
         // Attach the {@link AudioPolicyVolumeCallback}
         CarAudioPolicyVolumeCallback.addVolumeCallbackToPolicy(volumeControlPolicyBuilder,
                 mCarAudioPolicyVolumeCallback);
 
         mVolumeControlAudioPolicy = volumeControlPolicyBuilder.build();
 
-        int status = mAudioManager.registerAudioPolicy(mVolumeControlAudioPolicy);
+        int status = mAudioManagerWrapper.registerAudioPolicy(mVolumeControlAudioPolicy);
         if (status != AudioManager.SUCCESS) {
             throw new IllegalStateException("Could not register the car audio service's volume"
                     + " control audio policy, error: " + status);
@@ -1929,7 +2044,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         // Used to configure our audio policy to handle focus events.
         // This gives us the ability to decide which audio focus requests to accept and bypasses
         // the framework ducking logic.
-        mFocusHandler = CarZonesAudioFocus.createCarZonesAudioFocus(mAudioManager,
+        mFocusHandler = CarZonesAudioFocus.createCarZonesAudioFocus(mAudioManagerWrapper,
                 mContext.getPackageManager(), mCarAudioZones, mCarAudioSettings, mCarDucking,
                 new CarVolumeInfoWrapper(this), getAudioFeaturesInfo());
 
@@ -1942,7 +2057,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         mFocusControlAudioPolicy = focusControlPolicyBuilder.build();
         mFocusHandler.setOwningPolicy(this, mFocusControlAudioPolicy);
 
-        int status = mAudioManager.registerAudioPolicy(mFocusControlAudioPolicy);
+        int status = mAudioManagerWrapper.registerAudioPolicy(mFocusControlAudioPolicy);
         if (status != AudioManager.SUCCESS) {
             throw new IllegalStateException("Could not register the car audio service's focus"
                     + " control audio policy, error: " + status);
@@ -1972,7 +2087,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         }
 
         mFadeManagerConfigAudioPolicy = new AudioPolicy.Builder(mContext).build();
-        int status = mAudioManager.registerAudioPolicy(mFadeManagerConfigAudioPolicy);
+        int status = mAudioManagerWrapper.registerAudioPolicy(mFadeManagerConfigAudioPolicy);
         if (status != AudioManager.SUCCESS) {
             throw new IllegalStateException("Could not register the car audio service's fade"
                     + " configuration audio policy, error: " + status);
@@ -2036,14 +2151,14 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         }
 
         CarAudioDynamicRouting.setupAudioDynamicRoutingForMirrorDevice(mirrorPolicyBuilder,
-                mCarAudioMirrorRequestHandler.getMirroringDeviceInfos(), mAudioManager);
+                mCarAudioMirrorRequestHandler.getMirroringDeviceInfos(), mAudioManagerWrapper);
     }
 
     @GuardedBy("mImplLock")
     private void setupAudioConfigurationCallbackLocked() {
         mCarAudioPlaybackCallback = new CarAudioPlaybackCallback(mCarAudioZones,
                 mCarAudioPlaybackMonitor, mClock, mKeyEventTimeoutMs);
-        mAudioManager.registerAudioPlaybackCallback(mCarAudioPlaybackCallback, null);
+        mAudioManagerWrapper.registerAudioPlaybackCallback(mCarAudioPlaybackCallback, null);
     }
 
     @GuardedBy("mImplLock")
@@ -2051,9 +2166,35 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         CarOccupantZoneService occupantZoneService;
         SparseIntArray audioZoneIdToOccupantZoneMapping;
         audioZoneIdToOccupantZoneMapping = mAudioZoneIdToOccupantZoneIdMapping;
-        occupantZoneService = mOccupantZoneService;
+        occupantZoneService = getCarOccupantZoneService();
         occupantZoneService.setAudioZoneIdsForOccupantZoneIds(audioZoneIdToOccupantZoneMapping);
         occupantZoneService.registerCallback(mOccupantZoneCallback);
+        callOccupantConfigForSelfIfNeeded(occupantZoneService);
+    }
+
+    private void callOccupantConfigForSelfIfNeeded(CarOccupantZoneService occupantZoneService) {
+        int driverId = occupantZoneService.getDriverUserId();
+        boolean isSystemUser = UserHandle.SYSTEM.getIdentifier() == driverId;
+        // If the current driver is the system, then we need to wait for the user to be started.
+        // This will be triggered by the occupant zone service.
+        if (isSystemUser) {
+            return;
+        }
+        CarOccupantZoneManager.OccupantZoneInfo driverInfo =
+                occupantZoneService.getOccupantZoneForUser(UserHandle.of(driverId));
+        // If the driver is not configured then need to wait for the driver to be configured.
+        // This will be triggered by the occupant zone service.
+        if (driverInfo == null) {
+            return;
+        }
+        // Driver is already configured, need to handle the change given that we will not receive
+        // the user change callback. This must be handled in separate thread to prevent blocking the
+        // car service initialization. This may happen if audio server crash and car audio service
+        // is re-initializing or if the car audio service took too long to initialized and user
+        // driver occupant is already configured.
+        mServiceEventLogger.log("User already initialized during car audio service init,"
+                + " handling occupant zone config internally");
+        mHandler.post(this::handleOccupantZoneUserChanged);
     }
 
     @GuardedBy("mImplLock")
@@ -2064,7 +2205,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return;
         }
 
-        mHalAudioFocus = new HalAudioFocus(mAudioManager, mAudioControlWrapper,
+        mHalAudioFocus = new HalAudioFocus(mAudioManagerWrapper, mAudioControlWrapper,
                 mCarAudioPlaybackMonitor, mCarAudioContext, getAudioZoneIds());
         mHalAudioFocus.registerFocusListener();
     }
@@ -2076,9 +2217,11 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             Slogf.d(CarLog.TAG_AUDIO, "HalAudioGainCallback is not supported on this device");
             return;
         }
-        mCarAudioGainMonitor = new CarAudioGainMonitor(mAudioControlWrapper,
-                new CarVolumeInfoWrapper(this), mCarAudioZones);
-        mCarAudioGainMonitor.registerAudioGainListener(mHalAudioGainCallback);
+        synchronized (mImplLock) {
+            mCarAudioGainMonitor = new CarAudioGainMonitor(mAudioControlWrapper,
+                    new CarVolumeInfoWrapper(this), mCarAudioZones);
+            mCarAudioGainMonitor.registerAudioGainListener(mHalAudioGainCallback);
+        }
     }
 
     @GuardedBy("mImplLock")
@@ -2091,6 +2234,19 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         mCarAudioModuleChangeMonitor = new CarAudioModuleChangeMonitor(mAudioControlWrapper,
                 new CarVolumeInfoWrapper(this), mCarAudioZones);
         mCarAudioModuleChangeMonitor.setModuleChangeCallback(mHalAudioModuleChangeCallback);
+    }
+
+    @GuardedBy("mImplLock")
+    private void releaseHalAudioModuleChangeCallbackLocked() {
+        if (mCarAudioModuleChangeMonitor == null) {
+            return;
+        }
+        try {
+            mCarAudioModuleChangeMonitor.clearModuleChangeCallback();
+        } catch (Exception e) {
+            Slogf.w(TAG, "Failed to clear audio control wrapper module change callback", e);
+        }
+        mCarAudioModuleChangeMonitor = null;
     }
 
     /*
@@ -2151,7 +2307,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             enforcePermission(Car.PERMISSION_CAR_CONTROL_AUDIO_SETTINGS);
             List<String> sourceAddresses = new ArrayList<>();
 
-            AudioDeviceInfo[] devices = mAudioManager.getDevices(AudioManager.GET_DEVICES_INPUTS);
+            AudioDeviceInfo[] devices =
+                    mAudioManagerWrapper.getDevices(AudioManager.GET_DEVICES_INPUTS);
             if (devices.length == 0) {
                 Slogf.w(TAG, "getExternalSources, no input devices found");
             }
@@ -2225,7 +2382,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             @AttributeUsage int usage, int gainInMillibels) {
         // Find the named source port
         AudioDeviceInfo sourcePortInfo = null;
-        AudioDeviceInfo[] deviceInfos = mAudioManager.getDevices(AudioManager.GET_DEVICES_INPUTS);
+        AudioDeviceInfo[] deviceInfos =
+                mAudioManagerWrapper.getDevices(AudioManager.GET_DEVICES_INPUTS);
         for (AudioDeviceInfo info : deviceInfos) {
             if (sourceAddress.equals(info.getAddress())) {
                 // This is the one for which we're looking
@@ -2257,7 +2415,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private void releaseAudioPatchLocked(CarAudioPatchHandle carPatch) {
         Objects.requireNonNull(carPatch);
 
-        if (AudioManagerHelper.releaseAudioPatch(mAudioManager, getAudioPatchInfo(carPatch))) {
+        if (mAudioManagerWrapper.releaseAudioPatch(getAudioPatchInfo(carPatch))) {
             Slogf.d(TAG, "releaseAudioPatch %s successfully", carPatch);
         }
         // If we didn't find a match, then something went awry, but it's probably not fatal...
@@ -2418,7 +2576,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     int getCallStateForZone(int zoneId) {
         synchronized (mImplLock) {
             // Only driver can use telephony stack
-            if (getUserIdForZoneLocked(zoneId) == mOccupantZoneService.getDriverUserId()) {
+            if (getUserIdForZoneLocked(zoneId) == getCarOccupantZoneService().getDriverUserId()) {
                 return mTelephonyManager.getCallState();
             }
         }
@@ -2427,7 +2585,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
     private List<AudioAttributes> getActiveAttributesFromPlaybackConfigurations(int zoneId) {
         return getCarAudioZone(zoneId)
-                .findActiveAudioAttributesFromPlaybackConfigurations(mAudioManager
+                .findActiveAudioAttributesFromPlaybackConfigurations(mAudioManagerWrapper
                         .getActivePlaybackConfigurations());
     }
 
@@ -2490,12 +2648,13 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
     @GuardedBy("mImplLock")
     private int getZoneIdForUserLocked(UserHandle handle) {
+        CarOccupantZoneService carOccupantZoneService = getCarOccupantZoneService();
         CarOccupantZoneManager.OccupantZoneInfo info =
-                mOccupantZoneService.getOccupantZoneForUser(handle);
+                carOccupantZoneService.getOccupantZoneForUser(handle);
 
         int audioZoneId = CarAudioManager.INVALID_AUDIO_ZONE;
         if (info != null) {
-            audioZoneId = mOccupantZoneService.getAudioZoneIdForOccupant(info.zoneId);
+            audioZoneId = carOccupantZoneService.getAudioZoneIdForOccupant(info.zoneId);
         }
 
         return audioZoneId == CarAudioManager.INVALID_AUDIO_ZONE ? PRIMARY_AUDIO_ZONE : audioZoneId;
@@ -2615,7 +2774,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private AudioDeviceInfo getAudioDeviceInfoOrThrowIfNotFound(
             AudioDeviceAttributes audioDeviceAttributes) {
         AudioDeviceInfo info = CarAudioUtils.getAudioDeviceInfo(audioDeviceAttributes,
-                mAudioManager);
+                mAudioManagerWrapper);
         if (info != null) {
             return info;
         }
@@ -2639,6 +2798,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     @GuardedBy("mImplLock")
     private boolean setUserIdDeviceAffinityLocked(List<AudioDeviceInfo> devices,
             int userId, int zoneId) {
+        if (mIsAudioServerDown || mRoutingAudioPolicy == null) {
+            return false;
+        }
         boolean results = mRoutingAudioPolicy.setUserIdDeviceAffinity(userId, devices);
         if (!results) {
             Slogf.w(TAG, "setUserIdDeviceAffinityLocked for userId %d in zone %d Failed,"
@@ -2660,8 +2822,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             Slogf.w(TAG, "Occupant %s is not mapped to any audio zone", info);
             return false;
         }
-        int userId = mOccupantZoneService.getUserForOccupant(info.zoneId);
-        int audioZoneId = mOccupantZoneService.getAudioZoneIdForOccupant(info.zoneId);
+        CarOccupantZoneService carOccupantZoneService = getCarOccupantZoneService();
+        int userId = carOccupantZoneService.getUserForOccupant(info.zoneId);
+        int audioZoneId = carOccupantZoneService.getAudioZoneIdForOccupant(info.zoneId);
 
         synchronized (mImplLock) {
             CarAudioZone audioZone = getCarAudioZoneLocked(audioZoneId);
@@ -2763,6 +2926,12 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
      */
     @GuardedBy("mImplLock")
     private boolean setZoneIdForUidNoCheckLocked(int zoneId, int uid) {
+        if (mIsAudioServerDown || mRoutingAudioPolicy == null) {
+            Slogf.w(TAG, "setZoneIdForUidNoCheck Failed set device affinity"
+                            + " for uid %d in zone %d, routing policy not available.",
+                    uid, zoneId);
+            return false;
+        }
         Slogf.d(TAG, "setZoneIdForUidNoCheck Calling uid %d mapped to %d", uid, zoneId);
         //Request to add uid device affinity
         List<AudioDeviceInfo> deviceInfos =
@@ -2785,6 +2954,12 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
      */
     @GuardedBy("mImplLock")
     private boolean checkAndRemoveUidLocked(int uid) {
+        if (mIsAudioServerDown || mRoutingAudioPolicy == null) {
+            Slogf.w(TAG, "checkAndRemoveUid Failed remove device affinity for uid %d"
+                            + ", routing policy not available.",
+                    uid);
+            return false;
+        }
         Integer zoneId = mUidToZoneMap.get(uid);
         if (zoneId != null) {
             Slogf.i(TAG, "checkAndRemoveUid removing Calling uid %d from zone %d", uid, zoneId);
@@ -2990,7 +3165,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         }
 
         CarOccupantZoneManager.OccupantZoneInfo info =
-                mOccupantZoneService.getOccupantForAudioZoneId(zoneId);
+                getCarOccupantZoneService().getOccupantForAudioZoneId(zoneId);
 
         if (mMediaRequestHandler.isMediaAudioAllowedInPrimaryZone(info)) {
             throw new IllegalStateException(
@@ -3021,7 +3196,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         }
 
         CarOccupantZoneManager.OccupantZoneInfo info =
-                mOccupantZoneService.getOccupantForAudioZoneId(zoneId);
+                getCarOccupantZoneService().getOccupantForAudioZoneId(zoneId);
         if (mMediaRequestHandler.isMediaAudioAllowedInPrimaryZone(info)) {
             Slogf.w(TAG, "handleSwitchZoneConfig failed, occupant %s in audio zone %d is "
                             + "currently sharing to primary zone, undo audio sharing in primary "
@@ -3058,22 +3233,20 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             try {
                 log.traceBegin("switch-config-set-" + zoneConfig.getConfigId());
                 zone.setCurrentCarZoneConfig(zoneConfig);
-                CarAudioZoneConfig newZoneConfig = zone.getCurrentCarAudioZoneConfig();
-                // Default config always exists in the policy, so should be able to switch to
-                // default without creating a new policy
-                newAudioPolicy = newZoneConfig.isDefault()
-                        ? mRoutingAudioPolicy : setupRoutingAudioPolicyLocked();
+                newAudioPolicy = setupRoutingAudioPolicyLocked();
                 setAllUserIdDeviceAffinitiesToNewPolicyLocked(newAudioPolicy);
+                swapRoutingAudioPolicyLocked(newAudioPolicy);
                 zone.updateVolumeGroupsSettingsForUser(userId);
                 carVolumeGroupInfoList = getVolumeGroupInfosForZoneLocked(zoneId);
                 updateFadeManagerConfigurationLocked(zone.isPrimaryZone());
+                resetActivationTypeLocked(zoneConfig.getZoneId());
             } catch (Exception e) {
                 Slogf.e(TAG, "Failed to switch configuration id " + zoneConfig.getConfigId());
                 zone.setCurrentCarZoneConfig(prevZoneConfig.getCarAudioZoneConfigInfo());
                 succeeded = false;
                 // No need to unset the user id device affinities, since the policy is removed
                 if (newAudioPolicy != null && newAudioPolicy != mRoutingAudioPolicy) {
-                    mAudioManager.unregisterAudioPolicyAsync(newAudioPolicy);
+                    mAudioManagerWrapper.unregisterAudioPolicyAsync(newAudioPolicy);
                 }
             } finally {
                 log.traceEnd();
@@ -3081,9 +3254,6 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             log.traceBegin("switch-config-focus" + zoneConfig.getConfigId());
             mFocusHandler.reevaluateAndRegainAudioFocusList(pendingFocusInfos);
             log.traceEnd();
-            if (succeeded) {
-                swapRoutingAudioPolicyLocked(newAudioPolicy);
-            }
         }
         if (!succeeded) {
             log.traceEnd();
@@ -3105,7 +3275,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return;
         }
         List<AudioDeviceInfo> dynamicDevicesInConfig =
-                getDynamicDevicesInConfig(zoneConfig, mAudioManager);
+                getDynamicDevicesInConfig(zoneConfig, mAudioManagerWrapper);
         // If the devices were already removed just move on, device removal will manage the rest
         if (dynamicDevicesInConfig.isEmpty()) {
             return;
@@ -3122,7 +3292,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             return;
         }
         List<AudioDeviceInfo> dynamicDevicesInConfig =
-                getDynamicDevicesInConfig(zoneConfig, mAudioManager);
+                getDynamicDevicesInConfig(zoneConfig, mAudioManagerWrapper);
         // If the devices were already removed just move on, device removal will manage the rest
         if (dynamicDevicesInConfig.isEmpty()) {
             return;
@@ -3133,15 +3303,23 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
     @GuardedBy("mImplLock")
     private void swapRoutingAudioPolicyLocked(AudioPolicy newAudioPolicy) {
+        TimingsTraceLog log = new TimingsTraceLog(TAG, TraceHelper.TRACE_TAG_CAR_SERVICE);
+        log.traceBegin("swap-policy");
         if (newAudioPolicy == mRoutingAudioPolicy) {
+            log.traceEnd();
             return;
         }
         AudioPolicy previousRoutingPolicy = mRoutingAudioPolicy;
         mRoutingAudioPolicy = newAudioPolicy;
         if (previousRoutingPolicy == null) {
+            log.traceEnd();
             return;
         }
-        mAudioManager.unregisterAudioPolicyAsync(previousRoutingPolicy);
+        try {
+            mAudioManagerWrapper.unregisterAudioPolicy(previousRoutingPolicy);
+        } finally {
+            log.traceEnd();
+        }
     }
 
     @GuardedBy("mImplLock")
@@ -3151,7 +3329,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         for (int c = 0; c < mAudioZoneIdToOccupantZoneIdMapping.size(); c++) {
             int audioZoneId = mAudioZoneIdToOccupantZoneIdMapping.keyAt(c);
             int occupantZoneId = mAudioZoneIdToOccupantZoneIdMapping.get(audioZoneId);
-            int userId = mOccupantZoneService.getUserForOccupant(occupantZoneId);
+            int userId = getCarOccupantZoneService().getUserForOccupant(occupantZoneId);
             if (userId == UserManagerHelper.USER_NULL) {
                 continue;
             }
@@ -3168,7 +3346,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
             CarAudioZone zone) {
         List<AudioDeviceInfo> devices = getAudioDeviceInfos(zone);
         CarOccupantZoneManager.OccupantZoneInfo info =
-                mOccupantZoneService.getOccupantForAudioZoneId(zone.getId());
+                getCarOccupantZoneService().getOccupantForAudioZoneId(zone.getId());
         if (mMediaRequestHandler.isMediaAudioAllowedInPrimaryZone(info)) {
             devices.add(getMediaDeviceForPrimaryZoneLocked());
         } else if (mCarAudioMirrorRequestHandler.isMirrorEnabledForZone(zone.getId())) {
@@ -3263,14 +3441,31 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         }
         return carVolume.getSuggestedAudioContextAndSaveIfFound(
                 getAllActiveAttributesForZone(zoneId), getCallStateForZone(zoneId),
-                getActiveHalAudioAttributesForZone(zoneId));
+                getActiveHalAudioAttributesForZone(zoneId),
+                getInactiveAudioAttributesForZone(zoneId));
+    }
+
+    private List<AudioAttributes> getInactiveAudioAttributesForZone(int zoneId) {
+        if (mUseKeyEventsForDynamicDevices) {
+            return Collections.emptyList();
+        }
+
+        CarAudioZoneConfigInfo info;
+        synchronized (mImplLock) {
+            info = getCarAudioZoneLocked(zoneId).getCurrentCarAudioZoneConfig()
+                    .getCarAudioZoneConfigInfo();
+        }
+
+        return CarAudioUtils.getAudioAttributesForDynamicDevices(info);
     }
 
     private List<AudioAttributes> getActiveHalAudioAttributesForZone(int zoneId) {
-        if (mHalAudioFocus == null) {
-            return new ArrayList<>(0);
+        synchronized (mImplLock) {
+            if (mHalAudioFocus == null) {
+                return new ArrayList<>(0);
+            }
+            return mHalAudioFocus.getActiveAudioAttributesForZone(zoneId);
         }
-        return mHalAudioFocus.getActiveAudioAttributesForZone(zoneId);
     }
 
     /**
@@ -3290,7 +3485,8 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     private void handleOccupantZoneUserChanged() {
-        int driverUserId = mOccupantZoneService.getDriverUserId();
+        int driverUserId = getCarOccupantZoneService().getDriverUserId();
+        Slogf.i(TAG, "handleOccupantZoneUserChanged current driver %s", driverUserId);
         synchronized (mImplLock) {
             if (!isOccupantZoneMappingAvailableLocked()) {
                 adjustZonesToUserIdLocked(driverUserId);
@@ -3350,6 +3546,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         zone.updateVolumeGroupsSettingsForUser(userId);
         mFocusHandler.updateUserForZoneId(zone.getId(), userId);
         setUserIdForAudioZoneLocked(userId, zone.getId());
+        resetActivationTypeLocked(zone.getId());
     }
 
     @GuardedBy("mImplLock")
@@ -3361,7 +3558,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private void updateUserForOccupantZoneLocked(int occupantZoneId, int audioZoneId,
             @UserIdInt int driverUserId, int occupantZoneForDriver) {
         CarAudioZone audioZone = getCarAudioZoneLocked(audioZoneId);
-        int userId = mOccupantZoneService.getUserForOccupant(occupantZoneId);
+        int userId = getCarOccupantZoneService().getUserForOccupant(occupantZoneId);
         int prevUserId = getUserIdForZoneLocked(audioZoneId);
 
         if (userId == prevUserId) {
@@ -3398,6 +3595,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         audioZone.updateVolumeGroupsSettingsForUser(userId);
         mFocusHandler.updateUserForZoneId(audioZoneId, userId);
         setUserIdForAudioZoneLocked(userId, audioZoneId);
+        resetActivationTypeLocked(audioZoneId);
     }
 
     private void removeAudioMirrorForZoneId(int audioZoneId) {
@@ -3425,7 +3623,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
 
     private int getOccupantZoneIdForDriver() {
         List<CarOccupantZoneManager.OccupantZoneInfo> occupantZoneInfos =
-                mOccupantZoneService.getAllOccupantZones();
+                getCarOccupantZoneService().getAllOccupantZones();
         for (CarOccupantZoneManager.OccupantZoneInfo info: occupantZoneInfos) {
             if (info.occupantType == CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER) {
                 return info.zoneId;
@@ -3437,6 +3635,10 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     @GuardedBy("mImplLock")
     private void setUserIdDeviceAffinitiesLocked(CarAudioZone zone, @UserIdInt int userId,
             int audioZoneId) {
+        if (mIsAudioServerDown || mRoutingAudioPolicy == null) {
+            Slogf.w(TAG, "setUserIdDeviceAffinitiesLocked failed, audio policy not in bad state");
+            return;
+        }
         List<AudioDeviceInfo> infos = getAudioDeviceInfos(zone);
         if (!infos.isEmpty() && !mRoutingAudioPolicy.setUserIdDeviceAffinity(userId, infos)) {
             throw new IllegalStateException(String.format(
@@ -3463,6 +3665,9 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     private void resetZoneToDefaultUser(CarAudioZone zone, @UserIdInt int driverUserId) {
         resetCarZonesAudioFocus(zone.getId(), driverUserId);
         zone.updateVolumeGroupsSettingsForUser(driverUserId);
+        synchronized (mImplLock) {
+            resetActivationTypeLocked(zone.getId());
+        }
     }
 
     private void resetCarZonesAudioFocus(int audioZoneId, @UserIdInt int driverUserId) {
@@ -3475,9 +3680,12 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         if (userId == UserManagerHelper.USER_NULL) {
             return;
         }
+        if (mIsAudioServerDown || mRoutingAudioPolicy == null) {
+            Slogf.e(TAG, "removeUserIdDeviceAffinities(%d) routing policy unavailable", userId);
+            return;
+        }
         if (!mRoutingAudioPolicy.removeUserIdDeviceAffinity(userId)) {
             Slogf.e(TAG, "removeUserIdDeviceAffinities(%d) Failed", userId);
-            return;
         }
     }
 
@@ -3507,39 +3715,72 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
         return mAudioControlWrapper;
     }
 
-    private void resetHalAudioFocus() {
-        if (mHalAudioFocus != null) {
-            mHalAudioFocus.reset();
-            mHalAudioFocus.registerFocusListener();
+    @GuardedBy("mImplLock")
+    private void resetHalAudioFocusLocked() {
+        if (mHalAudioFocus == null) {
+            return;
         }
+        mHalAudioFocus.reset();
+        mHalAudioFocus.registerFocusListener();
     }
 
-    private void resetHalAudioGain() {
-        if (mCarAudioGainMonitor != null) {
+    @GuardedBy("mImplLock")
+    private void resetHalAudioGainLocked() {
+        synchronized (mImplLock) {
+            if (mCarAudioGainMonitor == null) {
+                return;
+            }
             mCarAudioGainMonitor.reset();
             mCarAudioGainMonitor.registerAudioGainListener(mHalAudioGainCallback);
         }
     }
 
-    private void resetHalAudioModuleChange() {
-        if (mCarAudioModuleChangeMonitor != null) {
-            mCarAudioModuleChangeMonitor.setModuleChangeCallback(mHalAudioModuleChangeCallback);
+    @GuardedBy("mImplLock")
+    private void resetHalAudioModuleChangeLocked() {
+        if (mCarAudioModuleChangeMonitor == null) {
+            return;
         }
+        mCarAudioModuleChangeMonitor.setModuleChangeCallback(mHalAudioModuleChangeCallback);
     }
 
+    @GuardedBy("mImplLock")
     private void handleAudioDeviceGainsChangedLocked(
             List<Integer> halReasons, List<CarAudioGainConfigInfo> gains) {
+        if (mCarAudioGainMonitor == null) {
+            return;
+        }
         mCarAudioGainMonitor.handleAudioDeviceGainsChanged(halReasons, gains);
     }
 
+    @GuardedBy("mImplLock")
     private void handleAudioPortsChangedLocked(List<HalAudioDeviceInfo> deviceInfos) {
+        if (mCarAudioModuleChangeMonitor == null) {
+            return;
+        }
         mCarAudioModuleChangeMonitor.handleAudioPortsChanged(deviceInfos);
     }
 
     private void audioControlDied() {
-        resetHalAudioFocus();
-        resetHalAudioGain();
-        resetHalAudioModuleChange();
+        // If audio server is down, do not attempt to recover since it may lead to contention.
+        // Once the audio server is back up the audio control HAL will be re-initialized.
+        if (!mAudioManagerWrapper.isAudioServerRunning()) {
+            String message = "Audio control died while audio server is not running";
+            Slogf.w(TAG, message);
+            mServiceEventLogger.log(message);
+            return;
+        }
+        synchronized (mImplLock) {
+            // Verify the server has not gone down to prevent releasing audio control HAL
+            if (mIsAudioServerDown) {
+                String message = "Audio control died while audio server is down";
+                Slogf.w(TAG, message);
+                mServiceEventLogger.log(message);
+                return;
+            }
+            resetHalAudioFocusLocked();
+            resetHalAudioGainLocked();
+            resetHalAudioModuleChangeLocked();
+        }
     }
 
     boolean isAudioZoneIdValid(int zoneId) {
@@ -3628,7 +3869,7 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
                 focusInfo.getAttributes());
 
         return isMedia && mMediaRequestHandler
-                .isMediaAudioAllowedInPrimaryZone(mOccupantZoneService
+                .isMediaAudioAllowedInPrimaryZone(getCarOccupantZoneService()
                         .getOccupantZoneForUser(UserHandle
                                 .getUserHandleForUid(focusInfo.getClientUid())));
     }
@@ -3686,6 +3927,11 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     void audioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+        synchronized (mImplLock) {
+            if (mIsAudioServerDown) {
+                return;
+            }
+        }
         Slogf.d(TAG, "Added audio devices " + Arrays.toString(addedDevices));
         List<AudioDeviceInfo> devices = filterBusDevices(addedDevices);
 
@@ -3717,6 +3963,11 @@ public final class CarAudioService extends ICarAudio.Stub implements CarServiceB
     }
 
     void audioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+        synchronized (mImplLock) {
+            if (mIsAudioServerDown) {
+                return;
+            }
+        }
         Slogf.d(TAG, "Removed audio devices " + Arrays.toString(removedDevices));
         List<AudioDeviceInfo> devices = filterBusDevices(removedDevices);
 
