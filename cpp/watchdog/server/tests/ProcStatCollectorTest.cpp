@@ -50,14 +50,16 @@ std::string toString(const ProcStatInfo& info) {
                         " SoftIrqTimeMillis: %" PRIu64 " StealTimeMillis: %" PRIu64
                         " GuestTimeMillis: %" PRIu64 " GuestNiceTimeMillis: %" PRIu64
                         "\nNumber of running processes: %" PRIu32
-                        "\nNumber of blocked processes: %" PRIu32,
+                        "\nNumber of blocked processes: %" PRIu32
+                        "\nNumber of context switches: %" PRIu64,
                         kernelStartTimeEpochSeconds.str().c_str(),
                         cpuStats.userTimeMillis, cpuStats.niceTimeMillis,
                         cpuStats.sysTimeMillis, cpuStats.idleTimeMillis,
                         cpuStats.ioWaitTimeMillis, cpuStats.irqTimeMillis,
                         cpuStats.softIrqTimeMillis, cpuStats.stealTimeMillis,
                         cpuStats.guestTimeMillis, cpuStats.guestNiceTimeMillis,
-                        info.runnableProcessCount, info.ioBlockedProcessCount);
+                        info.runnableProcessCount, info.ioBlockedProcessCount,
+                        info.contextSwitchesCount);
 }
 
 }  // namespace
@@ -141,7 +143,7 @@ TEST(ProcStatCollectorTest, TestValidStatFile) {
             .guestNiceTimeMillis = clockTicksToMillis(0),
     };
     expectedSecondDelta.kernelStartTimeEpochSeconds = 1579718450;
-    expectedFirstDelta.contextSwitchesCount = 810020192;
+    expectedSecondDelta.contextSwitchesCount = 231000024;
     expectedSecondDelta.runnableProcessCount = 10;
     expectedSecondDelta.ioBlockedProcessCount = 2;
 
