@@ -122,10 +122,8 @@ public class TaskViewPanel extends RelativeLayout {
          * @param oldState The state from which the transition is about to start.
          * @param newState The final state of the panel after the transition.
          * @param animated If the transition is animated.
-         * @param reason   The reason for the state change.
          */
-        void onStateChangeStart(State oldState, State newState, boolean animated,
-                TaskViewPanelStateChangeReason reason);
+        void onStateChangeStart(State oldState, State newState, boolean animated);
 
         /**
          * Called right after the panel state changes.
@@ -135,10 +133,8 @@ public class TaskViewPanel extends RelativeLayout {
          * @param oldState The state from which the transition started.
          * @param newState The final state of the panel after the transition.
          * @param animated If the transition is animated.
-         * @param reason   The reason for the state change.
          */
-        void onStateChangeEnd(State oldState, State newState, boolean animated,
-                TaskViewPanelStateChangeReason reason);
+        void onStateChangeEnd(State oldState, State newState, boolean animated);
     }
 
     private static void logIfDebuggable(String message) {
@@ -531,7 +527,7 @@ public class TaskViewPanel extends RelativeLayout {
         float animationScale = getAnimationScale(getContext());
         logIfDebuggable("animationScale = " + animationScale);
         boolean animated = animator != null && animationScale != 0f;
-        onStateChangeStart(fromState, toState, animated, reason);
+        onStateChangeStart(fromState, toState, animated);
 
         mActiveState = toState;
         mActiveAnimator = animator;
@@ -552,29 +548,27 @@ public class TaskViewPanel extends RelativeLayout {
                 mGripBar.setVisibility(mActiveState.hasGripBar() ? VISIBLE : GONE);
                 mToolBarView.setVisibility(mActiveState.hasToolBar() ? VISIBLE : GONE);
                 updateBounds(mActiveState.mBounds);
-                onStateChangeEnd(fromState, mActiveState, /* animated= */ true, reason);
+                onStateChangeEnd(fromState, mActiveState, /* animated= */ true);
             }));
         } else {
             mGripBar.setVisibility(mActiveState.hasGripBar() ? VISIBLE : GONE);
             mToolBarView.setVisibility(mActiveState.hasToolBar() ? VISIBLE : GONE);
             updateBounds(mActiveState.mBounds);
             mTaskViewOverlay.setVisibility(GONE);
-            onStateChangeEnd(fromState, mActiveState, /* animated= */ false, reason);
+            onStateChangeEnd(fromState, mActiveState, /* animated= */ false);
         }
     }
 
-    private void onStateChangeStart(State fromState, State toState, boolean animated,
-            TaskViewPanelStateChangeReason reason) {
+    private void onStateChangeStart(State fromState, State toState, boolean animated) {
         if (mOnStateChangeListener != null) {
-            mOnStateChangeListener.onStateChangeStart(fromState, toState, animated, reason);
+            mOnStateChangeListener.onStateChangeStart(fromState, toState, animated);
         }
     }
 
-    private void onStateChangeEnd(State fromState, State toState, boolean animated,
-            TaskViewPanelStateChangeReason reason) {
+    private void onStateChangeEnd(State fromState, State toState, boolean animated) {
         mActiveAnimator = null;
         if (mOnStateChangeListener != null) {
-            mOnStateChangeListener.onStateChangeEnd(fromState, toState, animated, reason);
+            mOnStateChangeListener.onStateChangeEnd(fromState, toState, animated);
         }
     }
 
