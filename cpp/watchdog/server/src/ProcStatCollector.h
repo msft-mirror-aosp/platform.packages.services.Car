@@ -87,10 +87,12 @@ public:
         return memcmp(&cpuStats, &info.cpuStats, sizeof(cpuStats)) == 0 &&
                 runnableProcessCount == info.runnableProcessCount &&
                 ioBlockedProcessCount == info.ioBlockedProcessCount &&
+                contextSwitchesCount == info.contextSwitchesCount &&
                 kernelStartTimeEpochSeconds == info.kernelStartTimeEpochSeconds;
     }
     ProcStatInfo& operator-=(const ProcStatInfo& rhs) {
         cpuStats -= rhs.cpuStats;
+        contextSwitchesCount -= rhs.contextSwitchesCount;
         /* Don't diff kernelStartTimeEpochSeconds, runnableProcessCount, and
          * ioBlockedProcessCount because they are real-time values unlike other
          * stats, which are aggregated values since system startup.
