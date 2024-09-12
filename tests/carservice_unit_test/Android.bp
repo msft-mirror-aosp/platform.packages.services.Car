@@ -140,7 +140,7 @@ android_ravenwood_test {
     ],
 
     libs: [
-        "android.test.base",
+        "android.test.base.stubs.system",
         "framework-annotations-lib",
     ],
 
