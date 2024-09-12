@@ -34,6 +34,7 @@ import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
+import android.view.View;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -378,7 +379,8 @@ public class DistantDisplayTaskManager {
             intent = new Intent();
             intent.setComponent(mediaComponent);
             intent.putExtra(Intent.EXTRA_COMPONENT_NAME, componentName.flattenToShortString());
-            intent.putExtra(IntentUtils.EXTRA_MEDIA_BLOCKING_ACTIVITY_DISMISS_ON_PARK, false);
+            intent.putExtra(IntentUtils.EXTRA_MEDIA_BLOCKING_ACTIVITY_EXIT_BUTTON_VISIBILITY,
+                    View.GONE);
             launchUserHandle = mUserTracker.getUserHandle();
         } else {
             intent = DistantDisplayCompanionActivity.createIntent(mContext, packageName);
