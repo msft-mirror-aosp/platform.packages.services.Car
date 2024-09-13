@@ -3962,8 +3962,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void freeMemory() {
         try {
             Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "freeMemory");
-            ActivityManagerHelper.killAllBackgroundProcesses();
             if (!mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
+                ActivityManagerHelper.killAllBackgroundProcesses();
                 Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return;
             }
