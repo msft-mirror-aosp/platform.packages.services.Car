@@ -16,6 +16,9 @@
 
 package com.android.car.portraitlauncher.controlbar;
 
+import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.getFirstCustomActionInSet;
+import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.skipForwardStandardActions;
+import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.skipBackStandardActions;
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updateActionsWithPlaybackState;
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updatePlayButtonWithPlaybackState;
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updateTextViewAndVisibility;
@@ -35,7 +38,6 @@ import com.android.car.apps.common.RoundedDrawable;
 import com.android.car.apps.common.util.ViewUtils;
 import com.android.car.carlauncher.homescreen.audio.media.MediaIntentRouter;
 import com.android.car.media.common.MediaItemMetadata;
-import com.android.car.media.common.R;
 import com.android.car.media.common.playback.PlaybackProgress;
 import com.android.car.media.common.playback.PlaybackViewModel;
 import com.android.car.media.common.playback.PlaybackViewModel.PlaybackController;
@@ -43,6 +45,7 @@ import com.android.car.media.common.source.MediaSource;
 import com.android.car.media.common.ui.PlaybackCardController;
 import com.android.car.media.common.ui.PlaybackHistoryController;
 import com.android.car.media.common.ui.PlaybackQueueController;
+import com.android.car.portraitlauncher.R;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -234,10 +237,17 @@ public class ControlBarMediaController extends PlaybackCardController {
         if (playbackState != null) {
             updatePlayButtonWithPlaybackState(mPlayPauseButton, playbackState, playbackController);
             int count = 0;
-            if (playbackState.isSkipNextEnabled() || playbackState.isSkipNextReserved()) {
+            if ((playbackState.isSkipNextEnabled() || playbackState.isSkipNextReserved())
+                    || (!playbackState.isSkipNextEnabled() && !playbackState.isSkipNextReserved()
+                    && getFirstCustomActionInSet(playbackState.getCustomActions(),
+                    skipForwardStandardActions) != null)) {
                 count++;
             }
-            if (playbackState.isSkipPreviousEnabled() || playbackState.iSkipPreviousReserved()) {
+            if (playbackState.isSkipPreviousEnabled() || playbackState.iSkipPreviousReserved()
+                    || (!playbackState.isSkipPreviousEnabled()
+                    && !playbackState.iSkipPreviousReserved()
+                    && getFirstCustomActionInSet(playbackState.getCustomActions(),
+                    skipBackStandardActions) != null)) {
                 count++;
             }
             Drawable skipNextDrawableBackground = count == 1 ? mView.getContext()

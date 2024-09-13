@@ -449,6 +449,12 @@
     -->
     <string name="config_userPickerActivity" translatable="false">com.android.systemui/.car.userpicker.UserPickerActivity</string>
 
+    <!-- Specifies whether the system CarUserService should start secure users on passenger
+         displays. This should remain false unless a keyguard (or keyguard-equivalent) auth
+         implementation for visible background users is implemented and enabled on this device.
+    -->
+    <bool name="config_supportsSecurePassengerUsers">false</bool>
+
     <!-- Configuration to enable media center to autoplay when the media source is changed.
          There are 3 supported configurations:
          0 - never play on change
@@ -665,4 +671,7 @@
               will be stopped.
     -->
     <string name="config_suspend_to_disk_memory_savings" translatable="false">low</string>
+
+    <!-- Controls the use of bluetooth pairing when long pressing the voice assist button in CarInputService. -->
+    <bool name="config_enableLongPressBluetoothPairing">true</bool>
 </resources>

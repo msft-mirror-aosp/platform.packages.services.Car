@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef CPP_WATCHDOG_SERVER_SRC_WATCHDOGPERFSERVICE_H_
-#define CPP_WATCHDOG_SERVER_SRC_WATCHDOGPERFSERVICE_H_
+#pragma once
 
 #include "LooperWrapper.h"
 #include "ProcDiskStatsCollector.h"
@@ -321,7 +320,7 @@ private:
         // Interval between subsequent events.
         std::chrono::nanoseconds pollingIntervalNs = 0ns;
         // Used to calculate the uptime for next event.
-        nsecs_t lastPollUptimeNs = 0;
+        nsecs_t lastPollElapsedRealTimeNs = 0;
         // Filter the results only to the specified packages.
         std::unordered_set<std::string> filterPackages;
 
@@ -473,5 +472,3 @@ private:
 }  // namespace watchdog
 }  // namespace automotive
 }  // namespace android
-
-#endif  //  CPP_WATCHDOG_SERVER_SRC_WATCHDOGPERFSERVICE_H_

@@ -1868,7 +1868,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void doHandleDisplayBrightnessChange(int displayId, int brightness) {
-        mSystemInterface.setDisplayBrightness(displayId, brightness);
+        mSystemInterface.onDisplayBrightnessChangeFromVhal(displayId, brightness);
     }
 
     private void doHandleDisplayStateChange(int displayId, boolean on) {
@@ -1917,8 +1917,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      * Sends display brightness to VHAL.
      * @param brightness value 0-100%
      */
-    public void sendDisplayBrightness(int brightness) {
-        mHal.sendDisplayBrightness(brightness);
+    public void sendDisplayBrightnessLegacy(int brightness) {
+        mHal.sendDisplayBrightnessLegacy(brightness);
     }
 
     /**
@@ -3962,8 +3962,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void freeMemory() {
         try {
             Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "freeMemory");
-            ActivityManagerHelper.killAllBackgroundProcesses();
             if (!mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
+                ActivityManagerHelper.killAllBackgroundProcesses();
                 Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return;
             }

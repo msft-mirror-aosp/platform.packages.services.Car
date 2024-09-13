@@ -69,7 +69,6 @@ import android.car.storagemonitoring.CarStorageMonitoringManager;
 import android.car.telemetry.CarTelemetryManager;
 import android.car.test.CarTestManager;
 import android.car.user.CarUserManager;
-import android.car.user.ExperimentalCarUserManager;
 import android.car.vms.VmsClientManager;
 import android.car.vms.VmsSubscriberManager;
 import android.car.watchdog.CarWatchdogManager;
@@ -295,18 +294,6 @@ public final class Car implements ICarBase {
     @MandatoryFeature
     @SystemApi
     public static final String CAR_USER_SERVICE = "car_user_service";
-
-    /**
-     * Service name for {@link ExperimentalCarUserManager}
-     *
-     * @hide
-     * @deprecated {@link ExperimentalCarUserManager} was an experimental feature and is no longer
-     * supported. It will be marked {@code @removed} in the next major release and hard removed in
-     * the release after that.
-     */
-    @Deprecated
-    @OptionalFeature
-    public static final String EXPERIMENTAL_CAR_USER_SERVICE = "experimental_car_user_service";
 
     /**
      * Service name for ExperimentalCarKeyguardService
@@ -1802,7 +1789,6 @@ public final class Car implements ICarBase {
         CAR_SERVICE_NAMES.put(CarNavigationStatusManager.class, CAR_NAVIGATION_SERVICE);
         CAR_SERVICE_NAMES.put(CarOccupantZoneManager.class, CAR_OCCUPANT_ZONE_SERVICE);
         CAR_SERVICE_NAMES.put(CarUserManager.class, CAR_USER_SERVICE);
-        CAR_SERVICE_NAMES.put(ExperimentalCarUserManager.class, EXPERIMENTAL_CAR_USER_SERVICE);
         CAR_SERVICE_NAMES.put(CarDevicePolicyManager.class, CAR_DEVICE_POLICY_SERVICE);
         CAR_SERVICE_NAMES.put(CarInstrumentClusterManager.class, CAR_INSTRUMENT_CLUSTER_SERVICE);
         CAR_SERVICE_NAMES.put(CarCabinManager.class, CABIN_SERVICE);
@@ -1932,7 +1918,9 @@ public final class Car implements ICarBase {
      *                make sure that its {@link ContextWrapper#getBaseContext() base context} is not
      *                {@code null} as well.
      *                Otherwise it will throw {@link java.lang.NullPointerException}.
-     * @param serviceConnectionListener listener for monitoring service connection.
+     * @param serviceConnectionListener listener for monitoring service connection. It is allowed
+     * but not recommended to pass {@code null}. If this is {@code null}, client has to periodically
+     * check {@link #isConnected()} to know when car service is connected.
      * @param handler the handler on which the callback should execute, or null to execute on the
      * service's main thread. Note: the service connection listener will be always on the main
      * thread regardless of the handler given.
@@ -2063,9 +2051,13 @@ public final class Car implements ICarBase {
 
         /**
          * See {@link Car#createCar}.
+         *
+         * Even though serviceConnectionListener is not marked as Nullable, existing client may
+         * pass null.
          */
         @Nullable
-        public Car createCar(Context context, ServiceConnection serviceConnectionListener) {
+        public Car createCar(Context context,
+                @Nullable ServiceConnection serviceConnectionListener) {
             return createCar(context, serviceConnectionListener, /* handler= */ null);
         }
 
@@ -2073,7 +2065,7 @@ public final class Car implements ICarBase {
          * See {@link Car#createCar}.
          */
         @Nullable
-        public Car createCar(Context context, ServiceConnection serviceConnectionListener,
+        public Car createCar(Context context, @Nullable ServiceConnection serviceConnectionListener,
                 @Nullable Handler handler) {
             assertNonNullContext(context);
             if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
@@ -3019,9 +3011,6 @@ public final class Car implements ICarBase {
                 break;
             case CAR_USER_SERVICE:
                 manager = new CarUserManager(this, binder);
-                break;
-            case EXPERIMENTAL_CAR_USER_SERVICE:
-                manager = new ExperimentalCarUserManager(this, binder);
                 break;
             case CAR_WATCHDOG_SERVICE:
                 manager = new CarWatchdogManager(this, binder);
