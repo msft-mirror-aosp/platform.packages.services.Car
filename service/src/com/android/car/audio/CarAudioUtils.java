@@ -32,6 +32,8 @@ import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES;
 import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET;
 import static android.media.AudioManager.GET_DEVICES_OUTPUTS;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.PRIVATE_CONSTRUCTOR;
+
 import static java.util.Collections.EMPTY_LIST;
 
 import android.annotation.Nullable;
@@ -39,15 +41,18 @@ import android.car.feature.Flags;
 import android.car.media.CarAudioZoneConfigInfo;
 import android.car.media.CarVolumeGroupEvent;
 import android.car.media.CarVolumeGroupInfo;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
-import android.media.AudioManager;
+
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.util.ArrayList;
 import java.util.List;
 
 final class CarAudioUtils {
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = PRIVATE_CONSTRUCTOR)
     private CarAudioUtils() {
         throw new UnsupportedOperationException();
     }
@@ -75,7 +80,7 @@ final class CarAudioUtils {
 
     @Nullable
     static AudioDeviceInfo getAudioDeviceInfo(AudioDeviceAttributes audioDeviceAttributes,
-            AudioManager audioManager) {
+            AudioManagerWrapper audioManager) {
         AudioDeviceInfo[] infos = audioManager.getDevices(GET_DEVICES_OUTPUTS);
         for (int c = 0; c < infos.length; c++) {
             if (!infos[c].getAddress().equals(audioDeviceAttributes.getAddress())) {
@@ -108,7 +113,7 @@ final class CarAudioUtils {
     }
 
     static List<AudioDeviceInfo> getDynamicDevicesInConfig(CarAudioZoneConfigInfo zoneConfig,
-            AudioManager manager) {
+            AudioManagerWrapper manager) {
         return Flags.carAudioDynamicDevices()
                 ? getDynamicAudioDevices(zoneConfig.getConfigVolumeGroups(), manager) : EMPTY_LIST;
     }
@@ -137,8 +142,24 @@ final class CarAudioUtils {
         return true;
     }
 
+    static List<AudioAttributes> getAudioAttributesForDynamicDevices(CarAudioZoneConfigInfo info) {
+        List<AudioAttributes> audioAttributes = new ArrayList<>();
+        if (!Flags.carAudioDynamicDevices()) {
+            return audioAttributes;
+        }
+        List<CarVolumeGroupInfo> groups = info.getConfigVolumeGroups();
+        for (int c = 0; c < groups.size(); c++) {
+            CarVolumeGroupInfo groupInfo = groups.get(c);
+            if (excludesDynamicDevices(groupInfo.getAudioDeviceAttributes())) {
+                continue;
+            }
+            audioAttributes.addAll(groupInfo.getAudioAttributes());
+        }
+        return audioAttributes;
+    }
+
     private static List<AudioDeviceInfo> getDynamicAudioDevices(
-            List<CarVolumeGroupInfo> volumeGroups, AudioManager manager) {
+            List<CarVolumeGroupInfo> volumeGroups, AudioManagerWrapper manager) {
         List<AudioDeviceInfo> dynamicDevices = new ArrayList<>();
         for (int c = 0; c < volumeGroups.size(); c++) {
             dynamicDevices.addAll(getDynamicDevices(volumeGroups.get(c), manager));
@@ -147,7 +168,7 @@ final class CarAudioUtils {
     }
 
     private static List<AudioDeviceInfo> getDynamicDevices(CarVolumeGroupInfo carVolumeGroupInfo,
-            AudioManager manager) {
+            AudioManagerWrapper manager) {
         List<AudioDeviceInfo> dynamicDevices = new ArrayList<>();
         List<AudioDeviceAttributes> devices = carVolumeGroupInfo.getAudioDeviceAttributes();
         for (int c = 0; c < devices.size(); c++) {

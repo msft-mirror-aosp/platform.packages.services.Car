@@ -73,7 +73,7 @@
     "INFO_EV_BATTERY_CAPACITY": {
       "propertyName": "INFO_EV_BATTERY_CAPACITY",
       "propertyId": 291504390,
-      "description": "Nominal battery capacity for EV or hybrid vehicle.",
+      "description": "Nominal usable battery capacity for EV or hybrid vehicle.",
       "readPermission": {
         "type": "single",
         "value": "android.car.permission.CAR_INFO"
@@ -321,7 +321,7 @@
     "FUEL_LEVEL": {
       "propertyName": "FUEL_LEVEL",
       "propertyId": 291504903,
-      "description": "Fuel remaining in the vehicle in milliliters.",
+      "description": "Fuel level in milliliters.",
       "readPermission": {
         "type": "single",
         "value": "android.car.permission.CAR_ENERGY"
@@ -361,7 +361,7 @@
     "EV_CURRENT_BATTERY_CAPACITY": {
       "propertyName": "EV_CURRENT_BATTERY_CAPACITY",
       "propertyId": 291504909,
-      "description": "Current battery capacity for EV or hybrid vehicle.",
+      "description": "Current usable battery capacity for EV or hybrid vehicle.",
       "readPermission": {
         "type": "single",
         "value": "android.car.permission.CAR_ENERGY"
@@ -528,7 +528,7 @@
     "EV_BRAKE_REGENERATION_LEVEL": {
       "propertyName": "EV_BRAKE_REGENERATION_LEVEL",
       "propertyId": 289408012,
-      "description": "Regenerative braking level of a electronic vehicle.",
+      "description": "Regenerative braking level of an electronic vehicle.",
       "readPermission": {
         "type": "anyOf",
         "value": [
@@ -736,7 +736,7 @@
     "HVAC_TEMPERATURE_SET": {
       "propertyName": "HVAC_TEMPERATURE_SET",
       "propertyId": 358614275,
-      "description": "HVAC, target temperature set.",
+      "description": "HVAC target temperature set in Celsius.",
       "readPermission": {
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_CLIMATE"
@@ -2162,7 +2162,7 @@
     "WINDOW_LOCK": {
       "propertyName": "WINDOW_LOCK",
       "propertyId": 320867268,
-      "description": "Window Lock.",
+      "description": "Window Child Lock.",
       "readPermission": {
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_WINDOWS"
@@ -2881,7 +2881,7 @@
     "EV_REGENERATIVE_BRAKING_STATE": {
       "propertyName": "EV_REGENERATIVE_BRAKING_STATE",
       "propertyId": 289410884,
-      "description": "Regenerative braking or one-pedal drive state of the car.",
+      "description": "Regenerative braking or one-pedal drive setting on the car.",
       "readPermission": {
         "type": "single",
         "value": "android.car.permission.CAR_ENERGY"
@@ -2896,7 +2896,7 @@
     "VEHICLE_CURB_WEIGHT": {
       "propertyName": "VEHICLE_CURB_WEIGHT",
       "propertyId": 289410886,
-      "description": "Vehicle’s curb weight.",
+      "description": "Vehicle’s curb weight in kilograms.",
       "readPermission": {
         "type": "single",
         "value": "android.car.permission.PRIVILEGED_CAR_INFO"

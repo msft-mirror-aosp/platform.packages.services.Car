@@ -52,6 +52,7 @@ PRODUCT_PACKAGES += \
     RailwayReferenceApp \
     CarHotwordDetectionServiceOne \
     KitchenSinkServerlessRemoteTaskClientRRO \
+    AaosCustomizationTool \
 
 # SEPolicy for test apps / services
 PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
@@ -121,10 +122,6 @@ PRODUCT_PROPERTY_OVERRIDES := \
 PRODUCT_PROPERTY_OVERRIDES += \
     keyguard.no_require_sim=true
 
-# TODO(b/255631687): Enable the shell transition as soon as all CTS issues are resolved.
-PRODUCT_SYSTEM_PROPERTIES += \
-    persist.wm.debug.shell_transit=0
-
 # TODO(b/198516172): Find a better location to add this read only property
 # It is added here to check the functionality, will be updated in next CL
 PRODUCT_SYSTEM_PROPERTIES += \
@@ -143,6 +140,7 @@ PRODUCT_PACKAGES += \
     CarService \
     CarShell \
     CarDialerApp \
+    CarDocumentsUI \
     CarRadioApp \
     OverviewApp \
     CarLauncher \

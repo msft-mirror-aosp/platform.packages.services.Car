@@ -261,10 +261,14 @@
     <string name="property_clear" translatable="false">Clear Log</string>
     <string name="property_get" translatable="false">Get</string>
     <string name="property_get_async" translatable="false">Get Async</string>
-    <string name="property_register" translatable="false">Register</string>
     <string name="property_set" translatable="false">Set</string>
     <string name="property_set_async" translatable="false">Set Async</string>
-    <string name="property_unregister" translatable="false">Unregister</string>
+    <string name="property_subscription_rate_hz" translatable="false">Subscription Rate (Hz)</string>
+    <string name="property_resolution" translatable="false">Resolution</string>
+    <string name="property_variable_update_rate" translatable="false">Variable Update Rate</string>
+    <string name="set_value_hint" translatable="false">value</string>
+    <string name="subscribe" translatable="false">Subscribe</string>
+    <string name="unsubscribe" translatable="false">Unsubscribe</string>
 
     <!-- radio test -->
     <string name="radio_fm_am_tuner" translatable="false">FM/AM Tuner</string>
@@ -445,6 +449,12 @@
     <!-- Fullscreen Activity Test -->
     <string name="nav_to_full_screen" translatable="false">Navigate to Full Screen</string>
     <string name="cancel" translatable="false">Cancel</string>
+    <string name="show_car_ui_dialog" translatable="false">Show Dialog from car_ui_lib</string>
+    <string name="car_ui_dialog_title" translatable="false">Dialog from car_ui_lib</string>
+    <string name="show_dialog" translatable="false">Show Dialog</string>
+    <string name="dialog_title" translatable="false">Dialog</string>
+    <string name="dismiss_btn_text" translatable="false">Dismiss</string>
+    <string name="edit_text_hint" translatable="false">Placeholder</string>
 
     <!-- CarTelemetryService Test -->
     <string name="gear_change_config" translatable="false">on_gear_change:</string>
@@ -528,5 +538,15 @@
 
     <!-- Camera2 test -->
     <string name="camera2_user0" translatable="false">Camera2 as User0</string>
+    <string name="camera2_multi_camera_preview" translatable="false">Camera2 Multi-camera Preview</string>
+    <string name="camera2_start_preview_button" translatable="false">Start Preview</string>
+    <string name="camera2_start_recording_button" translatable="false">Record</string>
+    <string name="camera2_stop_session_button" translatable="false">Stop Session</string>
+    <string name="camera2_quit_button" translatable="false">Quit</string>
+    <string name="camera2_details_button" translatable="false">Details</string>
+    <string name="camera2_selection_checkbox" translatable="false">Camera ID: %1$s</string>
+
+    <!-- Customization Switch -->
+    <string name="customization_tool_switch" translatable="false">Enable the Customization Tool</string>
 
 </resources>

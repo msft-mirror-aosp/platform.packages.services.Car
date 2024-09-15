@@ -23,6 +23,7 @@ import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 
 import static com.android.car.CarServiceUtils.getHandlerThread;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 
 import android.car.Car;
 import android.car.builtin.util.Slogf;
@@ -45,10 +46,12 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.proto.ProtoOutputStream;
 
+import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
 import com.android.car.CarServiceUtils;
 import com.android.car.R;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.user.CarUserService;
@@ -144,11 +147,6 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
             new ContentObserver(mHandler) {
                 @Override
                 public void onChange(boolean selfChange) {
-                    if (!mIsPersistTetheringCapabilitiesEnabled) {
-                        Slogf.i(TAG, "Persist tethering capability is not enabled");
-                        return;
-                    }
-
                     Slogf.i(TAG, "%s setting has changed", ENABLE_PERSISTENT_TETHERING);
                     // If the persist tethering setting is turned off, auto shutdown must be
                     // re-enabled.
@@ -163,8 +161,7 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
     @GuardedBy("mLock")
     private SharedPreferences mSharedPreferences;
 
-    public CarWifiService(Context context, CarPowerManagementService powerManagementService,
-            CarUserService userService) {
+    public CarWifiService(Context context) {
         mContext = context;
         mIsPersistTetheringCapabilitiesEnabled = context.getResources().getBoolean(
                 R.bool.config_enablePersistTetheringCapabilities);
@@ -174,8 +171,8 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
                         ENABLE_PERSISTENT_TETHERING));
         mWifiManager = context.getSystemService(WifiManager.class);
         mTetheringManager = context.getSystemService(TetheringManager.class);
-        mCarPowerManagementService = powerManagementService;
-        mCarUserService = userService;
+        mCarPowerManagementService = CarLocalServices.getService(CarPowerManagementService.class);
+        mCarUserService = CarLocalServices.getService(CarUserService.class);
     }
 
     @Override
@@ -185,8 +182,8 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
             return;
         }
 
-        // Listeners should be set if there's capability so tethering can be ready to turn on if
-        // setting is enabled, on next boot.
+        // Listeners should only be set if there's capability (also allows for
+        // tethering persisting if setting is enabled, on next boot).
         mWifiManager.registerSoftApCallback(mHandler::post, mSoftApCallback);
         mCarUserService.runOnUser0Unlock(this::onSystemUserUnlocked);
         mCarPowerManagementService.registerListener(mCarPowerStateListener);
@@ -214,6 +211,7 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dumpProto(ProtoOutputStream proto) {
         proto.write(CarWifiDumpProto.PERSIST_TETHERING_CAPABILITIES_ENABLED,
                 mIsPersistTetheringCapabilitiesEnabled);
@@ -225,6 +223,7 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
     }
 
     @Override
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(IndentingPrintWriter writer) {
         writer.println("**CarWifiService**");
         writer.println();
@@ -275,20 +274,6 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
                     }
                 });
     }
-
-    @GuardedBy("mLock")
-    private void initSharedPreferencesLocked() {
-        // SharedPreferences are shared among different users thus only need initialized once. They
-        // should be initialized after user 0 is unlocked because SharedPreferences in
-        // credential encrypted storage are not available until after user 0 is unlocked.
-        if (mSharedPreferences != null) {
-            Slogf.d(TAG, "SharedPreferences store has already been initialized");
-            return;
-        }
-
-        mSharedPreferences = mContext.getSharedPreferences(SHARED_PREF_NAME, Context.MODE_PRIVATE);
-    }
-
     private void onStateOn() {
         synchronized (mLock) {
             if (mSharedPreferences == null) {
@@ -303,7 +288,11 @@ public final class CarWifiService extends ICarWifi.Stub implements CarServiceBas
 
     private void onSystemUserUnlocked() {
         synchronized (mLock) {
-            initSharedPreferencesLocked();
+            // SharedPreferences are shared among different users thus only need initialized once.
+            // They should be initialized after user 0 is unlocked because SharedPreferences in
+            // credential encrypted storage are not available until after user 0 is unlocked.
+            mSharedPreferences = mContext.getSharedPreferences(SHARED_PREF_NAME,
+                    Context.MODE_PRIVATE);
         }
 
         if (mCarPowerManagementService.getPowerState() == CarPowerManager.STATE_ON) {

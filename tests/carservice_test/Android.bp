@@ -48,7 +48,7 @@ android_test {
         "android.car.testapi",
         "androidx.test.ext.junit",
         "androidx.test.rules",
-        "android.frameworks.automotive.powerpolicy-V2-java",
+        "android.frameworks.automotive.powerpolicy-V3-java",
         "android.hardware.automotive.vehicle-V2.0-java",
         "car-service-test-static-lib",
         "car-service-builtin-test-static-lib",
@@ -62,8 +62,8 @@ android_test {
     libs: [
         "android.car",
         "android.car.watchdoglib",
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs.system",
+        "android.test.base.stubs.system",
     ],
 
     // mockito-target-inline dependency
@@ -74,9 +74,8 @@ android_test {
     ],
 
     test_suites: [
-        "general-tests",
+        "device-tests",
         "automotive-tests",
-        "automotive-general-tests",
     ],
     // TODO(b/319708040): re-enable use_resource_processor
     use_resource_processor: false,

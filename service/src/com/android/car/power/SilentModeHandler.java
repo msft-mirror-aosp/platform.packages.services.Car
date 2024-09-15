@@ -32,7 +32,6 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.power.CarPowerDumpProto.SilentModeHandlerProto;
 import com.android.internal.annotations.GuardedBy;
-import com.android.internal.annotations.VisibleForTesting;
 
 import libcore.io.IoUtils;
 
@@ -93,11 +92,11 @@ final class SilentModeHandler {
     private boolean mSilentModeByHwState;
     @GuardedBy("mLock")
     private boolean mForcedMode;
+    private boolean mSilentModeSupported;
 
     // Allows for injecting feature flag values during testing
     private FeatureFlags mFeatureFlags = new FeatureFlagsImpl();
 
-    @VisibleForTesting
     SilentModeHandler(@NonNull CarPowerManagementService service, FeatureFlags featureFlags,
             @Nullable String hwStateMonitoringFileName, @Nullable String kernelSilentModeFileName,
             @Nullable String bootReason) {
@@ -109,6 +108,8 @@ final class SilentModeHandler {
                 ? sysfsDir + SYSFS_FILENAME_HW_STATE_MONITORING : hwStateMonitoringFileName;
         mKernelSilentModeFileName = kernelSilentModeFileName == null
                 ? sysfsDir + SYSFS_FILENAME_KERNEL_SILENTMODE : kernelSilentModeFileName;
+        mSilentModeSupported = fileExists(mHwStateMonitoringFileName)
+                && fileExists(mKernelSilentModeFileName);
         String reason = bootReason;
         if (reason == null) {
             reason = SystemProperties.get(SYSTEM_BOOT_REASON);
@@ -159,6 +160,7 @@ final class SilentModeHandler {
         synchronized (mLock) {
             writer.printf("mHwStateMonitoringFileName: %s\n", mHwStateMonitoringFileName);
             writer.printf("mKernelSilentModeFileName: %s\n", mKernelSilentModeFileName);
+            writer.printf("Silent mode supported: %b\n", mSilentModeSupported);
             writer.printf("Monitoring HW state signal: %b\n", mFileObserver != null);
             writer.printf("Silent mode by HW state signal: %b\n", mSilentModeByHwState);
             writer.printf("Forced silent mode: %b\n", mForcedMode);
@@ -174,6 +176,7 @@ final class SilentModeHandler {
                     mHwStateMonitoringFileName);
             proto.write(SilentModeHandlerProto.KERNEL_SILENT_MODE_FILE_NAME,
                     mKernelSilentModeFileName);
+            proto.write(SilentModeHandlerProto.IS_SILENT_MODE_SUPPORTED, mSilentModeSupported);
             proto.write(
                     SilentModeHandlerProto.IS_MONITORING_HW_STATE_SIGNAL, mFileObserver != null);
             proto.write(SilentModeHandlerProto.SILENT_MODE_BY_HW_STATE, mSilentModeByHwState);
@@ -262,6 +265,10 @@ final class SilentModeHandler {
         if (updated) {
             startMonitoringSilentModeHwState();
         }
+    }
+
+    private boolean fileExists(String filePath) {
+        return Files.exists(Paths.get(filePath));
     }
 
     private void startMonitoringSilentModeHwState() {

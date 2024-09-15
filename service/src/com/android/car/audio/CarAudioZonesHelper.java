@@ -43,7 +43,6 @@ import android.car.oem.CarAudioFadeConfiguration;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
-import android.media.AudioManager;
 import android.media.audiopolicy.AudioProductStrategy;
 import android.text.TextUtils;
 import android.util.ArrayMap;
@@ -69,7 +68,6 @@ import java.util.Map;
 import java.util.MissingResourceException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A helper class loads all audio zones from the configuration XML file.
@@ -91,6 +89,7 @@ import java.util.stream.Collectors;
     private static final String TAG_VOLUME_GROUP = "group";
     private static final String TAG_AUDIO_DEVICE = "device";
     private static final String TAG_CONTEXT = "context";
+    private static final String ATTR_ACTIVATION_VOLUME_CONFIG = "activationConfig";
     private static final String ATTR_VERSION = "version";
     private static final String ATTR_IS_PRIMARY = "isPrimary";
     private static final String ATTR_IS_CONFIG_DEFAULT = "isDefault";
@@ -105,10 +104,20 @@ import java.util.stream.Collectors;
     private static final String TAG_INPUT_DEVICE = "inputDevice";
     private static final String TAG_MIRRORING_DEVICES = "mirroringDevices";
     private static final String TAG_MIRRORING_DEVICE = "mirroringDevice";
+    private static final String TAG_ACTIVATION_VOLUME_CONFIGS = "activationVolumeConfigs";
+    private static final String TAG_ACTIVATION_VOLUME_CONFIG = "activationVolumeConfig";
+    private static final String TAG_ACTIVATION_VOLUME_CONFIG_ENTRY = "activationVolumeConfigEntry";
+    private static final String ATTR_ACTIVATION_VOLUME_CONFIG_NAME = "name";
+    private static final String ATTR_ACTIVATION_VOLUME_INVOCATION_TYPE = "invocationType";
     private static final String ATTR_MAX_ACTIVATION_VOLUME_PERCENTAGE =
             "maxActivationVolumePercentage";
     private static final String ATTR_MIN_ACTIVATION_VOLUME_PERCENTAGE =
             "minActivationVolumePercentage";
+    private static final String ACTIVATION_VOLUME_INVOCATION_TYPE_ON_BOOT = "onBoot";
+    private static final String ACTIVATION_VOLUME_INVOCATION_TYPE_ON_SOURCE_CHANGED =
+            "onSourceChanged";
+    private static final String ACTIVATION_VOLUME_INVOCATION_TYPE_ON_PLAYBACK_CHANGED =
+            "onPlaybackChanged";
     private static final String TAG_APPLY_FADE_CONFIGS = "applyFadeConfigs";
     private static final String FADE_CONFIG = "fadeConfig";
     private static final String FADE_CONFIG_NAME = "name";
@@ -130,8 +139,12 @@ import java.util.stream.Collectors;
 
     private static final int ACTIVATION_VOLUME_PERCENTAGE_MIN = 0;
     private static final int ACTIVATION_VOLUME_PERCENTAGE_MAX = 100;
+    private static final int ACTIVATION_VOLUME_INVOCATION_TYPE =
+            CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT
+                    | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED
+                    | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
 
-    private final AudioManager mAudioManager;
+    private final AudioManagerWrapper mAudioManager;
     private final CarAudioSettings mCarAudioSettings;
     private final List<CarAudioContextInfo> mCarAudioContextInfos = new ArrayList<>();
     private final Map<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
@@ -147,6 +160,8 @@ import java.util.stream.Collectors;
     private final boolean mUseFadeManagerConfiguration;
     private final CarAudioFadeConfigurationHelper mCarAudioFadeConfigurationHelper;
     private final List<CarAudioDeviceInfo> mMirroringDevices = new ArrayList<>();
+    private final Map<String, CarActivationVolumeConfig> mConfigNameToActivationVolumeConfig =
+            new ArrayMap<>();
 
     private final ArrayMap<String, Integer> mContextNameToId = new ArrayMap<>();
     private final LocalLog mCarServiceLocalLog;
@@ -158,7 +173,7 @@ import java.util.stream.Collectors;
      * <p><b>Note: <b/> CarAudioZonesHelper is expected to be used from a single thread. This
      * should be the same thread that originally called new CarAudioZonesHelper.
      */
-    CarAudioZonesHelper(AudioManager audioManager, CarAudioSettings carAudioSettings,
+    CarAudioZonesHelper(AudioManagerWrapper audioManager, CarAudioSettings carAudioSettings,
             InputStream inputStream, List<CarAudioDeviceInfo> carAudioDeviceInfos,
             AudioDeviceInfo[] inputDeviceInfo, LocalLog serviceLog, boolean useCarVolumeGroupMute,
             boolean useCoreAudioVolume, boolean useCoreAudioRouting,
@@ -198,9 +213,14 @@ import java.util.stream.Collectors;
 
     private static Map<String, CarAudioDeviceInfo> generateAddressToInfoMap(
             List<CarAudioDeviceInfo> carAudioDeviceInfos) {
-        return carAudioDeviceInfos.stream()
-                .filter(info -> !TextUtils.isEmpty(info.getAddress()))
-                .collect(Collectors.toMap(CarAudioDeviceInfo::getAddress, info -> info));
+        Map<String, CarAudioDeviceInfo> addressToInfoMap = new ArrayMap<>();
+        for (int i = 0; i < carAudioDeviceInfos.size(); i++) {
+            CarAudioDeviceInfo info = carAudioDeviceInfos.get(i);
+            if (!TextUtils.isEmpty(info.getAddress())) {
+                addressToInfoMap.put(info.getAddress(), info);
+            }
+        }
+        return addressToInfoMap;
     }
 
     private static Map<String, AudioDeviceInfo> generateAddressToInputAudioDeviceInfoMap(
@@ -243,6 +263,8 @@ import java.util.stream.Collectors;
                 parseCarAudioContexts(parser);
             } else if (Objects.equals(parser.getName(), TAG_MIRRORING_DEVICES)) {
                 parseMirroringDevices(parser);
+            } else if (Objects.equals(parser.getName(), TAG_ACTIVATION_VOLUME_CONFIGS)) {
+                parseActivationVolumeConfigs(parser);
             } else if (Objects.equals(parser.getName(), TAG_AUDIO_ZONES)) {
                 loadCarAudioContexts();
                 return parseAudioZones(parser);
@@ -367,7 +389,6 @@ import java.util.stream.Collectors;
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
             if (Objects.equals(parser.getName(), TAG_AUDIO_ZONE)) {
                 CarAudioZone zone = parseAudioZone(parser);
-                verifyOnlyOnePrimaryZone(zone, carAudioZones);
                 carAudioZones.put(zone.getId(), zone);
             } else {
                 CarAudioParserUtils.skip(parser);
@@ -386,13 +407,6 @@ import java.util.stream.Collectors;
                     && isMicrophoneInputDevice(info)) {
                 primaryAudioZone.addInputAudioDevice(new AudioDeviceAttributes(info));
             }
-        }
-    }
-
-    private void verifyOnlyOnePrimaryZone(CarAudioZone newZone, SparseArray<CarAudioZone> zones) {
-        if (newZone.getId() == PRIMARY_AUDIO_ZONE && zones.contains(PRIMARY_AUDIO_ZONE)) {
-            throw new RuntimeException("More than one zone parsed with primary audio zone ID: "
-                    + PRIMARY_AUDIO_ZONE);
         }
     }
 
@@ -626,18 +640,14 @@ import java.util.stream.Collectors;
                             .append(zoneConfigBuilder.getZoneConfigId()).append(" group ")
                             .append(groupId).toString();
                 }
-                int maxActivationVolumePercentage = parseVolumeGroupActivationVolume(parser,
-                        /* isMax= */ true);
-                int minActivationVolumePercentage = parseVolumeGroupActivationVolume(parser,
-                        /* isMax= */ false);
-                validateMinMaxActivationVolume(maxActivationVolumePercentage,
-                        minActivationVolumePercentage);
+
+                CarActivationVolumeConfig activationVolumeConfig =
+                        getActivationVolumeConfig(parser);
 
                 CarVolumeGroupFactory factory = new CarVolumeGroupFactory(mAudioManager,
                         mCarAudioSettings, mCarAudioContext, zoneConfigBuilder.getZoneId(),
                         zoneConfigBuilder.getZoneConfigId(), groupId, groupName,
-                        mUseCarVolumeGroupMute, maxActivationVolumePercentage,
-                        minActivationVolumePercentage);
+                        mUseCarVolumeGroupMute, activationVolumeConfig);
 
                 if (!parseVolumeGroup(parser, factory)) {
                     valid = false;
@@ -654,7 +664,94 @@ import java.util.stream.Collectors;
         return valid;
     }
 
-    private int parseVolumeGroupActivationVolume(XmlPullParser parser, boolean isMax) {
+    private CarActivationVolumeConfig getActivationVolumeConfig(XmlPullParser parser) {
+        String activationVolumeConfigName = parser.getAttributeValue(NAMESPACE,
+                ATTR_ACTIVATION_VOLUME_CONFIG);
+        if (activationVolumeConfigName != null) {
+            if (isVersionLessThanFour()) {
+                throw new IllegalArgumentException(TAG_VOLUME_GROUP + " "
+                        + ATTR_ACTIVATION_VOLUME_CONFIG
+                        + " attribute not supported for versions less than "
+                        + SUPPORTED_VERSION_4 + ", but current version is "
+                        + mCurrentVersion);
+            }
+            if (!mConfigNameToActivationVolumeConfig
+                    .containsKey(activationVolumeConfigName)) {
+                throw new IllegalArgumentException(TAG_ACTIVATION_VOLUME_CONFIG + " with "
+                        + ATTR_ACTIVATION_VOLUME_CONFIG_NAME + " attribute of "
+                        + activationVolumeConfigName + " does not exist");
+            }
+            if (Flags.carAudioMinMaxActivationVolume()) {
+                return mConfigNameToActivationVolumeConfig.get(activationVolumeConfigName);
+            }
+        }
+        if (!Flags.carAudioMinMaxActivationVolume()) {
+            mCarServiceLocalLog.log("Found " + TAG_VOLUME_GROUP + " "
+                    + ATTR_ACTIVATION_VOLUME_CONFIG
+                    + " attribute while min/max activation volume is disabled");
+        }
+        return new CarActivationVolumeConfig(ACTIVATION_VOLUME_INVOCATION_TYPE,
+                ACTIVATION_VOLUME_PERCENTAGE_MIN, ACTIVATION_VOLUME_PERCENTAGE_MAX);
+    }
+
+    private void parseActivationVolumeConfigs(XmlPullParser parser)
+            throws XmlPullParserException, IOException {
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.getEventType() != XmlPullParser.START_TAG) {
+                continue;
+            }
+            if (Objects.equals(parser.getName(), TAG_ACTIVATION_VOLUME_CONFIG)) {
+                parseActivationVolumeConfig(parser);
+            } else {
+                CarAudioParserUtils.skip(parser);
+            }
+        }
+    }
+
+    private void parseActivationVolumeConfig(XmlPullParser parser)
+            throws XmlPullParserException, IOException {
+        String activationConfigName = parser.getAttributeValue(NAMESPACE,
+                ATTR_ACTIVATION_VOLUME_CONFIG_NAME);
+        Objects.requireNonNull(activationConfigName, TAG_ACTIVATION_VOLUME_CONFIG + " "
+                + ATTR_ACTIVATION_VOLUME_CONFIG_NAME + " attribute must be present.");
+        if (mConfigNameToActivationVolumeConfig.containsKey(activationConfigName)) {
+            throw new IllegalArgumentException(ATTR_ACTIVATION_VOLUME_CONFIG_NAME + " "
+                    + activationConfigName + " repeats, " + ATTR_ACTIVATION_VOLUME_CONFIG_NAME
+                    + " can not repeat.");
+        }
+        int configEntryCount = 0;
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.getEventType() != XmlPullParser.START_TAG) {
+                continue;
+            }
+            if (Objects.equals(parser.getName(), TAG_ACTIVATION_VOLUME_CONFIG_ENTRY)) {
+                if (configEntryCount == 0) {
+                    CarActivationVolumeConfig config = parseActivationVolumeConfigEntry(parser);
+                    mConfigNameToActivationVolumeConfig.put(activationConfigName, config);
+                    configEntryCount++;
+                } else {
+                    throw new IllegalArgumentException("Multiple "
+                            + TAG_ACTIVATION_VOLUME_CONFIG_ENTRY + "s in one "
+                            + TAG_ACTIVATION_VOLUME_CONFIG + " is not supported");
+                }
+            }
+            CarAudioParserUtils.skip(parser);
+        }
+    }
+
+    private CarActivationVolumeConfig parseActivationVolumeConfigEntry(XmlPullParser parser) {
+        int activationVolumeInvocationTypes = parseVolumeGroupActivationVolumeTypes(parser);
+        int minActivationVolumePercentage = parseVolumeGroupActivationVolumePercentage(parser,
+                /* isMax= */ false);
+        int maxActivationVolumePercentage = parseVolumeGroupActivationVolumePercentage(parser,
+                /* isMax= */ true);
+        validateMinMaxActivationVolume(maxActivationVolumePercentage,
+                minActivationVolumePercentage);
+        return new CarActivationVolumeConfig(activationVolumeInvocationTypes,
+                minActivationVolumePercentage, maxActivationVolumePercentage);
+    }
+
+    private int parseVolumeGroupActivationVolumePercentage(XmlPullParser parser, boolean isMax) {
         int defaultValue = isMax ? ACTIVATION_VOLUME_PERCENTAGE_MAX
                 : ACTIVATION_VOLUME_PERCENTAGE_MIN;
         String attr = isMax ? ATTR_MAX_ACTIVATION_VOLUME_PERCENTAGE
@@ -663,17 +760,31 @@ import java.util.stream.Collectors;
         if (activationPercentageString == null) {
             return defaultValue;
         }
-        if (isVersionLessThanFour()) {
-            throw new IllegalArgumentException(TAG_VOLUME_GROUP + " " + attr
-                    + " attribute not supported for versions less than " + SUPPORTED_VERSION_4
-                    + ", but current version is " + mCurrentVersion);
+        return CarAudioParserUtils.parsePositiveIntAttribute(attr, activationPercentageString);
+    }
+
+    private int parseVolumeGroupActivationVolumeTypes(XmlPullParser parser) {
+        String activationPercentageString = parser.getAttributeValue(NAMESPACE,
+                ATTR_ACTIVATION_VOLUME_INVOCATION_TYPE);
+        if (activationPercentageString == null) {
+            return ACTIVATION_VOLUME_INVOCATION_TYPE;
         }
-        if (Flags.carAudioMinMaxActivationVolume()) {
-            return CarAudioParserUtils.parsePositiveIntAttribute(attr, activationPercentageString);
+        if (Objects.equals(activationPercentageString, ACTIVATION_VOLUME_INVOCATION_TYPE_ON_BOOT)) {
+            return CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
+        } else if (Objects.equals(activationPercentageString,
+                ACTIVATION_VOLUME_INVOCATION_TYPE_ON_SOURCE_CHANGED)) {
+            return CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT
+                    | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
+        } else if (Objects.equals(activationPercentageString,
+                ACTIVATION_VOLUME_INVOCATION_TYPE_ON_PLAYBACK_CHANGED)) {
+            return CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT
+                    | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED
+                    | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
+        } else {
+            throw new IllegalArgumentException(" Value " + activationPercentageString
+                    + " is invalid for " + TAG_VOLUME_GROUP + " "
+                    + ATTR_ACTIVATION_VOLUME_INVOCATION_TYPE);
         }
-        mCarServiceLocalLog.log("Found " + TAG_VOLUME_GROUP + " " + attr
-                + " attribute while min/max activation volume is disabled");
-        return defaultValue;
     }
 
     private boolean parseVolumeGroup(XmlPullParser parser, CarVolumeGroupFactory groupFactory)

@@ -1167,14 +1167,13 @@
         android:label="@string/car_permission_label_control_windshield_wipers"
         android:description="@string/car_permission_desc_control_windshield_wipers"/>
 
-     <!-- Allows an application to query if a package requires display compatibility treatment or
-          not.
+     <!-- Allows an application to manage packages that require display compatibility mode.
          <p>Protection level: signature|privileged
       -->
-     <permission android:name="android.car.permission.QUERY_DISPLAY_COMPATIBILITY"
+     <permission android:name="android.car.permission.MANAGE_DISPLAY_COMPATIBILITY"
         android:protectionLevel="signature|privileged"
-        android:label="@string/car_permission_label_query_display_compatibility"
-        android:description="@string/car_permission_desc_query_display_compatibility"/>
+        android:label="@string/car_permission_label_manage_display_compatibility"
+        android:description="@string/car_permission_desc_manage_display_compatibility"/>
 
     <!-- Allows an application to read the vehicle's persist tethering settings.
          <p>Protection level: signature|privileged
@@ -1185,10 +1184,23 @@
         android:label="@string/car_permission_label_read_persist_tethering_settings"
         android:description="@string/car_permission_desc_read_persist_tethering_settings" />
 
+    <!-- Allows the holder of this permission to bind with app card providers.
+         <p>Protection level: signature|privileged
+
+         NOTE: This permission isn't tested on the platform instead it is tested in an
+         unbundled library.
+    -->
+    <permission
+        android:name="android.car.permission.BIND_APP_CARD_PROVIDER"
+        android:protectionLevel="signature|privileged"
+        android:label="@string/car_permission_label_bind_app_card_provider"
+        android:description="@string/car_permission_desc_bind_app_card_provider" />
+
 
     <!-- NOTE: when you're adding a new permission, you should edit
-         cts/tests/tests/permission2/res/raw/automotive_android_manifest.xml accordingly and run
-         the test with 'atest android.permission2.cts.PermissionPolicyTest' to verify it.
+         packages/modules/Permission/tests/cts/permissionpolicy/res/raw/automotive_android_manifest.xml
+         accordingly and run the test with 'atest android.permission2.cts.PermissionPolicyTest'
+         to verify it.
     -->
 
     <application android:label="@string/app_title"

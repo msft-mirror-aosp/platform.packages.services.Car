@@ -56,12 +56,13 @@ android_test {
         "compatibility-device-util-axt",
         "platform-test-annotations",
         "truth",
+        "Harrier",
     ],
 
     libs: [
         "android.car",
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs.system",
+        "android.test.base.stubs.system",
     ],
 
     // mockito-target-inline dependency
@@ -72,8 +73,7 @@ android_test {
     ],
 
     test_suites: [
-        "general-tests",
+        "device-tests",
         "automotive-tests",
-        "automotive-general-tests",
     ],
 }

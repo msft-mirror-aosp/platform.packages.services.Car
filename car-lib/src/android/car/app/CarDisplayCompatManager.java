@@ -33,21 +33,24 @@ import android.os.IBinder;
 @FlaggedApi(Flags.FLAG_DISPLAY_COMPATIBILITY)
 @SystemApi
 public final class CarDisplayCompatManager extends CarManagerBase {
+    private CarActivityManager mCarActivityManager;
 
     /**
      * @hide
      */
     @SystemApi
-    @RequiresPermission(Car.PERMISSION_QUERY_DISPLAY_COMPATIBILITY)
+    @RequiresPermission(Car.PERMISSION_MANAGE_DISPLAY_COMPATIBILITY)
     @Nullable
     public CarDisplayCompatContainer initializeDisplayCompatContainer(
             @NonNull CarDisplayCompatContainer.Builder builder) {
+        builder.setCarActivityManager(mCarActivityManager);
         return builder.build();
     }
 
     /** @hide */
     public CarDisplayCompatManager(Car car, @NonNull IBinder service) {
         super(car);
+        mCarActivityManager = (CarActivityManager) car.getCarManager(Car.CAR_ACTIVITY_SERVICE);
     }
 
     /** @hide */

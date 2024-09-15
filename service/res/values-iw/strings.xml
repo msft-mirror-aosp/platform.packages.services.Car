@@ -128,10 +128,8 @@
     <string name="car_permission_desc_read_valet_mode" msgid="8645550481045813299">"קריאת הנתונים של מצב החניית הרכב."</string>
     <string name="car_permission_label_control_valet_mode" msgid="180432980177027905">"שליטה במצב החניית הרכב"</string>
     <string name="car_permission_desc_control_valet_mode" msgid="8442573192492763994">"שליטה במצב החניית הרכב."</string>
-    <!-- no translation found for car_permission_label_read_head_up_display_status (8117112886452578905) -->
-    <skip />
-    <!-- no translation found for car_permission_desc_read_head_up_display_status (3255763055570462667) -->
-    <skip />
+    <string name="car_permission_label_read_head_up_display_status" msgid="8117112886452578905">"קריאת הסטטוס בתצוגה העילית."</string>
+    <string name="car_permission_desc_read_head_up_display_status" msgid="3255763055570462667">"קריאת הסטטוס בתצוגה העילית."</string>
     <string name="car_permission_label_control_head_up_display" msgid="2990483192001919370">"שליטה בתצוגה העילית"</string>
     <string name="car_permission_desc_control_head_up_display" msgid="483313982751387504">"שליטה בתצוגה העילית."</string>
     <string name="car_permission_label_read_car_airbags" msgid="5495423499616379238">"קריאת הנתונים של כריות האוויר ברכב"</string>
@@ -216,8 +214,10 @@
     <string name="car_permission_desc_read_windshield_wipers" msgid="597300271560195986">"קריאה של המגבים של הרכב."</string>
     <string name="car_permission_label_control_windshield_wipers" msgid="7971852482734087493">"שליטה במגבים של הרכב"</string>
     <string name="car_permission_desc_control_windshield_wipers" msgid="3803429825323199728">"שליטה במגבים של הרכב."</string>
-    <string name="car_permission_label_query_display_compatibility" msgid="8846515818036686896">"חבילות תאימות להצגת שאילתות"</string>
-    <string name="car_permission_desc_query_display_compatibility" msgid="5344194045180717300">"חבילות תאימות להצגת שאילתות."</string>
+    <string name="car_permission_label_manage_display_compatibility" msgid="52642673039197383">"ניהול חבילות תאימות להצגה"</string>
+    <string name="car_permission_desc_manage_display_compatibility" msgid="903128563662035449">"ניהול חבילות תאימות להצגה."</string>
+    <string name="car_permission_label_bind_app_card_provider" msgid="4905839485679347567">"קישור לספקי כרטיסים של אפליקציות"</string>
+    <string name="car_permission_desc_bind_app_card_provider" msgid="3392070358840581524">"קישור לספקי כרטיסים של אפליקציות."</string>
     <string name="car_permission_label_manage_remote_device" msgid="1144368625081074994">"מעקב אחר המצבים של אזורי הנוסעים האחרים ברכב ואפליקציות שנבחרו לצורך השוואה (אפליקציות שיש להן שם חבילה זהה למתקשר) המותקנות באזורים האלה, וניהול העוצמה באזורים האלה."</string>
     <string name="car_permission_desc_manage_remote_device" msgid="4802785901453919948">"מעקב אחר המצבים של אזורי הנוסעים האחרים ברכב ואפליקציות שנבחרו לצורך השוואה (אפליקציות שיש להן שם חבילה זהה למתקשר) המותקנות באזורים האלה, וניהול העוצמה באזורים האלה."</string>
     <string name="car_permission_label_manage_occupant_connection" msgid="6007579379849984187">"יצירת חיבור ותקשורת עם אפליקציות שנבחרו לצורך השוואה (אפליקציות שיש להן שם חבילה זהה למתקשר) המותקנות באזורי הנוסעים האחרים ברכב."</string>
