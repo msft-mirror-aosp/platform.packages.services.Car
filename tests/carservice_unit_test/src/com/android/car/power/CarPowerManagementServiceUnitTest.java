@@ -963,6 +963,25 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         waitForPowerPolicy(SYSTEM_POWER_POLICY_ALL_ON);
     }
 
+public void testSuspendImmediately() throws Exception {
+        mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
+        mPowerSignalListener.addEventListener(PowerHalService.SET_DEEP_SLEEP_ENTRY);
+        // Start in the ON state
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
+        mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
+        // Request suspend
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.CAN_SLEEP));
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY));
+        // Verify suspend
+        mPowerSignalListener.waitFor(PowerHalService.SET_DEEP_SLEEP_ENTRY, WAIT_TIMEOUT_LONG_MS);
+    }
+
     @Test
     public void testSuspendFailure() throws Exception {
         suspendWithFailure(/* nextPowerState= */ null);
