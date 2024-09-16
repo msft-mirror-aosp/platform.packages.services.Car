@@ -438,6 +438,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     @Override
     public void init() {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "CarUserService.init");
         if (DBG) {
             Slogf.d(TAG, "init()");
         }
@@ -453,6 +454,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
         CarServiceHelperWrapper.getInstance().runOnConnection(() ->
                 setUxRestrictions(mCarUxRestrictionService.getCurrentUxRestrictions()));
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private final ICarOccupantZoneCallback mOccupantZoneCallback =
@@ -1060,7 +1062,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (DBG) {
             Slogf.d(TAG, "calling mHal.switchUser(%s)", request);
         }
+
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "switchUser.HalResponse",
+                targetUserId);
         mHal.switchUser(request, timeoutMs, (halCallbackStatus, resp) -> {
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "switchUser.HalResponse",
+                    targetUserId);
             if (DBG) {
                 Slogf.d(TAG, "switch response: status=%s, resp=%s",
                         Integer.toString(halCallbackStatus), resp);
@@ -1372,8 +1379,15 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         // will not work here because handleCreateUser() calls UserHalService#createUser(),
         // which is an asynchronous call. Two consecutive createUser requests would result in
         // STATUS_CONCURRENT_OPERATION error from UserHalService.
-        enqueueCreateUser(() -> handleCreateUser(name, userType, flags, timeoutMs, callback,
-                callingUser, hasCallerRestrictions));
+        enqueueCreateUser(() -> {
+            try {
+                Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "handleCreateUser");
+                handleCreateUser(name, userType, flags, timeoutMs, callback,
+                        callingUser, hasCallerRestrictions);
+            } finally {
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
+            }
+        });
     }
 
     private void enqueueCreateUser(Runnable runnable) {
@@ -1523,7 +1537,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         try {
+            Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "createUser.HalResponse",
+                    newUser.getIdentifier());
             mHal.createUser(request, timeoutMs, (status, resp) -> {
+                Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "createUser.HalResponse",
+                        newUser.getIdentifier());
                 String errorMessage = resp != null ? resp.errorMessage : null;
                 int resultStatus = UserCreationResult.STATUS_HAL_INTERNAL_FAILURE;
                 if (DBG) {
@@ -2167,8 +2185,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private void handleStartUser(@UserIdInt int userId, int displayId,
             ResultCallbackImpl<UserStartResponse> callback) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "handleStartUser. UserId: " + userId);
         @UserStartResponse.Status int userStartStatus = startUserInternal(userId, displayId);
         sendUserStartUserResponse(userId, displayId, userStartStatus, callback);
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private void sendUserStartUserResponse(@UserIdInt int userId, int displayId,
@@ -2259,8 +2279,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private void handleStartUserInBackground(@UserIdInt int userId,
             AndroidFuture<UserStartResult> receiver) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE,
+                "handleStartUserInBackground. UserId: " + userId);
         int result = startUserInBackgroundInternal(userId);
         sendUserStartResult(userId, result, receiver);
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private @UserStartResult.Status int startUserInBackgroundInternal(@UserIdInt int userId) {
