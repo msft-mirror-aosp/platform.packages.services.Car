@@ -48,7 +48,6 @@ constexpr const char* kPowerPolicyServerInterface =
         "android.frameworks.automotive.powerpolicy.ICarPowerPolicyServer/default";
 
 constexpr std::chrono::milliseconds kPowerPolicyDaemomFindMarginalTimeMs = 500ms;
-constexpr int32_t kMaxConnectionAttempt = 5;
 
 }  // namespace
 
@@ -156,23 +155,12 @@ void PowerPolicyClientBase::init() {
         mConnectionThread.join();
     }
     mConnectionThread = std::thread([this]() {
-        Result<void> ret;
-        int attemptCount = 1;
-        while (attemptCount <= kMaxConnectionAttempt) {
-            if (!mConnecting) {
-                return;
-            }
-
-            ret = connectToDaemon();
-            if (ret.ok()) {
-                mConnecting = false;
-                return;
-            }
-            LOG(WARNING) << "Connection attempt #" << attemptCount << " failed: " << ret.error();
-            attemptCount++;
-        }
-        onInitFailed();
+        Result<void> ret = connectToDaemon();
         mConnecting = false;
+        if (!ret.ok()) {
+            LOG(WARNING) << "Connecting to car power policy daemon failed: " << ret.error();
+            onInitFailed();
+        }
     });
 }
 
@@ -193,7 +181,7 @@ void PowerPolicyClientBase::handleDeathRecipientUnlinked() {
 
 Result<void> PowerPolicyClientBase::connectToDaemon() {
     int64_t currentUptime = uptimeMillis();
-    SpAIBinder binder(AServiceManager_getService(kPowerPolicyServerInterface));
+    SpAIBinder binder(AServiceManager_waitForService(kPowerPolicyServerInterface));
     if (binder.get() == nullptr) {
         return Error() << "Failed to get car power policy daemon";
     }
