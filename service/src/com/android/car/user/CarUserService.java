@@ -308,7 +308,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     // TODO(b/163566866): Use mSwitchGuestUserBeforeSleep for new create guest request
     private final boolean mSwitchGuestUserBeforeSleep;
-    private final boolean mSupportsSecurePassengerUsers;
 
     @Nullable
     @GuardedBy("mLockUser")
@@ -419,8 +418,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mCarPackageManagerService = carPackageManagerService;
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
                 isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager);
-        mSupportsSecurePassengerUsers = context.getResources().getBoolean(
-                R.bool.config_supportsSecurePassengerUsers);
         // Set the initial capacity of the user creation queue to avoid potential resizing.
         // The max number of running users can be a good estimate because CreateUser request comes
         // from a running user.
@@ -2197,7 +2194,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_USER_DOES_NOT_EXIST;
         }
 
-        if (!mSupportsSecurePassengerUsers && LockPatternHelper.isSecure(mContext, userId)) {
+        if (!Flags.supportsSecurePassengerUsers() && LockPatternHelper.isSecure(mContext, userId)) {
             // Passenger lock screen not currently supported - reject user start
             Slogf.w(TAG, "Secure user %d cannot be started as a passenger", userId);
             return UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
