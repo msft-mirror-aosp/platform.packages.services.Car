@@ -29,14 +29,13 @@
 #include <binder/IBinder.h>
 #include <binder/Status.h>
 #include <utils/Looper.h>
+#include <utils/Mutex.h>
 #include <utils/String16.h>
 #include <utils/StrongPointer.h>
 #include <utils/Vector.h>
 
 #include <IVhalClient.h>
 
-#include <condition_variable>  // NOLINT
-#include <mutex>               // NOLINT
 #include <optional>
 #include <unordered_set>
 
@@ -123,7 +122,7 @@ public:
     void terminate() EXCLUDES(mMutex);
 
 private:
-    std::mutex mMutex;
+    android::Mutex mMutex;
     CarPowerPolicyServer* mService GUARDED_BY(mMutex);
 };
 
@@ -160,7 +159,7 @@ public:
             const std::string& actionTitle) EXCLUDES(mMutex);
 
 private:
-    std::mutex mMutex;
+    android::Mutex mMutex;
     CarPowerPolicyServer* mService GUARDED_BY(mMutex);
 };
 
@@ -189,7 +188,6 @@ public:
     static void terminateService();
 
     CarPowerPolicyServer();
-    ~CarPowerPolicyServer();
     android::base::Result<void> init(const sp<android::Looper>& looper);
 
     // Implements ICarPowerPolicyServer.aidl.
@@ -282,9 +280,6 @@ private:
                                             void* cookie) = 0;
         virtual binder_status_t unlinkToDeath(AIBinder* binder, AIBinder_DeathRecipient* recipient,
                                               void* cookie) = 0;
-        virtual void setOnUnlinked(AIBinder_DeathRecipient* recipient,
-                                   AIBinder_DeathRecipient_onBinderUnlinked onUnlinked) = 0;
-        virtual void deleteDeathRecipient(AIBinder_DeathRecipient* recipient) = 0;
     };
 
     class AIBinderLinkUnlinkImpl final : public LinkUnlinkImpl {
@@ -293,9 +288,6 @@ private:
                                     void* cookie) override;
         binder_status_t unlinkToDeath(AIBinder* binder, AIBinder_DeathRecipient* recipient,
                                       void* cookie) override;
-        void setOnUnlinked(AIBinder_DeathRecipient* recipient,
-                           AIBinder_DeathRecipient_onBinderUnlinked onUnlinked) override;
-        void deleteDeathRecipient(AIBinder_DeathRecipient* recipient) override;
     };
 
     struct PolicyRequest {
@@ -330,15 +322,10 @@ private:
                                                  bool force) EXCLUDES(mMutex);
     void notifySilentModeChangeInternal(const bool isSilent) EXCLUDES(mMutex);
     void notifySilentModeChangeLegacy(const bool isSilent) EXCLUDES(mMutex);
-    void setOnUnlinked();
-    void handleClientDeathRecipientUnlinked(const AIBinder* clientId);
-    void handleCarServiceDeathRecipientUnlinked();
 
     static void onClientBinderDied(void* cookie);
     static void onCarServiceBinderDied(void* cookie);
     static std::string callbackToString(const CallbackInfo& callback);
-    static void onCarServiceDeathRecipientUnlinked(void* cookie);
-    static void onClientDeathRecipientUnlinked(void* cookie);
 
     // For test-only.
     void setLinkUnlinkImpl(std::unique_ptr<LinkUnlinkImpl> impl);
@@ -348,15 +335,13 @@ private:
 private:
     static std::shared_ptr<CarPowerPolicyServer> sCarPowerPolicyServer;
 
-    ndk::ScopedAIBinder_DeathRecipient mClientDeathRecipient;
-    ndk::ScopedAIBinder_DeathRecipient mCarServiceDeathRecipient;
     android::sp<android::Looper> mHandlerLooper;
     android::sp<EventHandler> mEventHandler;
     android::sp<RequestIdHandler> mRequestIdHandler;
     PowerComponentHandler mComponentHandler;
     PolicyManager mPolicyManager;
     SilentModeHandler mSilentModeHandler;
-    std::mutex mMutex;
+    android::Mutex mMutex;
     CarPowerPolicyMeta mCurrentPowerPolicyMeta GUARDED_BY(mMutex);
     std::string mCurrentPolicyGroupId GUARDED_BY(mMutex);
     std::string mPendingPowerPolicyId GUARDED_BY(mMutex);
@@ -370,6 +355,8 @@ private:
     // No thread-safety guard is needed because only accessed through main thread handler.
     bool mIsFirstConnectionToVhal;
     std::unordered_map<int32_t, bool> mSupportedProperties;
+    ndk::ScopedAIBinder_DeathRecipient mClientDeathRecipient GUARDED_BY(mMutex);
+    ndk::ScopedAIBinder_DeathRecipient mCarServiceDeathRecipient GUARDED_BY(mMutex);
     // Thread-safe because only initialized once.
     std::shared_ptr<PropertyChangeListener> mPropertyChangeListener;
     std::unique_ptr<android::frameworks::automotive::vhal::ISubscriptionClient> mSubscriptionClient;
@@ -387,10 +374,6 @@ private:
     std::unordered_map<const AIBinder*, std::unique_ptr<OnClientBinderDiedContext>>
             mOnClientBinderDiedContexts GUARDED_BY(mMutex);
     std::unordered_map<uint32_t, PolicyRequest> mPolicyRequestById GUARDED_BY(mMutex);
-    bool mCarServiceLinked GUARDED_BY(mMutex) = false;
-    // A cv to indicate whether all resources used through pointer via death recipients
-    // are okay to be released. This cv is protected by mMutex.
-    std::condition_variable mResourceReleasedCv;
 
     // For unit tests.
     friend class android::frameworks::automotive::powerpolicy::internal::CarPowerPolicyServerPeer;
