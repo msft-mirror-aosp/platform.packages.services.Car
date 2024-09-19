@@ -154,6 +154,14 @@ flag {
     bug: "353872512"
 }
 
+flag {
+    name: "audio_control_hal_configuration"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Controls whether car audio service can be configured using audio control hal configuration."
+    bug: "359686069"
+}
+
 # CarPropertyManager
 flag {
   name: "batched_subscriptions"
