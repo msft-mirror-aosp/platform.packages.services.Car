@@ -21,6 +21,14 @@ flag {
   }
 }
 
+flag {
+  name: "supports_secure_passenger_users"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Support secure users to run as passengers"
+  bug: "367787957"
+}
+
 # CarPackageManager
 flag {
   name: "display_compatibility"
