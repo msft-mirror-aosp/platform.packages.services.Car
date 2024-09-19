@@ -45,6 +45,7 @@ PRODUCT_PACKAGES_DEBUG += \
     NetworkPreferenceApp \
     RailwayReferenceApp \
     SampleCustomInputService \
+    AaosCustomizationTool \
 
 # Default boot animation for AAOS
 PRODUCT_COPY_FILES += \

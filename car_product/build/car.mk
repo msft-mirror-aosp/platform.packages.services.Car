@@ -51,6 +51,7 @@ PRODUCT_PACKAGES += \
     CarTelemetryApp \
     RailwayReferenceApp \
     CarHotwordDetectionServiceOne \
+    AaosCustomizationTool \
 
 # SEPolicy for test apps / services
 BOARD_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
