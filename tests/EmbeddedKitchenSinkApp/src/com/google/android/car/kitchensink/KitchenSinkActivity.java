@@ -67,6 +67,7 @@ import com.google.android.car.kitchensink.carboard.KeyboardTestFragment;
 import com.google.android.car.kitchensink.cluster.InstrumentClusterFragment;
 import com.google.android.car.kitchensink.connectivity.ConnectivityFragment;
 import com.google.android.car.kitchensink.cube.CubesTestFragment;
+import com.google.android.car.kitchensink.customizationtool.CustomizationToolFragment;
 import com.google.android.car.kitchensink.diagnostic.DiagnosticTestFragment;
 import com.google.android.car.kitchensink.display.DisplayInfoFragment;
 import com.google.android.car.kitchensink.display.DisplayMirroringFragment;
@@ -255,6 +256,7 @@ public class KitchenSinkActivity extends FragmentActivity {
             new FragmentMenuEntry("connectivity", ConnectivityFragment.class),
             new FragmentMenuEntry("cubes test", CubesTestFragment.class),
             new FragmentMenuEntry("device policy", DevicePolicyFragment.class),
+            new FragmentMenuEntry("customization tool", CustomizationToolFragment.class),
             new FragmentMenuEntry("diagnostic", DiagnosticTestFragment.class),
             new FragmentMenuEntry("display info", DisplayInfoFragment.class),
             new FragmentMenuEntry("display input lock", DisplayInputLockTestFragment.class),
