@@ -434,6 +434,16 @@ public final class CarWatchdogServiceUnitTest extends AbstractExtendedMockitoTes
     }
 
     @Test
+    public void testDoubleRegisterClient() throws Exception {
+        TestClient client = new TestClient();
+
+        mCarWatchdogService.registerClient(client, TIMEOUT_CRITICAL);
+
+        assertThrows(IllegalStateException.class,
+                () -> mCarWatchdogService.registerClient(client, TIMEOUT_CRITICAL));
+    }
+
+    @Test
     public void testUnregisterUnregisteredClient() throws Exception {
         TestClient client = new TestClient();
         mCarWatchdogService.registerClient(client, TIMEOUT_CRITICAL);

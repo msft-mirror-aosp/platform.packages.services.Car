@@ -56,6 +56,7 @@ public final class CarWatchdogManager extends CarManagerBase {
     private static final boolean DEBUG = false; // STOPSHIP if true
     private static final int INVALID_SESSION_ID = -1;
     private static final int NUMBER_OF_CONDITIONS_TO_BE_MET = 2;
+    private static final int MAX_UNREGISTER_CLIENT_WAIT_MILLIS = 200;
 
     private final Runnable mMainThreadCheck = () -> checkMainThread();
 
@@ -110,9 +111,7 @@ public final class CarWatchdogManager extends CarManagerBase {
     @GuardedBy("mLock")
     private final List<ResourceOveruseListenerInfo> mResourceOveruseListenerForSystemInfos;
     @GuardedBy("mLock")
-    private CarWatchdogClientCallback mRegisteredClient;
-    @GuardedBy("mLock")
-    private Executor mCallbackExecutor;
+    private final ClientInfo mHealthCheckingClient = new ClientInfo();
     @GuardedBy("mLock")
     private int mRemainingConditions;
 
@@ -191,16 +190,15 @@ public final class CarWatchdogManager extends CarManagerBase {
             @NonNull CarWatchdogClientCallback client, @TimeoutLengthEnum int timeout) {
         Objects.requireNonNull(client, "Client must be non-null");
         Objects.requireNonNull(executor, "Executor must be non-null");
-        synchronized (mLock) {
-            if (mRegisteredClient == client) {
+        synchronized (CarWatchdogManager.this.mLock) {
+            if (mHealthCheckingClient.hasClientLocked()) {
+                if (mHealthCheckingClient.callback == client) {
                 return;
             }
-            if (mRegisteredClient != null) {
                 throw new IllegalStateException(
                         "Cannot register the client. Only one client can be registered.");
             }
-            mRegisteredClient = client;
-            mCallbackExecutor = executor;
+            mHealthCheckingClient.setClientLocked(client, executor);
         }
         try {
             mService.registerClient(mClientImpl, timeout);
@@ -209,9 +207,15 @@ public final class CarWatchdogManager extends CarManagerBase {
             }
         } catch (RemoteException e) {
             synchronized (mLock) {
-                mRegisteredClient = null;
+                mHealthCheckingClient.resetClientLocked();
             }
             handleRemoteExceptionFromCarService(e);
+        } finally {
+            synchronized (mLock) {
+                if (mHealthCheckingClient.hasClientLocked()) {
+                    mHealthCheckingClient.setRegistrationCompletedLocked();
+                }
+            }
         }
     }
 
@@ -227,13 +231,17 @@ public final class CarWatchdogManager extends CarManagerBase {
     @AddedInOrBefore(majorVersion = 33)
     public void unregisterClient(@NonNull CarWatchdogClientCallback client) {
         Objects.requireNonNull(client, "Client must be non-null");
-        synchronized (mLock) {
-            if (mRegisteredClient != client) {
+        synchronized (CarWatchdogManager.this.mLock) {
+            if (!mHealthCheckingClient.hasClientLocked()
+                    || mHealthCheckingClient.callback != client) {
                 Log.w(TAG, "Cannot unregister the client. It has not been registered.");
                 return;
             }
-            mRegisteredClient = null;
-            mCallbackExecutor = null;
+            if (mHealthCheckingClient.isRegistrationInProgressLocked()) {
+                Log.e(TAG, "Cannot unregister the client while a registration is in progress");
+                return;
+            }
+            mHealthCheckingClient.resetClientLocked();
         }
         try {
             mService.unregisterClient(mClientImpl);
@@ -261,8 +269,9 @@ public final class CarWatchdogManager extends CarManagerBase {
     public void tellClientAlive(@NonNull CarWatchdogClientCallback client, int sessionId) {
         Objects.requireNonNull(client, "Client must be non-null");
         boolean shouldReport;
-        synchronized (mLock) {
-            if (mRegisteredClient != client) {
+        synchronized (CarWatchdogManager.this.mLock) {
+            if (!mHealthCheckingClient.hasClientLocked()
+                    || mHealthCheckingClient.callback != client) {
                 throw new IllegalStateException(
                         "Cannot report client status. The client has not been registered.");
             }
@@ -777,17 +786,17 @@ public final class CarWatchdogManager extends CarManagerBase {
     }
 
     private void checkClientStatus(int sessionId, int timeout) {
-        CarWatchdogClientCallback client;
+        CarWatchdogClientCallback clientCallback;
         Executor executor;
         mMainHandler.removeCallbacks(mMainThreadCheck);
-        synchronized (mLock) {
-            if (mRegisteredClient == null) {
+        synchronized (CarWatchdogManager.this.mLock) {
+            if (!mHealthCheckingClient.hasClientLocked()) {
                 Log.w(TAG, "Cannot check client status. The client has not been registered.");
                 return;
             }
             mSession.currentId = sessionId;
-            client = mRegisteredClient;
-            executor = mCallbackExecutor;
+            clientCallback = mHealthCheckingClient.callback;
+            executor = mHealthCheckingClient.executor;
             mRemainingConditions = NUMBER_OF_CONDITIONS_TO_BE_MET;
         }
         // For a car watchdog client to be active, 1) its main thread is active and 2) the client
@@ -796,7 +805,8 @@ public final class CarWatchdogManager extends CarManagerBase {
         mMainHandler.post(mMainThreadCheck);
         // Call the client callback to check if the client is active.
         executor.execute(() -> {
-            boolean checkDone = client.onCheckHealthStatus(sessionId, timeout);
+            boolean checkDone = clientCallback.onCheckHealthStatus(sessionId, timeout);
+            Log.e(TAG, "Called clientCallback.onCheckHealthStatus");
             if (checkDone) {
                 boolean shouldReport;
                 synchronized (mLock) {
@@ -846,17 +856,17 @@ public final class CarWatchdogManager extends CarManagerBase {
     }
 
     private void notifyProcessTermination() {
-        CarWatchdogClientCallback client;
+        CarWatchdogClientCallback clientCallback;
         Executor executor;
-        synchronized (mLock) {
-            if (mRegisteredClient == null) {
+        synchronized (CarWatchdogManager.this.mLock) {
+            if (!mHealthCheckingClient.hasClientLocked()) {
                 Log.w(TAG, "Cannot notify the client. The client has not been registered.");
                 return;
             }
-            client = mRegisteredClient;
-            executor = mCallbackExecutor;
+            clientCallback = mHealthCheckingClient.callback;
+            executor = mHealthCheckingClient.executor;
         }
-        executor.execute(() -> client.onPrepareProcessTermination());
+        executor.execute(() -> clientCallback.onPrepareProcessTermination());
     }
 
     private void addResourceOveruseListenerImpl() {
@@ -941,6 +951,65 @@ public final class CarWatchdogManager extends CarManagerBase {
                     listenerInfo.listener.onOveruse(resourceOveruseStats);
                 });
             }
+        }
+    }
+
+    /** @hide */
+    private final class ClientInfo {
+        public CarWatchdogClientCallback callback;
+        public Executor executor;
+        private boolean mIsRegistrationInProgress;
+
+        @GuardedBy("CarWatchdogManager.this.mLock")
+        boolean hasClientLocked() {
+            return callback != null && executor != null;
+        }
+
+        @GuardedBy("CarWatchdogManager.this.mLock")
+        void setClientLocked(CarWatchdogClientCallback callback, Executor executor) {
+            this.callback = callback;
+            this.executor = executor;
+            mIsRegistrationInProgress = true;
+            if (DEBUG) {
+                Log.d(TAG, "Set CarWatchdog client callback to " + callback);
+            }
+        }
+
+        @GuardedBy("CarWatchdogManager.this.mLock")
+        void resetClientLocked() {
+            callback = null;
+            executor = null;
+            mIsRegistrationInProgress = false;
+            if (DEBUG) {
+                Log.d(TAG, "Reset CarWatchdog client callback");
+            }
+        }
+
+        @GuardedBy("CarWatchdogManager.this.mLock")
+        void setRegistrationCompletedLocked() {
+            mIsRegistrationInProgress = false;
+            mLock.notify();
+            if (DEBUG) {
+                Log.d(TAG, "Marked registration completed");
+            }
+        }
+
+        @GuardedBy("CarWatchdogManager.this.mLock")
+        boolean isRegistrationInProgressLocked() {
+            long nowMillis = System.currentTimeMillis();
+            long endMillis = nowMillis + MAX_UNREGISTER_CLIENT_WAIT_MILLIS;
+            while (mIsRegistrationInProgress && nowMillis < endMillis) {
+                try {
+                    mLock.wait(endMillis - nowMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    Log.w(TAG, "Interrupted while waiting for registration to complete. "
+                            + "Continuing to wait");
+                } finally {
+                    nowMillis = System.currentTimeMillis();
+                }
+            }
+            return mIsRegistrationInProgress;
         }
     }
 
