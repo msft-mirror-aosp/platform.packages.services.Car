@@ -30,10 +30,12 @@ import android.car.CarManagerBase;
 import android.car.annotation.AddedInOrBefore;
 import android.car.annotation.ApiRequirements;
 import android.car.annotation.RequiredFeature;
+import android.car.builtin.os.TraceHelper;
 import android.car.builtin.util.Slogf;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.Trace;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -65,6 +67,10 @@ public final class CarEvsManager extends CarManagerBase {
 
     private final ICarEvsService mService;
     private final Object mStreamLock = new Object();
+
+    // This tag must be matched to android.os.Trace.TRACE_TAG_CAMERA and therefore Camera tracing
+    // should be enabled from trace tools to access these traces.
+    private static final long TRACE_TAG = 1L << 10;
 
     // This array maintains mappings between service type and its client.
     @GuardedBy("mStreamLock")
@@ -506,6 +512,7 @@ public final class CarEvsManager extends CarManagerBase {
 
         @Override
         public void onStreamEvent(@CarEvsStreamEvent int event) {
+            Trace.asyncTraceBegin(TRACE_TAG, "CarEvsManager#onStreamEvent", event);
             mLastStreamEvent = event;
             mStreamEventOccurred.release();
 
@@ -513,6 +520,7 @@ public final class CarEvsManager extends CarManagerBase {
             if (manager != null) {
                 manager.handleStreamEvent(event);
             }
+            Trace.asyncTraceEnd(TRACE_TAG, "CarEvsManager#onStreamEvent", event);
         }
 
         @Override
@@ -528,8 +536,9 @@ public final class CarEvsManager extends CarManagerBase {
         }
 
         public boolean waitForStreamEvent(@CarEvsStreamEvent int expected, int timeoutInSeconds) {
-            while (true) {
-                try {
+            Trace.asyncTraceBegin(TRACE_TAG, "CarEvsManager#waitForStreamEvent", expected);
+            try {
+                while (true) {
                     if (!mStreamEventOccurred.tryAcquire(timeoutInSeconds, TimeUnit.SECONDS)) {
                         Slogf.w(TAG, "Timer for a new stream event expired.");
                         return false;
@@ -538,11 +547,13 @@ public final class CarEvsManager extends CarManagerBase {
                     if (mLastStreamEvent == expected) {
                         return true;
                     }
-                } catch (InterruptedException e) {
-                    Slogf.w(TAG, "Interrupted while waiting for an event %d.\nException = %s",
-                            expected, Log.getStackTraceString(e));
-                    return false;
                 }
+            } catch (InterruptedException e) {
+                Slogf.w(TAG, "Interrupted while waiting for an event %d.\nException = %s",
+                        expected, Log.getStackTraceString(e));
+                return false;
+            } finally {
+                Trace.asyncTraceEnd(TRACE_TAG, "CarEvsManager#waitForStreamEvent", expected);
             }
         }
     }
@@ -584,6 +595,9 @@ public final class CarEvsManager extends CarManagerBase {
      */
     private void handleNewFrame(@NonNull CarEvsBufferDescriptor buffer) {
         Objects.requireNonNull(buffer);
+        int id = CarEvsUtils.getTag(buffer.getId());
+        Trace.asyncTraceBegin(TRACE_TAG, "CarEvsManager#handleNewFrame", id);
+
         if (DBG) {
             Slogf.d(TAG, "Received a buffer: " + buffer);
         }
@@ -604,8 +618,9 @@ public final class CarEvsManager extends CarManagerBase {
             }
             returnFrameBuffer(buffer);
         }
-    }
 
+        Trace.asyncTraceEnd(TRACE_TAG, "CarEvsManager#handleNewFrame", id);
+    }
 
     /** Stops all active stream callbacks. */
     @GuardedBy("mStreamLock")
@@ -645,6 +660,8 @@ public final class CarEvsManager extends CarManagerBase {
     @RequiresPermission(Car.PERMISSION_USE_CAR_EVS_CAMERA)
     @AddedInOrBefore(majorVersion = 33)
     public void returnFrameBuffer(@NonNull CarEvsBufferDescriptor buffer) {
+        int id = CarEvsUtils.getTag(buffer.getId());
+        Trace.asyncTraceBegin(TRACE_TAG, "CarEvsManager#returnFrameBuffer", id);
         Objects.requireNonNull(buffer);
         try {
             mService.returnFrameBuffer(buffer);
@@ -653,6 +670,7 @@ public final class CarEvsManager extends CarManagerBase {
         } finally {
             // We are done with this HardwareBuffer object.
             buffer.getHardwareBuffer().close();
+            Trace.asyncTraceEnd(TRACE_TAG, "CarEvsManager#returnFrameBuffer", id);
         }
     }
 
@@ -724,20 +742,24 @@ public final class CarEvsManager extends CarManagerBase {
         Objects.requireNonNull(executor);
         Objects.requireNonNull(callback);
 
-        synchronized (mStreamLock) {
-            mStreamCallbacks.put(type, callback);
-            mStreamCallbackExecutor = executor;
-        }
-
-        int status = ERROR_UNAVAILABLE;
         try {
-            // Requests the service to start a video stream
-            status = mService.startVideoStream(type, token, mStreamListenerToService);
+            int status = mService.startVideoStream(type, token, mStreamListenerToService);
+            if (status != ERROR_NONE) {
+                return status;
+            }
+
+            synchronized (mStreamLock) {
+                mStreamCallbacks.put(type, callback);
+                // TODO(b/321913871): Check whether we want to allow the clients to use more than a
+                //                    single executor or not.
+                mStreamCallbackExecutor = executor;
+            }
         } catch (RemoteException err) {
             handleRemoteExceptionFromCarService(err);
-        } finally {
-            return status;
+            return ERROR_UNAVAILABLE;
         }
+
+        return ERROR_NONE;
     }
 
     /**
