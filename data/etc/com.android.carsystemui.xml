@@ -37,5 +37,7 @@
              system ui interaction needed by other apps. -->
         <permission name="android.car.permission.REGISTER_CAR_SYSTEM_UI_PROXY"/>
         <permission name="android.car.permission.MANAGE_CAR_SYSTEM_UI"/>
+        <!-- used for checking media notifications -->
+        <permission name="android.permission.ACCESS_NOTIFICATIONS"/>
     </privapp-permissions>
 </permissions>
