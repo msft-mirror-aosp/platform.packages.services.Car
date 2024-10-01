@@ -464,6 +464,7 @@ public class ControlBarMediaController extends PlaybackCardController {
         mCustomActionOverflowLayoutVisibility = mCustomActionOverflowLayout.getVisibility();
 
         mSeekBar.getThumb().mutate().setAlpha(0);
+        mSeekBar.setEnabled(false);
 
         mMotionLayout.transitionToEnd();
     }
@@ -481,6 +482,7 @@ public class ControlBarMediaController extends PlaybackCardController {
         mCustomActionOverflowLayout.setVisibility(mCustomActionOverflowLayoutVisibility);
 
         mSeekBar.getThumb().mutate().setAlpha(255);
+        mSeekBar.setEnabled(true);
 
         mMotionLayout.transitionToStart();
     }
