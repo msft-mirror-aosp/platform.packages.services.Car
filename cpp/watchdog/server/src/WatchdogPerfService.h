@@ -86,6 +86,13 @@ public:
         std::chrono::milliseconds mUserSwitchIntervalMillis = std::chrono::milliseconds(0);
         std::chrono::milliseconds mWakeUpIntervalMillis = std::chrono::milliseconds(0);
         std::chrono::milliseconds mCustomIntervalMillis = std::chrono::milliseconds(0);
+        bool operator==(const CollectionIntervals& other) const {
+            return mBoottimeIntervalMillis == other.mBoottimeIntervalMillis &&
+            mPeriodicIntervalMillis == other.mPeriodicIntervalMillis &&
+            mUserSwitchIntervalMillis == other.mUserSwitchIntervalMillis &&
+            mWakeUpIntervalMillis == other.mWakeUpIntervalMillis &&
+            mCustomIntervalMillis == other.mCustomIntervalMillis;
+        }
     };
     DataProcessorInterface() {}
     virtual ~DataProcessorInterface() {}
@@ -277,6 +284,7 @@ public:
           mUnsentResourceStats({}),
           mLastCollectionTimeMillis(0),
           mBootCompletedTimeEpochSeconds(0),
+          mKernelStartTimeEpochSeconds(0),
           mCurrCollectionEvent(EventType::INIT),
           mUidStatsCollector(android::sp<UidStatsCollector>::make()),
           mProcStatCollector(android::sp<ProcStatCollector>::make()),
@@ -447,6 +455,9 @@ private:
 
     // Time of receiving boot complete signal.
     time_t mBootCompletedTimeEpochSeconds GUARDED_BY(mMutex);
+
+    // Boot start time collected from /proc/stat.
+    time_t mKernelStartTimeEpochSeconds GUARDED_BY(mMutex);
 
     // Tracks either the WatchdogPerfService's state or current collection event. Updated on
     // |start|, |onBootFinished|, |onUserStateChange|, |startCustomCollection|,
