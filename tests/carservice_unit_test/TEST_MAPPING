@@ -1,0 +1,22 @@
+{
+  "auto-presubmit": [
+    {
+      "name": "CarServiceUnitTest"
+    },
+    {
+      "name": "CarServiceWifiUnitTest"
+    },
+    {
+      "name": "CarServiceWatchdogUnitTest"
+    },
+    {
+      "name": "CarServiceVmsUnitTest"
+    },
+    {
+      "name": "CarServiceUtilUnitTest"
+    },
+    {
+      "name": "CarServiceUserUnitTest"
+    }
+  ]
+}
