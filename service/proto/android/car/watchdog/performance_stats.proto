@@ -26,6 +26,7 @@ message PerformanceStats {
   optional StatsCollection last_n_minutes_stats = 4;
   optional StatsCollection custom_collection_stats = 5;
   // Deprecated field #6. Do not use this field position.
+  reserved 6;
 }
 
 // Represents the performance stats captured during a single event as a record.
