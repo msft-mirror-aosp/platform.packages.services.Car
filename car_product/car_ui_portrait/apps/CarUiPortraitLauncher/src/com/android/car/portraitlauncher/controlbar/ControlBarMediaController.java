@@ -231,7 +231,10 @@ public class ControlBarMediaController extends PlaybackCardController {
 
     @Override
     protected void updateAlbumCoverWithDrawable(Drawable drawable) {
-        RoundedDrawable roundedDrawable = new RoundedDrawable(drawable, mView.getResources()
+        Drawable drawableToUse = drawable == null ? mView.getResources().getDrawable(
+                /* drawable */ R.drawable.media_card_default_album_art, /* theme */ null)
+                : drawable;
+        RoundedDrawable roundedDrawable = new RoundedDrawable(drawableToUse, mView.getResources()
                 .getFloat(R.dimen.control_bar_media_card_album_art_drawable_corner_ratio));
         super.updateAlbumCoverWithDrawable(roundedDrawable);
     }
