@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef CPP_WATCHDOG_SERVER_SRC_WATCHDOGPROCESSSERVICE_H_
-#define CPP_WATCHDOG_SERVER_SRC_WATCHDOGPROCESSSERVICE_H_
+#pragma once
 
 #include "AIBinderDeathRegistrationWrapper.h"
 
@@ -319,7 +318,7 @@ private:
     std::shared_ptr<android::frameworks::automotive::vhal::IVhalClient::OnBinderDiedCallbackFunc>
             mVhalBinderDiedCallback;
     android::sp<AIBinderDeathRegistrationWrapperInterface> mDeathRegistrationWrapper;
-    android::sp<PackageInfoResolverInterface> mPackageInfoResolver;
+    std::shared_ptr<PackageInfoResolverInterface> mPackageInfoResolver;
 
     android::Mutex mMutex;
 
@@ -345,5 +344,3 @@ private:
 }  // namespace watchdog
 }  // namespace automotive
 }  // namespace android
-
-#endif  // CPP_WATCHDOG_SERVER_SRC_WATCHDOGPROCESSSERVICE_H_

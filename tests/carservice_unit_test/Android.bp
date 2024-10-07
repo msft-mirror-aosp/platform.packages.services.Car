@@ -58,9 +58,9 @@ android_test {
         "android.car",
         "android.car.builtin.impl",
         "android.car.watchdoglib",
-        "android.test.runner",
-        "android.test.base",
-        "android.test.mock",
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
+        "android.test.mock.stubs",
         "framework",
         "framework-res",
     ],
@@ -114,12 +114,15 @@ android_ravenwood_test {
     name: "CarServiceHostUnitTest",
 
     srcs: [
+        "src/com/android/car/AidlVehicleStubUnitTest.java",
         "src/com/android/car/CarPropertyServiceUnitTest.java",
         "src/com/android/car/internal/PendingRequestPoolUnitTest.java",
         "src/com/android/car/hal/VehicleHalTest.java",
         "src/com/android/car/hal/fakevhal/FakeVhalConfigParserUnitTest.java",
         "src/com/android/car/hal/fakevhal/FakeVehicleStubUnitTest.java",
         "src/com/android/car/hal/property/PropertyHalServiceConfigsUnitTest.java",
+        "src/com/android/car/hal/property/PropertyPermissionInfoTest.java",
+        "src/com/android/car/systeminterface/DisplayInterfaceTest.java",
         "src/com/android/car/user/InitialUserSetterTest.java",
         "src/com/android/car/user/MockedUserHandleBuilder.java",
         // Don't depends on "com.android.car.test" because it uses
@@ -135,10 +138,11 @@ android_ravenwood_test {
         "androidx.annotation_annotation",
         "androidx.test.rules",
         "car-service-test-static-lib",
+        "compatibility-device-util-axt-ravenwood",
     ],
 
     libs: [
-        "android.test.base",
+        "android.test.base.stubs.system",
         "framework-annotations-lib",
     ],
 

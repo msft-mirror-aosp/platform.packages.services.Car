@@ -24,6 +24,9 @@ import static android.net.ConnectivityManager.TETHERING_WIFI;
 
 import static com.android.car.hal.PowerHalService.BOOTUP_REASON_SYSTEM_ENTER_GARAGE_MODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.systeminterface.SystemInterface.SUSPEND_RESULT_ABORT;
+import static com.android.car.systeminterface.SystemInterface.SUSPEND_RESULT_RETRY;
+import static com.android.car.systeminterface.SystemInterface.SUSPEND_RESULT_SUCCESS;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -40,6 +43,7 @@ import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.HandlerHelper;
 import android.car.builtin.os.ServiceManagerHelper;
+import android.car.builtin.os.SystemPropertiesHelper;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -245,6 +249,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private final AtomicFile mWifiStateFile;
     private final AtomicFile mTetheringStateFile;
     private final boolean mWifiAdjustmentForSuspend;
+    private boolean mShouldChangeSwap = true;
 
     // This is a temp work-around to reduce user switching delay after wake-up.
     private final boolean mSwitchGuestUserBeforeSleep;
@@ -1161,6 +1166,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void handleShutdownPrepare(CpmsState currentState, CpmsState prevState) {
+        boolean areListenersEmpty;
+        synchronized (mLock) {
+            areListenersEmpty = mListenersWeAreWaitingFor.isEmpty();
+        }
         switch (currentState.mCarPowerStateListenerState) {
             case CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE:
                 updateShutdownPrepareStatus(currentState);
@@ -1172,17 +1181,25 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     synchronized (mLock) {
                         mCurrentState = currentState;
                     }
-                    clearWaitingForCompletion(/*clearQueue=*/true);
+                    if (!areListenersEmpty) {
+                        Slogf.e(TAG, "Received 2nd shutdown request. Waiting for listeners.");
+                    } else {
+                        // new shutdown prepare request can interrupt completion of shutdown prepare
+                        // call handler to complete it - this may result in 2nd call
+                        // to finishShutdownPrepare()
+                        Slogf.e(TAG,
+                                "Received 2nd shutdown request after listeners were completed");
+                        finishShutdownPrepare();
+                    }
                 } else if (prevState.mCarPowerStateListenerState == STATE_PRE_SHUTDOWN_PREPARE) {
                     // Update of state occurred while in PRE_SHUTDOWN_PREPARE
-                    boolean areListenersEmpty;
-                    synchronized (mLock) {
-                        areListenersEmpty = mListenersWeAreWaitingFor.isEmpty();
-                    }
                     if (areListenersEmpty) {
                         handleCoreShutdownPrepare();
                     } else {
                         // PRE_SHUTDOWN_PREPARE is still being processed, no actions required
+                        Slogf.e(TAG,
+                                "Received 2nd shutdown request. Waiting for listener"
+                            + " to complete");
                         return;
                     }
                 } else {
@@ -1868,7 +1885,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void doHandleDisplayBrightnessChange(int displayId, int brightness) {
-        mSystemInterface.setDisplayBrightness(displayId, brightness);
+        mSystemInterface.onDisplayBrightnessChangeFromVhal(displayId, brightness);
     }
 
     private void doHandleDisplayStateChange(int displayId, boolean on) {
@@ -1917,8 +1934,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
      * Sends display brightness to VHAL.
      * @param brightness value 0-100%
      */
-    public void sendDisplayBrightness(int brightness) {
-        mHal.sendDisplayBrightness(brightness);
+    public void sendDisplayBrightnessLegacy(int brightness) {
+        mHal.sendDisplayBrightnessLegacy(brightness);
     }
 
     /**
@@ -3145,12 +3162,27 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             Slogf.i(TAG, "Entering %s", suspendTarget);
             if (isSuspendToDisk) {
                 freeMemory();
+                if (mFeatureFlags.changeSwapsDuringSuspendToDisk() && mShouldChangeSwap) {
+                    SystemPropertiesHelper.set("sys.hibernate", "1");
+                }
             }
-            boolean suspendSucceeded = isSuspendToDisk ? mSystemInterface.enterHibernation()
+            int suspendResult = isSuspendToDisk ? mSystemInterface.enterHibernation()
                     : mSystemInterface.enterDeepSleep();
 
-            if (suspendSucceeded) {
-                return true;
+            switch (suspendResult) {
+                case SUSPEND_RESULT_SUCCESS:
+                    if (isSuspendToDisk && mFeatureFlags.changeSwapsDuringSuspendToDisk()
+                            && mShouldChangeSwap) {
+                        SystemPropertiesHelper.set("sys.hibernate", "0");
+                    }
+                    return true;
+                case SUSPEND_RESULT_RETRY:
+                    break;
+                case SUSPEND_RESULT_ABORT:
+                    Slogf.e(TAG, "Creating hibernation image failed. Shuttind down");
+                    mSystemInterface.shutdown();
+                    Slogf.wtf(TAG, "The system must be turned off");
+                    return false;
             }
             if (totalWaitDurationMs >= mMaxSuspendWaitDurationMs) {
                 break;
@@ -3183,6 +3215,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         Slogf.w(TAG, "Could not %s after %dms long trial. Shutting down.", suspendTarget,
                 totalWaitDurationMs);
         mSystemInterface.shutdown();
+        Slogf.wtf(TAG, "The system must be turned off");
         return false;
     }
 
@@ -3962,8 +3995,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void freeMemory() {
         try {
             Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "freeMemory");
-            ActivityManagerHelper.killAllBackgroundProcesses();
             if (!mFeatureFlags.stopProcessBeforeSuspendToDisk()) {
+                ActivityManagerHelper.killAllBackgroundProcesses();
                 Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
                 return;
             }
@@ -4032,5 +4065,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             // none will fallthrough
             default -> ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE;
         };
+    }
+
+    @VisibleForTesting
+    void setSwapChangeEnabled(boolean enable) {
+        mShouldChangeSwap = enable;
     }
 }

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef CPP_WATCHDOG_SERVER_SRC_IOOVERUSEMONITOR_H_
-#define CPP_WATCHDOG_SERVER_SRC_IOOVERUSEMONITOR_H_
+#pragma once
 
 #include "AIBinderDeathRegistrationWrapper.h"
 #include "IoOveruseConfigs.h"
@@ -277,7 +276,7 @@ private:
     void writeConfigsToDiskAsyncLocked();
 
     // Local PackageInfoResolverInterface instance. Useful to mock in tests.
-    sp<PackageInfoResolverInterface> mPackageInfoResolver;
+    std::shared_ptr<PackageInfoResolverInterface> mPackageInfoResolver;
 
     // Minimum written bytes to sync the stats with the Watchdog service.
     double mMinSyncWrittenBytes;
@@ -340,5 +339,3 @@ private:
 }  // namespace watchdog
 }  // namespace automotive
 }  // namespace android
-
-#endif  //  CPP_WATCHDOG_SERVER_SRC_IOOVERUSEMONITOR_H_

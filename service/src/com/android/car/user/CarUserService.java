@@ -75,7 +75,6 @@ import android.car.user.UserStopResponse;
 import android.car.user.UserStopResult;
 import android.car.user.UserSwitchResult;
 import android.car.util.concurrent.AndroidFuture;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -105,7 +104,6 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
@@ -137,6 +135,7 @@ import com.android.car.internal.util.FunctionalUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.pm.CarPackageManagerService;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.provider.Settings;
 import com.android.car.user.InitialUserSetter.InitialUserInfo;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -228,7 +227,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private static final String BG_HANDLER_THREAD_NAME = "UserService.BG";
 
-    private final GlobalSettings mGlobalSettings;
+    private final Settings mSettings;
     private final CurrentUserFetcher mCurrentUserFetcher;
     private final Context mContext;
     private final ActivityManager mAm;
@@ -309,7 +308,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     // TODO(b/163566866): Use mSwitchGuestUserBeforeSleep for new create guest request
     private final boolean mSwitchGuestUserBeforeSleep;
-    private final boolean mSupportsSecurePassengerUsers;
 
     @Nullable
     @GuardedBy("mLockUser")
@@ -337,6 +335,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      */
     @GuardedBy("mLockUser")
     private boolean mStartBackgroundUsersOnGarageMode = true;
+    private String mUserPickerName;
 
     // Whether visible background users are supported on the default display, a.k.a. passenger only
     // systems.
@@ -375,38 +374,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         // accessed before the constructor.
                         /* handler= */ null,
                         new ActivityManagerCurrentUserFetcher(),
-                        new SystemGlobalSettings()));
-    }
-
-    /**
-     * An interface for injecting fake {@link Settings.Global} implementation.
-     */
-    public interface GlobalSettings {
-        /** See {@link Settings.Global.getString} */
-        String getString(ContentResolver resolver, String name);
-        /** See {@link Settings.Global.getInt} */
-        int getInt(ContentResolver cr, String name, int def);
-        /** See {@link Settings.Global.putInt} */
-        boolean putInt(ContentResolver cr, String name, int value);
-    }
-
-    // A real implementation for {@link GlobalSettings}.
-    // Need to be accessed from com.android.car.user.BaseCarUserServiceTestCase.
-    static final class SystemGlobalSettings implements GlobalSettings {
-        @Override
-        public String getString(ContentResolver resolver, String name) {
-            return Settings.Global.getString(resolver, name);
-        }
-
-        @Override
-        public int getInt(ContentResolver cr, String name, int def) {
-            return Settings.Global.getInt(cr, name, def);
-        }
-
-        @Override
-        public boolean putInt(ContentResolver cr, String name, int value) {
-            return Settings.Global.putInt(cr, name, value);
-        }
+                        new Settings.DefaultImpl()));
     }
 
     @VisibleForTesting
@@ -416,7 +384,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             @Nullable InitialUserSetter initialUserSetter,
             Handler handler,
             CurrentUserFetcher currentUserFetcher,
-            GlobalSettings globalSettings) {}
+            Settings settings) {}
 
     @VisibleForTesting
     public CarUserService(
@@ -442,7 +410,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 new InitialUserSetter(context, this, (u) -> setInitialUser(u), mUserHandleHelper,
                         deps);
         mCurrentUserFetcher = deps.currentUserFetcher();
-        mGlobalSettings = deps.globalSettings();
+        mSettings = deps.settings();
 
         Resources resources = context.getResources();
         mSwitchGuestUserBeforeSleep = resources.getBoolean(
@@ -451,13 +419,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mCarPackageManagerService = carPackageManagerService;
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
                 isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager);
-        mSupportsSecurePassengerUsers = context.getResources().getBoolean(
-                R.bool.config_supportsSecurePassengerUsers);
         // Set the initial capacity of the user creation queue to avoid potential resizing.
         // The max number of running users can be a good estimate because CreateUser request comes
         // from a running user.
         mCreateUserQueue = new ArrayDeque<>(UserManagerHelper.getMaxRunningUsers(context));
         mCarOccupantZoneService = carOccupantZoneService;
+        mUserPickerName = mContext.getResources().getString(R.string.config_userPickerActivity);
     }
 
     /**
@@ -470,6 +437,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     @Override
     public void init() {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "CarUserService.init");
         if (DBG) {
             Slogf.d(TAG, "init()");
         }
@@ -485,6 +453,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
         CarServiceHelperWrapper.getInstance().runOnConnection(() ->
                 setUxRestrictions(mCarUxRestrictionService.getCurrentUxRestrictions()));
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private final ICarOccupantZoneCallback mOccupantZoneCallback =
@@ -594,7 +563,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void dumpGlobalProperty(IndentingPrintWriter writer, String property) {
-        String value = mGlobalSettings.getString(mContext.getContentResolver(), property);
+        String value = mSettings.getStringGlobal(mContext.getContentResolver(), property);
         writer.printf("%s=%s\n", property, value);
     }
 
@@ -1092,7 +1061,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (DBG) {
             Slogf.d(TAG, "calling mHal.switchUser(%s)", request);
         }
+
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "switchUser.HalResponse",
+                targetUserId);
         mHal.switchUser(request, timeoutMs, (halCallbackStatus, resp) -> {
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "switchUser.HalResponse",
+                    targetUserId);
             if (DBG) {
                 Slogf.d(TAG, "switch response: status=%s, resp=%s",
                         Integer.toString(halCallbackStatus), resp);
@@ -1404,8 +1378,15 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         // will not work here because handleCreateUser() calls UserHalService#createUser(),
         // which is an asynchronous call. Two consecutive createUser requests would result in
         // STATUS_CONCURRENT_OPERATION error from UserHalService.
-        enqueueCreateUser(() -> handleCreateUser(name, userType, flags, timeoutMs, callback,
-                callingUser, hasCallerRestrictions));
+        enqueueCreateUser(() -> {
+            try {
+                Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "handleCreateUser");
+                handleCreateUser(name, userType, flags, timeoutMs, callback,
+                        callingUser, hasCallerRestrictions);
+            } finally {
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
+            }
+        });
     }
 
     private void enqueueCreateUser(Runnable runnable) {
@@ -1555,7 +1536,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         try {
+            Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "createUser.HalResponse",
+                    newUser.getIdentifier());
             mHal.createUser(request, timeoutMs, (status, resp) -> {
+                Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "createUser.HalResponse",
+                        newUser.getIdentifier());
                 String errorMessage = resp != null ? resp.errorMessage : null;
                 int resultStatus = UserCreationResult.STATUS_HAL_INTERNAL_FAILURE;
                 if (DBG) {
@@ -1910,7 +1895,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     private void updateDefaultUserRestriction() {
         // We want to set restrictions on system and guest users only once. These are persisted
         // onto disk, so it's sufficient to do it once + we minimize the number of disk writes.
-        if (mGlobalSettings.getInt(mContext.getContentResolver(),
+        if (mSettings.getIntGlobal(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, /* default= */ 0) != 0) {
             return;
         }
@@ -1918,7 +1903,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (UserManager.isHeadlessSystemUserMode()) {
             setSystemUserRestrictions();
         }
-        mGlobalSettings.putInt(mContext.getContentResolver(),
+        mSettings.putIntGlobal(mContext.getContentResolver(),
                 CarSettings.Global.DEFAULT_USER_RESTRICTIONS_SET, 1);
     }
 
@@ -2199,8 +2184,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private void handleStartUser(@UserIdInt int userId, int displayId,
             ResultCallbackImpl<UserStartResponse> callback) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "handleStartUser. UserId: " + userId);
         @UserStartResponse.Status int userStartStatus = startUserInternal(userId, displayId);
         sendUserStartUserResponse(userId, displayId, userStartStatus, callback);
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private void sendUserStartUserResponse(@UserIdInt int userId, int displayId,
@@ -2229,7 +2216,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_USER_DOES_NOT_EXIST;
         }
 
-        if (!mSupportsSecurePassengerUsers && LockPatternHelper.isSecure(mContext, userId)) {
+        if (!Flags.supportsSecurePassengerUsers() && LockPatternHelper.isSecure(mContext, userId)) {
             // Passenger lock screen not currently supported - reject user start
             Slogf.w(TAG, "Secure user %d cannot be started as a passenger", userId);
             return UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
@@ -2291,8 +2278,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private void handleStartUserInBackground(@UserIdInt int userId,
             AndroidFuture<UserStartResult> receiver) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE,
+                "handleStartUserInBackground. UserId: " + userId);
         int result = startUserInBackgroundInternal(userId);
         sendUserStartResult(userId, result, receiver);
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private @UserStartResult.Status int startUserInBackgroundInternal(@UserIdInt int userId) {
@@ -2612,9 +2602,29 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 Slogf.e(TAG, "No main display for occupant zone:%d", zoneId);
                 continue;
             }
-            CarLocalServices.getService(CarActivityService.class)
-                    .startUserPickerOnDisplay(displayId);
+            // TODO(b/368612643): Add unit tests for this behavior
+            if (!isUserPickerVisible(displayId)) {
+                CarLocalServices.getService(CarActivityService.class).startUserPickerOnDisplay(
+                        displayId);
+            }
         }
+    }
+
+    private boolean isUserPickerVisible(int displayId) {
+        List<ActivityManager.RunningTaskInfo> tasks = CarLocalServices.getService(
+                CarActivityService.class).getVisibleTasksInternal(displayId);
+        for (int i = tasks.size() - 1; i >= 0; i--) {
+            ActivityManager.RunningTaskInfo taskInfo = tasks.get(i);
+            if (taskInfo.topActivity == null) {
+                continue;
+            }
+            if (Objects.equals(taskInfo.topActivity.flattenToString(), mUserPickerName)) {
+                // UserPicker activity found in the visible activities
+                return true;
+            }
+        }
+        // UserPicker activity not visible
+        return false;
     }
 
     @VisibleForTesting

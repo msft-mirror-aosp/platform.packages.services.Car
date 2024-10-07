@@ -106,9 +106,7 @@ public final class InitialUserSetterTest {
     @Mock
     private CurrentUserFetcher mCurrentUserFetcher;
     @Mock
-    private CarUserService.GlobalSettings mGlobalSettings;
-    @Mock
-    private InitialUserSetter.SystemSettings mSystemSettings;
+    private com.android.car.provider.Settings mSettings;
 
     // Spy used in tests that need to verify the default behavior as fallback
     private InitialUserSetter mSetter;
@@ -134,19 +132,19 @@ public final class InitialUserSetterTest {
                 mMockedUserHandleHelper, new InitialUserSetter.Deps(
                         mUm, OWNER_NAME, GUEST_NAME, isHeadlessSystemUserMode,
                         mActivityManagerHelper, mCarSystemProperties, mLockPatternHelper,
-                        mCurrentUserFetcher, mGlobalSettings, mSystemSettings
+                        mCurrentUserFetcher, mSettings
                 )));
     }
 
     @Before
     public void setFixtures() {
-        when(mGlobalSettings.putInt(any(), any(), anyInt())).thenAnswer((inv) -> {
+        when(mSettings.putIntGlobal(any(), any(), anyInt())).thenAnswer((inv) -> {
             synchronized (mLock) {
                 mFakeGlobalSettings.put(inv.getArgument(1), inv.getArgument(2));
             }
             return true;
         });
-        when(mGlobalSettings.getInt(any(), any(), anyInt())).thenAnswer((inv) -> {
+        when(mSettings.getIntGlobal(any(), any(), anyInt())).thenAnswer((inv) -> {
             synchronized (mLock) {
                 String key = inv.getArgument(1);
                 Integer result = mFakeGlobalSettings.get(key);
@@ -156,7 +154,7 @@ public final class InitialUserSetterTest {
                 return result;
             }
         });
-        when(mSystemSettings.putString(any(), any(), any())).thenAnswer((inv) -> {
+        when(mSettings.putStringSystem(any(), any(), any())).thenAnswer((inv) -> {
             synchronized (mLock) {
                 mFakeSystemSettings.put(inv.getArgument(1), inv.getArgument(2));
             }

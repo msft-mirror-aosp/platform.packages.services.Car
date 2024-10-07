@@ -115,6 +115,7 @@ import com.android.car.internal.common.UserHelperLite;
 import com.android.car.internal.os.CarSystemProperties;
 import com.android.car.internal.user.UserHelper;
 import com.android.car.pm.CarPackageManagerService;
+import com.android.car.provider.Settings;
 import com.android.internal.R;
 import com.android.internal.util.Preconditions;
 
@@ -612,15 +613,9 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
 
     protected class TestCarUserServiceBuilder {
         private boolean mSwitchGuestUserBeforeGoingSleep = false;
-        private boolean mSupportsSecurePassengerUsers = false;
 
         protected TestCarUserServiceBuilder setSwitchGuestUserBeforeGoingSleep(boolean enabled) {
             mSwitchGuestUserBeforeGoingSleep = enabled;
-            return this;
-        }
-
-        protected TestCarUserServiceBuilder setSupportsSecurePassengerUsers(boolean enabled) {
-            mSupportsSecurePassengerUsers = enabled;
             return this;
         }
 
@@ -628,10 +623,6 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
             when(mMockedResources
                     .getBoolean(com.android.car.R.bool.config_switchGuestUserBeforeGoingSleep))
                     .thenReturn(mSwitchGuestUserBeforeGoingSleep);
-
-            when(mMockedResources
-                    .getBoolean(com.android.car.R.bool.config_supportsSecurePassengerUsers))
-                    .thenReturn(mSupportsSecurePassengerUsers);
 
             when(mMockedResources
                     .getString(com.android.car.R.string.config_userPickerActivity))
@@ -652,7 +643,7 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
                     new CarUserService.Deps(mMockedUserHandleHelper, mMockedDevicePolicyManager,
                             mMockedActivityManager, mInitialUserSetter, mHandler,
                             new ActivityManagerCurrentUserFetcher(),
-                            new CarUserService.SystemGlobalSettings()));
+                            new Settings.DefaultImpl()));
         }
     }
 

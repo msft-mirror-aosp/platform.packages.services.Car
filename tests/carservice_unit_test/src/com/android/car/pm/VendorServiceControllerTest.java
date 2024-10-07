@@ -56,6 +56,7 @@ import com.android.car.CarUxRestrictionsManagerService;
 import com.android.car.hal.UserHalService;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.power.CarPowerManagementService;
+import com.android.car.provider.Settings;
 import com.android.car.user.CarUserService;
 import com.android.car.user.CurrentUserFetcher;
 import com.android.car.user.UserHandleHelper;
@@ -147,7 +148,7 @@ public final class VendorServiceControllerTest extends AbstractExpectableTestCas
     @Mock
     private Context mBaseContext;
     @Mock
-    private CarUserService.GlobalSettings mGlobalSettings;
+    private Settings mSettings;
 
     private ServiceLauncherContext mContext;
     private CarUserService mCarUserService;
@@ -164,7 +165,7 @@ public final class VendorServiceControllerTest extends AbstractExpectableTestCas
         mContext = new ServiceLauncherContext(mBaseContext);
 
         // Required for getting/setting user ID in InitialUserSetter.
-        when(mGlobalSettings.getInt(any(), any(), anyInt())).thenAnswer((inv) -> {
+        when(mSettings.getIntGlobal(any(), any(), anyInt())).thenAnswer((inv) -> {
             // Return the default value.
             return inv.getArgument(2);
         });
@@ -202,7 +203,7 @@ public final class VendorServiceControllerTest extends AbstractExpectableTestCas
                 new CarUserService.Deps(new UserHandleHelper(mContext, mUserManager),
                         mDevicePolicyManager, mActivityManager,
                         /* initialUserSetter= */ null, /* handler= */ null,
-                        mCurrentUserFetcher, mGlobalSettings));
+                        mCurrentUserFetcher, mSettings));
 
         CarLocalServices.removeServiceForTest(CarUserService.class);
         CarLocalServices.addService(CarUserService.class, mCarUserService);

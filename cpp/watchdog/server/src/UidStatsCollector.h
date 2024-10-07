@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef CPP_WATCHDOG_SERVER_SRC_UIDSTATSCOLLECTOR_H_
-#define CPP_WATCHDOG_SERVER_SRC_UIDSTATSCOLLECTOR_H_
+#pragma once
 
 #include "PackageInfoResolver.h"
 #include "UidCpuStatsCollector.h"
@@ -108,7 +107,7 @@ private:
             const std::unordered_map<uid_t, int64_t>& cpuTimeMillisByUid) const;
 
     // Local PackageInfoResolverInterface instance. Useful to mock in tests.
-    sp<PackageInfoResolverInterface> mPackageInfoResolver;
+    std::shared_ptr<PackageInfoResolverInterface> mPackageInfoResolver;
 
     mutable Mutex mMutex;
 
@@ -129,5 +128,3 @@ private:
 }  // namespace watchdog
 }  // namespace automotive
 }  // namespace android
-
-#endif  //  CPP_WATCHDOG_SERVER_SRC_UIDSTATSCOLLECTOR_H_

@@ -400,7 +400,7 @@ public class CarPropertyManager extends CarManagerBase {
          * and the success callback will be called.
          *
          * <p>If this is set to {@code true} (by default), the success callback will be called when
-         * both of the following coniditions are met:
+         * both of the following conditions are met:
          *
          * <ul>
          * <li>the set operation is successfully delivered to vehicle bus.
@@ -1377,11 +1377,6 @@ public class CarPropertyManager extends CarManagerBase {
      * {@code callbackExecutor} is {@code null}, the callback will be executed on the default event
      * handler thread. If no AreaIds are specified, then it will subscribe to all AreaIds for that
      * PropertyId.
-     *
-     * <p>
-     * Only one executor can be registered to a callback. The callback must be unregistered before
-     * trying to register another executor for the same callback. (A callback cannot have
-     * multiple executors)
      *
      * <p>Only one executor can be registered to a callback. The callback must be unregistered
      * before trying to register another executor for the same callback. (E.G. A callback cannot
@@ -2738,7 +2733,7 @@ public class CarPropertyManager extends CarManagerBase {
      * unavailable for a while.
      * @throws PropertyNotAvailableAndRetryException when [propertyId, areaId] is temporarily not
      * available and likely that retrying will be successful.
-     * @throws IllegalArgumentException when the [propertyId, areaId] is not supported.
+     * @throws IllegalArgumentException when the [propertyId, areaId] or value is not supported.
      */
     public <E> void setProperty(@NonNull Class<E> clazz, int propertyId, int areaId,
             @NonNull E val) {
@@ -3178,6 +3173,8 @@ public class CarPropertyManager extends CarManagerBase {
      * @param setPropertyCallback the callback function to deliver the result
      * @throws SecurityException if missing permission to write one of the specific properties.
      * @throws IllegalArgumentException if one of the properties to set is not supported.
+     * @throws IllegalArgumentException if one of the values to set is not supported by the
+     *   property.
      * @throws IllegalArgumentException if one of the properties is not readable and does not set
      *   {@code waitForPropertyUpdate} to {@code false}.
      * @throws IllegalArgumentException if one of the properties is

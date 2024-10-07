@@ -32,10 +32,11 @@ import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAI
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW;
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_TRY_AGAIN;
 
-import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.internal.property.CarPropertyErrorCodes.convertVhalStatusCodeToCarPropertyManagerErrorCodes;
+import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
 import static com.android.car.internal.property.CarPropertyErrorCodes.STATUS_OK;
+import static com.android.car.internal.property.CarPropertyErrorCodes.convertVhalStatusCodeToCarPropertyManagerErrorCodes;
 import static com.android.car.internal.property.CarPropertyHelper.isSystemProperty;
 import static com.android.car.internal.property.GetSetValueResult.newGetValueResult;
 import static com.android.car.internal.property.InputSanitizationUtils.sanitizeUpdateRateHz;
@@ -155,6 +156,7 @@ public class PropertyHalService extends HalServiceBase {
 
     public record ClientType(Integer requestId) {
         @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = DEBUGGING_CODE)
         public String toString() {
             if (requestId == CAR_PROP_SVC_REQUEST_ID) {
                 return "PropertyHalService.subscribeProperty";

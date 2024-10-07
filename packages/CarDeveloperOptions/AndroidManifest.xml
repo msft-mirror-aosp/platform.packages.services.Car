@@ -325,6 +325,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$CombinedBiometricSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.bluetooth.DevicePickerActivity"
             android:enabled="false"
             android:exported="false"
@@ -560,24 +569,6 @@
 
         <activity
             android:name="com.android.settings.Settings$ZenModeSettingsActivity"
-            android:enabled="false"
-            android:exported="false"
-            tools:node="merge"
-            tools:replace="android:exported">
-            <intent-filter tools:node="removeAll"/>
-        </activity>
-
-        <activity
-            android:name="com.android.settings.notification.zen.ZenSuggestionActivity"
-            android:enabled="false"
-            android:exported="false"
-            tools:node="merge"
-            tools:replace="android:exported">
-            <intent-filter tools:node="removeAll"/>
-        </activity>
-
-        <activity
-            android:name="com.android.settings.notification.zen.ZenOnboardingActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -1309,7 +1300,7 @@
             tools:replace="android:exported"/>
 
         <activity
-            android:name="com.android.settings.biometrics.fingerprint.FingerprintEnrollIntroduction"
+            android:name="com.android.settings.biometrics.fingerprint.FingerprintEnroll"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -1333,7 +1324,7 @@
             tools:replace="android:exported"/>
 
         <activity
-            android:name="com.android.settings.biometrics.fingerprint.SetupFingerprintEnrollIntroduction"
+            android:name="com.android.settings.biometrics.fingerprint.FingerprintEnroll$SetupActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -1650,6 +1641,15 @@
 
         <activity
             android:name="com.android.settings.Settings$BugReportHandlerPickerActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.bluetooth.BluetoothKeyMissingDialog"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -3124,6 +3124,15 @@
         </receiver>
 
         <receiver
+            android:name="com.android.settings.bluetooth.BluetoothKeyMissingReceiver"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
+        <receiver
             android:name="com.android.settings.bluetooth.BluetoothPermissionRequest"
             android:enabled="false"
             android:exported="false"
@@ -3313,6 +3322,14 @@
         </receiver>
 
         <receiver android:name="com.android.settings.connecteddevice.audiosharing.AudioSharingReceiver"
+            android:exported="false"
+            android:enabled="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
+        <receiver android:name="com.android.settings.shortcut.ShortcutsUpdateReceiver"
             android:exported="false"
             android:enabled="false"
             tools:node="merge"
