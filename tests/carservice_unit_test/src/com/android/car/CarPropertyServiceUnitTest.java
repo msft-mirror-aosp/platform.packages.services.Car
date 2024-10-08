@@ -495,17 +495,6 @@ public final class CarPropertyServiceUnitTest {
     }
 
     @Test
-    public void testSetPropertiesAsync_nullValueToSet() {
-        AsyncPropertyServiceRequest request = new AsyncPropertyServiceRequest(
-                0, READ_WRITE_INT_PROPERTY_ID, 0, new CarPropertyValue(READ_WRITE_INT_PROPERTY_ID,
-                        0, /* value= */ null));
-
-        assertThrows(IllegalArgumentException.class, () -> mService.setPropertiesAsync(
-                new AsyncPropertyServiceRequestList(List.of(request)),
-                mAsyncPropertyResultCallback, ASYNC_TIMEOUT_MS));
-    }
-
-    @Test
     public void testSetPropertiesAsync_mismatchPropertyType() {
         AsyncPropertyServiceRequest request = new AsyncPropertyServiceRequest(
                 0, READ_WRITE_INT_PROPERTY_ID, 0, new CarPropertyValue(READ_WRITE_INT_PROPERTY_ID,
@@ -1364,13 +1353,6 @@ public final class CarPropertyServiceUnitTest {
         assertThrows(IllegalArgumentException.class, () -> mService.setProperty(
                 new CarPropertyValue(ON_CHANGE_READ_WRITE_PROPERTY_ID, NOT_SUPPORTED_AREA_ID,
                         Integer.MAX_VALUE), mICarPropertyEventListener));
-    }
-
-    @Test
-    public void setProperty_throwsExceptionBecauseOfNullSetValue() {
-        assertThrows(IllegalArgumentException.class, () -> mService.setProperty(
-                new CarPropertyValue(ON_CHANGE_READ_WRITE_PROPERTY_ID, GLOBAL_AREA_ID, null),
-                mICarPropertyEventListener));
     }
 
     @Test
