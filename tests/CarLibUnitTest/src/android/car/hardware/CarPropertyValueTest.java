@@ -14,21 +14,17 @@
  * limitations under the License.
  */
 
-package android.car.apitest;
+package android.car.hardware;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import android.car.VehicleAreaType;
-import android.car.hardware.CarPropertyValue;
-
-import androidx.test.filters.MediumTest;
 
 import org.junit.Test;
 
 /**
  * Unit tests for {@link CarPropertyValue}
  */
-@MediumTest
 public final class CarPropertyValueTest extends CarPropertyTestBase {
     private static final int PROPERTY_ID = 1234;
     private static final int AREA_ID = 5678;
