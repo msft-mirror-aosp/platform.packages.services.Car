@@ -50,7 +50,6 @@ package android.car {
     field public static final String PERMISSION_CAR_DIAGNOSTIC_READ_ALL = "android.car.permission.CAR_DIAGNOSTICS";
     field public static final String PERMISSION_CAR_DRIVING_STATE = "android.car.permission.CAR_DRIVING_STATE";
     field public static final String PERMISSION_CAR_DYNAMICS_STATE = "android.car.permission.CAR_DYNAMICS_STATE";
-    field public static final String PERMISSION_CAR_ENGINE_DETAILED = "android.car.permission.CAR_ENGINE_DETAILED";
     field public static final String PERMISSION_CAR_EPOCH_TIME = "android.car.permission.CAR_EPOCH_TIME";
     field public static final String PERMISSION_CAR_INSTRUMENT_CLUSTER_CONTROL = "android.car.permission.CAR_INSTRUMENT_CLUSTER_CONTROL";
     field @FlaggedApi("android.car.feature.cluster_health_monitoring") public static final String PERMISSION_CAR_MONITOR_CLUSTER_NAVIGATION_STATE = "android.car.permission.CAR_MONITOR_CLUSTER_NAVIGATION_STATE";
@@ -317,7 +316,6 @@ package android.car {
     field @FlaggedApi("android.car.feature.android_vic_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CAR_DYNAMICS_STATE)) public static final int ELECTRONIC_STABILITY_CONTROL_STATE = 289408015; // 0x1140040f
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_ADAS_SETTINGS, android.car.Car.PERMISSION_CONTROL_ADAS_SETTINGS})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_ADAS_SETTINGS)) public static final int EMERGENCY_LANE_KEEP_ASSIST_ENABLED = 287313933; // 0x1120100d
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_ADAS_STATES)) public static final int EMERGENCY_LANE_KEEP_ASSIST_STATE = 289411086; // 0x1140100e
-    field @RequiresPermission(android.car.Car.PERMISSION_CAR_ENGINE_DETAILED) public static final int ENGINE_IDLE_AUTO_STOP_ENABLED = 287310624; // 0x11200320
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_ADAS_SETTINGS, android.car.Car.PERMISSION_CONTROL_ADAS_SETTINGS})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_ADAS_SETTINGS)) public static final int FORWARD_COLLISION_WARNING_ENABLED = 287313922; // 0x11201002
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_ADAS_STATES)) public static final int FORWARD_COLLISION_WARNING_STATE = 289411075; // 0x11401003
     field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_GLOVE_BOX) public static final int GLOVE_BOX_DOOR_POS = 356518896; // 0x15400bf0

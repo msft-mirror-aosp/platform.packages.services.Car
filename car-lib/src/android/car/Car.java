@@ -19,6 +19,7 @@ package android.car;
 import static android.car.CarLibLog.TAG_CAR;
 import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_CLUSTER_HEALTH_MONITORING;
+import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
@@ -755,9 +756,8 @@ public final class Car implements ICarBase {
 
     /**
      * Permission necessary to access car's engine information.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_ENGINE_DETAILED =
             "android.car.permission.CAR_ENGINE_DETAILED";
 

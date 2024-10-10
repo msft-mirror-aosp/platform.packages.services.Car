@@ -17,6 +17,7 @@
 package android.car;
 
 import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
+import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
@@ -620,10 +621,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_IDLE_AUTO_STOP_ENABLED = 287310624;
     /**
