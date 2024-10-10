@@ -46,7 +46,7 @@ java_defaults {
     ],
 
     srcs: [
-        "dep/src/android/car/AbstractExtendedMockitoCarServiceTestCase.java",
+        "dep/src/**/*.java",
     ],
 
     libs: [
@@ -193,6 +193,148 @@ android_test {
     ],
 
     test_config: "AndroidTest_UserTest.xml",
+}
+
+android_test {
+    name: "CarServiceTelemetryUnitTest",
+
+    srcs: [
+        "src/com/android/car/telemetry/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_TelemetryTest.xml",
+}
+
+android_test {
+    name: "CarServiceSystemUiUnitTest",
+
+    srcs: [
+        "src/com/android/car/systemui/keyguard/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_SystemUiTest.xml",
+}
+
+android_test {
+    name: "CarServiceSystemInterfaceUnitTest",
+
+    srcs: [
+        "src/com/android/car/systeminterface/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_SystemInterfaceTest.xml",
+}
+
+android_test {
+    name: "CarServiceStorageMonitoringUnitTest",
+
+    srcs: [
+        "src/com/android/car/storagemonitoring/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_StorageMonitoringTest.xml",
+}
+
+android_test {
+    name: "CarServiceStatsUnitTest",
+
+    srcs: [
+        "src/com/android/car/stats/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_StatsTest.xml",
+}
+
+android_test {
+    name: "CarServiceRemoteAccessUnitTest",
+
+    srcs: [
+        "src/com/android/car/remoteaccess/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_RemoteAccessTest.xml",
+}
+
+android_test {
+    name: "CarServicePropertyUnitTest",
+
+    srcs: [
+        "src/com/android/car/property/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_PropertyTest.xml",
+}
+
+android_test {
+    name: "CarServicePowerUnitTest",
+
+    srcs: [
+        "src/com/android/car/power/*.java",
+        ":car-service-dump-proto-srcs",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+        "car-framework-aconfig-libraries",
+    ],
+
+    test_config: "AndroidTest_PowerTest.xml",
+}
+
+android_test {
+    name: "CarServicePmUnitTest",
+
+    srcs: [
+        "src/com/android/car/pm/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_PmTest.xml",
+}
+
+android_test {
+    name: "CarServiceOsUnitTest",
+
+    srcs: [
+        "src/com/android/car/os/*.java",
+    ],
+
+    defaults: [
+        "CarServiceUnitTestDefaults",
+    ],
+
+    test_config: "AndroidTest_OsTest.xml",
 }
 
 android_ravenwood_test {
