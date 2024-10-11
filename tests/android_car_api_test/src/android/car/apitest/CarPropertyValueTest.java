@@ -214,6 +214,16 @@ public final class CarPropertyValueTest extends CarPropertyTestBase {
     }
 
     @Test
+    public void toString_mixedValue_containsMeaningfulValue() {
+        String stringRepr = new CarPropertyValue<Object[]>(PROPERTY_ID, AREA_ID, TIMESTAMP_NANOS,
+                        new Object[]{"abcd", 1, false}).toString();
+
+        expectThat(stringRepr.contains("abcd"));
+        expectThat(stringRepr.contains("1"));
+        expectThat(stringRepr.contains("false"));
+    }
+
+    @Test
     public void getStatus_returnsAvailable() {
         assertThat(CAR_PROPERTY_VALUE.getStatus()).isEqualTo(CarPropertyValue.STATUS_AVAILABLE);
     }
