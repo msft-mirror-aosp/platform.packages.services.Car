@@ -1095,10 +1095,19 @@ public class CarPropertyManager extends CarManagerBase {
      * </ul>
      *
      * <p>
-     * <b>Note:</b> When this function is called, the callback will receive the current
+     * <b>Note:</b> When this function is called, if for the {@code CarPropertyManager} instance,
+     * this is the first callback registered for the property, it will receive the current
      * values for all the areaIds for the property through property change events if they are
      * currently okay for reading. If they are not available for reading or in error state,
      * property change events with a unavailable or error status will be generated.
+     *
+     * <p>
+     * <b>Note:</b> If the client has {@link android.content.pm.ApplicationInfo#targetSdkVersion} <
+     * 16, if the client calls this function after the property is already registered
+     * (aka, this is not the first callback registered for the property),
+     * it is not guaranteed that the initial current-value event will be generated. If the client
+     * has {@link android.content.pm.ApplicationInfo#targetSdkVersion} > 16, it is guaranteed that
+     * the initial current-value event will always be generated for every call.
      *
      * <p>For properties that might be unavailable for reading because their power state
      * is off, property change events containing the property's initial value will be generated
@@ -1317,10 +1326,19 @@ public class CarPropertyManager extends CarManagerBase {
      * <p>The {@code carPropertyEventCallback} is executed on a single default event handler thread.
      *
      * <p>
-     * <b>Note:</b> When this function is called, the callback will receive the current
-     * values of the subscribed [propertyId, areaId]s through property change events if they are
-     * currently okay for reading. If they are not available for reading or in error state,
+     * <b>Note:</b> When this function is called, if for the {@code CarPropertyManager} instance,
+     * this is the first callback registered for the [propertyId, areaId], it will receive the
+     * current values of the subscribed [propertyId, areaId]s through property change events if they
+     * are currently okay for reading. If they are not available for reading or in error state,
      * property change events with a unavailable or error status will be generated.
+     *
+     * <p>
+     * <b>Note:</b> If the client has {@link android.content.pm.ApplicationInfo#targetSdkVersion} <
+     * 16, if the client calls this function after the [propertyId, areaId] is already registered
+     * (aka, this is not the first callback registered for the [propertyId, areaId]),
+     * it is not guaranteed that the initial current-value event will be generated. If the client
+     * has {@link android.content.pm.ApplicationInfo#targetSdkVersion} > 16, it is guaranteed that
+     * the initial current-value event will always be generated for every call.
      *
      * <p>Note that the callback will be executed on the event handler provided to the
      * {@link android.car.Car} or the main thread if none was provided.
