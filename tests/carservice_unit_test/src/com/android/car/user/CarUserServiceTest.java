@@ -2152,6 +2152,23 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     }
 
     @Test
+    public void testCreateUser_guest_successEvenWithDisallowAddUser() throws Exception {
+        mockUmHasUserRestrictionForUser(mMockedUserManager, Process.myUserHandle(),
+                UserManager.DISALLOW_ADD_USER, /* value= */ true);
+        mockExistingUsersAndCurrentUser(mAdminUser);
+        int userId = mGuestUserId;
+        mockUmCreateGuest(mMockedUserManager, "guest", userId);
+        mockHalCreateUser(HalCallback.STATUS_OK, CreateUserStatus.SUCCESS);
+
+        createUser("guest", UserManager.USER_TYPE_FULL_GUEST, /* flags= */ 0,
+                ASYNC_CALL_TIMEOUT_MS, mUserCreationResultCallback, NO_CALLER_RESTRICTIONS);
+
+        UserCreationResult result = getUserCreationResult();
+        assertThat(result.getStatus()).isEqualTo(UserCreationResult.STATUS_SUCCESSFUL);
+        assertThat(result.getUser().getIdentifier()).isEqualTo(userId);
+    }
+
+    @Test
     public void testCreateUser_concurrentRequests_success() throws Exception {
         mockExistingUsersAndCurrentUser(mAdminUser);
         when(mMockedUserManager.createUser(any()))

@@ -1365,7 +1365,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 flags, timeoutMs, hasCallerRestrictions ? 1 : 0);
 
         UserHandle callingUser = Binder.getCallingUserHandle();
-        if (mUserManager.hasUserRestrictionForUser(UserManager.DISALLOW_ADD_USER, callingUser)) {
+        // GUEST user can be created regardless of DISALLOW_ADD_USER restriction.
+        if (!userType.equals(UserManager.USER_TYPE_FULL_GUEST)
+                && mUserManager.hasUserRestrictionForUser(
+                        UserManager.DISALLOW_ADD_USER, callingUser)) {
             String internalErrorMessage = String.format(ERROR_TEMPLATE_DISALLOW_ADD_USER,
                     callingUser, UserManager.DISALLOW_ADD_USER);
             Slogf.w(TAG, internalErrorMessage);
