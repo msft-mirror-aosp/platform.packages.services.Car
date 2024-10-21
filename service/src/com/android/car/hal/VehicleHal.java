@@ -1771,4 +1771,13 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
     public void cancelRequests(List<Integer> vehicleStubRequestIds) {
         mVehicleStub.cancelRequests(vehicleStubRequestIds);
     }
+
+    /**
+     * Whether this VehicleStub supports dynamic supported values API.
+     *
+     * This is only supported on AIDL VHAL >= V4.
+     */
+    public boolean supportedDynamicSupportedValues() {
+        return mVehicleStub.supportedDynamicSupportedValues();
+    }
 }

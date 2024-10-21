@@ -19,6 +19,7 @@ package com.android.car.hal;
 import static android.car.Car.PERMISSION_VENDOR_EXTENSION;
 import static android.car.VehiclePropertyIds.HVAC_TEMPERATURE_SET;
 import static android.car.VehiclePropertyIds.PERF_VEHICLE_SPEED;
+import static android.car.hardware.CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ;
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_INTERNAL_ERROR;
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAILABLE;
 import static android.car.hardware.property.VehicleVendorPermission.PERMISSION_GET_CAR_VENDOR_CATEGORY_ENGINE;
@@ -52,7 +53,9 @@ import static org.mockito.Mockito.when;
 import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
+import android.car.hardware.property.AreaIdConfig;
 import android.car.hardware.property.CarPropertyManager;
+import android.car.test.AbstractExpectableTestCase;
 import android.hardware.automotive.vehicle.VehiclePropError;
 import android.hardware.automotive.vehicle.VehicleProperty;
 import android.hardware.automotive.vehicle.VehiclePropertyChangeMode;
@@ -78,6 +81,7 @@ import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.GetSetValueResult;
 import com.android.car.internal.property.GetSetValueResultList;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.property.RawPropertyValue;
 import com.android.internal.annotations.VisibleForTesting;
 
 import org.junit.After;
@@ -100,7 +104,7 @@ import java.util.Map;
 import java.util.Set;
 
 @RunWith(AndroidJUnit4.class)
-public class PropertyHalServiceTest {
+public class PropertyHalServiceTest extends AbstractExpectableTestCase{
     @Rule
     public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -2795,6 +2799,58 @@ public class PropertyHalServiceTest {
 
         // The retry request must go to VehicleHal.
         verify(mVehicleHal).unsubscribeProperty(any(), eq(PERF_VEHICLE_SPEED));
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_dynamicSupportedValuesNotSupported() {
+        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        int areaId = 0;
+        float minValue = 1.23f;
+        float maxValue = 3.21f;
+        var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
+                .setMinValue(minValue).setMaxValue(maxValue).build();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                PERF_VEHICLE_SPEED, 0, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(minValue);
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(maxValue);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_dynamicSupportedValuesNotSupported_nullMinValue() {
+        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        int areaId = 0;
+        float maxValue = 3.21f;
+        var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
+                .setMaxValue(maxValue).build();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                PERF_VEHICLE_SPEED, 0, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class))
+                .isNull();
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(maxValue);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_dynamicSupportedValuesNotSupported_nullMaxValue() {
+        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        int areaId = 0;
+        float minValue = 1.23f;
+        var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
+                .setMinValue(minValue).build();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                PERF_VEHICLE_SPEED, 0, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(minValue);
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class))
+                .isNull();
     }
 
     /** Creates a {@code CarSubscription} with Vur off. */

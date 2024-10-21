@@ -792,7 +792,7 @@ package android.car.hardware.property {
     method public float getFloatProperty(int, int);
     method @NonNull public int[] getIntArrayProperty(int, int);
     method public int getIntProperty(int, int);
-    method @FlaggedApi("android.car.feature.car_property_supported_value") public <T> android.car.hardware.property.CarPropertyManager.MinMaxSupportedValue<T> getMinMaxSupportedValue(int, int);
+    method @FlaggedApi("android.car.feature.car_property_supported_value") public <T> android.car.hardware.property.MinMaxSupportedValue<T> getMinMaxSupportedValue(int, int);
     method public void getPropertiesAsync(@NonNull java.util.List<android.car.hardware.property.CarPropertyManager.GetPropertyRequest>, long, @Nullable android.os.CancellationSignal, @Nullable java.util.concurrent.Executor, @NonNull android.car.hardware.property.CarPropertyManager.GetPropertyCallback);
     method public void getPropertiesAsync(@NonNull java.util.List<android.car.hardware.property.CarPropertyManager.GetPropertyRequest>, @Nullable android.os.CancellationSignal, @Nullable java.util.concurrent.Executor, @NonNull android.car.hardware.property.CarPropertyManager.GetPropertyCallback);
     method @Nullable public <E> android.car.hardware.CarPropertyValue<E> getProperty(@NonNull Class<E>, int, int);
@@ -869,11 +869,6 @@ package android.car.hardware.property {
     method public int getRequestId();
     method public long getTimestampNanos();
     method @NonNull public T getValue();
-  }
-
-  @FlaggedApi("android.car.feature.car_property_supported_value") public static class CarPropertyManager.MinMaxSupportedValue<T> {
-    method @FlaggedApi("android.car.feature.car_property_supported_value") @Nullable public T getMaxValue();
-    method @FlaggedApi("android.car.feature.car_property_supported_value") @Nullable public T getMinValue();
   }
 
   public static final class CarPropertyManager.PropertyAsyncError {
@@ -966,6 +961,11 @@ package android.car.hardware.property {
     field public static final int RAW_GNSS_ONLY = 256; // 0x100
     field public static final int STEERING_ANGLE_FUSION = 32; // 0x20
     field public static final int WHEEL_SPEED_FUSION = 16; // 0x10
+  }
+
+  @FlaggedApi("android.car.feature.car_property_supported_value") public class MinMaxSupportedValue<T> {
+    method @FlaggedApi("android.car.feature.car_property_supported_value") @Nullable public T getMaxValue();
+    method @FlaggedApi("android.car.feature.car_property_supported_value") @Nullable public T getMinValue();
   }
 
   public class PropertyAccessDeniedSecurityException extends java.lang.SecurityException {

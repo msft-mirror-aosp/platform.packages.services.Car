@@ -21,11 +21,12 @@ import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.ICarPropertyEventListener;
 
 import com.android.car.internal.property.AsyncPropertyServiceRequest;
-import com.android.car.internal.property.IAsyncPropertyResultCallback;
-import com.android.car.internal.property.CarPropertyConfigList;
 import com.android.car.internal.property.AsyncPropertyServiceRequestList;
+import com.android.car.internal.property.CarPropertyConfigList;
 import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.GetPropertyConfigListResult;
+import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
 
 /**
@@ -88,4 +89,14 @@ interface ICarProperty {
      */
     void getAndDispatchInitialValue(in List<PropIdAreaId> propIdAreaIds,
             in ICarPropertyEventListener callback);
+
+    /**
+     * Gets the currently min/max supported value.
+     *
+     * @return The currently supported min/max value.
+     * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
+     * @throws SecurityException if the caller does not have read and does not have write access
+     *      for the property.
+     */
+    MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId);
 }

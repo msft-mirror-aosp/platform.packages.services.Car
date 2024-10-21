@@ -70,6 +70,7 @@ import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.GetPropertyConfigListResult;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
 import com.android.car.internal.property.InputSanitizationUtils;
+import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.internal.property.SubscriptionManager;
 import com.android.car.internal.util.ArrayUtils;
@@ -1136,6 +1137,26 @@ public class CarPropertyService extends ICarProperty.Stub
     @Override
     public void cancelRequests(int[] serviceRequestIds) {
         mPropertyHalService.cancelRequests(serviceRequestIds);
+    }
+
+    @Override
+    public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId) {
+        var config = getCarPropertyConfig(propertyId);
+        var propertyIdStr = VehiclePropertyIds.toString(propertyId);
+        if (config == null) {
+            throw new IllegalArgumentException("The property: " + propertyIdStr
+                    + " is not supported");
+        }
+        // This will throw IllegalArgumentException if areaId is not supported.
+        AreaIdConfig<?> areaIdConfig = config.getAreaIdConfig(areaId);
+
+        if (!mPropertyHalService.isReadable(mContext, propertyId)
+                && !mPropertyHalService.isWritable(mContext, propertyId)) {
+            throw new SecurityException("Caller missing read or write permission to access"
+                    + " property: " + propertyIdStr);
+        }
+
+        return mPropertyHalService.getMinMaxSupportedValue(propertyId, areaId, areaIdConfig);
     }
 
     private void assertPropertyIsReadable(CarPropertyConfig<?> carPropertyConfig,

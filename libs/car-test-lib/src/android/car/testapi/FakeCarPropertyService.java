@@ -41,6 +41,7 @@ import com.android.car.internal.property.GetPropertyConfigListResult;
 import com.android.car.internal.property.GetSetValueResult;
 import com.android.car.internal.property.GetSetValueResultList;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.internal.util.PairSparseArray;
 import com.android.internal.annotations.GuardedBy;
@@ -246,6 +247,13 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
                 sendEvent(v);
             }
         }
+    }
+
+    @Override
+    public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId) {
+        // This is currently unused, so just return a fake result here that doesn't support
+        // min or max value.
+        return new MinMaxSupportedPropertyValue();
     }
 
     private void sendEvent(CarPropertyValue v) {
