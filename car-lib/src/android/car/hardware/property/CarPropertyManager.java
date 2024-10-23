@@ -3410,7 +3410,26 @@ public class CarPropertyManager extends CarManagerBase {
      */
     @FlaggedApi(FLAG_CAR_PROPERTY_SUPPORTED_VALUE)
     public <T> @Nullable List<T> getSupportedValuesList(int propertyId, int areaId) {
-        return null;
+        assertPropertyIdIsSupported(propertyId);
+
+        List<RawPropertyValue> supportedRawPropertyValues;
+        try {
+            // This throws IllegalArgumentException or SecurityException, we just rethrow.
+            supportedRawPropertyValues = mService.getSupportedValuesList(propertyId, areaId);
+        } catch (RemoteException e) {
+            return handleRemoteExceptionFromCarService(e, null);
+        }
+
+        if (supportedRawPropertyValues == null) {
+            return null;
+        }
+
+        List<T> mutableReturnValues = new ArrayList<T>();
+        for (int i = 0; i < supportedRawPropertyValues.size(); i++) {
+            mutableReturnValues.add((T) supportedRawPropertyValues.get(i).getTypedValue());
+        }
+        // Returns an immutable list.
+        return List.copyOf(mutableReturnValues);
     }
 
     /**

@@ -28,6 +28,7 @@ import com.android.car.internal.property.GetPropertyConfigListResult;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
 import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
+import com.android.car.internal.property.RawPropertyValue;
 
 /**
  * @hide
@@ -99,4 +100,17 @@ interface ICarProperty {
      *      for the property.
      */
     MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId);
+
+    /**
+     * Gets the currently supported values list.
+     *
+     * <p>The returned supported value list is in sorted ascending order if the property is of
+     * type int32, int64 or float.
+     *
+     * @return The currently supported values list.
+     * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
+     * @throws SecurityException if the caller does not have read and does not have write access
+     *      for the property.
+     */
+    @nullable List<RawPropertyValue> getSupportedValuesList(int propertyId, int areaId);
 }

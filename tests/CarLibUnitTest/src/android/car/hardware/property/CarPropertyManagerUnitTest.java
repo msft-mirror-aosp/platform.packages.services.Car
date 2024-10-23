@@ -3219,4 +3219,60 @@ public final class CarPropertyManagerUnitTest extends AbstractExpectableTestCase
         assertThrows(SecurityException.class, () ->
                 mCarPropertyManager.getMinMaxSupportedValue(INT32_PROP, 0));
     }
+
+    @Test
+    public void testGetSupportedValuesList() throws Exception {
+        List<RawPropertyValue> resultsFromCarService = new ArrayList<>();
+        resultsFromCarService.add(new RawPropertyValue(0));
+        resultsFromCarService.add(new RawPropertyValue(1));
+
+        when(mICarProperty.getSupportedValuesList(INT32_PROP, 0)).thenReturn(resultsFromCarService);
+
+        List<Integer> result = mCarPropertyManager.getSupportedValuesList(INT32_PROP, 0);
+
+        assertThat(result).containsExactly(0, 1);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_notSupportedPropertyId() throws Exception {
+        assertThrows(IllegalArgumentException.class,
+                () -> mCarPropertyManager.getSupportedValuesList(INVALID, 0));
+    }
+
+    @Test
+    public void testGetSupportedValuesList_nullFromCarService() throws Exception {
+        when(mICarProperty.getSupportedValuesList(INT32_PROP, 0)).thenReturn(null);
+
+        List<Integer> result = mCarPropertyManager.getSupportedValuesList(INT32_PROP, 0);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    public void testGetSupportedValuesList_RemoteExceptionFromCarService() throws Exception {
+        when(mICarProperty.getSupportedValuesList(INT32_PROP, 0)).thenThrow(new RemoteException());
+
+        List<Integer> result = mCarPropertyManager.getSupportedValuesList(INT32_PROP, 0);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    public void testGetSupportedValuesList_SecurityExceptionFromCarService() throws Exception {
+        when(mICarProperty.getSupportedValuesList(INT32_PROP, 0)).thenThrow(
+                new SecurityException());
+
+        assertThrows(SecurityException.class,
+                () -> mCarPropertyManager.getSupportedValuesList(INT32_PROP, 0));
+    }
+
+    @Test
+    public void testGetSupportedValuesList_IllegalArgumentExceptionFromCarService()
+            throws Exception {
+        when(mICarProperty.getSupportedValuesList(INT32_PROP, 0)).thenThrow(
+                new IllegalArgumentException());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> mCarPropertyManager.getSupportedValuesList(INT32_PROP, 0));
+    }
 }

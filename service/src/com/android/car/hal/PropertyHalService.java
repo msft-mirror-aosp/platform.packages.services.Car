@@ -1368,7 +1368,7 @@ public class PropertyHalService extends HalServiceBase {
      *
      * The passed in [propertyId, areaId] is already checked and must be supported.
      *
-     * @return The currently supported min/max vaule.
+     * @return The currently supported min/max value.
      */
     public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId,
             AreaIdConfig<?> areaIdConfig) {
@@ -1387,6 +1387,33 @@ public class PropertyHalService extends HalServiceBase {
                         areaIdConfig.getMinValue()));
             }
             return returnValue;
+        }
+    }
+
+    /**
+     * Gets the currently supported values list.
+     *
+     * The passed in [propertyId, areaId] is already checked and must be supported.
+     *
+     * @return The currently supported values list or {@code null} if not specified.
+     */
+    @Nullable
+    public List<RawPropertyValue> getSupportedValuesList(int propertyId, int areaId,
+            AreaIdConfig<?> areaIdConfig) {
+        if (mVehicleHal.supportedDynamicSupportedValues()) {
+            // TODO
+            return null;
+        } else {
+            // If VHAL does not support value range, we use areaIdConfig.
+            if (!areaIdConfig.hasSupportedValuesList()) {
+                return null;
+            }
+            List<RawPropertyValue> returnValues = new ArrayList<>();
+            var supportedEnumValues = areaIdConfig.getSupportedEnumValues();
+            for (int i = 0; i < supportedEnumValues.size(); i++) {
+                returnValues.add(new RawPropertyValue(supportedEnumValues.get(i)));
+            }
+            return returnValues;
         }
     }
 

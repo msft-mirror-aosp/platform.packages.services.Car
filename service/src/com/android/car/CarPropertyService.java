@@ -72,6 +72,7 @@ import com.android.car.internal.property.IAsyncPropertyResultCallback;
 import com.android.car.internal.property.InputSanitizationUtils;
 import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
+import com.android.car.internal.property.RawPropertyValue;
 import com.android.car.internal.property.SubscriptionManager;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -1139,8 +1140,32 @@ public class CarPropertyService extends ICarProperty.Stub
         mPropertyHalService.cancelRequests(serviceRequestIds);
     }
 
+    /**
+     * @throws IllegalArgumentException If the propertyId or areaId is not supported.
+     * @throws SecurityException If caller does not have read and does not have write permission.
+     */
     @Override
     public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId) {
+        var areaIdConfig = verifyGetSupportedValueRequestAndGetAreaIdConfig(propertyId, areaId);
+        return mPropertyHalService.getMinMaxSupportedValue(propertyId, areaId, areaIdConfig);
+    }
+
+    /**
+     * @throws IllegalArgumentException If the propertyId or areaId is not supported.
+     * @throws SecurityException If caller does not have read and does not have write permission.
+     */
+    @Override
+    public @Nullable List<RawPropertyValue> getSupportedValuesList(int propertyId, int areaId) {
+        var areaIdConfig = verifyGetSupportedValueRequestAndGetAreaIdConfig(propertyId, areaId);
+        return mPropertyHalService.getSupportedValuesList(propertyId, areaId, areaIdConfig);
+    }
+
+    /**
+     * @throws IllegalArgumentException If the propertyId or areaId is not supported.
+     * @throws SecurityException If caller does not have read and does not have write permission.
+     */
+    private AreaIdConfig<?> verifyGetSupportedValueRequestAndGetAreaIdConfig(
+            int propertyId, int areaId) {
         var config = getCarPropertyConfig(propertyId);
         var propertyIdStr = VehiclePropertyIds.toString(propertyId);
         if (config == null) {
@@ -1155,8 +1180,7 @@ public class CarPropertyService extends ICarProperty.Stub
             throw new SecurityException("Caller missing read or write permission to access"
                     + " property: " + propertyIdStr);
         }
-
-        return mPropertyHalService.getMinMaxSupportedValue(propertyId, areaId, areaIdConfig);
+        return areaIdConfig;
     }
 
     private void assertPropertyIsReadable(CarPropertyConfig<?> carPropertyConfig,

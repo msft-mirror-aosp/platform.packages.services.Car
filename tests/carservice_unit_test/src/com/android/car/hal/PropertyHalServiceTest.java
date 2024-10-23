@@ -98,6 +98,7 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -2851,6 +2852,36 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 .getTypedValue()).isEqualTo(minValue);
         expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class))
                 .isNull();
+    }
+
+    @Test
+    public void testGetSupportedValuesList_dynamicSupportedValuesNotSupported() {
+        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        int areaId = 0;
+        var testSupportedValues = new ArrayList<Float>(Arrays.asList(1.1f, 2.2f));
+        var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
+                .setSupportedEnumValues(testSupportedValues).build();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                PERF_VEHICLE_SPEED, 0, areaIdConfig);
+
+        assertThat(supportedValuesList).hasSize(2);
+        expectThat(supportedValuesList.get(0).getTypedValue()).isEqualTo(1.1f);
+        expectThat(supportedValuesList.get(1).getTypedValue()).isEqualTo(2.2f);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_dynamicSupportedValuesNotSupported_notSpecified() {
+        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        int areaId = 0;
+        var testSupportedValues = new ArrayList<Float>(Arrays.asList(1.1f, 2.2f));
+        var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
+                .setHasSupportedValuesList(false).build();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                PERF_VEHICLE_SPEED, 0, areaIdConfig);
+
+        assertThat(supportedValuesList).isNull();
     }
 
     /** Creates a {@code CarSubscription} with Vur off. */
