@@ -833,6 +833,13 @@ class CarProjectionService extends ICarProjection.Stub implements CarServiceBase
     }
 
     private void sendApStarted(SoftApConfiguration softApConfiguration) {
+        if (mFeatureFlags.setBssidOnApStarted() && mApBssid != null) {
+            softApConfiguration = new SoftApConfiguration.Builder(softApConfiguration)
+                .setMacRandomizationSetting(SoftApConfiguration.RANDOMIZATION_NONE)
+                .setBssid(mApBssid)
+                .build();
+        }
+
         Message message = Message.obtain();
         message.what = CarProjectionManager.PROJECTION_AP_STARTED;
         message.obj = softApConfiguration;
