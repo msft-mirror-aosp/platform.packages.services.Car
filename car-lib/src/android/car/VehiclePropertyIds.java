@@ -430,6 +430,41 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_INFO))
     public static final int INFO_MODEL_TRIM = 286261517;
     /**
+     * Vehicle Size Class.
+     *
+     * <p>This property communicates the list of size classifications that the vehicle follows
+     * according to the multiple standards that are defined in {@link
+     * android.car.hardware.property.VehicleSizeClass}
+     *
+     * <p>For example, suppose a vehicle model follows the {@link
+     * android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT} standard in the EU and the
+     * {@link android.car.hardware.property.VehicleSizeClass#JPN_KEI} standard in Japan. In this
+     * scenario this property must return an intArray = [{@link
+     * android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT}, {@link
+     * android.car.hardware.property.VehicleSizeClass#JPN_KEI}]. If this vehicle only follows
+     * the EU {@link android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT} standard, then we
+     * expect intArray = [{@link android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT}].
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Normal permission {@link Car#PERMISSION_CAR_INFO} to read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link android.car.hardware.property.VehicleSizeClass}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_INFO))
+    public static final int INFO_VEHICLE_SIZE_CLASS = 289472782;
+    /**
      * Current odometer value of the vehicle in kilometers.
      *
      * <p>Property Config:
