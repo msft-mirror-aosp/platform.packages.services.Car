@@ -434,6 +434,18 @@ public class CarProjectionServiceTest {
     }
 
     @Test
+    public void getWifiChannels_wifiManagerFeatureOn_wifiManagerFails_returnsEmptyArray() {
+        when(mFeatureFlags.useWifiManagerForAvailableChannels()).thenReturn(true);
+        when(mWifiManager.getUsableChannels(anyInt(), anyInt()))
+            .thenThrow(new UnsupportedOperationException());
+        when(mContext.getSystemService(WifiManager.class)).thenReturn(mWifiManager);
+
+        int[] wifiChannels = mService.getAvailableWifiChannels(WifiScanner.WIFI_BAND_BOTH_WITH_DFS);
+        assertThat(wifiChannels).isNotNull();
+        assertThat(wifiChannels).isEmpty();
+    }
+
+    @Test
     public void addedKeyEventHandler_getsDispatchedEvents() throws RemoteException {
         ICarProjectionKeyEventHandler eventHandler = createMockKeyEventHandler();
 
