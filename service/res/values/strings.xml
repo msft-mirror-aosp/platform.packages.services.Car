@@ -323,6 +323,11 @@
     <!-- Permission text: apps access car's exterior lights state [CHAR LIMIT=NONE] -->
     <string name="car_permission_desc_car_exterior_lights">Access car\u2019s exterior lights state.</string>
 
+    <!-- Permission text: 3P apps access car's exterior lights state [CHAR LIMIT=NONE] -->
+    <string name="car_permission_label_read_car_exterior_lights">read car\u2019s exterior lights state</string>
+    <!-- Permission text: 3P apps access car's exterior lights state [CHAR LIMIT=NONE] -->
+    <string name="car_permission_desc_read_car_exterior_lights">Read car\u2019s exterior lights state.</string>
+
     <!-- Permission text: apps access car's glove box state [CHAR LIMIT=NONE] -->
     <string name="car_permission_label_control_glove_box">access car\u2019s glove box state</string>
     <!-- Permission text: apps access car's glove box state [CHAR LIMIT=NONE] -->

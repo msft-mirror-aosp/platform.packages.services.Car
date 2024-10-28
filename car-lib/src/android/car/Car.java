@@ -17,6 +17,7 @@
 package android.car;
 
 import static android.car.CarLibLog.TAG_CAR;
+import static android.car.feature.Flags.FLAG_ANDROID_B_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_CLUSTER_HEALTH_MONITORING;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
@@ -645,6 +646,13 @@ public final class Car implements ICarBase {
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_EXTERIOR_LIGHTS =
             "android.car.permission.CAR_EXTERIOR_LIGHTS";
+
+    /**
+     * Dangerous permission necessary to read car's exterior lights information.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_READ_EXTERIOR_LIGHTS =
+            "android.car.permission.READ_CAR_EXTERIOR_LIGHTS";
 
     /**
      * Signature|Privileged permission necessary to read car's interior lights information.

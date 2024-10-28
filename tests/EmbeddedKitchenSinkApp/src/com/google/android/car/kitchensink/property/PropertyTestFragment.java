@@ -76,6 +76,7 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
         Car.PERMISSION_MILEAGE_3P,
         Car.PERMISSION_ENERGY,
         Car.PERMISSION_READ_CAR_SEATS,
+        Car.PERMISSION_READ_EXTERIOR_LIGHTS,
         Car.PERMISSION_READ_STEERING_STATE_3P,
         Car.PERMISSION_SPEED,
         Car.PERMISSION_TIRES_3P,
