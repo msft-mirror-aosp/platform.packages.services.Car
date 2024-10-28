@@ -616,6 +616,35 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_MILEAGE_3P))
     public static final int INSTANTANEOUS_FUEL_ECONOMY = 291504657;
     /**
+     * Instantaneous EV efficiency in km/kWh.
+     *
+     * <p>This property communicates the instantaneous EV battery efficiency of the vehicle in units
+     * of km/kWh. Clients can reference the value of  {@link #DISTANCE_DISPLAY_UNITS} and {@link
+     * #EV_BATTERY_DISPLAY_UNITS} before displaying this property to the user to match the display
+     * units used by rest of the system.
+     *
+     * <p>For the fuel version of this property, see {@link
+     * #INSTANTANEOUS_FUEL_ECONOMY}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_MILEAGE_3P} to read
+     property.
+     *  <li>Property is not writable.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_MILEAGE_3P))
+    public static final int INSTANTANEOUS_EV_EFFICIENCY = 291504658;
+    /**
      * Temperature of engine coolant in celsius.
      *
      * <p>Property Config:

@@ -489,6 +489,7 @@ package android.car {
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MULTI_EV_PORT_LOCATIONS = 289472780; // 0x1141010c
     field @FlaggedApi("android.car.feature.android_b_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CAR_INFO)) public static final int INFO_VEHICLE_SIZE_CLASS = 289472782; // 0x1141010e
     field @RequiresPermission(android.car.Car.PERMISSION_IDENTIFICATION) public static final int INFO_VIN = 286261504; // 0x11100100
+    field @FlaggedApi("android.car.feature.android_b_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_MILEAGE_3P)) public static final int INSTANTANEOUS_EV_EFFICIENCY = 291504658; // 0x11600212
     field @FlaggedApi("android.car.feature.android_b_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_MILEAGE_3P)) public static final int INSTANTANEOUS_FUEL_ECONOMY = 291504657; // 0x11600211
     field public static final int INVALID = 0; // 0x0
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_ADAS_STATES)) public static final int LANE_CENTERING_ASSIST_COMMAND = 289411083; // 0x1140100b
