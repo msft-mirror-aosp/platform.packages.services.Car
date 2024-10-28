@@ -54,6 +54,7 @@ package android.car {
     field public static final String PERMISSION_CONTROL_CAR_ENERGY = "android.car.permission.CONTROL_CAR_ENERGY";
     field public static final String PERMISSION_CONTROL_DISPLAY_UNITS = "android.car.permission.CONTROL_CAR_DISPLAY_UNITS";
     field public static final String PERMISSION_CONTROL_INTERIOR_LIGHTS = "android.car.permission.CONTROL_CAR_INTERIOR_LIGHTS";
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_VALET_MODE = "android.car.permission.CONTROL_VALET_MODE";
     field public static final String PERMISSION_ENERGY = "android.car.permission.CAR_ENERGY";
     field public static final String PERMISSION_ENERGY_PORTS = "android.car.permission.CAR_ENERGY_PORTS";
     field public static final String PERMISSION_EXTERIOR_ENVIRONMENT = "android.car.permission.CAR_EXTERIOR_ENVIRONMENT";
@@ -65,6 +66,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_IMPACT_SENSORS = "android.car.permission.READ_IMPACT_SENSORS";
     field public static final String PERMISSION_READ_INTERIOR_LIGHTS = "android.car.permission.READ_CAR_INTERIOR_LIGHTS";
     field public static final String PERMISSION_READ_STEERING_STATE = "android.car.permission.READ_CAR_STEERING";
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_VALET_MODE = "android.car.permission.READ_VALET_MODE";
     field public static final String PERMISSION_SPEED = "android.car.permission.CAR_SPEED";
     field public static final String PERMISSION_USE_REMOTE_ACCESS = "android.car.permission.USE_REMOTE_ACCESS";
     field @Deprecated public static final int PLATFORM_VERSION_MINOR_INT;
@@ -473,6 +475,7 @@ package android.car {
     field @RequiresPermission("android.car.permission.CAR_DYNAMICS_STATE") public static final int TRACTION_CONTROL_ACTIVE = 287310859; // 0x1120040b
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_PRIVILEGED_CAR_INFO)) public static final int TRAILER_PRESENT = 289410885; // 0x11400f45
     field @RequiresPermission("android.car.permission.CAR_EXTERIOR_LIGHTS") public static final int TURN_SIGNAL_STATE = 289408008; // 0x11400408
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_VALET_MODE, android.car.Car.PERMISSION_CONTROL_VALET_MODE})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_VALET_MODE)) public static final int VALET_MODE_ENABLED = 287312389; // 0x11200a05
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_PRIVILEGED_CAR_INFO)) public static final int VEHICLE_CURB_WEIGHT = 289410886; // 0x11400f46
     field @Deprecated @RequiresPermission(anyOf={"android.car.permission.VMS_PUBLISHER", "android.car.permission.VMS_SUBSCRIBER"}) public static final int VEHICLE_MAP_SERVICE = 299895808; // 0x11e00c00
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DISPLAY_UNITS)) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(allOf={android.car.Car.PERMISSION_CONTROL_DISPLAY_UNITS, "android.car.permission.CAR_VENDOR_EXTENSION"})) public static final int VEHICLE_SPEED_DISPLAY_UNITS = 289408516; // 0x11400604

@@ -1346,19 +1346,15 @@ public final class Car implements ICarBase {
 
     /**
      * Permission necessary to read valet mode
-     * @hide
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_VALET_MODE =
             "android.car.permission.READ_VALET_MODE";
 
     /**
      * Permission necessary to control valet mode
-     * @hide
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_VALET_MODE =
             "android.car.permission.CONTROL_VALET_MODE";
 

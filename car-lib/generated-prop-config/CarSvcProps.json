@@ -1388,8 +1388,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_VALET_MODE"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "HEAD_UP_DISPLAY_ENABLED": {
       "propertyName": "HEAD_UP_DISPLAY_ENABLED",
