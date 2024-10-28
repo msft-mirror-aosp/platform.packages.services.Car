@@ -71,6 +71,7 @@ import android.car.PlatformVersion;
 import android.car.SyncResultCallback;
 import android.car.VehicleAreaSeat;
 import android.car.builtin.app.ActivityManagerHelper;
+import android.car.builtin.os.StorageManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.widget.LockPatternHelper;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
@@ -113,6 +114,7 @@ import android.view.Display;
 import com.android.car.hal.HalCallback;
 import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.util.DebugUtils;
+import com.android.dx.mockito.inline.extended.ExtendedMockito;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -2455,6 +2457,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
     @Test
     public void testStartUser_securePassenger_supported() throws Exception {
+        doReturn(false).when(() -> StorageManagerHelper.isUserStorageUnlocked(TEST_USER_ID));
         doReturn(true).when(() -> LockPatternHelper.isSecure(any(), anyInt()));
         initUserAndDisplay(TEST_USER_ID, TEST_DISPLAY_ID);
 
@@ -2466,6 +2469,20 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         assertThat(getUserStartResponse().getStatus())
                 .isEqualTo(UserStartResponse.STATUS_SUCCESSFUL);
         assertThat(getUserStartResponse().isSuccess()).isTrue();
+    }
+
+    @Test
+    public void testStartUser_securePassenger_locksUser() throws Exception {
+        doReturn(true).when(() -> StorageManagerHelper.isUserStorageUnlocked(TEST_USER_ID));
+        doReturn(true).when(() -> LockPatternHelper.isSecure(any(), anyInt()));
+        initUserAndDisplay(TEST_USER_ID, TEST_DISPLAY_ID);
+
+        mSetFlagsRule.enableFlags(FLAG_SUPPORTS_SECURE_PASSENGER_USERS);
+        UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(TEST_USER_ID))
+                .setDisplayId(TEST_DISPLAY_ID).build();
+        startUser(request, mUserStartResultCallbackImpl);
+
+        ExtendedMockito.verify(() -> StorageManagerHelper.lockUserStorage(any(), eq(TEST_USER_ID)));
     }
 
     @Test
