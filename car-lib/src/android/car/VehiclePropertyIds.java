@@ -655,10 +655,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.ImpactSensorLocation}
      *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_IMPACT_SENSORS))
     public static final int IMPACT_DETECTED = 289407792;
     /**

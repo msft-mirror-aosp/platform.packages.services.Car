@@ -1339,10 +1339,8 @@ public final class Car implements ICarBase {
 
     /**
      * Permission necessary to read impact sensors information.
-     * @hide
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_IMPACT_SENSORS =
             "android.car.permission.READ_IMPACT_SENSORS";
 

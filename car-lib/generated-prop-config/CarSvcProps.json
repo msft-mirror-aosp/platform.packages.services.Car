@@ -297,7 +297,6 @@
         "type": "single",
         "value": "android.car.permission.READ_IMPACT_SENSORS"
       },
-      "systemApi": true,
       "dataEnums": [
         1,
         2,
@@ -307,7 +306,7 @@
         32,
         64
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "WHEEL_TICK": {
       "propertyName": "WHEEL_TICK",
