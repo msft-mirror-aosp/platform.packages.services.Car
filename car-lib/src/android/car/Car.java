@@ -582,7 +582,7 @@ public final class Car implements ICarBase {
     /**
      * Dangerous permission necessary to access car's mileage information.
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
     public static final String PERMISSION_MILEAGE_3P = "android.car.permission.CAR_MILEAGE_3P";
 
     /**
