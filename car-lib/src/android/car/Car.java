@@ -1361,20 +1361,15 @@ public final class Car implements ICarBase {
     /**
      * Permission necessary to read head up display status (e.g. whether the head up display is
      * enabled)
-     *
-     * @hide
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_HEAD_UP_DISPLAY_STATUS =
             "android.car.permission.READ_HEAD_UP_DISPLAY_STATUS";
 
     /**
      * Permission necessary to control head up display
-     * @hide
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_HEAD_UP_DISPLAY =
             "android.car.permission.CONTROL_HEAD_UP_DISPLAY";
 

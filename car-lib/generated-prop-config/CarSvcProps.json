@@ -1411,8 +1411,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_HEAD_UP_DISPLAY"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "HW_KEY_INPUT": {
       "propertyName": "HW_KEY_INPUT",
