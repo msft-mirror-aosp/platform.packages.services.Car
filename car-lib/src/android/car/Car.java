@@ -599,18 +599,17 @@ public final class Car implements ICarBase {
     /** Permission necessary to access car's speed. */
     public static final String PERMISSION_SPEED = "android.car.permission.CAR_SPEED";
 
-    /** Permission necessary to access car's dynamics state.
-     *  @hide
+    /**
+     * Permission necessary to access car's dynamics state.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_DYNAMICS_STATE =
             "android.car.permission.CAR_DYNAMICS_STATE";
 
-    /** Permission necessary to control car's dynamics state.
-     *  @hide
+    /**
+     * Permission necessary to control car's dynamics state.
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_DYNAMICS_STATE =
             "android.car.permission.CONTROL_CAR_DYNAMICS_STATE";
 
