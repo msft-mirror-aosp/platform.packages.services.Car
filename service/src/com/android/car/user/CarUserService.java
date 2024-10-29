@@ -47,6 +47,7 @@ import android.car.VehicleAreaSeat;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.builtin.devicepolicy.DevicePolicyManagerHelper;
+import android.car.builtin.os.StorageManagerHelper;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -1365,7 +1366,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 flags, timeoutMs, hasCallerRestrictions ? 1 : 0);
 
         UserHandle callingUser = Binder.getCallingUserHandle();
-        if (mUserManager.hasUserRestrictionForUser(UserManager.DISALLOW_ADD_USER, callingUser)) {
+        // GUEST user can be created regardless of DISALLOW_ADD_USER restriction.
+        if (!userType.equals(UserManager.USER_TYPE_FULL_GUEST)
+                && mUserManager.hasUserRestrictionForUser(
+                        UserManager.DISALLOW_ADD_USER, callingUser)) {
             String internalErrorMessage = String.format(ERROR_TEMPLATE_DISALLOW_ADD_USER,
                     callingUser, UserManager.DISALLOW_ADD_USER);
             Slogf.w(TAG, internalErrorMessage);
@@ -2249,6 +2253,20 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             // If the specified user is assigned to another display, the user has to be stopped
             // before it can start on another display.
             return UserStartResponse.STATUS_USER_ASSIGNED_TO_ANOTHER_DISPLAY;
+        }
+
+        if (Flags.supportsSecurePassengerUsers() && LockPatternHelper.isSecure(mContext, userId)
+                && StorageManagerHelper.isUserStorageUnlocked(userId)) {
+            if (DBG) {
+                Slogf.d(TAG,
+                        "Starting secure user %d but user storage is unlocked - locking storage "
+                                + "before starting.", userId);
+            }
+            if (!StorageManagerHelper.lockUserStorage(mContext, userId)) {
+                Slogf.e(TAG, "Attempted to lock user=" + userId
+                        + " but still returned unlocked");
+                return UserStartResponse.STATUS_ANDROID_FAILURE;
+            }
         }
 
         if (ActivityManagerHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId)) {
