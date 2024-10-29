@@ -636,6 +636,16 @@
       },
       "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
+    "VEHICLE_PASSIVE_SUSPENSION_HEIGHT": {
+      "propertyName": "VEHICLE_PASSIVE_SUSPENSION_HEIGHT",
+      "propertyId": 390071059,
+      "description": "Vehicle Passive Suspension Height in mm.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_DYNAMICS_STATE"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "GEAR_SELECTION": {
       "propertyName": "GEAR_SELECTION",
       "propertyId": 289408000,

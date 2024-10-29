@@ -1256,6 +1256,56 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_BRAKE_INFO))
     public static final int BRAKE_FLUID_LEVEL_LOW = 287310610;
     /**
+     * Vehicle Passive Suspension Height in mm.
+     *
+     * <p>This property communicates the real-time suspension displacement of the vehicle relative
+     * to its neutral position, given in mm. In other words, the displacement of the suspension at
+     * any given point in time relative to the suspension's position when the vehicle is on a flat
+     * surface with no passengers or cargo. When the suspension is compressed in comparison to the
+     * neutral position, the value should be negative. When the suspension is decompressed in
+     * comparison to the neutral position, the value should be positive.
+     *
+     * <p>Examples for further clarity:
+     * <ul>
+     *   <li>1) Suppose the user is driving on a smooth flat surface, and all wheels are currently
+     *   compressed by 2 cm in comparison to the default suspension height. In this scenario, this
+     *   property will be set to -20 for all wheels.
+     *   <li>2) Suppose the user drives over a pothole. While the front left wheel is over the
+     *   pothole, it's decompressed by 3 cm in comparison to the rest of the wheels, or 1 cm in
+     *   comparison to the default suspension height. All the others are still compressed by 2 cm.
+     *   In this scenario, this property will be set to -20 for all wheels except for the front
+     *   left, which will be set to 10.
+     * </ul>
+     *
+     * <p>{@link android.car.hardware.property.AreaIdConfig#hasMinSupportedValue()} and {@link
+     * android.car.hardware.property.AreaIdConfig#hasMaxSupportedValue()} will be {@code true} for
+     * all areas.
+     *
+     * <p>{@link android.car.hardware.property.MinMaxSupportedValue#getMinValue()} represents the
+     * lower bound of the suspension height for the wheel at the specified area ID.
+     *
+     * <p>{@link android.car.hardware.property.MinMaxSupportedValue#getMaxValue()} represents the
+     * upper bound of the suspension height for the wheel at the specified area ID.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WHEEL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_DYNAMICS_STATE} to read
+     *  property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE))
+    public static final int VEHICLE_PASSIVE_SUSPENSION_HEIGHT = 390071059;
+    /**
      * Currently selected gear by user.
      *
      * <p> See {@link VehicleGear} for gear value enum.
