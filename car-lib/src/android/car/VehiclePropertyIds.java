@@ -1177,6 +1177,33 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_PEDALS))
     public static final int ACCELERATOR_PEDAL_COMPRESSION_PERCENTAGE = 291504911;
     /**
+     * Brake pedal compression percentage.
+     *
+     * <p>This property communicates the percentage that the physical brake pedal
+     * in the vehicle is compressed. This property returns a float value from 0 to
+     * 100.
+     *
+     * <p>0 indicates the pedal's uncompressed position.
+     * <p>100 indicates the pedal's maximally compressed position.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_CAR_PEDALS} to read property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_PEDALS))
+    public static final int BRAKE_PEDAL_COMPRESSION_PERCENTAGE = 291504912;
+    /**
      * Currently selected gear by user.
      *
      * <p> See {@link VehicleGear} for gear value enum.

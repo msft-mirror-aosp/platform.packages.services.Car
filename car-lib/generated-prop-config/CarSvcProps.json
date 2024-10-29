@@ -606,6 +606,16 @@
       },
       "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
+    "BRAKE_PEDAL_COMPRESSION_PERCENTAGE": {
+      "propertyName": "BRAKE_PEDAL_COMPRESSION_PERCENTAGE",
+      "propertyId": 291504912,
+      "description": "Brake pedal compression percentage.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.READ_CAR_PEDALS"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "GEAR_SELECTION": {
       "propertyName": "GEAR_SELECTION",
       "propertyId": 289408000,
