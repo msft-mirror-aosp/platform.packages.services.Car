@@ -616,6 +616,16 @@
       },
       "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
+    "BRAKE_PAD_WEAR_PERCENTAGE": {
+      "propertyName": "BRAKE_PAD_WEAR_PERCENTAGE",
+      "propertyId": 392168209,
+      "description": "Brake pad wear percentage.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.READ_BRAKE_INFO"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "GEAR_SELECTION": {
       "propertyName": "GEAR_SELECTION",
       "propertyId": 289408000,

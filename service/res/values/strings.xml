@@ -65,6 +65,10 @@
     <string name="car_permission_label_read_car_pedals">access car\u2019s pedal information</string>
     <!-- Permission text: can access your car's pedal information [CHAR LIMIT=NONE] -->
     <string name="car_permission_desc_read_car_pedals">Access your car\u2019s pedal information.</string>
+    <!-- Permission text: can access your car's brake information [CHAR LIMIT=NONE] -->
+    <string name="car_permission_label_read_brake_info">access car\u2019s brake information</string>
+    <!-- Permission text: can access your car's brake information [CHAR LIMIT=NONE] -->
+    <string name="car_permission_desc_read_brake_info">Access your car\u2019s brake information.</string>
     <!-- Permission text: can access your car's speed [CHAR LIMIT=NONE] -->
     <string name="car_permission_label_speed">read car\u2019s speed</string>
     <!-- Permission text: can access your car's speed [CHAR LIMIT=NONE] -->

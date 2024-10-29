@@ -261,6 +261,15 @@
         android:label="@string/car_permission_label_read_car_pedals"
         android:description="@string/car_permission_desc_read_car_pedals"/>
 
+    <!-- Allows an application to read brake information.
+         <p>Protection level: dangerous
+    -->
+    <permission android:name="android.car.permission.READ_BRAKE_INFO"
+        android:permissionGroup="android.car.permission-group.CAR_MONITORING"
+        android:protectionLevel="dangerous"
+        android:label="@string/car_permission_label_read_brake_info"
+        android:description="@string/car_permission_desc_read_brake_info"/>
+
     <!-- Allows an application to read the vehicle tire pressure information.
          <p>Protection level: signature|privileged
     -->

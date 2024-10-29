@@ -688,6 +688,13 @@ public final class Car implements ICarBase {
             "android.car.permission.READ_CAR_PEDALS";
 
     /**
+     * Dangerous permission necessary to read brake information.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_READ_BRAKE_INFO =
+            "android.car.permission.READ_BRAKE_INFO";
+
+    /**
      * Signature|Privileged permission necessary to control car's interior lights.
      */
     public static final String PERMISSION_CONTROL_INTERIOR_LIGHTS =

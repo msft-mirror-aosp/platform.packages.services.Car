@@ -1204,6 +1204,33 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_PEDALS))
     public static final int BRAKE_PEDAL_COMPRESSION_PERCENTAGE = 291504912;
     /**
+     * Brake pad wear percentage.
+     *
+     * <p>This property communicates the amount of brake pad wear accumulated by
+     * the vehicle as a percentage. This property returns a float value from 0
+     * to 100.
+     *
+     * <p>0 indicates the brake pad has no wear.
+     * <p>100 indicates the brake pad is maximally worn.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WHEEL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_BRAKE_INFO} to read property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_BRAKE_INFO))
+    public static final int BRAKE_PAD_WEAR_PERCENTAGE = 392168209;
+    /**
      * Currently selected gear by user.
      *
      * <p> See {@link VehicleGear} for gear value enum.
