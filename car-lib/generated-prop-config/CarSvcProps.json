@@ -1468,7 +1468,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_DOORS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "MIRROR_Z_POS": {
       "propertyName": "MIRROR_Z_POS",

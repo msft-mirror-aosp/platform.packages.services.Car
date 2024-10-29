@@ -2446,10 +2446,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_DOORS} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_DOORS)
     public static final int DOOR_CHILD_LOCK_ENABLED = 371198723;
     /**

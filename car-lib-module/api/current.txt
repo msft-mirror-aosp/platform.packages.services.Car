@@ -53,6 +53,7 @@ package android.car {
     field public static final String PERMISSION_CAR_INFO = "android.car.permission.CAR_INFO";
     field public static final String PERMISSION_CAR_NAVIGATION_MANAGER = "android.car.permission.CAR_NAVIGATION_MANAGER";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_CLIMATE = "android.car.permission.CONTROL_CAR_CLIMATE";
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_DOORS = "android.car.permission.CONTROL_CAR_DOORS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_DYNAMICS_STATE = "android.car.permission.CONTROL_CAR_DYNAMICS_STATE";
     field public static final String PERMISSION_CONTROL_CAR_ENERGY = "android.car.permission.CONTROL_CAR_ENERGY";
     field public static final String PERMISSION_CONTROL_DISPLAY_UNITS = "android.car.permission.CONTROL_CAR_DISPLAY_UNITS";
@@ -335,9 +336,10 @@ package android.car {
     field @RequiresPermission(android.car.Car.PERMISSION_POWERTRAIN) public static final int CURRENT_GEAR = 289408001; // 0x11400401
     field @Deprecated @RequiresPermission("android.car.permission.CAR_POWER") public static final int DISPLAY_BRIGHTNESS = 289409539; // 0x11400a03
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DISPLAY_UNITS)) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(allOf={android.car.Car.PERMISSION_CONTROL_DISPLAY_UNITS, "android.car.permission.CAR_VENDOR_EXTENSION"})) public static final int DISTANCE_DISPLAY_UNITS = 289408512; // 0x11400600
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_DOORS") public static final int DOOR_LOCK = 371198722; // 0x16200b02
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_DOORS") public static final int DOOR_MOVE = 373295873; // 0x16400b01
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_DOORS") public static final int DOOR_POS = 373295872; // 0x16400b00
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_DOORS) public static final int DOOR_CHILD_LOCK_ENABLED = 371198723; // 0x16200b03
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_DOORS) public static final int DOOR_LOCK = 371198722; // 0x16200b02
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_DOORS) public static final int DOOR_MOVE = 373295873; // 0x16400b01
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_DOORS) public static final int DOOR_POS = 373295872; // 0x16400b00
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_CAR_DYNAMICS_STATE, android.car.Car.PERMISSION_CONTROL_CAR_DYNAMICS_STATE})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_DYNAMICS_STATE)) public static final int ELECTRONIC_STABILITY_CONTROL_ENABLED = 287310862; // 0x1120040e
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CAR_DYNAMICS_STATE)) public static final int ELECTRONIC_STABILITY_CONTROL_STATE = 289408015; // 0x1140040f
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int ELECTRONIC_TOLL_COLLECTION_CARD_STATUS = 289410874; // 0x11400f3a
