@@ -1231,6 +1231,31 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_BRAKE_INFO))
     public static final int BRAKE_PAD_WEAR_PERCENTAGE = 392168209;
     /**
+     * Brake fluid level low.
+     *
+     * <p>This property communicates that the brake fluid level in the vehicle is low according to
+     * the OEM. This value will match the vehicle's brake fluid level status as displayed on the
+     * instrument cluster. If the brake fluid level is low, this property will be set to {@code
+     * true}. If not, it will be set to {@code false}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Boolean} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_BRAKE_INFO} to read property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_BRAKE_INFO))
+    public static final int BRAKE_FLUID_LEVEL_LOW = 287310610;
+    /**
      * Currently selected gear by user.
      *
      * <p> See {@link VehicleGear} for gear value enum.

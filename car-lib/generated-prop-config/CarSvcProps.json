@@ -626,6 +626,16 @@
       },
       "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
+    "BRAKE_FLUID_LEVEL_LOW": {
+      "propertyName": "BRAKE_FLUID_LEVEL_LOW",
+      "propertyId": 287310610,
+      "description": "Brake fluid level low.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.READ_BRAKE_INFO"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "GEAR_SELECTION": {
       "propertyName": "GEAR_SELECTION",
       "propertyId": 289408000,
