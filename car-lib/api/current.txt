@@ -92,6 +92,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_ADAS_STATES = "android.car.permission.READ_ADAS_STATES";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_CAR_AIRBAGS = "android.car.permission.READ_CAR_AIRBAGS";
     field @FlaggedApi("android.car.feature.android_b_vehicle_properties") public static final String PERMISSION_READ_CAR_HORN = "android.car.permission.READ_CAR_HORN";
+    field @FlaggedApi("android.car.feature.android_b_vehicle_properties") public static final String PERMISSION_READ_CAR_PEDALS = "android.car.permission.READ_CAR_PEDALS";
     field public static final String PERMISSION_READ_CAR_POWER_POLICY = "android.car.permission.READ_CAR_POWER_POLICY";
     field @FlaggedApi("android.car.feature.vehicle_property_25q2_3p_permissions") public static final String PERMISSION_READ_CAR_SEATS = "android.car.permission.READ_CAR_SEATS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_CAR_SEAT_BELTS = "android.car.permission.READ_CAR_SEAT_BELTS";
@@ -364,6 +365,7 @@ package android.car {
     ctor @Deprecated public VehiclePropertyIds();
     method public static String toString(int);
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_DYNAMICS_STATE) public static final int ABS_ACTIVE = 287310858; // 0x1120040a
+    field @FlaggedApi("android.car.feature.android_b_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_CAR_PEDALS)) public static final int ACCELERATOR_PEDAL_COMPRESSION_PERCENTAGE = 291504911; // 0x1160030f
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_ADAS_STATES)) public static final int ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE = 289411093; // 0x11401015
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_ADAS_STATES, android.car.Car.PERMISSION_CONTROL_ADAS_STATES})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_ADAS_STATES)) public static final int ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP = 289411092; // 0x11401014
     field @Deprecated @RequiresPermission("android.car.permission.CAR_POWER") public static final int AP_POWER_BOOTUP_REASON = 289409538; // 0x11400a02
