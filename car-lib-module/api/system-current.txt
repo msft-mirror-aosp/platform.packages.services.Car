@@ -64,7 +64,6 @@ package android.car {
     field public static final String PERMISSION_CONTROL_APP_BLOCKING = "android.car.permission.CONTROL_APP_BLOCKING";
     field public static final String PERMISSION_CONTROL_CAR_AIRBAGS = "android.car.permission.CONTROL_CAR_AIRBAGS";
     field public static final String PERMISSION_CONTROL_CAR_APP_LAUNCH = "android.car.permission.CONTROL_CAR_APP_LAUNCH";
-    field public static final String PERMISSION_CONTROL_CAR_CLIMATE = "android.car.permission.CONTROL_CAR_CLIMATE";
     field public static final String PERMISSION_CONTROL_CAR_DOORS = "android.car.permission.CONTROL_CAR_DOORS";
     field public static final String PERMISSION_CONTROL_CAR_EVS_ACTIVITY = "android.car.permission.CONTROL_CAR_EVS_ACTIVITY";
     field public static final String PERMISSION_CONTROL_CAR_FEATURES = "android.car.permission.CONTROL_CAR_FEATURES";
@@ -314,7 +313,6 @@ package android.car {
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DRIVER_MONITORING_STATES)) public static final int HANDS_ON_DETECTION_DRIVER_STATE = 289411095; // 0x11401017
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS, android.car.Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS)) public static final int HANDS_ON_DETECTION_ENABLED = 287313942; // 0x11201016
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DRIVER_MONITORING_STATES)) public static final int HANDS_ON_DETECTION_WARNING = 289411096; // 0x11401018
-    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_ELECTRIC_DEFROSTER_ON = 320865556; // 0x13200514
     field @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_ADAS_STATES)) public static final int LANE_CENTERING_ASSIST_COMMAND = 289411083; // 0x1140100b
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_ADAS_SETTINGS, android.car.Car.PERMISSION_CONTROL_ADAS_SETTINGS})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_ADAS_SETTINGS)) public static final int LANE_CENTERING_ASSIST_ENABLED = 287313930; // 0x1120100a
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_ADAS_STATES)) public static final int LANE_CENTERING_ASSIST_STATE = 289411084; // 0x1140100c

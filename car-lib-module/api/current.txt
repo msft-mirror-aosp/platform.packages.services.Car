@@ -52,6 +52,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CAR_ENGINE_DETAILED = "android.car.permission.CAR_ENGINE_DETAILED";
     field public static final String PERMISSION_CAR_INFO = "android.car.permission.CAR_INFO";
     field public static final String PERMISSION_CAR_NAVIGATION_MANAGER = "android.car.permission.CAR_NAVIGATION_MANAGER";
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_CLIMATE = "android.car.permission.CONTROL_CAR_CLIMATE";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_DYNAMICS_STATE = "android.car.permission.CONTROL_CAR_DYNAMICS_STATE";
     field public static final String PERMISSION_CONTROL_CAR_ENERGY = "android.car.permission.CONTROL_CAR_ENERGY";
     field public static final String PERMISSION_CONTROL_DISPLAY_UNITS = "android.car.permission.CONTROL_CAR_DISPLAY_UNITS";
@@ -381,27 +382,28 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_HEAD_UP_DISPLAY_STATUS, android.car.Car.PERMISSION_CONTROL_HEAD_UP_DISPLAY})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_HEAD_UP_DISPLAY)) public static final int HEAD_UP_DISPLAY_ENABLED = 354421254; // 0x15200a06
     field @RequiresPermission("android.car.permission.CAR_EXTERIOR_LIGHTS") public static final int HIGH_BEAM_LIGHTS_STATE = 289410561; // 0x11400e01
     field @RequiresPermission("android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS") public static final int HIGH_BEAM_LIGHTS_SWITCH = 289410577; // 0x11400e11
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_ACTUAL_FAN_SPEED_RPM = 356517135; // 0x1540050f
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_AC_ON = 354419973; // 0x15200505
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_AUTO_ON = 354419978; // 0x1520050a
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_AUTO_RECIRC_ON = 354419986; // 0x15200512
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_DEFROSTER = 320865540; // 0x13200504
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_DUAL_ON = 354419977; // 0x15200509
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_FAN_DIRECTION = 356517121; // 0x15400501
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_FAN_DIRECTION_AVAILABLE = 356582673; // 0x15410511
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_FAN_SPEED = 356517120; // 0x15400500
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_MAX_AC_ON = 354419974; // 0x15200506
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_MAX_DEFROST_ON = 354419975; // 0x15200507
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_POWER_ON = 354419984; // 0x15200510
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_RECIRC_ON = 354419976; // 0x15200508
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_SEAT_TEMPERATURE = 356517131; // 0x1540050b
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_SEAT_VENTILATION = 356517139; // 0x15400513
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_SIDE_MIRROR_HEAT = 339739916; // 0x1440050c
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_STEERING_WHEEL_HEAT = 289408269; // 0x1140050d
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_TEMPERATURE_CURRENT = 358614274; // 0x15600502
-    field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_DISPLAY_UNITS, "android.car.permission.CONTROL_CAR_CLIMATE"})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE")) public static final int HVAC_TEMPERATURE_DISPLAY_UNITS = 289408270; // 0x1140050e
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_TEMPERATURE_SET = 358614275; // 0x15600503
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_CLIMATE") public static final int HVAC_TEMPERATURE_VALUE_SUGGESTION = 291570965; // 0x11610515
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_ACTUAL_FAN_SPEED_RPM = 356517135; // 0x1540050f
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_AC_ON = 354419973; // 0x15200505
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_AUTO_ON = 354419978; // 0x1520050a
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_AUTO_RECIRC_ON = 354419986; // 0x15200512
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_DEFROSTER = 320865540; // 0x13200504
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_DUAL_ON = 354419977; // 0x15200509
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_ELECTRIC_DEFROSTER_ON = 320865556; // 0x13200514
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_FAN_DIRECTION = 356517121; // 0x15400501
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_FAN_DIRECTION_AVAILABLE = 356582673; // 0x15410511
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_FAN_SPEED = 356517120; // 0x15400500
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_MAX_AC_ON = 354419974; // 0x15200506
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_MAX_DEFROST_ON = 354419975; // 0x15200507
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_POWER_ON = 354419984; // 0x15200510
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_RECIRC_ON = 354419976; // 0x15200508
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_SEAT_TEMPERATURE = 356517131; // 0x1540050b
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_SEAT_VENTILATION = 356517139; // 0x15400513
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_SIDE_MIRROR_HEAT = 339739916; // 0x1440050c
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_STEERING_WHEEL_HEAT = 289408269; // 0x1140050d
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_TEMPERATURE_CURRENT = 358614274; // 0x15600502
+    field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_DISPLAY_UNITS, android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE)) public static final int HVAC_TEMPERATURE_DISPLAY_UNITS = 289408270; // 0x1140050e
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_TEMPERATURE_SET = 358614275; // 0x15600503
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_CLIMATE) public static final int HVAC_TEMPERATURE_VALUE_SUGGESTION = 291570965; // 0x11610515
     field @Deprecated public static final int HW_KEY_INPUT = 289475088; // 0x11410a10
     field @RequiresPermission(android.car.Car.PERMISSION_POWERTRAIN) public static final int IGNITION_STATE = 289408009; // 0x11400409
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_IMPACT_SENSORS)) public static final int IMPACT_DETECTED = 289407792; // 0x11400330

@@ -1021,7 +1021,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_CLIMATE"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DISTANCE_DISPLAY_UNITS": {
       "propertyName": "DISTANCE_DISPLAY_UNITS",

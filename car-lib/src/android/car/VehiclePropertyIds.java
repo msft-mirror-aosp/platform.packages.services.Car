@@ -1978,11 +1978,9 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_CLIMATE} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
-    @SystemApi
     public static final int HVAC_ELECTRIC_DEFROSTER_ON = 320865556;
     /**
      * Distance units for display.
