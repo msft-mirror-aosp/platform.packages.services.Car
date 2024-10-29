@@ -790,6 +790,33 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_IMPACT_SENSORS))
     public static final int IMPACT_DETECTED = 289407792;
     /**
+     * Vehicle horn engaged.
+     *
+     * <p>This property communicates if the vehicle's horn is currently engaged or not. If true, the
+     * horn is engaged. If false, the horn is disengaged.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
+     *  {@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Boolean} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_CAR_HORN} or dangerous permission {@link
+     *  Car#PERMISSION_CONTROL_CAR_HORN} to read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_CONTROL_CAR_HORN} to write property.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_CAR_HORN,
+            Car.PERMISSION_CONTROL_CAR_HORN}))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_CAR_HORN))
+    public static final int VEHICLE_HORN_ENGAGED = 287310656;
+    /**
      * Reports wheel ticks.
      *
      * <p>The first element in the array is a reset count.  A reset indicates

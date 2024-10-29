@@ -668,6 +668,19 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS";
 
     /**
+     * Dangerous permission necessary to read car horn state.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_READ_CAR_HORN = "android.car.permission.READ_CAR_HORN";
+
+    /**
+     * Signature|Privileged permission necessary to control car horn state.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_CONTROL_CAR_HORN =
+            "android.car.permission.CONTROL_CAR_HORN";
+
+    /**
      * Signature|Privileged permission necessary to control car's interior lights.
      */
     public static final String PERMISSION_CONTROL_INTERIOR_LIGHTS =
