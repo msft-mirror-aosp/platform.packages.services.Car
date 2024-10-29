@@ -3156,6 +3156,24 @@
       ],
       "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
+    "VEHICLE_DRIVING_AUTOMATION_TARGET_LEVEL": {
+      "propertyName": "VEHICLE_DRIVING_AUTOMATION_TARGET_LEVEL",
+      "propertyId": 289410895,
+      "description": "Target state of vehicle autonomy.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_DRIVING_STATE"
+      },
+      "dataEnums": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "AUTOMATIC_EMERGENCY_BRAKING_ENABLED": {
       "propertyName": "AUTOMATIC_EMERGENCY_BRAKING_ENABLED",
       "propertyId": 287313920,

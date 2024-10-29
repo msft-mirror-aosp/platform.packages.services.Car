@@ -6112,12 +6112,9 @@ public final class VehiclePropertyIds {
     /**
      * Current state of vehicle autonomy.
      *
-     * <p>Defines the level of autonomy currently engaged in the vehicle from the SAE standard
-     * levels 0-5, with 0 representing no autonomy and 5 representing full driving automation. These
-     * levels are defined in accordance with the standards set in the
-     * <a href="https://www.sae.org/standards/content/j3016_202104/">J3016_202104 revision</a> of
-     * the SAE automation level taxonomy and its clarification for international audiences
-     * <a href="https://www.sae.org/blog/sae-j3016-update">here</a>.
+     * <p>Defines the level of autonomy currently engaged in the vehicle from the J3016_202104
+     * revision of the SAE standard levels 0-5, with 0 representing no autonomy and 5 representing
+     * full driving automation.
      *
      * <p>For the global area ID (0), the {@link
      * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
@@ -6145,7 +6142,52 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_DRIVING_STATE_3P,
         Car.PERMISSION_CAR_DRIVING_STATE}))
     public static final int VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL = 289410892;
-
+    /**
+     * Target state of vehicle autonomy.
+     *
+     * <p>Defines the level of autonomy being targeted by the vehicle from the J3016_202104 revision
+     * of the SAE standard levels 0-5, with 0 representing no autonomy and 5 representing full
+     * driving automation.
+     *
+     * <p>For example, suppose the vehicle is currently in a Level 3 state of automation and wants
+     * to give the driver full manual control (i.e. Level 0) as soon as it's safe to do so. In this
+     * scenario, this property will be set to {@link
+     * android.car.hardware.property.VehicleAutonomousState#LEVEL_0}. Similarly, if the vehicle is
+     * currently in Level 1 state of automation and wants to go up to Level 2, this property will be
+     * set to {@link android.car.hardware.property.VehicleAutonomousState#LEVEL_2}. If the vehicle
+     * has already reached and is currently in the target level of autonomy, this property will be
+     * equal to the value of {@link #VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.CarPropertyManager#getSupportedValuesList(int, int)} array
+     * specifies which states from {@link android.car.hardware.property.VehicleAutonomousState} are
+     * supported. This will always match the value specified by {@link
+     * android.car.hardware.property.CarPropertyManager#getSupportedValuesList(int, int)} for
+     * {@link #VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL}.
+     *
+     * <p>For the property that communicates the current state of autonomy, see
+     * {@link #VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission "android.car.permission.CAR_DRIVING_STATE" to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link android.car.hardware.property.VehicleAutonomousState}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DRIVING_STATE))
+    public static final int VEHICLE_DRIVING_AUTOMATION_TARGET_LEVEL = 289410895;
     /**
      * Enable or disable Automatic Emergency Braking (AEB).
      *
