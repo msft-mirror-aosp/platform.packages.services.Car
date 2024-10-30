@@ -740,7 +740,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         CarServiceHelperWrapper.getInstance().sendInitialUser(user);
     }
 
-    private void initResumeReplaceGuest() {
+    private void replaceGuestOnSuspend() {
         int currentUserId = mCurrentUserFetcher.getCurrentUser();
         UserHandle currentUser = mUserHandleHelper.getExistingUserHandle(currentUserId);
 
@@ -751,7 +751,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (!mInitialUserSetter.canReplaceGuestUser(currentUser)) return; // Not a guest
 
         InitialUserInfo info =
-                new InitialUserSetter.Builder(InitialUserSetter.TYPE_REPLACE_GUEST).build();
+                new InitialUserSetter.Builder(InitialUserSetter.TYPE_REPLACE_GUEST,
+                        InitialUserSetter.ON_SUSPEND).build();
 
         mInitialUserSetter.set(info);
     }
@@ -768,7 +769,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         if (mSwitchGuestUserBeforeSleep) {
-            initResumeReplaceGuest();
+            replaceGuestOnSuspend();
         }
     }
 
@@ -793,11 +794,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         boolean replaceGuest =
                 requestType == InitialUserInfoRequestType.RESUME && !mSwitchGuestUserBeforeSleep;
         checkManageUsersPermission("startInitialUser");
+        int initialUserSetterRequestType =
+                requestType == InitialUserInfoRequestType.RESUME
+                        ? InitialUserSetter.ON_RESUME : InitialUserSetter.ON_BOOT;
 
         // TODO(b/266473227): Fix isUserHalSupported() for Multi User No driver.
         if (!isUserHalSupported() || mIsVisibleBackgroundUsersOnDefaultDisplaySupported) {
             fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
-                    /* supportsOverrideUserIdProperty= */ true, requestType);
+                    /* supportsOverrideUserIdProperty= */ true, initialUserSetterRequestType);
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
             Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
                     requestType);
@@ -817,17 +821,18 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
                 String userLocales = resp.userLocales;
                 InitialUserInfo info;
-                switch(resp.action) {
+                switch (resp.action) {
                     case InitialUserInfoResponseAction.SWITCH:
                         int userId = resp.userToSwitchOrCreate.userId;
                         if (userId <= 0) {
                             Slogf.w(TAG, "invalid (or missing) user id sent by HAL: %d", userId);
                             fallbackToDefaultInitialUserBehavior(userLocales, replaceGuest,
-                                    /* supportsOverrideUserIdProperty= */ false, requestType);
+                                    /* supportsOverrideUserIdProperty= */ false,
+                                    initialUserSetterRequestType);
                             break;
                         }
-                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_SWITCH)
-                                .setRequestType(requestType)
+                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_SWITCH,
+                                initialUserSetterRequestType)
                                 .setUserLocales(userLocales)
                                 .setSwitchUserId(userId)
                                 .setReplaceGuest(replaceGuest)
@@ -837,9 +842,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
                     case InitialUserInfoResponseAction.CREATE:
                         int halFlags = resp.userToSwitchOrCreate.flags;
-                        String userName =  resp.userNameToCreate;
-                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_CREATE)
-                                .setRequestType(requestType)
+                        String userName = resp.userNameToCreate;
+                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_CREATE,
+                                initialUserSetterRequestType)
                                 .setUserLocales(userLocales)
                                 .setNewUserName(userName)
                                 .setNewUserFlags(halFlags)
@@ -849,12 +854,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
                     case InitialUserInfoResponseAction.DEFAULT:
                         fallbackToDefaultInitialUserBehavior(userLocales, replaceGuest,
-                                /* supportsOverrideUserIdProperty= */ false, requestType);
+                                /* supportsOverrideUserIdProperty= */ false,
+                                initialUserSetterRequestType);
                         break;
                     default:
                         Slogf.w(TAG, "invalid response action on %s", resp);
                         fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
-                                /* supportsOverrideUserIdProperty= */ false, requestType);
+                                /* supportsOverrideUserIdProperty= */ false,
+                                initialUserSetterRequestType);
                         break;
 
                 }
@@ -863,7 +870,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         /* userId= */ 0, /* flags= */ 0,
                         /* safeName= */ "", /* userLocales= */ "");
                 fallbackToDefaultInitialUserBehavior(/* user locale */ null, replaceGuest,
-                        /* supportsOverrideUserIdProperty= */ false, requestType);
+                        /* supportsOverrideUserIdProperty= */ false, initialUserSetterRequestType);
             }
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
             Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
@@ -872,10 +879,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void fallbackToDefaultInitialUserBehavior(String userLocales, boolean replaceGuest,
-            boolean supportsOverrideUserIdProperty, int requestType) {
+            boolean supportsOverrideUserIdProperty, int initialUserSetterRequestType) {
         InitialUserInfo info = new InitialUserSetter.Builder(
-                InitialUserSetter.TYPE_DEFAULT_BEHAVIOR)
-                .setRequestType(requestType)
+                InitialUserSetter.TYPE_DEFAULT_BEHAVIOR,
+                initialUserSetterRequestType)
                 .setUserLocales(userLocales)
                 .setReplaceGuest(replaceGuest)
                 .setSupportsOverrideUserIdProperty(supportsOverrideUserIdProperty)
