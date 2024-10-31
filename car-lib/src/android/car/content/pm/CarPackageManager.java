@@ -567,6 +567,39 @@ public final class CarPackageManager extends CarManagerBase {
         return false;
     }
 
+    /**
+     * @return true if a package requires launching in automotive display compatibility mode for the
+     * given user id, false otherwise.
+     *
+     * @hide
+     */
+    @RequiresPermission(allOf = {PERMISSION_MANAGE_DISPLAY_COMPATIBILITY,
+            android.Manifest.permission.QUERY_ALL_PACKAGES})
+    public boolean requiresDisplayCompatForUser(
+            @NonNull String packageName,
+            int userId
+    ) throws NameNotFoundException {
+        try {
+            return mService.requiresDisplayCompatForUser(packageName, userId);
+        } catch (ServiceSpecificException e) {
+            Slog.w(TAG_CAR, "Car service threw exception calling requiresDisplayCompatForUser("
+                    + packageName + ")", e);
+            if (e.errorCode == ERROR_CODE_NO_PACKAGE) {
+                throw new NameNotFoundException("cannot find " + packageName);
+            }
+            throw new RuntimeException(e);
+        } catch (SecurityException e) {
+            Slog.w(TAG_CAR, "Car service threw exception calling requiresDisplayCompatForUser("
+                    + packageName + ")", e);
+            throw e;
+        } catch (RemoteException e) {
+            Slog.w(TAG_CAR, "Car service threw exception calling requiresDisplayCompatForUser("
+                    + packageName + ")", e);
+            e.rethrowFromSystemServer();
+        }
+        return false;
+    }
+
     private void handleServiceSpecificFromCarService(ServiceSpecificException e,
             String packageName) throws NameNotFoundException {
         if (e.errorCode == ERROR_CODE_NO_PACKAGE) {
