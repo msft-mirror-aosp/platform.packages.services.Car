@@ -16,6 +16,7 @@
 
 package com.android.car.user;
 
+import static android.car.feature.Flags.FLAG_SUPPORTS_SECURE_PASSENGER_USERS;
 import static android.car.test.mocks.AndroidMockitoHelper.mockAmStartUserInBackground;
 import static android.car.test.mocks.AndroidMockitoHelper.mockAmStartUserInBackgroundVisibleOnDisplay;
 import static android.car.test.mocks.AndroidMockitoHelper.mockAmSwitchUser;
@@ -70,6 +71,7 @@ import android.car.PlatformVersion;
 import android.car.SyncResultCallback;
 import android.car.VehicleAreaSeat;
 import android.car.builtin.app.ActivityManagerHelper;
+import android.car.builtin.os.StorageManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.widget.LockPatternHelper;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
@@ -105,14 +107,17 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.Log;
 import android.view.Display;
 
 import com.android.car.hal.HalCallback;
 import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.util.DebugUtils;
+import com.android.dx.mockito.inline.extended.ExtendedMockito;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -144,6 +149,8 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     private ICarResultReceiver mAnotherLifecycleEventReceiver;
     @Mock
     private Context mMockUserContext;
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     private MockSettings mMockSettings;
 
@@ -2147,6 +2154,23 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
     }
 
     @Test
+    public void testCreateUser_guest_successEvenWithDisallowAddUser() throws Exception {
+        mockUmHasUserRestrictionForUser(mMockedUserManager, Process.myUserHandle(),
+                UserManager.DISALLOW_ADD_USER, /* value= */ true);
+        mockExistingUsersAndCurrentUser(mAdminUser);
+        int userId = mGuestUserId;
+        mockUmCreateGuest(mMockedUserManager, "guest", userId);
+        mockHalCreateUser(HalCallback.STATUS_OK, CreateUserStatus.SUCCESS);
+
+        createUser("guest", UserManager.USER_TYPE_FULL_GUEST, /* flags= */ 0,
+                ASYNC_CALL_TIMEOUT_MS, mUserCreationResultCallback, NO_CALLER_RESTRICTIONS);
+
+        UserCreationResult result = getUserCreationResult();
+        assertThat(result.getStatus()).isEqualTo(UserCreationResult.STATUS_SUCCESSFUL);
+        assertThat(result.getUser().getIdentifier()).isEqualTo(userId);
+    }
+
+    @Test
     public void testCreateUser_concurrentRequests_success() throws Exception {
         mockExistingUsersAndCurrentUser(mAdminUser);
         when(mMockedUserManager.createUser(any()))
@@ -2438,12 +2462,10 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         doReturn(true).when(() -> LockPatternHelper.isSecure(any(), anyInt()));
         initUserAndDisplay(TEST_USER_ID, TEST_DISPLAY_ID);
 
-        CarUserService service = new TestCarUserServiceBuilder().setSupportsSecurePassengerUsers(
-                false).build();
+        mSetFlagsRule.disableFlags(FLAG_SUPPORTS_SECURE_PASSENGER_USERS);
         UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(TEST_USER_ID))
                 .setDisplayId(TEST_DISPLAY_ID).build();
-        service.startUser(request, mUserStartResultCallbackImpl);
-        waitForHandlerThreadToFinish();
+        startUser(request, mUserStartResultCallbackImpl);
 
         assertThat(getUserStartResponse().getStatus())
                 .isEqualTo(UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE);
@@ -2452,19 +2474,32 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
 
     @Test
     public void testStartUser_securePassenger_supported() throws Exception {
+        doReturn(false).when(() -> StorageManagerHelper.isUserStorageUnlocked(TEST_USER_ID));
         doReturn(true).when(() -> LockPatternHelper.isSecure(any(), anyInt()));
         initUserAndDisplay(TEST_USER_ID, TEST_DISPLAY_ID);
 
-        CarUserService service = new TestCarUserServiceBuilder().setSupportsSecurePassengerUsers(
-                true).build();
+        mSetFlagsRule.enableFlags(FLAG_SUPPORTS_SECURE_PASSENGER_USERS);
         UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(TEST_USER_ID))
                 .setDisplayId(TEST_DISPLAY_ID).build();
-        service.startUser(request, mUserStartResultCallbackImpl);
-        waitForHandlerThreadToFinish();
+        startUser(request, mUserStartResultCallbackImpl);
 
         assertThat(getUserStartResponse().getStatus())
                 .isEqualTo(UserStartResponse.STATUS_SUCCESSFUL);
         assertThat(getUserStartResponse().isSuccess()).isTrue();
+    }
+
+    @Test
+    public void testStartUser_securePassenger_locksUser() throws Exception {
+        doReturn(true).when(() -> StorageManagerHelper.isUserStorageUnlocked(TEST_USER_ID));
+        doReturn(true).when(() -> LockPatternHelper.isSecure(any(), anyInt()));
+        initUserAndDisplay(TEST_USER_ID, TEST_DISPLAY_ID);
+
+        mSetFlagsRule.enableFlags(FLAG_SUPPORTS_SECURE_PASSENGER_USERS);
+        UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(TEST_USER_ID))
+                .setDisplayId(TEST_DISPLAY_ID).build();
+        startUser(request, mUserStartResultCallbackImpl);
+
+        ExtendedMockito.verify(() -> StorageManagerHelper.lockUserStorage(any(), eq(TEST_USER_ID)));
     }
 
     @Test

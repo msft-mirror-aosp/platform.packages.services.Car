@@ -21,6 +21,14 @@ flag {
   }
 }
 
+flag {
+  name: "supports_secure_passenger_users"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Support secure users to run as passengers"
+  bug: "367787957"
+}
+
 # CarPackageManager
 flag {
   name: "display_compatibility"
@@ -44,6 +52,13 @@ flag {
   namespace: "car_framework"
   description: "This flag controls if apps can query available WiFi channels using the WifiManager."
   bug: "325395533"
+}
+
+flag {
+  name: "set_bssid_on_ap_started"
+  namespace: "car_framework"
+  description: "This flag controls if BSSID is set in SoftApConfiguration."
+  bug: "256112021"
 }
 
 # CarRemoteAccessManager
@@ -98,6 +113,13 @@ flag {
   bug: "324593655"
 }
 
+flag {
+  name: "change_swaps_during_suspend_to_disk"
+  namespace: "car_framework"
+  description: "Controls whether car service allows for changing space before suspend to disk"
+  bug: "339688542"
+}
+
 # CarAudioManager
 flag {
   name: "car_audio_dynamic_devices"
@@ -145,6 +167,22 @@ flag {
     namespace: "car_framework"
     description: "Enables navigation audio usage in legacy volume mode."
     bug: "353872512"
+  }
+
+flag {
+    name: "async_audio_service_init"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Controls whether to run CarAudioService init asynchronously to improve performance"
+    bug: "368619416"
+}
+
+flag {
+    name: "audio_control_hal_configuration"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Controls whether car audio service can be configured using audio control hal configuration."
+    bug: "359686069"
 }
 
 # CarPropertyManager
@@ -186,6 +224,14 @@ flag {
   namespace: "car_framework"
   description: "Controls whether to directly handle property evnets in binder thread in CarPropertyManager"
   bug: "355703549"
+}
+
+flag {
+  name: "always_send_initial_value_event"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Controls whether to always send initial value event for new subscription, this is used to fix a previous undefined behavior where for the same client, a second callback registered for the same [propId, areaId] may/may not get initial value event"
+  bug: "372530534"
 }
 
 # CarServiceBase
@@ -313,4 +359,12 @@ flag {
     namespace: "car_framework"
     description: "Enables SDV to access packages manager functions"
     bug: "344832846"
+}
+
+# Feature for task view task reordering
+flag {
+    name: "task_view_task_reordering"
+    namespace: "car_framework"
+    description: "Enables task view task reordering"
+    bug: "369186876"
 }
