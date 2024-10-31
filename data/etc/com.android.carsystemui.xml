@@ -20,6 +20,7 @@
         <permission name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME"/>
         <permission name="android.car.permission.CAR_CONTROL_AUDIO_SETTINGS"/>
         <permission name="android.car.permission.CAR_ENROLL_TRUST"/>
+        <permission name="android.car.permission.CAR_IDENTIFICATION"/>
         <permission name="android.car.permission.CAR_INSTRUMENT_CLUSTER_CONTROL"/>
         <permission name="android.car.permission.CAR_POWER"/>
         <permission name="android.car.permission.CAR_DRIVING_STATE"/>
@@ -45,6 +46,7 @@
         <permission name="com.android.car.docklib.permission.BROADCAST_RECEIVER"/>
         <!-- used for interacting with the CarActivityService -->
         <permission name="android.car.permission.CONTROL_CAR_APP_LAUNCH"/>
-
+        <!-- used for checking media notifications -->
+        <permission name="android.permission.ACCESS_NOTIFICATIONS"/>
     </privapp-permissions>
 </permissions>
