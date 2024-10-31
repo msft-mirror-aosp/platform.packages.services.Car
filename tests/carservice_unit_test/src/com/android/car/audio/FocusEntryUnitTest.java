@@ -18,7 +18,7 @@ package com.android.car.audio;
 
 import static android.media.AudioAttributes.USAGE_MEDIA;
 
-import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.mockito.Mockito.when;
 
@@ -40,7 +40,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 @RunWith(AndroidJUnit4.class)
-public class FocusEntryTest {
+public class FocusEntryUnitTest {
 
     private static final int CLIENT_UID = 0;
     private static final String CLIENT_ID = "0";
@@ -69,7 +69,8 @@ public class FocusEntryTest {
 
         FocusEntry focusEntry = new FocusEntry(info, TEST_MEDIA_CONTEXT, mMockPM);
 
-        assertThat(focusEntry.wantsPauseInsteadOfDucking()).isTrue();
+        assertWithMessage("Focus entry with pause set")
+                .that(focusEntry.wantsPauseInsteadOfDucking()).isTrue();
     }
 
     @Test
@@ -78,7 +79,8 @@ public class FocusEntryTest {
 
         FocusEntry focusEntry = new FocusEntry(info, TEST_MEDIA_CONTEXT, mMockPM);
 
-        assertThat(focusEntry.wantsPauseInsteadOfDucking()).isFalse();
+        assertWithMessage("Focus entry without pause set")
+                .that(focusEntry.wantsPauseInsteadOfDucking()).isFalse();
     }
 
     @Test
@@ -86,7 +88,8 @@ public class FocusEntryTest {
         AudioFocusInfo info = getInfoThatReceivesDuckingEvents(false);
         FocusEntry focusEntry = new FocusEntry(info, TEST_MEDIA_CONTEXT, mMockPM);
 
-        assertThat(focusEntry.receivesDuckEvents()).isFalse();
+        assertWithMessage("Focus entry without ducking events")
+                .that(focusEntry.receivesDuckEvents()).isFalse();
     }
 
     @Test
@@ -96,7 +99,19 @@ public class FocusEntryTest {
 
         FocusEntry focusEntry = new FocusEntry(info, TEST_MEDIA_CONTEXT, mMockPM);
 
-        assertThat(focusEntry.receivesDuckEvents()).isFalse();
+        assertWithMessage("Focus entry without ducking events permission")
+                .that(focusEntry.receivesDuckEvents()).isFalse();
+    }
+
+    @Test
+    public void receivesDuckEvents_withPermissionError_returnsFalse() {
+        withPermissionError();
+        AudioFocusInfo info = getInfoThatReceivesDuckingEvents(true);
+
+        FocusEntry focusEntry = new FocusEntry(info, TEST_MEDIA_CONTEXT, mMockPM);
+
+        assertWithMessage("Focus entry with ducking events and permission error")
+                .that(focusEntry.receivesDuckEvents()).isFalse();
     }
 
     @Test
@@ -106,7 +121,17 @@ public class FocusEntryTest {
 
         FocusEntry focusEntry = new FocusEntry(info, TEST_MEDIA_CONTEXT, mMockPM);
 
-        assertThat(focusEntry.receivesDuckEvents()).isTrue();
+        assertWithMessage("Focus entry with ducking events and with permissions")
+                .that(focusEntry.receivesDuckEvents()).isTrue();
+    }
+
+    @Test
+    public void receivesDuckEvents_withEmptyBundle_returnsFalse() {
+        AudioFocusInfo info = getInfoWithBundle(new Bundle());
+        FocusEntry focusEntry = new FocusEntry(info, TEST_MEDIA_CONTEXT, mMockPM);
+
+        assertWithMessage("Focus entry with empty bundle")
+                .that(focusEntry.receivesDuckEvents()).isFalse();
     }
 
     private void withPermission() {
@@ -119,6 +144,11 @@ public class FocusEntryTest {
                 .thenReturn(PackageManager.PERMISSION_DENIED);
     }
 
+    private void withPermissionError() {
+        when(mMockPM.checkPermission(Car.PERMISSION_RECEIVE_CAR_AUDIO_DUCKING_EVENTS, PACKAGE_NAME))
+                .thenThrow(new RuntimeException("Core security failures"));
+    }
+
     private AudioFocusInfo getInfoWithFlags(int flags) {
         AudioAttributes attributes = new AudioAttributes.Builder().build();
         return getInfo(attributes, flags);
@@ -128,6 +158,10 @@ public class FocusEntryTest {
         Bundle bundle = new Bundle();
         bundle.putBoolean(CarAudioManager.AUDIOFOCUS_EXTRA_RECEIVE_DUCKING_EVENTS,
                 receivesDuckingEvents);
+        return getInfoWithBundle(bundle);
+    }
+
+    private AudioFocusInfo getInfoWithBundle(Bundle bundle) {
         AudioAttributes attributes = new AudioAttributes.Builder()
                 .addBundle(bundle)
                 .build();
