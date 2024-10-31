@@ -38,15 +38,10 @@ gensrcs {
         "soong_zip",
     ],
 
-    tool_files: [
-        ":libprotobuf-internal-protos",
-    ],
-
     cmd: "mkdir -p $(genDir)/$(in) " +
         "&& $(location aprotoc) " +
         "  --plugin=$(location protoc-gen-javastream) " +
         "  --javastream_out=$(genDir)/$(in) " +
-        "  -Iexternal/protobuf/src " +
         "  -I . " +
         "  $(in) " +
         "&& $(location soong_zip) -jar -o $(out) -C $(genDir)/$(in) -D $(genDir)/$(in)",
@@ -64,22 +59,22 @@ genrule {
         "aprotoc",
         "protoc-gen-cppstream",
     ],
+
     cmd: "mkdir -p $(genDir) " +
         "&& $(location aprotoc) " +
         "  --plugin=$(location protoc-gen-cppstream) " +
         "  --cppstream_out=$(genDir) " +
         "  --cppstream_opt=experimental_allow_proto3_optional " +
-        "  -Iexternal/protobuf/src " +
-        "  -Ipackages/services/Car/service/proto/android/car/watchdog " +
+        "  -I . " +
         "  $(in) ",
     srcs: [
         ":native-dump-proto-srcs",
     ],
 
     out: [
-        "carwatchdog_daemon_dump.proto.h",
-        "performance_stats.proto.h",
-        "health_check_client_info.proto.h",
+        "packages/services/Car/service/proto/android/car/watchdog/carwatchdog_daemon_dump.proto.h",
+        "packages/services/Car/service/proto/android/car/watchdog/performance_stats.proto.h",
+        "packages/services/Car/service/proto/android/car/watchdog/health_check_client_info.proto.h",
     ],
 }
 
@@ -88,19 +83,20 @@ genrule {
     tools: [
         "aprotoc",
     ],
+
     cmd: "mkdir -p $(genDir) " +
         "&& $(location aprotoc) " +
         "  --cpp_out=$(genDir) " +
         "  --proto_path=external/protobuf/src/google/protobuf " +
-        "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
+        "  -I . " +
         "  $(in) ",
     srcs: [
         ":native-dump-proto-srcs",
     ],
     out: [
-        "carwatchdog_daemon_dump.pb.h",
-        "performance_stats.pb.h",
-        "health_check_client_info.pb.h",
+        "packages/services/Car/service/proto/android/car/watchdog/carwatchdog_daemon_dump.pb.h",
+        "packages/services/Car/service/proto/android/car/watchdog/performance_stats.pb.h",
+        "packages/services/Car/service/proto/android/car/watchdog/health_check_client_info.pb.h",
     ],
 }
 
@@ -109,19 +105,20 @@ genrule {
     tools: [
         "aprotoc",
     ],
+
     cmd: "mkdir -p $(genDir) " +
         "&& $(location aprotoc) " +
         "  --cpp_out=$(genDir) " +
         "  --proto_path=external/protobuf/src/google/protobuf " +
-        "  --proto_path=packages/services/Car/service/proto/android/car/watchdog " +
+        "  -I . " +
         "  $(in) ",
     srcs: [
         ":native-dump-proto-srcs",
     ],
     out: [
-        "carwatchdog_daemon_dump.pb.cc",
-        "performance_stats.pb.cc",
-        "health_check_client_info.pb.cc",
+        "packages/services/Car/service/proto/android/car/watchdog/carwatchdog_daemon_dump.pb.cc",
+        "packages/services/Car/service/proto/android/car/watchdog/performance_stats.pb.cc",
+        "packages/services/Car/service/proto/android/car/watchdog/health_check_client_info.pb.cc",
     ],
 }
 
@@ -158,6 +155,7 @@ java_defaults {
     defaults: [
         "car-framework-aconfig-libraries",
         "latest_android_hardware_automotive_audiocontrol_java_static",
+        "vhal-interface-defaults",
     ],
 
     srcs: [
@@ -191,15 +189,15 @@ java_defaults {
 
     libs: [
         "android.car-module.impl",
-        "android.car.builtin",
+        "android.car.builtin.stubs.module_lib",
         "framework-annotations-lib",
-        "framework-bluetooth",
-        "framework-connectivity",
+        "framework-bluetooth.stubs.module_lib",
+        "framework-connectivity.stubs.module_lib",
         "framework-connectivity-t.stubs.module_lib",
-        "framework-location",
-        "framework-statsd",
-        "framework-tethering",
-        "framework-wifi",
+        "framework-location.stubs.module_lib",
+        "framework-statsd.stubs.module_lib",
+        "framework-tethering.stubs.module_lib",
+        "framework-wifi.stubs.module_lib",
         "modules-utils-os",
         "modules-utils-preconditions",
         "modules-utils-shell-command-handler",
@@ -215,9 +213,6 @@ java_defaults {
         "android.hardware.automotive.audiocontrol-V1.0-java",
         "android.hardware.automotive.audiocontrol-V2.0-java",
         "android.hardware.automotive.remoteaccess-V2-java",
-        "android.hardware.automotive.vehicle-V3-java",
-        "android.hardware.automotive.vehicle.property-V3-java",
-        "android.hardware.automotive.vehicle-V2.0-java",
         "android.hardware.health-V1.0-java",
         "android.hardware.health-V2.0-java",
         "android.hardware.automotive.occupant_awareness-V1-java",
@@ -277,8 +272,9 @@ android_app {
 }
 
 java_library {
-
     name: "car-service-common-util-static-lib",
+
+    defaults: ["vhal-interface-defaults"],
 
     srcs: [
         "src/com/android/car/CarServiceBase.java",
@@ -289,13 +285,8 @@ java_library {
     ],
 
     libs: [
-        "android.car.builtin",
+        "android.car.builtin.stubs.module_lib",
         "android.car",
-    ],
-
-    static_libs: [
-        "android.hardware.automotive.vehicle-V3-java",
-        "android.hardware.automotive.vehicle-V2.0-java",
     ],
 }
 
@@ -342,4 +333,13 @@ filegroup {
         "src/com/android/car/telemetry/scriptexecutorinterface/IScriptExecutorListener.aidl",
     ],
     path: "src",
+}
+
+java_defaults {
+    name: "vhal-interface-defaults",
+    static_libs: [
+        "android.hardware.automotive.vehicle-V2.0-java",
+        "android.hardware.automotive.vehicle-V3-java",
+        "android.hardware.automotive.vehicle.property-V4-java",
+    ],
 }
