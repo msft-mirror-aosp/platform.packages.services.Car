@@ -50,6 +50,7 @@ import android.app.admin.DevicePolicyManager;
 import android.car.ICarResultReceiver;
 import android.car.SyncResultCallback;
 import android.car.builtin.app.ActivityManagerHelper;
+import android.car.builtin.os.StorageManagerHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.ICarUxRestrictionsChangeListener;
@@ -266,7 +267,8 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
                 .spyStatic(UserHelperLite.class)
                 .spyStatic(CarSystemProperties.class)
                 .spyStatic(Binder.class)
-                .spyStatic(UserManagerHelper.class);
+                .spyStatic(UserManagerHelper.class)
+                .spyStatic(StorageManagerHelper.class);
     }
 
     /**
@@ -613,15 +615,9 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
 
     protected class TestCarUserServiceBuilder {
         private boolean mSwitchGuestUserBeforeGoingSleep = false;
-        private boolean mSupportsSecurePassengerUsers = false;
 
         protected TestCarUserServiceBuilder setSwitchGuestUserBeforeGoingSleep(boolean enabled) {
             mSwitchGuestUserBeforeGoingSleep = enabled;
-            return this;
-        }
-
-        protected TestCarUserServiceBuilder setSupportsSecurePassengerUsers(boolean enabled) {
-            mSupportsSecurePassengerUsers = enabled;
             return this;
         }
 
@@ -629,10 +625,6 @@ abstract class BaseCarUserServiceTestCase extends AbstractExtendedMockitoTestCas
             when(mMockedResources
                     .getBoolean(com.android.car.R.bool.config_switchGuestUserBeforeGoingSleep))
                     .thenReturn(mSwitchGuestUserBeforeGoingSleep);
-
-            when(mMockedResources
-                    .getBoolean(com.android.car.R.bool.config_supportsSecurePassengerUsers))
-                    .thenReturn(mSupportsSecurePassengerUsers);
 
             when(mMockedResources
                     .getString(com.android.car.R.string.config_userPickerActivity))
