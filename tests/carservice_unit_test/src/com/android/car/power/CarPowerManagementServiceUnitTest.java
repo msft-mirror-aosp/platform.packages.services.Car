@@ -726,6 +726,62 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     }
 
     @Test
+    public void testApplyPowerPolicyConcequential() throws Exception {
+        grantPowerPolicyPermission();
+
+        String defaultEmptyPolicy = "default_empty_policy";
+        String waitForVhalPolicy = "wait_for_vhal_policy";
+        String fullyOnPolicy = "fully_on_policy_no_media";
+        String fullyOnMediaOnPolicy = "fully_on_media_on_policy";
+
+        mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
+        mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
+
+        int err = mService.definePowerPolicy(defaultEmptyPolicy, new String[]{}, new String[]{});
+        expectThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        err = mService.definePowerPolicy(waitForVhalPolicy, new String[]{"CPU"},
+                new String[]{"AUDIO", "DISPLAY", "BLUETOOTH", "WIFI", "CELLULAR", "ETHERNET",
+                        "PROJECTION", "NFC", "INPUT", "VOICE_INTERACTION", "VISUAL_INTERACTION",
+                        "TRUSTED_DEVICE_DETECTION", "LOCATION", "MICROPHONE", "MEDIA"});
+        expectThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        err = mService.definePowerPolicy(fullyOnPolicy,
+                new String[]{"AUDIO", "DISPLAY", "BLUETOOTH", "WIFI", "CELLULAR", "ETHERNET",
+                        "PROJECTION", "NFC", "INPUT", "VOICE_INTERACTION", "VISUAL_INTERACTION",
+                        "TRUSTED_DEVICE_DETECTION", "LOCATION", "MICROPHONE", "CPU"},
+                new String[]{"MEDIA"});
+        expectThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        err = mService.definePowerPolicy(fullyOnMediaOnPolicy,
+                new String[]{"AUDIO", "DISPLAY", "BLUETOOTH", "WIFI", "CELLULAR", "ETHERNET",
+                        "PROJECTION", "NFC", "INPUT", "VOICE_INTERACTION", "VISUAL_INTERACTION",
+                        "TRUSTED_DEVICE_DETECTION", "LOCATION", "MICROPHONE", "CPU", "MEDIA"},
+                new String[]{});
+        expectThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        CarPowerPolicyFilter filterVisual = new CarPowerPolicyFilter.Builder()
+                .setComponents(PowerComponent.VISUAL_INTERACTION).build();
+        MockedPowerPolicyListener listenerToWait = new MockedPowerPolicyListener();
+        mService.addPowerPolicyListener(filterVisual, listenerToWait);
+
+        mService.applyPowerPolicy(defaultEmptyPolicy);
+        waitForPowerPolicy(defaultEmptyPolicy);
+        mService.applyPowerPolicy(waitForVhalPolicy);
+        waitForPowerPolicy(waitForVhalPolicy);
+        // initiate requests from the separate thread
+        new Thread(() -> {
+            mService.applyPowerPolicy(fullyOnPolicy);
+            mService.applyPowerPolicy(fullyOnMediaOnPolicy);
+        }).start();
+
+        waitForPowerPolicy(fullyOnMediaOnPolicy);
+        PollingCheck.check("Wrong power policy in the listener", WAIT_TIMEOUT_LONG_MS,
+                () -> fullyOnPolicy.equals(listenerToWait.mCurrentPowerPolicy.getPolicyId()));
+    }
+
+    @Test
     public void testApplyInvalidPowerPolicy() {
         grantPowerPolicyPermission();
         // Power policy which doesn't exist.

@@ -73,6 +73,7 @@ import android.os.UserManager;
 import android.util.ArraySet;
 import android.util.AtomicFile;
 import android.util.SparseArray;
+import android.util.SparseBooleanArray;
 import android.view.Display;
 
 import com.android.car.CarLocalServices;
@@ -1443,9 +1444,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         mScreenOffHandler.handleDisplayStateChange(displayId, on);
     }
 
-    private void doHandlePowerPolicyNotification(String policyId) {
+    private void doHandlePowerPolicyNotification(PowerPolicyChangeNotification notification) {
         // Sending notification of power policy change triggered through CarPowerManager API.
-        notifyPowerPolicyChange(policyId, /* upToDaemon= */ true, /* force= */ false);
+        notifyPowerPolicyChange(notification, /* upToDaemon= */ true, /* force= */ false);
     }
 
     /**
@@ -1837,11 +1838,15 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             mCurrentPowerPolicyId = policyId;
         }
         mPowerComponentHandler.applyPowerPolicy(policy);
+        PowerPolicyChangeNotification notification = new PowerPolicyChangeNotification(policyId,
+                mPowerComponentHandler.getLastModifiedComponents(),
+                mPowerComponentHandler.getAccumulatedPolicy());
+
         if (delayNotification) {
             Slogf.d(TAG, "Queueing power policy notification (id: %s) in the handler", policyId);
-            mHandler.handlePowerPolicyNotification(policyId);
+            mHandler.handlePowerPolicyNotification(notification);
         } else {
-            notifyPowerPolicyChange(policyId, upToDaemon, force);
+            notifyPowerPolicyChange(notification, upToDaemon, force);
         }
         Slogf.i(TAG, "The current power policy is %s", policyId);
         return PolicyOperationStatus.OK;
@@ -1863,7 +1868,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             mCurrentPowerPolicyId = policyId;
         }
         mPowerComponentHandler.applyPowerPolicy(policy);
-        notifyPowerPolicyChange(policyId, /* upToDaemon= */ true, /* force= */ true);
+        notifyPowerPolicyChange(new PowerPolicyChangeNotification(policyId,
+                        mPowerComponentHandler.getLastModifiedComponents(),
+                        mPowerComponentHandler.getAccumulatedPolicy()), /* upToDaemon= */
+                true, /* force= */ true);
         Slogf.i(TAG, "The current power policy is %s", policyId);
         return PolicyOperationStatus.OK;
     }
@@ -1913,7 +1921,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
     }
 
-    private void notifyPowerPolicyChange(String policyId, boolean upToDaemon, boolean force) {
+    private void notifyPowerPolicyChange(PowerPolicyChangeNotification policyChangeNotification,
+            boolean upToDaemon, boolean force) {
+        String policyId = policyChangeNotification.policyId;
         EventLogHelper.writePowerPolicyChange(policyId);
         // Notify system clients
         if (upToDaemon) {
@@ -1921,7 +1931,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
 
         // Notify Java clients
-        CarPowerPolicy accumulatedPolicy = mPowerComponentHandler.getAccumulatedPolicy();
+        CarPowerPolicy accumulatedPolicy = policyChangeNotification.accumulatedPolicy;
+        SparseBooleanArray updatedComponents = policyChangeNotification.lastModifiedComponents;
+
         CarPowerPolicy appliedPolicy = mPolicyReader.isPreemptivePowerPolicy(policyId)
                 ? mPolicyReader.getPreemptivePowerPolicy(policyId)
                 : mPolicyReader.getPowerPolicy(policyId);
@@ -1933,7 +1945,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             ICarPowerPolicyListener listener = mPowerPolicyListeners.getBroadcastItem(idx);
             CarPowerPolicyFilter filter =
                     (CarPowerPolicyFilter) mPowerPolicyListeners.getBroadcastCookie(idx);
-            if (!mPowerComponentHandler.isComponentChanged(filter)) {
+            if (!PowerComponentHandler.isComponentChanged(updatedComponents, filter)) {
                 continue;
             }
             try {
@@ -2109,8 +2121,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             removeMessages(MSG_PROCESSING_COMPLETE);
         }
 
-        private void handlePowerPolicyNotification(String policyId) {
-            Message msg = obtainMessage(MSG_POWER_POLICY_NOTIFICATION, policyId);
+        private void handlePowerPolicyNotification(PowerPolicyChangeNotification notification) {
+            Message msg = obtainMessage(MSG_POWER_POLICY_NOTIFICATION, notification);
             sendMessage(msg);
         }
 
@@ -2146,7 +2158,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     service.doHandleProcessingComplete();
                     break;
                 case MSG_POWER_POLICY_NOTIFICATION:
-                    service.doHandlePowerPolicyNotification((String) msg.obj);
+                    service.doHandlePowerPolicyNotification(
+                            (PowerPolicyChangeNotification) msg.obj);
                     break;
                 default:
                     Slogf.w(TAG, "handleMessage invalid message type: %d", msg.what);
@@ -2849,5 +2862,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             int displayId = display.getDisplayId();
             consumer.accept(displayId);
         }
+    }
+
+    private record PowerPolicyChangeNotification(String policyId,
+                                                 SparseBooleanArray lastModifiedComponents,
+                                                 CarPowerPolicy accumulatedPolicy) {
     }
 }
