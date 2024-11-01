@@ -20,14 +20,14 @@ import static android.car.VehiclePropertyIds.HVAC_TEMPERATURE_SET;
 
 import android.car.VehicleAreaType;
 import android.car.hardware.CarPropertyConfig;
-import android.car.test.mocks.AbstractExtendedMockitoTestCase;
+import android.car.test.AbstractExpectableTestCase;
 import android.os.Parcel;
 
 import org.junit.Test;
 
 import java.util.List;
 
-public final class CarPropertyConfigListUnitTest extends AbstractExtendedMockitoTestCase {
+public final class CarPropertyConfigListUnitTest extends AbstractExpectableTestCase {
 
     @Test
     public void testSerializeThenDeserializeNullConfigList() {

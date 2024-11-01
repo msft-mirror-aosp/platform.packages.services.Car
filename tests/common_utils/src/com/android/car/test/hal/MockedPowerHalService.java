@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.car.hal;
+package com.android.car.test.hal;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
 
@@ -30,6 +30,16 @@ import android.view.Display;
 
 import com.android.car.CarServiceUtils;
 import com.android.car.VehicleStub;
+import com.android.car.hal.ClusterHalService;
+import com.android.car.hal.DiagnosticHalService;
+import com.android.car.hal.HalPropValueBuilder;
+import com.android.car.hal.InputHalService;
+import com.android.car.hal.PowerHalService;
+import com.android.car.hal.PropertyHalService;
+import com.android.car.hal.TimeHalService;
+import com.android.car.hal.UserHalService;
+import com.android.car.hal.VehicleHal;
+import com.android.car.hal.VmsHalService;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.systeminterface.DisplayHelperInterface;
 import com.android.internal.annotations.GuardedBy;

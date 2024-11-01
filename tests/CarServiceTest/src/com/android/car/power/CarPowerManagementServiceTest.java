@@ -76,7 +76,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @RunWith(AndroidJUnit4.class)
 @MediumTest
-public class CarPowerManagementTest extends MockedCarTestBase {
+public class CarPowerManagementServiceTest extends MockedCarTestBase {
 
     private static final int STATE_POLLING_INTERVAL_MS = 1; // Milliseconds
     private static final int STATE_TRANSITION_MAX_WAIT_MS = 5 * STATE_POLLING_INTERVAL_MS;
