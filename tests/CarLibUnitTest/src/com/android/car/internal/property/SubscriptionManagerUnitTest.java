@@ -16,7 +16,7 @@
 
 package com.android.car.internal.property;
 
-import android.car.test.mocks.AbstractExtendedMockitoTestCase;
+import android.car.test.AbstractExpectableTestCase;
 import android.util.ArraySet;
 
 import org.junit.Test;
@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public final class SubscriptionManagerUnitTest extends AbstractExtendedMockitoTestCase {
+public final class SubscriptionManagerUnitTest extends AbstractExpectableTestCase {
 
     private final SubscriptionManager<Object> mSubscriptionManager = new SubscriptionManager<>();
     private final Object mClient1 = new Object();

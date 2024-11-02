@@ -487,7 +487,6 @@ android_ravenwood_test {
     srcs: [
         "src/com/android/car/AidlVehicleStubUnitTest.java",
         "src/com/android/car/CarPropertyServiceUnitTest.java",
-        "src/com/android/car/internal/PendingRequestPoolUnitTest.java",
         "src/com/android/car/hal/VehicleHalTest.java",
         "src/com/android/car/hal/fakevhal/FakeVhalConfigParserUnitTest.java",
         "src/com/android/car/hal/fakevhal/FakeVehicleStubUnitTest.java",

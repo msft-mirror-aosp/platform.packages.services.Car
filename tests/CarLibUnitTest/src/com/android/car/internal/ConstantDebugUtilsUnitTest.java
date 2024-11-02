@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.car.internal.property;
+package com.android.car.internal;
 
 import static com.google.common.truth.Truth.assertThat;
 

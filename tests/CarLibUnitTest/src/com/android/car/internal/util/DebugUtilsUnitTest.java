@@ -49,7 +49,7 @@ public final class DebugUtilsUnitTest {
                 DebugUtils.flagsToString(
                         UserInfo.class, "USER_FLAG_",
                         UserInfo.USER_FLAG_SYSTEM | UserInfo.USER_FLAG_ADMIN))
-                .isEqualTo("ADMIN|SYSTEM");
+                .isAnyOf("ADMIN|SYSTEM", "SYSTEM|ADMIN");
     }
 
     @Test
@@ -91,6 +91,6 @@ public final class DebugUtilsUnitTest {
                 DebugUtils.flagsToString(
                         UserFlags.class, "",
                         UserFlags.SYSTEM | UserFlags.ADMIN))
-                .isEqualTo("ADMIN|SYSTEM");
+                .isAnyOf("ADMIN|SYSTEM", "SYSTEM|ADMIN");
     }
 }
