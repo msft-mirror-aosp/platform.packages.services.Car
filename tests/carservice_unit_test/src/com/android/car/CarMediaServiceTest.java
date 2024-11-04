@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.car.media;
+package com.android.car;
 
 import static android.car.CarOccupantZoneManager.INVALID_USER_ID;
 import static android.car.CarOccupantZoneManager.OccupantZoneInfo.INVALID_ZONE_ID;
@@ -73,13 +73,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.view.KeyEvent;
 
-import com.android.car.CarInputService;
 import com.android.car.CarInputService.KeyEventListener;
-import com.android.car.CarLocalServices;
-import com.android.car.CarLog;
-import com.android.car.CarMediaService;
-import com.android.car.CarOccupantZoneService;
-import com.android.car.R;
 import com.android.car.power.CarPowerManagementService;
 import com.android.car.user.CarUserService;
 import com.android.car.user.UserHandleHelper;

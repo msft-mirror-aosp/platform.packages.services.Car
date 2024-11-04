@@ -69,7 +69,6 @@ import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.car.R;
-import com.android.car.hal.MockedPowerHalService;
 import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.power.CarPowerManagementService;
@@ -78,6 +77,7 @@ import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.systeminterface.WakeLockInterface;
 import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
+import com.android.car.test.hal.MockedPowerHalService;
 import com.android.car.user.CarUserService;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.internal.annotations.GuardedBy;
@@ -100,8 +100,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 @SmallTest
-public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCase {
-    private static final String TAG = CarPowerManagerUnitTest.class.getSimpleName();
+public final class CarPowerManagerTest extends AbstractExtendedMockitoTestCase {
+    private static final String TAG = CarPowerManagerTest.class.getSimpleName();
     private static final long WAIT_TIMEOUT_MS = 5_000;
     private static final long WAIT_TIMEOUT_LONG_MS = 10_000;
     // A shorter value for use when the test is expected to time out
@@ -145,7 +145,7 @@ public final class CarPowerManagerUnitTest extends AbstractExtendedMockitoTestCa
     @Mock
     private ICarPowerPolicySystemNotification mPowerPolicyDaemon;
 
-    public CarPowerManagerUnitTest() throws Exception {
+    public CarPowerManagerTest() throws Exception {
         super(CarPowerManager.TAG);
     }
 
