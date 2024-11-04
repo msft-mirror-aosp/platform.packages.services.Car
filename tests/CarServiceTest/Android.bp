@@ -62,8 +62,8 @@ java_defaults {
     libs: [
         "android.car",
         "android.car.watchdoglib",
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs.system",
+        "android.test.base.stubs.system",
     ],
 
     // mockito-target-inline dependency
@@ -215,6 +215,7 @@ android_test {
 
     srcs: [
         "src/com/android/car/power/*.java",
+        "src/com/android/car/hardware/power/*.java",
     ],
 
     test_config: "AndroidTest_PowerTest.xml",

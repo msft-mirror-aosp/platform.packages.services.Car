@@ -325,6 +325,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$CombinedBiometricSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.bluetooth.DevicePickerActivity"
             android:enabled="false"
             android:exported="false"
@@ -469,15 +478,6 @@
         </activity>
 
         <activity
-            android:name="com.android.settings.Settings$LanguageAndInputSettingsActivity"
-            android:enabled="false"
-            android:exported="false"
-            tools:node="merge"
-            tools:replace="android:exported">
-            <intent-filter tools:node="removeAll"/>
-        </activity>
-
-        <activity
             android:name="com.android.settings.Settings$KeyboardSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -560,24 +560,6 @@
 
         <activity
             android:name="com.android.settings.Settings$ZenModeSettingsActivity"
-            android:enabled="false"
-            android:exported="false"
-            tools:node="merge"
-            tools:replace="android:exported">
-            <intent-filter tools:node="removeAll"/>
-        </activity>
-
-        <activity
-            android:name="com.android.settings.notification.zen.ZenSuggestionActivity"
-            android:enabled="false"
-            android:exported="false"
-            tools:node="merge"
-            tools:replace="android:exported">
-            <intent-filter tools:node="removeAll"/>
-        </activity>
-
-        <activity
-            android:name="com.android.settings.notification.zen.ZenOnboardingActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -1309,7 +1291,7 @@
             tools:replace="android:exported"/>
 
         <activity
-            android:name="com.android.settings.biometrics.fingerprint.FingerprintEnrollIntroduction"
+            android:name="com.android.settings.biometrics.fingerprint.FingerprintEnroll"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -1333,7 +1315,7 @@
             tools:replace="android:exported"/>
 
         <activity
-            android:name="com.android.settings.biometrics.fingerprint.SetupFingerprintEnrollIntroduction"
+            android:name="com.android.settings.biometrics.fingerprint.FingerprintEnroll$SetupActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -3338,6 +3320,14 @@
             <intent-filter tools:node="removeAll"/>
         </receiver>
 
+        <receiver android:name="com.android.settings.shortcut.ShortcutsUpdateReceiver"
+            android:exported="false"
+            android:enabled="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
         <service
             android:name="com.android.settings.wifi.tether.TetherService"
             android:enabled="false"
@@ -3471,6 +3461,15 @@
             tools:node="merge"
             tools:replace="android:exported,android:enabled">
             <intent-filter tools:node="removeAll"/>
+        </service>
+
+        <service
+          android:name="com.android.settings.SettingsService"
+          android:enabled="false"
+          android:exported="false"
+          tools:node="merge"
+          tools:replace="android:exported,android:enabled">
+          <intent-filter tools:node="removeAll" />
         </service>
 
     </application>
