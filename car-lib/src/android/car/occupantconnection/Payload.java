@@ -49,6 +49,9 @@ import java.util.Objects;
  * When the sender client creates a Payload instance via the constructor, if the instance is never
  * passed to @link CarOccupantConnectionManager#sendPayload}, the sender must call {@link #close}.
  *
+ * <p>The caller must close this class after writing to parcel, unless this class is used as the
+ * return value for a binder call.
+ *
  * @hide
  */
 @SystemApi
