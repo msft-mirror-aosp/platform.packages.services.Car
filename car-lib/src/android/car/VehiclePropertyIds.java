@@ -16,6 +16,7 @@
 
 package android.car;
 
+import static android.car.feature.Flags.FLAG_ANDROID_B_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
@@ -398,6 +399,36 @@ public final class VehiclePropertyIds {
      */
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EXTERIOR_DIMENSIONS = 289472779;
+    /**
+     * Public trim name of the vehicle.
+     *
+     * <p>This property communicates the vehicle's public trim name.
+     *
+     * <p>For example, say an OEM manufactures two different versions of a vehicle model:
+     * <ul>
+     *   <li>"makeName modelName" and
+     *   <li>"makeName modelName Sport"
+     * </ul>
+     * <p>This property will be empty for the first vehicle (i.e. base model), and set to "Sport"
+     * for the second vehicle.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code String} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Normal permission {@link Car#PERMISSION_CAR_INFO} to read property.
+     *  <li>Property is not writable.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_INFO))
+    public static final int INFO_MODEL_TRIM = 286261517;
     /**
      * Current odometer value of the vehicle in kilometers.
      *

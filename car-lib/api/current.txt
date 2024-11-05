@@ -483,6 +483,7 @@ package android.car {
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_FUEL_TYPE = 289472773; // 0x11410105
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MAKE = 286261505; // 0x11100101
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MODEL = 286261506; // 0x11100102
+    field @FlaggedApi("android.car.feature.android_b_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CAR_INFO)) public static final int INFO_MODEL_TRIM = 286261517; // 0x1110010d
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MODEL_YEAR = 289407235; // 0x11400103
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MULTI_EV_PORT_LOCATIONS = 289472780; // 0x1141010c
     field @RequiresPermission(android.car.Car.PERMISSION_IDENTIFICATION) public static final int INFO_VIN = 286261504; // 0x11100100
