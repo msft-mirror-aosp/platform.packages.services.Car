@@ -54,6 +54,13 @@ flag {
   bug: "325395533"
 }
 
+flag {
+  name: "set_bssid_on_ap_started"
+  namespace: "car_framework"
+  description: "This flag controls if BSSID is set in SoftApConfiguration."
+  bug: "256112021"
+}
+
 # CarRemoteAccessManager
 flag {
   name: "serverless_remote_access"
@@ -160,6 +167,14 @@ flag {
     namespace: "car_framework"
     description: "Enables navigation audio usage in legacy volume mode."
     bug: "353872512"
+  }
+
+flag {
+    name: "async_audio_service_init"
+    is_exported: true
+    namespace: "car_framework"
+    description: "Controls whether to run CarAudioService init asynchronously to improve performance"
+    bug: "368619416"
 }
 
 flag {
@@ -209,6 +224,22 @@ flag {
   namespace: "car_framework"
   description: "Controls whether to directly handle property evnets in binder thread in CarPropertyManager"
   bug: "355703549"
+}
+
+flag {
+  name: "always_send_initial_value_event"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Controls whether to always send initial value event for new subscription, this is used to fix a previous undefined behavior where for the same client, a second callback registered for the same [propId, areaId] may/may not get initial value event"
+  bug: "372530534"
+}
+
+flag {
+  name: "car_property_supported_value"
+  is_exported: true
+  namespace: "car_framework"
+  description: "Controls whether to enable supported values related APIs in carPropertyManager"
+  bug: "371636116"
 }
 
 # CarServiceBase
@@ -336,4 +367,12 @@ flag {
     namespace: "car_framework"
     description: "Enables SDV to access packages manager functions"
     bug: "344832846"
+}
+
+# Feature for task view task reordering
+flag {
+    name: "task_view_task_reordering"
+    namespace: "car_framework"
+    description: "Enables task view task reordering"
+    bug: "369186876"
 }

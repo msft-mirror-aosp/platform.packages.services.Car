@@ -478,15 +478,6 @@
         </activity>
 
         <activity
-            android:name="com.android.settings.Settings$LanguageAndInputSettingsActivity"
-            android:enabled="false"
-            android:exported="false"
-            tools:node="merge"
-            tools:replace="android:exported">
-            <intent-filter tools:node="removeAll"/>
-        </activity>
-
-        <activity
             android:name="com.android.settings.Settings$KeyboardSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -1786,6 +1777,15 @@
 
         <activity
             android:name="com.android.settings.Settings$PowerUsageSummaryActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.PowerUsageAdvancedActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -3470,6 +3470,15 @@
             tools:node="merge"
             tools:replace="android:exported,android:enabled">
             <intent-filter tools:node="removeAll"/>
+        </service>
+
+        <service
+          android:name="com.android.settings.SettingsService"
+          android:enabled="false"
+          android:exported="false"
+          tools:node="merge"
+          tools:replace="android:exported,android:enabled">
+          <intent-filter tools:node="removeAll" />
         </service>
 
     </application>

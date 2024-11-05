@@ -17,6 +17,7 @@
 $(call inherit-product, packages/services/Car/car_product/car_ui_portrait/rro/car-ui-customizations/product.mk)
 $(call inherit-product, packages/services/Car/car_product/car_ui_portrait/rro/car-ui-toolbar-customizations/product.mk)
 $(call inherit-product-if-exists, vendor/auto/embedded/products/coolwhip/car-ui-lib-rros/product.mk)
+$(call inherit-product-if-exists, vendor/auto/embedded/products/coolwhip/gas-rros/product.mk)
 $(call inherit-product-if-exists, vendor/google/nexus_overlay/fonts/fonts.mk)
 
 # All RROs to be included in car_ui_portrait builds.
@@ -98,4 +99,4 @@ PRODUCT_PROPERTY_OVERRIDES += \
     ro.boot.vendor.overlay.theme=$(subst $(space),,$(PORTRAIT_RRO_PACKAGES))
 
 PRODUCT_PRODUCT_PROPERTIES += \
-    persist.wm.debug.shell_transit=0
+    persist.wm.debug.shell_transit?=0
