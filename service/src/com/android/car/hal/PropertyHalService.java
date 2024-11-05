@@ -1372,7 +1372,7 @@ public class PropertyHalService extends HalServiceBase {
      */
     public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId,
             AreaIdConfig<?> areaIdConfig) {
-        if (mVehicleHal.supportedDynamicSupportedValues()) {
+        if (mVehicleHal.isSupportedValuesImplemented()) {
             // TODO
             return null;
         } else {
@@ -1400,7 +1400,7 @@ public class PropertyHalService extends HalServiceBase {
     @Nullable
     public List<RawPropertyValue> getSupportedValuesList(int propertyId, int areaId,
             AreaIdConfig<?> areaIdConfig) {
-        if (mVehicleHal.supportedDynamicSupportedValues()) {
+        if (mVehicleHal.isSupportedValuesImplemented()) {
             // TODO
             return null;
         } else {

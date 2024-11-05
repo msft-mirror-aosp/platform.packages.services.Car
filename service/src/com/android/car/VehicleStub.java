@@ -391,7 +391,7 @@ public abstract class VehicleStub {
      *
      * This is only supported on AIDL VHAL >= V4.
      */
-    public boolean supportedDynamicSupportedValues() {
+    public boolean isSupportedValuesImplemented() {
         return false;
     }
 }

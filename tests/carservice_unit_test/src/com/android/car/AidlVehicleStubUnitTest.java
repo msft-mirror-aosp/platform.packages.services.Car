@@ -1376,4 +1376,25 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAidlBinder).dump(eq(fd), eq(new String[0]));
     }
+
+    @Test
+    public void testisSupportedValuesImplemented_true() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenReturn(4);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented()).isTrue();
+    }
+
+    @Test
+    public void testisSupportedValuesImplemented_false() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenReturn(3);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented()).isFalse();
+    }
+
+    @Test
+    public void testisSupportedValuesImplemented_RemoteException() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenThrow(new RemoteException());
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented()).isFalse();
+    }
 }

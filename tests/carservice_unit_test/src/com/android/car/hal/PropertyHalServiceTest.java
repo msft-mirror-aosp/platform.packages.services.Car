@@ -2804,7 +2804,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
     @Test
     public void testGetMinMaxSupportedValue_dynamicSupportedValuesNotSupported() {
-        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(false);
         int areaId = 0;
         float minValue = 1.23f;
         float maxValue = 3.21f;
@@ -2822,7 +2822,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
     @Test
     public void testGetMinMaxSupportedValue_dynamicSupportedValuesNotSupported_nullMinValue() {
-        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(false);
         int areaId = 0;
         float maxValue = 3.21f;
         var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
@@ -2839,7 +2839,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
     @Test
     public void testGetMinMaxSupportedValue_dynamicSupportedValuesNotSupported_nullMaxValue() {
-        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(false);
         int areaId = 0;
         float minValue = 1.23f;
         var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
@@ -2856,7 +2856,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
     @Test
     public void testGetSupportedValuesList_dynamicSupportedValuesNotSupported() {
-        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(false);
         int areaId = 0;
         var testSupportedValues = new ArrayList<Float>(Arrays.asList(1.1f, 2.2f));
         var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)
@@ -2872,7 +2872,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
     @Test
     public void testGetSupportedValuesList_dynamicSupportedValuesNotSupported_notSpecified() {
-        when(mVehicleHal.supportedDynamicSupportedValues()).thenReturn(false);
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(false);
         int areaId = 0;
         var testSupportedValues = new ArrayList<Float>(Arrays.asList(1.1f, 2.2f));
         var areaIdConfig = new AreaIdConfig.Builder(VEHICLE_PROPERTY_ACCESS_READ, areaId)

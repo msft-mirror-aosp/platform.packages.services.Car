@@ -1777,7 +1777,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
      *
      * This is only supported on AIDL VHAL >= V4.
      */
-    public boolean supportedDynamicSupportedValues() {
-        return mVehicleStub.supportedDynamicSupportedValues();
+    public boolean isSupportedValuesImplemented() {
+        return mVehicleStub.isSupportedValuesImplemented();
     }
 }
