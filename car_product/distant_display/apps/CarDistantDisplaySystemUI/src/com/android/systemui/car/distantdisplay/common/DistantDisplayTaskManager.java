@@ -35,6 +35,7 @@ import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
+import android.view.View;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -171,6 +172,13 @@ public class DistantDisplayTaskManager {
                 // Task on the distant display has changed  (by either a new task being added or an
                 // old task being moved away) - notify listeners
                 notifyListeners(mDistantDisplayId);
+            }
+            if (newDisplayId == mDistantDisplayId && oldData != null) {
+                // Task changed on DistantDisplay, launch relevant companion app on DefaultDisplay
+                ComponentName componentName = getComponentNameFromBaseIntent(oldData.mBaseIntent);
+                Log.d(TAG, "onTaskDisplayChanged: for displayId-" + newDisplayId
+                        + ", launchCompanionUI on DefaultDisplay for " + componentName);
+                launchCompanionUI(componentName);
             }
         }
     };
@@ -345,7 +353,6 @@ public class DistantDisplayTaskManager {
                 return;
             }
             moveTaskToDisplay(data.mTaskId, mDistantDisplayId);
-            launchCompanionUI(componentName);
             DistantDisplayService.State state = movement.equals(
                     MoveTaskReceiver.MOVE_TO_DISTANT_DISPLAY)
                     ? DistantDisplayService.State.DRIVER_DD
@@ -377,7 +384,8 @@ public class DistantDisplayTaskManager {
             intent = new Intent();
             intent.setComponent(mediaComponent);
             intent.putExtra(Intent.EXTRA_COMPONENT_NAME, componentName.flattenToShortString());
-            intent.putExtra(IntentUtils.EXTRA_MEDIA_BLOCKING_ACTIVITY_DISMISS_ON_PARK, false);
+            intent.putExtra(IntentUtils.EXTRA_MEDIA_BLOCKING_ACTIVITY_EXIT_BUTTON_VISIBILITY,
+                    View.GONE);
             launchUserHandle = mUserTracker.getUserHandle();
         } else {
             intent = DistantDisplayCompanionActivity.createIntent(mContext, packageName);

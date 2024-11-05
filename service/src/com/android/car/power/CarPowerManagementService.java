@@ -24,6 +24,9 @@ import static android.net.ConnectivityManager.TETHERING_WIFI;
 
 import static com.android.car.hal.PowerHalService.BOOTUP_REASON_SYSTEM_ENTER_GARAGE_MODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
+import static com.android.car.systeminterface.SystemInterface.SUSPEND_RESULT_ABORT;
+import static com.android.car.systeminterface.SystemInterface.SUSPEND_RESULT_RETRY;
+import static com.android.car.systeminterface.SystemInterface.SUSPEND_RESULT_SUCCESS;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -40,6 +43,7 @@ import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.os.HandlerHelper;
 import android.car.builtin.os.ServiceManagerHelper;
+import android.car.builtin.os.SystemPropertiesHelper;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -162,6 +166,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private static final String TETHERING_STATE_FILENAME = "tethering_state";
     private static final String COMPONENT_STATE_MODIFIED = "forcibly_disabled";
     private static final String COMPONENT_STATE_ORIGINAL = "original";
+    private static final String KERNEL_BOOT_TIME_PROPERTY = "boot.car_kernel_boot_time";
+    private static final String DEVICE_START_TIME_PROPERTY = "boot.car_device_start_time";
     // If Suspend to RAM fails, we retry with an exponential back-off:
     // The wait interval will be 10 msec, 20 msec, 40 msec, ...
     // Once the wait interval goes beyond 100 msec, it is fixed at 100 msec.
@@ -245,6 +251,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private final AtomicFile mWifiStateFile;
     private final AtomicFile mTetheringStateFile;
     private final boolean mWifiAdjustmentForSuspend;
+    private boolean mShouldChangeSwap = true;
+    private long mCarServiceStartTimeAfterSuspend = 0;
 
     // This is a temp work-around to reduce user switching delay after wake-up.
     private final boolean mSwitchGuestUserBeforeSleep;
@@ -692,6 +700,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     mResumeDelayFromSimulatedSuspendSec);
             writer.printf("mFreeMemoryBeforeSuspend: %b\n", mFreeMemoryBeforeSuspend);
         }
+        writer.printf("Kernel boot time property: %d", SystemPropertiesHelper.getLong(
+                KERNEL_BOOT_TIME_PROPERTY, /* defaultVal= */0L));
+        writer.printf("Device start time property: %d", SystemPropertiesHelper.getLong(
+                DEVICE_START_TIME_PROPERTY, /* defaultVal= */0L));
 
         mPolicyReader.dump(writer);
         mPowerComponentHandler.dump(writer);
@@ -1161,6 +1173,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void handleShutdownPrepare(CpmsState currentState, CpmsState prevState) {
+        boolean areListenersEmpty;
+        synchronized (mLock) {
+            areListenersEmpty = mListenersWeAreWaitingFor.isEmpty();
+        }
         switch (currentState.mCarPowerStateListenerState) {
             case CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE:
                 updateShutdownPrepareStatus(currentState);
@@ -1172,17 +1188,25 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     synchronized (mLock) {
                         mCurrentState = currentState;
                     }
-                    clearWaitingForCompletion(/*clearQueue=*/true);
+                    if (!areListenersEmpty) {
+                        Slogf.e(TAG, "Received 2nd shutdown request. Waiting for listeners.");
+                    } else {
+                        // new shutdown prepare request can interrupt completion of shutdown prepare
+                        // call handler to complete it - this may result in 2nd call
+                        // to finishShutdownPrepare()
+                        Slogf.e(TAG,
+                                "Received 2nd shutdown request after listeners were completed");
+                        finishShutdownPrepare();
+                    }
                 } else if (prevState.mCarPowerStateListenerState == STATE_PRE_SHUTDOWN_PREPARE) {
                     // Update of state occurred while in PRE_SHUTDOWN_PREPARE
-                    boolean areListenersEmpty;
-                    synchronized (mLock) {
-                        areListenersEmpty = mListenersWeAreWaitingFor.isEmpty();
-                    }
                     if (areListenersEmpty) {
                         handleCoreShutdownPrepare();
                     } else {
                         // PRE_SHUTDOWN_PREPARE is still being processed, no actions required
+                        Slogf.e(TAG,
+                                "Received 2nd shutdown request. Waiting for listener"
+                            + " to complete");
                         return;
                     }
                 } else {
@@ -1780,6 +1804,19 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
         Slogf.i(TAG, "Resuming after suspending");
         forEachDisplay(mContext, mSystemInterface::refreshDisplayBrightness);
+        // TODO(b/311063174): Verify boot.car_kernel_boot_time and boot.car_device_start time
+        //                    format when LA.3.7.0 lands.
+        if (!simulatedMode) {
+            long userPerceivedStartTimeAfterSuspend = SystemClock.uptimeMillis();
+            String suspendTarget = getSuspendType();
+            long kernelStartTimeMillis = SystemPropertiesHelper.getLong(
+                    KERNEL_BOOT_TIME_PROPERTY, /* defaultVal= */ 0L);
+            long deviceStartTimeMillis = SystemPropertiesHelper.getLong(
+                    DEVICE_START_TIME_PROPERTY, /* defaultVal= */ 0L);
+            CarStatsLogHelper.logResumeFromSuspend(suspendTarget, kernelStartTimeMillis,
+                    mCarServiceStartTimeAfterSuspend, userPerceivedStartTimeAfterSuspend,
+                    deviceStartTimeMillis);
+        }
         onApPowerStateChange(CpmsState.WAIT_FOR_VHAL, nextListenerState);
     }
 
@@ -3126,18 +3163,21 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
     }
 
+    private String getSuspendType() {
+        synchronized (mLock) {
+            return mActionOnFinish == ACTION_ON_FINISH_HIBERNATION ? "Suspend-to-Disk"
+                    : "Suspend-to-RAM";
+        }
+    }
+
     // Send the command to enter Suspend to RAM.
     // If the command is not successful, try again with an exponential back-off.
     // If it fails repeatedly, send the command to shut down.
     // If we decide to go to a different power state, abort this retry mechanism.
     // Returns true if we successfully suspended.
     private boolean suspendWithRetries() {
-        boolean isSuspendToDisk;
-        synchronized (mLock) {
-            isSuspendToDisk = mActionOnFinish == ACTION_ON_FINISH_HIBERNATION;
-        }
-
-        String suspendTarget = isSuspendToDisk ? "Suspend-to-Disk" : "Suspend-to-RAM";
+        String suspendTarget = getSuspendType();
+        boolean isSuspendToDisk = suspendTarget.equals("Suspend-to-Disk");
         long retryIntervalMs = INITIAL_SUSPEND_RETRY_INTERVAL_MS;
         long totalWaitDurationMs = 0;
         while (true) {
@@ -3145,12 +3185,28 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             Slogf.i(TAG, "Entering %s", suspendTarget);
             if (isSuspendToDisk) {
                 freeMemory();
+                if (mFeatureFlags.changeSwapsDuringSuspendToDisk() && mShouldChangeSwap) {
+                    SystemPropertiesHelper.set("sys.hibernate", "1");
+                }
             }
-            boolean suspendSucceeded = isSuspendToDisk ? mSystemInterface.enterHibernation()
+            int suspendResult = isSuspendToDisk ? mSystemInterface.enterHibernation()
                     : mSystemInterface.enterDeepSleep();
 
-            if (suspendSucceeded) {
-                return true;
+            switch (suspendResult) {
+                case SUSPEND_RESULT_SUCCESS:
+                    mCarServiceStartTimeAfterSuspend = SystemClock.uptimeMillis();
+                    if (isSuspendToDisk && mFeatureFlags.changeSwapsDuringSuspendToDisk()
+                            && mShouldChangeSwap) {
+                        SystemPropertiesHelper.set("sys.hibernate", "0");
+                    }
+                    return true;
+                case SUSPEND_RESULT_RETRY:
+                    break;
+                case SUSPEND_RESULT_ABORT:
+                    Slogf.e(TAG, "Creating hibernation image failed. Shuttind down");
+                    mSystemInterface.shutdown();
+                    Slogf.wtf(TAG, "The system must be turned off");
+                    return false;
             }
             if (totalWaitDurationMs >= mMaxSuspendWaitDurationMs) {
                 break;
@@ -3183,6 +3239,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         Slogf.w(TAG, "Could not %s after %dms long trial. Shutting down.", suspendTarget,
                 totalWaitDurationMs);
         mSystemInterface.shutdown();
+        Slogf.wtf(TAG, "The system must be turned off");
         return false;
     }
 
@@ -4032,5 +4089,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             // none will fallthrough
             default -> ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE;
         };
+    }
+
+    @VisibleForTesting
+    void setSwapChangeEnabled(boolean enable) {
+        mShouldChangeSwap = enable;
     }
 }

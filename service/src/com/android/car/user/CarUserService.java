@@ -47,6 +47,7 @@ import android.car.VehicleAreaSeat;
 import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.content.pm.PackageManagerHelper;
 import android.car.builtin.devicepolicy.DevicePolicyManagerHelper;
+import android.car.builtin.os.StorageManagerHelper;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -308,7 +309,6 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     // TODO(b/163566866): Use mSwitchGuestUserBeforeSleep for new create guest request
     private final boolean mSwitchGuestUserBeforeSleep;
-    private final boolean mSupportsSecurePassengerUsers;
 
     @Nullable
     @GuardedBy("mLockUser")
@@ -336,6 +336,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
      */
     @GuardedBy("mLockUser")
     private boolean mStartBackgroundUsersOnGarageMode = true;
+    private String mUserPickerName;
 
     // Whether visible background users are supported on the default display, a.k.a. passenger only
     // systems.
@@ -419,13 +420,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         mCarPackageManagerService = carPackageManagerService;
         mIsVisibleBackgroundUsersOnDefaultDisplaySupported =
                 isVisibleBackgroundUsersOnDefaultDisplaySupported(mUserManager);
-        mSupportsSecurePassengerUsers = context.getResources().getBoolean(
-                R.bool.config_supportsSecurePassengerUsers);
         // Set the initial capacity of the user creation queue to avoid potential resizing.
         // The max number of running users can be a good estimate because CreateUser request comes
         // from a running user.
         mCreateUserQueue = new ArrayDeque<>(UserManagerHelper.getMaxRunningUsers(context));
         mCarOccupantZoneService = carOccupantZoneService;
+        mUserPickerName = mContext.getResources().getString(R.string.config_userPickerActivity);
     }
 
     /**
@@ -438,6 +438,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     @Override
     public void init() {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "CarUserService.init");
         if (DBG) {
             Slogf.d(TAG, "init()");
         }
@@ -453,6 +454,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
         CarServiceHelperWrapper.getInstance().runOnConnection(() ->
                 setUxRestrictions(mCarUxRestrictionService.getCurrentUxRestrictions()));
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private final ICarOccupantZoneCallback mOccupantZoneCallback =
@@ -738,7 +740,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         CarServiceHelperWrapper.getInstance().sendInitialUser(user);
     }
 
-    private void initResumeReplaceGuest() {
+    private void replaceGuestOnSuspend() {
         int currentUserId = mCurrentUserFetcher.getCurrentUser();
         UserHandle currentUser = mUserHandleHelper.getExistingUserHandle(currentUserId);
 
@@ -749,7 +751,8 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (!mInitialUserSetter.canReplaceGuestUser(currentUser)) return; // Not a guest
 
         InitialUserInfo info =
-                new InitialUserSetter.Builder(InitialUserSetter.TYPE_REPLACE_GUEST).build();
+                new InitialUserSetter.Builder(InitialUserSetter.TYPE_REPLACE_GUEST,
+                        InitialUserSetter.ON_SUSPEND).build();
 
         mInitialUserSetter.set(info);
     }
@@ -766,7 +769,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         if (mSwitchGuestUserBeforeSleep) {
-            initResumeReplaceGuest();
+            replaceGuestOnSuspend();
         }
     }
 
@@ -791,11 +794,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         boolean replaceGuest =
                 requestType == InitialUserInfoRequestType.RESUME && !mSwitchGuestUserBeforeSleep;
         checkManageUsersPermission("startInitialUser");
+        int initialUserSetterRequestType =
+                requestType == InitialUserInfoRequestType.RESUME
+                        ? InitialUserSetter.ON_RESUME : InitialUserSetter.ON_BOOT;
 
         // TODO(b/266473227): Fix isUserHalSupported() for Multi User No driver.
         if (!isUserHalSupported() || mIsVisibleBackgroundUsersOnDefaultDisplaySupported) {
             fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
-                    /* supportsOverrideUserIdProperty= */ true, requestType);
+                    /* supportsOverrideUserIdProperty= */ true, initialUserSetterRequestType);
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
             Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
                     requestType);
@@ -815,17 +821,18 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
                 String userLocales = resp.userLocales;
                 InitialUserInfo info;
-                switch(resp.action) {
+                switch (resp.action) {
                     case InitialUserInfoResponseAction.SWITCH:
                         int userId = resp.userToSwitchOrCreate.userId;
                         if (userId <= 0) {
                             Slogf.w(TAG, "invalid (or missing) user id sent by HAL: %d", userId);
                             fallbackToDefaultInitialUserBehavior(userLocales, replaceGuest,
-                                    /* supportsOverrideUserIdProperty= */ false, requestType);
+                                    /* supportsOverrideUserIdProperty= */ false,
+                                    initialUserSetterRequestType);
                             break;
                         }
-                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_SWITCH)
-                                .setRequestType(requestType)
+                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_SWITCH,
+                                initialUserSetterRequestType)
                                 .setUserLocales(userLocales)
                                 .setSwitchUserId(userId)
                                 .setReplaceGuest(replaceGuest)
@@ -835,9 +842,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
                     case InitialUserInfoResponseAction.CREATE:
                         int halFlags = resp.userToSwitchOrCreate.flags;
-                        String userName =  resp.userNameToCreate;
-                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_CREATE)
-                                .setRequestType(requestType)
+                        String userName = resp.userNameToCreate;
+                        info = new InitialUserSetter.Builder(InitialUserSetter.TYPE_CREATE,
+                                initialUserSetterRequestType)
                                 .setUserLocales(userLocales)
                                 .setNewUserName(userName)
                                 .setNewUserFlags(halFlags)
@@ -847,12 +854,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
                     case InitialUserInfoResponseAction.DEFAULT:
                         fallbackToDefaultInitialUserBehavior(userLocales, replaceGuest,
-                                /* supportsOverrideUserIdProperty= */ false, requestType);
+                                /* supportsOverrideUserIdProperty= */ false,
+                                initialUserSetterRequestType);
                         break;
                     default:
                         Slogf.w(TAG, "invalid response action on %s", resp);
                         fallbackToDefaultInitialUserBehavior(/* userLocales= */ null, replaceGuest,
-                                /* supportsOverrideUserIdProperty= */ false, requestType);
+                                /* supportsOverrideUserIdProperty= */ false,
+                                initialUserSetterRequestType);
                         break;
 
                 }
@@ -861,7 +870,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                         /* userId= */ 0, /* flags= */ 0,
                         /* safeName= */ "", /* userLocales= */ "");
                 fallbackToDefaultInitialUserBehavior(/* user locale */ null, replaceGuest,
-                        /* supportsOverrideUserIdProperty= */ false, requestType);
+                        /* supportsOverrideUserIdProperty= */ false, initialUserSetterRequestType);
             }
             EventLogHelper.writeCarUserServiceInitialUserInfoReqComplete(requestType);
             Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "initBootUser",
@@ -870,10 +879,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
     }
 
     private void fallbackToDefaultInitialUserBehavior(String userLocales, boolean replaceGuest,
-            boolean supportsOverrideUserIdProperty, int requestType) {
+            boolean supportsOverrideUserIdProperty, int initialUserSetterRequestType) {
         InitialUserInfo info = new InitialUserSetter.Builder(
-                InitialUserSetter.TYPE_DEFAULT_BEHAVIOR)
-                .setRequestType(requestType)
+                InitialUserSetter.TYPE_DEFAULT_BEHAVIOR,
+                initialUserSetterRequestType)
                 .setUserLocales(userLocales)
                 .setReplaceGuest(replaceGuest)
                 .setSupportsOverrideUserIdProperty(supportsOverrideUserIdProperty)
@@ -1060,7 +1069,12 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         if (DBG) {
             Slogf.d(TAG, "calling mHal.switchUser(%s)", request);
         }
+
+        Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "switchUser.HalResponse",
+                targetUserId);
         mHal.switchUser(request, timeoutMs, (halCallbackStatus, resp) -> {
+            Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "switchUser.HalResponse",
+                    targetUserId);
             if (DBG) {
                 Slogf.d(TAG, "switch response: status=%s, resp=%s",
                         Integer.toString(halCallbackStatus), resp);
@@ -1359,7 +1373,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 flags, timeoutMs, hasCallerRestrictions ? 1 : 0);
 
         UserHandle callingUser = Binder.getCallingUserHandle();
-        if (mUserManager.hasUserRestrictionForUser(UserManager.DISALLOW_ADD_USER, callingUser)) {
+        // GUEST user can be created regardless of DISALLOW_ADD_USER restriction.
+        if (!userType.equals(UserManager.USER_TYPE_FULL_GUEST)
+                && mUserManager.hasUserRestrictionForUser(
+                        UserManager.DISALLOW_ADD_USER, callingUser)) {
             String internalErrorMessage = String.format(ERROR_TEMPLATE_DISALLOW_ADD_USER,
                     callingUser, UserManager.DISALLOW_ADD_USER);
             Slogf.w(TAG, internalErrorMessage);
@@ -1372,8 +1389,15 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         // will not work here because handleCreateUser() calls UserHalService#createUser(),
         // which is an asynchronous call. Two consecutive createUser requests would result in
         // STATUS_CONCURRENT_OPERATION error from UserHalService.
-        enqueueCreateUser(() -> handleCreateUser(name, userType, flags, timeoutMs, callback,
-                callingUser, hasCallerRestrictions));
+        enqueueCreateUser(() -> {
+            try {
+                Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "handleCreateUser");
+                handleCreateUser(name, userType, flags, timeoutMs, callback,
+                        callingUser, hasCallerRestrictions);
+            } finally {
+                Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
+            }
+        });
     }
 
     private void enqueueCreateUser(Runnable runnable) {
@@ -1523,7 +1547,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
         }
 
         try {
+            Trace.asyncTraceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "createUser.HalResponse",
+                    newUser.getIdentifier());
             mHal.createUser(request, timeoutMs, (status, resp) -> {
+                Trace.asyncTraceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE, "createUser.HalResponse",
+                        newUser.getIdentifier());
                 String errorMessage = resp != null ? resp.errorMessage : null;
                 int resultStatus = UserCreationResult.STATUS_HAL_INTERNAL_FAILURE;
                 if (DBG) {
@@ -2167,8 +2195,10 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private void handleStartUser(@UserIdInt int userId, int displayId,
             ResultCallbackImpl<UserStartResponse> callback) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE, "handleStartUser. UserId: " + userId);
         @UserStartResponse.Status int userStartStatus = startUserInternal(userId, displayId);
         sendUserStartUserResponse(userId, displayId, userStartStatus, callback);
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private void sendUserStartUserResponse(@UserIdInt int userId, int displayId,
@@ -2197,7 +2227,7 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_USER_DOES_NOT_EXIST;
         }
 
-        if (!mSupportsSecurePassengerUsers && LockPatternHelper.isSecure(mContext, userId)) {
+        if (!Flags.supportsSecurePassengerUsers() && LockPatternHelper.isSecure(mContext, userId)) {
             // Passenger lock screen not currently supported - reject user start
             Slogf.w(TAG, "Secure user %d cannot be started as a passenger", userId);
             return UserStartResponse.STATUS_UNSUPPORTED_PLATFORM_FAILURE;
@@ -2232,6 +2262,20 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             return UserStartResponse.STATUS_USER_ASSIGNED_TO_ANOTHER_DISPLAY;
         }
 
+        if (Flags.supportsSecurePassengerUsers() && LockPatternHelper.isSecure(mContext, userId)
+                && StorageManagerHelper.isUserStorageUnlocked(userId)) {
+            if (DBG) {
+                Slogf.d(TAG,
+                        "Starting secure user %d but user storage is unlocked - locking storage "
+                                + "before starting.", userId);
+            }
+            if (!StorageManagerHelper.lockUserStorage(mContext, userId)) {
+                Slogf.e(TAG, "Attempted to lock user=" + userId
+                        + " but still returned unlocked");
+                return UserStartResponse.STATUS_ANDROID_FAILURE;
+            }
+        }
+
         if (ActivityManagerHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId)) {
             if (Flags.visibleBackgroundUserRestrictions()) {
                 // Set user restrictions for a visible background user that just started.
@@ -2259,8 +2303,11 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
     private void handleStartUserInBackground(@UserIdInt int userId,
             AndroidFuture<UserStartResult> receiver) {
+        Trace.traceBegin(TraceHelper.TRACE_TAG_CAR_SERVICE,
+                "handleStartUserInBackground. UserId: " + userId);
         int result = startUserInBackgroundInternal(userId);
         sendUserStartResult(userId, result, receiver);
+        Trace.traceEnd(TraceHelper.TRACE_TAG_CAR_SERVICE);
     }
 
     private @UserStartResult.Status int startUserInBackgroundInternal(@UserIdInt int userId) {
@@ -2580,9 +2627,29 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
                 Slogf.e(TAG, "No main display for occupant zone:%d", zoneId);
                 continue;
             }
-            CarLocalServices.getService(CarActivityService.class)
-                    .startUserPickerOnDisplay(displayId);
+            // TODO(b/368612643): Add unit tests for this behavior
+            if (!isUserPickerVisible(displayId)) {
+                CarLocalServices.getService(CarActivityService.class).startUserPickerOnDisplay(
+                        displayId);
+            }
         }
+    }
+
+    private boolean isUserPickerVisible(int displayId) {
+        List<ActivityManager.RunningTaskInfo> tasks = CarLocalServices.getService(
+                CarActivityService.class).getVisibleTasksInternal(displayId);
+        for (int i = tasks.size() - 1; i >= 0; i--) {
+            ActivityManager.RunningTaskInfo taskInfo = tasks.get(i);
+            if (taskInfo.topActivity == null) {
+                continue;
+            }
+            if (Objects.equals(taskInfo.topActivity.flattenToString(), mUserPickerName)) {
+                // UserPicker activity found in the visible activities
+                return true;
+            }
+        }
+        // UserPicker activity not visible
+        return false;
     }
 
     @VisibleForTesting
