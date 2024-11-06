@@ -56,6 +56,7 @@ import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.AreaIdConfig;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.test.AbstractExpectableTestCase;
+import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.VehiclePropError;
 import android.hardware.automotive.vehicle.VehicleProperty;
 import android.hardware.automotive.vehicle.VehiclePropertyChangeMode;
@@ -70,6 +71,7 @@ import androidx.test.runner.AndroidJUnit4;
 
 import com.android.car.VehicleStub.AsyncGetSetRequest;
 import com.android.car.VehicleStub.GetVehicleStubAsyncResult;
+import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.VehicleStub.SetVehicleStubAsyncResult;
 import com.android.car.VehicleStub.VehicleStubCallbackInterface;
 import com.android.car.hal.VehicleHal.HalSubscribeOptions;
@@ -2852,6 +2854,95 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 .getTypedValue()).isEqualTo(minValue);
         expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class))
                 .isNull();
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+        float minValue = 1.23f;
+        float maxValue = 3.21f;
+        var minRawPropValues = new RawPropValues();
+        minRawPropValues.floatValues = new float[]{minValue};
+        var maxRawPropValues = new RawPropValues();
+        maxRawPropValues.floatValues = new float[]{maxValue};
+        var minMaxSupportedRawPropValues = new MinMaxSupportedRawPropValues(minRawPropValues,
+                maxRawPropValues);
+
+        when(mVehicleHal.getMinMaxSupportedValue(PERF_VEHICLE_SPEED, areaId)).thenReturn(
+                minMaxSupportedRawPropValues);
+
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                PERF_VEHICLE_SPEED, areaId, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(minValue);
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(maxValue);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_halPropConfigNotFound() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+        int mgrPropId = -1;
+        var areaIdConfig = new AreaIdConfig.Builder(mgrPropId, areaId).build();
+
+        // In fact, CarPropertyService verifies the property ID before calling
+        // PropertyHalService.getMinMaxSupportedValue, so this should never happen.
+        assertThrows(IllegalArgumentException.class, () -> {
+            mPropertyHalService.getMinMaxSupportedValue(mgrPropId, areaId, areaIdConfig);
+        });
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_maxValueNull() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+        float minValue = 1.23f;
+        var minRawPropValues = new RawPropValues();
+        minRawPropValues.floatValues = new float[]{minValue};
+        var minMaxSupportedRawPropValues = new MinMaxSupportedRawPropValues(minRawPropValues,
+                /* maxValue= */ null);
+
+        when(mVehicleHal.getMinMaxSupportedValue(PERF_VEHICLE_SPEED, areaId)).thenReturn(
+                minMaxSupportedRawPropValues);
+
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                PERF_VEHICLE_SPEED, areaId, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(minValue);
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class))
+                .isNull();
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_minValueNull() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+        float maxValue = 3.21f;
+        var maxRawPropValues = new RawPropValues();
+        maxRawPropValues.floatValues = new float[]{maxValue};
+        var minMaxSupportedRawPropValues = new MinMaxSupportedRawPropValues(/* minValue= */ null,
+                maxRawPropValues);
+
+        when(mVehicleHal.getMinMaxSupportedValue(PERF_VEHICLE_SPEED, areaId)).thenReturn(
+                minMaxSupportedRawPropValues);
+
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                PERF_VEHICLE_SPEED, areaId, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class))
+                .isNull();
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(maxValue);
     }
 
     @Test

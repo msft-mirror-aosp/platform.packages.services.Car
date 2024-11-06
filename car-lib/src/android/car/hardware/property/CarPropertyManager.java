@@ -3347,6 +3347,7 @@ public class CarPropertyManager extends CarManagerBase {
      * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
      * @throws SecurityException if the caller does not have either read or write access to the
      *      property.
+     * @throws CarInternalErrorException if failed to get the information from the hardware.
      */
     @FlaggedApi(FLAG_CAR_PROPERTY_SUPPORTED_VALUE)
     public <T> @NonNull MinMaxSupportedValue<T> getMinMaxSupportedValue(
@@ -3360,6 +3361,9 @@ public class CarPropertyManager extends CarManagerBase {
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, new MinMaxSupportedValue(
                     /* minValue= */ null, /* maxValue= */ null));
+        } catch (ServiceSpecificException e) {
+            Slog.e(TAG, "Failed to get min max supported value", e);
+            throw new CarInternalErrorException(propertyId, areaId);
         }
 
         T minValue = null;

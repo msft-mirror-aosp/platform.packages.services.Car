@@ -19,6 +19,7 @@ package com.android.car;
 import android.annotation.Nullable;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.util.Slogf;
+import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
@@ -393,5 +394,22 @@ public abstract class VehicleStub {
      */
     public boolean isSupportedValuesImplemented() {
         return false;
+    }
+
+    public record MinMaxSupportedRawPropValues(
+            @Nullable RawPropValues minValue, @Nullable RawPropValues maxValue) {};
+
+    /**
+     * Gets the min/max supported value.
+     *
+     * Caller should only call this if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
+     * If no min/max supported value is specified, return an empty structure.
+     *
+     * @throws ServiceSpecificException if the operation fails.
+     */
+    public MinMaxSupportedRawPropValues getMinMaxSupportedValue(int propertyId, int areaId)
+            throws ServiceSpecificException {
+        return new MinMaxSupportedRawPropValues(null, null);
     }
 }

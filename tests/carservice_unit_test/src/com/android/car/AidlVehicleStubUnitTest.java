@@ -45,6 +45,9 @@ import android.hardware.automotive.vehicle.GetValueResult;
 import android.hardware.automotive.vehicle.GetValueResults;
 import android.hardware.automotive.vehicle.IVehicle;
 import android.hardware.automotive.vehicle.IVehicleCallback;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResult;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResults;
+import android.hardware.automotive.vehicle.PropIdAreaId;
 import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SetValueRequest;
 import android.hardware.automotive.vehicle.SetValueRequests;
@@ -69,6 +72,7 @@ import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import com.android.car.VehicleStub.AsyncGetSetRequest;
+import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.hal.HalPropConfig;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
@@ -1397,4 +1401,81 @@ public final class AidlVehicleStubUnitTest {
 
         assertThat(mAidlVehicleStub.isSupportedValuesImplemented()).isFalse();
     }
+
+    @Test
+    public void testGetMinMaxSupportedValue() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+        int testMinValue = 1234;
+        int testMaxValue = 4321;
+
+        var minSupportedRawPropValues = new RawPropValues();
+        minSupportedRawPropValues.int32Values = new int[]{testMinValue};
+        var maxSupportedRawPropValues = new RawPropValues();
+        maxSupportedRawPropValues.int32Values = new int[]{testMaxValue};
+
+        MinMaxSupportedValueResult result = new MinMaxSupportedValueResult();
+        result.status = StatusCode.OK;
+        result.minSupportedValue = minSupportedRawPropValues;
+        result.maxSupportedValue = maxSupportedRawPropValues;
+        MinMaxSupportedValueResults results = new MinMaxSupportedValueResults();
+        results.payloads = new MinMaxSupportedValueResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getMinMaxSupportedValue(captor.capture())).thenReturn(results);
+
+        MinMaxSupportedRawPropValues minMaxSupportedRawPropValues =
+                mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+
+        PropIdAreaId gotPropIdAreaId = (PropIdAreaId) captor.getValue().get(0);
+        assertThat(gotPropIdAreaId).isEqualTo(propIdAreaId);
+        assertThat(minMaxSupportedRawPropValues.minValue()).isEqualTo(minSupportedRawPropValues);
+        assertThat(minMaxSupportedRawPropValues.maxValue()).isEqualTo(maxSupportedRawPropValues);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_RemoteException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getMinMaxSupportedValue(any())).thenThrow(new RemoteException());
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_ServiceSpecificException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getMinMaxSupportedValue(any())).thenThrow(
+                new ServiceSpecificException(StatusCode.INTERNAL_ERROR));
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_nonOkayResult() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        MinMaxSupportedValueResult result = new MinMaxSupportedValueResult();
+        result.status = StatusCode.INTERNAL_ERROR;
+        MinMaxSupportedValueResults results = new MinMaxSupportedValueResults();
+        results.payloads = new MinMaxSupportedValueResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getMinMaxSupportedValue(captor.capture())).thenReturn(results);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
 }

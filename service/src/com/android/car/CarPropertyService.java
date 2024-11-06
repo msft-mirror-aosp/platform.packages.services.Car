@@ -1143,6 +1143,7 @@ public class CarPropertyService extends ICarProperty.Stub
     /**
      * @throws IllegalArgumentException If the propertyId or areaId is not supported.
      * @throws SecurityException If caller does not have read and does not have write permission.
+     * @throws ServiceSpecificException If VHAL returns error.
      */
     @Override
     public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId) {

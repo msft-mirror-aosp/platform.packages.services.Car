@@ -59,6 +59,7 @@ import com.android.car.CarLog;
 import com.android.car.CarServiceUtils;
 import com.android.car.CarSystemService;
 import com.android.car.VehicleStub;
+import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.VehicleStub.SubscriptionClient;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -1779,5 +1780,13 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
      */
     public boolean isSupportedValuesImplemented() {
         return mVehicleStub.isSupportedValuesImplemented();
+    }
+
+    /**
+     * Gets the min/max supported value.
+     */
+    public MinMaxSupportedRawPropValues getMinMaxSupportedValue(int propertyId, int areaId)
+            throws ServiceSpecificException {
+        return mVehicleStub.getMinMaxSupportedValue(propertyId, areaId);
     }
 }

@@ -74,6 +74,7 @@ import com.android.car.CarServiceUtils;
 import com.android.car.VehicleStub;
 import com.android.car.VehicleStub.AsyncGetSetRequest;
 import com.android.car.VehicleStub.GetVehicleStubAsyncResult;
+import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.VehicleStub.SetVehicleStubAsyncResult;
 import com.android.car.VehicleStub.VehicleStubCallbackInterface;
 import com.android.car.hal.VehicleHal.HalSubscribeOptions;
@@ -1369,15 +1370,38 @@ public class PropertyHalService extends HalServiceBase {
      * The passed in [propertyId, areaId] is already checked and must be supported.
      *
      * @return The currently supported min/max value.
+     * @throws ServiceSpecificException If got error from VHAL.
+     * @throws IllegalArgumentException If the property ID is not valid or supported.
      */
-    public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId,
+    public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int mgrPropId, int areaId,
             AreaIdConfig<?> areaIdConfig) {
+        int halPropId = managerToHalPropId(mgrPropId);
+        HalPropConfig halPropConfig;
+        synchronized (mLock) {
+            halPropConfig = mHalPropIdToPropConfig.get(halPropId);
+            if (halPropConfig == null) {
+                throw new IllegalArgumentException("Property ID: "
+                        + VehiclePropertyIds.toString(mgrPropId) + " is not supported");
+            }
+        }
+
+        var returnValue = new MinMaxSupportedPropertyValue();
         if (mVehicleHal.isSupportedValuesImplemented()) {
-            // TODO
-            return null;
+            MinMaxSupportedRawPropValues minMaxRawPropValues =
+                    mVehicleHal.getMinMaxSupportedValue(halPropId, areaId);
+            if (minMaxRawPropValues.minValue() != null) {
+                returnValue.minValue.setParcelable(HalPropValue.toRawPropertyValue(
+                        halPropId, areaId, mgrPropId, minMaxRawPropValues.minValue(),
+                        halPropConfig));
+            }
+            if (minMaxRawPropValues.maxValue() != null) {
+                returnValue.maxValue.setParcelable(HalPropValue.toRawPropertyValue(
+                        halPropId, areaId, mgrPropId, minMaxRawPropValues.maxValue(),
+                        halPropConfig));
+            }
+            return returnValue;
         } else {
             // If VHAL does not support value range, we use areaIdConfig.
-            var returnValue = new MinMaxSupportedPropertyValue();
             if (areaIdConfig.getMaxValue() != null) {
                 returnValue.maxValue.setParcelable(new RawPropertyValue(
                         areaIdConfig.getMaxValue()));
