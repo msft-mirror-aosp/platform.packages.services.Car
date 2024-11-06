@@ -55,6 +55,7 @@ import android.car.hardware.cabin.CarCabinManager;
 import android.car.hardware.hvac.CarHvacManager;
 import android.car.hardware.power.CarPowerManager;
 import android.car.hardware.property.CarPropertyManager;
+import android.car.hardware.property.CarPropertySimulationManager;
 import android.car.hardware.property.ICarProperty;
 import android.car.input.CarInputManager;
 import android.car.media.CarAudioManager;
@@ -192,7 +193,7 @@ public final class Car implements ICarBase {
     // Car service registry information.
     // This information never changes after the static initialization completes.
     private static final Map<Class<?>, String> CAR_SERVICE_NAMES =
-            new ArrayMap<Class<?>, String>(38);
+            new ArrayMap<Class<?>, String>(39);
 
     /**
      * Binder service name of car service registered to service manager.
@@ -1367,6 +1368,24 @@ public final class Car implements ICarBase {
             "android.car.permission.BIND_APP_CARD_PROVIDER";
 
     /**
+     * Signature permission necessary to record vehicle properties.
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAR_PROPERTY_SIMULATION)
+    @SystemApi
+    public static final String PERMISSION_RECORD_VEHICLE_PROPERTIES =
+            "android.car.permission.RECORD_VEHICLE_PROPERTIES";
+
+    /**
+     * Signature permission necessary to inject vehicle properties for testing purposes.
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAR_PROPERTY_SIMULATION)
+    @SystemApi
+    public static final String PERMISSION_INJECT_VEHICLE_PROPERTIES =
+            "android.car.permission.INJECT_VEHICLE_PROPERTIES";
+
+    /**
      * Intent for connecting to the template renderer. Services that handle this intent must also
      * hold {@link #PERMISSION_TEMPLATE_RENDERER}. Applications would not bind to this service
      * directly, but instead they would use
@@ -1472,6 +1491,14 @@ public final class Car implements ICarBase {
     @FlaggedApi(Flags.FLAG_DISPLAY_COMPATIBILITY)
     @SystemApi
     public static final String CAR_DISPLAY_COMPAT_SERVICE = "car_display_compat_service";
+
+    /**
+     * Service name for {@link android.car.hardware.property.CarPropertySimulationManager}
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CAR_PROPERTY_SIMULATION)
+    @SystemApi
+    public static final String CAR_PROPERTY_SIMULATION_SERVICE = "car_property_simulation_service";
 
     /**
      * Callback to notify the Lifecycle of car service.
@@ -1786,6 +1813,10 @@ public final class Car implements ICarBase {
         }
         if (Flags.displayCompatibility()) {
             CAR_SERVICE_NAMES.put(CarDisplayCompatManager.class, CAR_DISPLAY_COMPAT_SERVICE);
+        }
+        if (Flags.carPropertySimulation()) {
+            CAR_SERVICE_NAMES.put(CarPropertySimulationManager.class,
+                    CAR_PROPERTY_SIMULATION_SERVICE);
         }
         // Note: if a new entry is added here, the capacity of CAR_SERVICE_NAMES should be increased
         // as well.
@@ -3026,6 +3057,12 @@ public final class Car implements ICarBase {
                 if (Flags.persistApSettings()) {
                     if (serviceName.equals(CAR_WIFI_SERVICE)) {
                         manager = new CarWifiManager(this, binder);
+                        break;
+                    }
+                }
+                if (Flags.carPropertySimulation()) {
+                    if (serviceName.equals(CAR_PROPERTY_SIMULATION_SERVICE)) {
+                        manager = new CarPropertySimulationManager(this, binder);
                         break;
                     }
                 }
