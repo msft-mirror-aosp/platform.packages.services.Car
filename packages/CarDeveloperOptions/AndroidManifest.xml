@@ -1785,7 +1785,7 @@
         </activity>
 
         <activity
-            android:name="com.android.settings.PowerUsageAdvancedActivity"
+            android:name="com.android.settings.Settings$PowerUsageAdvancedActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
