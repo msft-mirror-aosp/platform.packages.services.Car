@@ -383,3 +383,11 @@ flag {
     description: "Enables task view task reordering"
     bug: "369186876"
 }
+
+# 3P VHAL Property Strategy
+flag {
+    name: "vehicle_property_remove_system_api_tags"
+    namespace: "car_perception"
+    description: "Expose vehicle property constants as public APIs instead of system APIs"
+    bug: "357910317"
+}
