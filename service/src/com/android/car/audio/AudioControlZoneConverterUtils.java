@@ -16,6 +16,7 @@
 
 package com.android.car.audio;
 
+import static android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration.CONFIGURABLE_AUDIO_ENGINE_ROUTING;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_BOOT;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_PLAYBACK_CHANGED;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_SOURCE_CHANGED;
@@ -24,15 +25,22 @@ import static com.android.car.audio.CarAudioUtils.DEFAULT_ACTIVATION_VOLUME;
 import static com.android.car.audio.CarAudioUtils.isInvalidActivationPercentage;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.PRIVATE_CONSTRUCTOR;
 
+import android.car.builtin.media.AudioManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.AudioZoneContext;
+import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.audio.common.AudioDeviceDescription;
 import android.media.audio.common.AudioDeviceType;
+import android.media.audio.common.AudioSource;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -149,5 +157,88 @@ class AudioControlZoneConverterUtils {
                 return DEFAULT_ACTIVATION_VOLUME;
         }
         return new CarActivationVolumeConfig(activationType, minActivation, maxActivation);
+    }
+
+    static CarAudioContext convertCarAudioContext(AudioZoneContext audioZoneContext,
+                                                  AudioDeviceConfiguration deviceConfiguration) {
+        List<CarAudioContextInfo> infos =
+                new ArrayList<>(audioZoneContext.audioContextInfos.size());
+        int nextValidId = CarAudioContext.getInvalidContext() + 1;
+        for (int c = 0; c < audioZoneContext.audioContextInfos.size(); c++) {
+            Slogf.d(TAG, "Context " + audioZoneContext.audioContextInfos.get(c));
+            var contextInfo = convertCarAudioContextInfo(audioZoneContext.audioContextInfos.get(c),
+                    deviceConfiguration, nextValidId);
+            infos.add(contextInfo);
+            if (contextInfo.getId() == nextValidId) {
+                nextValidId++;
+            }
+        }
+        return new CarAudioContext(infos, deviceConfiguration.routingConfig
+                == CONFIGURABLE_AUDIO_ENGINE_ROUTING);
+    }
+
+    static AudioAttributes convertAudioAttributes(
+            android.media.audio.common.AudioAttributes audioAttributes) {
+        AudioAttributes.Builder builder = new AudioAttributes.Builder();
+        if (AudioAttributes.isSystemUsage(audioAttributes.usage)) {
+            builder.setSystemUsage(audioAttributes.usage);
+        } else {
+            builder.setUsage(audioAttributes.usage);
+        }
+        convertAudioTags(audioAttributes.tags, builder);
+        builder.setFlags(audioAttributes.flags);
+        builder.setContentType(audioAttributes.contentType);
+        if (audioAttributes.source != AudioSource.DEFAULT) {
+            builder.setCapturePreset(audioAttributes.source);
+        }
+        return builder.build();
+    }
+
+    private static void convertAudioTags(String[] tags, AudioAttributes.Builder builder) {
+        if (tags == null || tags.length == 0) {
+            return;
+        }
+        for (String tag : tags) {
+            AudioManagerHelper.addTagToAudioAttributes(builder, tag);
+        }
+    }
+
+    private static CarAudioContextInfo convertCarAudioContextInfo(AudioZoneContextInfo info,
+            AudioDeviceConfiguration deviceConfiguration, int nextValidId) {
+        String contextName = info.name;
+        int contextId = getValidContextInfoId(contextName, deviceConfiguration,
+                info.id, nextValidId);
+        String name = getValidContextName(info.name, contextId);
+        return new CarAudioContextInfo(toMediaAudioAttributes(info.audioAttributes),
+                name, contextId);
+    }
+
+    private static AudioAttributes[] toMediaAudioAttributes(
+            List<android.media.audio.common.AudioAttributes> audioAttributes) {
+        AudioAttributes[] mediaAttributes = new AudioAttributes[audioAttributes.size()];
+        for (int c = 0; c < audioAttributes.size(); c++) {
+            mediaAttributes[c] = convertAudioAttributes(audioAttributes.get(c));
+        }
+        return mediaAttributes;
+    }
+
+    private static int getValidContextInfoId(String contextName,
+            AudioDeviceConfiguration deviceConfiguration, int contextId, int nextValidId) {
+        if (contextId != AudioZoneContextInfo.UNASSIGNED_CONTEXT_ID) {
+            return contextId;
+        }
+        int strategyId = nextValidId;
+        if (deviceConfiguration.routingConfig == CONFIGURABLE_AUDIO_ENGINE_ROUTING) {
+            strategyId = CoreAudioHelper.getStrategyForContextName(contextName);
+            if (strategyId == CoreAudioHelper.INVALID_STRATEGY) {
+                throw new IllegalArgumentException("Can not find product strategy id for context "
+                        + contextName);
+            }
+        }
+        return strategyId;
+    }
+
+    private static String getValidContextName(String name, int contextId) {
+        return name != null && !name.isEmpty() ? name : ("Context " + contextId);
     }
 }
