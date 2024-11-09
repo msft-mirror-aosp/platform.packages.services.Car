@@ -16,18 +16,31 @@
 
 package com.android.car.audio;
 
+import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_BOOT;
+import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_PLAYBACK_CHANGED;
+import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_SOURCE_CHANGED;
+
+import static com.android.car.audio.CarAudioUtils.DEFAULT_ACTIVATION_VOLUME;
+import static com.android.car.audio.CarAudioUtils.isInvalidActivationPercentage;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.PRIVATE_CONSTRUCTOR;
 
+import android.car.builtin.util.Slogf;
+import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
+import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
 import android.media.AudioDeviceInfo;
 import android.media.audio.common.AudioDeviceDescription;
 import android.media.audio.common.AudioDeviceType;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
+import java.util.List;
+
 /**
  * Utility class for general audio control conversion methods
  */
 class AudioControlZoneConverterUtils {
+
+    private static final String TAG = AudioControlZoneConverterUtils.class.getSimpleName();
 
     @ExcludeFromCodeCoverageGeneratedReport(reason = PRIVATE_CONSTRUCTOR)
     private AudioControlZoneConverterUtils() {
@@ -86,5 +99,55 @@ class AudioControlZoneConverterUtils {
                     default -> AudioDeviceInfo.TYPE_BUS;
                 };
         }
+    }
+
+    static CarActivationVolumeConfig convertVolumeActivationConfig(
+            VolumeActivationConfiguration activationConfiguration) {
+        if (activationConfiguration == null) {
+            return DEFAULT_ACTIVATION_VOLUME;
+        }
+        List<VolumeActivationConfigurationEntry> entries =
+                activationConfiguration.volumeActivationEntries;
+        if (entries == null || entries.isEmpty()) {
+            Slogf.e(TAG, "Empty volume activation entry for activation config "
+                    + activationConfiguration.name);
+            return DEFAULT_ACTIVATION_VOLUME;
+        }
+        //Currently car only supports a single configuration entry
+        VolumeActivationConfigurationEntry entry =
+                activationConfiguration.volumeActivationEntries.get(0);
+        if (isInvalidActivationPercentage(entry.maxActivationVolumePercentage)) {
+            Slogf.e(TAG, "Invalid volume max activation value, value must be between 0 and 100");
+            return DEFAULT_ACTIVATION_VOLUME;
+        }
+        if (isInvalidActivationPercentage(entry.minActivationVolumePercentage)) {
+            Slogf.e(TAG, "Invalid volume min activation value, value must be between 0 and 100");
+            return DEFAULT_ACTIVATION_VOLUME;
+        }
+        int maxActivation = entry.maxActivationVolumePercentage;
+        int minActivation = entry.minActivationVolumePercentage;
+        if (maxActivation <= minActivation) {
+            Slogf.e(TAG, "Invalid volume activation values, min = "
+                    + minActivation + " greater than max = " + maxActivation
+                    + " for activation config " + activationConfiguration.name);
+            return DEFAULT_ACTIVATION_VOLUME;
+        }
+        int activationType;
+        switch (entry.type) {
+            case ON_PLAYBACK_CHANGED:
+                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
+                break;
+            case ON_SOURCE_CHANGED:
+                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
+                break;
+            case ON_BOOT:
+                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
+                break;
+            default:
+                Slogf.e(TAG, "Invalid activation type " + entry.type + " for "
+                        + activationConfiguration.name);
+                return DEFAULT_ACTIVATION_VOLUME;
+        }
+        return new CarActivationVolumeConfig(activationType, minActivation, maxActivation);
     }
 }
