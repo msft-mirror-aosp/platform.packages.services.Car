@@ -56,7 +56,7 @@ import java.util.Objects;
 /**
  * Utility class for general audio control conversion methods
  */
-class AudioControlZoneConverterUtils {
+final class AudioControlZoneConverterUtils {
 
     private static final String TAG = AudioControlZoneConverterUtils.class.getSimpleName();
 
