@@ -38,6 +38,7 @@ import static android.media.audio.common.AudioUsage.VEHICLE_STATUS;
 import static android.media.audio.common.AudioUsage.VOICE_COMMUNICATION;
 import static android.media.audio.common.AudioUsage.VOICE_COMMUNICATION_SIGNALLING;
 
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioDevicePort;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertCarAudioContext;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
@@ -45,6 +46,8 @@ import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
 import static com.android.car.audio.CarAudioUtils.DEFAULT_ACTIVATION_VOLUME;
 import static com.android.car.audio.CoreAudioRoutingUtils.createCoreAudioContext;
+import static com.android.car.audio.CarAudioTestUtils.createAudioPort;
+import static com.android.car.audio.CarAudioTestUtils.createAudioPortDeviceExt;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
@@ -54,18 +57,29 @@ import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
+import android.media.AudioDeviceInfo;
 import android.media.MediaRecorder;
 import android.media.audio.common.AudioAttributes;
 import android.media.audio.common.AudioContentType;
+import android.media.audio.common.AudioDeviceDescription;
+import android.media.audio.common.AudioDeviceType;
 import android.media.audio.common.AudioFlag;
+import android.media.audio.common.AudioGain;
+import android.media.audio.common.AudioGainMode;
+import android.media.audio.common.AudioPort;
+import android.media.audio.common.AudioPortDeviceExt;
+import android.media.audio.common.AudioPortExt;
 import android.media.audio.common.AudioSource;
 import android.media.audio.common.AudioUsage;
+import android.util.ArrayMap;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -92,6 +106,31 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
     private static final int TEST_FLAGS = AudioFlag.AUDIBILITY_ENFORCED;
     private static final String[] TEST_TAGS =  {"OEM_NAV", "OEM_ASSISTANT"};
 
+    private static final int PORT_ID_MEDIA = 10;
+    private static final String PORT_MEDIA_NAME = "media_bus";
+    private static final String PORT_MEDIA_ADDRESS = "MEDIA_BUS";
+    private static final AudioGain[] GAINS = new AudioGain[] {
+            new AudioGain() {{
+                mode = AudioGainMode.JOINT;
+                minValue = 0;
+                maxValue = 100;
+                defaultValue = 50;
+                stepValue = 2;
+            }}
+    };
+    private static final CarAudioDeviceInfo MEDIA_BUS_DEVICE =
+            Mockito.mock(CarAudioDeviceInfo.class);
+
+    private ArrayMap<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
+
+    @Override
+    protected void clearInlineMocks(String when) {
+        super.clearInlineMocks(when);
+    }
+
+    @Mock
+    private AudioManagerWrapper mAudioManager;
+
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
         session.spyStatic(CoreAudioHelper.class)
@@ -102,6 +141,8 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
     public void setUp() {
         doReturn(CoreAudioRoutingUtils.getProductStrategies())
                 .when(AudioManagerWrapper::getAudioProductStrategies);
+        mAddressToCarAudioDeviceInfo = new ArrayMap<>();
+        mAddressToCarAudioDeviceInfo.put(PORT_MEDIA_ADDRESS, MEDIA_BUS_DEVICE);
     }
 
     @Test
@@ -252,6 +293,71 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
                 .that(convertCarAudioContext(context, configuration))
                 .isEqualTo(corerRoutingContext);
     }
+
+    @Test
+    public void convertAudioDevicePort_withNullPort() {
+        expectWithMessage("Converted car audio device with null port")
+                .that(convertAudioDevicePort(/* port= */ null, mAudioManager,
+                        mAddressToCarAudioDeviceInfo)).isNull();
+    }
+
+    @Test
+    public void convertAudioDevicePort_withNullExternalDevice() {
+        AudioPort audioPort = new AudioPort();
+        audioPort.ext = null;
+
+        expectWithMessage("Converted car audio device with null external device")
+                .that(convertAudioDevicePort(audioPort, mAudioManager,
+                        mAddressToCarAudioDeviceInfo)).isNull();
+    }
+
+    @Test
+    public void convertAudioDevicePort_withoutExternalDevice() {
+        AudioPort audioPort = new AudioPort();
+        audioPort.ext = new AudioPortExt();
+
+        expectWithMessage("Converted car audio device without external device tag")
+                .that(convertAudioDevicePort(audioPort, mAudioManager,
+                        mAddressToCarAudioDeviceInfo)).isNull();
+    }
+
+    @Test
+    public void convertAudioDevicePort_withoutAudioDevice() {
+        AudioPort audioPort = createAudioPort(PORT_ID_MEDIA, PORT_MEDIA_NAME, GAINS,
+                new AudioPortDeviceExt());
+
+        expectWithMessage("Converted car audio device with null audio device")
+                .that(convertAudioDevicePort(audioPort, mAudioManager,
+                        mAddressToCarAudioDeviceInfo)).isNull();
+    }
+
+    @Test
+    public void convertAudioDevicePort_withBusDevice() {
+        AudioPortDeviceExt busPortDevice =
+                createAudioPortDeviceExt(AudioDeviceType.OUT_BUS, "", PORT_MEDIA_ADDRESS);
+        AudioPort audioPort = createAudioPort(PORT_ID_MEDIA, PORT_MEDIA_NAME, GAINS, busPortDevice);
+
+        expectWithMessage("Converted car audio device with valid bus device")
+                .that(convertAudioDevicePort(audioPort, mAudioManager,
+                        mAddressToCarAudioDeviceInfo)).isEqualTo(MEDIA_BUS_DEVICE);
+    }
+
+    @Test
+    public void convertAudioDevicePort_withBTDevice() {
+        AudioPortDeviceExt btPortDevice =
+                createAudioPortDeviceExt(AudioDeviceType.OUT_SPEAKER,
+                        AudioDeviceDescription.CONNECTION_BT_A2DP, "");
+        AudioPort audioPort = createAudioPort(PORT_ID_MEDIA, PORT_MEDIA_NAME, GAINS, btPortDevice);
+
+        CarAudioDeviceInfo betAudioDevice = convertAudioDevicePort(audioPort, mAudioManager,
+                mAddressToCarAudioDeviceInfo);
+
+        expectWithMessage("Device address of converted car audio device with valid BT device")
+                .that(betAudioDevice.getAddress()).isEmpty();
+        expectWithMessage("Device type of converted car audio device with valid BT device")
+                .that(betAudioDevice.getType()).isEqualTo(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP);
+    }
+
 
     private AudioZoneContext createHALAudioContext() {
         AudioZoneContext context = new AudioZoneContext();

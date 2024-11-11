@@ -20,11 +20,13 @@ import static android.hardware.automotive.audiocontrol.RoutingDeviceConfiguratio
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_BOOT;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_PLAYBACK_CHANGED;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_SOURCE_CHANGED;
+import static android.media.AudioDeviceAttributes.ROLE_OUTPUT;
 
 import static com.android.car.audio.CarAudioUtils.DEFAULT_ACTIVATION_VOLUME;
 import static com.android.car.audio.CarAudioUtils.isInvalidActivationPercentage;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.PRIVATE_CONSTRUCTOR;
 
+import android.annotation.Nullable;
 import android.car.builtin.media.AudioManagerHelper;
 import android.car.builtin.util.Slogf;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
@@ -33,10 +35,15 @@ import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.audio.common.AudioDevice;
 import android.media.audio.common.AudioDeviceDescription;
 import android.media.audio.common.AudioDeviceType;
+import android.media.audio.common.AudioPort;
+import android.media.audio.common.AudioPortExt;
 import android.media.audio.common.AudioSource;
+import android.util.ArrayMap;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
@@ -192,6 +199,39 @@ class AudioControlZoneConverterUtils {
             builder.setCapturePreset(audioAttributes.source);
         }
         return builder.build();
+    }
+
+    @Nullable
+    static CarAudioDeviceInfo convertAudioDevicePort(AudioPort port,
+            AudioManagerWrapper audioManager,
+            ArrayMap<String, CarAudioDeviceInfo> deviceAddressToCarDeviceInfo) {
+        if (port == null ||  port.ext == null || port.ext.getTag() != AudioPortExt.device
+                || port.ext.getDevice() == null) {
+            return null;
+        }
+        AudioDevice device = port.ext.getDevice().device;
+        if (device == null) {
+            return null;
+        }
+        String address = device.address.getId();
+        String connection = device.type.connection;
+        if (requiresDeviceAddress(device.type.type, connection)) {
+            return findDeviceByAddress(address, deviceAddressToCarDeviceInfo);
+        }
+        int  externalType = convertToAudioDeviceInfoType(device.type.type, connection);
+        address = address == null ? "" : address;
+        return new CarAudioDeviceInfo(audioManager,
+                new AudioDeviceAttributes(ROLE_OUTPUT, externalType, address));
+    }
+
+    private static boolean requiresDeviceAddress(int type, String connection) {
+        return type == AudioDeviceType.OUT_BUS && (connection == null || connection.isEmpty()
+                || connection.equals(AudioDeviceDescription.CONNECTION_BUS));
+    }
+
+    private static CarAudioDeviceInfo findDeviceByAddress(String address, ArrayMap<String,
+            CarAudioDeviceInfo> deviceAddressToCarDeviceInfo) {
+        return deviceAddressToCarDeviceInfo.get(address);
     }
 
     private static void convertAudioTags(String[] tags, AudioAttributes.Builder builder) {

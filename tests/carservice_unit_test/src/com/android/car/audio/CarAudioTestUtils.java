@@ -38,6 +38,13 @@ import android.car.builtin.media.AudioManagerHelper;
 import android.media.AudioAttributes;
 import android.media.AudioFocusInfo;
 import android.media.AudioManager;
+import android.media.audio.common.AudioDevice;
+import android.media.audio.common.AudioDeviceAddress;
+import android.media.audio.common.AudioDeviceDescription;
+import android.media.audio.common.AudioGain;
+import android.media.audio.common.AudioPort;
+import android.media.audio.common.AudioPortDeviceExt;
+import android.media.audio.common.AudioPortExt;
 import android.os.Build;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -183,5 +190,44 @@ public final class CarAudioTestUtils {
         return new AudioFocusInfo(audioAttributes, uid, clientId, PACKAGE_NAME,
                 gainType, AudioManager.AUDIOFOCUS_NONE,
                 flags, Build.VERSION.SDK_INT);
+    }
+
+    /**
+     * Creates an external audio port device
+     *
+     * @param type Type of audio device (e.g. BUS)
+     * @param connection Connection for the audio device
+     * @param address Device address
+     * @return Created audio device
+     */
+    public static AudioPortDeviceExt createAudioPortDeviceExt(int type, String connection,
+                                                              String address) {
+        AudioPortDeviceExt deviceExt = new AudioPortDeviceExt();
+        deviceExt.device = new AudioDevice();
+        deviceExt.device.type = new AudioDeviceDescription();
+        deviceExt.device.type.type = type;
+        deviceExt.device.type.connection = connection;
+        deviceExt.device.address = AudioDeviceAddress.id(address);
+        return deviceExt;
+    }
+
+    /**
+     * Creates an audio port for testing
+     *
+     * @param id ID of the audio port device
+     * @param name Name of the audio port
+     * @param gains Gains of the audio port
+     * @param deviceExt External device represented by the port
+     *
+     * @return Created audio device port
+     */
+    public static AudioPort createAudioPort(int id, String name, AudioGain[] gains,
+                                            AudioPortDeviceExt deviceExt) {
+        AudioPort audioPort = new AudioPort();
+        audioPort.id = id;
+        audioPort.name = name;
+        audioPort.gains = gains;
+        audioPort.ext = AudioPortExt.device(deviceExt);
+        return audioPort;
     }
 }
