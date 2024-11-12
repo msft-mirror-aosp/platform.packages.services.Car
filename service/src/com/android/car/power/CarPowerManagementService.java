@@ -1339,7 +1339,12 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             if (mFeatureFlags.carPowerCancelShellCommand()) {
                 synchronized (mSimulationWaitObject) {
                     if (mInSimulatedDeepSleepMode && mCancelDelayFromSimulatedSuspendSec >= 0) {
-                        mHandler.postDelayed(() -> forceSimulatedCancel(),
+                        // Cannot use mHandler here because it can cause deadlock. This code
+                        // can run on handler thread which relies on the results of
+                        // forceSimulatedCancel. If forceSimulatedCancel runs on the same handler,
+                        // it will cause deadlock.
+                        Handler handler = new Handler(Looper.getMainLooper());
+                        handler.postDelayed(() -> forceSimulatedCancel(),
                                 mCancelDelayFromSimulatedSuspendSec * 1000L);
                         while (!mBlockFromSimulatedCancelEvent) {
                             try {
