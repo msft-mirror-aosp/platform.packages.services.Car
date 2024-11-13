@@ -1560,7 +1560,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_MIRRORS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "MIRROR_AUTO_TILT_ENABLED": {
       "propertyName": "MIRROR_AUTO_TILT_ENABLED",
@@ -1574,7 +1574,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_MIRRORS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "GLOVE_BOX_DOOR_POS": {
       "propertyName": "GLOVE_BOX_DOOR_POS",
