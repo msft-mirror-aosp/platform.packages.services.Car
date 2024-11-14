@@ -2975,6 +2975,59 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         assertThat(supportedValuesList).isNull();
     }
 
+    @Test
+    public void testGetSupportedValuesList() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+        float value1 = 1.23f;
+        float value2 = 3.21f;
+        var rawPropValues1 = new RawPropValues();
+        rawPropValues1.floatValues = new float[]{value1};
+        var rawPropValues2 = new RawPropValues();
+        rawPropValues2.floatValues = new float[]{value2};
+
+        when(mVehicleHal.getSupportedValuesList(PERF_VEHICLE_SPEED, areaId)).thenReturn(
+                List.of(rawPropValues1, rawPropValues2));
+
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                PERF_VEHICLE_SPEED, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).hasSize(2);
+        expectThat(supportedValuesList.get(0).getTypedValue()).isEqualTo(value1);
+        expectThat(supportedValuesList.get(1).getTypedValue()).isEqualTo(value2);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_returnNull() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+
+        when(mVehicleHal.getSupportedValuesList(PERF_VEHICLE_SPEED, areaId)).thenReturn(null);
+
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                PERF_VEHICLE_SPEED, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).isNull();
+    }
+
+    @Test
+    public void testGetSupportedValuesList_halPropConfigNotFound() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+        int mgrPropId = -1;
+        var areaIdConfig = new AreaIdConfig.Builder(mgrPropId, areaId).build();
+
+        // In fact, CarPropertyService verifies the property ID before calling
+        // PropertyHalService.GetSupportedValuesList, so this should never happen.
+        assertThrows(IllegalArgumentException.class, () -> {
+            mPropertyHalService.getSupportedValuesList(mgrPropId, areaId, areaIdConfig);
+        });
+    }
+
     /** Creates a {@code CarSubscription} with Vur off. */
     @VisibleForTesting
     public static CarSubscription createCarSubscriptionOption(int propertyId,

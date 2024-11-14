@@ -410,6 +410,20 @@ public abstract class VehicleStub {
      */
     public MinMaxSupportedRawPropValues getMinMaxSupportedValue(int propertyId, int areaId)
             throws ServiceSpecificException {
-        return new MinMaxSupportedRawPropValues(null, null);
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Gets the supported values list.
+     *
+     * Caller should only call this if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
+     * If no supported values list is specified, return {@code null}.
+     *
+     * @throws ServiceSpecificException if the operation fails.
+     */
+    public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
+            throws ServiceSpecificException {
+        throw new UnsupportedOperationException();
     }
 }

@@ -1141,8 +1141,12 @@ public class CarPropertyService extends ICarProperty.Stub
     }
 
     /**
-     * @throws IllegalArgumentException If the propertyId or areaId is not supported.
-     * @throws SecurityException If caller does not have read and does not have write permission.
+     * Gets the currently min/max supported value.
+     *
+     * @return The currently supported min/max value.
+     * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
+     * @throws SecurityException if the caller does not have read and does not have write access
+     *      for the property.
      * @throws ServiceSpecificException If VHAL returns error.
      */
     @Override
@@ -1152,8 +1156,16 @@ public class CarPropertyService extends ICarProperty.Stub
     }
 
     /**
-     * @throws IllegalArgumentException If the propertyId or areaId is not supported.
-     * @throws SecurityException If caller does not have read and does not have write permission.
+     * Gets the currently supported values list.
+     *
+     * <p>The returned supported value list is in sorted ascending order if the property is of
+     * type int32, int64 or float.
+     *
+     * @return The currently supported values list.
+     * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
+     * @throws SecurityException if the caller does not have read and does not have write access
+     *      for the property.
+     * @throws ServiceSpecificException If VHAL returns error.
      */
     @Override
     public @Nullable List<RawPropertyValue> getSupportedValuesList(int propertyId, int areaId) {

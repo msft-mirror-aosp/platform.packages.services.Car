@@ -98,6 +98,7 @@ interface ICarProperty {
      * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
      * @throws SecurityException if the caller does not have read and does not have write access
      *      for the property.
+     * @throws ServiceSpecificException If VHAL returns error.
      */
     MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId);
 
@@ -111,6 +112,7 @@ interface ICarProperty {
      * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
      * @throws SecurityException if the caller does not have read and does not have write access
      *      for the property.
+     * @throws ServiceSpecificException If VHAL returns error.
      */
     @nullable List<RawPropertyValue> getSupportedValuesList(int propertyId, int areaId);
 }

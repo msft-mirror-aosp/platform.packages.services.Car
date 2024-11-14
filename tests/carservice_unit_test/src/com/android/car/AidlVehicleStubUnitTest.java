@@ -55,6 +55,8 @@ import android.hardware.automotive.vehicle.SetValueResult;
 import android.hardware.automotive.vehicle.SetValueResults;
 import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.hardware.automotive.vehicle.SupportedValuesListResult;
+import android.hardware.automotive.vehicle.SupportedValuesListResults;
 import android.hardware.automotive.vehicle.VehiclePropConfig;
 import android.hardware.automotive.vehicle.VehiclePropConfigs;
 import android.hardware.automotive.vehicle.VehiclePropError;
@@ -1475,6 +1477,101 @@ public final class AidlVehicleStubUnitTest {
 
         assertThrows(ServiceSpecificException.class, () -> {
             mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+        int testValue1 = 1234;
+        int testValue2 = 4321;
+
+        var rawPropValues1 = new RawPropValues();
+        rawPropValues1.int32Values = new int[]{testValue1};
+        var rawPropValues2 = new RawPropValues();
+        rawPropValues2.int32Values = new int[]{testValue2};
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.OK;
+        result.supportedValuesList = List.of(rawPropValues1, rawPropValues2);
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getSupportedValuesLists(captor.capture())).thenReturn(results);
+
+        List<RawPropValues> supportedRawPropValues = mAidlVehicleStub.getSupportedValuesList(
+                testPropId, testAreaId);
+
+        PropIdAreaId gotPropIdAreaId = (PropIdAreaId) captor.getValue().get(0);
+        assertThat(gotPropIdAreaId).isEqualTo(propIdAreaId);
+        assertThat(supportedRawPropValues).containsExactly(rawPropValues1, rawPropValues2);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_notSpecified() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.OK;
+        // No supported values specified.
+        result.supportedValuesList = null;
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenReturn(results);
+
+        List<RawPropValues> supportedRawPropValues = mAidlVehicleStub.getSupportedValuesList(
+                testPropId, testAreaId);
+
+        assertThat(supportedRawPropValues).isNull();
+    }
+
+    @Test
+    public void testGetSupportedValuesList_RemoteException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenThrow(new RemoteException());
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList_ServiceSpecificException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenThrow(
+                new ServiceSpecificException(StatusCode.INTERNAL_ERROR));
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList_nonOkayStatus() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.INTERNAL_ERROR;
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenReturn(results);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
         });
     }
 

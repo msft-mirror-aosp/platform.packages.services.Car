@@ -3411,6 +3411,7 @@ public class CarPropertyManager extends CarManagerBase {
      * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
      * @throws SecurityException if the caller does not have either read or write access to the
      *      property.
+     * @throws CarInternalErrorException if failed to get the information from the hardware.
      */
     @FlaggedApi(FLAG_CAR_PROPERTY_SUPPORTED_VALUE)
     public <T> @Nullable List<T> getSupportedValuesList(int propertyId, int areaId) {
@@ -3422,6 +3423,9 @@ public class CarPropertyManager extends CarManagerBase {
             supportedRawPropertyValues = mService.getSupportedValuesList(propertyId, areaId);
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, null);
+        } catch (ServiceSpecificException e) {
+            Slog.e(TAG, "Failed to get supported values list", e);
+            throw new CarInternalErrorException(propertyId, areaId);
         }
 
         if (supportedRawPropertyValues == null) {

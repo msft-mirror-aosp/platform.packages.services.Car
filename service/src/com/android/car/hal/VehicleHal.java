@@ -35,6 +35,7 @@ import android.car.builtin.util.Slogf;
 import android.car.feature.FeatureFlags;
 import android.car.feature.FeatureFlagsImpl;
 import android.content.Context;
+import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.hardware.automotive.vehicle.VehiclePropError;
@@ -1788,5 +1789,13 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
     public MinMaxSupportedRawPropValues getMinMaxSupportedValue(int propertyId, int areaId)
             throws ServiceSpecificException {
         return mVehicleStub.getMinMaxSupportedValue(propertyId, areaId);
+    }
+
+    /**
+     * Gets the supported values list.
+     */
+    public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
+            throws ServiceSpecificException {
+        return mVehicleStub.getSupportedValuesList(propertyId, areaId);
     }
 }
