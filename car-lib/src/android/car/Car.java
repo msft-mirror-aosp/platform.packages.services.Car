@@ -1355,15 +1355,15 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_VALET_MODE";
 
     /**
-     * Permission necessary to read head up display status (e.g. whether the head up display is
-     * enabled)
+     * Signature|Privileged permission necessary to read head up display status (e.g. whether the
+     * head up display is enabled).
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_HEAD_UP_DISPLAY_STATUS =
             "android.car.permission.READ_HEAD_UP_DISPLAY_STATUS";
 
     /**
-     * Permission necessary to control head up display
+     * Signature|Privileged permission necessary to control head up display.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_HEAD_UP_DISPLAY =
