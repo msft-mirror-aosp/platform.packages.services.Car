@@ -754,7 +754,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_APP_BLOCKING";
 
     /**
-     * Permission necessary to access car's engine information.
+     * Signature|Privileged permission necessary to access car's engine information.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_ENGINE_DETAILED =
