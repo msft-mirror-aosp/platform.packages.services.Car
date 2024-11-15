@@ -834,7 +834,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_MIRRORS";
 
     /**
-     * Permission necessary to access Car HVAC APIs.
+     * Signature|Privileged permission necessary to access Car HVAC APIs.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_CLIMATE =
