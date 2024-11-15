@@ -32,6 +32,7 @@ import android.car.builtin.util.Slogf;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
+import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
 import android.media.AudioAttributes;
@@ -222,6 +223,31 @@ class AudioControlZoneConverterUtils {
         address = address == null ? "" : address;
         return new CarAudioDeviceInfo(audioManager,
                 new AudioDeviceAttributes(ROLE_OUTPUT, externalType, address));
+    }
+
+    static boolean verifyVolumeGroupName(String groupName, AudioDeviceConfiguration configuration) {
+        return !configuration.useCoreAudioVolume || (groupName != null && !groupName.isEmpty());
+    }
+
+    static boolean convertAudioContextEntry(CarVolumeGroupFactory factory,
+            DeviceToContextEntry entry, CarAudioDeviceInfo info,
+            ArrayMap<String, Integer> contextNameToId) {
+        if (factory == null || entry == null || info == null || contextNameToId == null) {
+            return false;
+        }
+        for (int c = 0; c < entry.contextNames.size(); c++) {
+            String contextName = entry.contextNames.get(c);
+            if (contextName == null || contextName.isEmpty()) {
+                return false;
+            }
+            int id = contextNameToId.getOrDefault(contextName,
+                    AudioZoneContextInfo.UNASSIGNED_CONTEXT_ID);
+            if (id == AudioZoneContextInfo.UNASSIGNED_CONTEXT_ID) {
+                return false;
+            }
+            factory.setDeviceInfoForContext(id, info);
+        }
+        return true;
     }
 
     private static boolean requiresDeviceAddress(int type, String connection) {
