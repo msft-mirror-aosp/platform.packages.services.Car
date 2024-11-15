@@ -1334,7 +1334,7 @@ public final class Car implements ICarBase {
             "android.car.permission.READ_CAR_SEAT_BELTS";
 
     /**
-     * Permission necessary to read impact sensors information.
+     * Signature|Privileged permission necessary to read impact sensors information.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_IMPACT_SENSORS =
