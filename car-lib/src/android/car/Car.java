@@ -797,7 +797,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_DISPLAY_UNITS";
 
     /**
-     * Permission necessary to control car's door.
+     * Signature|Privileged permission necessary to control car's door.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_DOORS =
