@@ -3706,10 +3706,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_EASY_ACCESS_ENABLED = 354421661;
     /**
@@ -3808,10 +3806,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_CUSHION_SIDE_SUPPORT_POS = 356518815;
     /**
@@ -3844,10 +3840,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_CUSHION_SIDE_SUPPORT_MOVE = 356518816;
     /**
@@ -3878,10 +3872,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_VERTICAL_POS = 356518817;
     /**
@@ -3913,10 +3905,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_VERTICAL_MOVE = 356518818;
     /**
@@ -3948,10 +3938,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_WALK_IN_POS = 356518819;
     /**

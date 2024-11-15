@@ -1998,7 +1998,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_SEATS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_AIRBAG_ENABLED": {
       "propertyName": "SEAT_AIRBAG_ENABLED",
@@ -2045,7 +2045,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_SEATS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_CUSHION_SIDE_SUPPORT_MOVE": {
       "propertyName": "SEAT_CUSHION_SIDE_SUPPORT_MOVE",
@@ -2059,7 +2059,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_SEATS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_LUMBAR_VERTICAL_POS": {
       "propertyName": "SEAT_LUMBAR_VERTICAL_POS",
@@ -2073,7 +2073,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_SEATS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_LUMBAR_VERTICAL_MOVE": {
       "propertyName": "SEAT_LUMBAR_VERTICAL_MOVE",
@@ -2087,7 +2087,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_SEATS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_WALK_IN_POS": {
       "propertyName": "SEAT_WALK_IN_POS",
@@ -2101,7 +2101,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_SEATS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_BELT_PRETENSIONER_DEPLOYED": {
       "propertyName": "SEAT_BELT_PRETENSIONER_DEPLOYED",

@@ -818,10 +818,9 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_CONTROL_GLOVE_BOX =
             "android.car.permission.CONTROL_GLOVE_BOX";
     /**
-     * Permission necessary to control car's seats.
-     * @hide
+     * Signature|Privileged permission necessary to control car's seats.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_SEATS =
             "android.car.permission.CONTROL_CAR_SEATS";
 
