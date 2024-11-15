@@ -58,6 +58,7 @@ package android.car {
     field public static final String PERMISSION_CONTROL_CAR_ENERGY = "android.car.permission.CONTROL_CAR_ENERGY";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_MIRRORS = "android.car.permission.CONTROL_CAR_MIRRORS";
     field public static final String PERMISSION_CONTROL_DISPLAY_UNITS = "android.car.permission.CONTROL_CAR_DISPLAY_UNITS";
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_GLOVE_BOX = "android.car.permission.CONTROL_GLOVE_BOX";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_HEAD_UP_DISPLAY = "android.car.permission.CONTROL_HEAD_UP_DISPLAY";
     field public static final String PERMISSION_CONTROL_INTERIOR_LIGHTS = "android.car.permission.CONTROL_CAR_INTERIOR_LIGHTS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_VALET_MODE = "android.car.permission.CONTROL_VALET_MODE";
@@ -378,6 +379,8 @@ package android.car {
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DISPLAY_UNITS)) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(allOf={android.car.Car.PERMISSION_CONTROL_DISPLAY_UNITS, "android.car.permission.CAR_VENDOR_EXTENSION"})) public static final int FUEL_VOLUME_DISPLAY_UNITS = 289408513; // 0x11400601
     field @RequiresPermission(android.car.Car.PERMISSION_POWERTRAIN) public static final int GEAR_SELECTION = 289408000; // 0x11400400
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CAR_INFO)) public static final int GENERAL_SAFETY_REGULATION_COMPLIANCE = 289410887; // 0x11400f47
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_GLOVE_BOX) public static final int GLOVE_BOX_DOOR_POS = 356518896; // 0x15400bf0
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_GLOVE_BOX) public static final int GLOVE_BOX_LOCKED = 354421745; // 0x15200bf1
     field @RequiresPermission("android.car.permission.CAR_EXTERIOR_LIGHTS") public static final int HAZARD_LIGHTS_STATE = 289410563; // 0x11400e03
     field @RequiresPermission("android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS") public static final int HAZARD_LIGHTS_SWITCH = 289410579; // 0x11400e13
     field @RequiresPermission("android.car.permission.CAR_EXTERIOR_LIGHTS") public static final int HEADLIGHTS_STATE = 289410560; // 0x11400e00

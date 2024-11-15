@@ -812,10 +812,9 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_WINDOWS";
 
     /**
-     * Permission necessary to control car glove box.
-     * @hide
+     * Signature|Privileged permission necessary to control car glove box.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_GLOVE_BOX =
             "android.car.permission.CONTROL_GLOVE_BOX";
     /**

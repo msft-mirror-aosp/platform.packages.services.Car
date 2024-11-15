@@ -2701,10 +2701,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_GLOVE_BOX} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_GLOVE_BOX)
     public static final int GLOVE_BOX_DOOR_POS = 356518896;
 
@@ -2731,10 +2729,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_GLOVE_BOX} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_GLOVE_BOX)
     public static final int GLOVE_BOX_LOCKED = 354421745;
 

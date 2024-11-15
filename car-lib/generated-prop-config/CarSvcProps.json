@@ -1588,7 +1588,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_GLOVE_BOX"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "GLOVE_BOX_LOCKED": {
       "propertyName": "GLOVE_BOX_LOCKED",
@@ -1602,7 +1602,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_GLOVE_BOX"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_MEMORY_SELECT": {
       "propertyName": "SEAT_MEMORY_SELECT",
