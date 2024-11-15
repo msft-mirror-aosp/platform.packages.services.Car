@@ -35,6 +35,7 @@ import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
+import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
@@ -50,6 +51,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Utility class for general audio control conversion methods
@@ -247,7 +249,37 @@ class AudioControlZoneConverterUtils {
             }
             factory.setDeviceInfoForContext(id, info);
         }
-        return true;
+        return !entry.contextNames.isEmpty();
+    }
+
+    static String convertVolumeGroupConfig(CarVolumeGroupFactory factory,
+            VolumeGroupConfig volumeGroupConfig, AudioManagerWrapper audioManager,
+            ArrayMap<String, CarAudioDeviceInfo> addressToCarDeviceInfo,
+            ArrayMap<String, Integer> contextNameToId) {
+        Objects.requireNonNull(factory, "Volume group factory can no be null");
+        Objects.requireNonNull(volumeGroupConfig, "Volume group config can not be null");
+        Objects.requireNonNull(audioManager, "Audio manager can not be null");
+        Objects.requireNonNull(addressToCarDeviceInfo,
+                "Address to car audio device info map can not be null");
+        Objects.requireNonNull(contextNameToId, "Context name to id map can not be null");
+        if (volumeGroupConfig.carAudioRoutes.isEmpty()) {
+            return "Skipped volume group " + volumeGroupConfig.name + " with id "
+                    + volumeGroupConfig.id + " empty car audio routes";
+        }
+        for (int c = 0; c < volumeGroupConfig.carAudioRoutes.size(); c++) {
+            var entry = volumeGroupConfig.carAudioRoutes.get(c);
+            var info = convertAudioDevicePort(entry.device, audioManager, addressToCarDeviceInfo);
+            if (info == null) {
+                return "Skipped volume group " + volumeGroupConfig.name + " with id "
+                        + volumeGroupConfig.id + " could not find device info for device "
+                        + entry.device;
+            }
+            if (!convertAudioContextEntry(factory, entry, info, contextNameToId)) {
+                return "Skipped volume group " + volumeGroupConfig.name + " with id "
+                        + volumeGroupConfig.id + " could not parse audio context entry";
+            }
+        }
+        return "";
     }
 
     private static boolean requiresDeviceAddress(int type, String connection) {
