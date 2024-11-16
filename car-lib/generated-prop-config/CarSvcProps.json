@@ -662,8 +662,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_DYNAMICS_STATE"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ELECTRONIC_STABILITY_CONTROL_STATE": {
       "propertyName": "ELECTRONIC_STABILITY_CONTROL_STATE",
@@ -673,7 +672,6 @@
         "type": "single",
         "value": "android.car.permission.CAR_DYNAMICS_STATE"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -685,7 +683,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "HVAC_FAN_SPEED": {
       "propertyName": "HVAC_FAN_SPEED",
@@ -1023,7 +1021,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_CLIMATE"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DISTANCE_DISPLAY_UNITS": {
       "propertyName": "DISTANCE_DISPLAY_UNITS",
@@ -1470,7 +1468,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_DOORS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "MIRROR_Z_POS": {
       "propertyName": "MIRROR_Z_POS",

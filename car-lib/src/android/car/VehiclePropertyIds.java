@@ -1379,11 +1379,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_DYNAMICS_STATE} to
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_DYNAMICS_STATE,
             Car.PERMISSION_CONTROL_CAR_DYNAMICS_STATE}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_CAR_DYNAMICS_STATE))
@@ -1418,11 +1415,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.ElectronicStabilityControlState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE))
     public static final int ELECTRONIC_STABILITY_CONTROL_STATE = 289408015;
     /**
@@ -1984,11 +1978,9 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_CLIMATE} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
-    @SystemApi
     public static final int HVAC_ELECTRIC_DEFROSTER_ON = 320865556;
     /**
      * Distance units for display.
@@ -2454,10 +2446,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_DOORS} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_DOORS)
     public static final int DOOR_CHILD_LOCK_ENABLED = 371198723;
     /**
