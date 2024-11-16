@@ -41,6 +41,7 @@ import static android.media.audio.common.AudioUsage.VOICE_COMMUNICATION_SIGNALLI
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioContextEntry;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioDevicePort;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertCarAudioContext;
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertVolumeGroupConfig;
 import static com.android.car.audio.AudioControlZoneConverterUtils.verifyVolumeGroupName;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
@@ -52,6 +53,7 @@ import static com.android.car.audio.CarAudioUtils.DEFAULT_ACTIVATION_VOLUME;
 import static com.android.car.audio.CoreAudioRoutingUtils.createCoreAudioContext;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -65,6 +67,7 @@ import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
+import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioDeviceInfo;
 import android.media.MediaRecorder;
 import android.media.audio.common.AudioAttributes;
@@ -81,6 +84,7 @@ import android.media.audio.common.AudioSource;
 import android.media.audio.common.AudioUsage;
 import android.util.ArrayMap;
 
+import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.Before;
@@ -90,6 +94,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -117,6 +122,18 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
     private static final int PORT_ID_MEDIA = 10;
     private static final String PORT_MEDIA_NAME = "media_bus";
     private static final String PORT_MEDIA_ADDRESS = "MEDIA_BUS";
+    private static final CarAudioDeviceInfo MEDIA_BUS_DEVICE = mock(CarAudioDeviceInfo.class);
+
+    private static final int PORT_ID_NAV = 11;
+    private static final String PORT_NAV_NAME = "nav_bus";
+    private static final String PORT_NAV_ADDRESS = "NAV_BUS";
+    private static final CarAudioDeviceInfo NAV_BUS_DEVICE = mock(CarAudioDeviceInfo.class);
+
+    private static final int PORT_ID_VOICE = 12;
+    private static final String PORT_VOICE_NAME = "voice_bus";
+    private static final String PORT_VOICE_ADDRESS = "VOICE_BUS";
+    private static final CarAudioDeviceInfo VOICE_BUS_DEVICE = mock(CarAudioDeviceInfo.class);
+
     private static final AudioGain[] GAINS = new AudioGain[] {
             new AudioGain() {{
                 mode = AudioGainMode.JOINT;
@@ -137,7 +154,10 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
     private static final int VOICE_COMMAND_CONTEXT_ID = 3;
     private static final int CALL_RING_CONTEXT_ID = 4;
 
-    private static final CarAudioDeviceInfo MEDIA_BUS_DEVICE = mock(CarAudioDeviceInfo.class);
+    private static final int MEDIA_VOLUME_GROUP_ID = 1;
+    private static final String MEDIA_VOLUME_GROUP_NAME = "media_volume_group";
+    private static final int NAV_VOLUME_GROUP_ID = 2;
+    private static final String NAV_VOLUME_GROUP_NAME = "nav_volume_group";
 
     private ArrayMap<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
 
@@ -161,6 +181,8 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
                 .when(AudioManagerWrapper::getAudioProductStrategies);
         mAddressToCarAudioDeviceInfo = new ArrayMap<>();
         mAddressToCarAudioDeviceInfo.put(PORT_MEDIA_ADDRESS, MEDIA_BUS_DEVICE);
+        mAddressToCarAudioDeviceInfo.put(PORT_NAV_ADDRESS, NAV_BUS_DEVICE);
+        mAddressToCarAudioDeviceInfo.put(PORT_VOICE_ADDRESS, VOICE_BUS_DEVICE);
     }
 
     @Test
@@ -492,6 +514,19 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
     }
 
     @Test
+    public void convertAudioContextEntry_withEmptyContextList() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var port = createAudioPort(PORT_ID_MEDIA, PORT_MEDIA_NAME, GAINS, new AudioPortDeviceExt());
+        ArrayList<String> contexts = new ArrayList<>(0);
+        var entry = createDeviceToContextEntry(port, contexts);
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        expectWithMessage("Converted context entry with empty context list")
+                .that(convertAudioContextEntry(factory, entry, MEDIA_BUS_DEVICE, contextNameToId))
+                .isFalse();
+    }
+
+    @Test
     public void convertAudioContextEntry_withValidGroup() {
         var factory = mock(CarVolumeGroupFactory.class);
         var entry = createDeviceToContextEntry();
@@ -510,17 +545,225 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
                         CALL_RING_CONTEXT_ID);
     }
 
-    private DeviceToContextEntry createDeviceToContextEntry() {
+    @Test
+    public void convertVolumeGroupConfig_withNullVolumeGroupFactory() {
+        CarVolumeGroupFactory factory = null;
+        var volumeGroupConfig = createMediaVolumeGroupConfiguration();
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var thrown = assertThrows(NullPointerException.class, () ->
+                convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                        mAddressToCarAudioDeviceInfo, contextNameToId));
+
+        expectWithMessage("Convert volume group config exception for case when volume group"
+                + " factory is null").that(thrown).hasMessageThat()
+                .contains("Volume group factory");
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withNullVolumeGroupConfig() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        VolumeGroupConfig volumeGroupConfig = null;
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var thrown = assertThrows(NullPointerException.class, () ->
+                convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                        mAddressToCarAudioDeviceInfo, contextNameToId));
+
+        expectWithMessage("Convert volume group config exception for case when volume group"
+                + " config is null").that(thrown).hasMessageThat().contains("Volume group config");
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withNullAudioManager() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var volumeGroupConfig = createMediaVolumeGroupConfiguration();
+        AudioManagerWrapper audioManager = null;
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var thrown = assertThrows(NullPointerException.class, () ->
+                convertVolumeGroupConfig(factory, volumeGroupConfig, audioManager,
+                        mAddressToCarAudioDeviceInfo, contextNameToId));
+
+        expectWithMessage("Convert volume group config exception for case when audio manager"
+                + " config is null").that(thrown).hasMessageThat().contains("Audio manager");
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withNullAudioDeviceMap() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var volumeGroupConfig = createMediaVolumeGroupConfiguration();
+        ArrayMap<String, CarAudioDeviceInfo> audioDeviceInfoMap = null;
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var thrown = assertThrows(NullPointerException.class, () ->
+                convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                        audioDeviceInfoMap, contextNameToId));
+
+        expectWithMessage("Convert volume group config exception for case when car audio"
+                + " map is null").that(thrown).hasMessageThat()
+                .contains("Address to car audio device info map");
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withNullContextIDMap() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var volumeGroupConfig = createMediaVolumeGroupConfiguration();
+        ArrayMap<String, Integer> contextNameToId = null;
+
+        var thrown = assertThrows(NullPointerException.class, () ->
+                convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                        mAddressToCarAudioDeviceInfo, contextNameToId));
+
+        expectWithMessage("Convert volume group config exception for case when context id map")
+                .that(thrown).hasMessageThat().contains("Context name to id map");
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withMediaGroup() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var volumeGroupConfig = createMediaVolumeGroupConfiguration();
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var message = convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                mAddressToCarAudioDeviceInfo, contextNameToId);
+
+        expectWithMessage("Message for converted media volume group config").that(message)
+                .isEmpty();
+        ArgumentCaptor<Integer> contextIdCaptor = ArgumentCaptor.forClass(Integer.class);
+        verify(factory, times(1))
+                .setDeviceInfoForContext(contextIdCaptor.capture(), eq(MEDIA_BUS_DEVICE));
+        expectWithMessage("Media audio context ID").that(contextIdCaptor.getAllValues())
+                .containsExactly(MUSIC_CONTEXT_ID);
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withNavAndVoiceGroup() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var volumeGroupConfig = createNavAndVoiceVolumeGroupConfiguration();
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var message = convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                mAddressToCarAudioDeviceInfo, contextNameToId);
+
+        expectWithMessage("Message for converted nav and voice volume group config")
+                .that(message).isEmpty();
+        ArgumentCaptor<Integer> contextIdCaptor = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<CarAudioDeviceInfo> deviceCaptor =
+                ArgumentCaptor.forClass(CarAudioDeviceInfo.class);
+        verify(factory, times(2))
+                .setDeviceInfoForContext(contextIdCaptor.capture(), deviceCaptor.capture());
+        expectWithMessage("Nav and voice audio context IDs")
+                .that(contextIdCaptor.getAllValues())
+                .containsExactly(NAVIGATION_CONTEXT_ID, VOICE_COMMAND_CONTEXT_ID);
+        expectWithMessage("Nav and voice audio devices")
+                .that(deviceCaptor.getAllValues())
+                .containsExactly(NAV_BUS_DEVICE, VOICE_BUS_DEVICE);
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withEmptyRoutesGroup() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var volumeGroupConfig = createVolumeGroupConfig(NAV_VOLUME_GROUP_ID, NAV_VOLUME_GROUP_NAME,
+                Collections.EMPTY_LIST);
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var message = convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                mAddressToCarAudioDeviceInfo, contextNameToId);
+
+        expectWithMessage("Message for converted empty routes group")
+                .that(message).contains("empty car audio routes");
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withNullDeviceInGroupRoutes() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var contextEntries = new ArrayList<DeviceToContextEntry>(1);
+        contextEntries.add(createDeviceToContextEntry(/* audioPort= */ null,
+                List.of(MUSIC_CONTEXT)));
+        var volumeGroupConfig = createVolumeGroupConfig(MEDIA_VOLUME_GROUP_ID,
+                MEDIA_VOLUME_GROUP_NAME, contextEntries);
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var message = convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                mAddressToCarAudioDeviceInfo, contextNameToId);
+
+        expectWithMessage("Message for converted with null device in routes")
+                .that(message).contains("could not find device info for device");
+    }
+
+    @Test
+    public void convertVolumeGroupConfig_withEmptyContextListInGroupRoutes() {
+        var factory = mock(CarVolumeGroupFactory.class);
+        var contextEntries = new ArrayList<DeviceToContextEntry>(1);
+        var audioPort = createBusAudioPort(PORT_MEDIA_ADDRESS, PORT_ID_MEDIA, PORT_MEDIA_NAME);
+        contextEntries.add(createDeviceToContextEntry(audioPort, List.of()));
+        var volumeGroupConfig = createVolumeGroupConfig(MEDIA_VOLUME_GROUP_ID,
+                MEDIA_VOLUME_GROUP_NAME, contextEntries);
+        var contextNameToId = createContextNameToIDMap(createHALAudioContext());
+
+        var message = convertVolumeGroupConfig(factory, volumeGroupConfig, mAudioManager,
+                mAddressToCarAudioDeviceInfo, contextNameToId);
+
+        expectWithMessage("Message for converted empty context in routes")
+                .that(message).contains("could not parse audio context entry");
+    }
+
+    private VolumeGroupConfig createMediaVolumeGroupConfiguration() {
+        var contextEntries = new ArrayList<DeviceToContextEntry>(1);
+        var audioPort = createBusAudioPort(PORT_MEDIA_ADDRESS, PORT_ID_MEDIA, PORT_MEDIA_NAME);
+        contextEntries.add(createDeviceToContextEntry(audioPort, List.of(MUSIC_CONTEXT)));
+        return createVolumeGroupConfig(MEDIA_VOLUME_GROUP_ID, MEDIA_VOLUME_GROUP_NAME,
+                contextEntries);
+    }
+
+    private VolumeGroupConfig createNavAndVoiceVolumeGroupConfiguration() {
+        var contextEntries = new ArrayList<DeviceToContextEntry>(2);
+        var navAudioPort = createBusAudioPort(PORT_NAV_ADDRESS, PORT_ID_NAV, PORT_NAV_NAME);
+        contextEntries.add(createDeviceToContextEntry(navAudioPort, List.of(NAVIGATION_CONTEXT)));
+
+        var voiceAudioPort = createBusAudioPort(PORT_VOICE_ADDRESS, PORT_ID_VOICE, PORT_VOICE_NAME);
+        contextEntries.add(createDeviceToContextEntry(voiceAudioPort,
+                List.of(VOICE_COMMAND_CONTEXT)));
+        return createVolumeGroupConfig(NAV_VOLUME_GROUP_ID, NAV_VOLUME_GROUP_NAME, contextEntries);
+    }
+
+    @NonNull
+    private static AudioPort createBusAudioPort(String portAddress, int portId, String portName) {
+        var busPortDevice = createAudioPortDeviceExt(AudioDeviceType.OUT_BUS, /* connection= */ "",
+                portAddress);
+        return createAudioPort(portId, portName, GAINS, busPortDevice);
+    }
+
+    private VolumeGroupConfig createVolumeGroupConfig(int groupId, String groupName,
+            List<DeviceToContextEntry> contextEntries) {
+        var volumeGroupConfig = new VolumeGroupConfig();
+        volumeGroupConfig.id = groupId;
+        volumeGroupConfig.name = groupName;
+        volumeGroupConfig.activationConfiguration =
+                createVolumeActivationConfiguration(TEST_ACTIVATION, TEST_MIN_ACTIVATION,
+                        TEST_MAX_ACTIVATION, ON_BOOT);
+        volumeGroupConfig.carAudioRoutes = contextEntries;
+        return volumeGroupConfig;
+    }
+
+    private DeviceToContextEntry createDeviceToContextEntry(AudioPort audioPort,
+            List<String> contextList) {
         var entry = new DeviceToContextEntry();
-        entry.device =  createAudioPort(PORT_ID_MEDIA, PORT_MEDIA_NAME, GAINS,
-                new AudioPortDeviceExt());
-        var context = new ArrayList<String>(5);
-        context.add(MUSIC_CONTEXT);
-        context.add(NAVIGATION_CONTEXT);
-        context.add(VOICE_COMMAND_CONTEXT);
-        context.add(CALL_RING_CONTEXT);
-        entry.contextNames = context;
+        entry.device = audioPort;
+        entry.contextNames = contextList;
         return entry;
+    }
+
+    private DeviceToContextEntry createDeviceToContextEntry() {
+        var port = createAudioPort(PORT_ID_MEDIA, PORT_MEDIA_NAME, GAINS,
+                new AudioPortDeviceExt());
+        ArrayList<String> contexts = new ArrayList<>(4);
+        contexts.add(MUSIC_CONTEXT);
+        contexts.add(NAVIGATION_CONTEXT);
+        contexts.add(VOICE_COMMAND_CONTEXT);
+        contexts.add(CALL_RING_CONTEXT);
+        return createDeviceToContextEntry(port, contexts);
     }
 
     private ArrayMap<String, Integer> createContextNameToIDMap(AudioZoneContext context) {
