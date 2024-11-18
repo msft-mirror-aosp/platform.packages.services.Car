@@ -2363,8 +2363,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ULTRASONICS_SENSOR_DATA"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ULTRASONICS_SENSOR_ORIENTATION": {
       "propertyName": "ULTRASONICS_SENSOR_ORIENTATION",
@@ -2374,8 +2373,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ULTRASONICS_SENSOR_DATA"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ULTRASONICS_SENSOR_FIELD_OF_VIEW": {
       "propertyName": "ULTRASONICS_SENSOR_FIELD_OF_VIEW",
@@ -2385,8 +2383,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ULTRASONICS_SENSOR_DATA"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ULTRASONICS_SENSOR_DETECTION_RANGE": {
       "propertyName": "ULTRASONICS_SENSOR_DETECTION_RANGE",
@@ -2396,8 +2393,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ULTRASONICS_SENSOR_DATA"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ULTRASONICS_SENSOR_SUPPORTED_RANGES": {
       "propertyName": "ULTRASONICS_SENSOR_SUPPORTED_RANGES",
@@ -2407,8 +2403,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ULTRASONICS_SENSOR_DATA"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ULTRASONICS_SENSOR_MEASURED_DISTANCE": {
       "propertyName": "ULTRASONICS_SENSOR_MEASURED_DISTANCE",
@@ -2418,8 +2413,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ULTRASONICS_SENSOR_DATA"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "OBD2_LIVE_FRAME": {
       "propertyName": "OBD2_LIVE_FRAME",

@@ -4482,11 +4482,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_POSITION = 406916128;
 
@@ -4523,11 +4520,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_ORIENTATION = 409013281;
 
@@ -4560,11 +4554,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_FIELD_OF_VIEW = 406916130;
 
@@ -4593,11 +4584,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_DETECTION_RANGE = 406916131;
 
@@ -4652,11 +4640,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_SUPPORTED_RANGES = 406916132;
 
@@ -4690,11 +4675,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_MEASURED_DISTANCE = 406916133;
 

@@ -17,7 +17,6 @@
 package android.car;
 
 import static android.car.CarLibLog.TAG_CAR;
-import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_CLUSTER_HEALTH_MONITORING;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 
@@ -943,11 +942,9 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_VMS_SUBSCRIBER = "android.car.permission.VMS_SUBSCRIBER";
 
     /**
-     * Permission necessary to read ultrasonics sensor data.
-     * @hide
+     * Signature|Privileged permission necessary to read ultrasonics sensor data.
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_ULTRASONICS_SENSOR_DATA =
             "android.car.permission.READ_ULTRASONICS_SENSOR_DATA";
 
