@@ -1323,11 +1323,9 @@ public final class Car implements ICarBase {
             "android.car.permission.READ_CAR_AIRBAGS";
 
     /**
-     * Permission necessary to read state of seat belts.
-     * @hide
+     * Signature|Privileged permission necessary to read state of seat belts.
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_CAR_SEAT_BELTS =
             "android.car.permission.READ_CAR_SEAT_BELTS";
 

@@ -2111,8 +2111,7 @@
         "type": "single",
         "value": "android.car.permission.READ_CAR_SEAT_BELTS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_OCCUPANCY": {
       "propertyName": "SEAT_OCCUPANCY",
