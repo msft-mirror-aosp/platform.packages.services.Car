@@ -1269,18 +1269,16 @@ public final class Car implements ICarBase {
             "android.car.permission.MIRROR_DISPLAY";
 
     /**
-     * Permission necessary to read car's windshield wipers.
-     * @hide
+     * Signature|Privileged permission necessary to read car's windshield wipers.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_WINDSHIELD_WIPERS =
             "android.car.permission.READ_WINDSHIELD_WIPERS";
 
     /**
-     * Permission necessary to control car's windshield wipers.
-     * @hide
+     * Signature|Privileged permission necessary to control car's windshield wipers.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_WINDSHIELD_WIPERS =
             "android.car.permission.CONTROL_WINDSHIELD_WIPERS";
 

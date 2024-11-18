@@ -4112,10 +4112,8 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
     public static final int WINDSHIELD_WIPERS_PERIOD = 322964421;
 
@@ -4155,10 +4153,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link WindshieldWipersState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
     public static final int WINDSHIELD_WIPERS_STATE = 322964422;
 
@@ -4198,10 +4194,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link WindshieldWipersSwitch}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_WINDSHIELD_WIPERS,
             Car.PERMISSION_CONTROL_WINDSHIELD_WIPERS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_WINDSHIELD_WIPERS))

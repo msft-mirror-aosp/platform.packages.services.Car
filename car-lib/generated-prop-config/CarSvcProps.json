@@ -2174,7 +2174,7 @@
         "type": "single",
         "value": "android.car.permission.READ_WINDSHIELD_WIPERS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "WINDSHIELD_WIPERS_STATE": {
       "propertyName": "WINDSHIELD_WIPERS_STATE",
@@ -2184,13 +2184,13 @@
         "type": "single",
         "value": "android.car.permission.READ_WINDSHIELD_WIPERS"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
         2,
         3
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "WINDSHIELD_WIPERS_SWITCH": {
       "propertyName": "WINDSHIELD_WIPERS_SWITCH",
@@ -2213,7 +2213,6 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_WINDSHIELD_WIPERS"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -2230,7 +2229,8 @@
         12,
         13,
         14
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "STEERING_WHEEL_DEPTH_POS": {
       "propertyName": "STEERING_WHEEL_DEPTH_POS",
