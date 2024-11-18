@@ -1175,10 +1175,9 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_CONTROL_REMOTE_ACCESS =
             "android.car.permission.CONTROL_REMOTE_ACCESS";
     /**
-     * Permission necessary to control car's steering wheel.
-     * @hide
+     * Signature|Privileged permission necessary to control car's steering wheel.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_STEERING_WHEEL =
             "android.car.permission.CONTROL_STEERING_WHEEL";
 

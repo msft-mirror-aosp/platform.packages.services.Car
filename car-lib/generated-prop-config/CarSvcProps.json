@@ -2243,7 +2243,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_STEERING_WHEEL"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "STEERING_WHEEL_DEPTH_MOVE": {
       "propertyName": "STEERING_WHEEL_DEPTH_MOVE",
@@ -2257,7 +2257,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_STEERING_WHEEL"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "STEERING_WHEEL_HEIGHT_POS": {
       "propertyName": "STEERING_WHEEL_HEIGHT_POS",
@@ -2271,7 +2271,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_STEERING_WHEEL"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "STEERING_WHEEL_HEIGHT_MOVE": {
       "propertyName": "STEERING_WHEEL_HEIGHT_MOVE",
@@ -2285,7 +2285,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_STEERING_WHEEL"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "STEERING_WHEEL_THEFT_LOCK_ENABLED": {
       "propertyName": "STEERING_WHEEL_THEFT_LOCK_ENABLED",
@@ -2299,7 +2299,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_STEERING_WHEEL"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "STEERING_WHEEL_LOCKED": {
       "propertyName": "STEERING_WHEEL_LOCKED",
@@ -2313,7 +2313,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_STEERING_WHEEL"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "STEERING_WHEEL_EASY_ACCESS_ENABLED": {
       "propertyName": "STEERING_WHEEL_EASY_ACCESS_ENABLED",
@@ -2327,7 +2327,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_STEERING_WHEEL"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "VEHICLE_MAP_SERVICE": {
       "propertyName": "VEHICLE_MAP_SERVICE",
