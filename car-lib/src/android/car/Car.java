@@ -839,11 +839,10 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_CLIMATE";
 
     /**
-     * Permission necessary to enable/disable a seat's ability to deploy airbag(s) when triggered
-     * (e.g. by a crash).
-     * @hide
+     * Signature|Privileged permission necessary to enable/disable a seat's ability to deploy
+     * airbag(s) when triggered (e.g. by a crash).
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_AIRBAGS =
             "android.car.permission.CONTROL_CAR_AIRBAGS";
 
@@ -1312,11 +1311,9 @@ public final class Car implements ICarBase {
             "android.car.permission.MANAGE_DISPLAY_COMPATIBILITY";
 
     /**
-     * Permission necessary to read state of car airbags.
-     * @hide
+     * Signature|Privileged permission necessary to read state of car airbags.
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_CAR_AIRBAGS =
             "android.car.permission.READ_CAR_AIRBAGS";
 

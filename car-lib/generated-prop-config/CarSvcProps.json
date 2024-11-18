@@ -2012,7 +2012,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_CAR_AIRBAGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_AIRBAGS_DEPLOYED": {
       "propertyName": "SEAT_AIRBAGS_DEPLOYED",
@@ -2022,7 +2022,6 @@
         "type": "single",
         "value": "android.car.permission.READ_CAR_AIRBAGS"
       },
-      "systemApi": true,
       "dataEnums": [
         1,
         2,
@@ -2031,7 +2030,7 @@
         16,
         32
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "SEAT_CUSHION_SIDE_SUPPORT_POS": {
       "propertyName": "SEAT_CUSHION_SIDE_SUPPORT_POS",

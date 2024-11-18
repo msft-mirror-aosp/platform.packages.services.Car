@@ -3732,10 +3732,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_AIRBAGS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_AIRBAGS)
     public static final int SEAT_AIRBAG_ENABLED = 354421662;
     /**
@@ -3771,11 +3769,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link android.car.hardware.property.VehicleAirbagLocation}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_AIRBAGS))
     public static final int SEAT_AIRBAGS_DEPLOYED = 356518821;
     /**
