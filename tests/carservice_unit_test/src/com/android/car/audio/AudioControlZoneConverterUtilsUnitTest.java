@@ -311,6 +311,69 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
     }
 
     @Test
+    public void convertCarAudioContext_withNullContext() {
+        AudioZoneContext context = null;
+        AudioDeviceConfiguration configuration = new AudioDeviceConfiguration();
+        configuration.routingConfig = RoutingDeviceConfiguration.DYNAMIC_AUDIO_ROUTING;
+
+        expectWithMessage("Converted audio context with null context")
+                .that(convertCarAudioContext(context, configuration)).isNull();
+    }
+
+    @Test
+    public void convertCarAudioContext_withNullContextInfos() {
+        AudioZoneContext context = new AudioZoneContext();
+        AudioDeviceConfiguration configuration = new AudioDeviceConfiguration();
+        configuration.routingConfig = RoutingDeviceConfiguration.DYNAMIC_AUDIO_ROUTING;
+
+        expectWithMessage("Converted audio context with null context infos")
+                .that(convertCarAudioContext(context, configuration)).isNull();
+    }
+
+    @Test
+    public void convertCarAudioContext_withEmptyContextInfos() {
+        AudioZoneContext context = new AudioZoneContext();
+        context.audioContextInfos = Collections.EMPTY_LIST;
+        AudioDeviceConfiguration configuration = new AudioDeviceConfiguration();
+        configuration.routingConfig = RoutingDeviceConfiguration.DYNAMIC_AUDIO_ROUTING;
+
+        expectWithMessage("Converted audio context with empty context infos")
+                .that(convertCarAudioContext(context, configuration)).isNull();
+    }
+
+    @Test
+    public void convertCarAudioContext_withNullContextInfo() {
+        AudioZoneContext context = new AudioZoneContext();
+        context.audioContextInfos = new ArrayList<>(1);
+        context.audioContextInfos.add(null);
+        AudioDeviceConfiguration configuration = new AudioDeviceConfiguration();
+        configuration.routingConfig = RoutingDeviceConfiguration.DYNAMIC_AUDIO_ROUTING;
+
+        expectWithMessage("Converted audio context with null context info")
+                .that(convertCarAudioContext(context, configuration)).isNull();
+    }
+
+    @Test
+    public void convertCarAudioContext_withNullAudioAttributesInContextInfo() {
+        AudioZoneContext context = new AudioZoneContext();
+        context.audioContextInfos = List.of(new AudioZoneContextInfo());
+        AudioDeviceConfiguration configuration = new AudioDeviceConfiguration();
+        configuration.routingConfig = RoutingDeviceConfiguration.DYNAMIC_AUDIO_ROUTING;
+
+        expectWithMessage("Converted audio context with null audio attributes in context info")
+                .that(convertCarAudioContext(context, configuration)).isNull();
+    }
+
+    @Test
+    public void convertCarAudioContext_withNullAudioDeviceConfiguration() {
+        AudioZoneContext context = createHALAudioContext();
+        AudioDeviceConfiguration configuration = null;
+
+        expectWithMessage("Converted audio context with null device configuration")
+                .that(convertCarAudioContext(context, configuration)).isNull();
+    }
+
+    @Test
     public void convertCarAudioContext_withDynamicAudioRouting() {
         AudioZoneContext context = createHALAudioContext();
         AudioDeviceConfiguration configuration = new AudioDeviceConfiguration();

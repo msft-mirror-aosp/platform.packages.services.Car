@@ -169,15 +169,31 @@ class AudioControlZoneConverterUtils {
         return new CarActivationVolumeConfig(activationType, minActivation, maxActivation);
     }
 
+    @Nullable
     static CarAudioContext convertCarAudioContext(AudioZoneContext audioZoneContext,
                                                   AudioDeviceConfiguration deviceConfiguration) {
+        if (audioZoneContext == null) {
+            Slogf.e(TAG, "Audio zone context can not be null");
+            return null;
+        }
+        if (audioZoneContext.audioContextInfos == null
+                || audioZoneContext.audioContextInfos.isEmpty()) {
+            Slogf.e(TAG, "Audio zone context must have valid audio zone context infos");
+            return null;
+        }
+        if (deviceConfiguration == null) {
+            Slogf.e(TAG, "Audio device configuration can not be null");
+            return null;
+        }
         List<CarAudioContextInfo> infos =
                 new ArrayList<>(audioZoneContext.audioContextInfos.size());
         int nextValidId = CarAudioContext.getInvalidContext() + 1;
         for (int c = 0; c < audioZoneContext.audioContextInfos.size(); c++) {
-            Slogf.d(TAG, "Context " + audioZoneContext.audioContextInfos.get(c));
             var contextInfo = convertCarAudioContextInfo(audioZoneContext.audioContextInfos.get(c),
                     deviceConfiguration, nextValidId);
+            if (contextInfo == null) {
+                return null;
+            }
             infos.add(contextInfo);
             if (contextInfo.getId() == nextValidId) {
                 nextValidId++;
@@ -301,8 +317,17 @@ class AudioControlZoneConverterUtils {
         }
     }
 
+    @Nullable
     private static CarAudioContextInfo convertCarAudioContextInfo(AudioZoneContextInfo info,
             AudioDeviceConfiguration deviceConfiguration, int nextValidId) {
+        if (info == null) {
+            Slogf.e(TAG, "Audio zone context info can not be null");
+            return null;
+        }
+        if (info.audioAttributes == null || info.audioAttributes.isEmpty()) {
+            Slogf.e(TAG, "Audio zone context info missing audio attributes");
+            return null;
+        }
         String contextName = info.name;
         int contextId = getValidContextInfoId(contextName, deviceConfiguration,
                 info.id, nextValidId);
