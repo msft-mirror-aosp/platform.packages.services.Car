@@ -909,10 +909,10 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_TEST_SERVICE";
 
     /**
-     * Permission necessary to access CarDrivingStateService to get a Car's driving state.
-     * @hide
+     * Signature|Privileged permission necessary to access a car's driving state
+     * (E.g. CarDrivingStateService).
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_DRIVING_STATE =
             "android.car.permission.CAR_DRIVING_STATE";
 

@@ -2925,7 +2925,6 @@
         "type": "single",
         "value": "android.car.permission.CAR_DRIVING_STATE"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -2934,7 +2933,7 @@
         4,
         5
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "AUTOMATIC_EMERGENCY_BRAKING_ENABLED": {
       "propertyName": "AUTOMATIC_EMERGENCY_BRAKING_ENABLED",
