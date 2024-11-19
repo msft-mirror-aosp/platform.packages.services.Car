@@ -56,6 +56,7 @@ class TaskCategoryManager {
 
     private final ComponentName mAppGridActivityComponent;
     private final ComponentName mNotificationActivityComponent;
+    private final ComponentName mInCallActivityComponent;
     private final ComponentName mRecentsActivityComponent;
     private final ComponentName mCalmModeComponent;
     private final ArraySet<ComponentName> mIgnoreOpeningRootTaskViewComponentsSet;
@@ -77,6 +78,8 @@ class TaskCategoryManager {
         mAppGridActivityComponent = new ComponentName(context, AppGridActivity.class);
         mNotificationActivityComponent = ComponentName.unflattenFromString(
                 mContext.getResources().getString(R.string.config_notificationActivity));
+        mInCallActivityComponent = ComponentName.unflattenFromString(
+                mContext.getResources().getString(R.string.config_inCallActivity));
         mRecentsActivityComponent = ComponentName.unflattenFromString(mContext.getResources()
                 .getString(com.android.internal.R.string.config_recentsComponentName));
         mCalmModeComponent = ComponentName.unflattenFromString(mContext.getResources()
@@ -245,6 +248,13 @@ class TaskCategoryManager {
 
     boolean isNotificationActivity(TaskInfo taskInfo) {
         return mNotificationActivityComponent.equals(getVisibleActivity(taskInfo));
+    }
+
+    /**
+     * @return {@code true} if current task in panel is InCall activity.
+     */
+    public boolean isInCallActivity(TaskInfo taskInfo) {
+        return mInCallActivityComponent.equals(taskInfo.baseActivity);
     }
 
     boolean isRecentsActivity(TaskInfo taskInfo) {
