@@ -26,15 +26,12 @@ import android.os.Parcel;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class ProcessInfoUnitTest {
 
     private ProcessInfo mProcessInfo;
