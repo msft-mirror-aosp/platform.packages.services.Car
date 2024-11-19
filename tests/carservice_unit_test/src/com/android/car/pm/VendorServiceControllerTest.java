@@ -22,6 +22,7 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -158,6 +159,7 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
                 /* maxRunningUsers= */ 2, mUxRestrictionService, mCarPackageManagerService,
                 mCarOccupantZoneService);
         spyOn(mCarUserService);
+        when(mUserManager.isUserRunning(any(UserHandle.class))).thenReturn(true);
         CarLocalServices.removeServiceForTest(CarUserService.class);
         CarLocalServices.addService(CarUserService.class, mCarUserService);
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
@@ -184,6 +186,15 @@ public final class VendorServiceControllerTest extends AbstractExtendedMockitoTe
     public void init_nothingConfigured() {
         when(mResources.getStringArray(com.android.car.R.array.config_earlyStartupServices))
                 .thenReturn(new String[0]);
+
+        mController.init();
+
+        mContext.expectNoMoreServiceLaunches();
+    }
+
+    @Test
+    public void init_userNotRunning() throws Exception {
+        when(mUserManager.isUserRunning(any(UserHandle.class))).thenReturn(false);
 
         mController.init();
 
