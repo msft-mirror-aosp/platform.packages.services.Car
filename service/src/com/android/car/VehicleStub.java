@@ -32,6 +32,7 @@ import com.android.car.hal.VehicleHalCallback;
 import com.android.car.hal.fakevhal.FakeVehicleStub;
 import com.android.car.internal.property.CarPropertyErrorCodes;
 import com.android.car.internal.property.CarPropertyErrorCodes.CarPropMgrErrorCode;
+import com.android.car.internal.property.PropIdAreaId;
 
 import java.io.FileDescriptor;
 import java.util.List;
@@ -224,6 +225,16 @@ public abstract class VehicleStub {
          * If the callback's binder is already dead, this function will not be called.
          */
         public abstract void onRequestsTimeout(List<Integer> serviceRequestIds);
+    }
+
+    /**
+     * A callback interface to notify supported values change.
+     */
+    public interface SupportedValuesChangeCallback {
+        /**
+         * Method called when supported values change.
+         */
+        void onSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
     }
 
     /**
@@ -425,5 +436,27 @@ public abstract class VehicleStub {
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Sets the callback to be called when the min/max supported value or supported values
+     * list change.
+     *
+     * This is only allowed to be called once.
+     */
+    public void setSupportedValuesChangeCallback(SupportedValuesChangeCallback callback) {
+        // Do nothing.
+        return;
+    }
+
+    /**
+     * Registers the callback to be called when the min/max supported value or supportd values
+     * list change for the [propId, areaId]s.
+     *
+     * @throws ServiceSpecificException If VHAL returns error.
+     */
+    public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+        // Do nothing.
+        return;
     }
 }

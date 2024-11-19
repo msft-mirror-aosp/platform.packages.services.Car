@@ -62,7 +62,9 @@ import com.android.car.CarSystemService;
 import com.android.car.VehicleStub;
 import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.VehicleStub.SubscriptionClient;
+import com.android.car.VehicleStub.SupportedValuesChangeCallback;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.Lists;
 import com.android.car.internal.util.PairSparseArray;
@@ -87,7 +89,8 @@ import java.util.concurrent.TimeUnit;
  * implementation. It is the responsibility of {@link HalServiceBase} to convert data to
  * corresponding Car*Service for Car*Manager API.
  */
-public class VehicleHal implements VehicleHalCallback, CarSystemService {
+public class VehicleHal implements VehicleHalCallback, CarSystemService,
+        SupportedValuesChangeCallback {
     private static final boolean DBG = Slogf.isLoggable(CarLog.TAG_HAL, Log.DEBUG);;
     private static final long TRACE_TAG = TraceHelper.TRACE_TAG_CAR_SERVICE;
 
@@ -139,6 +142,9 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
     private final SparseArray<HalPropConfig> mAllProperties = new SparseArray<>();
     @GuardedBy("mLock")
     private final PairSparseArray<Integer> mAccessByPropIdAreaId = new PairSparseArray<Integer>();
+    @GuardedBy("mLock")
+    private final ArrayMap<HalServiceBase, ArraySet<PropIdAreaId>>
+            mSupportedValuesChangePropIdAreaIdsByService = new ArrayMap<>();
 
     @GuardedBy("mLock")
     private final SparseArray<VehiclePropertyEventInfo> mEventLog = new SparseArray<>();
@@ -299,6 +305,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
                 mPropertyHal);
         mVehicleStub = vehicle;
         mSubscriptionClient = vehicle.newSubscriptionClient(this);
+        vehicle.setSupportedValuesChangeCallback(this);
     }
 
     /** Sets fake feature flag for unit testing. */
@@ -1411,6 +1418,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
         }
     }
 
+
     /** Dumps VehiclePropertyConfigs */
     private static void dumpPropertyConfigsHelp(PrintWriter writer, HalPropConfig config) {
         int propertyId = config.getPropId();
@@ -1797,5 +1805,23 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
         return mVehicleStub.getSupportedValuesList(propertyId, areaId);
+    }
+
+    @Override
+    public void onSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+        // TODO: implement this.
+    }
+
+    /**
+     * Registers the callback to be called when the min/max supported value or supported values
+     * list change.
+     *
+     * @throws ServiceSpecificException If VHAL returns error.
+     * @throws IllegalArgumentException If the service does not own one of the requested property
+     *      ID.
+     */
+    public void registerSupportedValuesChange(HalServiceBase service,
+            List<PropIdAreaId> propIdAreaIds) {
+        // TODO: implement this.
     }
 }

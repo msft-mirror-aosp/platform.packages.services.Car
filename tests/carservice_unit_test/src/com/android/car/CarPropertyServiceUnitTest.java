@@ -19,6 +19,7 @@ package com.android.car;
 import static android.car.hardware.property.CarPropertyManager.SENSOR_RATE_ONCHANGE;
 
 import static com.android.car.internal.property.CarPropertyHelper.SYNC_OP_LIMIT_TRY_AGAIN;
+import static com.android.car.internal.property.CarPropertyHelper.newPropIdAreaId;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -67,6 +68,7 @@ import com.android.car.internal.property.AsyncPropertyServiceRequestList;
 import com.android.car.internal.property.CarPropertyConfigList;
 import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.property.ISupportedValuesChangeCallback;
 import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.internal.property.RawPropertyValue;
@@ -116,6 +118,8 @@ public final class CarPropertyServiceUnitTest extends AbstractExpectableTestCase
     private HistogramFactoryInterface mHistogramFactory;
     @Captor
     private ArgumentCaptor<List<CarPropertyEvent>> mPropertyEventCaptor;
+    @Mock
+    private ISupportedValuesChangeCallback mSupportedValuesChangeCallback;
 
     private CarPropertyService mService;
 
@@ -1821,6 +1825,47 @@ public final class CarPropertyServiceUnitTest extends AbstractExpectableTestCase
 
         assertThrows(SecurityException.class, () ->
                 mService.getSupportedValuesList(SPEED_ID, 0));
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChangeCallback() throws Exception {
+        var propIdAreaIds = List.of(newPropIdAreaId(SPEED_ID, 0));
+
+        mService.registerSupportedValuesChangeCallback(propIdAreaIds,
+                mSupportedValuesChangeCallback);
+
+        verify(mHalService).registerSupportedValuesChangeCallback(propIdAreaIds,
+                mSupportedValuesChangeCallback);
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChangeCallback_propertyIdNotSupported()
+            throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> {
+            mService.registerSupportedValuesChangeCallback(List.of(newPropIdAreaId(-1, 0)),
+                    mSupportedValuesChangeCallback);
+        });
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChangeCallback_areaIdNotSupported()
+            throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> {
+            mService.registerSupportedValuesChangeCallback(List.of(newPropIdAreaId(SPEED_ID, -1)),
+                    mSupportedValuesChangeCallback);
+        });
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChangeCallback_noPermission()
+            throws Exception {
+        when(mHalService.isReadable(mContext, SPEED_ID)).thenReturn(false);
+        when(mHalService.isWritable(mContext, SPEED_ID)).thenReturn(false);
+
+        assertThrows(SecurityException.class, () -> {
+            mService.registerSupportedValuesChangeCallback(List.of(newPropIdAreaId(SPEED_ID, 0)),
+                    mSupportedValuesChangeCallback);
+        });
     }
 
     private static PropIdAreaId newPropIdAreaId(int propId, int areaId) {

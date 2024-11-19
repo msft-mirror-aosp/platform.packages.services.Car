@@ -63,6 +63,7 @@ import android.util.SparseArray;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ICarBase;
 import com.android.car.internal.SingleMessageHandler;
+import com.android.car.internal.common.DispatchList;
 import com.android.car.internal.dep.Trace;
 import com.android.car.internal.os.HandlerExecutor;
 import com.android.car.internal.property.AsyncPropertyServiceRequest;
@@ -3669,6 +3670,17 @@ public class CarPropertyManager extends CarManagerBase {
             @NonNull SupportedValuesChangeCallback cb) {
     }
 
+    private static class EventDispatchList extends
+            DispatchList<CarPropertyEventCallbackController, CarPropertyEvent> {
+        @Override
+        protected void dispatchToClient(CarPropertyEventCallbackController client,
+                List<CarPropertyEvent> events) {
+            for (int j = 0; j < events.size(); j++) {
+                client.onEvent(events.get(j));
+            }
+        }
+    }
+
     private void handleCarPropertyEvents(List<CarPropertyEvent> carPropertyEvents) {
         SparseArray<List<CarPropertyEvent>> carPropertyEventsByPropertyId = new SparseArray<>();
         for (int i = 0; i < carPropertyEvents.size(); i++) {
@@ -3680,8 +3692,7 @@ public class CarPropertyManager extends CarManagerBase {
             carPropertyEventsByPropertyId.get(propertyId).add(carPropertyEvent);
         }
 
-        ArrayMap<CarPropertyEventCallbackController, List<CarPropertyEvent>> eventsByCallback =
-                new ArrayMap<>();
+        var eventsDispatchList = new EventDispatchList();
 
         synchronized (mLock) {
             for (int i = 0; i < carPropertyEventsByPropertyId.size(); i++) {
@@ -3697,10 +3708,7 @@ public class CarPropertyManager extends CarManagerBase {
                 }
                 for (int j = 0; j < cpeCallbackControllerSet.size(); j++) {
                     var callback = cpeCallbackControllerSet.valueAt(j);
-                    if (eventsByCallback.get(callback) == null) {
-                        eventsByCallback.put(callback, new ArrayList<>());
-                    }
-                    eventsByCallback.get(callback).addAll(eventsForPropertyId);
+                    eventsDispatchList.addEvents(callback, eventsForPropertyId);
                 }
             }
         }
@@ -3708,13 +3716,7 @@ public class CarPropertyManager extends CarManagerBase {
         // This might be invoked from a binder thread (CarPropertyEventListenerToService.onEvent),
         // so we must clear calling identity before calling client executor.
         Binder.clearCallingIdentity();
-        for (int i = 0; i < eventsByCallback.size(); i++) {
-            var callback = eventsByCallback.keyAt(i);
-            var events = eventsByCallback.valueAt(i);
-            for (int j = 0; j < events.size(); j++) {
-                callback.onEvent(events.get(j));
-            }
-        }
+        eventsDispatchList.dispatchToClients();
     }
 
     private boolean registerSupportedValuesChangeCallbackInternal(int propertyId,
