@@ -2956,7 +2956,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "AUTOMATIC_EMERGENCY_BRAKING_STATE": {
       "propertyName": "AUTOMATIC_EMERGENCY_BRAKING_STATE",
@@ -3001,7 +3001,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "FORWARD_COLLISION_WARNING_STATE": {
       "propertyName": "FORWARD_COLLISION_WARNING_STATE",
@@ -3045,7 +3045,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "BLIND_SPOT_WARNING_STATE": {
       "propertyName": "BLIND_SPOT_WARNING_STATE",
@@ -3089,7 +3089,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LANE_DEPARTURE_WARNING_STATE": {
       "propertyName": "LANE_DEPARTURE_WARNING_STATE",
@@ -3134,7 +3134,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LANE_KEEP_ASSIST_STATE": {
       "propertyName": "LANE_KEEP_ASSIST_STATE",
@@ -3180,7 +3180,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LANE_CENTERING_ASSIST_COMMAND": {
       "propertyName": "LANE_CENTERING_ASSIST_COMMAND",
@@ -3241,7 +3241,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "EMERGENCY_LANE_KEEP_ASSIST_STATE": {
       "propertyName": "EMERGENCY_LANE_KEEP_ASSIST_STATE",
@@ -3289,7 +3289,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "CRUISE_CONTROL_TYPE": {
       "propertyName": "CRUISE_CONTROL_TYPE",
@@ -3688,8 +3688,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LOW_SPEED_COLLISION_WARNING_STATE": {
       "propertyName": "LOW_SPEED_COLLISION_WARNING_STATE",
@@ -3734,8 +3733,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "CROSS_TRAFFIC_MONITORING_WARNING_STATE": {
       "propertyName": "CROSS_TRAFFIC_MONITORING_WARNING_STATE",
@@ -3785,8 +3783,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_SETTINGS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LOW_SPEED_AUTOMATIC_EMERGENCY_BRAKING_STATE": {
       "propertyName": "LOW_SPEED_AUTOMATIC_EMERGENCY_BRAKING_STATE",
