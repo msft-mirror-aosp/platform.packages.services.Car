@@ -99,10 +99,12 @@ import java.util.List;
 public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMockitoTestCase {
 
     private static final CarActivationVolumeConfig TEST_ON_PLAY_ACTIVATION_CONFIG =
-            new CarActivationVolumeConfig(ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED,
+            new CarActivationVolumeConfig(ACTIVATION_VOLUME_ON_BOOT
+                    | ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED | ACTIVATION_VOLUME_ON_SOURCE_CHANGED,
                     TEST_MIN_ACTIVATION, TEST_MAX_ACTIVATION);
     private static final CarActivationVolumeConfig TEST_ON_SOURCE_ACTIVATION_CONFIG =
-            new CarActivationVolumeConfig(ACTIVATION_VOLUME_ON_SOURCE_CHANGED,
+            new CarActivationVolumeConfig(ACTIVATION_VOLUME_ON_BOOT
+                    | ACTIVATION_VOLUME_ON_SOURCE_CHANGED,
                     TEST_MIN_ACTIVATION, TEST_MAX_ACTIVATION);
     private static final CarActivationVolumeConfig TEST_ON_BOOT_ACTIVATION_CONFIG =
             new CarActivationVolumeConfig(ACTIVATION_VOLUME_ON_BOOT,

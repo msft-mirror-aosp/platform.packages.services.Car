@@ -153,10 +153,13 @@ final class AudioControlZoneConverterUtils {
         int activationType;
         switch (entry.type) {
             case ON_PLAYBACK_CHANGED:
-                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
+                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT
+                        | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED
+                        | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
                 break;
             case ON_SOURCE_CHANGED:
-                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
+                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT
+                        | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
                 break;
             case ON_BOOT:
                 activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
