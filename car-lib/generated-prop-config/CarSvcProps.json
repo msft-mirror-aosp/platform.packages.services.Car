@@ -3432,7 +3432,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "HANDS_ON_DETECTION_DRIVER_STATE": {
       "propertyName": "HANDS_ON_DETECTION_DRIVER_STATE",
@@ -3442,7 +3442,6 @@
         "type": "single",
         "value": "android.car.permission.READ_DRIVER_MONITORING_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3453,7 +3452,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "HANDS_ON_DETECTION_WARNING": {
       "propertyName": "HANDS_ON_DETECTION_WARNING",
@@ -3463,7 +3463,6 @@
         "type": "single",
         "value": "android.car.permission.READ_DRIVER_MONITORING_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3474,7 +3473,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DROWSINESS_ATTENTION_SYSTEM_ENABLED": {
       "propertyName": "DRIVER_DROWSINESS_ATTENTION_SYSTEM_ENABLED",
@@ -3497,8 +3497,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DROWSINESS_ATTENTION_STATE": {
       "propertyName": "DRIVER_DROWSINESS_ATTENTION_STATE",
@@ -3508,7 +3507,6 @@
         "type": "single",
         "value": "android.car.permission.READ_DRIVER_MONITORING_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3527,7 +3525,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DROWSINESS_ATTENTION_WARNING_ENABLED": {
       "propertyName": "DRIVER_DROWSINESS_ATTENTION_WARNING_ENABLED",
@@ -3550,8 +3548,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DROWSINESS_ATTENTION_WARNING": {
       "propertyName": "DRIVER_DROWSINESS_ATTENTION_WARNING",
@@ -3561,7 +3558,6 @@
         "type": "single",
         "value": "android.car.permission.READ_DRIVER_MONITORING_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3573,7 +3569,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DISTRACTION_SYSTEM_ENABLED": {
       "propertyName": "DRIVER_DISTRACTION_SYSTEM_ENABLED",
@@ -3596,8 +3592,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DISTRACTION_STATE": {
       "propertyName": "DRIVER_DISTRACTION_STATE",
@@ -3607,7 +3602,6 @@
         "type": "single",
         "value": "android.car.permission.READ_DRIVER_MONITORING_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3619,7 +3613,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DISTRACTION_WARNING_ENABLED": {
       "propertyName": "DRIVER_DISTRACTION_WARNING_ENABLED",
@@ -3642,8 +3636,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS"
       },
-      "systemApi": true,
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "DRIVER_DISTRACTION_WARNING": {
       "propertyName": "DRIVER_DISTRACTION_WARNING",
@@ -3653,7 +3646,6 @@
         "type": "single",
         "value": "android.car.permission.READ_DRIVER_MONITORING_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3665,7 +3657,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LOW_SPEED_COLLISION_WARNING_ENABLED": {
       "propertyName": "LOW_SPEED_COLLISION_WARNING_ENABLED",

@@ -535,38 +535,38 @@ public final class Car implements ICarBase {
     public static final String CAR_WIFI_SERVICE = "car_wifi_service";
 
     /**
-     * Permission necessary to read driver monitoring systems settings information.
+     * Signature|Privileged permission necessary to read driver monitoring systems settings
+     * information.
      *
      * Examples of settings include the ENABLED properties for the supported driver monitoring
      * features.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_DRIVER_MONITORING_SETTINGS =
             "android.car.permission.READ_DRIVER_MONITORING_SETTINGS";
 
     /**
-     * Permission necessary to control driver monitoring systems settings information.
+     * Signature|Privileged permission necessary to control driver monitoring systems settings
+     * information.
      *
      * Examples of settings include the ENABLED properties for the supported driver monitoring
      * features.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS =
             "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS";
 
     /**
-     * Permission necessary to read driver monitoring systems states information.
+     * Signature|Privileged permission necessary to read driver monitoring systems states
+     * information.
      *
      * Examples of states include the STATE and WARNING properties for the supported driver
      * monitoring features.
      *
      * This is different from {@link PERMISSION_READ_DRIVER_MONITORING_SETTINGS}, which allows an
      * app to read the system settings, such as whether the system is enabled or disabled.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_DRIVER_MONITORING_STATES =
             "android.car.permission.READ_DRIVER_MONITORING_STATES";
 
