@@ -116,6 +116,8 @@ android_test {
         "CarServiceUnitTestDefaults",
     ],
 
+    manifest: "AndroidCarServiceManifest.xml",
+
     // TODO(b/319708040): re-enable use_resource_processor
     use_resource_processor: false,
     test_config: "AndroidTest_CarTest.xml",
@@ -462,6 +464,8 @@ android_test {
     ],
 
     test_config: "AndroidTest_AmTest.xml",
+
+    manifest: "AndroidAmManifest.xml",
 }
 
 android_test {
