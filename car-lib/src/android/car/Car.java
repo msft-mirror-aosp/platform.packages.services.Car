@@ -17,7 +17,6 @@
 package android.car;
 
 import static android.car.CarLibLog.TAG_CAR;
-import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_CLUSTER_HEALTH_MONITORING;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 
@@ -536,38 +535,38 @@ public final class Car implements ICarBase {
     public static final String CAR_WIFI_SERVICE = "car_wifi_service";
 
     /**
-     * Permission necessary to read driver monitoring systems settings information.
+     * Signature|Privileged permission necessary to read driver monitoring systems settings
+     * information.
      *
      * Examples of settings include the ENABLED properties for the supported driver monitoring
      * features.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_DRIVER_MONITORING_SETTINGS =
             "android.car.permission.READ_DRIVER_MONITORING_SETTINGS";
 
     /**
-     * Permission necessary to control driver monitoring systems settings information.
+     * Signature|Privileged permission necessary to control driver monitoring systems settings
+     * information.
      *
      * Examples of settings include the ENABLED properties for the supported driver monitoring
      * features.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS =
             "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS";
 
     /**
-     * Permission necessary to read driver monitoring systems states information.
+     * Signature|Privileged permission necessary to read driver monitoring systems states
+     * information.
      *
      * Examples of states include the STATE and WARNING properties for the supported driver
      * monitoring features.
      *
      * This is different from {@link PERMISSION_READ_DRIVER_MONITORING_SETTINGS}, which allows an
      * app to read the system settings, such as whether the system is enabled or disabled.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_DRIVER_MONITORING_STATES =
             "android.car.permission.READ_DRIVER_MONITORING_STATES";
 
@@ -600,14 +599,14 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_SPEED = "android.car.permission.CAR_SPEED";
 
     /**
-     * Permission necessary to access car's dynamics state.
+     * Signature|Privileged permission necessary to access car's dynamics state.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_DYNAMICS_STATE =
             "android.car.permission.CAR_DYNAMICS_STATE";
 
     /**
-     * Permission necessary to control car's dynamics state.
+     * Signature|Privileged permission necessary to control car's dynamics state.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_DYNAMICS_STATE =
@@ -754,7 +753,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_APP_BLOCKING";
 
     /**
-     * Permission necessary to access car's engine information.
+     * Signature|Privileged permission necessary to access car's engine information.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_ENGINE_DETAILED =
@@ -797,7 +796,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_DISPLAY_UNITS";
 
     /**
-     * Permission necessary to control car's door.
+     * Signature|Privileged permission necessary to control car's door.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_DOORS =
@@ -812,40 +811,37 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_WINDOWS";
 
     /**
-     * Permission necessary to control car glove box.
-     * @hide
+     * Signature|Privileged permission necessary to control car glove box.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_GLOVE_BOX =
             "android.car.permission.CONTROL_GLOVE_BOX";
     /**
-     * Permission necessary to control car's seats.
-     * @hide
+     * Signature|Privileged permission necessary to control car's seats.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_SEATS =
             "android.car.permission.CONTROL_CAR_SEATS";
 
     /**
-     * Permission necessary to control car's mirrors.
+     * Signature|Privileged permission necessary to control car's mirrors.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_MIRRORS =
             "android.car.permission.CONTROL_CAR_MIRRORS";
 
     /**
-     * Permission necessary to access Car HVAC APIs.
+     * Signature|Privileged permission necessary to access Car HVAC APIs.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_CLIMATE =
             "android.car.permission.CONTROL_CAR_CLIMATE";
 
     /**
-     * Permission necessary to enable/disable a seat's ability to deploy airbag(s) when triggered
-     * (e.g. by a crash).
-     * @hide
+     * Signature|Privileged permission necessary to enable/disable a seat's ability to deploy
+     * airbag(s) when triggered (e.g. by a crash).
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_AIRBAGS =
             "android.car.permission.CONTROL_CAR_AIRBAGS";
 
@@ -913,10 +909,10 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_TEST_SERVICE";
 
     /**
-     * Permission necessary to access CarDrivingStateService to get a Car's driving state.
-     * @hide
+     * Signature|Privileged permission necessary to access a car's driving state
+     * (E.g. CarDrivingStateService).
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_DRIVING_STATE =
             "android.car.permission.CAR_DRIVING_STATE";
 
@@ -946,11 +942,9 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_VMS_SUBSCRIBER = "android.car.permission.VMS_SUBSCRIBER";
 
     /**
-     * Permission necessary to read ultrasonics sensor data.
-     * @hide
+     * Signature|Privileged permission necessary to read ultrasonics sensor data.
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_ULTRASONICS_SENSOR_DATA =
             "android.car.permission.READ_ULTRASONICS_SENSOR_DATA";
 
@@ -1178,54 +1172,45 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_CONTROL_REMOTE_ACCESS =
             "android.car.permission.CONTROL_REMOTE_ACCESS";
     /**
-     * Permission necessary to control car's steering wheel.
-     * @hide
+     * Signature|Privileged permission necessary to control car's steering wheel.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_STEERING_WHEEL =
             "android.car.permission.CONTROL_STEERING_WHEEL";
 
     /**
-     * Permission necessary to read ADAS settings information.
+     * Signature|Privileged permission necessary to read ADAS settings information.
      *
      * Examples of settings include the ENABLED properties for the supported ADAS features.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_ADAS_SETTINGS =
             "android.car.permission.READ_ADAS_SETTINGS";
 
     /**
-     * Permission necessary to control ADAS settings information.
+     * Signature|Privileged permission necessary to control ADAS settings information.
      *
      * Examples of settings include the ENABLED properties for the supported ADAS features.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_ADAS_SETTINGS =
             "android.car.permission.CONTROL_ADAS_SETTINGS";
 
     /**
-     * Permission necessary to read ADAS states information.
+     * Signature|Privileged permission necessary to read ADAS states information.
      *
      * Examples include the STATE properties for the supported ADAS features.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_ADAS_STATES =
             "android.car.permission.READ_ADAS_STATES";
 
     /**
-     * Permission necessary to control ADAS states information.
+     * Signature|Privileged permission necessary to control ADAS states information.
      *
      * Examples include the STATE properties for the supported ADAS features.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_ADAS_STATES =
             "android.car.permission.CONTROL_ADAS_STATES";
 
@@ -1271,18 +1256,16 @@ public final class Car implements ICarBase {
             "android.car.permission.MIRROR_DISPLAY";
 
     /**
-     * Permission necessary to read car's windshield wipers.
-     * @hide
+     * Signature|Privileged permission necessary to read car's windshield wipers.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_WINDSHIELD_WIPERS =
             "android.car.permission.READ_WINDSHIELD_WIPERS";
 
     /**
-     * Permission necessary to control car's windshield wipers.
-     * @hide
+     * Signature|Privileged permission necessary to control car's windshield wipers.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_WINDSHIELD_WIPERS =
             "android.car.permission.CONTROL_WINDSHIELD_WIPERS";
 
@@ -1316,54 +1299,50 @@ public final class Car implements ICarBase {
             "android.car.permission.MANAGE_DISPLAY_COMPATIBILITY";
 
     /**
-     * Permission necessary to read state of car airbags.
-     * @hide
+     * Signature|Privileged permission necessary to read state of car airbags.
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_CAR_AIRBAGS =
             "android.car.permission.READ_CAR_AIRBAGS";
 
     /**
-     * Permission necessary to read state of seat belts.
-     * @hide
+     * Signature|Privileged permission necessary to read state of seat belts.
      */
-    @FlaggedApi(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_CAR_SEAT_BELTS =
             "android.car.permission.READ_CAR_SEAT_BELTS";
 
     /**
-     * Permission necessary to read impact sensors information.
+     * Signature|Privileged permission necessary to read impact sensors information.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_IMPACT_SENSORS =
             "android.car.permission.READ_IMPACT_SENSORS";
 
     /**
-     * Permission necessary to read valet mode
+     * Signature|Privileged permission necessary to read valet mode.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_VALET_MODE =
             "android.car.permission.READ_VALET_MODE";
 
     /**
-     * Permission necessary to control valet mode
+     * Signature|Privileged permission necessary to control valet mode.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_VALET_MODE =
             "android.car.permission.CONTROL_VALET_MODE";
 
     /**
-     * Permission necessary to read head up display status (e.g. whether the head up display is
-     * enabled)
+     * Signature|Privileged permission necessary to read head up display status (e.g. whether the
+     * head up display is enabled).
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_HEAD_UP_DISPLAY_STATUS =
             "android.car.permission.READ_HEAD_UP_DISPLAY_STATUS";
 
     /**
-     * Permission necessary to control head up display
+     * Signature|Privileged permission necessary to control head up display.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_HEAD_UP_DISPLAY =
