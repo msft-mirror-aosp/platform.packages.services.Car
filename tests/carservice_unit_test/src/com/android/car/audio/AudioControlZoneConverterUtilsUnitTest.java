@@ -23,6 +23,7 @@ import static android.media.audio.common.AudioUsage.MEDIA;
 
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioContextEntry;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioDevicePort;
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioFadeConfiguration;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertCarAudioContext;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertVolumeGroupConfig;
 import static com.android.car.audio.AudioControlZoneConverterUtils.verifyVolumeGroupName;
@@ -39,6 +40,7 @@ import static com.android.car.audio.CarAudioTestUtils.RING_CONTEXT;
 import static com.android.car.audio.CarAudioTestUtils.RING_CONTEXT_ID;
 import static com.android.car.audio.CarAudioTestUtils.TEST_ACTIVATION;
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
+import static com.android.car.audio.CarAudioTestUtils.TEST_FADE_CONFIGURATION_NAME;
 import static com.android.car.audio.CarAudioTestUtils.TEST_MAX_ACTIVATION;
 import static com.android.car.audio.CarAudioTestUtils.TEST_MIN_ACTIVATION;
 import static com.android.car.audio.CarAudioTestUtils.VOICE_COMMAND_CONTEXT;
@@ -47,9 +49,13 @@ import static com.android.car.audio.CarAudioTestUtils.createAudioPort;
 import static com.android.car.audio.CarAudioTestUtils.createAudioPortDeviceExt;
 import static com.android.car.audio.CarAudioTestUtils.createBusAudioPort;
 import static com.android.car.audio.CarAudioTestUtils.createDeviceToContextEntry;
+import static com.android.car.audio.CarAudioTestUtils.createHALAudioAttribute;
 import static com.android.car.audio.CarAudioTestUtils.createHALAudioContext;
+import static com.android.car.audio.CarAudioTestUtils.createMediaAudioAttributes;
+import static com.android.car.audio.CarAudioTestUtils.createTestFadeConfiguration;
 import static com.android.car.audio.CarAudioTestUtils.createVolumeActivationConfiguration;
 import static com.android.car.audio.CarAudioTestUtils.createVolumeGroupConfig;
+import static com.android.car.audio.CarAudioTestUtils.getTestCarFadeConfiguration;
 import static com.android.car.audio.CarAudioUtils.DEFAULT_ACTIVATION_VOLUME;
 import static com.android.car.audio.CoreAudioRoutingUtils.createCoreHALAudioContext;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
@@ -62,23 +68,22 @@ import static org.mockito.Mockito.verify;
 
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.AudioFadeConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
+import android.hardware.automotive.audiocontrol.FadeState;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioDeviceInfo;
-import android.media.MediaRecorder;
+import android.media.FadeManagerConfiguration;
 import android.media.audio.common.AudioAttributes;
-import android.media.audio.common.AudioContentType;
 import android.media.audio.common.AudioDeviceDescription;
 import android.media.audio.common.AudioDeviceType;
-import android.media.audio.common.AudioFlag;
 import android.media.audio.common.AudioPort;
 import android.media.audio.common.AudioPortDeviceExt;
 import android.media.audio.common.AudioPortExt;
-import android.media.audio.common.AudioSource;
 import android.media.audio.common.AudioUsage;
 import android.util.ArrayMap;
 
@@ -109,9 +114,6 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
                     TEST_MIN_ACTIVATION, TEST_MAX_ACTIVATION);
     private static final int INVALID_MIN_ACTIVATION = -1;
     private static final int INVALID_MAX_ACTIVATION = 101;
-
-    private static final int TEST_FLAGS = AudioFlag.AUDIBILITY_ENFORCED;
-    private static final String[] TEST_TAGS =  {"OEM_NAV", "OEM_ASSISTANT"};
 
     private static final int PORT_ID_MEDIA = 10;
     private static final String PORT_MEDIA_NAME = "media_bus";
@@ -746,6 +748,46 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
                 .that(message).contains("could not parse audio context entry");
     }
 
+    @Test
+    public void convertAudioFadeConfiguration_withNullConfiguration() {
+        AudioFadeConfiguration configuration = null;
+
+        var thrown = assertThrows(NullPointerException.class,
+                () -> convertAudioFadeConfiguration(configuration));
+
+        expectWithMessage("Convert audio fade configuration exception").that(thrown)
+                .hasMessageThat().contains("Audio fade configuration");
+    }
+
+    @Test
+    public void convertAudioFadeConfiguration_withEnabledConfig() {
+        AudioFadeConfiguration configuration = createTestFadeConfiguration();
+
+        var carFadeConfiguration = convertAudioFadeConfiguration(configuration);
+
+        expectWithMessage("Converted enabled fade configuration name")
+                .that(carFadeConfiguration.getName()).isEqualTo(TEST_FADE_CONFIGURATION_NAME);
+        var fadeConfiguration = carFadeConfiguration.getFadeManagerConfiguration();
+        expectWithMessage("Converted enabled fade configuration").that(fadeConfiguration)
+                .isEqualTo(getTestCarFadeConfiguration().getFadeManagerConfiguration());
+    }
+
+    @Test
+    public void convertAudioFadeConfiguration_withDisabledConfig() {
+        AudioFadeConfiguration configuration = new AudioFadeConfiguration();
+        configuration.fadeState = FadeState.FADE_STATE_DISABLED;
+
+        var carFadeConfiguration = convertAudioFadeConfiguration(configuration);
+
+        expectWithMessage("Converted disabled fade configuration name")
+                .that(carFadeConfiguration.getName()).contains("FADE_STATE_DISABLED");
+        var fadeManagerConfiguration = new FadeManagerConfiguration.Builder().setFadeState(
+                        FadeManagerConfiguration.FADE_STATE_DISABLED).build();
+        expectWithMessage("Converted disabled fade manager configuration")
+                .that(carFadeConfiguration.getFadeManagerConfiguration())
+                .isEqualTo(fadeManagerConfiguration);
+    }
+
     private VolumeGroupConfig createMediaVolumeGroupConfiguration() {
         var contextEntries = new ArrayList<DeviceToContextEntry>(1);
         var audioPort = createBusAudioPort(PORT_MEDIA_ADDRESS, PORT_ID_MEDIA, PORT_MEDIA_NAME);
@@ -782,31 +824,5 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
             contextNameToId.put(info.name, info.id);
         }
         return contextNameToId;
-    }
-
-    private AudioAttributes createHALAudioAttribute(int usage) {
-        AudioAttributes attributes = new AudioAttributes();
-        attributes.usage = usage;
-        attributes.flags = TEST_FLAGS;
-        attributes.tags = TEST_TAGS;
-        attributes.contentType = AudioContentType.MOVIE;
-        attributes.source = AudioSource.CAMCORDER;
-        return attributes;
-    }
-
-    private android.media.AudioAttributes createMediaAudioAttributes(int usage) {
-        android.media.AudioAttributes.Builder builder = new android.media.AudioAttributes.Builder()
-                .setFlags(TEST_FLAGS)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE)
-                .setCapturePreset(MediaRecorder.AudioSource.CAMCORDER);
-        if (android.media.AudioAttributes.isSystemUsage(usage)) {
-            builder.setSystemUsage(usage);
-        } else {
-            builder.setUsage(usage);
-        }
-        for (String tag : TEST_TAGS) {
-            builder.addTag(tag);
-        }
-        return builder.build();
     }
 }

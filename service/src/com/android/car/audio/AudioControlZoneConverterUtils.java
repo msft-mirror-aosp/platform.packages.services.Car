@@ -29,16 +29,21 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.PR
 import android.annotation.Nullable;
 import android.car.builtin.media.AudioManagerHelper;
 import android.car.builtin.util.Slogf;
+import android.car.oem.CarAudioFadeConfiguration;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.AudioFadeConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
+import android.hardware.automotive.audiocontrol.FadeConfiguration;
+import android.hardware.automotive.audiocontrol.FadeState;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.FadeManagerConfiguration;
 import android.media.audio.common.AudioDevice;
 import android.media.audio.common.AudioDeviceDescription;
 import android.media.audio.common.AudioDeviceType;
@@ -50,6 +55,8 @@ import android.util.ArrayMap;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -298,6 +305,106 @@ final class AudioControlZoneConverterUtils {
         return "";
     }
 
+    static CarAudioFadeConfiguration convertAudioFadeConfiguration(
+            AudioFadeConfiguration configuration) {
+        Objects.requireNonNull(configuration, "Audio fade configuration can not be null");
+        long fadeOutDuration = configuration.fadeOutDurationMs;
+        long fadeInDuration = configuration.fadeInDurationMs;
+        FadeManagerConfiguration.Builder fadeManagerBuilder;
+        if (fadeOutDuration > 0 && fadeInDuration > 0) {
+            fadeManagerBuilder = new FadeManagerConfiguration.Builder(fadeOutDuration,
+                    fadeInDuration);
+        } else {
+            fadeManagerBuilder = new FadeManagerConfiguration.Builder();
+        }
+        // If the fade configuration is not set then the default configurations will be set
+        // internally.
+        if (configuration.fadeableUsages != null) {
+            fadeManagerBuilder.setFadeableUsages(convertAudioUsages(configuration.fadeableUsages));
+        }
+        fadeManagerBuilder.setFadeState(convertFadeState(configuration.fadeState));
+        if (configuration.unfadeableContentTypes != null) {
+            fadeManagerBuilder.setUnfadeableContentTypes(
+                    convertAudioContentTypes(configuration.unfadeableContentTypes));
+        }
+        var convertedAudioAttributes =
+                toMediaAudioAttributes(configuration.unfadableAudioAttributes);
+        fadeManagerBuilder.setUnfadeableAudioAttributes(Arrays.asList(convertedAudioAttributes));
+        convertFadeOutConfiguration(configuration.fadeOutConfigurations, fadeManagerBuilder);
+        convertFadeInConfiguration(configuration.fadeInConfigurations, fadeManagerBuilder);
+        long delayForOffenders = configuration.fadeInDelayedForOffendersMs;
+        if (delayForOffenders >= 0) {
+            fadeManagerBuilder.setFadeInDelayForOffenders(delayForOffenders);
+        }
+        var fadeConfigBuilder = new CarAudioFadeConfiguration.Builder(fadeManagerBuilder.build());
+        if (configuration.name != null) {
+            fadeConfigBuilder.setName(configuration.name);
+        }
+        return fadeConfigBuilder.build();
+    }
+
+    private static void convertFadeOutConfiguration(List<FadeConfiguration> fadeOutConfigurations,
+            FadeManagerConfiguration.Builder fadeManagerBuilder) {
+        convertFadeConfiguration(fadeOutConfigurations,
+                fadeManagerBuilder::setFadeOutDurationForUsage,
+                fadeManagerBuilder::setFadeOutDurationForAudioAttributes);
+    }
+
+    private static void convertFadeInConfiguration(List<FadeConfiguration> fadeInConfigurations,
+            FadeManagerConfiguration.Builder fadeManagerBuilder) {
+        convertFadeConfiguration(fadeInConfigurations,
+                fadeManagerBuilder::setFadeInDurationForUsage,
+                fadeManagerBuilder::setFadeInDurationForAudioAttributes);
+    }
+
+    private static void convertFadeConfiguration(List<FadeConfiguration> fadeConfigurations,
+            AudioUsageFadeDelayConsumer usageConsumer,
+            AudioAttributeFadeDelayConsumer attributeConsumer) {
+        if (fadeConfigurations == null) {
+            return;
+        }
+        for (int c = 0; c < fadeConfigurations.size(); c++) {
+            var fadeOutConfig = fadeConfigurations.get(c);
+            long duration = fadeOutConfig.fadeDurationMillis;
+            var attributeOrUsage = fadeOutConfig.audioAttributesOrUsage;
+            if (attributeOrUsage.getTag() == FadeConfiguration.AudioAttributesOrUsage.usage) {
+                usageConsumer.apply(attributeOrUsage.getUsage(), duration);
+                continue;
+            }
+            attributeConsumer.apply(convertAudioAttributes(
+                    attributeOrUsage.getFadeAttribute()), duration);
+        }
+    }
+
+    private static List<Integer> convertAudioContentTypes(int[] types) {
+        if (types == null) {
+            return Collections.EMPTY_LIST;
+        }
+        var contentTypes = new ArrayList<Integer>(types.length);
+        for (int type : types) {
+            contentTypes.add(type);
+        }
+        return contentTypes;
+    }
+
+    private static List<Integer> convertAudioUsages(int[] usages) {
+        if (usages == null) {
+            return Collections.EMPTY_LIST;
+        }
+        var contentTypes = new ArrayList<Integer>(usages.length);
+        for (int usage : usages) {
+            contentTypes.add(usage);
+        }
+        return contentTypes;
+    }
+
+    private static int convertFadeState(int fadeState) {
+        if (fadeState == FadeState.FADE_STATE_DISABLED) {
+            return FadeManagerConfiguration.FADE_STATE_DISABLED;
+        }
+        return FadeManagerConfiguration.FADE_STATE_ENABLED_DEFAULT;
+    }
+
     private static boolean requiresDeviceAddress(int type, String connection) {
         return type == AudioDeviceType.OUT_BUS && (connection == null || connection.isEmpty()
                 || connection.equals(AudioDeviceDescription.CONNECTION_BUS));
@@ -338,6 +445,9 @@ final class AudioControlZoneConverterUtils {
 
     private static AudioAttributes[] toMediaAudioAttributes(
             List<android.media.audio.common.AudioAttributes> audioAttributes) {
+        if (audioAttributes == null) {
+            return new AudioAttributes[0];
+        }
         AudioAttributes[] mediaAttributes = new AudioAttributes[audioAttributes.size()];
         for (int c = 0; c < audioAttributes.size(); c++) {
             mediaAttributes[c] = convertAudioAttributes(audioAttributes.get(c));
@@ -363,5 +473,13 @@ final class AudioControlZoneConverterUtils {
 
     private static String getValidContextName(String name, int contextId) {
         return name != null && !name.isEmpty() ? name : ("Context " + contextId);
+    }
+
+    private interface AudioUsageFadeDelayConsumer {
+        void apply(int usage, long durationMs);
+    }
+
+    private interface AudioAttributeFadeDelayConsumer {
+        void apply(AudioAttributes attributes, long durationMs);
     }
 }
