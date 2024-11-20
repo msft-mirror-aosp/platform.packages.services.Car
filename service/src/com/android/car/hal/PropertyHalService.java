@@ -33,6 +33,7 @@ import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAI
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_TRY_AGAIN;
 
 import static com.android.car.hal.property.HalPropertyDebugUtils.toAreaIdString;
+import static com.android.car.hal.property.HalPropertyDebugUtils.toHalPropIdAreaIdsString;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
@@ -1573,6 +1574,10 @@ public class PropertyHalService extends HalServiceBase {
     // Inherits from HalServiceBase
     @Override
     public void onSupportedValuesChange(List<PropIdAreaId> halPropIdAreaIds) {
+        if (DBG) {
+            Slogf.d(TAG, "onSupportedValuesChange called for: %s", toHalPropIdAreaIdsString(
+                    halPropIdAreaIds));
+        }
         var dispatchList = new SupportedValuesChangeDispatchList();
 
         synchronized (mLock) {

@@ -16,7 +16,9 @@
 
 package com.android.car.internal.common;
 
+import android.car.builtin.util.Slogf;
 import android.util.ArrayMap;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +34,8 @@ import java.util.List;
  * @param <EventType> The type for the event.
  */
 public abstract class DispatchList<ClientType, EventType> {
+    private static final String TAG = "DispatchList";
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     private ArrayMap<ClientType, List<EventType>> mEventsByClient = new ArrayMap<>();
 
@@ -46,6 +50,9 @@ public abstract class DispatchList<ClientType, EventType> {
      * Adds an event to be dispatched to a client.
      */
     public void addEvent(ClientType client, EventType event) {
+        if (DBG) {
+            Slogf.d(TAG, "addEvent with client: %s, event: %s", client, event);
+        }
         var eventsToNotify = mEventsByClient.get(client);
         if (eventsToNotify == null) {
             eventsToNotify = new ArrayList<EventType>();
@@ -58,6 +65,9 @@ public abstract class DispatchList<ClientType, EventType> {
      * Adds events to be dispatched to a client.
      */
     public void addEvents(ClientType client, List<EventType> events) {
+        if (DBG) {
+            Slogf.d(TAG, "addEvent with client: %s, events: %s", client, events);
+        }
         var eventsToNotify = mEventsByClient.get(client);
         if (eventsToNotify == null) {
             eventsToNotify = new ArrayList<EventType>();
@@ -73,6 +83,11 @@ public abstract class DispatchList<ClientType, EventType> {
      */
     public void dispatchToClients() {
         for (int i = 0; i < mEventsByClient.size(); i++) {
+            if (DBG) {
+                Slogf.d(TAG, "dispatch to client: %s, events: %s",
+                        mEventsByClient.valueAt(i), mEventsByClient.valueAt(i));
+            }
+
             dispatchToClient(mEventsByClient.keyAt(i), mEventsByClient.valueAt(i));
         }
         mEventsByClient.clear();
