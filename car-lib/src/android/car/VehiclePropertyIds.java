@@ -5954,10 +5954,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link AutomaticEmergencyBrakingState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int AUTOMATIC_EMERGENCY_BRAKING_STATE = 289411073;
 
@@ -6024,10 +6022,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link ForwardCollisionWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int FORWARD_COLLISION_WARNING_STATE = 289411075;
 
@@ -6095,10 +6091,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link BlindSpotWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int BLIND_SPOT_WARNING_STATE = 339742725;
 
@@ -6166,10 +6160,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link LaneDepartureWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LANE_DEPARTURE_WARNING_STATE = 289411079;
 
@@ -6244,10 +6236,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link LaneKeepAssistState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LANE_KEEP_ASSIST_STATE = 289411081;
 
@@ -6328,10 +6318,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link LaneCenteringAssistCommand}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
     public static final int LANE_CENTERING_ASSIST_COMMAND = 289411083;
 
@@ -6368,10 +6356,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link LaneCenteringAssistState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LANE_CENTERING_ASSIST_STATE = 289411084;
 
@@ -6442,10 +6428,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link EmergencyLaneKeepAssistState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int EMERGENCY_LANE_KEEP_ASSIST_STATE = 289411086;
 
@@ -6526,10 +6510,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link CruiseControlType}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_STATES,
             Car.PERMISSION_CONTROL_ADAS_STATES}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
@@ -6567,10 +6549,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link CruiseControlState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int CRUISE_CONTROL_STATE = 289411089;
 
@@ -6605,10 +6585,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link CruiseControlCommand}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
     public static final int CRUISE_CONTROL_COMMAND = 289411090;
 
@@ -6642,10 +6620,8 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int CRUISE_CONTROL_TARGET_SPEED = 291508243;
 
@@ -6683,10 +6659,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_STATES} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_STATES,
             Car.PERMISSION_CONTROL_ADAS_STATES}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
@@ -6725,10 +6699,8 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE = 289411093;
 
@@ -7246,11 +7218,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.LowSpeedCollisionWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LOW_SPEED_COLLISION_WARNING_STATE = 289411106;
 
@@ -7319,11 +7288,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.CrossTrafficMonitoringWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int CROSS_TRAFFIC_MONITORING_WARNING_STATE = 289411108;
 
@@ -7401,11 +7367,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.LowSpeedAutomaticEmergencyBrakingState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LOW_SPEED_AUTOMATIC_EMERGENCY_BRAKING_STATE = 289411110;
 

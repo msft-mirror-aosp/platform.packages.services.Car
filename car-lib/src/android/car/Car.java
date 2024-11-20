@@ -1197,24 +1197,20 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_ADAS_SETTINGS";
 
     /**
-     * Permission necessary to read ADAS states information.
+     * Signature|Privileged permission necessary to read ADAS states information.
      *
      * Examples include the STATE properties for the supported ADAS features.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_READ_ADAS_STATES =
             "android.car.permission.READ_ADAS_STATES";
 
     /**
-     * Permission necessary to control ADAS states information.
+     * Signature|Privileged permission necessary to control ADAS states information.
      *
      * Examples include the STATE properties for the supported ADAS features.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_ADAS_STATES =
             "android.car.permission.CONTROL_ADAS_STATES";
 

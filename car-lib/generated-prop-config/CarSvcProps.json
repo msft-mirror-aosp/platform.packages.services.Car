@@ -2966,7 +2966,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -2978,7 +2977,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "FORWARD_COLLISION_WARNING_ENABLED": {
       "propertyName": "FORWARD_COLLISION_WARNING_ENABLED",
@@ -3011,7 +3011,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3022,7 +3021,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "BLIND_SPOT_WARNING_ENABLED": {
       "propertyName": "BLIND_SPOT_WARNING_ENABLED",
@@ -3055,7 +3055,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3066,7 +3065,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LANE_DEPARTURE_WARNING_ENABLED": {
       "propertyName": "LANE_DEPARTURE_WARNING_ENABLED",
@@ -3099,7 +3099,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3111,7 +3110,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LANE_KEEP_ASSIST_ENABLED": {
       "propertyName": "LANE_KEEP_ASSIST_ENABLED",
@@ -3144,7 +3144,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3157,7 +3156,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LANE_CENTERING_ASSIST_ENABLED": {
       "propertyName": "LANE_CENTERING_ASSIST_ENABLED",
@@ -3190,11 +3190,11 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         1,
         2
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LANE_CENTERING_ASSIST_STATE": {
       "propertyName": "LANE_CENTERING_ASSIST_STATE",
@@ -3204,7 +3204,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3218,7 +3217,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "EMERGENCY_LANE_KEEP_ASSIST_ENABLED": {
       "propertyName": "EMERGENCY_LANE_KEEP_ASSIST_ENABLED",
@@ -3251,7 +3251,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3266,7 +3265,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "CRUISE_CONTROL_ENABLED": {
       "propertyName": "CRUISE_CONTROL_ENABLED",
@@ -3312,7 +3312,6 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3324,7 +3323,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "CRUISE_CONTROL_STATE": {
       "propertyName": "CRUISE_CONTROL_STATE",
@@ -3334,7 +3334,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3348,7 +3347,8 @@
         -4,
         -5,
         -6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "CRUISE_CONTROL_COMMAND": {
       "propertyName": "CRUISE_CONTROL_COMMAND",
@@ -3358,7 +3358,6 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         1,
         2,
@@ -3366,7 +3365,8 @@
         4,
         5,
         6
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "CRUISE_CONTROL_TARGET_SPEED": {
       "propertyName": "CRUISE_CONTROL_TARGET_SPEED",
@@ -3376,7 +3376,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP": {
       "propertyName": "ADAPTIVE_CRUISE_CONTROL_TARGET_TIME_GAP",
@@ -3399,7 +3399,7 @@
         "type": "single",
         "value": "android.car.permission.CONTROL_ADAS_STATES"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE": {
       "propertyName": "ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE",
@@ -3409,7 +3409,7 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "HANDS_ON_DETECTION_ENABLED": {
       "propertyName": "HANDS_ON_DETECTION_ENABLED",
@@ -3698,7 +3698,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3710,7 +3709,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "CROSS_TRAFFIC_MONITORING_ENABLED": {
       "propertyName": "CROSS_TRAFFIC_MONITORING_ENABLED",
@@ -3743,7 +3742,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3760,7 +3758,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
     "LOW_SPEED_AUTOMATIC_EMERGENCY_BRAKING_ENABLED": {
       "propertyName": "LOW_SPEED_AUTOMATIC_EMERGENCY_BRAKING_ENABLED",
@@ -3793,7 +3791,6 @@
         "type": "single",
         "value": "android.car.permission.READ_ADAS_STATES"
       },
-      "systemApi": true,
       "dataEnums": [
         0,
         1,
@@ -3806,7 +3803,7 @@
         -5,
         -6
       ],
-      "featureFlag": "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     }
   }
 }
