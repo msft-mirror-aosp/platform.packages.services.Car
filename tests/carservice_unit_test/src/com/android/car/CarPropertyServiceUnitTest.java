@@ -1868,6 +1868,17 @@ public final class CarPropertyServiceUnitTest extends AbstractExpectableTestCase
         });
     }
 
+    @Test
+    public void testUnregisterSupportedValuesChangeCallback() {
+        var propIdAreaIds = List.of(newPropIdAreaId(SPEED_ID, 0));
+
+        mService.unregisterSupportedValuesChangeCallback(propIdAreaIds,
+                mSupportedValuesChangeCallback);
+
+        verify(mHalService).unregisterSupportedValuesChangeCallback(propIdAreaIds,
+                mSupportedValuesChangeCallback);
+    }
+
     private static PropIdAreaId newPropIdAreaId(int propId, int areaId) {
         PropIdAreaId propIdAreaId = new PropIdAreaId();
         propIdAreaId.propId = propId;

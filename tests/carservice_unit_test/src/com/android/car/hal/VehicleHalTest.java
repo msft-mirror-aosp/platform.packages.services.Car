@@ -77,6 +77,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -127,6 +128,7 @@ public class VehicleHalTest extends AbstractExpectableTestCase {
     @Mock private VehicleStub.VehicleStubCallbackInterface mSetVehicleStubAsyncCallback;
     @Mock private VehicleStub.SubscriptionClient mSubscriptionClient;
     @Mock private FeatureFlags mFeatureFlags;
+    @Captor private ArgumentCaptor<List> mListCaptor;
 
     private final HalPropValueBuilder mPropValueBuilder = new HalPropValueBuilder(
             /* isAidl= */ true);
@@ -2471,6 +2473,53 @@ public class VehicleHalTest extends AbstractExpectableTestCase {
         mVehicleHal.onSupportedValuesChange(List.of(propIdAreaId2));
 
         verify(mPropertyHalService, never()).onSupportedValuesChange(any());
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChange() {
+        var propIdAreaId1 = newPropIdAreaId(SOME_READ_WRITE_STATIC_PROPERTY, 0);
+        var propIdAreaId2 = newPropIdAreaId(CONTINUOUS_PROPERTY, 0);
+        var propIdAreaIds = List.of(propIdAreaId1, propIdAreaId2);
+
+        mVehicleHal.registerSupportedValuesChange(mPropertyHalService, propIdAreaIds);
+        mVehicleHal.unregisterSupportedValuesChange(mPropertyHalService,
+                List.of(propIdAreaId1));
+
+        verify(mVehicle).unregisterSupportedValuesChange(mListCaptor.capture());
+        var unregisteredPropIdAreaIds = (List<PropIdAreaId>) mListCaptor.getValue();
+        assertThat(unregisteredPropIdAreaIds).containsExactly(propIdAreaId1);
+
+        mVehicleHal.onSupportedValuesChange(propIdAreaIds);
+
+        verify(mPropertyHalService).onSupportedValuesChange(mListCaptor.capture());
+        var notifiedPropIdAreaIds = (List<PropIdAreaId>) mListCaptor.getValue();
+        assertThat(notifiedPropIdAreaIds).containsExactly(propIdAreaId2);
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChange_ignoreUnregistered() {
+        var propIdAreaId1 = newPropIdAreaId(SOME_READ_WRITE_STATIC_PROPERTY, 0);
+        var propIdAreaId2 = newPropIdAreaId(CONTINUOUS_PROPERTY, 0);
+
+        mVehicleHal.registerSupportedValuesChange(mPropertyHalService,
+                List.of(propIdAreaId1));
+
+        // Do nothing.
+        mVehicleHal.unregisterSupportedValuesChange(mPropertyHalService,
+                List.of(propIdAreaId2));
+
+        verify(mVehicle, never()).unregisterSupportedValuesChange(any());
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChange_serviceNotOwnProperty() {
+        var propIdAreaIds = List.of(
+                newPropIdAreaId(SOME_INT32_PROPERTY, 0)
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            mVehicleHal.unregisterSupportedValuesChange(mPropertyHalService, propIdAreaIds);
+        });
     }
 
     private SubscribeOptions createSubscribeOptions(int propId, float sampleRateHz, int[] areaIds) {

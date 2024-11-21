@@ -1557,6 +1557,38 @@ public class PropertyHalService extends HalServiceBase {
         }
     }
 
+    /**
+     * Unregisters the callback previously registered with registerSupportedValuesChangeCallback.
+     *
+     * Do nothing if the [propertyId, areaId]s were not previously registered.
+     */
+    public void unregisterSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
+            ISupportedValuesChangeCallback callback) {
+        List<PropIdAreaId> halPropIdAreaIdsToUnregister = new ArrayList<>();
+        synchronized (mLock) {
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                var propIdAreaId = propIdAreaIds.get(i);
+                var registeredCallbacks = mSupportedValuesChangeCallbackByPropIdAreaId.get(
+                        propIdAreaId);
+                if (registeredCallbacks == null) {
+                    continue;
+                }
+                registeredCallbacks.remove(callback);
+                if (!registeredCallbacks.isEmpty()) {
+                    // There are still callbacks registered for propIdAreaId, do not unregister
+                    // from VehicleHal.
+                    continue;
+                }
+                halPropIdAreaIdsToUnregister.add(managerToHalPropIdAreaId(propIdAreaId));
+                mSupportedValuesChangeCallbackByPropIdAreaId.remove(propIdAreaId);
+            }
+            if (halPropIdAreaIdsToUnregister.isEmpty()) {
+                return;
+            }
+            mVehicleHal.unregisterSupportedValuesChange(this, halPropIdAreaIdsToUnregister);
+        }
+    }
+
     private static class SupportedValuesChangeDispatchList extends
             DispatchList<ISupportedValuesChangeCallback, PropIdAreaId> {
         @Override
@@ -1600,16 +1632,20 @@ public class PropertyHalService extends HalServiceBase {
 
     private void unregisterSupportedValuesChangeCallback(ISupportedValuesChangeCallback callback) {
         synchronized (mLock) {
+            List<PropIdAreaId> halPropIdAreaIdsToUnregister = new ArrayList<>();
             for (int i = 0; i < mSupportedValuesChangeCallbackByPropIdAreaId.size(); i++) {
                 var callbacks = mSupportedValuesChangeCallbackByPropIdAreaId.valueAt(i);
                 var propIdAreaId = mSupportedValuesChangeCallbackByPropIdAreaId.keyAt(i);
                 callbacks.remove(callback);
                 if (callbacks.size() == 0) {
-                    // TODO:
-                    // mVehicleHal.unregisterSupportedValuesChange(
-                    //         managerToHalPropIdAreaId(propIdAreaId));
+                    halPropIdAreaIdsToUnregister.add(managerToHalPropIdAreaId(propIdAreaId));
+                    mSupportedValuesChangeCallbackByPropIdAreaId.remove(propIdAreaId);
                 }
             }
+            if (halPropIdAreaIdsToUnregister.isEmpty()) {
+                return;
+            }
+            mVehicleHal.unregisterSupportedValuesChange(this, halPropIdAreaIdsToUnregister);
         }
     }
 

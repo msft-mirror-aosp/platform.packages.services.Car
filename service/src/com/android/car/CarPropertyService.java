@@ -1206,7 +1206,7 @@ public class CarPropertyService extends ICarProperty.Stub
     @Override
     public void unregisterSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
             ISupportedValuesChangeCallback callback) {
-        // TODO(371636116): Implement this.
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(propIdAreaIds, callback);
     }
 
     /**

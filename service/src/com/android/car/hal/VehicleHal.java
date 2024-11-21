@@ -1883,4 +1883,43 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
             mSupportedValuesChangePropIdAreaIdsByService.put(service, registeredPropIdAreaIds);
         }
     }
+
+    /**
+     * Unregisters the [propId, areaId]s previously registered with
+     * registerSupportedValuesChange.
+     *
+     * Do nothing if the [propId, areaId]s were not previously registered.
+     *
+     * @throws IllegalArgumentException If the service does not own one of the requested property
+     *      ID.
+     */
+    public void unregisterSupportedValuesChange(HalServiceBase service,
+            List<PropIdAreaId> propIdAreaIds) {
+        synchronized (mLock) {
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                int propertyId = propIdAreaIds.get(i).propId;
+                assertServiceOwnerLocked(service, propertyId);
+            }
+            var registeredPropIdAreaIds = mSupportedValuesChangePropIdAreaIdsByService.get(service);
+            if (registeredPropIdAreaIds == null) {
+                return;
+            }
+
+            List<PropIdAreaId> propIdAreaIdsToUnRegister = new ArrayList<>();
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                var propIdAreaId = propIdAreaIds.get(i);
+                if (registeredPropIdAreaIds.remove(propIdAreaId)) {
+                    propIdAreaIdsToUnRegister.add(propIdAreaId);
+                }
+                if (registeredPropIdAreaIds.isEmpty()) {
+                    mSupportedValuesChangePropIdAreaIdsByService.remove(service);
+                }
+            }
+
+            if (propIdAreaIdsToUnRegister.isEmpty()) {
+                return;
+            }
+            mVehicleStub.unregisterSupportedValuesChange(propIdAreaIdsToUnRegister);
+        }
+    }
 }

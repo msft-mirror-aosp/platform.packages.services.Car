@@ -459,4 +459,14 @@ public abstract class VehicleStub {
         // Do nothing.
         return;
     }
+
+    /**
+     * Unregisters the [propId, areaId]s previously registered with registerSupportedValuesChange.
+     *
+     * Do nothing if the [propId, areaId]s were not previously registered.
+     */
+    public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+        // Do nothing.
+        return;
+    }
 }

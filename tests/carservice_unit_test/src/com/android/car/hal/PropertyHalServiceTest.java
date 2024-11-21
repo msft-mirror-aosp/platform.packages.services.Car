@@ -3163,8 +3163,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
     @Test
     public void testRegisterSupportedValuesChangeCallback_binderDeath() throws Exception {
-        var propIdAreaId = newPropIdAreaId(HVAC_FAN_SPEED,
-                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        var propIdAreaId = newPropIdAreaId(VEHICLE_SPEED_DISPLAY_UNITS, 0);
 
         mPropertyHalService.registerSupportedValuesChangeCallback(
                 List.of(propIdAreaId), mSupportedValuesChangeCallback);
@@ -3175,7 +3174,15 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         var binderDeathRecipient = mDeathRecipientCaptor.getValue();
         binderDeathRecipient.binderDied();
 
-        // TODO: verify mVehicleHal.unregisterSupportedValuesChange is called.
+        verify(mVehicleHal).unregisterSupportedValuesChange(eq(mPropertyHalService),
+                mListArgumentCaptor.capture());
+
+        var updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+
+        assertThat(updatedPropIdAreaIds).hasSize(1);
+        // Must be converted from CarPropertyManager property ID to VHAL property ID.
+        assertThat(updatedPropIdAreaIds.get(0)).isEqualTo(newPropIdAreaId(
+                VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS, 0));
     }
 
     @Test
@@ -3212,6 +3219,54 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         mPropertyHalService.onSupportedValuesChange(List.of(halPropIdAreaId));
 
         verify(mSupportedValuesChangeCallback, never()).onSupportedValuesChange(any());
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChangeCallback() throws Exception {
+        var propIdAreaId1 = newPropIdAreaId(HVAC_FAN_SPEED,
+                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        var propIdAreaId2 = newPropIdAreaId(PERF_VEHICLE_SPEED, 0);
+        var propIdAreaId3 = newPropIdAreaId(VEHICLE_SPEED_DISPLAY_UNITS, 0);
+        var halPropIdAreaId1 = newPropIdAreaId(VehicleProperty.HVAC_FAN_SPEED,
+                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        var halPropIdAreaId2 = newPropIdAreaId(VehicleProperty.PERF_VEHICLE_SPEED, 0);
+        var halPropIdAreaId3 = newPropIdAreaId(VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS, 0);
+
+        mPropertyHalService.registerSupportedValuesChangeCallback(
+                List.of(propIdAreaId1, propIdAreaId2, propIdAreaId3),
+                mSupportedValuesChangeCallback);
+
+        // Now only propIdAreaId3 is registered.
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(
+                List.of(propIdAreaId1, propIdAreaId2),
+                mSupportedValuesChangeCallback);
+
+        verify(mVehicleHal).unregisterSupportedValuesChange(eq(mPropertyHalService),
+                mListArgumentCaptor.capture());
+        var updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+        assertThat(updatedPropIdAreaIds).hasSize(2);
+        assertThat(updatedPropIdAreaIds.get(0)).isEqualTo(halPropIdAreaId1);
+        assertThat(updatedPropIdAreaIds.get(1)).isEqualTo(halPropIdAreaId2);
+
+        mPropertyHalService.onSupportedValuesChange(List.of(halPropIdAreaId1,
+                halPropIdAreaId2, halPropIdAreaId3));
+
+        verify(mSupportedValuesChangeCallback).onSupportedValuesChange(
+                mListArgumentCaptor.capture());
+
+        updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+        assertThat(updatedPropIdAreaIds).hasSize(1);
+        expectThat(updatedPropIdAreaIds.get(0)).isEqualTo(propIdAreaId3);
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChangeCallback_ignoreUnregistered() throws Exception {
+        var propIdAreaId1 = newPropIdAreaId(HVAC_FAN_SPEED,
+                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+
+        // This does nothing.
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(
+                List.of(propIdAreaId1), mSupportedValuesChangeCallback);
     }
 
     /** Creates a {@code CarSubscription} with Vur off. */
