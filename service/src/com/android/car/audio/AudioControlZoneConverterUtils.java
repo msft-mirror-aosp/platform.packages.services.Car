@@ -32,8 +32,10 @@ import android.car.builtin.util.Slogf;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
+import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
+import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
@@ -49,11 +51,12 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Utility class for general audio control conversion methods
  */
-class AudioControlZoneConverterUtils {
+final class AudioControlZoneConverterUtils {
 
     private static final String TAG = AudioControlZoneConverterUtils.class.getSimpleName();
 
@@ -150,10 +153,13 @@ class AudioControlZoneConverterUtils {
         int activationType;
         switch (entry.type) {
             case ON_PLAYBACK_CHANGED:
-                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
+                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT
+                        | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED
+                        | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
                 break;
             case ON_SOURCE_CHANGED:
-                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
+                activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT
+                        | CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
                 break;
             case ON_BOOT:
                 activationType = CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
@@ -166,15 +172,31 @@ class AudioControlZoneConverterUtils {
         return new CarActivationVolumeConfig(activationType, minActivation, maxActivation);
     }
 
+    @Nullable
     static CarAudioContext convertCarAudioContext(AudioZoneContext audioZoneContext,
                                                   AudioDeviceConfiguration deviceConfiguration) {
+        if (audioZoneContext == null) {
+            Slogf.e(TAG, "Audio zone context can not be null");
+            return null;
+        }
+        if (audioZoneContext.audioContextInfos == null
+                || audioZoneContext.audioContextInfos.isEmpty()) {
+            Slogf.e(TAG, "Audio zone context must have valid audio zone context infos");
+            return null;
+        }
+        if (deviceConfiguration == null) {
+            Slogf.e(TAG, "Audio device configuration can not be null");
+            return null;
+        }
         List<CarAudioContextInfo> infos =
                 new ArrayList<>(audioZoneContext.audioContextInfos.size());
         int nextValidId = CarAudioContext.getInvalidContext() + 1;
         for (int c = 0; c < audioZoneContext.audioContextInfos.size(); c++) {
-            Slogf.d(TAG, "Context " + audioZoneContext.audioContextInfos.get(c));
             var contextInfo = convertCarAudioContextInfo(audioZoneContext.audioContextInfos.get(c),
                     deviceConfiguration, nextValidId);
+            if (contextInfo == null) {
+                return null;
+            }
             infos.add(contextInfo);
             if (contextInfo.getId() == nextValidId) {
                 nextValidId++;
@@ -224,6 +246,61 @@ class AudioControlZoneConverterUtils {
                 new AudioDeviceAttributes(ROLE_OUTPUT, externalType, address));
     }
 
+    static boolean verifyVolumeGroupName(String groupName, AudioDeviceConfiguration configuration) {
+        return !configuration.useCoreAudioVolume || (groupName != null && !groupName.isEmpty());
+    }
+
+    static boolean convertAudioContextEntry(CarVolumeGroupFactory factory,
+            DeviceToContextEntry entry, CarAudioDeviceInfo info,
+            ArrayMap<String, Integer> contextNameToId) {
+        if (factory == null || entry == null || info == null || contextNameToId == null) {
+            return false;
+        }
+        for (int c = 0; c < entry.contextNames.size(); c++) {
+            String contextName = entry.contextNames.get(c);
+            if (contextName == null || contextName.isEmpty()) {
+                return false;
+            }
+            int id = contextNameToId.getOrDefault(contextName,
+                    AudioZoneContextInfo.UNASSIGNED_CONTEXT_ID);
+            if (id == AudioZoneContextInfo.UNASSIGNED_CONTEXT_ID) {
+                return false;
+            }
+            factory.setDeviceInfoForContext(id, info);
+        }
+        return !entry.contextNames.isEmpty();
+    }
+
+    static String convertVolumeGroupConfig(CarVolumeGroupFactory factory,
+            VolumeGroupConfig volumeGroupConfig, AudioManagerWrapper audioManager,
+            ArrayMap<String, CarAudioDeviceInfo> addressToCarDeviceInfo,
+            ArrayMap<String, Integer> contextNameToId) {
+        Objects.requireNonNull(factory, "Volume group factory can no be null");
+        Objects.requireNonNull(volumeGroupConfig, "Volume group config can not be null");
+        Objects.requireNonNull(audioManager, "Audio manager can not be null");
+        Objects.requireNonNull(addressToCarDeviceInfo,
+                "Address to car audio device info map can not be null");
+        Objects.requireNonNull(contextNameToId, "Context name to id map can not be null");
+        if (volumeGroupConfig.carAudioRoutes.isEmpty()) {
+            return "Skipped volume group " + volumeGroupConfig.name + " with id "
+                    + volumeGroupConfig.id + " empty car audio routes";
+        }
+        for (int c = 0; c < volumeGroupConfig.carAudioRoutes.size(); c++) {
+            var entry = volumeGroupConfig.carAudioRoutes.get(c);
+            var info = convertAudioDevicePort(entry.device, audioManager, addressToCarDeviceInfo);
+            if (info == null) {
+                return "Skipped volume group " + volumeGroupConfig.name + " with id "
+                        + volumeGroupConfig.id + " could not find device info for device "
+                        + entry.device;
+            }
+            if (!convertAudioContextEntry(factory, entry, info, contextNameToId)) {
+                return "Skipped volume group " + volumeGroupConfig.name + " with id "
+                        + volumeGroupConfig.id + " could not parse audio context entry";
+            }
+        }
+        return "";
+    }
+
     private static boolean requiresDeviceAddress(int type, String connection) {
         return type == AudioDeviceType.OUT_BUS && (connection == null || connection.isEmpty()
                 || connection.equals(AudioDeviceDescription.CONNECTION_BUS));
@@ -243,8 +320,17 @@ class AudioControlZoneConverterUtils {
         }
     }
 
+    @Nullable
     private static CarAudioContextInfo convertCarAudioContextInfo(AudioZoneContextInfo info,
             AudioDeviceConfiguration deviceConfiguration, int nextValidId) {
+        if (info == null) {
+            Slogf.e(TAG, "Audio zone context info can not be null");
+            return null;
+        }
+        if (info.audioAttributes == null || info.audioAttributes.isEmpty()) {
+            Slogf.e(TAG, "Audio zone context info missing audio attributes");
+            return null;
+        }
         String contextName = info.name;
         int contextId = getValidContextInfoId(contextName, deviceConfiguration,
                 info.id, nextValidId);

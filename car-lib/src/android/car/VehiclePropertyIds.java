@@ -17,6 +17,7 @@
 package android.car;
 
 import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
+import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
@@ -25,7 +26,6 @@ import static com.android.car.internal.property.VehiclePropertyIdDebugUtils.toNa
 
 import android.annotation.FlaggedApi;
 import android.annotation.RequiresPermission;
-import android.annotation.SystemApi;
 import android.car.hardware.CarHvacFanDirection;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.AutomaticEmergencyBrakingState;
@@ -620,10 +620,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
     public static final int ENGINE_IDLE_AUTO_STOP_ENABLED = 287310624;
     /**
@@ -656,10 +654,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.ImpactSensorLocation}
      *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_IMPACT_SENSORS))
     public static final int IMPACT_DETECTED = 289407792;
     /**
@@ -1382,11 +1378,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_DYNAMICS_STATE} to
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_DYNAMICS_STATE,
             Car.PERMISSION_CONTROL_CAR_DYNAMICS_STATE}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_CAR_DYNAMICS_STATE))
@@ -1421,11 +1414,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.ElectronicStabilityControlState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE))
     public static final int ELECTRONIC_STABILITY_CONTROL_STATE = 289408015;
     /**
@@ -1987,11 +1977,9 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_CLIMATE} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
-    @SystemApi
     public static final int HVAC_ELECTRIC_DEFROSTER_ON = 320865556;
     /**
      * Distance units for display.
@@ -2301,11 +2289,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_VALET_MODE} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(
             anyOf = {Car.PERMISSION_READ_VALET_MODE, Car.PERMISSION_CONTROL_VALET_MODE}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_VALET_MODE))
@@ -2337,11 +2322,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_HEAD_UP_DISPLAY} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(
             anyOf = {Car.PERMISSION_READ_HEAD_UP_DISPLAY_STATUS,
                     Car.PERMISSION_CONTROL_HEAD_UP_DISPLAY}))
@@ -2463,10 +2445,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_DOORS} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_DOORS)
     public static final int DOOR_CHILD_LOCK_ENABLED = 371198723;
     /**
@@ -2659,10 +2639,8 @@ public final class VehiclePropertyIds {
      * <ul>
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_MIRRORS} to read and
      *  write property.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_AUTO_FOLD_ENABLED = 337644358;
     /**
@@ -2686,10 +2664,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_MIRRORS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_MIRRORS)
     public static final int MIRROR_AUTO_TILT_ENABLED = 337644359;
     /**
@@ -2724,10 +2700,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_GLOVE_BOX} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_GLOVE_BOX)
     public static final int GLOVE_BOX_DOOR_POS = 356518896;
 
@@ -2754,10 +2728,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_GLOVE_BOX} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_GLOVE_BOX)
     public static final int GLOVE_BOX_LOCKED = 354421745;
 
@@ -3733,10 +3705,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_EASY_ACCESS_ENABLED = 354421661;
     /**
@@ -3761,10 +3731,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_AIRBAGS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_AIRBAGS)
     public static final int SEAT_AIRBAG_ENABLED = 354421662;
     /**
@@ -3800,11 +3768,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link android.car.hardware.property.VehicleAirbagLocation}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_AIRBAGS))
     public static final int SEAT_AIRBAGS_DEPLOYED = 356518821;
     /**
@@ -3835,10 +3800,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_CUSHION_SIDE_SUPPORT_POS = 356518815;
     /**
@@ -3871,10 +3834,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_CUSHION_SIDE_SUPPORT_MOVE = 356518816;
     /**
@@ -3905,10 +3866,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_VERTICAL_POS = 356518817;
     /**
@@ -3940,10 +3899,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_LUMBAR_VERTICAL_MOVE = 356518818;
     /**
@@ -3975,10 +3932,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read and
      *  write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
     public static final int SEAT_WALK_IN_POS = 356518819;
     /**
@@ -4008,11 +3963,8 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_SEAT_BELTS))
     public static final int SEAT_BELT_PRETENSIONER_DEPLOYED = 354421670;
     /**
@@ -4154,10 +4106,8 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
     public static final int WINDSHIELD_WIPERS_PERIOD = 322964421;
 
@@ -4197,10 +4147,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link WindshieldWipersState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
     public static final int WINDSHIELD_WIPERS_STATE = 322964422;
 
@@ -4240,10 +4188,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link WindshieldWipersSwitch}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_WINDSHIELD_WIPERS,
             Car.PERMISSION_CONTROL_WINDSHIELD_WIPERS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_WINDSHIELD_WIPERS))
@@ -4277,10 +4223,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     public static final int STEERING_WHEEL_DEPTH_POS = 289410016;
     /**
@@ -4314,10 +4258,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     public static final int STEERING_WHEEL_DEPTH_MOVE = 289410017;
     /**
@@ -4348,10 +4290,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     public static final int STEERING_WHEEL_HEIGHT_POS = 289410018;
     /**
@@ -4384,10 +4324,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     public static final int STEERING_WHEEL_HEIGHT_MOVE = 289410019;
     /**
@@ -4411,10 +4349,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     public static final int STEERING_WHEEL_THEFT_LOCK_ENABLED = 287312868;
     /**
@@ -4437,10 +4373,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     public static final int STEERING_WHEEL_LOCKED = 287312869;
     /**
@@ -4464,10 +4398,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_STEERING_WHEEL} to read
      *  and write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission(Car.PERMISSION_CONTROL_STEERING_WHEEL)
     public static final int STEERING_WHEEL_EASY_ACCESS_ENABLED = 287312870;
     /**
@@ -4549,11 +4481,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_POSITION = 406916128;
 
@@ -4590,11 +4519,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_ORIENTATION = 409013281;
 
@@ -4627,11 +4553,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_FIELD_OF_VIEW = 406916130;
 
@@ -4660,11 +4583,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_DETECTION_RANGE = 406916131;
 
@@ -4719,11 +4639,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_SUPPORTED_RANGES = 406916132;
 
@@ -4757,11 +4674,8 @@ public final class VehiclePropertyIds {
      *  read property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ULTRASONICS_SENSOR_DATA))
     public static final int ULTRASONICS_SENSOR_MEASURED_DISTANCE = 406916133;
 
@@ -5964,11 +5878,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link android.car.hardware.property.VehicleAutonomousState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DRIVING_STATE))
     public static final int VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL = 289410892;
 
@@ -6000,10 +5911,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6044,10 +5953,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link AutomaticEmergencyBrakingState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int AUTOMATIC_EMERGENCY_BRAKING_STATE = 289411073;
 
@@ -6077,10 +5984,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6116,10 +6021,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link ForwardCollisionWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int FORWARD_COLLISION_WARNING_STATE = 289411075;
 
@@ -6150,10 +6053,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6189,10 +6090,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link BlindSpotWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int BLIND_SPOT_WARNING_STATE = 339742725;
 
@@ -6223,10 +6122,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6262,10 +6159,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link LaneDepartureWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LANE_DEPARTURE_WARNING_STATE = 289411079;
 
@@ -6300,10 +6195,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6342,10 +6235,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link LaneKeepAssistState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LANE_KEEP_ASSIST_STATE = 289411081;
 
@@ -6381,10 +6272,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6428,10 +6317,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link LaneCenteringAssistCommand}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
     public static final int LANE_CENTERING_ASSIST_COMMAND = 289411083;
 
@@ -6468,10 +6355,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link LaneCenteringAssistState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LANE_CENTERING_ASSIST_STATE = 289411084;
 
@@ -6503,10 +6388,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6544,10 +6427,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link EmergencyLaneKeepAssistState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int EMERGENCY_LANE_KEEP_ASSIST_STATE = 289411086;
 
@@ -6580,10 +6461,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -6630,10 +6509,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link CruiseControlType}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_STATES,
             Car.PERMISSION_CONTROL_ADAS_STATES}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
@@ -6671,10 +6548,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link CruiseControlState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int CRUISE_CONTROL_STATE = 289411089;
 
@@ -6709,10 +6584,8 @@ public final class VehiclePropertyIds {
      * </ul>
      *
      * @data_enum {@link CruiseControlCommand}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
     public static final int CRUISE_CONTROL_COMMAND = 289411090;
 
@@ -6746,10 +6619,8 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int CRUISE_CONTROL_TARGET_SPEED = 291508243;
 
@@ -6787,10 +6658,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_STATES} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_STATES,
             Car.PERMISSION_CONTROL_ADAS_STATES}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_STATES))
@@ -6829,10 +6698,8 @@ public final class VehiclePropertyIds {
      *  property.
      *  <li>Property is not writable.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int ADAPTIVE_CRUISE_CONTROL_LEAD_VEHICLE_MEASURED_DISTANCE = 289411093;
 
@@ -6864,10 +6731,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link
      *  Car#PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS} to write property.
      * </ul>
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {
             Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS,
             Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS}))
@@ -6912,10 +6777,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link HandsOnDetectionDriverState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
     public static final int HANDS_ON_DETECTION_DRIVER_STATE = 289411095;
     /**
@@ -6953,10 +6816,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link HandsOnDetectionWarning}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
     public static final int HANDS_ON_DETECTION_WARNING = 289411096;
 
@@ -6985,11 +6846,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link
      *  Car#PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS} to write property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {
             Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS,
             Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS}))
@@ -7035,11 +6893,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link DriverDrowsinessAttentionState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
     public static final int DRIVER_DROWSINESS_ATTENTION_STATE = 289411098;
 
@@ -7068,11 +6923,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link
      *  Car#PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS} to write property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {
             Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS,
             Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS}))
@@ -7114,11 +6966,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link DriverDrowsinessAttentionWarning}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
     public static final int DRIVER_DROWSINESS_ATTENTION_WARNING = 289411100;
 
@@ -7146,11 +6995,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link
      *  Car#PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS} to write property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {
             Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS,
             Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS}))
@@ -7195,11 +7041,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link DriverDistractionState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
     public static final int DRIVER_DISTRACTION_STATE = 289411102;
 
@@ -7227,11 +7070,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link
      *  Car#PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS} to write property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {
             Car.PERMISSION_READ_DRIVER_MONITORING_SETTINGS,
             Car.PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS}))
@@ -7273,11 +7113,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link DriverDistractionWarning}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_DRIVER_MONITORING_STATES))
     public static final int DRIVER_DISTRACTION_WARNING = 289411104;
     /**
@@ -7310,11 +7147,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -7353,11 +7187,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.LowSpeedCollisionWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LOW_SPEED_COLLISION_WARNING_STATE = 289411106;
 
@@ -7388,11 +7219,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -7429,11 +7257,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.CrossTrafficMonitoringWarningState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int CROSS_TRAFFIC_MONITORING_WARNING_STATE = 289411108;
 
@@ -7468,11 +7293,8 @@ public final class VehiclePropertyIds {
      *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ADAS_SETTINGS} to write
      *  property.
      * </ul>
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_ADAS_SETTINGS,
             Car.PERMISSION_CONTROL_ADAS_SETTINGS}))
     @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_ADAS_SETTINGS))
@@ -7514,11 +7336,8 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link android.car.hardware.property.LowSpeedAutomaticEmergencyBrakingState}
      * @data_enum {@link ErrorState}
-     *
-     * @hide
      */
-    @FlaggedApi(FLAG_ANDROID_VIC_VEHICLE_PROPERTIES)
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_ADAS_STATES))
     public static final int LOW_SPEED_AUTOMATIC_EMERGENCY_BRAKING_STATE = 289411110;
 
