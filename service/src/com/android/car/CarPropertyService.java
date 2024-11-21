@@ -29,6 +29,7 @@ import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.car.Car;
 import android.car.VehiclePropertyIds;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.util.Slogf;
@@ -78,6 +79,7 @@ import com.android.car.internal.property.SubscriptionManager;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.IntArray;
+import com.android.car.internal.util.Lists;
 import com.android.car.logging.HistogramFactoryInterface;
 import com.android.car.logging.SystemHistogramFactory;
 import com.android.car.property.CarPropertyServiceClient;
@@ -1204,38 +1206,53 @@ public class CarPropertyService extends ICarProperty.Stub
 
     @Override
     public CarPropertyConfigList registerRecordingListener(ICarPropertyEventListener callback) {
-        return new CarPropertyConfigList(new ArrayList<>());
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_RECORD_VEHICLE_PROPERTIES);
+        List<CarPropertyConfig> carPropertyConfigList = mPropertyHalService
+                .registerRecordingListener(callback);
+        return new CarPropertyConfigList(carPropertyConfigList);
     }
 
     @Override
     public boolean isRecordingVehicleProperties() {
-        return false;
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_RECORD_VEHICLE_PROPERTIES);
+        return mPropertyHalService.isRecordingVehicleProperties();
     }
 
     @Override
     public void stopRecordingVehicleProperties(ICarPropertyEventListener callback) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_RECORD_VEHICLE_PROPERTIES);
+        mPropertyHalService.stopRecordingVehicleProperties(callback);
     }
 
     @Override
     public void enableInjectionMode(int[] propertyIdsFromRealHardware) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        mPropertyHalService.enableInjectionMode(Lists.asImmutableList(
+                propertyIdsFromRealHardware));
     }
 
     @Override
     public void disableInjectionMode() {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        mPropertyHalService.disableInjectionMode();
     }
 
     @Override
     public boolean isVehiclePropertyInjectionModeEnabled() {
-        return false;
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        return mPropertyHalService.isVehiclePropertyInjectionModeEnabled();
     }
 
     @Override
     public CarPropertyValue getLastInjectedVehicleProperty(int propertyId) {
-        return null;
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        return mPropertyHalService.getLastInjectedVehicleProperty(propertyId);
     }
 
     @Override
     public void injectVehicleProperties(List<CarPropertyValue> carPropertyValues) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        mPropertyHalService.injectVehicleProperties(carPropertyValues);
     }
 
     private void assertPropertyIsReadable(CarPropertyConfig<?> carPropertyConfig,
