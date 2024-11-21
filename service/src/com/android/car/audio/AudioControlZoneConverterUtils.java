@@ -37,6 +37,7 @@ import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
 import android.hardware.automotive.audiocontrol.FadeConfiguration;
 import android.hardware.automotive.audiocontrol.FadeState;
+import android.hardware.automotive.audiocontrol.TransientFadeConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
@@ -53,6 +54,7 @@ import android.media.audio.common.AudioSource;
 import android.util.ArrayMap;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -343,6 +345,30 @@ final class AudioControlZoneConverterUtils {
         return fadeConfigBuilder.build();
     }
 
+    static TransientFadeConfig convertTransientFadeConfiguration(
+            TransientFadeConfigurationEntry entry) {
+        Objects.requireNonNull(entry, "Transient fade configuration can not be null");
+        Objects.requireNonNull(entry.transientFadeConfiguration,
+                "Fade configuration in transient fade configuration can not be null");
+        Objects.requireNonNull(entry.transientUsages,
+                "Audio attribute usages in transient fade configuration can not be null");
+        Preconditions.checkArgument(entry.transientUsages.length != 0,
+                "Audio attribute usages in transient fade configuration can not be empty");
+        CarAudioFadeConfiguration carFadeConfig =
+                convertAudioFadeConfiguration(entry.transientFadeConfiguration);
+        List<AudioAttributes> audioAttributes = new ArrayList<>(entry.transientUsages.length);
+        for (int usage : entry.transientUsages) {
+            audioAttributes.add(convertHALAudioUsageToAttribute(usage));
+        }
+        return new TransientFadeConfig(carFadeConfig, audioAttributes);
+    }
+
+    private static AudioAttributes convertHALAudioUsageToAttribute(int halUsage) {
+        var audioAttribute = new android.media.audio.common.AudioAttributes();
+        audioAttribute.usage = halUsage;
+        return convertAudioAttributes(audioAttribute);
+    }
+
     private static void convertFadeOutConfiguration(List<FadeConfiguration> fadeOutConfigurations,
             FadeManagerConfiguration.Builder fadeManagerBuilder) {
         convertFadeConfiguration(fadeOutConfigurations,
@@ -481,5 +507,16 @@ final class AudioControlZoneConverterUtils {
 
     private interface AudioAttributeFadeDelayConsumer {
         void apply(AudioAttributes attributes, long durationMs);
+    }
+
+    record TransientFadeConfig(CarAudioFadeConfiguration configuration,
+                                      List<AudioAttributes> audioAttributes) {
+        CarAudioFadeConfiguration getCarAudioFadeConfiguration() {
+            return configuration;
+        }
+
+        List<AudioAttributes> getAudioAttributes() {
+            return audioAttributes;
+        }
     }
 }
