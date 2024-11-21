@@ -44,6 +44,7 @@ import android.car.media.CarVolumeGroupInfo;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 
@@ -200,6 +201,30 @@ final class CarAudioUtils {
             }
         }
         return addressToInputDevice;
+    }
+
+    static List<CarAudioDeviceInfo> generateCarAudioDeviceInfos(AudioManagerWrapper audioManager) {
+        Objects.requireNonNull(audioManager, "Audio manager can not be null");
+        AudioDeviceInfo[] deviceInfos = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+        List<CarAudioDeviceInfo> carInfos = new ArrayList<>();
+        for (int index = 0; index < deviceInfos.length; index++) {
+            if (!isValidDeviceType(deviceInfos[index].getType())) {
+                continue;
+            }
+            AudioDeviceInfo info = deviceInfos[index];
+            AudioDeviceAttributes attributes = new AudioDeviceAttributes(info);
+            CarAudioDeviceInfo carInfo = new CarAudioDeviceInfo(audioManager, attributes);
+            carInfo.setAudioDeviceInfo(info);
+            carInfos.add(carInfo);
+        }
+        return carInfos;
+    }
+
+    /*
+     * Currently only BUS and BUILT_SPEAKER devices are valid static devices.
+     */
+    private static boolean isValidDeviceType(int type) {
+        return type == AudioDeviceInfo.TYPE_BUS || type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER;
     }
 
     private static List<AudioDeviceInfo> getDynamicAudioDevices(

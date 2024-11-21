@@ -34,17 +34,28 @@ import static android.media.AudioDeviceInfo.TYPE_USB_DEVICE;
 import static android.media.AudioDeviceInfo.TYPE_USB_HEADSET;
 import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES;
 import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET;
+import static android.media.AudioManager.GET_DEVICES_OUTPUTS;
 
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.ALARM_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.CALL_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MEDIA_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MIRROR_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NAVIGATION_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NOTIFICATION_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.OEM_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_FM_TUNER_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_MICROPHONE_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.QUATERNARY_TEST_DEVICE_1;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.RING_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_0;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_1_0;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_1_1;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_ZONE_BACK_MICROPHONE_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SYSTEM_BUS_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TERTIARY_TEST_DEVICE_1;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TERTIARY_TEST_DEVICE_2;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TEST_REAR_ROW_3_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TEST_SPEAKER_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.VOICE_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.generateCarAudioDeviceInfo;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.generateInputAudioDeviceInfo;
@@ -53,6 +64,7 @@ import static com.android.car.audio.CarAudioUtils.ACTIVATION_VOLUME_PERCENTAGE_M
 import static com.android.car.audio.CarAudioUtils.excludesDynamicDevices;
 import static com.android.car.audio.CarAudioUtils.generateAddressToCarAudioDeviceInfoMap;
 import static com.android.car.audio.CarAudioUtils.generateAddressToInputAudioDeviceInfoMap;
+import static com.android.car.audio.CarAudioUtils.generateCarAudioDeviceInfos;
 import static com.android.car.audio.CarAudioUtils.getAudioAttributesForDynamicDevices;
 import static com.android.car.audio.CarAudioUtils.getDynamicDevicesInConfig;
 import static com.android.car.audio.CarAudioUtils.hasExpired;
@@ -70,7 +82,6 @@ import android.car.test.AbstractExpectableTestCase;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
-import android.media.AudioManager;
 import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.annotation.NonNull;
@@ -417,6 +428,35 @@ public class CarAudioUtilsTest extends AbstractExpectableTestCase {
                         SECONDARY_ZONE_BACK_MICROPHONE_DEVICE);
     }
 
+    @Test
+    public void generateCarAudioDeviceInfos_withNullManager() {
+        var thrown = assertThrows(NullPointerException.class,
+                () -> generateCarAudioDeviceInfos(/* audioManager = */ null));
+
+        expectWithMessage("Exception for generating car audio devices")
+                .that(thrown).hasMessageThat().contains("Audio manager");
+    }
+
+    @Test
+    public void generateCarAudioDeviceInfos_withValidDevicesInManager() {
+        var carAudioDeviceInfoTestUtils = new CarAudioDeviceInfoTestUtils();
+        var audioManager = Mockito.mock(AudioManagerWrapper.class);
+        var outputDevices = carAudioDeviceInfoTestUtils.generateOutputDeviceInfos();
+        when(audioManager.getDevices(GET_DEVICES_OUTPUTS)).thenReturn(outputDevices);
+
+        var carAudioDevices = generateCarAudioDeviceInfos(audioManager);
+
+        var addresses = carAudioDevices.stream().map(CarAudioDeviceInfo::getAddress).toList();
+        expectWithMessage("Generated car audio devices").that(addresses)
+                .containsExactly(MEDIA_TEST_DEVICE, OEM_TEST_DEVICE, MIRROR_TEST_DEVICE,
+                        NAVIGATION_TEST_DEVICE, CALL_TEST_DEVICE, NOTIFICATION_TEST_DEVICE,
+                        VOICE_TEST_DEVICE, RING_TEST_DEVICE, ALARM_TEST_DEVICE, SYSTEM_BUS_DEVICE,
+                        SECONDARY_TEST_DEVICE_CONFIG_0, SECONDARY_TEST_DEVICE_CONFIG_1_0,
+                        SECONDARY_TEST_DEVICE_CONFIG_1_1, TERTIARY_TEST_DEVICE_1,
+                        TERTIARY_TEST_DEVICE_2, QUATERNARY_TEST_DEVICE_1, TEST_REAR_ROW_3_DEVICE,
+                        TEST_SPEAKER_DEVICE);
+    }
+
     private List<CarAudioDeviceInfo> generateCarDeviceInfos() {
         return ImmutableList.of(
                 generateCarAudioDeviceInfo(MEDIA_TEST_DEVICE),
@@ -458,7 +498,7 @@ public class CarAudioUtilsTest extends AbstractExpectableTestCase {
 
     private AudioManagerWrapper setUpMockAudioManager() {
         AudioManagerWrapper manager = Mockito.mock(AudioManagerWrapper.class);
-        when(manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS))
+        when(manager.getDevices(GET_DEVICES_OUTPUTS))
                 .thenReturn(getMockOutputDevices());
         return manager;
     }

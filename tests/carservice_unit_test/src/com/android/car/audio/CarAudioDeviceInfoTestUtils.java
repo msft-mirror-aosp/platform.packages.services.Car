@@ -50,6 +50,7 @@ class CarAudioDeviceInfoTestUtils {
     static final String TERTIARY_TEST_DEVICE_2 = "tertiary_zone_bus_200";
     static final String QUATERNARY_TEST_DEVICE_1 = "quaternary_zone_bus_1";
     static final String TEST_REAR_ROW_3_DEVICE = "rear_row_three_zone_bus_1";
+    static final String TEST_SPEAKER_DEVICE = "speaker";
 
     static final String ADDRESS_DOES_NOT_EXIST_DEVICE = "bus1000_does_not_exist";
 
@@ -70,6 +71,7 @@ class CarAudioDeviceInfoTestUtils {
     AudioDeviceInfo mRingOutputDevice;
     AudioDeviceInfo mAlarmOutputDevice;
     AudioDeviceInfo mSecondaryConfigOutputDevice;
+    AudioDeviceInfo mSpeakerDevice;
 
     private final List<AudioDeviceInfo> mAudioDeviceInfos;
 
@@ -123,6 +125,9 @@ class CarAudioDeviceInfoTestUtils {
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(SECONDARY_TEST_DEVICE_CONFIG_1_1)
                 .build();
+        mSpeakerDevice = new AudioDeviceInfoBuilder()
+                .setAudioGains(new GainBuilder().build())
+                .setAddressName(TEST_SPEAKER_DEVICE).build();
 
         mAudioDeviceInfos = List.of(
                 mBTAudioDeviceInfo,
@@ -137,6 +142,7 @@ class CarAudioDeviceInfoTestUtils {
                 mSecondaryConfig1Group0Device,
                 mSecondaryConfig1Group1Device,
                 mSecondaryConfigOutputDevice,
+                mSpeakerDevice,
                 new AudioDeviceInfoBuilder()
                         .setAudioGains(new GainBuilder().build())
                         .setAddressName(TERTIARY_TEST_DEVICE_1)
