@@ -20,6 +20,9 @@ import static android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import android.media.AudioDeviceInfo;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -49,6 +52,11 @@ class CarAudioDeviceInfoTestUtils {
     static final String TEST_REAR_ROW_3_DEVICE = "rear_row_three_zone_bus_1";
 
     static final String ADDRESS_DOES_NOT_EXIST_DEVICE = "bus1000_does_not_exist";
+
+    static final String PRIMARY_ZONE_MICROPHONE_DEVICE = "Built-In Mic";
+    static final String PRIMARY_ZONE_FM_TUNER_DEVICE = "fm_tuner";
+    static final String SECONDARY_ZONE_BACK_MICROPHONE_DEVICE = "Built-In Back Mic";
+    static final String SECONDARY_ZONE_BUS_1000_INPUT_DEVICE = "bus_1000_input";
 
     AudioDeviceInfo mMediaOutputDevice;
     AudioDeviceInfo mNotificationOutputBus;
@@ -158,4 +166,24 @@ class CarAudioDeviceInfoTestUtils {
         return mAudioDeviceInfos.toArray(new AudioDeviceInfo[0]);
     }
 
+    static CarAudioDeviceInfo generateCarAudioDeviceInfo(String address) {
+        CarAudioDeviceInfo cadiMock = mock(CarAudioDeviceInfo.class);
+        when(cadiMock.getStepValue()).thenReturn(1);
+        when(cadiMock.getDefaultGain()).thenReturn(2);
+        when(cadiMock.getMaxGain()).thenReturn(5);
+        when(cadiMock.getMinGain()).thenReturn(0);
+        when(cadiMock.getAddress()).thenReturn(address);
+        return cadiMock;
+    }
+
+    static AudioDeviceInfo generateInputAudioDeviceInfo(String address, int type) {
+        AudioDeviceInfo inputMock = mock(AudioDeviceInfo.class);
+        when(inputMock.getAddress()).thenReturn(address);
+        when(inputMock.getType()).thenReturn(type);
+        when(inputMock.isSource()).thenReturn(true);
+        when(inputMock.isSink()).thenReturn(false);
+        when(inputMock.getInternalType()).thenReturn(
+                AudioDeviceInfo.convertDeviceTypeToInternalInputDevice(type));
+        return inputMock;
+    }
 }

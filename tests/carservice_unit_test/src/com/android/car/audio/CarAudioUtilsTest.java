@@ -35,15 +35,31 @@ import static android.media.AudioDeviceInfo.TYPE_USB_HEADSET;
 import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES;
 import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET;
 
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.ALARM_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.CALL_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MEDIA_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NAVIGATION_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NOTIFICATION_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_FM_TUNER_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_MICROPHONE_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.RING_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_ZONE_BACK_MICROPHONE_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SYSTEM_BUS_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.VOICE_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.generateCarAudioDeviceInfo;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.generateInputAudioDeviceInfo;
 import static com.android.car.audio.CarAudioUtils.ACTIVATION_VOLUME_PERCENTAGE_MAX;
 import static com.android.car.audio.CarAudioUtils.ACTIVATION_VOLUME_PERCENTAGE_MIN;
 import static com.android.car.audio.CarAudioUtils.excludesDynamicDevices;
+import static com.android.car.audio.CarAudioUtils.generateAddressToCarAudioDeviceInfoMap;
+import static com.android.car.audio.CarAudioUtils.generateAddressToInputAudioDeviceInfoMap;
 import static com.android.car.audio.CarAudioUtils.getAudioAttributesForDynamicDevices;
 import static com.android.car.audio.CarAudioUtils.getDynamicDevicesInConfig;
 import static com.android.car.audio.CarAudioUtils.hasExpired;
 import static com.android.car.audio.CarAudioUtils.isInvalidActivationPercentage;
 import static com.android.car.audio.CarAudioUtils.isMicrophoneInputDevice;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +77,8 @@ import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.car.internal.util.DebugUtils;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -359,6 +377,70 @@ public class CarAudioUtilsTest extends AbstractExpectableTestCase {
     public void isInvalidActivationPercentage_withValidValue() {
         expectWithMessage("Activation percentage status with valid value")
                 .that(isInvalidActivationPercentage(TEST_MAX_ACTIVATION_GAIN_INDEX)).isFalse();
+    }
+
+    @Test
+    public void generateAddressToCarAudioDeviceInfoMap_withNullDevices() {
+        var thrown = assertThrows(NullPointerException.class,
+                () -> generateAddressToCarAudioDeviceInfoMap(/* carAudioDeviceInfos = */ null));
+
+        expectWithMessage("Exception for generate car audio device info map with null devices")
+                .that(thrown).hasMessageThat().contains("Car audio device infos");
+    }
+
+    @Test
+    public void generateAddressToCarAudioDeviceInfoMap_withValidCarAudioDevices() {
+        var map = generateAddressToCarAudioDeviceInfoMap(generateCarDeviceInfos());
+
+        expectWithMessage("Generated car audio device addresses").that(map.keySet())
+                .containsExactly(MEDIA_TEST_DEVICE, NAVIGATION_TEST_DEVICE, CALL_TEST_DEVICE,
+                        VOICE_TEST_DEVICE, NOTIFICATION_TEST_DEVICE, RING_TEST_DEVICE,
+                        ALARM_TEST_DEVICE, SYSTEM_BUS_DEVICE);
+    }
+
+    @Test
+    public void generateAddressToInputAudioDeviceInfoMap_withNullInputDevices() {
+        var thrown = assertThrows(NullPointerException.class,
+                () -> generateAddressToInputAudioDeviceInfoMap(/* deviceInfos = */ null));
+
+        expectWithMessage("Exception for generate input audio device info map with null devices")
+                .that(thrown).hasMessageThat().contains("Input audio device infos");
+    }
+
+    @Test
+    public void generateAddressToInputAudioDeviceInfoMap_withValidInputDevices() {
+        var inputDevicesMap = generateAddressToInputAudioDeviceInfoMap(generateInputDeviceInfos());
+
+        expectWithMessage("Input devices map").that(inputDevicesMap).hasSize(3);
+        expectWithMessage("Input device addresses").that(inputDevicesMap.keySet())
+                .containsExactly(PRIMARY_ZONE_MICROPHONE_DEVICE, PRIMARY_ZONE_FM_TUNER_DEVICE,
+                        SECONDARY_ZONE_BACK_MICROPHONE_DEVICE);
+    }
+
+    private List<CarAudioDeviceInfo> generateCarDeviceInfos() {
+        return ImmutableList.of(
+                generateCarAudioDeviceInfo(MEDIA_TEST_DEVICE),
+                generateCarAudioDeviceInfo(NAVIGATION_TEST_DEVICE),
+                generateCarAudioDeviceInfo(CALL_TEST_DEVICE),
+                generateCarAudioDeviceInfo(NOTIFICATION_TEST_DEVICE),
+                generateCarAudioDeviceInfo(VOICE_TEST_DEVICE),
+                generateCarAudioDeviceInfo(RING_TEST_DEVICE),
+                generateCarAudioDeviceInfo(ALARM_TEST_DEVICE),
+                generateCarAudioDeviceInfo(SYSTEM_BUS_DEVICE),
+                generateCarAudioDeviceInfo(/* address= */ ""),
+                generateCarAudioDeviceInfo(/* address= */ ""),
+                generateCarAudioDeviceInfo(/* address= */ null),
+                generateCarAudioDeviceInfo(/* address= */ null));
+    }
+
+    private AudioDeviceInfo[] generateInputDeviceInfos() {
+        return new AudioDeviceInfo[]{
+                generateInputAudioDeviceInfo(PRIMARY_ZONE_MICROPHONE_DEVICE, TYPE_BUILTIN_MIC),
+                generateInputAudioDeviceInfo(PRIMARY_ZONE_FM_TUNER_DEVICE, TYPE_FM_TUNER),
+                generateInputAudioDeviceInfo(SECONDARY_ZONE_BACK_MICROPHONE_DEVICE, TYPE_BUS),
+                generateInputAudioDeviceInfo(/* address= */ "", TYPE_BUS),
+                generateInputAudioDeviceInfo(/* address= */ null, TYPE_BUS),
+        };
     }
 
     private static CarAudioZoneConfigInfo getTestDynamicDevicesConfig() {
