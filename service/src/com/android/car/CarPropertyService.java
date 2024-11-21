@@ -1199,6 +1199,17 @@ public class CarPropertyService extends ICarProperty.Stub
     }
 
     /**
+     * Unregisters the callback previously registered with registerSupportedValuesChangeCallback.
+     *
+     * Do nothing if the [propertyId, areaId]s were not previously registered.
+     */
+    @Override
+    public void unregisterSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
+            ISupportedValuesChangeCallback callback) {
+        // TODO(371636116): Implement this.
+    }
+
+    /**
      * @throws IllegalArgumentException If the propertyId or areaId is not supported.
      * @throws SecurityException If caller does not have read and does not have write permission.
      */
