@@ -16,11 +16,13 @@
 package com.android.car.audio;
 
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_BOOT;
+import static android.media.AudioAttributes.CONTENT_TYPE_SPEECH;
 import static android.media.AudioAttributes.USAGE_ALARM;
 import static android.media.AudioAttributes.USAGE_ANNOUNCEMENT;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE;
 import static android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION;
 import static android.media.AudioAttributes.USAGE_ASSISTANT;
+import static android.media.AudioAttributes.USAGE_CALL_ASSISTANT;
 import static android.media.AudioAttributes.USAGE_EMERGENCY;
 import static android.media.AudioAttributes.USAGE_GAME;
 import static android.media.AudioAttributes.USAGE_MEDIA;
@@ -62,26 +64,36 @@ import static com.android.car.audio.CarAudioDeviceInfoTestUtils.VOICE_TEST_DEVIC
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
 import android.car.builtin.media.AudioManagerHelper;
+import android.car.oem.CarAudioFadeConfiguration;
+import android.hardware.automotive.audiocontrol.AudioFadeConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.AudioZoneConfig;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
+import android.hardware.automotive.audiocontrol.FadeConfiguration;
+import android.hardware.automotive.audiocontrol.FadeState;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioAttributes;
 import android.media.AudioFocusInfo;
 import android.media.AudioManager;
+import android.media.FadeManagerConfiguration;
+import android.media.MediaRecorder;
+import android.media.audio.common.AudioContentType;
 import android.media.audio.common.AudioDevice;
 import android.media.audio.common.AudioDeviceAddress;
 import android.media.audio.common.AudioDeviceDescription;
 import android.media.audio.common.AudioDeviceType;
+import android.media.audio.common.AudioFlag;
 import android.media.audio.common.AudioGain;
 import android.media.audio.common.AudioGainMode;
 import android.media.audio.common.AudioPort;
 import android.media.audio.common.AudioPortDeviceExt;
 import android.media.audio.common.AudioPortExt;
+import android.media.audio.common.AudioSource;
+import android.media.audio.common.AudioUsage;
 import android.os.Build;
 import android.util.ArrayMap;
 
@@ -204,6 +216,12 @@ public final class CarAudioTestUtils {
                     getAudioAttributeFromUsage(AudioAttributes.USAGE_ANNOUNCEMENT)
             }, "ANNOUNCEMENT", 12);
 
+    private static final long TEST_FADE_IN_DURATION_MS = 200L;
+    private static final long TEST_FADE_OUT_DURATION_MS = 300L;
+    private static final long TEST_FADE_IN_DELAYED_FOR_OFFENDERS_MS = 3_000L;
+    private static final long TEST_FADE_OUT_CONFIG_DURATION_MS = 800L;
+    private static final long TEST_FADE_IN_CONFIG_DURATION_MS = 0L;
+
     public static final CarAudioContext TEST_CREATED_CAR_AUDIO_CONTEXT =
             new CarAudioContext(List.of(TEST_CONTEXT_INFO_MUSIC, TEST_CONTEXT_INFO_NAVIGATION,
                     TEST_CONTEXT_INFO_VOICE_COMMAND, TEST_CONTEXT_INFO_CALL_RING,
@@ -262,7 +280,10 @@ public final class CarAudioTestUtils {
     static final int TELEPHONY_VOLUME_GROUP_ID = 2;
     static final String TELEPHONY_VOLUME_NAME = "telephony_volume";
     static final int SYSTEM_VOLUME_GROUP_ID = 3;
-    static final String SYSTEM_VOLUME_NAME = "system_volume";
+
+    static final int TEST_FLAGS = AudioFlag.AUDIBILITY_ENFORCED;
+    static final String[] TEST_TAGS =  {"OEM_NAV", "OEM_ASSISTANT"};
+    static final String TEST_FADE_CONFIGURATION_NAME = "Test fade configuration";
 
     private CarAudioTestUtils() {
         throw new UnsupportedOperationException();
@@ -543,5 +564,115 @@ public final class CarAudioTestUtils {
             audioAttributes.add(attributes);
         }
         return audioAttributes;
+    }
+
+    static android.media.audio.common.AudioAttributes createHALAudioAttribute(int usage) {
+        android.media.audio.common.AudioAttributes
+                attributes = new android.media.audio.common.AudioAttributes();
+        attributes.usage = usage;
+        attributes.flags = TEST_FLAGS;
+        attributes.tags = TEST_TAGS;
+        attributes.contentType = AudioContentType.MOVIE;
+        attributes.source = AudioSource.CAMCORDER;
+        return attributes;
+    }
+
+    static AudioAttributes createMediaAudioAttributes(int usage) {
+        android.media.AudioAttributes.Builder builder = new AudioAttributes.Builder()
+                .setFlags(TEST_FLAGS)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE)
+                .setCapturePreset(MediaRecorder.AudioSource.CAMCORDER);
+        if (AudioAttributes.isSystemUsage(usage)) {
+            builder.setSystemUsage(usage);
+        } else {
+            builder.setUsage(usage);
+        }
+        for (String tag : TEST_TAGS) {
+            builder.addTag(tag);
+        }
+        return builder.build();
+    }
+
+    static AudioFadeConfiguration createTestFadeConfiguration() {
+        AudioFadeConfiguration configuration = new AudioFadeConfiguration();
+        configuration.fadeInDurationMs = TEST_FADE_IN_DURATION_MS;
+        configuration.fadeOutDurationMs = TEST_FADE_OUT_DURATION_MS;
+        configuration.fadeInDelayedForOffendersMs = TEST_FADE_IN_DELAYED_FOR_OFFENDERS_MS;
+        configuration.fadeState = FadeState.FADE_STATE_ENABLED_DEFAULT;
+        configuration.fadeableUsages = new int[]{MEDIA, GAME, UNKNOWN};
+        configuration.unfadeableContentTypes = new int[]{AudioContentType.SPEECH};
+        var emergencyAttribute = new android.media.audio.common.AudioAttributes();
+        emergencyAttribute.usage = EMERGENCY;
+        var navAttribute = new android.media.audio.common.AudioAttributes();
+        navAttribute.usage = AudioUsage.ASSISTANCE_NAVIGATION_GUIDANCE;
+        navAttribute.tags = TEST_TAGS;
+        configuration.unfadableAudioAttributes = List.of(emergencyAttribute, navAttribute);
+        configuration.fadeOutConfigurations = createFadeOutConfiguration();
+        configuration.fadeInConfigurations = createFadeInConfiguration();
+        configuration.name = TEST_FADE_CONFIGURATION_NAME;
+        return configuration;
+    }
+
+    static CarAudioFadeConfiguration getTestCarFadeConfiguration() {
+        FadeManagerConfiguration.Builder fadeManagerBuilder =
+                new FadeManagerConfiguration.Builder(TEST_FADE_OUT_DURATION_MS,
+                        TEST_FADE_IN_DURATION_MS);
+        fadeManagerBuilder.setFadeInDelayForOffenders(TEST_FADE_IN_DELAYED_FOR_OFFENDERS_MS);
+        fadeManagerBuilder.setFadeState(FadeManagerConfiguration.FADE_STATE_ENABLED_DEFAULT);
+        fadeManagerBuilder.setFadeableUsages(List.of(USAGE_MEDIA, USAGE_GAME, USAGE_UNKNOWN));
+        fadeManagerBuilder.setUnfadeableContentTypes(List.of(CONTENT_TYPE_SPEECH));
+        AudioAttributes.Builder emergencyBuilder = new AudioAttributes.Builder()
+                .setSystemUsage(USAGE_EMERGENCY);
+        AudioAttributes.Builder navBuilder = new AudioAttributes.Builder()
+                .setUsage(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
+        for (var tag : TEST_TAGS) {
+            AudioManagerHelper.addTagToAudioAttributes(navBuilder, tag);
+        }
+        fadeManagerBuilder.setUnfadeableAudioAttributes(List.of(emergencyBuilder.build(),
+                navBuilder.build()));
+        fadeManagerBuilder.setFadeInDurationForUsage(USAGE_CALL_ASSISTANT,
+                TEST_FADE_IN_CONFIG_DURATION_MS);
+        fadeManagerBuilder.setFadeInDurationForAudioAttributes(
+                createMediaAudioAttributes(USAGE_SAFETY), TEST_FADE_IN_CONFIG_DURATION_MS);
+        fadeManagerBuilder.setFadeOutDurationForUsage(USAGE_ASSISTANT,
+                TEST_FADE_OUT_CONFIG_DURATION_MS);
+        fadeManagerBuilder.setFadeOutDurationForAudioAttributes(
+                createMediaAudioAttributes(USAGE_VEHICLE_STATUS), TEST_FADE_OUT_CONFIG_DURATION_MS);
+        return new CarAudioFadeConfiguration.Builder(fadeManagerBuilder.build())
+                .setName(TEST_FADE_CONFIGURATION_NAME).build();
+    }
+
+    private static List<FadeConfiguration> createFadeInConfiguration() {
+        return createFadeConfiguration(TEST_FADE_IN_CONFIG_DURATION_MS,
+                List.of(AudioUsage.CALL_ASSISTANT),
+                List.of(createHALAudioAttribute(AudioUsage.SAFETY)));
+    }
+
+    private static List<FadeConfiguration> createFadeOutConfiguration() {
+        return createFadeConfiguration(TEST_FADE_OUT_CONFIG_DURATION_MS,
+                List.of(AudioUsage.ASSISTANT),
+                List.of(createHALAudioAttribute(VEHICLE_STATUS)));
+    }
+
+    private static List<FadeConfiguration> createFadeConfiguration(long durationMs,
+            List<Integer> usages, List<android.media.audio.common.AudioAttributes> audioAttribute) {
+        var configs = new ArrayList<FadeConfiguration>(usages.size() + audioAttribute.size());
+        for (int c = 0; c < usages.size(); c++) {
+            var config = new FadeConfiguration();
+            config.fadeDurationMillis = durationMs;
+            var attributeOrUsage = new FadeConfiguration.AudioAttributesOrUsage();
+            attributeOrUsage.setUsage(usages.get(c));
+            config.audioAttributesOrUsage = attributeOrUsage;
+            configs.add(config);
+        }
+        for (int c = 0; c < audioAttribute.size(); c++) {
+            var config = new FadeConfiguration();
+            config.fadeDurationMillis = durationMs;
+            var attributeOrUsage = new FadeConfiguration.AudioAttributesOrUsage();
+            attributeOrUsage.setFadeAttribute(audioAttribute.get(c));
+            config.audioAttributesOrUsage = attributeOrUsage;
+            configs.add(config);
+        }
+        return configs;
     }
 }
