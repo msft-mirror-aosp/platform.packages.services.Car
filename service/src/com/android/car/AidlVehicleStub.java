@@ -30,6 +30,7 @@ import android.hardware.automotive.vehicle.GetValueResult;
 import android.hardware.automotive.vehicle.GetValueResults;
 import android.hardware.automotive.vehicle.IVehicle;
 import android.hardware.automotive.vehicle.IVehicleCallback;
+import android.hardware.automotive.vehicle.PropIdAreaId;
 import android.hardware.automotive.vehicle.SetValueRequest;
 import android.hardware.automotive.vehicle.SetValueRequests;
 import android.hardware.automotive.vehicle.SetValueResult;
@@ -371,6 +372,18 @@ final class AidlVehicleStub extends VehicleStub {
         mPendingAsyncRequestPool.cancelRequests(serviceRequestIds);
     }
 
+    @Override
+    public boolean isSupportedValuesImplemented() {
+        // We start supporting dynamic supported values API from V4.
+        try {
+            return mAidlVehicle.getInterfaceVersion() >= 4;
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "Failed to get VHAL interface version, default "
+                    + "isSupportedValuesImplemented to false", e);
+            return false;
+        }
+    }
+
     /**
      * A thread-safe pending sync request pool.
      */
@@ -617,6 +630,12 @@ final class AidlVehicleStub extends VehicleStub {
         }
 
         @Override
+        public void onSupportedValueChange(List<PropIdAreaId> propIdAreaIds)
+                throws RemoteException {
+            // TODO(371636116): implement this.
+        }
+
+        @Override
         public void onPropertyEvent(VehiclePropValues propValues, int sharedMemoryFileCount)
                 throws RemoteException {
             VehiclePropValues origPropValues = (VehiclePropValues)
@@ -735,14 +754,18 @@ final class AidlVehicleStub extends VehicleStub {
         @Override
         public void onPropertyEvent(VehiclePropValues propValues, int sharedMemoryFileCount)
                 throws RemoteException {
-            throw new UnsupportedOperationException(
-                    "GetSetValuesCallback only support onGetValues or onSetValues");
+            throwUnsupportedException();
         }
 
         @Override
         public void onPropertySetError(VehiclePropErrors errors) throws RemoteException {
-            throw new UnsupportedOperationException(
-                    "GetSetValuesCallback only support onGetValues or onSetValues");
+            throwUnsupportedException();
+        }
+
+        @Override
+        public void onSupportedValueChange(List<PropIdAreaId> propIdAreaIds)
+                throws RemoteException {
+            throwUnsupportedException();
         }
 
         @Override
@@ -753,6 +776,11 @@ final class AidlVehicleStub extends VehicleStub {
         @Override
         public int getInterfaceVersion() {
             return IVehicleCallback.VERSION;
+        }
+
+        private void throwUnsupportedException() {
+            throw new UnsupportedOperationException(
+                    "GetSetValuesCallback only support onGetValues or onSetValues");
         }
     }
 
