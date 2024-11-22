@@ -70,9 +70,11 @@ import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.AudioZoneConfig;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
+import android.hardware.automotive.audiocontrol.AudioZoneFadeConfiguration;
 import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
 import android.hardware.automotive.audiocontrol.FadeConfiguration;
 import android.hardware.automotive.audiocontrol.FadeState;
+import android.hardware.automotive.audiocontrol.TransientFadeConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
@@ -454,11 +456,20 @@ public final class CarAudioTestUtils {
 
     private static AudioZoneConfig getAudioZoneConfig(List<VolumeGroupConfig> groups,
             boolean isDefault, String configName) {
-        var primaryZoneConfig = new AudioZoneConfig();
-        primaryZoneConfig.name = configName;
-        primaryZoneConfig.isDefault = isDefault;
-        primaryZoneConfig.volumeGroups = groups;
-        return primaryZoneConfig;
+        var audioZoneConfig = new AudioZoneConfig();
+        audioZoneConfig.name = configName;
+        audioZoneConfig.isDefault = isDefault;
+        audioZoneConfig.volumeGroups = groups;
+        AudioZoneFadeConfiguration fadeConfiguration = new AudioZoneFadeConfiguration();
+        fadeConfiguration.defaultConfiguration = createTestFadeConfiguration();
+        var configuration = new AudioFadeConfiguration();
+        configuration.fadeState = FadeState.FADE_STATE_DISABLED;
+        var entry = new TransientFadeConfigurationEntry();
+        entry.transientFadeConfiguration = configuration;
+        entry.transientUsages = new int[]{EMERGENCY};
+        fadeConfiguration.transientConfiguration = List.of(entry);
+        audioZoneConfig.fadeConfiguration = fadeConfiguration;
+        return audioZoneConfig;
     }
 
     static AudioZone createPrimaryAudioZone() {
@@ -611,6 +622,12 @@ public final class CarAudioTestUtils {
         configuration.fadeInConfigurations = createFadeInConfiguration();
         configuration.name = TEST_FADE_CONFIGURATION_NAME;
         return configuration;
+    }
+
+    static CarAudioFadeConfiguration getTestDisabledCarFadeConfiguration() {
+        return new CarAudioFadeConfiguration.Builder(
+                new FadeManagerConfiguration.Builder().setFadeState(
+                        FadeManagerConfiguration.FADE_STATE_DISABLED).build()).build();
     }
 
     static CarAudioFadeConfiguration getTestCarFadeConfiguration() {
