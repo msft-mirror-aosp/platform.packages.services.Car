@@ -32,8 +32,7 @@
     <color name="materialColorOnPrimaryContainer">@*android:color/system_on_primary_container_light</color>
     <color name="materialColorOnSecondary">@*android:color/system_on_secondary_light</color>
     <color name="materialColorOnSecondaryContainer">@*android:color/system_on_secondary_container_light</color>
-    <!-- Overlay-->
-    <color name="materialColorOnSurface">@*android:color/text_color_primary</color>
+    <color name="materialColorOnSurface">@*android:color/system_on_surface_light</color>
     <color name="materialColorOnSurfaceVariant">@*android:color/system_on_surface_variant_light</color>
     <color name="materialColorOnTertiary">@*android:color/system_on_tertiary_light</color>
     <color name="materialColorOnTertiaryContainer">@*android:color/system_on_tertiary_container_light</color>
@@ -52,8 +51,7 @@
     <color name="materialColorShadow">@*android:color/system_shadow_light</color>
     <color name="materialColorSurface">@*android:color/system_surface_light</color>
     <color name="materialColorSurfaceBright">@*android:color/system_surface_bright_light</color>
-    <!-- Overlay-->
-    <color name="materialColorSurfaceContainer">@android:color/black</color>
+    <color name="materialColorSurfaceContainer">@android:color/system_surface_container_light</color>
     <color name="materialColorSurfaceContainerHigh">@*android:color/system_surface_container_high_light</color>
     <color name="materialColorSurfaceContainerHighest">@*android:color/system_surface_container_highest_light</color>
     <color name="materialColorSurfaceContainerLow">@*android:color/system_surface_container_low_light</color>
@@ -70,8 +68,7 @@
     <color name="materialColorTextSecondaryAndTertiaryInverseDisabled">@*android:color/system_text_secondary_and_tertiary_inverse_disabled_light</color>
     <color name="materialColorOnPrimaryFixed">@*android:color/system_on_primary_fixed</color>
     <color name="materialColorOnPrimaryFixedVariant">@*android:color/system_on_primary_fixed_variant</color>
-    <!-- Overlay-->
-    <color name="materialColorOnSecondaryFixed">@*android:color/text_color_primary</color>
+    <color name="materialColorOnSecondaryFixed">@*android:color/system_on_secondary_fixed</color>
     <color name="materialColorOnSecondaryFixedVariant">@*android:color/system_on_secondary_fixed_variant</color>
     <color name="materialColorOnTertiaryFixed">@*android:color/system_on_tertiary_fixed</color>
     <color name="materialColorOnTertiaryFixedVariant">@*android:color/system_on_tertiary_fixed_variant</color>

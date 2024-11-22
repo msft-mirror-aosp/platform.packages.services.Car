@@ -385,4 +385,13 @@ public abstract class VehicleStub {
      * @param requestIds a list of async get/set request IDs.
      */
     public void cancelRequests(List<Integer> requestIds) {}
+
+    /**
+     * Whether this VehicleStub supports dynamic supported values API.
+     *
+     * This is only supported on AIDL VHAL >= V4.
+     */
+    public boolean isSupportedValuesImplemented() {
+        return false;
+    }
 }
