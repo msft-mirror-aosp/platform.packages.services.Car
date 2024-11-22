@@ -23,6 +23,9 @@ import static com.android.car.audio.AudioControlZoneConverterUtils.convertTransi
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertVolumeActivationConfig;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertVolumeGroupConfig;
 import static com.android.car.audio.AudioControlZoneConverterUtils.verifyVolumeGroupName;
+import static com.android.car.audio.CarAudioUtils.generateAddressToCarAudioDeviceInfoMap;
+import static com.android.car.audio.CarAudioUtils.generateAddressToInputAudioDeviceInfoMap;
+import static com.android.car.audio.CarAudioUtils.generateCarAudioDeviceInfos;
 
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
@@ -36,6 +39,8 @@ import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.media.audio.common.AudioPort;
+import android.media.audio.common.AudioPortExt;
+import android.text.TextUtils;
 import android.util.ArrayMap;
 
 import com.android.car.internal.util.LocalLog;
@@ -57,6 +62,7 @@ final class AudioControlZoneConverter {
     private final AudioManagerWrapper mAudioManager;
     private final CarAudioSettings mCarAudioSettings;
     private final ArrayMap<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
+    private final ArrayMap<String, AudioDeviceInfo> mAddressToInputAudioDeviceInfo;
     private final boolean mUseFadeManagerConfiguration;
 
     AudioControlZoneConverter(AudioManagerWrapper audioManager, CarAudioSettings settings,
@@ -65,18 +71,11 @@ final class AudioControlZoneConverter {
         mCarAudioSettings = Objects.requireNonNull(settings, "Car audio settings can not be null");
         mCarServiceLocalLog = Objects.requireNonNull(serviceLog,
                 "Local car service logs can not be null");
-        mAddressToCarAudioDeviceInfo = new ArrayMap<>();
+        var carAudioDevices = generateCarAudioDeviceInfos(mAudioManager);
+        mAddressToCarAudioDeviceInfo = generateAddressToCarAudioDeviceInfoMap(carAudioDevices);
+        var audiInputDevices = mAudioManager.getDevices(AudioManager.GET_DEVICES_INPUTS);
+        mAddressToInputAudioDeviceInfo = generateAddressToInputAudioDeviceInfoMap(audiInputDevices);
         mUseFadeManagerConfiguration = useFadeManagerConfiguration;
-        var infos = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
-        for (AudioDeviceInfo info : infos) {
-            if (info.getAddress().isEmpty() && info.isSource()) {
-                continue;
-            }
-            CarAudioDeviceInfo carInfo = new CarAudioDeviceInfo(mAudioManager,
-                    new AudioDeviceAttributes(info));
-            carInfo.setAudioDeviceInfo(info);
-            mAddressToCarAudioDeviceInfo.put(info.getAddress(), carInfo);
-        }
     }
 
     @Nullable
@@ -119,6 +118,14 @@ final class AudioControlZoneConverter {
             carAudioZone.addZoneConfig(builder.build());
             nextConfigId++;
         }
+        var conversionMessage = convertAudioInputDevices(carAudioZone, zone.inputAudioDevices);
+        if (!TextUtils.isEmpty(conversionMessage)) {
+            String message = "Failed to parse input device, conversion error message: "
+                    + conversionMessage;
+            Slogf.e(TAG, message);
+            mCarServiceLocalLog.log(message);
+            return null;
+        }
         return carAudioZone;
     }
 
@@ -140,6 +147,41 @@ final class AudioControlZoneConverter {
             return Collections.EMPTY_LIST;
         }
         return mirroringDevices;
+    }
+
+    private String convertAudioInputDevices(CarAudioZone carZone, List<AudioPort> inputDevices) {
+        if (inputDevices == null || inputDevices.isEmpty()) {
+            return "";
+        }
+        for (int c = 0; c < inputDevices.size(); c++) {
+            String address = getAudioPortAddress(inputDevices.get(c));
+            if (address == null || address.isEmpty()) {
+                return "Found empty device address while converting input device in zone "
+                        + carZone.getId();
+            }
+            var inputDevice = mAddressToInputAudioDeviceInfo.get(address);
+            if (inputDevice == null) {
+                return "Could not find input device with address " + address
+                        + " while converting input device in zone " + carZone.getId();
+            }
+            carZone.addInputAudioDevice(new AudioDeviceAttributes(inputDevice));
+        }
+        return "";
+    }
+
+    private String getAudioPortAddress(AudioPort audioPort) {
+        if (isInvalidInputDevice(audioPort)) {
+            return "";
+        }
+        var device = audioPort.ext.getDevice();
+        if (device.device == null || device.device.address == null) {
+            return "";
+        }
+        return device.device.address.getId();
+    }
+
+    private static boolean isInvalidInputDevice(AudioPort port) {
+        return port == null || port.ext == null || port.ext.getTag() != AudioPortExt.device;
     }
 
     private boolean convertAudioZoneConfig(CarAudioZoneConfig.Builder builder,

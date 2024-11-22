@@ -20,6 +20,7 @@ import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_BOOT;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_PLAYBACK_CHANGED;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_SOURCE_CHANGED;
+import static android.media.AudioManager.GET_DEVICES_INPUTS;
 import static android.media.AudioManager.GET_DEVICES_OUTPUTS;
 
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
@@ -27,6 +28,9 @@ import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MIRROR_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.OEM_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_FM_TUNER_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_MICROPHONE_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_ZONE_BUS_1000_INPUT_DEVICE;
 import static com.android.car.audio.CarAudioTestUtils.GAINS;
 import static com.android.car.audio.CarAudioTestUtils.PRIMARY_ZONE_NAME;
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
@@ -61,8 +65,10 @@ import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.TransientFadeConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
+import android.media.AudioDeviceAttributes;
 import android.media.AudioProductStrategy;
 import android.media.audio.common.AudioDeviceType;
+import android.media.audio.common.AudioGain;
 import android.media.audio.common.AudioPort;
 import android.media.audio.common.AudioPortDeviceExt;
 import android.util.ArrayMap;
@@ -114,7 +120,9 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
         doReturn(CoreAudioRoutingUtils.getProductStrategies())
                 .when(AudioManagerWrapper::getAudioProductStrategies);
         var outputDevice = mAudioDeviceInfoTestUtils.generateOutputDeviceInfos();
+        var inputDevices = mAudioDeviceInfoTestUtils.generateInputDeviceInfos();
         when(mAudioManager.getDevices(GET_DEVICES_OUTPUTS)).thenReturn(outputDevice);
+        when(mAudioManager.getDevices(GET_DEVICES_INPUTS)).thenReturn(inputDevices);
         mCarAudioContextMap = createCarAudioContextNameToIdMap(TEST_CREATED_CAR_AUDIO_CONTEXT);
         mUseFadeManagerConfiguration = true;
     }
@@ -515,6 +523,83 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
         expectWithMessage("Converted mirroring devices for empty ports")
                 .that(addresses).containsExactly(MIRROR_TEST_DEVICE, OEM_TEST_DEVICE);
 
+    }
+
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithEmptyListOfInputDevices() {
+        var zone = createPrimaryAudioZone();
+        zone.inputAudioDevices = List.of();
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        expectWithMessage("Converted primary zone empty list of input devices")
+                .that(carAudioZone.getInputAudioDevices()).isEmpty();
+    }
+
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithNullDeviceInputDevices() {
+        var zone = createPrimaryAudioZone();
+        var inputDevices = new ArrayList<AudioPort>(1);
+        inputDevices.add(null);
+        zone.inputAudioDevices = inputDevices;
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        expectWithMessage("Converted primary zone with invalid null input device zone")
+                .that(carAudioZone).isNull();
+    }
+
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithNullExtDeviceInputDevices() {
+        var zone = createPrimaryAudioZone();
+        var portDeviceExt = createAudioPortDeviceExt(AudioDeviceType.IN_BUS, /* connection= */ "",
+                /* address= */ "invalid address");
+        var audioPort = createAudioPort(10, "input bus", new AudioGain[0], portDeviceExt);
+        zone.inputAudioDevices = List.of(audioPort);
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        expectWithMessage("Converted primary zone with invalid null input ext device")
+                .that(carAudioZone).isNull();
+    }
+
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithInputDevices() {
+        var zone = createPrimaryAudioZone();
+        zone.inputAudioDevices = getInputDevicePorts();
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        var zones = new SparseArray<CarAudioZone>(1);
+        boolean useCoreAudioRouting = false;
+        zones.append(PRIMARY_AUDIO_ZONE, carAudioZone);
+        CarAudioZonesValidator.validate(zones, useCoreAudioRouting);
+        var inputDevices = carAudioZone.getInputAudioDevices().stream()
+                .map(AudioDeviceAttributes::getAddress).toList();
+        expectWithMessage("Converted input devices").that(inputDevices)
+                .containsExactly(SECONDARY_ZONE_BUS_1000_INPUT_DEVICE, PRIMARY_ZONE_FM_TUNER_DEVICE,
+                        PRIMARY_ZONE_MICROPHONE_DEVICE);
+    }
+
+    private List<AudioPort> getInputDevicePorts() {
+        var portBusDeviceExt = createAudioPortDeviceExt(AudioDeviceType.IN_BUS,
+                /* connection= */ "", SECONDARY_ZONE_BUS_1000_INPUT_DEVICE);
+        var busPort = createAudioPort(11, "bus", new AudioGain[0], portBusDeviceExt);
+        var portFMDeviceExt = createAudioPortDeviceExt(AudioDeviceType.IN_FM_TUNER,
+                /* connection= */ "", PRIMARY_ZONE_FM_TUNER_DEVICE);
+        var fmTunerPort = createAudioPort(10, "fm tuner", new AudioGain[0], portFMDeviceExt);
+        var portMicDeviceExt = createAudioPortDeviceExt(AudioDeviceType.IN_MICROPHONE,
+                /* connection= */ "", PRIMARY_ZONE_MICROPHONE_DEVICE);
+        var micPort = createAudioPort(11, "mic", new AudioGain[0], portMicDeviceExt);
+        return List.of(busPort, fmTunerPort, micPort);
     }
 
     private void validateZoneConfigInfo(String zoneName, CarAudioZoneConfig carZoneConfig,
