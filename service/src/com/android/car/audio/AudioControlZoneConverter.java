@@ -16,7 +16,9 @@
 
 package com.android.car.audio;
 
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioFadeConfiguration;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertCarAudioContext;
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertTransientFadeConfiguration;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertVolumeActivationConfig;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertVolumeGroupConfig;
 import static com.android.car.audio.AudioControlZoneConverterUtils.verifyVolumeGroupName;
@@ -26,6 +28,8 @@ import android.car.builtin.util.Slogf;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.AudioZoneConfig;
+import android.hardware.automotive.audiocontrol.AudioZoneFadeConfiguration;
+import android.hardware.automotive.audiocontrol.TransientFadeConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
@@ -48,14 +52,16 @@ final class AudioControlZoneConverter {
     private final AudioManagerWrapper mAudioManager;
     private final CarAudioSettings mCarAudioSettings;
     private final ArrayMap<String, CarAudioDeviceInfo> mAddressToCarAudioDeviceInfo;
+    private final boolean mUseFadeManagerConfiguration;
 
     AudioControlZoneConverter(AudioManagerWrapper audioManager, CarAudioSettings settings,
-                              LocalLog serviceLog) {
+                              LocalLog serviceLog, boolean useFadeManagerConfiguration) {
         mAudioManager = Objects.requireNonNull(audioManager, "Audio manager can no be null");
         mCarAudioSettings = Objects.requireNonNull(settings, "Car audio settings can not be null");
         mCarServiceLocalLog = Objects.requireNonNull(serviceLog,
                 "Local car service logs can not be null");
         mAddressToCarAudioDeviceInfo = new ArrayMap<>();
+        mUseFadeManagerConfiguration = useFadeManagerConfiguration;
         var infos = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
         for (AudioDeviceInfo info : infos) {
             if (info.getAddress().isEmpty() && info.isSource()) {
@@ -127,7 +133,63 @@ final class AudioControlZoneConverter {
             mCarServiceLocalLog.log(message);
             return false;
         }
+        if (!convertAudioZoneFadeConfiguration(builder, config.fadeConfiguration)) {
+            return false;
+        }
+        Slogf.i(TAG, "Successfully converted audio zone config %s in zone %s",
+                builder.getZoneConfigId(), builder.getZoneId());
         return true;
+    }
+
+    private boolean convertAudioZoneFadeConfiguration(CarAudioZoneConfig.Builder builder,
+            AudioZoneFadeConfiguration fadeConfiguration) {
+        if (!mUseFadeManagerConfiguration || fadeConfiguration == null) {
+            return true;
+        }
+        if (fadeConfiguration.defaultConfiguration == null) {
+            String message = "Failed to parse default fade configuration in zone config "
+                    + builder.getZoneConfigId() + " in zone " + builder.getZoneId();
+            Slogf.e(TAG, message);
+            mCarServiceLocalLog.log(message);
+            return false;
+        }
+        var defaultConfig = convertAudioFadeConfiguration(fadeConfiguration.defaultConfiguration);
+        builder.setDefaultCarAudioFadeConfiguration(defaultConfig);
+        var transientFadeConfigs = fadeConfiguration.transientConfiguration;
+        if (transientFadeConfigs == null || transientFadeConfigs.isEmpty()) {
+            return true;
+        }
+        for (int c = 0; c < transientFadeConfigs.size(); c++) {
+            if (convertTransientFadeConfigurationEntry(builder, transientFadeConfigs.get(c))) {
+                continue;
+            }
+            return false;
+        }
+        builder.setFadeManagerConfigurationEnabled(mUseFadeManagerConfiguration);
+        return true;
+    }
+
+    private boolean convertTransientFadeConfigurationEntry(CarAudioZoneConfig.Builder builder,
+            TransientFadeConfigurationEntry transientFadeConfig) {
+        if (isInvalidTransientFadeConfig(transientFadeConfig)) {
+            String message = "Failed to parse transient fade configuration entry in zone"
+                    + " config " + builder.getZoneConfigId() + " in zone " + builder.getZoneId();
+            Slogf.e(TAG, message);
+            mCarServiceLocalLog.log(message);
+            return false;
+        }
+        var convertedTransientConfig = convertTransientFadeConfiguration(transientFadeConfig);
+        for (int i = 0; i < convertedTransientConfig.audioAttributes().size(); i++) {
+            var audioAttribute = convertedTransientConfig.audioAttributes().get(i);
+            builder.setCarAudioFadeConfigurationForAudioAttributes(audioAttribute,
+                    convertedTransientConfig.getCarAudioFadeConfiguration());
+        }
+        return true;
+    }
+
+    private static boolean isInvalidTransientFadeConfig(TransientFadeConfigurationEntry config) {
+        return config == null || config.transientUsages == null
+                || config.transientUsages.length == 0 || config.transientFadeConfiguration == null;
     }
 
     private boolean convertVolumeGroup(CarAudioZoneConfig.Builder builder,
