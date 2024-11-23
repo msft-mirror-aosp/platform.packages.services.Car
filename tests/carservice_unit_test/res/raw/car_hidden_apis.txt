@@ -357,6 +357,7 @@ android.car.hardware CarPropertyConfig.AreaConfig T getMaxValue()
 android.car.hardware CarPropertyConfig.AreaConfig T getMinValue()
 android.car.hardware CarPropertyConfig.AreaConfig int describeContents()
 android.car.hardware CarPropertyConfig.AreaConfig void writeToParcel(Parcel dest, int flags)
+android.car.hardware CarPropertyValue RawPropertyValue getRawPropertyValue()
 android.car.hardware CarPropertyValue String toString()
 android.car.hardware CarSensorConfig Bundle getBundle()
 android.car.hardware CarSensorConfig Parcelable.Creator<CarSensorConfig> CREATOR
