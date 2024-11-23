@@ -73,6 +73,7 @@ import android.os.UserManager;
 import android.util.ArraySet;
 import android.util.AtomicFile;
 import android.util.SparseArray;
+import android.util.SparseBooleanArray;
 import android.view.Display;
 
 import com.android.car.CarLocalServices;
@@ -786,6 +787,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     }
 
     private void handleShutdownPrepare(CpmsState currentState, CpmsState prevState) {
+        boolean areListenersEmpty;
+        synchronized (mLock) {
+            areListenersEmpty = mListenersWeAreWaitingFor.isEmpty();
+        }
         switch (currentState.mCarPowerStateListenerState) {
             case CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE:
                 updateShutdownPrepareStatus(currentState);
@@ -797,17 +802,25 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     synchronized (mLock) {
                         mCurrentState = currentState;
                     }
-                    clearWaitingForCompletion(/*clearQueue=*/true);
+                    if (!areListenersEmpty) {
+                        Slogf.e(TAG, "Received 2nd shutdown request. Waiting for listeners.");
+                    } else {
+                        // new shutdown prepare request can interrupt completion of shutdown prepare
+                        // call handler to complete it - this may result in 2nd call
+                        // to finishShutdownPrepare()
+                        Slogf.e(TAG,
+                                "Received 2nd shutdown request after listeners were completed");
+                        finishShutdownPrepare();
+                    }
                 } else if (prevState.mCarPowerStateListenerState == STATE_PRE_SHUTDOWN_PREPARE) {
                     // Update of state occurred while in PRE_SHUTDOWN_PREPARE
-                    boolean areListenersEmpty;
-                    synchronized (mLock) {
-                        areListenersEmpty = mListenersWeAreWaitingFor.isEmpty();
-                    }
                     if (areListenersEmpty) {
                         handleCoreShutdownPrepare();
                     } else {
                         // PRE_SHUTDOWN_PREPARE is still being processed, no actions required
+                        Slogf.e(TAG,
+                                "Received 2nd shutdown request. Waiting for listener"
+                            + " to complete");
                         return;
                     }
                 } else {
@@ -1316,10 +1329,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         synchronized (mLock) {
             mLastSleepEntryTime = SystemClock.elapsedRealtime();
         }
-        @CarPowerManager.CarPowerState int nextListenerState;
         if (simulatedMode) {
             simulateSleepByWaiting();
-            nextListenerState = CarPowerManager.STATE_SHUTDOWN_CANCELLED;
         } else {
             boolean sleepSucceeded = suspendWithRetries();
             if (!sleepSucceeded) {
@@ -1327,14 +1338,12 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                 // We either won't get here at all or we will power off very soon.
                 return;
             }
-            synchronized (mLock) {
-                // We suspended and have now resumed
-                nextListenerState = (mActionOnFinish == ACTION_ON_FINISH_DEEP_SLEEP)
-                        ? CarPowerManager.STATE_SUSPEND_EXIT
-                        : CarPowerManager.STATE_HIBERNATION_EXIT;
-            }
         }
+        @CarPowerManager.CarPowerState int nextListenerState;
         synchronized (mLock) {
+            nextListenerState = (mActionOnFinish == ACTION_ON_FINISH_DEEP_SLEEP)
+                            ? CarPowerManager.STATE_SUSPEND_EXIT
+                            : CarPowerManager.STATE_HIBERNATION_EXIT;
             // Any wakeup time from before is no longer valid.
             mNextWakeupSec = 0;
         }
@@ -1435,9 +1444,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         mScreenOffHandler.handleDisplayStateChange(displayId, on);
     }
 
-    private void doHandlePowerPolicyNotification(String policyId) {
+    private void doHandlePowerPolicyNotification(PowerPolicyChangeNotification notification) {
         // Sending notification of power policy change triggered through CarPowerManager API.
-        notifyPowerPolicyChange(policyId, /* upToDaemon= */ true, /* force= */ false);
+        notifyPowerPolicyChange(notification, /* upToDaemon= */ true, /* force= */ false);
     }
 
     /**
@@ -1829,11 +1838,15 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             mCurrentPowerPolicyId = policyId;
         }
         mPowerComponentHandler.applyPowerPolicy(policy);
+        PowerPolicyChangeNotification notification = new PowerPolicyChangeNotification(policyId,
+                mPowerComponentHandler.getLastModifiedComponents(),
+                mPowerComponentHandler.getAccumulatedPolicy());
+
         if (delayNotification) {
             Slogf.d(TAG, "Queueing power policy notification (id: %s) in the handler", policyId);
-            mHandler.handlePowerPolicyNotification(policyId);
+            mHandler.handlePowerPolicyNotification(notification);
         } else {
-            notifyPowerPolicyChange(policyId, upToDaemon, force);
+            notifyPowerPolicyChange(notification, upToDaemon, force);
         }
         Slogf.i(TAG, "The current power policy is %s", policyId);
         return PolicyOperationStatus.OK;
@@ -1855,7 +1868,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             mCurrentPowerPolicyId = policyId;
         }
         mPowerComponentHandler.applyPowerPolicy(policy);
-        notifyPowerPolicyChange(policyId, /* upToDaemon= */ true, /* force= */ true);
+        notifyPowerPolicyChange(new PowerPolicyChangeNotification(policyId,
+                        mPowerComponentHandler.getLastModifiedComponents(),
+                        mPowerComponentHandler.getAccumulatedPolicy()), /* upToDaemon= */
+                true, /* force= */ true);
         Slogf.i(TAG, "The current power policy is %s", policyId);
         return PolicyOperationStatus.OK;
     }
@@ -1905,7 +1921,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
     }
 
-    private void notifyPowerPolicyChange(String policyId, boolean upToDaemon, boolean force) {
+    private void notifyPowerPolicyChange(PowerPolicyChangeNotification policyChangeNotification,
+            boolean upToDaemon, boolean force) {
+        String policyId = policyChangeNotification.policyId;
         EventLogHelper.writePowerPolicyChange(policyId);
         // Notify system clients
         if (upToDaemon) {
@@ -1913,7 +1931,9 @@ public class CarPowerManagementService extends ICarPower.Stub implements
         }
 
         // Notify Java clients
-        CarPowerPolicy accumulatedPolicy = mPowerComponentHandler.getAccumulatedPolicy();
+        CarPowerPolicy accumulatedPolicy = policyChangeNotification.accumulatedPolicy;
+        SparseBooleanArray updatedComponents = policyChangeNotification.lastModifiedComponents;
+
         CarPowerPolicy appliedPolicy = mPolicyReader.isPreemptivePowerPolicy(policyId)
                 ? mPolicyReader.getPreemptivePowerPolicy(policyId)
                 : mPolicyReader.getPowerPolicy(policyId);
@@ -1925,7 +1945,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             ICarPowerPolicyListener listener = mPowerPolicyListeners.getBroadcastItem(idx);
             CarPowerPolicyFilter filter =
                     (CarPowerPolicyFilter) mPowerPolicyListeners.getBroadcastCookie(idx);
-            if (!mPowerComponentHandler.isComponentChanged(filter)) {
+            if (!PowerComponentHandler.isComponentChanged(updatedComponents, filter)) {
                 continue;
             }
             try {
@@ -2101,8 +2121,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             removeMessages(MSG_PROCESSING_COMPLETE);
         }
 
-        private void handlePowerPolicyNotification(String policyId) {
-            Message msg = obtainMessage(MSG_POWER_POLICY_NOTIFICATION, policyId);
+        private void handlePowerPolicyNotification(PowerPolicyChangeNotification notification) {
+            Message msg = obtainMessage(MSG_POWER_POLICY_NOTIFICATION, notification);
             sendMessage(msg);
         }
 
@@ -2138,7 +2158,8 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     service.doHandleProcessingComplete();
                     break;
                 case MSG_POWER_POLICY_NOTIFICATION:
-                    service.doHandlePowerPolicyNotification((String) msg.obj);
+                    service.doHandlePowerPolicyNotification(
+                            (PowerPolicyChangeNotification) msg.obj);
                     break;
                 default:
                     Slogf.w(TAG, "handleMessage invalid message type: %d", msg.what);
@@ -2375,8 +2396,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     public void forceSimulatedResume() {
         synchronized (mLock) {
             // Cancel Garage Mode in case it's running
+            boolean isSuspendToDisk = mActionOnFinish == ACTION_ON_FINISH_HIBERNATION;
             mPendingPowerStates.addFirst(new CpmsState(CpmsState.WAIT_FOR_VHAL,
-                    CarPowerManager.STATE_SHUTDOWN_CANCELLED, /* canPostpone= */ false));
+                    isSuspendToDisk ? CarPowerManager.STATE_HIBERNATION_EXIT
+                            : CarPowerManager.STATE_SUSPEND_EXIT, /* canPostpone= */ false));
             mLock.notifyAll();
         }
         mHandler.handlePowerStateChange();
@@ -2839,5 +2862,10 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             int displayId = display.getDisplayId();
             consumer.accept(displayId);
         }
+    }
+
+    private record PowerPolicyChangeNotification(String policyId,
+                                                 SparseBooleanArray lastModifiedComponents,
+                                                 CarPowerPolicy accumulatedPolicy) {
     }
 }

@@ -102,6 +102,7 @@ public class CarPackageManagerServiceTest {
 
         for (TempActivity testingActivity : sTestingActivities) {
             testingActivity.finishCompletely();
+            sTestingActivities.remove(testingActivity);
         }
     }
 
@@ -217,6 +218,37 @@ public class CarPackageManagerServiceTest {
     }
 
     @Test
+    public void testBlockingActivity_DoLaunchesNonDo_DoIsKilled_isBlocked()
+            throws Exception {
+        startDoActivity(DoActivity.INTENT_EXTRA_LAUNCH_NONDO_NEW_TASK);
+        assertBlockingActivityFound();
+
+        for (TempActivity activity : sTestingActivities) {
+            if (activity instanceof DoActivity) {
+                activity.finishCompletely();
+                sTestingActivities.remove(activity);
+            }
+        }
+
+        assertBlockingActivityFound();
+    }
+
+    @Test
+    public void testBlockingActivity_nonDoActivity_translucentDoOnTopOfBlockingActivityRemoved_nonDoRemainsBlocked() {
+        startNonDoActivity(NonDoActivity.EXTRA_DO_NOTHING);
+        waitForBlockingActivityFound();
+
+        startDoActivity(DoTranslucentActivity.EXTRA_ONRESUME_FINISH_IMMEDIATELY,
+                DoTranslucentActivity.class);
+
+        /*
+            Expected task stack:
+            NonDoActivity (not visible) -> ActivityBlockingActivity (visible)
+        */
+        assertBlockingActivityFound();
+    }
+
+    @Test
     public void testBlockingActivity_nonDoFinishesOnCreate_noBlockingActivity()
             throws Exception {
         startNonDoActivity(NonDoActivity.EXTRA_ONCREATE_FINISH_IMMEDIATELY);
@@ -297,8 +329,12 @@ public class CarPackageManagerServiceTest {
     }
 
     private void assertBlockingActivityFound() {
-        assertThat(mDevice.wait(Until.findObject(By.res(ACTIVITY_BLOCKING_ACTIVITY_TEXTVIEW_ID)),
-                UI_TIMEOUT_MS)).isNotNull();
+        assertThat(waitForBlockingActivityFound()).isNotNull();
+    }
+
+    private UiObject2 waitForBlockingActivityFound() {
+        return mDevice.wait(Until.findObject(By.res(ACTIVITY_BLOCKING_ACTIVITY_TEXTVIEW_ID)),
+                UI_TIMEOUT_MS);
     }
 
     private void assertBlockingActivityFoundAndExit(String exitLabel) {
@@ -341,8 +377,12 @@ public class CarPackageManagerServiceTest {
     }
 
     private void startDoActivity(String extra) {
+        startDoActivity(extra, DoActivity.class);
+    }
+
+    private void startDoActivity(String extra, Class<?> cls) {
         Intent intent = new Intent()
-                .setComponent(toComponentName(getTestContext(), DoActivity.class))
+                .setComponent(toComponentName(getTestContext(), cls))
                 .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         if (extra != null) {
             intent.putExtra(extra, true);
@@ -370,6 +410,18 @@ public class CarPackageManagerServiceTest {
 
     private static ComponentName toComponentName(Context ctx, Class<?> cls) {
         return ComponentName.createRelative(ctx, cls.getName());
+    }
+
+    public static class DoTranslucentActivity extends TempActivity {
+        public static final String EXTRA_ONRESUME_FINISH_IMMEDIATELY = "ONRESUME_FINISH";
+
+        @Override
+        protected void onResume() {
+            super.onResume();
+            if (getIntent().getBooleanExtra(EXTRA_ONRESUME_FINISH_IMMEDIATELY, false)) {
+                finish();
+            }
+        }
     }
 
     public static class NonDoActivity extends TempActivity {

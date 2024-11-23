@@ -484,7 +484,7 @@
     <string name="auth_device_credential" translatable="false">Auth by device credential</string>
     <string name="auth_biometric" translatable="false">Auth by biometric</string>
     <string name="auth_device_credential_intent" translatable="false">Auth by createConfirmDeviceCredentialIntent</string>
-    
+
     <!-- Remote access test -->
     <string name="refresh_remote_task">Refresh</string>
     <string name="task_time">Time</string>
@@ -492,4 +492,12 @@
     <string name="task_data">Task Data</string>
     <string name="remaining_time_sec">Remaining Time(s)</string>
 
+<!-- Customization Switch -->
+    <string name="customization_tool_switch" translatable="false">Enable the Customization Tool</string>
+
+    <!-- Data Subscription -->
+    <string name="data_subscription_inactive" translatable="false">Inactive</string>
+    <string name="data_subscription_trial" translatable="false">Trial</string>
+    <string name="data_subscription_paid" translatable="false">Paid</string>
+    <string name="data_subscription_message" translatable="false">"Data subscription status is %s</string>
 </resources>
