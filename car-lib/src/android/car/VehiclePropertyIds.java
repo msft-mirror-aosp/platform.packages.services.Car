@@ -1441,6 +1441,11 @@ public final class VehiclePropertyIds {
     /**
      * Fan direction setting.
      *
+     * The supported values for this property is exposed via {@link #HVAC_FAN_DIRECTION_AVAILABLE}.
+     * Caller should not call {@link CarPropertyManager#getSupportedValuesList} or
+     * {@link CarPropertyManager#getMinMaxSupportedValue} or
+     * {@link AreaIdConfig#getSupportedEnumValues}.
+     *
      * <p>Property Config:
      * <ul>
      *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
