@@ -27,9 +27,12 @@ import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
 import static com.android.car.audio.CarAudioTestUtils.PRIMARY_ZONE_NAME;
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
+import static com.android.car.audio.CarAudioTestUtils.TEST_EMERGENCY_ATTRIBUTE;
 import static com.android.car.audio.CarAudioTestUtils.createCarAudioContextNameToIdMap;
 import static com.android.car.audio.CarAudioTestUtils.createPrimaryAudioZone;
 import static com.android.car.audio.CarAudioTestUtils.getContextForVolumeGroupConfig;
+import static com.android.car.audio.CarAudioTestUtils.getTestCarFadeConfiguration;
+import static com.android.car.audio.CarAudioTestUtils.getTestDisabledCarFadeConfiguration;
 import static com.android.car.audio.CarAudioUtils.ACTIVATION_VOLUME_INVOCATION_TYPE;
 import static com.android.car.audio.CarAudioUtils.ACTIVATION_VOLUME_PERCENTAGE_MAX;
 import static com.android.car.audio.CarAudioUtils.ACTIVATION_VOLUME_PERCENTAGE_MIN;
@@ -50,6 +53,7 @@ import android.hardware.automotive.audiocontrol.AudioZoneConfig;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.TransientFadeConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioProductStrategy;
@@ -85,6 +89,7 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
             new CarAudioDeviceInfoTestUtils();
 
     private ArrayMap<String, Integer> mCarAudioContextMap;
+    private boolean mUseFadeManagerConfiguration;
 
     @Override
     protected void clearInlineMocks(String when) {
@@ -103,6 +108,7 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
         var outputDevice = mAudioDeviceInfoTestUtils.generateOutputDeviceInfos();
         when(mAudioManager.getDevices(GET_DEVICES_OUTPUTS)).thenReturn(outputDevice);
         mCarAudioContextMap = createCarAudioContextNameToIdMap(TEST_CREATED_CAR_AUDIO_CONTEXT);
+        mUseFadeManagerConfiguration = true;
     }
 
     @Test
@@ -111,7 +117,8 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
         var serviceLog = new LocalLog(10);
 
         var thrown = assertThrows(NullPointerException.class, () ->
-                new AudioControlZoneConverter(audioManager, mCarAudioSettings, serviceLog));
+                new AudioControlZoneConverter(audioManager, mCarAudioSettings, serviceLog,
+                        mUseFadeManagerConfiguration));
 
         expectWithMessage("Constructor exception for null audio manager").that(thrown)
                 .hasMessageThat().contains("Audio manager");
@@ -123,7 +130,8 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
         CarAudioSettings carAudioSettings = null;
 
         var thrown = assertThrows(NullPointerException.class, () ->
-                new AudioControlZoneConverter(mAudioManager, carAudioSettings, serviceLog));
+                new AudioControlZoneConverter(mAudioManager, carAudioSettings, serviceLog,
+                        mUseFadeManagerConfiguration));
 
         expectWithMessage("Constructor exception for null car audio settings").that(thrown)
                 .hasMessageThat().contains("Car audio settings");
@@ -134,7 +142,8 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
         LocalLog serviceLog = null;
 
         var thrown = assertThrows(NullPointerException.class, () ->
-                new AudioControlZoneConverter(mAudioManager, mCarAudioSettings, serviceLog));
+                new AudioControlZoneConverter(mAudioManager, mCarAudioSettings, serviceLog,
+                        mUseFadeManagerConfiguration));
 
         expectWithMessage("Constructor exception for null car service log").that(thrown)
                 .hasMessageThat().contains("Local car service logs");
@@ -367,6 +376,81 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
                 .that(carAudioZone).isNotNull();
     }
 
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithFadeConfigurationEnabled() {
+        var zone = createPrimaryAudioZone();
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        SparseArray<CarAudioZone> zones = new SparseArray<>(1);
+        boolean useCoreAudioRouting = false;
+        zones.append(PRIMARY_AUDIO_ZONE, carAudioZone);
+        CarAudioZonesValidator.validateWithoutInputDevicesCheck(zones, useCoreAudioRouting);
+        var defaultZoneConfig = carAudioZone.getAllCarAudioZoneConfigs().stream()
+                .filter(CarAudioZoneConfig::isDefault).findFirst().orElseThrow();
+        var defaultFadeConfig = defaultZoneConfig.getDefaultCarAudioFadeConfiguration();
+        expectWithMessage("Primary zone default config's default fade configuration")
+                .that(defaultFadeConfig).isEqualTo(getTestCarFadeConfiguration());
+        var emergencyFadeConfig = defaultZoneConfig
+                .getCarAudioFadeConfigurationForAudioAttributes(TEST_EMERGENCY_ATTRIBUTE);
+        // Actual car configuration is different since the default name changes for each config
+        expectWithMessage("Emergency fade configuration for default config in primary zone")
+                .that(emergencyFadeConfig.getFadeManagerConfiguration())
+                .isEqualTo(getTestDisabledCarFadeConfiguration().getFadeManagerConfiguration());
+    }
+
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithFadeConfigurationDisabled() {
+        mUseFadeManagerConfiguration = false;
+        var zone = createPrimaryAudioZone();
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        SparseArray<CarAudioZone> zones = new SparseArray<>(1);
+        boolean useCoreAudioRouting = false;
+        zones.append(PRIMARY_AUDIO_ZONE, carAudioZone);
+        CarAudioZonesValidator.validateWithoutInputDevicesCheck(zones, useCoreAudioRouting);
+        CarAudioZoneConfig defaultZoneConfig = carAudioZone.getAllCarAudioZoneConfigs().stream()
+                .filter(carAudioZoneConfig -> carAudioZoneConfig.isDefault())
+                .findFirst().orElseThrow();
+        var defaultFadeConfig = defaultZoneConfig.getDefaultCarAudioFadeConfiguration();
+        expectWithMessage("Primary zone default config's disabled default fade configuration")
+                .that(defaultFadeConfig).isNull();
+    }
+
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithNullDefaultFadeConfig() {
+        var zone = createPrimaryAudioZone();
+        zone.audioZoneConfigs.getFirst().fadeConfiguration.defaultConfiguration = null;
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        expectWithMessage("Converted primary zone with null default fade config")
+                .that(carAudioZone).isNull();
+    }
+
+    @Test
+    public void convertAudioZone_forPrimaryZoneAndWithNullTransientFadeConfig() {
+        var zone = createPrimaryAudioZone();
+        var transientFadeConfigs = new ArrayList<TransientFadeConfigurationEntry>();
+        transientFadeConfigs.add(null);
+        zone.audioZoneConfigs.getFirst().fadeConfiguration.transientConfiguration =
+                transientFadeConfigs;
+        var audioDeviceConfig = new AudioDeviceConfiguration();
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var carAudioZone = audioZoneConverter.convertAudioZone(zone, audioDeviceConfig);
+
+        expectWithMessage("Converted primary zone with null transient fade config")
+                .that(carAudioZone).isNull();
+    }
+
     private void validateZoneConfigInfo(String zoneName, CarAudioZoneConfig carZoneConfig,
             AudioZoneConfig zoneConfig, int zoneId, boolean useCoreVolume,
             ArrayMap<String, Integer> carAudioContextMap) {
@@ -451,6 +535,7 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
     }
 
     private AudioControlZoneConverter setupAudioZoneConverter() {
-        return new AudioControlZoneConverter(mAudioManager, mCarAudioSettings, mServiceLog);
+        return new AudioControlZoneConverter(mAudioManager, mCarAudioSettings, mServiceLog,
+                mUseFadeManagerConfiguration);
     }
 }

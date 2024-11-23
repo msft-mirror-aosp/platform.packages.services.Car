@@ -3221,6 +3221,16 @@ public final class CarPropertyManagerUnitTest extends AbstractExpectableTestCase
     }
 
     @Test
+    public void testGetMinMaxSupportedValue_ServiceSpecificExceptionFromCarService()
+            throws Exception {
+        when(mICarProperty.getMinMaxSupportedValue(anyInt(), anyInt())).thenThrow(
+                new ServiceSpecificException(1));
+
+        assertThrows(CarInternalErrorException.class, () ->
+                mCarPropertyManager.getMinMaxSupportedValue(INT32_PROP, 0));
+    }
+
+    @Test
     public void testGetSupportedValuesList() throws Exception {
         List<RawPropertyValue> resultsFromCarService = new ArrayList<>();
         resultsFromCarService.add(new RawPropertyValue(0));
@@ -3263,6 +3273,16 @@ public final class CarPropertyManagerUnitTest extends AbstractExpectableTestCase
                 new SecurityException());
 
         assertThrows(SecurityException.class,
+                () -> mCarPropertyManager.getSupportedValuesList(INT32_PROP, 0));
+    }
+
+    @Test
+    public void testGetSupportedValuesList_ServiceSpecificExceptionFromCarService()
+            throws Exception {
+        when(mICarProperty.getSupportedValuesList(INT32_PROP, 0)).thenThrow(
+                new ServiceSpecificException(1));
+
+        assertThrows(CarInternalErrorException.class,
                 () -> mCarPropertyManager.getSupportedValuesList(INT32_PROP, 0));
     }
 
