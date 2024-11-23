@@ -35,16 +35,22 @@ import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MIRROR_TEST_DEVI
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NAVIGATION_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NOTIFICATION_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.OEM_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_FM_TUNER_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_MICROPHONE_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.QUATERNARY_TEST_DEVICE_1;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.RING_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_0;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_1_0;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_1_1;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_ZONE_BACK_MICROPHONE_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_ZONE_BUS_1000_INPUT_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SYSTEM_BUS_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TERTIARY_TEST_DEVICE_1;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TERTIARY_TEST_DEVICE_2;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TEST_REAR_ROW_3_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.VOICE_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.generateCarAudioDeviceInfo;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.generateInputAudioDeviceInfo;
 import static com.android.car.audio.CarAudioService.CAR_DEFAULT_AUDIO_ATTRIBUTE;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
@@ -54,7 +60,6 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import android.car.Car;
 import android.car.feature.Flags;
@@ -192,11 +197,6 @@ public final class CarAudioZonesHelperImplUnitTest extends AbstractExpectableTes
     private static final String SECONDARY_ZONE_CONFIG_NAME_1 = "secondary zone config 1";
     private static final String SECONDARY_ZONE_CONFIG_NAME_2 = "secondary zone config 2";
 
-    private static final String PRIMARY_ZONE_MICROPHONE_ADDRESS = "Built-In Mic";
-    private static final String PRIMARY_ZONE_FM_TUNER_ADDRESS = "fm_tuner";
-    private static final String SECONDARY_ZONE_BACK_MICROPHONE_ADDRESS = "Built-In Back Mic";
-    private static final String SECONDARY_ZONE_BUS_1000_INPUT_ADDRESS = "bus_1000_input";
-
     private static final int PRIMARY_ZONE_GROUP_ID_WITHOUT_ACTIVATION_VOLUME = 3;
     private static final int PRIMARY_ZONE_GROUP_0_ACTIVATION_VOLUME_TYPE =
             CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
@@ -283,33 +283,12 @@ public final class CarAudioZonesHelperImplUnitTest extends AbstractExpectableTes
 
     private AudioDeviceInfo[] generateInputDeviceInfos() {
         return new AudioDeviceInfo[]{
-                generateInputAudioDeviceInfo(PRIMARY_ZONE_MICROPHONE_ADDRESS, TYPE_BUILTIN_MIC),
-                generateInputAudioDeviceInfo(PRIMARY_ZONE_FM_TUNER_ADDRESS, TYPE_FM_TUNER),
-                generateInputAudioDeviceInfo(SECONDARY_ZONE_BACK_MICROPHONE_ADDRESS, TYPE_BUS),
-                generateInputAudioDeviceInfo(SECONDARY_ZONE_BUS_1000_INPUT_ADDRESS,
+                generateInputAudioDeviceInfo(PRIMARY_ZONE_MICROPHONE_DEVICE, TYPE_BUILTIN_MIC),
+                generateInputAudioDeviceInfo(PRIMARY_ZONE_FM_TUNER_DEVICE, TYPE_FM_TUNER),
+                generateInputAudioDeviceInfo(SECONDARY_ZONE_BACK_MICROPHONE_DEVICE, TYPE_BUS),
+                generateInputAudioDeviceInfo(SECONDARY_ZONE_BUS_1000_INPUT_DEVICE,
                         TYPE_BUILTIN_MIC)
         };
-    }
-
-    private CarAudioDeviceInfo generateCarAudioDeviceInfo(String address) {
-        CarAudioDeviceInfo cadiMock = mock(CarAudioDeviceInfo.class);
-        when(cadiMock.getStepValue()).thenReturn(1);
-        when(cadiMock.getDefaultGain()).thenReturn(2);
-        when(cadiMock.getMaxGain()).thenReturn(5);
-        when(cadiMock.getMinGain()).thenReturn(0);
-        when(cadiMock.getAddress()).thenReturn(address);
-        return cadiMock;
-    }
-
-    private AudioDeviceInfo generateInputAudioDeviceInfo(String address, int type) {
-        AudioDeviceInfo inputMock = mock(AudioDeviceInfo.class);
-        when(inputMock.getAddress()).thenReturn(address);
-        when(inputMock.getType()).thenReturn(type);
-        when(inputMock.isSource()).thenReturn(true);
-        when(inputMock.isSink()).thenReturn(false);
-        when(inputMock.getInternalType()).thenReturn(
-                AudioDeviceInfo.convertDeviceTypeToInternalInputDevice(type));
-        return inputMock;
     }
 
     @Test
@@ -925,8 +904,8 @@ public final class CarAudioZonesHelperImplUnitTest extends AbstractExpectableTes
             List<String> primaryZoneInputAddresses =
                     primaryZoneInputDevices.stream().map(a -> a.getAddress()).collect(
                             Collectors.toList());
-            assertThat(primaryZoneInputAddresses).containsExactly(PRIMARY_ZONE_FM_TUNER_ADDRESS,
-                    PRIMARY_ZONE_MICROPHONE_ADDRESS).inOrder();
+            assertThat(primaryZoneInputAddresses).containsExactly(PRIMARY_ZONE_FM_TUNER_DEVICE,
+                    PRIMARY_ZONE_MICROPHONE_DEVICE).inOrder();
 
             CarAudioZone secondaryZone = zones.get(SECONDARY_ZONE_ID);
             List<AudioDeviceAttributes> secondaryZoneInputDevices =
@@ -935,8 +914,8 @@ public final class CarAudioZonesHelperImplUnitTest extends AbstractExpectableTes
                     secondaryZoneInputDevices.stream().map(a -> a.getAddress()).collect(
                             Collectors.toList());
             assertThat(secondaryZoneInputAddresses).containsExactly(
-                    SECONDARY_ZONE_BUS_1000_INPUT_ADDRESS,
-                    SECONDARY_ZONE_BACK_MICROPHONE_ADDRESS).inOrder();
+                    SECONDARY_ZONE_BUS_1000_INPUT_DEVICE,
+                    SECONDARY_ZONE_BACK_MICROPHONE_DEVICE).inOrder();
         }
     }
 

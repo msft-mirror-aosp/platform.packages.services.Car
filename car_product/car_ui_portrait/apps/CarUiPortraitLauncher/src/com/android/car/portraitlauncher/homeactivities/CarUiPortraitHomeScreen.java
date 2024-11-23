@@ -583,7 +583,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         mCarUiPortraitDriveStateController = new CarUiPortraitDriveStateController(
                 getApplicationContext());
         IntentHandler mediaIntentHandler = new ControlBarIntentHandler(
-                TaskCategoryManager::isMediaApp, ON_MEDIA_INTENT);
+                mTaskCategoryManager::isMediaApp, ON_MEDIA_INTENT);
         IntentHandler inCallIntentHandler = new ControlBarIntentHandler(
                 mTaskCategoryManager::isInCallActivity, ON_INCALL_INTENT);
         MediaIntentRouter.getInstance().registerMediaIntentHandler(mediaIntentHandler);

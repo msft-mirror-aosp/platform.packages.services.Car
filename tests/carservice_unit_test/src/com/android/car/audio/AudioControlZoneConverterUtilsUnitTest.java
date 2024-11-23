@@ -19,11 +19,16 @@ package com.android.car.audio;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_BOOT;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_PLAYBACK_CHANGED;
 import static android.hardware.automotive.audiocontrol.VolumeInvocationType.ON_SOURCE_CHANGED;
+import static android.media.audio.common.AudioUsage.EMERGENCY;
 import static android.media.audio.common.AudioUsage.MEDIA;
+import static android.media.audio.common.AudioUsage.SAFETY;
+import static android.media.audio.common.AudioUsage.VEHICLE_STATUS;
 
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioContextEntry;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioDevicePort;
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioFadeConfiguration;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertCarAudioContext;
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertTransientFadeConfiguration;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertVolumeGroupConfig;
 import static com.android.car.audio.AudioControlZoneConverterUtils.verifyVolumeGroupName;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
@@ -39,17 +44,25 @@ import static com.android.car.audio.CarAudioTestUtils.RING_CONTEXT;
 import static com.android.car.audio.CarAudioTestUtils.RING_CONTEXT_ID;
 import static com.android.car.audio.CarAudioTestUtils.TEST_ACTIVATION;
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
+import static com.android.car.audio.CarAudioTestUtils.TEST_EMERGENCY_ATTRIBUTE;
+import static com.android.car.audio.CarAudioTestUtils.TEST_FADE_CONFIGURATION_NAME;
 import static com.android.car.audio.CarAudioTestUtils.TEST_MAX_ACTIVATION;
 import static com.android.car.audio.CarAudioTestUtils.TEST_MIN_ACTIVATION;
+import static com.android.car.audio.CarAudioTestUtils.TEST_SAFETY_ATTRIBUTE;
+import static com.android.car.audio.CarAudioTestUtils.TEST_VEHICLE_ATTRIBUTE;
 import static com.android.car.audio.CarAudioTestUtils.VOICE_COMMAND_CONTEXT;
 import static com.android.car.audio.CarAudioTestUtils.VOICE_COMMAND_CONTEXT_ID;
 import static com.android.car.audio.CarAudioTestUtils.createAudioPort;
 import static com.android.car.audio.CarAudioTestUtils.createAudioPortDeviceExt;
 import static com.android.car.audio.CarAudioTestUtils.createBusAudioPort;
 import static com.android.car.audio.CarAudioTestUtils.createDeviceToContextEntry;
+import static com.android.car.audio.CarAudioTestUtils.createHALAudioAttribute;
 import static com.android.car.audio.CarAudioTestUtils.createHALAudioContext;
+import static com.android.car.audio.CarAudioTestUtils.createMediaAudioAttributes;
+import static com.android.car.audio.CarAudioTestUtils.createTestFadeConfiguration;
 import static com.android.car.audio.CarAudioTestUtils.createVolumeActivationConfiguration;
 import static com.android.car.audio.CarAudioTestUtils.createVolumeGroupConfig;
+import static com.android.car.audio.CarAudioTestUtils.getTestCarFadeConfiguration;
 import static com.android.car.audio.CarAudioUtils.DEFAULT_ACTIVATION_VOLUME;
 import static com.android.car.audio.CoreAudioRoutingUtils.createCoreHALAudioContext;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
@@ -62,23 +75,23 @@ import static org.mockito.Mockito.verify;
 
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.AudioFadeConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZoneContext;
 import android.hardware.automotive.audiocontrol.AudioZoneContextInfo;
 import android.hardware.automotive.audiocontrol.DeviceToContextEntry;
+import android.hardware.automotive.audiocontrol.FadeState;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.TransientFadeConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioDeviceInfo;
-import android.media.MediaRecorder;
+import android.media.FadeManagerConfiguration;
 import android.media.audio.common.AudioAttributes;
-import android.media.audio.common.AudioContentType;
 import android.media.audio.common.AudioDeviceDescription;
 import android.media.audio.common.AudioDeviceType;
-import android.media.audio.common.AudioFlag;
 import android.media.audio.common.AudioPort;
 import android.media.audio.common.AudioPortDeviceExt;
 import android.media.audio.common.AudioPortExt;
-import android.media.audio.common.AudioSource;
 import android.media.audio.common.AudioUsage;
 import android.util.ArrayMap;
 
@@ -111,9 +124,6 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
                     TEST_MIN_ACTIVATION, TEST_MAX_ACTIVATION);
     private static final int INVALID_MIN_ACTIVATION = -1;
     private static final int INVALID_MAX_ACTIVATION = 101;
-
-    private static final int TEST_FLAGS = AudioFlag.AUDIBILITY_ENFORCED;
-    private static final String[] TEST_TAGS =  {"OEM_NAV", "OEM_ASSISTANT"};
 
     private static final int PORT_ID_MEDIA = 10;
     private static final String PORT_MEDIA_NAME = "media_bus";
@@ -748,6 +758,134 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
                 .that(message).contains("could not parse audio context entry");
     }
 
+    @Test
+    public void convertAudioFadeConfiguration_withNullConfiguration() {
+        AudioFadeConfiguration configuration = null;
+
+        var thrown = assertThrows(NullPointerException.class,
+                () -> convertAudioFadeConfiguration(configuration));
+
+        expectWithMessage("Convert audio fade configuration exception").that(thrown)
+                .hasMessageThat().contains("Audio fade configuration");
+    }
+
+    @Test
+    public void convertAudioFadeConfiguration_withEnabledConfig() {
+        AudioFadeConfiguration configuration = createTestFadeConfiguration();
+
+        var carFadeConfiguration = convertAudioFadeConfiguration(configuration);
+
+        expectWithMessage("Converted enabled fade configuration name")
+                .that(carFadeConfiguration.getName()).isEqualTo(TEST_FADE_CONFIGURATION_NAME);
+        var fadeConfiguration = carFadeConfiguration.getFadeManagerConfiguration();
+        expectWithMessage("Converted enabled fade configuration").that(fadeConfiguration)
+                .isEqualTo(getTestCarFadeConfiguration().getFadeManagerConfiguration());
+    }
+
+    @Test
+    public void convertAudioFadeConfiguration_withDisabledConfig() {
+        AudioFadeConfiguration configuration = new AudioFadeConfiguration();
+        configuration.fadeState = FadeState.FADE_STATE_DISABLED;
+
+        var carFadeConfiguration = convertAudioFadeConfiguration(configuration);
+
+        expectWithMessage("Converted disabled fade configuration name")
+                .that(carFadeConfiguration.getName()).contains("FADE_STATE_DISABLED");
+        var fadeManagerConfiguration = new FadeManagerConfiguration.Builder().setFadeState(
+                        FadeManagerConfiguration.FADE_STATE_DISABLED).build();
+        expectWithMessage("Converted disabled fade manager configuration")
+                .that(carFadeConfiguration.getFadeManagerConfiguration())
+                .isEqualTo(fadeManagerConfiguration);
+    }
+
+    @Test
+    public void convertTransientFadeConfiguration_withNullTransientEntry() {
+        TransientFadeConfigurationEntry entry = null;
+
+        var thrown = assertThrows(NullPointerException.class,
+                () -> convertTransientFadeConfiguration(entry));
+
+        expectWithMessage("Convert transient fade configuration exception for null entry")
+                .that(thrown).hasMessageThat().contains("Transient fade configuration");
+    }
+
+    @Test
+    public void convertTransientFadeConfiguration_withNullFadeConfigInTransientEntry() {
+        var entry = new TransientFadeConfigurationEntry();
+        entry.transientUsages = new int[] {EMERGENCY};
+
+        var thrown = assertThrows(NullPointerException.class,
+                () -> convertTransientFadeConfiguration(entry));
+
+        expectWithMessage("Convert transient fade configuration exception for null fade config")
+                .that(thrown).hasMessageThat().contains("Fade configuration in transient");
+    }
+
+    @Test
+    public void convertTransientFadeConfiguration_withNullUsagesInTransientEntry() {
+        var entry = new TransientFadeConfigurationEntry();
+        entry.transientFadeConfiguration = new AudioFadeConfiguration();
+
+        var thrown = assertThrows(NullPointerException.class,
+                () -> convertTransientFadeConfiguration(entry));
+
+        expectWithMessage("Convert transient fade configuration exception for null usages")
+                .that(thrown).hasMessageThat().contains("Audio attribute usages in transient");
+    }
+
+    @Test
+    public void convertTransientFadeConfiguration_withEmptyUsagesInTransientEntry() {
+        var entry = new TransientFadeConfigurationEntry();
+        entry.transientFadeConfiguration = new AudioFadeConfiguration();
+        entry.transientUsages = new int[0];
+
+        var thrown = assertThrows(IllegalArgumentException.class,
+                () -> convertTransientFadeConfiguration(entry));
+
+        expectWithMessage("Convert transient fade configuration exception for empty usages")
+                .that(thrown).hasMessageThat().contains("Audio attribute usages in transient");
+    }
+
+    @Test
+    public void convertTransientFadeConfiguration_withEnableConfigurationInEntry() {
+        var entry = new TransientFadeConfigurationEntry();
+        entry.transientFadeConfiguration = createTestFadeConfiguration();
+        entry.transientUsages = new int[]{EMERGENCY};
+
+        var transientConfig = convertTransientFadeConfiguration(entry);
+
+        expectWithMessage("Converted transient fade configuration with enabled configuration")
+                .that(transientConfig.getCarAudioFadeConfiguration())
+                .isEqualTo(getTestCarFadeConfiguration());
+        expectWithMessage("Converter transient audio attributes with enabled configuration")
+                .that(transientConfig.getAudioAttributes())
+                .containsExactly(TEST_EMERGENCY_ATTRIBUTE);
+    }
+
+    @Test
+    public void convertTransientFadeConfiguration_withDisabledConfigurationInEntry() {
+        AudioFadeConfiguration configuration = new AudioFadeConfiguration();
+        var entry = new TransientFadeConfigurationEntry();
+        entry.transientUsages = new int[]{EMERGENCY, SAFETY, VEHICLE_STATUS};
+
+        configuration.fadeState = FadeState.FADE_STATE_DISABLED;
+        entry.transientFadeConfiguration = configuration;
+
+        var transientConfig = convertTransientFadeConfiguration(entry);
+
+        var carFadeConfiguration = transientConfig.getCarAudioFadeConfiguration();
+        expectWithMessage("Converted disabled fade configuration name in transient "
+                + "fade configuration")
+                .that(carFadeConfiguration.getName()).contains("FADE_STATE_DISABLED");
+        expectWithMessage("Converted disabled fade configuration state in transient fade "
+                + "configuration")
+                .that(carFadeConfiguration.getFadeManagerConfiguration().getFadeState())
+                .isEqualTo(FadeManagerConfiguration.FADE_STATE_DISABLED);
+        expectWithMessage("Converter transient audio attributes with disabled configuration")
+                .that(transientConfig.getAudioAttributes()).containsExactly(
+                        TEST_EMERGENCY_ATTRIBUTE, TEST_SAFETY_ATTRIBUTE, TEST_VEHICLE_ATTRIBUTE);
+    }
+
     private VolumeGroupConfig createMediaVolumeGroupConfiguration() {
         var contextEntries = new ArrayList<DeviceToContextEntry>(1);
         var audioPort = createBusAudioPort(PORT_MEDIA_ADDRESS, PORT_ID_MEDIA, PORT_MEDIA_NAME);
@@ -784,31 +922,5 @@ public class AudioControlZoneConverterUtilsUnitTest extends AbstractExtendedMock
             contextNameToId.put(info.name, info.id);
         }
         return contextNameToId;
-    }
-
-    private AudioAttributes createHALAudioAttribute(int usage) {
-        AudioAttributes attributes = new AudioAttributes();
-        attributes.usage = usage;
-        attributes.flags = TEST_FLAGS;
-        attributes.tags = TEST_TAGS;
-        attributes.contentType = AudioContentType.MOVIE;
-        attributes.source = AudioSource.CAMCORDER;
-        return attributes;
-    }
-
-    private android.media.AudioAttributes createMediaAudioAttributes(int usage) {
-        android.media.AudioAttributes.Builder builder = new android.media.AudioAttributes.Builder()
-                .setFlags(TEST_FLAGS)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE)
-                .setCapturePreset(MediaRecorder.AudioSource.CAMCORDER);
-        if (android.media.AudioAttributes.isSystemUsage(usage)) {
-            builder.setSystemUsage(usage);
-        } else {
-            builder.setUsage(usage);
-        }
-        for (String tag : TEST_TAGS) {
-            builder.addTag(tag);
-        }
-        return builder.build();
     }
 }
