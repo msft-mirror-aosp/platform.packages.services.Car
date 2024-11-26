@@ -2915,7 +2915,8 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         when(mVehicleHal.getMinMaxSupportedValue(PERF_VEHICLE_SPEED, areaId)).thenReturn(
                 minMaxSupportedRawPropValues);
 
-        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId)
+                .setHasMinSupportedValue(true).setHasMaxSupportedValue(true).build();
 
         var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
                 PERF_VEHICLE_SPEED, areaId, areaIdConfig);
@@ -2953,7 +2954,8 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         when(mVehicleHal.getMinMaxSupportedValue(PERF_VEHICLE_SPEED, areaId)).thenReturn(
                 minMaxSupportedRawPropValues);
 
-        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId)
+                .setHasMinSupportedValue(true).build();
 
         var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
                 PERF_VEHICLE_SPEED, areaId, areaIdConfig);
@@ -2977,7 +2979,8 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         when(mVehicleHal.getMinMaxSupportedValue(PERF_VEHICLE_SPEED, areaId)).thenReturn(
                 minMaxSupportedRawPropValues);
 
-        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId)
+                .setHasMaxSupportedValue(true).build();
 
         var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
                 PERF_VEHICLE_SPEED, areaId, areaIdConfig);
@@ -2986,6 +2989,22 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 .isNull();
         expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class)
                 .getTypedValue()).isEqualTo(maxValue);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_notSpecified() {
+        when(mVehicleHal.isSupportedValuesImplemented()).thenReturn(true);
+        int areaId = 0;
+
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                PERF_VEHICLE_SPEED, areaId, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class))
+                .isNull();
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class))
+                .isNull();
     }
 
     @Test
@@ -3032,7 +3051,8 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         when(mVehicleHal.getSupportedValuesList(PERF_VEHICLE_SPEED, areaId)).thenReturn(
                 List.of(rawPropValues1, rawPropValues2));
 
-        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId).build();
+        var areaIdConfig = new AreaIdConfig.Builder(PERF_VEHICLE_SPEED, areaId)
+                .setHasSupportedValuesList(true).build();
 
         var supportedValuesList = mPropertyHalService.getSupportedValuesList(
                 PERF_VEHICLE_SPEED, areaId, areaIdConfig);

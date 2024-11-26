@@ -1180,7 +1180,7 @@ public class PropertyHalService extends HalServiceBase {
             throw new ServiceSpecificException(STATUS_INTERNAL_ERROR,
                     "Cannot convert halPropValue to carPropertyValue, property: "
                     + VehiclePropertyIds.toString(mgrPropId) + " areaId: "
-                    + toAreaIdString(mgrPropId, areaId)
+                    + toAreaIdString(halPropId, areaId)
                     + ", exception: " + e);
         }
     }
@@ -1401,46 +1401,53 @@ public class PropertyHalService extends HalServiceBase {
             }
         }
 
+        if (!areaIdConfig.hasMinSupportedValue() && !areaIdConfig.hasMaxSupportedValue()) {
+            Slogf.d(TAG, "No specified supported min/max for property: "
+                    + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                    + toAreaIdString(halPropId, areaId));
+            return new MinMaxSupportedPropertyValue();
+        }
+
         var returnValue = new MinMaxSupportedPropertyValue();
         if (mVehicleHal.isSupportedValuesImplemented()) {
             MinMaxSupportedRawPropValues minMaxRawPropValues =
                     mVehicleHal.getMinMaxSupportedValue(halPropId, areaId);
-            if (minMaxRawPropValues.minValue() != null) {
+            if (areaIdConfig.hasMinSupportedValue() && minMaxRawPropValues.minValue() != null) {
                 returnValue.minValue.setParcelable(HalPropValue.toRawPropertyValue(
                         halPropId, areaId, mgrPropId, minMaxRawPropValues.minValue(),
                         halPropConfig));
             } else {
                 Slogf.d(TAG, "No specified min supported value for property: "
                         + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
-                        + toAreaIdString(mgrPropId, areaId));
+                        + toAreaIdString(halPropId, areaId));
             }
-            if (minMaxRawPropValues.maxValue() != null) {
+            if (areaIdConfig.hasMaxSupportedValue() && minMaxRawPropValues.maxValue() != null) {
                 returnValue.maxValue.setParcelable(HalPropValue.toRawPropertyValue(
                         halPropId, areaId, mgrPropId, minMaxRawPropValues.maxValue(),
                         halPropConfig));
             } else {
                 Slogf.d(TAG, "No specified max supported value for property: "
                         + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
-                        + toAreaIdString(mgrPropId, areaId));
+                        + toAreaIdString(halPropId, areaId));
             }
             return returnValue;
         } else {
             // If VHAL does not support value range, we use areaIdConfig.
-            if (areaIdConfig.getMaxValue() != null) {
-                returnValue.maxValue.setParcelable(new RawPropertyValue(
-                        areaIdConfig.getMaxValue()));
-            } else {
-                Slogf.d(TAG, "No specified max supported value for property: "
-                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
-                        + toAreaIdString(mgrPropId, areaId));
-            }
-            if (areaIdConfig.getMinValue() != null) {
+            if (areaIdConfig.hasMinSupportedValue() && areaIdConfig.getMinValue() != null) {
                 returnValue.minValue.setParcelable(new RawPropertyValue(
                         areaIdConfig.getMinValue()));
             } else {
                 Slogf.d(TAG, "No specified min supported value for property: "
                         + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
-                        + toAreaIdString(mgrPropId, areaId));
+                        + toAreaIdString(halPropId, areaId));
+            }
+            if (areaIdConfig.hasMaxSupportedValue() && areaIdConfig.getMaxValue() != null) {
+                returnValue.maxValue.setParcelable(new RawPropertyValue(
+                        areaIdConfig.getMaxValue()));
+            } else {
+                Slogf.d(TAG, "No specified max supported value for property: "
+                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                        + toAreaIdString(halPropId, areaId));
             }
             return returnValue;
         }
@@ -1469,13 +1476,20 @@ public class PropertyHalService extends HalServiceBase {
                     + VehiclePropertyIds.toString(mgrPropId) + " is not supported");
         }
 
+        if (!areaIdConfig.hasSupportedValuesList()) {
+            Slogf.d(TAG, "No specified supported values list for property: "
+                    + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                    + toAreaIdString(halPropId, areaId));
+            return null;
+        }
+
         if (mVehicleHal.isSupportedValuesImplemented()) {
             List<RawPropValues> supportedRawPropValues = mVehicleHal.getSupportedValuesList(
                     halPropId, areaId);
             if (supportedRawPropValues == null) {
                 Slogf.d(TAG, "No specified supported values list for property: "
                         + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
-                        + toAreaIdString(mgrPropId, areaId));
+                        + toAreaIdString(halPropId, areaId));
                 return null;
             }
 
@@ -1491,12 +1505,6 @@ public class PropertyHalService extends HalServiceBase {
             return supportedValuesList;
         } else {
             // If VHAL does not support value range, we use areaIdConfig.
-            if (!areaIdConfig.hasSupportedValuesList()) {
-                Slogf.d(TAG, "No specified supported values list for property: "
-                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
-                        + toAreaIdString(mgrPropId, areaId));
-                return null;
-            }
             List<RawPropertyValue> returnValues = new ArrayList<>();
             var supportedEnumValues = areaIdConfig.getSupportedEnumValues();
             for (int i = 0; i < supportedEnumValues.size(); i++) {
