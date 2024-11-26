@@ -1785,7 +1785,7 @@
         </activity>
 
         <activity
-            android:name="com.android.settings.PowerUsageAdvancedActivity"
+            android:name="com.android.settings.Settings$PowerUsageAdvancedActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2981,11 +2981,30 @@
        </activity>
 
         <activity
+            android:name="com.android.settings.Settings$ContactsStorageSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            android:featureFlag="android.provider.new_default_account_api_enabled"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.spa.search.SpaSearchLandingActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
             tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ChangeNfcTagAppsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
             <intent-filter tools:node="removeAll"/>
         </activity>
 
