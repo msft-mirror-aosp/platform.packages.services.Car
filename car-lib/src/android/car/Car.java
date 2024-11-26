@@ -633,28 +633,27 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_ENERGY_PORTS";
 
     /**
-     * Permission necessary to read car's exterior lights information.
-     *  @hide
+     * Signature|Privileged permission necessary to read car's exterior lights information.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_EXTERIOR_LIGHTS =
             "android.car.permission.CAR_EXTERIOR_LIGHTS";
 
     /**
-     * Permission necessary to read car's interior lights information.
+     * Signature|Privileged permission necessary to read car's interior lights information.
      */
     public static final String PERMISSION_READ_INTERIOR_LIGHTS =
             "android.car.permission.READ_CAR_INTERIOR_LIGHTS";
 
-    /** Permission necessary to control car's exterior lights.
-     *  @hide
+    /**
+     * Signature|Privileged permission necessary to control car's exterior lights.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_EXTERIOR_LIGHTS =
             "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS";
 
     /**
-     * Permission necessary to control car's interior lights.
+     * Signature|Privileged permission necessary to control car's interior lights.
      */
     public static final String PERMISSION_CONTROL_INTERIOR_LIGHTS =
             "android.car.permission.CONTROL_CAR_INTERIOR_LIGHTS";
