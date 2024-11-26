@@ -571,32 +571,39 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_READ_DRIVER_MONITORING_STATES =
             "android.car.permission.READ_DRIVER_MONITORING_STATES";
 
-    /** Permission necessary to access car's mileage information.
-     *  @hide
+    /**
+     * Signature|Privileged permission necessary to access car's mileage information.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_MILEAGE = "android.car.permission.CAR_MILEAGE";
 
-    /** Permission necessary to access car's energy information. */
+    /**
+     * Dangerous permission necessary to access car's energy information.
+     */
     public static final String PERMISSION_ENERGY = "android.car.permission.CAR_ENERGY";
 
-    /** Permission necessary to control car's EV charge settings. */
+    /**
+     * Signature|Privileged permission necessary to control car's EV charge settings.
+     */
     public static final String PERMISSION_CONTROL_CAR_ENERGY =
             "android.car.permission.CONTROL_CAR_ENERGY";
 
     /**
-     * Permission necessary to change value of car's range remaining.
-     * @hide
+     * Signature|Privileged permission necessary to change value of car's range remaining.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_ADJUST_RANGE_REMAINING =
             "android.car.permission.ADJUST_RANGE_REMAINING";
 
-    /** Permission necessary to access car's VIN information */
+    /**
+     * Signature|Privileged permission necessary to access car's VIN information
+     */
     public static final String PERMISSION_IDENTIFICATION =
             "android.car.permission.CAR_IDENTIFICATION";
 
-    /** Permission necessary to access car's speed. */
+    /**
+     * Dangerous permission necessary to access car's speed.
+     */
     public static final String PERMISSION_SPEED = "android.car.permission.CAR_SPEED";
 
     /**

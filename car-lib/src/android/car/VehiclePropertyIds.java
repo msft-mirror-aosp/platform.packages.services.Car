@@ -91,7 +91,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CAR_IDENTIFICATION" to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_IDENTIFICATION} to read
      *  property.
      *  <li>Property is not writable.
      * </ul>
@@ -410,7 +410,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CAR_MILEAGE" to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_MILEAGE} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
@@ -907,8 +907,8 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Dangerous permission {@link Car#PERMISSION_ENERGY} or Signature|Privileged permission
-     *  "android.car.permission.ADJUST_RANGE_REMAINING" to read property.
-     *  <li>Signature|Privileged permission "android.car.permission.ADJUST_RANGE_REMAINING" to write
+     *  {@link Car#PERMISSION_ADJUST_RANGE_REMAINING} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_ADJUST_RANGE_REMAINING} to write
      *  property.
      * </ul>
      */
@@ -5618,8 +5618,8 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Dangerous permission {@link Car#PERMISSION_ENERGY} or Signature|Privileged permission
-     *  "android.car.permission.CONTROL_CAR_ENERGY" to read property.
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_ENERGY" to write
+     *  {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to write
      *  property.
      * </ul>
      */
@@ -5655,8 +5655,8 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Dangerous permission {@link Car#PERMISSION_ENERGY} or Signature|Privileged permission
-     *  "android.car.permission.CONTROL_CAR_ENERGY" to read property.
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_ENERGY" to write
+     *  {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to write
      *  property.
      * </ul>
      */
@@ -5711,9 +5711,9 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_ENERGY" or
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} or
      *  dangerous permission {@link Car#PERMISSION_ENERGY} to read.
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_ENERGY" to write
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_ENERGY} to write
      *  property.
      * </ul>
      */
