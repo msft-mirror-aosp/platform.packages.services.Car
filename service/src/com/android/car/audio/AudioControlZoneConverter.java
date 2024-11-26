@@ -16,6 +16,7 @@
 
 package com.android.car.audio;
 
+import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioDevicePort;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertAudioFadeConfiguration;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertCarAudioContext;
 import static com.android.car.audio.AudioControlZoneConverterUtils.convertTransientFadeConfiguration;
@@ -34,11 +35,15 @@ import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.media.audio.common.AudioPort;
 import android.util.ArrayMap;
 
 import com.android.car.internal.util.LocalLog;
 import com.android.internal.util.Preconditions;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -115,6 +120,26 @@ final class AudioControlZoneConverter {
             nextConfigId++;
         }
         return carAudioZone;
+    }
+
+    List<CarAudioDeviceInfo> convertZonesMirroringAudioPorts(List<AudioPort> mirroringPorts) {
+        if (mirroringPorts == null) {
+            return Collections.EMPTY_LIST;
+        }
+        var mirroringDevices = new ArrayList<CarAudioDeviceInfo>();
+        for (int c = 0; c < mirroringPorts.size(); c++) {
+            var port = mirroringPorts.get(c);
+            var info = convertAudioDevicePort(port, mAudioManager, mAddressToCarAudioDeviceInfo);
+            if (info != null) {
+                mirroringDevices.add(info);
+                continue;
+            }
+            String message = "Could not convert mirroring devices with audio port " + port;
+            Slogf.e(TAG, message);
+            mCarServiceLocalLog.log(message);
+            return Collections.EMPTY_LIST;
+        }
+        return mirroringDevices;
     }
 
     private boolean convertAudioZoneConfig(CarAudioZoneConfig.Builder builder,
