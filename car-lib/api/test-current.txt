@@ -66,7 +66,6 @@ package android.car {
     field public static final String PERMISSION_CONTROL_CAR_POWER_POLICY = "android.car.permission.CONTROL_CAR_POWER_POLICY";
     field public static final String PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG = "android.car.permission.CONTROL_CAR_WATCHDOG_CONFIG";
     field public static final String PERMISSION_CONTROL_CAR_WINDOWS = "android.car.permission.CONTROL_CAR_WINDOWS";
-    field public static final String PERMISSION_CONTROL_ENERGY_PORTS = "android.car.permission.CONTROL_CAR_ENERGY_PORTS";
     field public static final String PERMISSION_CONTROL_EXTERIOR_LIGHTS = "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS";
     field public static final String PERMISSION_CONTROL_POWERTRAIN = "android.car.permission.CONTROL_CAR_POWERTRAIN";
     field public static final String PERMISSION_CONTROL_REMOTE_ACCESS = "android.car.permission.CONTROL_REMOTE_ACCESS";

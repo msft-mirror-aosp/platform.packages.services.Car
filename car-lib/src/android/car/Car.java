@@ -620,14 +620,15 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_CONTROL_CAR_DYNAMICS_STATE =
             "android.car.permission.CONTROL_CAR_DYNAMICS_STATE";
 
-    /** Permission necessary to access car's fuel door and ev charge port. */
+    /**
+     * Normal permission necessary to access car's fuel door and ev charge port.
+     */
     public static final String PERMISSION_ENERGY_PORTS = "android.car.permission.CAR_ENERGY_PORTS";
 
     /**
-     * Permission necessary to control car's fuel door and ev charge port.
-     * @hide
+     * Signature|Privileged permission necessary to control car's fuel door and ev charge port.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_ENERGY_PORTS =
             "android.car.permission.CONTROL_CAR_ENERGY_PORTS";
 
