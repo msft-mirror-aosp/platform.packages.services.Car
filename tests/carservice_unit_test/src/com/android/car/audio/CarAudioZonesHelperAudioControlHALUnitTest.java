@@ -21,6 +21,7 @@ import static android.media.AudioManager.GET_DEVICES_INPUTS;
 import static android.media.AudioManager.GET_DEVICES_OUTPUTS;
 
 import static com.android.car.audio.CarAudioTestUtils.SECONDARY_ZONE_ID;
+import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
 import static com.android.car.audio.CarAudioTestUtils.createPrimaryAudioZone;
 import static com.android.car.audio.CarAudioTestUtils.createSecondaryAudioZone;
 import static com.android.car.audio.CoreAudioRoutingUtils.getCoreAudioZone;
@@ -337,7 +338,237 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
 
         expectWithMessage("Loaded audio zones to occupant zone mapping with load zones failure")
                 .that(audioZoneIdToOccupantZoneId.size()).isEqualTo(0);
+    }
 
+    @Test
+    public void getCarAudioContext_withPrimaryZoneFromHal() {
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        var carAudioContext = helper.getCarAudioContext();
+
+        expectWithMessage("Loaded car audio context with primary zone")
+                .that(carAudioContext).isEqualTo(TEST_CREATED_CAR_AUDIO_CONTEXT);
+    }
+
+    @Test
+    public void getCarAudioContext_withoutPrimaryZoneFromHal() {
+        mHALAudioZones.add(createSecondaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        var carAudioContext = helper.getCarAudioContext();
+
+        expectWithMessage("Loaded car audio context without primary zone")
+                .that(carAudioContext).isNull();
+    }
+
+    @Test
+    public void getCarAudioContext_withoutCallingLoadZonesFirst() {
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        var carAudioContext = helper.getCarAudioContext();
+
+        expectWithMessage("Loaded car audio context without initializing helper")
+                .that(carAudioContext).isNull();
+    }
+
+    @Test
+    public void useCoreAudioRouting_withoutCallingLoadZonesFirst() {
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        expectWithMessage("Loaded car audio routing without initializing helper")
+                .that(helper.useCoreAudioRouting()).isFalse();
+    }
+
+    @Test
+    public void useCoreAudioRouting_withUseDynamicRoutingFromHal() {
+        mAudioDeviceConfig.routingConfig = RoutingDeviceConfiguration.DYNAMIC_AUDIO_ROUTING;
+        mHALAudioZones.add(createSecondaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio routing with dynamic audio routing")
+                .that(helper.useCoreAudioRouting()).isFalse();
+    }
+
+    @Test
+    public void useCoreAudioRouting_withCoreAudioRoutingFromHal() {
+        mHALAudioZones.add(getCoreAudioZone());
+        mAudioDeviceConfig.routingConfig =
+                RoutingDeviceConfiguration.CONFIGURABLE_AUDIO_ENGINE_ROUTING;
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio routing with core audio routing")
+                .that(helper.useCoreAudioRouting()).isTrue();
+    }
+
+    @Test
+    public void useCoreAudioRouting_withCoreAudioRoutingFromHalAndLoadFailure() {
+        mHALAudioZones.add(createSecondaryAudioZone());
+        mAudioDeviceConfig.routingConfig =
+                RoutingDeviceConfiguration.CONFIGURABLE_AUDIO_ENGINE_ROUTING;
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio routing with core audio routing and load failure")
+                .that(helper.useCoreAudioRouting()).isFalse();
+    }
+
+    @Test
+    public void useCoreAudioVolume_withoutCallingLoadZonesFirst() {
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        expectWithMessage("Loaded car audio volume without initializing helper")
+                .that(helper.useCoreAudioVolume()).isFalse();
+    }
+
+    @Test
+    public void useCoreAudioVolume_withoutUseCoreVolumeFromHal() {
+        mAudioDeviceConfig.useCoreAudioVolume = false;
+        mHALAudioZones.add(createSecondaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio volume without use core volume")
+                .that(helper.useCoreAudioVolume()).isFalse();
+    }
+
+    @Test
+    public void useCoreAudioVolume_withUseCoreVolumeFromHal() {
+        mAudioDeviceConfig.useCoreAudioVolume = true;
+        mHALAudioZones.add(getCoreAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio volume with use core volume")
+                .that(helper.useCoreAudioVolume()).isTrue();
+    }
+
+    @Test
+    public void useCoreAudioVolume_withUseCoreVolumeFromHalAndLoadFailure() {
+        mAudioDeviceConfig.useCoreAudioVolume = true;
+        mHALAudioZones.add(createSecondaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio volume with use core volume and load failure")
+                .that(helper.useCoreAudioVolume()).isFalse();
+    }
+
+    @Test
+    public void useVolumeGroupMuting_withoutCallingLoadZonesFirst() {
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        expectWithMessage("Loaded car audio volume muting without initializing helper")
+                .that(helper.useVolumeGroupMuting()).isFalse();
+    }
+
+    @Test
+    public void useVolumeGroupMuting_withoutUseVolumeGroupMutingFromHal() {
+        mAudioDeviceConfig.useCarVolumeGroupMuting = false;
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio volume muting without use volume muting")
+                .that(helper.useVolumeGroupMuting()).isFalse();
+    }
+
+    @Test
+    public void useVolumeGroupMuting_withUseVolumeGroupMutingFromHal() {
+        mAudioDeviceConfig.useCarVolumeGroupMuting = true;
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio volume muting with use volume muting")
+                .that(helper.useVolumeGroupMuting()).isTrue();
+    }
+
+    @Test
+    public void useVolumeGroupMuting_withUseVolumeGroupMutingFromHalAndLoadFailure() {
+        mAudioDeviceConfig.useCarVolumeGroupMuting = true;
+        mHALAudioZones.add(createSecondaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        expectWithMessage("Loaded car audio volume muting with use volume muting and load failure")
+                .that(helper.useVolumeGroupMuting()).isFalse();
+    }
+
+    @Test
+    public void useHalDuckingSignalOrDefault_withoutCallingLoadZonesFirst() {
+        mAudioDeviceConfig.useHalDuckingSignals = true;
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        boolean useHalDucking = helper.useHalDuckingSignalOrDefault(
+                /* unusedDefaultUseHalDuckingSignal= */ true);
+
+        expectWithMessage("Loaded HAL ducking without initializing helper").that(useHalDucking)
+                .isFalse();
+    }
+
+    @Test
+    public void useHalDuckingSignalOrDefault_withoutUseHalDuckingFromHal() {
+        mAudioDeviceConfig.useHalDuckingSignals = false;
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        boolean useHalDucking = helper.useHalDuckingSignalOrDefault(
+                /* unusedDefaultUseHalDuckingSignal= */ true);
+
+        expectWithMessage("Loaded HAL ducking without use HAL ducking").that(useHalDucking)
+                .isFalse();
+    }
+
+    @Test
+    public void useHalDuckingSignalOrDefault_withUseHalDuckingFromHal() {
+        mAudioDeviceConfig.useHalDuckingSignals = true;
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        boolean useHalDucking = helper.useHalDuckingSignalOrDefault(
+                /* unusedDefaultUseHalDuckingSignal= */ true);
+
+        expectWithMessage("Loaded HAL ducking with use HAL ducking").that(useHalDucking).isTrue();
+    }
+
+    @Test
+    public void useHalDuckingSignalOrDefault_withUseHalDuckingFromHalAndOverwriteFromParameter() {
+        mAudioDeviceConfig.useHalDuckingSignals = true;
+        mHALAudioZones.add(createPrimaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        boolean useHalDucking = helper.useHalDuckingSignalOrDefault(
+                /* unusedDefaultUseHalDuckingSignal= */ false);
+
+        expectWithMessage("Loaded HAL ducking with use HAL ducking and false overwritten from "
+                + "parameter").that(useHalDucking).isTrue();
+    }
+
+    @Test
+    public void useHalDuckingSignalOrDefault_withUseHalDuckingFromHalAndLoadFailure() {
+        mAudioDeviceConfig.useHalDuckingSignals = true;
+        mHALAudioZones.add(createSecondaryAudioZone());
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        boolean useHalDucking = helper.useHalDuckingSignalOrDefault(
+                /* unusedDefaultUseHalDuckingSignal= */ true);
+
+        expectWithMessage("Loaded HAL ducking with use HAL ducking and load failure")
+                .that(useHalDucking).isFalse();
     }
 
     private CarAudioZonesHelperAudioControlHAL createAudioZonesHelper() {

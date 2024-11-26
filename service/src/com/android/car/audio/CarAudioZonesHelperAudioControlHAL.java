@@ -40,6 +40,8 @@ import java.util.Objects;
  */
 final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
+    private static final String TAG = CarAudioZonesHelperAudioControlHAL.class.getSimpleName();
+
     private final LocalLog mCarAudioLog;
     private final AudioControlWrapper mAudioControl;
     private final AudioControlZoneConverter mZoneConverter;
@@ -47,6 +49,10 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
     private final Object mLock = new Object();
     @GuardedBy("mLock") //Use to guard access
     private final SparseIntArray mAudioZoneIdToOccupantZoneId = new SparseIntArray();
+    @GuardedBy("mLock")
+    private CarAudioContext mAudioContext;
+    @GuardedBy("mLock")
+    private AudioDeviceConfiguration mAudioDeviceConfiguration;
 
     CarAudioZonesHelperAudioControlHAL(AudioControlWrapper wrapper,
             AudioManagerWrapper audioManager, CarAudioSettings settings, LocalLog serviceLog,
@@ -57,6 +63,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
         mCarAudioLog = Objects.requireNonNull(serviceLog, "Car audio log can not be null");
         mZoneConverter = new AudioControlZoneConverter(audioManager, settings, serviceLog,
                 useFadeManagerConfiguration);
+        mAudioDeviceConfiguration = new AudioDeviceConfiguration();
     }
 
     @Override
@@ -126,20 +133,25 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
         if (foundErrors) {
             zoneIdToZone.clear();
             zoneIdToOccupantZoneId.clear();
-        } else if (!zoneIdToZone.contains(PRIMARY_AUDIO_ZONE)) {
+        }
+        CarAudioZone primaryZone = zoneIdToZone.get(PRIMARY_AUDIO_ZONE);
+        if (primaryZone != null) {
+            synchronized (mLock) {
+                mAudioContext = primaryZone.getCarAudioContext();
+                mAudioDeviceConfiguration = deviceConfigs;
+                mAudioZoneIdToOccupantZoneId.clear();
+                for (int c = 0; c < zoneIdToOccupantZoneId.size(); c++) {
+                    int zoneId = zoneIdToOccupantZoneId.keyAt(c);
+                    int occupantId = zoneIdToOccupantZoneId.valueAt(c);
+                    mAudioZoneIdToOccupantZoneId.put(zoneId, occupantId);
+                }
+            }
+        } else {
             logParsingError("Audio control HAL zones helper could not find primary zone");
             zoneIdToZone.clear();
             zoneIdToOccupantZoneId.clear();
         }
 
-        synchronized (mLock) {
-            mAudioZoneIdToOccupantZoneId.clear();
-            for (int c = 0; c < zoneIdToOccupantZoneId.size(); c++) {
-                int zoneId = zoneIdToOccupantZoneId.keyAt(c);
-                int occupantId = zoneIdToOccupantZoneId.valueAt(c);
-                mAudioZoneIdToOccupantZoneId.put(zoneId, occupantId);
-            }
-        }
         return zoneIdToZone;
     }
 
@@ -150,8 +162,9 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
     @Override
     public CarAudioContext getCarAudioContext() {
-        // TODO(b/359686069): Implement audio context
-        return null;
+        synchronized (mLock) {
+            return mAudioContext;
+        }
     }
 
     @Override
@@ -169,25 +182,32 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
     @Override
     public boolean useCoreAudioRouting() {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.routingConfig
+                    == RoutingDeviceConfiguration.CONFIGURABLE_AUDIO_ENGINE_ROUTING;
+        }
     }
 
     @Override
     public boolean useCoreAudioVolume() {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.useCoreAudioVolume;
+        }
     }
 
     @Override
-    public boolean useHalDuckingSignalOrDefault(boolean defaultUseHalDuckingSignal) {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+    public boolean useHalDuckingSignalOrDefault(boolean unusedDefaultUseHalDuckingSignal) {
+        // Prefer information from HAL over RRO since vendor freeze requires it and this API
+        // enables information directly from vendor
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.useHalDuckingSignals;
+        }
     }
 
     @Override
     public boolean useVolumeGroupMuting() {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.useCarVolumeGroupMuting;
+        }
     }
 }
