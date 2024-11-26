@@ -25,9 +25,14 @@ import static android.media.AudioManager.GET_DEVICES_OUTPUTS;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_BOOT;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_PLAYBACK_CHANGED;
 import static com.android.car.audio.CarActivationVolumeConfig.ACTIVATION_VOLUME_ON_SOURCE_CHANGED;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MIRROR_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.OEM_TEST_DEVICE;
+import static com.android.car.audio.CarAudioTestUtils.GAINS;
 import static com.android.car.audio.CarAudioTestUtils.PRIMARY_ZONE_NAME;
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
 import static com.android.car.audio.CarAudioTestUtils.TEST_EMERGENCY_ATTRIBUTE;
+import static com.android.car.audio.CarAudioTestUtils.createAudioPort;
+import static com.android.car.audio.CarAudioTestUtils.createAudioPortDeviceExt;
 import static com.android.car.audio.CarAudioTestUtils.createCarAudioContextNameToIdMap;
 import static com.android.car.audio.CarAudioTestUtils.createPrimaryAudioZone;
 import static com.android.car.audio.CarAudioTestUtils.getContextForVolumeGroupConfig;
@@ -57,6 +62,9 @@ import android.hardware.automotive.audiocontrol.TransientFadeConfigurationEntry;
 import android.hardware.automotive.audiocontrol.VolumeActivationConfiguration;
 import android.hardware.automotive.audiocontrol.VolumeGroupConfig;
 import android.media.AudioProductStrategy;
+import android.media.audio.common.AudioDeviceType;
+import android.media.audio.common.AudioPort;
+import android.media.audio.common.AudioPortDeviceExt;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
@@ -449,6 +457,64 @@ public class AudioControlZoneConverterUnitTest extends AbstractExtendedMockitoTe
 
         expectWithMessage("Converted primary zone with null transient fade config")
                 .that(carAudioZone).isNull();
+    }
+
+    @Test
+    public void convertZonesMirroringAudioPorts_forNullAudioPorts() {
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var devices = audioZoneConverter.convertZonesMirroringAudioPorts(
+                /* mirroringPorts= */ null);
+
+        expectWithMessage("Converted mirroring devices for null ports").that(devices).isEmpty();
+    }
+
+    @Test
+    public void convertZonesMirroringAudioPorts_forEmptyAudioPorts() {
+        var audioPorts = new ArrayList<AudioPort>(0);
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var devices = audioZoneConverter.convertZonesMirroringAudioPorts(audioPorts);
+
+        expectWithMessage("Converted mirroring devices for empty ports").that(devices).isEmpty();
+    }
+
+    @Test
+    public void convertZonesMirroringAudioPorts_withNullDeviceInPortsList() {
+        AudioPortDeviceExt mirrorPortDevice = createAudioPortDeviceExt(AudioDeviceType.OUT_BUS,
+                /* connection= */ "", MIRROR_TEST_DEVICE);
+        AudioPort mirrorPort =
+                createAudioPort(/* id= */ 10, "mirror port", GAINS, mirrorPortDevice);
+        var audioPorts = new ArrayList<AudioPort>(2);
+        audioPorts.add(mirrorPort);
+        audioPorts.add(null);
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var devices = audioZoneConverter.convertZonesMirroringAudioPorts(audioPorts);
+
+        expectWithMessage("Converted mirroring devices for null device in ports")
+                .that(devices).isEmpty();
+
+    }
+
+    @Test
+    public void convertZonesMirroringAudioPorts_forAudioPorts() {
+        AudioPortDeviceExt mirrorPortDevice = createAudioPortDeviceExt(AudioDeviceType.OUT_BUS,
+                /* connection= */ "", MIRROR_TEST_DEVICE);
+        AudioPort mirrorPort =
+                createAudioPort(/* id= */ 10, "mirror port", GAINS, mirrorPortDevice);
+        AudioPortDeviceExt oemPortDevice = createAudioPortDeviceExt(AudioDeviceType.OUT_BUS,
+                /* connection= */ "", OEM_TEST_DEVICE);
+        AudioPort oemPort = createAudioPort(/* id= */ 11, "oem port", GAINS, oemPortDevice);
+        var audioPorts = List.of(mirrorPort, oemPort);
+        var audioZoneConverter = setupAudioZoneConverter();
+
+        var devices = audioZoneConverter.convertZonesMirroringAudioPorts(audioPorts);
+
+        var addresses = devices.stream().map(CarAudioDeviceInfo::getAddress).toList();
+        expectWithMessage("Converted mirroring devices for empty ports")
+                .that(addresses).containsExactly(MIRROR_TEST_DEVICE, OEM_TEST_DEVICE);
+
     }
 
     private void validateZoneConfigInfo(String zoneName, CarAudioZoneConfig carZoneConfig,
