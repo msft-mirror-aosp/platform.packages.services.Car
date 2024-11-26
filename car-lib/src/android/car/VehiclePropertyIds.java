@@ -760,8 +760,8 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Normal permission {@link Car#PERMISSION_ENERGY_PORTS} or Signature|Privileged permission
-     *  "android.car.permission.CONTROL_CAR_ENERGY_PORTS"to read property.
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_ENERGY_PORTS" to
+     *  {@link Car#PERMISSION_CONTROL_ENERGY_PORTS} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ENERGY_PORTS} to
      *  write property.
      * </ul>
      */
@@ -836,8 +836,8 @@ public final class VehiclePropertyIds {
      * <p>Required Permissions:
      * <ul>
      *  <li>Normal permission {@link Car#PERMISSION_ENERGY_PORTS} or Signature|Privileged permission
-     *  "android.car.permission.CONTROL_CAR_ENERGY_PORTS"to read property.
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_ENERGY_PORTS" to
+     *  {@link Car#PERMISSION_CONTROL_ENERGY_PORTS} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_ENERGY_PORTS} to
      *  write property.
      * </ul>
      */
