@@ -176,8 +176,8 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
     @Override
     public List<CarAudioDeviceInfo> getMirrorDeviceInfos() {
-        // TODO(b/359686069): Implement mirror devices
-        return List.of();
+        return mZoneConverter.convertZonesMirroringAudioPorts(
+                mAudioControl.getOutputMirroringDevices());
     }
 
     @Override
