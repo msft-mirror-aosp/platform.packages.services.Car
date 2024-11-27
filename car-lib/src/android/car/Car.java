@@ -938,7 +938,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_DRIVING_STATE";
 
     /**
-     * Permission necessary to access VMS client service.
+     * Signature permission necessary to access VMS client service.
      *
      * @hide
      */
@@ -947,7 +947,7 @@ public final class Car implements ICarBase {
             "android.car.permission.BIND_VMS_CLIENT";
 
     /**
-     * Permissions necessary to access VMS publisher APIs.
+     * Signature|Privileged permissions necessary to access VMS publisher APIs.
      *
      * @hide
      */
@@ -955,7 +955,7 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_VMS_PUBLISHER = "android.car.permission.VMS_PUBLISHER";
 
     /**
-     * Permissions necessary to access VMS subscriber APIs.
+     * Signature|Privileged permissions necessary to access VMS subscriber APIs.
      *
      * @hide
      */
@@ -970,7 +970,8 @@ public final class Car implements ICarBase {
             "android.car.permission.READ_ULTRASONICS_SENSOR_DATA";
 
     /**
-     * Permissions necessary to read diagnostic information, including vendor-specific bits.
+     * Signature|Privileged permissions necessary to read diagnostic information, including
+     * vendor-specific bits.
      *
      * @hide
      */
@@ -979,7 +980,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_DIAGNOSTICS";
 
     /**
-     * Permissions necessary to clear diagnostic information.
+     * Signature|Privileged permissions necessary to clear diagnostic information.
      *
      * @hide
      */
@@ -988,7 +989,8 @@ public final class Car implements ICarBase {
             "android.car.permission.CLEAR_CAR_DIAGNOSTICS";
 
     /**
-     * Permission necessary to configure UX restrictions through {@link CarUxRestrictionsManager}.
+     * Signature|Privileged permission necessary to configure UX restrictions through
+     * {@link CarUxRestrictionsManager}.
      *
      * @hide
      */
@@ -998,7 +1000,8 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_UX_RESTRICTIONS_CONFIGURATION";
 
     /**
-     * Permission necessary to listen to occupant awareness state {@link OccupantAwarenessManager}.
+     * Signature|Privileged permission necessary to listen to occupant awareness state
+     * {@link OccupantAwarenessManager}.
      *
      * @hide
      */
@@ -1007,7 +1010,7 @@ public final class Car implements ICarBase {
             "android.car.permission.READ_CAR_OCCUPANT_AWARENESS_STATE";
 
     /**
-     * Permission necessary to access private display id.
+     * Signature|Privileged permission necessary to access private display id.
      *
      * @hide
      */
@@ -1016,7 +1019,7 @@ public final class Car implements ICarBase {
             "android.car.permission.ACCESS_PRIVATE_DISPLAY_ID";
 
     /**
-     * @deprecated This permission is not used by any service.
+     * @deprecated Signature|Privileged permission that is not used by any service.
      *
      * @hide
      */
@@ -1025,7 +1028,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_OCCUPANT_AWARENESS_SYSTEM";
 
     /**
-     * Permissions necessary to clear diagnostic information.
+     * Signature|Privileged permissions necessary to clear diagnostic information.
      *
      * @hide
      */
@@ -1034,7 +1037,8 @@ public final class Car implements ICarBase {
             "android.car.permission.STORAGE_MONITORING";
 
     /**
-     * Permission necessary to dynamically enable / disable optional car features.
+     * Signature|Privileged permission necessary to dynamically enable / disable optional car
+     * features.
      *
      * @hide
      */
@@ -1043,7 +1047,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_FEATURES";
 
     /**
-     * Permission necessary to be car watchdog clients.
+     * Signature|Privileged permission necessary to be car watchdog clients.
      *
      * @hide
      */
@@ -1052,7 +1056,7 @@ public final class Car implements ICarBase {
             "android.car.permission.USE_CAR_WATCHDOG";
 
     /**
-     * Permission necessary to monitor Car input events.
+     * Signature|Privileged permission necessary to monitor Car input events.
      *
      * @hide
      */
@@ -1061,8 +1065,8 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_MONITOR_INPUT";
 
     /**
-     * Permission necessary to request CarEvsService to launch the special activity to show the
-     * camera preview.
+     * Signature|Privileged permission necessary to request CarEvsService to launch the special
+     * activity to show the camera preview.
      *
      * @hide
      */
@@ -1071,7 +1075,8 @@ public final class Car implements ICarBase {
             "android.car.permission.REQUEST_CAR_EVS_ACTIVITY";
 
     /**
-     * Permission necessary to control the special activity to show the camera preview.
+     * Signature|Privileged permission necessary to control the special activity to show the camera
+     * preview.
      *
      * @hide
      */
@@ -1080,7 +1085,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_EVS_ACTIVITY";
 
     /**
-     * Permission necessary to use the camera streams via CarEvsService.
+     * Signature|Privileged permission necessary to use the camera streams via CarEvsService.
      *
      * @hide
      */
@@ -1089,7 +1094,7 @@ public final class Car implements ICarBase {
             "android.car.permission.USE_CAR_EVS_CAMERA";
 
     /**
-     * Permission necessary to monitor the status of CarEvsService.
+     * Signature|Privileged permission necessary to monitor the status of CarEvsService.
      *
      * @hide
      */
@@ -1098,7 +1103,7 @@ public final class Car implements ICarBase {
             "android.car.permission.MONITOR_CAR_EVS_STATUS";
 
     /**
-     * Permission necessary to use the CarTelemetryService.
+     * Signature|Privileged permission necessary to use the CarTelemetryService.
      *
      * @hide
      */
@@ -1115,8 +1120,8 @@ public final class Car implements ICarBase {
     public static final int CONNECTION_TYPE_EMBEDDED = 5;
 
     /**
-     * Permission necessary to be able to render template-based UI metadata on behalf of another
-     * application.
+     * Signature|Privileged permission necessary to be able to render template-based UI metadata on
+     * behalf of another application.
      *
      * @hide
      */
@@ -1125,7 +1130,7 @@ public final class Car implements ICarBase {
             "android.car.permission.TEMPLATE_RENDERER";
 
     /**
-     * Permission necessary to set or retrieve car watchdog configurations.
+     * Signature|Privileged permission necessary to set or retrieve car watchdog configurations.
      *
      * @hide
      */
@@ -1134,7 +1139,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_WATCHDOG_CONFIG";
 
     /**
-     * Permission necessary to collect metrics from car watchdog.
+     * Signature|Privileged permission necessary to collect metrics from car watchdog.
      *
      * @hide
      */
@@ -1151,7 +1156,7 @@ public final class Car implements ICarBase {
             "android.car.permission.COLLECT_CAR_CPU_INFO";
 
     /**
-     * Permission necessary to control launching applications in Car.
+     * Signature|Privileged permission necessary to control launching applications in Car.
      *
      * @hide
      */
@@ -1160,7 +1165,8 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_APP_LAUNCH";
 
     /**
-     * Permission necessary to setting and getting thread scheduling policy and priority.
+     * Signature|Privileged permission necessary to setting and getting thread scheduling policy and
+     * priority.
      *
      * @hide
      */
@@ -1169,7 +1175,7 @@ public final class Car implements ICarBase {
             "android.car.permission.MANAGE_THREAD_PRIORITY";
 
     /**
-     * Permission necessary to modify occupant zone settings. Will be used in
+     * Signature|Privileged permission necessary to modify occupant zone settings. Will be used in
      * {@link CarOccupantZoneManager}.
      *
      * @hide
@@ -1179,13 +1185,13 @@ public final class Car implements ICarBase {
             "android.car.permission.MANAGE_OCCUPANT_ZONE";
 
     /**
-     * Permission necessary to use remote access.
+     * Normal permission necessary to use remote access.
      */
     public static final String PERMISSION_USE_REMOTE_ACCESS =
             "android.car.permission.USE_REMOTE_ACCESS";
 
     /**
-     * Permission necessary to control remote access.
+     * Signature|Privileged permission necessary to control remote access.
      *
      * @hide
      */
@@ -1236,9 +1242,9 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_ADAS_STATES";
 
     /**
-     * Permission necessary to monitor the states of other occupant zones in the car and peer apps
-     * (apps that have the same package name as the caller) installed in those zones,
-     * and manage the power of those zones.
+     * Signature|Privileged permission necessary to monitor the states of other occupant zones in
+     * the car and peer apps (apps that have the same package name as the caller) installed in those
+     * zones, and manage the power of those zones.
      *
      * @hide
      */
@@ -1247,8 +1253,9 @@ public final class Car implements ICarBase {
             "android.car.permission.MANAGE_REMOTE_DEVICE";
 
     /**
-     * Permission necessary to establish connection and communicate to peer apps (apps that have
-     * the same package name as the caller) installed in other occupant zones in the car.
+     * Signature|Privileged permission necessary to establish connection and communicate to peer
+     * apps (apps that have the same package name as the caller) installed in other occupant zones
+     * in the car.
      *
      * @hide
      */
@@ -1257,7 +1264,7 @@ public final class Car implements ICarBase {
             "android.car.permission.MANAGE_OCCUPANT_CONNECTION";
 
     /**
-     * Permission to access the mirrored Surface using the Token generated by
+     * Signature|Privileged permission to access the mirrored Surface using the Token generated by
      * {@link CarActivityManager#createTaskMirroringToken(int)}.
      *
      * @hide
@@ -1267,7 +1274,7 @@ public final class Car implements ICarBase {
             "android.car.permission.ACCESS_MIRRORED_SURFACE";
 
     /**
-     * Permission to create the mirroring token for the Display.
+     * Signature|Privileged permission to create the mirroring token for the Display.
      * See {@link CarActivityManager#createDisplayMirroringToken(int)} (int)}.
      *
      * @hide
@@ -1291,8 +1298,8 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_WINDSHIELD_WIPERS";
 
     /**
-     * Permission necessary to register a {@link SystemUIProxy} that can be used by other apps to
-     * manage the system ui and create task views.
+     * Signature|Privileged permission necessary to register a {@link SystemUIProxy} that can be
+     * used by other apps to manage the system ui and create task views.
      *
      * @hide
      */
@@ -1301,8 +1308,8 @@ public final class Car implements ICarBase {
             "android.car.permission.REGISTER_CAR_SYSTEM_UI_PROXY";
 
     /**
-     * Permission necessary to communicate with the car system ui for creating task views or
-     * getting notified about system ui changes.
+     * Signature|Privileged permission necessary to communicate with the car system ui for creating
+     * task views or getting notified about system ui changes.
      * @hide
      */
     @SystemApi
