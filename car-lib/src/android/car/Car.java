@@ -781,34 +781,33 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_ENGINE_DETAILED";
 
     /**
-     * Permission necessary to access car's tire pressure information.
-     * @hide
+     * Signature|Privileged permission necessary to access car's tire pressure information.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_TIRES = "android.car.permission.CAR_TIRES";
 
     /**
-     * Permission necessary to access car's property {@link VehiclePropertyIds#EPOCH_TIME}.
-     * @hide
+     * Signature|Privileged permission necessary to access car's property
+     * {@link VehiclePropertyIds#EPOCH_TIME}.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CAR_EPOCH_TIME = "android.car.permission.CAR_EPOCH_TIME";
 
     /**
-     * Permission necessary to access car's steering angle information.
+     * Signature|Privileged permission necessary to access car's steering angle information.
      */
     public static final String PERMISSION_READ_STEERING_STATE =
             "android.car.permission.READ_CAR_STEERING";
 
     /**
-     * Permission necessary to read and write display units for distance, fuel volume, tire pressure
-     * and ev battery.
+     * Normal permission necessary to read and write display units for distance, fuel volume,
+     * tire pressure and ev battery.
      */
     public static final String PERMISSION_READ_DISPLAY_UNITS =
             "android.car.permission.READ_CAR_DISPLAY_UNITS";
 
     /**
-     * Permission necessary to control display units for distance, fuel volume, tire pressure
+     * Normal permission necessary to control display units for distance, fuel volume, tire pressure
      * and ev battery. Currently, all display unit properties require both {@code
      * PERMISSION_CONTROL_DISPLAY_UNITS} and {@code PERMISSION_VENDOR_EXTENSION} to be granted in
      * order to write to them.

@@ -482,7 +482,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.READ_CAR_STEERING" to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_STEERING_STATE} to read
      *  property.
      *  <li>Property is not writable.
      * </ul>
@@ -508,7 +508,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.READ_CAR_STEERING" to read
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_STEERING_STATE} to read
      *  property.
      *  <li>Property is not writable.
      * </ul>
@@ -958,7 +958,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CAR_TIRES" to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_TIRES} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
@@ -982,7 +982,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CAR_TIRES" to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_TIRES} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
@@ -5439,7 +5439,7 @@ public final class VehiclePropertyIds {
      * <p>Required Permission:
      * <ul>
      *  <li>Property is not readable.
-     *  <li>Signature|Privileged permission "android.car.permission.CAR_EPOCH_TIME" to write
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_EPOCH_TIME} to write
      *  property.
      * </ul>
      */
