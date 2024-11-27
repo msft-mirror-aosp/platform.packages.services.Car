@@ -64,6 +64,7 @@ package android.car {
     field public static final String PERMISSION_CONTROL_CAR_ENERGY = "android.car.permission.CONTROL_CAR_ENERGY";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_MIRRORS = "android.car.permission.CONTROL_CAR_MIRRORS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_SEATS = "android.car.permission.CONTROL_CAR_SEATS";
+    field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_CAR_WINDOWS = "android.car.permission.CONTROL_CAR_WINDOWS";
     field public static final String PERMISSION_CONTROL_DISPLAY_UNITS = "android.car.permission.CONTROL_CAR_DISPLAY_UNITS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_DRIVER_MONITORING_SETTINGS = "android.car.permission.CONTROL_DRIVER_MONITORING_SETTINGS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_CONTROL_ENERGY_PORTS = "android.car.permission.CONTROL_CAR_ENERGY_PORTS";
@@ -583,9 +584,9 @@ package android.car {
     field @Deprecated @RequiresPermission(anyOf={"android.car.permission.VMS_PUBLISHER", "android.car.permission.VMS_SUBSCRIBER"}) public static final int VEHICLE_MAP_SERVICE = 299895808; // 0x11e00c00
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DISPLAY_UNITS)) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(allOf={android.car.Car.PERMISSION_CONTROL_DISPLAY_UNITS, "android.car.permission.CAR_VENDOR_EXTENSION"})) public static final int VEHICLE_SPEED_DISPLAY_UNITS = 289408516; // 0x11400604
     field @RequiresPermission(android.car.Car.PERMISSION_SPEED) public static final int WHEEL_TICK = 290521862; // 0x11510306
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_WINDOWS") public static final int WINDOW_LOCK = 320867268; // 0x13200bc4
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_WINDOWS") public static final int WINDOW_MOVE = 322964417; // 0x13400bc1
-    field @RequiresPermission("android.car.permission.CONTROL_CAR_WINDOWS") public static final int WINDOW_POS = 322964416; // 0x13400bc0
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_WINDOWS) public static final int WINDOW_LOCK = 320867268; // 0x13200bc4
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_WINDOWS) public static final int WINDOW_MOVE = 322964417; // 0x13400bc1
+    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_WINDOWS) public static final int WINDOW_POS = 322964416; // 0x13400bc0
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_WINDSHIELD_WIPERS)) public static final int WINDSHIELD_WIPERS_PERIOD = 322964421; // 0x13400bc5
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_WINDSHIELD_WIPERS)) public static final int WINDSHIELD_WIPERS_STATE = 322964422; // 0x13400bc6
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_WINDSHIELD_WIPERS, android.car.Car.PERMISSION_CONTROL_WINDSHIELD_WIPERS})) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_WINDSHIELD_WIPERS)) public static final int WINDSHIELD_WIPERS_SWITCH = 322964423; // 0x13400bc7

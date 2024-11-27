@@ -4023,7 +4023,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_WINDOWS" to read and
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_WINDOWS} to read and
      *  write property.
      * </ul>
      */
@@ -4057,7 +4057,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_WINDOWS" to read and
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_WINDOWS} to read and
      *  write property.
      * </ul>
      */
@@ -4079,7 +4079,7 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission "android.car.permission.CONTROL_CAR_WINDOWS" to read and
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_WINDOWS} to read and
      *  write property.
      * </ul>
      */

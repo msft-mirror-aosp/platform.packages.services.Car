@@ -823,10 +823,9 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_DOORS";
 
     /**
-     * Permission necessary to control car's windows.
-     * @hide
+     * Signature|Privileged permission necessary to control car's windows.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_CAR_WINDOWS =
             "android.car.permission.CONTROL_CAR_WINDOWS";
 
@@ -867,20 +866,22 @@ public final class Car implements ICarBase {
 
 
     /**
-     * Permission necessary to access restrictive car power management APIs.
+     * Signature|Privileged|VendorPrivileged permission necessary to access restrictive car power
+     * management APIs.
      * @hide
      */
     @SystemApi
     public static final String PERMISSION_CAR_POWER = "android.car.permission.CAR_POWER";
 
     /**
-     * Permission necessary to read the current power policy or be notified of power policy change.
+     * Normal permission necessary to read the current power policy or be notified of power policy
+     * change.
      */
     public static final String PERMISSION_READ_CAR_POWER_POLICY =
             "android.car.permission.READ_CAR_POWER_POLICY";
 
     /**
-     * Permission necessary to apply a new power policy.
+     * Signature|Privileged|VendorPrivileged permission necessary to apply a new power policy.
      * @hide
      */
     @SystemApi
@@ -888,7 +889,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_CAR_POWER_POLICY";
 
     /**
-     * Permission necessary to adjust the shutdown process.
+     * Signature|Privileged|VendorPrivileged permission necessary to adjust the shutdown process.
      * @hide
      */
     @SystemApi
@@ -896,14 +897,14 @@ public final class Car implements ICarBase {
             "android.car.permission.CONTROL_SHUTDOWN_PROCESS";
 
     /**
-     * Permission necessary to access Car PROJECTION system APIs.
+     * Signature|Privileged permission necessary to access Car PROJECTION system APIs.
      * @hide
      */
     @SystemApi
     public static final String PERMISSION_CAR_PROJECTION = "android.car.permission.CAR_PROJECTION";
 
     /**
-     * Permission necessary to access projection status.
+     * Signature|Privileged permission necessary to access projection status.
      * @hide
      */
     @SystemApi
@@ -911,7 +912,7 @@ public final class Car implements ICarBase {
             "android.car.permission.ACCESS_CAR_PROJECTION_STATUS";
 
     /**
-     * Permission necessary to mock vehicle hal for testing.
+     * Signature|Privileged permission necessary to mock vehicle hal for testing.
      * @hide
      * @deprecated mocking vehicle HAL in car service is no longer supported.
      */
@@ -921,7 +922,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_MOCK_VEHICLE_HAL";
 
     /**
-     * Permission necessary to access CarTestService.
+     * Signature|Privileged permission necessary to access CarTestService.
      * @hide
      */
     @SystemApi
