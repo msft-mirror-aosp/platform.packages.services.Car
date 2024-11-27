@@ -53,6 +53,9 @@ import java.util.List;
 public final class CarAudioZonesHelperAudioControlHALUnitTest
         extends AbstractExtendedMockitoTestCase {
 
+    private static final int TEST_PRIMARY_ZONE_OCCUPANT_ID = 1;
+    private static final int TEST_SECONDARY_ZONE_OCCUPANT_ID = 2;
+
     @Mock
     private CarAudioSettings mCarAudioSettings;
     @Mock
@@ -281,6 +284,60 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
                 .that(primaryZone).isNotNull();
         expectWithMessage("Loaded primary audio zone configs with core audio routing")
                 .that(primaryZone.getAllCarAudioZoneConfigs()).hasSize(1);
+    }
+
+    @Test
+    public void getCarAudioZoneIdToOccupantZoneIdMapping_withPrimaryZoneMapped() {
+        var primaryZone = createPrimaryAudioZone();
+        primaryZone.occupantZoneId = TEST_PRIMARY_ZONE_OCCUPANT_ID;
+        mHALAudioZones.add(primaryZone);
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        var audioZoneIdToOccupantZoneId = helper.getCarAudioZoneIdToOccupantZoneIdMapping();
+
+        expectWithMessage("Loaded audio zones to occupant zone mapping")
+                .that(audioZoneIdToOccupantZoneId.size()).isEqualTo(1);
+        expectWithMessage("Loaded primary occupant zone mapping").that(audioZoneIdToOccupantZoneId
+                .get(PRIMARY_AUDIO_ZONE)).isEqualTo(TEST_PRIMARY_ZONE_OCCUPANT_ID);
+    }
+
+    @Test
+    public void getCarAudioZoneIdToOccupantZoneIdMapping_withPrimaryAndSecondaryZoneMapped() {
+        var primaryZone = createPrimaryAudioZone();
+        primaryZone.occupantZoneId = TEST_PRIMARY_ZONE_OCCUPANT_ID;
+        var secondaryZone = createSecondaryAudioZone();
+        secondaryZone.occupantZoneId = TEST_SECONDARY_ZONE_OCCUPANT_ID;
+        mHALAudioZones.add(primaryZone);
+        mHALAudioZones.add(secondaryZone);
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        var audioZoneIdToOccupantZoneId = helper.getCarAudioZoneIdToOccupantZoneIdMapping();
+
+        expectWithMessage("Loaded audio zones to occupant zone mapping with primary and secondary"
+                + " zones").that(audioZoneIdToOccupantZoneId.size()).isEqualTo(2);
+        expectWithMessage("Loaded primary occupant zone with both primary and secondary zones")
+                .that(audioZoneIdToOccupantZoneId.get(PRIMARY_AUDIO_ZONE))
+                .isEqualTo(TEST_PRIMARY_ZONE_OCCUPANT_ID);
+        expectWithMessage("Loaded secondary  occupant zone mapping with both primary and secondary"
+                + " zones").that(audioZoneIdToOccupantZoneId.get(SECONDARY_ZONE_ID))
+                .isEqualTo(TEST_SECONDARY_ZONE_OCCUPANT_ID);
+    }
+
+    @Test
+    public void getCarAudioZoneIdToOccupantZoneIdMapping_withLoadFailures() {
+        var secondaryZone = createSecondaryAudioZone();
+        secondaryZone.occupantZoneId = TEST_SECONDARY_ZONE_OCCUPANT_ID;
+        mHALAudioZones.add(secondaryZone);
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+        helper.loadAudioZones();
+
+        var audioZoneIdToOccupantZoneId = helper.getCarAudioZoneIdToOccupantZoneIdMapping();
+
+        expectWithMessage("Loaded audio zones to occupant zone mapping with load zones failure")
+                .that(audioZoneIdToOccupantZoneId.size()).isEqualTo(0);
+
     }
 
     private CarAudioZonesHelperAudioControlHAL createAudioZonesHelper() {

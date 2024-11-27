@@ -21,6 +21,7 @@ import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_CONFIGURATION;
 
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -29,6 +30,7 @@ import android.util.SparseIntArray;
 import com.android.car.CarLog;
 import com.android.car.audio.hal.AudioControlWrapper;
 import com.android.car.internal.util.LocalLog;
+import com.android.internal.annotations.GuardedBy;
 
 import java.util.List;
 import java.util.Objects;
@@ -41,6 +43,10 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
     private final LocalLog mCarAudioLog;
     private final AudioControlWrapper mAudioControl;
     private final AudioControlZoneConverter mZoneConverter;
+
+    private final Object mLock = new Object();
+    @GuardedBy("mLock") //Use to guard access
+    private final SparseIntArray mAudioZoneIdToOccupantZoneId = new SparseIntArray();
 
     CarAudioZonesHelperAudioControlHAL(AudioControlWrapper wrapper,
             AudioManagerWrapper audioManager, CarAudioSettings settings, LocalLog serviceLog,
@@ -87,6 +93,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
         }
         var zoneIdToZone = new SparseArray<CarAudioZone>(halAudioZones.size());
         boolean foundErrors = false;
+        var zoneIdToOccupantZoneId = new SparseIntArray();
         for (int c = 0; c < halAudioZones.size(); c++) {
             var halZone = halAudioZones.get(c);
             if (halZone == null) {
@@ -112,12 +119,26 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
                 continue;
             }
             zoneIdToZone.put(carAudioZone.getId(), carAudioZone);
+            if (halZone.occupantZoneId != AudioZone.UNASSIGNED_OCCUPANT) {
+                zoneIdToOccupantZoneId.put(carAudioZone.getId(), halZone.occupantZoneId);
+            }
         }
         if (foundErrors) {
             zoneIdToZone.clear();
+            zoneIdToOccupantZoneId.clear();
         } else if (!zoneIdToZone.contains(PRIMARY_AUDIO_ZONE)) {
             logParsingError("Audio control HAL zones helper could not find primary zone");
             zoneIdToZone.clear();
+            zoneIdToOccupantZoneId.clear();
+        }
+
+        synchronized (mLock) {
+            mAudioZoneIdToOccupantZoneId.clear();
+            for (int c = 0; c < zoneIdToOccupantZoneId.size(); c++) {
+                int zoneId = zoneIdToOccupantZoneId.keyAt(c);
+                int occupantId = zoneIdToOccupantZoneId.valueAt(c);
+                mAudioZoneIdToOccupantZoneId.put(zoneId, occupantId);
+            }
         }
         return zoneIdToZone;
     }
@@ -135,8 +156,9 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
     @Override
     public SparseIntArray getCarAudioZoneIdToOccupantZoneIdMapping() {
-        // TODO(b/359686069): Implement occupant zone mapping
-        return new SparseIntArray();
+        synchronized (mLock) {
+            return mAudioZoneIdToOccupantZoneId;
+        }
     }
 
     @Override
