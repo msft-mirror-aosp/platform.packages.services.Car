@@ -17,6 +17,9 @@
 package com.android.car.audio;
 
 import static android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP;
+import static android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC;
+import static android.media.AudioDeviceInfo.TYPE_BUS;
+import static android.media.AudioDeviceInfo.TYPE_FM_TUNER;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
@@ -73,7 +76,8 @@ class CarAudioDeviceInfoTestUtils {
     AudioDeviceInfo mSecondaryConfigOutputDevice;
     AudioDeviceInfo mSpeakerDevice;
 
-    private final List<AudioDeviceInfo> mAudioDeviceInfos;
+    private final List<AudioDeviceInfo> mAudioOutputDeviceInfos;
+    private final List<AudioDeviceInfo> mAudioInputDeviceInfos;
 
     CarAudioDeviceInfoTestUtils() {
         mMediaOutputDevice = new AudioDeviceInfoBuilder()
@@ -129,7 +133,7 @@ class CarAudioDeviceInfoTestUtils {
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(TEST_SPEAKER_DEVICE).build();
 
-        mAudioDeviceInfos = List.of(
+        mAudioOutputDeviceInfos = List.of(
                 mBTAudioDeviceInfo,
                 mMediaOutputDevice,
                 mNavOutputDevice,
@@ -166,10 +170,20 @@ class CarAudioDeviceInfoTestUtils {
                         .setAudioGains(new GainBuilder().build())
                         .setAddressName(TEST_REAR_ROW_3_DEVICE).build()
         );
+        mAudioInputDeviceInfos = List.of(
+                generateInputAudioDeviceInfo(PRIMARY_ZONE_MICROPHONE_DEVICE, TYPE_BUILTIN_MIC),
+                generateInputAudioDeviceInfo(PRIMARY_ZONE_FM_TUNER_DEVICE, TYPE_FM_TUNER),
+                generateInputAudioDeviceInfo(SECONDARY_ZONE_BACK_MICROPHONE_DEVICE, TYPE_BUS),
+                generateInputAudioDeviceInfo(SECONDARY_ZONE_BUS_1000_INPUT_DEVICE,
+                        TYPE_BUILTIN_MIC));
     }
 
     AudioDeviceInfo[] generateOutputDeviceInfos() {
-        return mAudioDeviceInfos.toArray(new AudioDeviceInfo[0]);
+        return mAudioOutputDeviceInfos.toArray(new AudioDeviceInfo[0]);
+    }
+
+    AudioDeviceInfo[] generateInputDeviceInfos() {
+        return mAudioInputDeviceInfos.toArray(new AudioDeviceInfo[0]);
     }
 
     static CarAudioDeviceInfo generateCarAudioDeviceInfo(String address) {

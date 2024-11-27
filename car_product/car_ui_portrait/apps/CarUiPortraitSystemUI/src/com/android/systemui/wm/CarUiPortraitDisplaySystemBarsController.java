@@ -244,17 +244,11 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
                 barVisibilities = mDefaultVisibilities;
             }
 
-            Slog.d(TAG, "Update barVisibilities to " + mImmersiveState);
-
             updateRequestedVisibleTypes(barVisibilities[0], /* visible= */ true);
             updateRequestedVisibleTypes(barVisibilities[1], /* visible= */ false);
-
-            // Return if the requested visibility is already applied.
-            if (mAppRequestedVisibleTypes == mRequestedVisibleTypes) {
-                return;
-            }
-            mAppRequestedVisibleTypes = mRequestedVisibleTypes;
-
+            Slog.d(TAG, "Update bar insets visibility with insets controller"
+                    + "mIsUserSetupInProgress = " + mIsUserSetupInProgress
+                    + "mRequestedVisibleTypes = " + mRequestedVisibleTypes);
             showInsets(barVisibilities[0], /* fromIme= */ false, /* statsToken= */ null);
             hideInsets(barVisibilities[1], /* fromIme= */ false, /* statsToken= */ null);
 
@@ -267,7 +261,7 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
         }
 
         void setImmersiveMode(int state) {
-            Slog.w(TAG, "setImmersiveMode." + state);
+            Slog.w(TAG, "setImmersiveMode = " + state);
             if (mImmersiveState == state) {
                 return;
             }
