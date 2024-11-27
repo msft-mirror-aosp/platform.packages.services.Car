@@ -391,3 +391,11 @@ flag {
     description: "Expose vehicle property constants as public APIs instead of system APIs"
     bug: "357910317"
 }
+
+# 3P VHAL Property Strategy
+flag {
+    name: "vehicle_property_25q2_3p_permissions"
+    namespace: "car_perception"
+    description: "Introduce new 3p accessible permisisons for previously defined vehicle properties"
+    bug: "357910697"
+}
