@@ -695,14 +695,14 @@ public final class Car implements ICarBase {
             "android.car.permission.RECEIVE_CAR_AUDIO_DUCKING_EVENTS";
 
     /**
-     * Permission necessary to use {@code CarNavigationStatusManager}.
+     * Signature|Privileged permission necessary to use {@code CarNavigationStatusManager}.
      */
     public static final String PERMISSION_CAR_NAVIGATION_MANAGER =
             "android.car.permission.CAR_NAVIGATION_MANAGER";
 
     /**
-     * Permission necessary to start activities in the instrument cluster through
-     * {@link CarInstrumentClusterManager}
+     * Signature|Privileged permission necessary to start activities in the instrument cluster
+     * through {@link CarInstrumentClusterManager}
      *
      * @hide
      */
@@ -711,7 +711,8 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_INSTRUMENT_CLUSTER_CONTROL";
 
     /**
-     * Permission necessary to listen for the instrument cluster's navigation state changes.
+     * Signature|Privileged permission necessary to listen for the instrument cluster's navigation
+     * state changes.
      *
      * @hide
      */
@@ -721,8 +722,8 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_MONITOR_CLUSTER_NAVIGATION_STATE";
 
     /**
-     * Application must have this permission in order to be launched in the instrument cluster
-     * display.
+     * Signature|Privileged permission required by applications in order to be launched in the
+     * instrument cluster display.
      *
      * @hide
      */
@@ -730,27 +731,34 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_CAR_DISPLAY_IN_CLUSTER =
             "android.car.permission.CAR_DISPLAY_IN_CLUSTER";
 
-    /** Permission necessary to use {@link CarInfoManager}. */
+    /**
+     * Normal permission necessary to use {@link CarInfoManager}.
+     */
     public static final String PERMISSION_CAR_INFO = "android.car.permission.CAR_INFO";
 
-    /** Permission necessary to access privileged car info. */
+    /**
+     * Signature|Privileged permission necessary to access privileged car info.
+     */
     public static final String PERMISSION_PRIVILEGED_CAR_INFO =
             "android.car.permission.PRIVILEGED_CAR_INFO";
 
     /**
-     * Permission necessary to read information of vendor properties' permissions.
+     * Signature|Privileged permission necessary to read information of vendor properties'
+     * permissions.
      * @hide
      */
     @SystemApi
     public static final String PERMISSION_READ_CAR_VENDOR_PERMISSION_INFO =
             "android.car.permission.READ_CAR_VENDOR_PERMISSION_INFO";
 
-    /** Permission necessary to read temperature of car's exterior environment. */
+    /**
+     * Normal permission necessary to read temperature of car's exterior environment.
+     */
     public static final String PERMISSION_EXTERIOR_ENVIRONMENT =
             "android.car.permission.CAR_EXTERIOR_ENVIRONMENT";
 
     /**
-     * Permission necessary to access car specific communication channel.
+     * Signature|Privileged permission necessary to access car specific communication channel.
      * @hide
      */
     @SystemApi
@@ -758,6 +766,7 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_VENDOR_EXTENSION";
 
     /**
+     * Signature|Privileged permission.
      * @hide
      */
     @SystemApi
