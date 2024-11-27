@@ -282,6 +282,14 @@ flag {
   bug: "309529020"
 }
 
+flag {
+  name: "android_b_vehicle_properties"
+  is_exported: true
+  namespace: "car_perception"
+  description: "Enables use of vehicle properties introduced in Android B"
+  bug: "375257755"
+}
+
 # CarNightService
 flag {
   name: "car_night_global_setting"
