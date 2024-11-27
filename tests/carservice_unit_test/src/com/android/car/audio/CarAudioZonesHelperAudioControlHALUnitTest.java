@@ -22,6 +22,8 @@ import static android.media.AudioManager.GET_DEVICES_OUTPUTS;
 
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MEDIA_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NAVIGATION_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_MICROPHONE_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_ZONE_BUS_1000_INPUT_DEVICE;
 import static com.android.car.audio.CarAudioTestUtils.GAINS;
 import static com.android.car.audio.CarAudioTestUtils.SECONDARY_ZONE_ID;
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
@@ -41,7 +43,7 @@ import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
-import android.media.AudioDeviceInfo;
+import android.media.AudioDeviceAttributes;
 import android.media.audio.common.AudioDeviceType;
 import android.media.audio.common.AudioPort;
 import android.media.audio.common.AudioPortDeviceExt;
@@ -97,8 +99,9 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
                 .when(AudioManagerWrapper::getAudioProductStrategies);
 
         var outputDevice = mDeviceTestUtils.generateOutputDeviceInfos();
+        var inputDevices = mDeviceTestUtils.generateInputDeviceInfos();
         when(mAudioManager.getDevices(GET_DEVICES_OUTPUTS)).thenReturn(outputDevice);
-        when(mAudioManager.getDevices(GET_DEVICES_INPUTS)).thenReturn(new AudioDeviceInfo[0]);
+        when(mAudioManager.getDevices(GET_DEVICES_INPUTS)).thenReturn(inputDevices);
 
         when(mAudioControlWrapper.supportsFeature(
                 AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_CONFIGURATION)).thenReturn(true);
@@ -237,6 +240,11 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
         assertWithMessage("Loaded primary audio zone").that(primaryZone).isNotNull();
         expectWithMessage("Loaded primary audio zone configs")
                 .that(primaryZone.getAllCarAudioZoneConfigs()).hasSize(3);
+        var inputAddresses = primaryZone.getInputAudioDevices().stream()
+                .map(AudioDeviceAttributes::getAddress).toList();
+        expectWithMessage("Loaded primary zone input devices").that(inputAddresses)
+                .containsExactly(PRIMARY_ZONE_MICROPHONE_DEVICE,
+                        SECONDARY_ZONE_BUS_1000_INPUT_DEVICE);
     }
 
     @Test
