@@ -658,31 +658,35 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_CONTROL_INTERIOR_LIGHTS =
             "android.car.permission.CONTROL_CAR_INTERIOR_LIGHTS";
 
-    /** Permission necessary to access car's powertrain information.*/
+    /**
+     * Normal permission necessary to access car's powertrain information.
+     */
     public static final String PERMISSION_POWERTRAIN = "android.car.permission.CAR_POWERTRAIN";
 
     /**
-     * Permission necessary to control car's powertrain information.
-     * @hide
+     * Signature|Privileged permission necessary to control car's powertrain information.
      */
-    @SystemApi
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_POWERTRAIN =
             "android.car.permission.CONTROL_CAR_POWERTRAIN";
 
     /**
-     * Permission necessary to change car audio volume through {@link CarAudioManager}.
+     * Signature|Privileged permission necessary to change car audio volume through
+     * {@link CarAudioManager}.
      */
     public static final String PERMISSION_CAR_CONTROL_AUDIO_VOLUME =
             "android.car.permission.CAR_CONTROL_AUDIO_VOLUME";
 
     /**
-     * Permission necessary to change car audio settings through {@link CarAudioManager}.
+     * Signature|Privileged permission necessary to change car audio settings through
+     * {@link CarAudioManager}.
      */
     public static final String PERMISSION_CAR_CONTROL_AUDIO_SETTINGS =
             "android.car.permission.CAR_CONTROL_AUDIO_SETTINGS";
 
     /**
-     * Permission necessary to receive full audio ducking events from car audio focus handler.
+     * Signature|Privileged permission necessary to receive full audio ducking events from car audio
+     * focus handler.
      *
      * @hide
      */

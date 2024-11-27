@@ -66,7 +66,6 @@ package android.car {
     field public static final String PERMISSION_CONTROL_CAR_POWER_POLICY = "android.car.permission.CONTROL_CAR_POWER_POLICY";
     field public static final String PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG = "android.car.permission.CONTROL_CAR_WATCHDOG_CONFIG";
     field public static final String PERMISSION_CONTROL_CAR_WINDOWS = "android.car.permission.CONTROL_CAR_WINDOWS";
-    field public static final String PERMISSION_CONTROL_POWERTRAIN = "android.car.permission.CONTROL_CAR_POWERTRAIN";
     field public static final String PERMISSION_CONTROL_REMOTE_ACCESS = "android.car.permission.CONTROL_REMOTE_ACCESS";
     field public static final String PERMISSION_CONTROL_SHUTDOWN_PROCESS = "android.car.permission.CONTROL_SHUTDOWN_PROCESS";
     field @FlaggedApi("android.car.feature.car_property_simulation") public static final String PERMISSION_INJECT_VEHICLE_PROPERTIES = "android.car.permission.INJECT_VEHICLE_PROPERTIES";
