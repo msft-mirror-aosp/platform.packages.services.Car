@@ -21,6 +21,7 @@ import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_CONFIGURATION;
 
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
+import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -29,6 +30,7 @@ import android.util.SparseIntArray;
 import com.android.car.CarLog;
 import com.android.car.audio.hal.AudioControlWrapper;
 import com.android.car.internal.util.LocalLog;
+import com.android.internal.annotations.GuardedBy;
 
 import java.util.List;
 import java.util.Objects;
@@ -38,9 +40,19 @@ import java.util.Objects;
  */
 final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
+    private static final String TAG = CarAudioZonesHelperAudioControlHAL.class.getSimpleName();
+
     private final LocalLog mCarAudioLog;
     private final AudioControlWrapper mAudioControl;
     private final AudioControlZoneConverter mZoneConverter;
+
+    private final Object mLock = new Object();
+    @GuardedBy("mLock") //Use to guard access
+    private final SparseIntArray mAudioZoneIdToOccupantZoneId = new SparseIntArray();
+    @GuardedBy("mLock")
+    private CarAudioContext mAudioContext;
+    @GuardedBy("mLock")
+    private AudioDeviceConfiguration mAudioDeviceConfiguration;
 
     CarAudioZonesHelperAudioControlHAL(AudioControlWrapper wrapper,
             AudioManagerWrapper audioManager, CarAudioSettings settings, LocalLog serviceLog,
@@ -51,6 +63,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
         mCarAudioLog = Objects.requireNonNull(serviceLog, "Car audio log can not be null");
         mZoneConverter = new AudioControlZoneConverter(audioManager, settings, serviceLog,
                 useFadeManagerConfiguration);
+        mAudioDeviceConfiguration = new AudioDeviceConfiguration();
     }
 
     @Override
@@ -87,6 +100,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
         }
         var zoneIdToZone = new SparseArray<CarAudioZone>(halAudioZones.size());
         boolean foundErrors = false;
+        var zoneIdToOccupantZoneId = new SparseIntArray();
         for (int c = 0; c < halAudioZones.size(); c++) {
             var halZone = halAudioZones.get(c);
             if (halZone == null) {
@@ -112,13 +126,32 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
                 continue;
             }
             zoneIdToZone.put(carAudioZone.getId(), carAudioZone);
+            if (halZone.occupantZoneId != AudioZone.UNASSIGNED_OCCUPANT) {
+                zoneIdToOccupantZoneId.put(carAudioZone.getId(), halZone.occupantZoneId);
+            }
         }
         if (foundErrors) {
             zoneIdToZone.clear();
-        } else if (!zoneIdToZone.contains(PRIMARY_AUDIO_ZONE)) {
+            zoneIdToOccupantZoneId.clear();
+        }
+        CarAudioZone primaryZone = zoneIdToZone.get(PRIMARY_AUDIO_ZONE);
+        if (primaryZone != null) {
+            synchronized (mLock) {
+                mAudioContext = primaryZone.getCarAudioContext();
+                mAudioDeviceConfiguration = deviceConfigs;
+                mAudioZoneIdToOccupantZoneId.clear();
+                for (int c = 0; c < zoneIdToOccupantZoneId.size(); c++) {
+                    int zoneId = zoneIdToOccupantZoneId.keyAt(c);
+                    int occupantId = zoneIdToOccupantZoneId.valueAt(c);
+                    mAudioZoneIdToOccupantZoneId.put(zoneId, occupantId);
+                }
+            }
+        } else {
             logParsingError("Audio control HAL zones helper could not find primary zone");
             zoneIdToZone.clear();
+            zoneIdToOccupantZoneId.clear();
         }
+
         return zoneIdToZone;
     }
 
@@ -129,14 +162,16 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
     @Override
     public CarAudioContext getCarAudioContext() {
-        // TODO(b/359686069): Implement audio context
-        return null;
+        synchronized (mLock) {
+            return mAudioContext;
+        }
     }
 
     @Override
     public SparseIntArray getCarAudioZoneIdToOccupantZoneIdMapping() {
-        // TODO(b/359686069): Implement occupant zone mapping
-        return new SparseIntArray();
+        synchronized (mLock) {
+            return mAudioZoneIdToOccupantZoneId;
+        }
     }
 
     @Override
@@ -147,25 +182,32 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
     @Override
     public boolean useCoreAudioRouting() {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.routingConfig
+                    == RoutingDeviceConfiguration.CONFIGURABLE_AUDIO_ENGINE_ROUTING;
+        }
     }
 
     @Override
     public boolean useCoreAudioVolume() {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.useCoreAudioVolume;
+        }
     }
 
     @Override
-    public boolean useHalDuckingSignalOrDefault(boolean defaultUseHalDuckingSignal) {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+    public boolean useHalDuckingSignalOrDefault(boolean unusedDefaultUseHalDuckingSignal) {
+        // Prefer information from HAL over RRO since vendor freeze requires it and this API
+        // enables information directly from vendor
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.useHalDuckingSignals;
+        }
     }
 
     @Override
     public boolean useVolumeGroupMuting() {
-        // TODO(b/359686069): Implement audio device configurations
-        return false;
+        synchronized (mLock) {
+            return mAudioDeviceConfiguration.useCarVolumeGroupMuting;
+        }
     }
 }
