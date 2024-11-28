@@ -23,5 +23,5 @@
     <string name="distant_display_companion_message" msgid="3116654711053023764">"%s shfaqet në ekranin në distancë."</string>
     <string name="distant_display_companion_message_default_app" msgid="7917101404140114041">"Aplikacioni"</string>
     <string name="distant_display_companion_button_text" msgid="4846927100787674490">"Ktheje përsëri"</string>
-    <string name="distant_display_game_companion_message" msgid="3110110132330229090">"Përdor këtë ekrani për të kontrolluar %s në ekranin në distancë"</string>
+    <string name="distant_display_game_companion_message" msgid="3110110132330229090">"Përdor këtë ekran për të kontrolluar %s në ekranin në distancë"</string>
 </resources>
