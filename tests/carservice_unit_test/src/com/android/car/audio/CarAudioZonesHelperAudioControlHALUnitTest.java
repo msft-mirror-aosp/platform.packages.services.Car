@@ -20,8 +20,15 @@ import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 import static android.media.AudioManager.GET_DEVICES_INPUTS;
 import static android.media.AudioManager.GET_DEVICES_OUTPUTS;
 
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MEDIA_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NAVIGATION_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.PRIMARY_ZONE_MICROPHONE_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_ZONE_BUS_1000_INPUT_DEVICE;
+import static com.android.car.audio.CarAudioTestUtils.GAINS;
 import static com.android.car.audio.CarAudioTestUtils.SECONDARY_ZONE_ID;
 import static com.android.car.audio.CarAudioTestUtils.TEST_CREATED_CAR_AUDIO_CONTEXT;
+import static com.android.car.audio.CarAudioTestUtils.createAudioPort;
+import static com.android.car.audio.CarAudioTestUtils.createAudioPortDeviceExt;
 import static com.android.car.audio.CarAudioTestUtils.createPrimaryAudioZone;
 import static com.android.car.audio.CarAudioTestUtils.createSecondaryAudioZone;
 import static com.android.car.audio.CoreAudioRoutingUtils.getCoreAudioZone;
@@ -36,7 +43,10 @@ import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
-import android.media.AudioDeviceInfo;
+import android.media.AudioDeviceAttributes;
+import android.media.audio.common.AudioDeviceType;
+import android.media.audio.common.AudioPort;
+import android.media.audio.common.AudioPortDeviceExt;
 
 import com.android.car.audio.hal.AudioControlWrapper;
 import com.android.car.internal.util.LocalLog;
@@ -71,6 +81,7 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
 
     private final CarAudioDeviceInfoTestUtils mDeviceTestUtils = new CarAudioDeviceInfoTestUtils();
     private final AudioDeviceConfiguration mAudioDeviceConfig = new AudioDeviceConfiguration();
+    private final List<AudioPort> mMirrorPorts = new ArrayList<>();
 
     @Override
     protected void clearInlineMocks(String when) {
@@ -88,14 +99,16 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
                 .when(AudioManagerWrapper::getAudioProductStrategies);
 
         var outputDevice = mDeviceTestUtils.generateOutputDeviceInfos();
+        var inputDevices = mDeviceTestUtils.generateInputDeviceInfos();
         when(mAudioManager.getDevices(GET_DEVICES_OUTPUTS)).thenReturn(outputDevice);
-        when(mAudioManager.getDevices(GET_DEVICES_INPUTS)).thenReturn(new AudioDeviceInfo[0]);
+        when(mAudioManager.getDevices(GET_DEVICES_INPUTS)).thenReturn(inputDevices);
 
         when(mAudioControlWrapper.supportsFeature(
                 AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_CONFIGURATION)).thenReturn(true);
         when(mAudioControlWrapper.getCarAudioZones()).thenReturn(mHALAudioZones);
         mAudioDeviceConfig.routingConfig = RoutingDeviceConfiguration.DYNAMIC_AUDIO_ROUTING;
         when(mAudioControlWrapper.getAudioDeviceConfiguration()).thenReturn(mAudioDeviceConfig);
+        when(mAudioControlWrapper.getOutputMirroringDevices()).thenReturn(mMirrorPorts);
     }
 
     @Test
@@ -227,6 +240,11 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
         assertWithMessage("Loaded primary audio zone").that(primaryZone).isNotNull();
         expectWithMessage("Loaded primary audio zone configs")
                 .that(primaryZone.getAllCarAudioZoneConfigs()).hasSize(3);
+        var inputAddresses = primaryZone.getInputAudioDevices().stream()
+                .map(AudioDeviceAttributes::getAddress).toList();
+        expectWithMessage("Loaded primary zone input devices").that(inputAddresses)
+                .containsExactly(PRIMARY_ZONE_MICROPHONE_DEVICE,
+                        SECONDARY_ZONE_BUS_1000_INPUT_DEVICE);
     }
 
     @Test
@@ -569,6 +587,45 @@ public final class CarAudioZonesHelperAudioControlHALUnitTest
 
         expectWithMessage("Loaded HAL ducking with use HAL ducking and load failure")
                 .that(useHalDucking).isFalse();
+    }
+
+    @Test
+    public void getMirrorDeviceInfos_withNullPortList() {
+        when(mAudioControlWrapper.getOutputMirroringDevices()).thenReturn(null);
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        expectWithMessage("Converted output mirror devices for null ports list")
+                .that(helper.getMirrorDeviceInfos()).isEmpty();
+    }
+
+    @Test
+    public void getMirrorDeviceInfos_withEmptyPortList() {
+        mMirrorPorts.clear();
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        expectWithMessage("Converted output mirror devices for empty ports list")
+                .that(helper.getMirrorDeviceInfos()).isEmpty();
+    }
+
+    @Test
+    public void getMirrorDeviceInfos_withValidPortList() {
+        AudioPortDeviceExt navPortDevice =
+                createAudioPortDeviceExt(AudioDeviceType.OUT_BUS, "", NAVIGATION_TEST_DEVICE);
+        AudioPort navPort = createAudioPort(2, "nav port", GAINS, navPortDevice);
+        AudioPortDeviceExt mediaPortDevice =
+                createAudioPortDeviceExt(AudioDeviceType.OUT_BUS, "", MEDIA_TEST_DEVICE);
+        AudioPort mediaPort = createAudioPort(1, "media port", GAINS, mediaPortDevice);
+        mMirrorPorts.add(mediaPort);
+        mMirrorPorts.add(navPort);
+        CarAudioZonesHelperAudioControlHAL helper = createAudioZonesHelper();
+
+        var mirroringDevices = helper.getMirrorDeviceInfos();
+
+        expectWithMessage("Converted output mirror devices for valid ports list")
+                .that(mirroringDevices).hasSize(2);
+        var addresses = mirroringDevices.stream().map(CarAudioDeviceInfo::getAddress).toList();
+        expectWithMessage("Converted output mirror device addresses").that(addresses)
+                .containsExactly(NAVIGATION_TEST_DEVICE, MEDIA_TEST_DEVICE);
     }
 
     private CarAudioZonesHelperAudioControlHAL createAudioZonesHelper() {

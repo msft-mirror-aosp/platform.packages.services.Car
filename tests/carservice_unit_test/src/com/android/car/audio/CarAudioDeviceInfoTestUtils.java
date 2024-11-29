@@ -62,19 +62,14 @@ class CarAudioDeviceInfoTestUtils {
     static final String SECONDARY_ZONE_BACK_MICROPHONE_DEVICE = "Built-In Back Mic";
     static final String SECONDARY_ZONE_BUS_1000_INPUT_DEVICE = "bus_1000_input";
 
-    AudioDeviceInfo mMediaOutputDevice;
-    AudioDeviceInfo mNotificationOutputBus;
-    AudioDeviceInfo mNavOutputDevice;
-    AudioDeviceInfo mVoiceOutputBus;
-    AudioDeviceInfo mSecondaryConfig1Group0Device;
-    AudioDeviceInfo mSecondaryConfig1Group1Device;
-    AudioDeviceInfo mBTAudioDeviceInfo;
-    AudioDeviceInfo mCallOutputDevice;
-    AudioDeviceInfo mSystemOutputDevice;
-    AudioDeviceInfo mRingOutputDevice;
-    AudioDeviceInfo mAlarmOutputDevice;
-    AudioDeviceInfo mSecondaryConfigOutputDevice;
-    AudioDeviceInfo mSpeakerDevice;
+    final AudioDeviceInfo mMediaOutputDevice;
+    final AudioDeviceInfo mNotificationOutputBus;
+    final AudioDeviceInfo mNavOutputDevice;
+    final AudioDeviceInfo mVoiceOutputBus;
+    final AudioDeviceInfo mSecondaryConfig1Group0Device;
+    final AudioDeviceInfo mSecondaryConfig1Group1Device;
+    final AudioDeviceInfo mBTAudioDeviceInfo;
+    final AudioDeviceInfo mSecondaryConfigOutputDevice;
 
     private final List<AudioDeviceInfo> mAudioOutputDeviceInfos;
     private final List<AudioDeviceInfo> mAudioInputDeviceInfos;
@@ -101,19 +96,19 @@ class CarAudioDeviceInfoTestUtils {
                 .setAddressName(TEST_BT_DEVICE)
                 .setType(TYPE_BLUETOOTH_A2DP)
                 .build();
-        mCallOutputDevice = new AudioDeviceInfoBuilder()
+        AudioDeviceInfo callOutputDevice = new AudioDeviceInfoBuilder()
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(CALL_TEST_DEVICE)
                 .build();
-        mSystemOutputDevice = new AudioDeviceInfoBuilder()
+        AudioDeviceInfo systemOutputDevice = new AudioDeviceInfoBuilder()
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(SYSTEM_BUS_DEVICE)
                 .build();
-        mRingOutputDevice = new AudioDeviceInfoBuilder()
+        AudioDeviceInfo ringOutputDevice = new AudioDeviceInfoBuilder()
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(RING_TEST_DEVICE)
                 .build();
-        mAlarmOutputDevice = new AudioDeviceInfoBuilder()
+        AudioDeviceInfo alarmOutputDevice = new AudioDeviceInfoBuilder()
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(ALARM_TEST_DEVICE)
                 .build();
@@ -129,7 +124,7 @@ class CarAudioDeviceInfoTestUtils {
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(SECONDARY_TEST_DEVICE_CONFIG_1_1)
                 .build();
-        mSpeakerDevice = new AudioDeviceInfoBuilder()
+        AudioDeviceInfo speakerDevice = new AudioDeviceInfoBuilder()
                 .setAudioGains(new GainBuilder().build())
                 .setAddressName(TEST_SPEAKER_DEVICE).build();
 
@@ -137,16 +132,16 @@ class CarAudioDeviceInfoTestUtils {
                 mBTAudioDeviceInfo,
                 mMediaOutputDevice,
                 mNavOutputDevice,
-                mCallOutputDevice,
-                mSystemOutputDevice,
+                callOutputDevice,
+                systemOutputDevice,
                 mNotificationOutputBus,
                 mVoiceOutputBus,
-                mRingOutputDevice,
-                mAlarmOutputDevice,
+                ringOutputDevice,
+                alarmOutputDevice,
                 mSecondaryConfig1Group0Device,
                 mSecondaryConfig1Group1Device,
                 mSecondaryConfigOutputDevice,
-                mSpeakerDevice,
+                speakerDevice,
                 new AudioDeviceInfoBuilder()
                         .setAudioGains(new GainBuilder().build())
                         .setAddressName(TERTIARY_TEST_DEVICE_1)
@@ -174,8 +169,8 @@ class CarAudioDeviceInfoTestUtils {
                 generateInputAudioDeviceInfo(PRIMARY_ZONE_MICROPHONE_DEVICE, TYPE_BUILTIN_MIC),
                 generateInputAudioDeviceInfo(PRIMARY_ZONE_FM_TUNER_DEVICE, TYPE_FM_TUNER),
                 generateInputAudioDeviceInfo(SECONDARY_ZONE_BACK_MICROPHONE_DEVICE, TYPE_BUS),
-                generateInputAudioDeviceInfo(SECONDARY_ZONE_BUS_1000_INPUT_DEVICE,
-                        TYPE_BUILTIN_MIC));
+                generateInputAudioDeviceInfo(SECONDARY_ZONE_BUS_1000_INPUT_DEVICE, TYPE_BUILTIN_MIC)
+        );
     }
 
     AudioDeviceInfo[] generateOutputDeviceInfos() {

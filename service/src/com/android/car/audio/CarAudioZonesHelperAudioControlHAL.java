@@ -18,11 +18,16 @@ package com.android.car.audio;
 
 import static android.car.media.CarAudioManager.PRIMARY_AUDIO_ZONE;
 
+import static com.android.car.audio.CarAudioUtils.isMicrophoneInputDevice;
 import static com.android.car.audio.hal.AudioControlWrapper.AUDIOCONTROL_FEATURE_AUDIO_CONFIGURATION;
 
 import android.hardware.automotive.audiocontrol.AudioDeviceConfiguration;
 import android.hardware.automotive.audiocontrol.AudioZone;
 import android.hardware.automotive.audiocontrol.RoutingDeviceConfiguration;
+import android.media.AudioDeviceAttributes;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
+import android.util.ArraySet;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -32,6 +37,7 @@ import com.android.car.audio.hal.AudioControlWrapper;
 import com.android.car.internal.util.LocalLog;
 import com.android.internal.annotations.GuardedBy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,6 +51,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
     private final LocalLog mCarAudioLog;
     private final AudioControlWrapper mAudioControl;
     private final AudioControlZoneConverter mZoneConverter;
+    private final AudioManagerWrapper mAudioManager;
 
     private final Object mLock = new Object();
     @GuardedBy("mLock") //Use to guard access
@@ -58,7 +65,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
             AudioManagerWrapper audioManager, CarAudioSettings settings, LocalLog serviceLog,
             boolean useFadeManagerConfiguration)  {
         mAudioControl = Objects.requireNonNull(wrapper, "Audio control HAL can not be null");
-        Objects.requireNonNull(audioManager, "Audio manager can not be null");
+        mAudioManager = Objects.requireNonNull(audioManager, "Audio manager can not be null");
         Objects.requireNonNull(settings, "Car audio settings can not be null");
         mCarAudioLog = Objects.requireNonNull(serviceLog, "Car audio log can not be null");
         mZoneConverter = new AudioControlZoneConverter(audioManager, settings, serviceLog,
@@ -101,6 +108,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
         var zoneIdToZone = new SparseArray<CarAudioZone>(halAudioZones.size());
         boolean foundErrors = false;
         var zoneIdToOccupantZoneId = new SparseIntArray();
+        var usedInputAddresses = new ArraySet<String>();
         for (int c = 0; c < halAudioZones.size(); c++) {
             var halZone = halAudioZones.get(c);
             if (halZone == null) {
@@ -115,6 +123,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
                 foundErrors = true;
                 continue;
             }
+            usedInputAddresses.addAll(getInputDeviceAddresses(carAudioZone));
             if (zoneIdToZone.indexOfKey(carAudioZone.getId()) >= 0) {
                 logParsingError("Audio control HAL zones helper found a repeating audio zone,"
                         + " zone id " + halZone.id);
@@ -146,6 +155,7 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
                     mAudioZoneIdToOccupantZoneId.put(zoneId, occupantId);
                 }
             }
+            addRemainingInputDevicesToZone(primaryZone, usedInputAddresses);
         } else {
             logParsingError("Audio control HAL zones helper could not find primary zone");
             zoneIdToZone.clear();
@@ -153,6 +163,26 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
         }
 
         return zoneIdToZone;
+    }
+
+    private void addRemainingInputDevicesToZone(CarAudioZone zone,
+            ArraySet<String> usedAddresses) {
+        AudioDeviceInfo[] inputDevices = mAudioManager.getDevices(AudioManager.GET_DEVICES_INPUTS);
+        for (var device : inputDevices) {
+            if (usedAddresses.contains(device.getAddress()) || !isMicrophoneInputDevice(device)) {
+                continue;
+            }
+            zone.addInputAudioDevice(new AudioDeviceAttributes(device));
+        }
+    }
+
+    private static List<String> getInputDeviceAddresses(CarAudioZone carAudioZone) {
+        var inputDevices = carAudioZone.getInputAudioDevices();
+        var addresses = new ArrayList<String>(inputDevices.size());
+        for (int c = 0; c < inputDevices.size(); c++) {
+            addresses.add(inputDevices.get(c).getAddress());
+        }
+        return addresses;
     }
 
     private void logParsingError(String message) {
@@ -176,8 +206,8 @@ final class CarAudioZonesHelperAudioControlHAL implements CarAudioZonesHelper {
 
     @Override
     public List<CarAudioDeviceInfo> getMirrorDeviceInfos() {
-        // TODO(b/359686069): Implement mirror devices
-        return List.of();
+        return mZoneConverter.convertZonesMirroringAudioPorts(
+                mAudioControl.getOutputMirroringDevices());
     }
 
     @Override
