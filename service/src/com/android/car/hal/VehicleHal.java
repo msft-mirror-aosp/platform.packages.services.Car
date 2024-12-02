@@ -1793,6 +1793,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
 
     /**
      * Gets the min/max supported value.
+     *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
      */
     public MinMaxSupportedRawPropValues getMinMaxSupportedValue(int propertyId, int areaId)
             throws ServiceSpecificException {
@@ -1801,6 +1803,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
 
     /**
      * Gets the supported values list.
+     *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
      */
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
@@ -1853,6 +1857,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
      * Registers the callback to be called when the min/max supported value or supported values
      * list change.
      *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
      * @throws ServiceSpecificException If VHAL returns error.
      * @throws IllegalArgumentException If the service does not own one of the requested property
      *      ID.
@@ -1886,6 +1892,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
      * registerSupportedValuesChange.
      *
      * Do nothing if the [propId, areaId]s were not previously registered.
+     *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
      *
      * @throws IllegalArgumentException If the service does not own one of the requested property
      *      ID.

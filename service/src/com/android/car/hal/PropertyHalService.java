@@ -1514,6 +1514,13 @@ public class PropertyHalService extends HalServiceBase {
      */
     public void registerSupportedValuesChangeCallback(List<PropIdAreaId> mgrPropIdAreaIds,
             ISupportedValuesChangeCallback callback) {
+        if (!mVehicleHal.isSupportedValuesImplemented()) {
+            Slogf.i(TAG, "Supported Values APIs are not implemented, do nothing for "
+                    + "registerSupportedValuesChangeCallback for %s because supported values are "
+                    + "static.", toDebugString(mgrPropIdAreaIds));
+            return;
+        }
+
         List<PropIdAreaId> halPropIdAreaIds = new ArrayList<>();
         synchronized (mLock) {
             // This must be called within the lock so that unregisterSupportedValuesChangeCallback
@@ -1564,6 +1571,13 @@ public class PropertyHalService extends HalServiceBase {
      */
     public void unregisterSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
             ISupportedValuesChangeCallback callback) {
+        if (!mVehicleHal.isSupportedValuesImplemented()) {
+            Slogf.i(TAG, "Supported Values APIs are not implemented, do nothing for "
+                    + "unregisterSupportedValuesChangeCallback for %s because supported values are "
+                    + "static.", toDebugString(propIdAreaIds));
+            return;
+        }
+
         List<PropIdAreaId> halPropIdAreaIdsToUnregister = new ArrayList<>();
         synchronized (mLock) {
             for (int i = 0; i < propIdAreaIds.size(); i++) {
