@@ -348,6 +348,11 @@
     <!-- Permission text: apps access car's tire information [CHAR LIMIT=NONE] -->
     <string name="car_permission_desc_car_tires">Access car\u2019s tire information.</string>
 
+    <!-- Permission text: apps access car's tire information [CHAR LIMIT=NONE] -->
+    <string name="car_permission_label_car_tires_3p">read car\u2019s tires information</string>
+    <!-- Permission text: apps access car's tire information [CHAR LIMIT=NONE] -->
+    <string name="car_permission_desc_car_tires_3p">Read car\u2019s tire information.</string>
+
     <!-- Permission text: apps access car's steering angle information [CHAR LIMIT=NONE] -->
     <string name="car_permission_label_car_steering">read car\u2019s steering angle information</string>
     <!-- Permission text: apps access car's steering angle information [CHAR LIMIT=NONE] -->

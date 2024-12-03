@@ -794,6 +794,12 @@ public final class Car implements ICarBase {
     public static final String PERMISSION_TIRES = "android.car.permission.CAR_TIRES";
 
     /**
+     * Dangerous permission necessary to access car's tire pressure information.
+     */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    public static final String PERMISSION_TIRES_3P = "android.car.permission.CAR_TIRES_3P";
+
+    /**
      * Signature|Privileged permission necessary to access car's property
      * {@link VehiclePropertyIds#EPOCH_TIME}.
      */

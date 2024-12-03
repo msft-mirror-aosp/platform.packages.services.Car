@@ -463,9 +463,19 @@
       "propertyId": 392168201,
       "description": "Tire pressure in kilopascals.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CAR_TIRES"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_TIRES_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_TIRES"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "CRITICALLY_LOW_TIRE_PRESSURE": {
       "propertyName": "CRITICALLY_LOW_TIRE_PRESSURE",

@@ -243,6 +243,15 @@
          android:label="@string/car_permission_label_car_tires"
          android:description="@string/car_permission_desc_car_tires"/>
 
+    <!-- Allows an application to read the vehicle tire pressure information.
+         <p>Protection level: dangerous
+    -->
+    <permission android:name="android.car.permission.CAR_TIRES_3P"
+         android:permissionGroup="android.car.permission-group.CAR_MONITORING"
+         android:protectionLevel="dangerous"
+         android:label="@string/car_permission_label_car_tires_3p"
+         android:description="@string/car_permission_desc_car_tires_3p"/>
+
     <!-- Allows an application to read the vehicle steering angle information.
          <p>Protection level: signature|privileged
     -->

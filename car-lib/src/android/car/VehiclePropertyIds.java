@@ -964,11 +964,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_TIRES} to read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_TIRES_3P} or Signature|Privileged permission
+     *  {@link Car#PERMISSION_TIRES} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_TIRES)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_TIRES_3P,
+        Car.PERMISSION_TIRES}))
     public static final int TIRE_PRESSURE = 392168201;
     /**
      * Critically low tire pressure.

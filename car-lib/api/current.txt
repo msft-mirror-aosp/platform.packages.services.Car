@@ -104,6 +104,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_WINDSHIELD_WIPERS = "android.car.permission.READ_WINDSHIELD_WIPERS";
     field public static final String PERMISSION_SPEED = "android.car.permission.CAR_SPEED";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_TIRES = "android.car.permission.CAR_TIRES";
+    field @FlaggedApi("android.car.feature.vehicle_property_25q2_3p_permissions") public static final String PERMISSION_TIRES_3P = "android.car.permission.CAR_TIRES_3P";
     field public static final String PERMISSION_USE_REMOTE_ACCESS = "android.car.permission.USE_REMOTE_ACCESS";
     field @Deprecated public static final int PLATFORM_VERSION_MINOR_INT;
     field public static final String POWER_SERVICE = "power";
@@ -570,7 +571,7 @@ package android.car {
     field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_INTERIOR_LIGHTS) public static final int STEERING_WHEEL_LIGHTS_SWITCH = 289410829; // 0x11400f0d
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_STEERING_WHEEL) public static final int STEERING_WHEEL_LOCKED = 287312869; // 0x11200be5
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_STEERING_WHEEL) public static final int STEERING_WHEEL_THEFT_LOCK_ENABLED = 287312868; // 0x11200be4
-    field @RequiresPermission(android.car.Car.PERMISSION_TIRES) public static final int TIRE_PRESSURE = 392168201; // 0x17600309
+    field @FlaggedApi("android.car.feature.vehicle_property_25q2_3p_permissions") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_TIRES_3P, android.car.Car.PERMISSION_TIRES})) public static final int TIRE_PRESSURE = 392168201; // 0x17600309
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_READ_DISPLAY_UNITS)) @RequiresPermission.Write(@androidx.annotation.RequiresPermission(allOf={android.car.Car.PERMISSION_CONTROL_DISPLAY_UNITS, "android.car.permission.CAR_VENDOR_EXTENSION"})) public static final int TIRE_PRESSURE_DISPLAY_UNITS = 289408514; // 0x11400602
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_DYNAMICS_STATE) public static final int TRACTION_CONTROL_ACTIVE = 287310859; // 0x1120040b
     field @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_PRIVILEGED_CAR_INFO)) public static final int TRAILER_PRESENT = 289410885; // 0x11400f45
