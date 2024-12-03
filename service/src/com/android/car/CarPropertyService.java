@@ -1202,6 +1202,42 @@ public class CarPropertyService extends ICarProperty.Stub
         return areaIdConfig;
     }
 
+    @Override
+    public CarPropertyConfigList registerRecordingListener(ICarPropertyEventListener callback) {
+        return new CarPropertyConfigList(new ArrayList<>());
+    }
+
+    @Override
+    public boolean isRecordingVehicleProperties() {
+        return false;
+    }
+
+    @Override
+    public void stopRecordingVehicleProperties(ICarPropertyEventListener callback) {
+    }
+
+    @Override
+    public void enableInjectionMode(int[] propertyIdsFromRealHardware) {
+    }
+
+    @Override
+    public void disableInjectionMode() {
+    }
+
+    @Override
+    public boolean isVehiclePropertyInjectionModeEnabled() {
+        return false;
+    }
+
+    @Override
+    public CarPropertyValue getLastInjectedVehicleProperty(int propertyId) {
+        return null;
+    }
+
+    @Override
+    public void injectVehicleProperties(List<CarPropertyValue> carPropertyValues) {
+    }
+
     private void assertPropertyIsReadable(CarPropertyConfig<?> carPropertyConfig,
             int areaId) {
         int accessLevel = mFeatureFlags.areaIdConfigAccess()
