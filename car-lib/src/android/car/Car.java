@@ -972,6 +972,13 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_DRIVING_STATE";
 
     /**
+     * Dangerous permission necessary to access a car's driving state.
+     */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    public static final String PERMISSION_CAR_DRIVING_STATE_3P =
+            "android.car.permission.CAR_DRIVING_STATE_3P";
+
+    /**
      * Signature permission necessary to access VMS client service.
      *
      * @hide

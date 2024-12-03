@@ -542,6 +542,15 @@
          android:label="@string/car_permission_label_driving_state"
          android:description="@string/car_permission_desc_driving_state"/>
 
+    <!-- Allows an application to read the vehicle driving state.
+         <p>Protection level: dangerous
+    -->
+    <permission android:name="android.car.permission.CAR_DRIVING_STATE_3P"
+         android:permissionGroup="android.car.permission-group.CAR_MONITORING"
+         android:protectionLevel="dangerous"
+         android:label="@string/car_permission_label_driving_state_3p"
+         android:description="@string/car_permission_desc_driving_state_3p"/>
+
     <!-- Allows an application to use car's telemetry service.
          <p>Protection level: signature|privileged
     -->

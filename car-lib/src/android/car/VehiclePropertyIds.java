@@ -5892,15 +5892,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_DRIVING_STATE} to
-     *  read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_CAR_DRIVING_STATE_3P} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CAR_DRIVING_STATE} to read property.
      *  <li>Property is not writable.
      * </ul>
      *
      * @data_enum {@link android.car.hardware.property.VehicleAutonomousState}
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
-    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DRIVING_STATE))
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_DRIVING_STATE_3P,
+        Car.PERMISSION_CAR_DRIVING_STATE}))
     public static final int VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL = 289410892;
 
     /**

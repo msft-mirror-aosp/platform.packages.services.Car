@@ -33,6 +33,7 @@
     <uses-permission android:name="android.permission.ACCESS_VOICE_INTERACTION_SERVICE" />
     <!-- Permission required for ATS tests - AtsCarHostTestCases, AtsCarDeviceApp -->
     <uses-permission android:name="android.car.permission.CAR_DRIVING_STATE" />
+    <uses-permission android:name="android.car.permission.CAR_DRIVING_STATE_3P" />
     <!-- Permission required for 'adb shell cmd location is-automotive-gnss-suspended' -->
     <uses-permission android:name="android.permission.CONTROL_AUTOMOTIVE_GNSS" />
     <!-- Permission required for ATS tests - AtsCarTests#CarPropertyManagerTest-->
