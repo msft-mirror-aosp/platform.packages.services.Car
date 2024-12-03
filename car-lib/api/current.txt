@@ -89,6 +89,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_ADAS_STATES = "android.car.permission.READ_ADAS_STATES";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_CAR_AIRBAGS = "android.car.permission.READ_CAR_AIRBAGS";
     field public static final String PERMISSION_READ_CAR_POWER_POLICY = "android.car.permission.READ_CAR_POWER_POLICY";
+    field @FlaggedApi("android.car.feature.vehicle_property_25q2_3p_permissions") public static final String PERMISSION_READ_CAR_SEATS = "android.car.permission.READ_CAR_SEATS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_CAR_SEAT_BELTS = "android.car.permission.READ_CAR_SEAT_BELTS";
     field public static final String PERMISSION_READ_DISPLAY_UNITS = "android.car.permission.READ_CAR_DISPLAY_UNITS";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_DRIVER_MONITORING_SETTINGS = "android.car.permission.READ_DRIVER_MONITORING_SETTINGS";
@@ -556,7 +557,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_SEATS) public static final int SEAT_LUMBAR_VERTICAL_POS = 356518817; // 0x15400ba1
     field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_SEATS) public static final int SEAT_MEMORY_SELECT = 356518784; // 0x15400b80
     field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_SEATS) public static final int SEAT_MEMORY_SET = 356518785; // 0x15400b81
-    field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_SEATS) public static final int SEAT_OCCUPANCY = 356518832; // 0x15400bb0
+    field @FlaggedApi("android.car.feature.vehicle_property_25q2_3p_permissions") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_CAR_SEATS, android.car.Car.PERMISSION_CONTROL_CAR_SEATS})) public static final int SEAT_OCCUPANCY = 356518832; // 0x15400bb0
     field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_SEATS) public static final int SEAT_TILT_MOVE = 356518800; // 0x15400b90
     field @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_SEATS) public static final int SEAT_TILT_POS = 356518799; // 0x15400b8f
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission(android.car.Car.PERMISSION_CONTROL_CAR_SEATS) public static final int SEAT_WALK_IN_POS = 356518819; // 0x15400ba3

@@ -3991,14 +3991,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read
-     *  property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_CAR_SEATS} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read property.
      *  <li>Property is not writable.
      * </ul>
      *
      * @data_enum {@link VehicleSeatOccupancyState}
      */
-    @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_CAR_SEATS,
+        Car.PERMISSION_CONTROL_CAR_SEATS}))
     public static final int SEAT_OCCUPANCY = 356518832;
     /**
      * Window Position.

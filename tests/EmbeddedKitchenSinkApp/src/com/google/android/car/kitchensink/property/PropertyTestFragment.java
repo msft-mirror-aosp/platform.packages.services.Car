@@ -73,6 +73,7 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
     private static final String[] REQUIRED_DANGEROUS_PERMISSIONS = new String[]{
         Car.PERMISSION_MILEAGE_3P,
         Car.PERMISSION_ENERGY,
+        Car.PERMISSION_READ_CAR_SEATS,
         Car.PERMISSION_READ_STEERING_STATE_3P,
         Car.PERMISSION_SPEED
     };

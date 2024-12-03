@@ -143,6 +143,15 @@
          android:label="@string/car_permission_label_control_car_seats"
          android:description="@string/car_permission_desc_control_car_seats"/>
 
+    <!-- Allows an application to read the vehicle seats.
+         <p>Protection level: dangerous
+    -->
+    <permission android:name="android.car.permission.READ_CAR_SEATS"
+         android:permissionGroup="android.car.permission-group.CAR_MONITORING"
+         android:protectionLevel="dangerous"
+         android:label="@string/car_permission_label_read_car_seats"
+         android:description="@string/car_permission_desc_read_car_seats"/>
+
     <!-- Allows an application to read state of seat belts.
          <p>Protection level: signature|privileged
     -->

@@ -248,6 +248,11 @@
     <!-- Permission text: apps can control car seats [CHAR LIMIT=NONE] -->
     <string name="car_permission_desc_control_car_seats">Control car\u2019s seats.</string>
 
+    <!-- Permission text: apps can read car seats [CHAR LIMIT=NONE] -->
+    <string name="car_permission_label_read_car_seats">read car\u2019s seats</string>
+    <!-- Permission text: apps can read car seats [CHAR LIMIT=NONE] -->
+    <string name="car_permission_desc_read_car_seats">Read car\u2019s seats.</string>
+
     <!-- Permission text: apps can read car seat belts [CHAR LIMIT=NONE] -->
     <string name="car_permission_label_read_car_seat_belts">read car\u2019s seat belts</string>
     <!-- Permission text: apps can read car seat belts [CHAR LIMIT=NONE] -->

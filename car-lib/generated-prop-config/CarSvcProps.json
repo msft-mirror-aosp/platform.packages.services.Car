@@ -2137,14 +2137,24 @@
       "propertyId": 356518832,
       "description": "Seat Occupancy.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CONTROL_CAR_SEATS"
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_SEATS"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CONTROL_CAR_SEATS"
+          }
+        ]
       },
       "dataEnums": [
         0,
         1,
         2
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "WINDOW_POS": {
       "propertyName": "WINDOW_POS",
