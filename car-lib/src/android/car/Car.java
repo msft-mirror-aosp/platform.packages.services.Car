@@ -1318,6 +1318,13 @@ public final class Car implements ICarBase {
             "android.car.permission.READ_WINDSHIELD_WIPERS";
 
     /**
+     * Dangerous permission necessary to read car's windshield wipers.
+     */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    public static final String PERMISSION_READ_WINDSHIELD_WIPERS_3P =
+            "android.car.permission.READ_WINDSHIELD_WIPERS_3P";
+
+    /**
      * Signature|Privileged permission necessary to control car's windshield wipers.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)

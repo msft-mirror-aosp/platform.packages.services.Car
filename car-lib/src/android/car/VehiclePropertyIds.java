@@ -4157,15 +4157,17 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS} to read
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS_3P} or
+     *  Signature|Privileged permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS} to read
      *  property.
      *  <li>Property is not writable.
      * </ul>
      *
      * @data_enum {@link WindshieldWipersState}
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
-    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_WINDSHIELD_WIPERS_3P,
+        Car.PERMISSION_READ_WINDSHIELD_WIPERS}))
     public static final int WINDSHIELD_WIPERS_STATE = 322964422;
 
     /**

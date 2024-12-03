@@ -2220,8 +2220,17 @@
       "propertyId": 322964422,
       "description": "Windshield wipers state.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.READ_WINDSHIELD_WIPERS"
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_WINDSHIELD_WIPERS_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_WINDSHIELD_WIPERS"
+          }
+        ]
       },
       "dataEnums": [
         0,
@@ -2229,7 +2238,7 @@
         2,
         3
       ],
-      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "WINDSHIELD_WIPERS_SWITCH": {
       "propertyName": "WINDSHIELD_WIPERS_SWITCH",
