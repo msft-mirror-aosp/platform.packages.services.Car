@@ -368,7 +368,7 @@ android_test {
     name: "CarServiceHalUnitTest",
 
     srcs: [
-        "src/com/android/car/hal/*.java",
+        "src/com/android/car/hal/**/*.java",
     ],
 
     defaults: [
