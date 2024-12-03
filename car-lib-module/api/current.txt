@@ -96,6 +96,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_IMPACT_SENSORS = "android.car.permission.READ_IMPACT_SENSORS";
     field public static final String PERMISSION_READ_INTERIOR_LIGHTS = "android.car.permission.READ_CAR_INTERIOR_LIGHTS";
     field public static final String PERMISSION_READ_STEERING_STATE = "android.car.permission.READ_CAR_STEERING";
+    field @FlaggedApi("android.car.feature.vehicle_property_25q2_3p_permissions") public static final String PERMISSION_READ_STEERING_STATE_3P = "android.car.permission.READ_CAR_STEERING_3P";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_ULTRASONICS_SENSOR_DATA = "android.car.permission.READ_ULTRASONICS_SENSOR_DATA";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_VALET_MODE = "android.car.permission.READ_VALET_MODE";
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") public static final String PERMISSION_READ_WINDSHIELD_WIPERS = "android.car.permission.READ_WINDSHIELD_WIPERS";
@@ -509,7 +510,7 @@ package android.car {
     field @RequiresPermission(android.car.Car.PERMISSION_POWERTRAIN) public static final int PARKING_BRAKE_ON = 287310850; // 0x11200402
     field @RequiresPermission(android.car.Car.PERMISSION_MILEAGE) public static final int PERF_ODOMETER = 291504644; // 0x11600204
     field @RequiresPermission(android.car.Car.PERMISSION_READ_STEERING_STATE) public static final int PERF_REAR_STEERING_ANGLE = 291504656; // 0x11600210
-    field @RequiresPermission(android.car.Car.PERMISSION_READ_STEERING_STATE) public static final int PERF_STEERING_ANGLE = 291504649; // 0x11600209
+    field @FlaggedApi("android.car.feature.vehicle_property_25q2_3p_permissions") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(anyOf={android.car.Car.PERMISSION_READ_STEERING_STATE_3P, android.car.Car.PERMISSION_READ_STEERING_STATE})) public static final int PERF_STEERING_ANGLE = 291504649; // 0x11600209
     field @RequiresPermission(android.car.Car.PERMISSION_SPEED) public static final int PERF_VEHICLE_SPEED = 291504647; // 0x11600207
     field @RequiresPermission(android.car.Car.PERMISSION_SPEED) public static final int PERF_VEHICLE_SPEED_DISPLAY = 291504648; // 0x11600208
     field @Deprecated @RequiresPermission("android.car.permission.CAR_POWER") public static final int PER_DISPLAY_BRIGHTNESS = 289475076; // 0x11410a04

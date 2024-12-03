@@ -17,6 +17,7 @@
 package android.car;
 
 import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
+import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 
@@ -482,12 +483,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_STEERING_STATE} to read
-     *  property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_STEERING_STATE_3P} or
+     *  Signature|Privileged permission {@link Car#PERMISSION_READ_STEERING_STATE} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_STEERING_STATE_3P,
+        Car.PERMISSION_READ_STEERING_STATE}))
     public static final int PERF_STEERING_ANGLE = 291504649;
     /**
      * Rear bicycle model steering angle for vehicle in degrees.

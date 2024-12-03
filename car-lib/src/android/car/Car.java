@@ -18,6 +18,7 @@ package android.car;
 
 import static android.car.CarLibLog.TAG_CAR;
 import static android.car.feature.Flags.FLAG_CLUSTER_HEALTH_MONITORING;
+import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 
 import android.annotation.FlaggedApi;
@@ -798,6 +799,13 @@ public final class Car implements ICarBase {
      */
     public static final String PERMISSION_READ_STEERING_STATE =
             "android.car.permission.READ_CAR_STEERING";
+
+    /**
+     * Dangerous permission necessary to access car's steering angle information.
+     */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    public static final String PERMISSION_READ_STEERING_STATE_3P =
+            "android.car.permission.READ_CAR_STEERING_3P";
 
     /**
      * Normal permission necessary to read and write display units for distance, fuel volume,

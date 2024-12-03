@@ -219,9 +219,19 @@
       "propertyId": 291504649,
       "description": "Front bicycle model steering angle for vehicle in degrees.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.READ_CAR_STEERING"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_STEERING_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_STEERING"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "PERF_REAR_STEERING_ANGLE": {
       "propertyName": "PERF_REAR_STEERING_ANGLE",
