@@ -213,6 +213,11 @@
     <!-- Permission text: apps can listen to Engine Detailed [CHAR LIMIT=NONE] -->
     <string name="car_permission_desc_car_engine_detailed">Access your car\u2019s detailed engine information.</string>
 
+    <!-- Permission text: apps read Engine Detailed 3P [CHAR LIMIT=NONE] -->
+    <string name="car_permission_label_car_engine_detailed_3p">read car\u2019s engine detailed</string>
+    <!-- Permission text: apps can listen to Engine Detailed 3P [CHAR LIMIT=NONE] -->
+    <string name="car_permission_desc_car_engine_detailed_3p">Read your car\u2019s detailed engine information.</string>
+
     <!-- Permission text: apps can access car's fuel door and ev charge port [CHAR LIMIT=NONE] -->
     <string name="car_permission_label_car_energy_ports">access car\u2019s fuel door and charge port</string>
     <!-- Permission text: apps can access car's fuel door and ev charge port [CHAR LIMIT=NONE] -->

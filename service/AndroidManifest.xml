@@ -321,6 +321,15 @@
          android:label="@string/car_permission_label_car_engine_detailed"
          android:description="@string/car_permission_desc_car_engine_detailed"/>
 
+    <!-- Allows an application to read the vehicle engine information.
+         <p>Protection level: dangerous
+    -->
+    <permission android:name="android.car.permission.CAR_ENGINE_DETAILED_3P"
+         android:permissionGroup="android.car.permission-group.CAR_MONITORING"
+         android:protectionLevel="dangerous"
+         android:label="@string/car_permission_label_car_engine_detailed_3p"
+         android:description="@string/car_permission_desc_car_engine_detailed_3p"/>
+
     <!-- Allows an application to read the vehicle dynamic state information. For example, it
          allows an application to read the ABS and traction control status.
          <p>Protection level: signature|privileged

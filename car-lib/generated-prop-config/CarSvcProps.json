@@ -291,9 +291,19 @@
       "propertyId": 291504901,
       "description": "Engine rpm.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CAR_ENGINE_DETAILED"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_ENGINE_DETAILED_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_ENGINE_DETAILED"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "ENGINE_IDLE_AUTO_STOP_ENABLED": {
       "propertyName": "ENGINE_IDLE_AUTO_STOP_ENABLED",

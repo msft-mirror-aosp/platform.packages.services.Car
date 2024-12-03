@@ -788,6 +788,13 @@ public final class Car implements ICarBase {
             "android.car.permission.CAR_ENGINE_DETAILED";
 
     /**
+     * Dangerous permission necessary to access car's engine information.
+     */
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    public static final String PERMISSION_CAR_ENGINE_DETAILED_3P =
+            "android.car.permission.CAR_ENGINE_DETAILED_3P";
+
+    /**
      * Signature|Privileged permission necessary to access car's tire pressure information.
      */
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)

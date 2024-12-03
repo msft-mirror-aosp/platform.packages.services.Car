@@ -599,12 +599,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED} to read
-     *  property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED_3P} or
+     *  Signature|Privileged permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_ENGINE_DETAILED_3P,
+        Car.PERMISSION_CAR_ENGINE_DETAILED}))
     public static final int ENGINE_RPM = 291504901;
     /**
      * Represents feature for engine idle automatic stop.
