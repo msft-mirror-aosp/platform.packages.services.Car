@@ -192,9 +192,19 @@
       "propertyId": 291504644,
       "description": "Current odometer value of the vehicle in kilometers.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CAR_MILEAGE"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_MILEAGE_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_MILEAGE"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "PERF_VEHICLE_SPEED": {
       "propertyName": "PERF_VEHICLE_SPEED",

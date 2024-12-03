@@ -411,11 +411,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_MILEAGE} to read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_MILEAGE_3P} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_MILEAGE} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_MILEAGE)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_MILEAGE_3P,
+            Car.PERMISSION_MILEAGE}))
     public static final int PERF_ODOMETER = 291504644;
     /**
      * Speed of the vehicle in meters per second.
