@@ -253,6 +253,7 @@
 
     <!-- Use for RadioTestFragment -->
     <uses-permission android:name="android.permission.ACCESS_BROADCAST_RADIO"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
 
     <!-- Allow backup is set to false for KitchenSinkApp to avoid infinite loop during backup -->
     <application
@@ -498,5 +499,13 @@
                 <action android:name="android.car.remoteaccess.RemoteTaskClientService" />
             </intent-filter>
         </service>
+        <receiver
+            android:name=".radio.AlertNotificationReceiver"
+            android:exported="false">
+        </receiver>
+        <receiver
+            android:name=".radio.AlertSnoozeReceiver"
+            android:exported="false">
+        </receiver>
     </application>
 </manifest>

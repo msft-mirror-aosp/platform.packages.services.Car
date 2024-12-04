@@ -1203,7 +1203,8 @@
         android:name="android.car.permission.RECORD_VEHICLE_PROPERTIES"
         android:protectionLevel="signature"
         android:label="@string/car_permission_label_record_vehicle_properties"
-        android:description="@string/car_permission_desc_record_vehicle_properties" />
+        android:description="@string/car_permission_desc_record_vehicle_properties"
+        android:featureFlag="android.car.feature.car_property_simulation" />
 
     <!-- Allows an application to inject vehicle properties.
          <p>Protection level: signature
@@ -1212,7 +1213,8 @@
         android:name="android.car.permission.INJECT_VEHICLE_PROPERTIES"
         android:protectionLevel="signature"
         android:label="@string/car_permission_label_inject_vehicle_properties"
-        android:description="@string/car_permission_desc_inject_vehicle_properties" />
+        android:description="@string/car_permission_desc_inject_vehicle_properties"
+        android:featureFlag="android.car.feature.car_property_simulation" />
 
     <!-- NOTE: when you're adding a new permission, you should edit
          packages/modules/Permission/tests/cts/permissionpolicy/res/raw/automotive_android_manifest.xml
