@@ -44,6 +44,8 @@ using ::aidl::android::hardware::automotive::vehicle::GetValueResult;
 using ::aidl::android::hardware::automotive::vehicle::GetValueResults;
 using ::aidl::android::hardware::automotive::vehicle::IVehicle;
 using ::aidl::android::hardware::automotive::vehicle::IVehicleCallback;
+using ::aidl::android::hardware::automotive::vehicle::MinMaxSupportedValueResults;
+using ::aidl::android::hardware::automotive::vehicle::PropIdAreaId;
 using ::aidl::android::hardware::automotive::vehicle::RawPropValues;
 using ::aidl::android::hardware::automotive::vehicle::SetValueRequest;
 using ::aidl::android::hardware::automotive::vehicle::SetValueRequests;
@@ -51,6 +53,7 @@ using ::aidl::android::hardware::automotive::vehicle::SetValueResult;
 using ::aidl::android::hardware::automotive::vehicle::SetValueResults;
 using ::aidl::android::hardware::automotive::vehicle::StatusCode;
 using ::aidl::android::hardware::automotive::vehicle::SubscribeOptions;
+using ::aidl::android::hardware::automotive::vehicle::SupportedValuesListResults;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfig;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfigs;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropError;
@@ -167,6 +170,26 @@ public:
 
     ScopedAStatus returnSharedMemory([[maybe_unused]] const CallbackType& callback,
                                      [[maybe_unused]] int64_t sharedMemoryId) override {
+        return ScopedAStatus::ok();
+    }
+
+    ScopedAStatus getSupportedValuesLists(const std::vector<PropIdAreaId>&,
+                                          SupportedValuesListResults*) {
+        return ScopedAStatus::ok();
+    }
+
+    ScopedAStatus getMinMaxSupportedValue(const std::vector<PropIdAreaId>&,
+                                          MinMaxSupportedValueResults*) {
+        return ScopedAStatus::ok();
+    }
+
+    ScopedAStatus registerSupportedValueChangeCallback(const std::shared_ptr<IVehicleCallback>&,
+                                                       const std::vector<PropIdAreaId>&) {
+        return ScopedAStatus::ok();
+    }
+
+    ScopedAStatus unregisterSupportedValueChangeCallback(const std::shared_ptr<IVehicleCallback>&,
+                                                         const std::vector<PropIdAreaId>&) {
         return ScopedAStatus::ok();
     }
 
