@@ -245,6 +245,10 @@ java_defaults {
         "//packages/services/Car:__subpackages__",
     ],
 
+    flags_packages: [
+        "android.car.feature-aconfig",
+    ],
+
     defaults: ["carservice-updatable-min-java-defaults"],
 
     // TODO(b/288271411): enable it when car mainline module is supported
