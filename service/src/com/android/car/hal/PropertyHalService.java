@@ -53,6 +53,7 @@ import android.car.hardware.property.AreaIdConfig;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.CarPropertyManager.CarSetPropertyErrorCode;
+import android.car.hardware.property.ICarPropertyEventListener;
 import android.car.hardware.property.VehicleHalStatusCode.VehicleHalStatusCodeInt;
 import android.content.Context;
 import android.hardware.automotive.vehicle.RawPropValues;
@@ -1689,6 +1690,71 @@ public class PropertyHalService extends HalServiceBase {
         for (VehicleStubCallback callback : callbackToSetValueResults.keySet()) {
             callback.sendSetValueResults(callbackToSetValueResults.get(callback));
         }
+    }
+
+    /**
+     * Registers a recording listener.
+     *
+     * @param callback The callback to register
+     * @return A list of CarPropertyConfigs that are being recorded
+     */
+    public List<CarPropertyConfig> registerRecordingListener(ICarPropertyEventListener callback) {
+        return new ArrayList<>();
+    }
+
+    /**
+     * @return True If currently recording vehicle properties
+     */
+    public boolean isRecordingVehicleProperties() {
+        return false;
+    }
+
+    /**
+     * Stops the recording.
+     * @param callback The callback to stop recording.
+     */
+    public void stopRecordingVehicleProperties(ICarPropertyEventListener callback) {
+
+    }
+
+    /**
+     * Enables Injection mode with the list of properties to allow to come from the real VHAL.
+     * @param propertyIdsFromRealHardware THe list of properties to allow to come from real VHAL.
+     */
+    public void enableInjectionMode(List<Integer> propertyIdsFromRealHardware) {
+
+    }
+
+    /**
+     * Disables injeciton mode.
+     */
+    public void disableInjectionMode() {
+
+    }
+
+    /**
+     * @return True if Vehicle property injection mode is enabled, false otherwise.
+     */
+    public boolean isVehiclePropertyInjectionModeEnabled() {
+        return false;
+    }
+
+    /**
+     * Gets the last injected vehicle property for the propertyId.
+     *
+     * @param propertyId The propertyId that was last injected.
+     * @return The {@link CarPropertyValue} that was last injected.
+     */
+    public CarPropertyValue getLastInjectedVehicleProperty(int propertyId) {
+        return null;
+    }
+
+    /**
+     * Injects the CarPropertyValues.
+     * @param carPropertyValues The carPropertyValues to inject.
+     */
+    public void injectVehicleProperties(List<CarPropertyValue> carPropertyValues) {
+
     }
 
     private static @CarSetPropertyErrorCode int convertStatusCodeToCarSetPropertyErrorCode(
