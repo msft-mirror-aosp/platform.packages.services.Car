@@ -677,7 +677,18 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
 
 
     @Test
-    public void testVicVehiclePropertiesFlagNoOp() throws Exception {
+    public void testVicVehiclePropertiesFlagEnabledNoOp() throws Exception {
+        int vicProperty = VehiclePropertyIds.DRIVER_DROWSINESS_ATTENTION_SYSTEM_ENABLED;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES, true);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds()).contains(vicProperty);
+        assertThat(mPropertyHalServiceConfigs.isSupportedProperty(vicProperty)).isTrue();
+    }
+
+    @Test
+    public void testVicVehiclePropertiesFlagDisabledNoOp() throws Exception {
         int vicProperty = VehiclePropertyIds.DRIVER_DROWSINESS_ATTENTION_SYSTEM_ENABLED;
         mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES, false);
 
@@ -688,7 +699,20 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
     }
 
     @Test
-    public void testVehiclePropertyRemoveSystemApiTagFlagNoOp() throws Exception {
+    public void testVehiclePropertyRemoveSystemApiTagFlagEnabledNoOp() throws Exception {
+        int previouslySystemApiProperty = VehiclePropertyIds.HEAD_UP_DISPLAY_ENABLED;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS, true);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySystemApiProperty);
+        assertThat(mPropertyHalServiceConfigs.isSupportedProperty(previouslySystemApiProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void testVehiclePropertyRemoveSystemApiTagFlagDisabledNoOp() throws Exception {
         int previouslySystemApiProperty = VehiclePropertyIds.HEAD_UP_DISPLAY_ENABLED;
         mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS, false);
 
@@ -697,6 +721,38 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
                 .contains(previouslySystemApiProperty);
         assertThat(mPropertyHalServiceConfigs.isSupportedProperty(previouslySystemApiProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void testVehicleProperty2025q23pPermissionFlagEnabledNoOp() throws Exception {
+        // PERF_ODOMETER is one of the 8 properties that have permission changes flagged by
+        // FLAG_25Q2_3P_PERMISSIONS.
+        int previouslySignaturePrivilegedProperty = VehiclePropertyIds.PERF_ODOMETER;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, true);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySignaturePrivilegedProperty);
+        assertThat(mPropertyHalServiceConfigs
+                        .isSupportedProperty(previouslySignaturePrivilegedProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void testVehicleProperty2025q23pPermissionFlagDisabledNoOp() throws Exception {
+        // PERF_ODOMETER is one of the 8 properties that have permission changes flagged by
+        // FLAG_25Q2_3P_PERMISSIONS.
+        int previouslySignaturePrivilegedProperty = VehiclePropertyIds.PERF_ODOMETER;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, false);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySignaturePrivilegedProperty);
+        assertThat(mPropertyHalServiceConfigs
+                        .isSupportedProperty(previouslySignaturePrivilegedProperty))
                 .isTrue();
     }
 }
