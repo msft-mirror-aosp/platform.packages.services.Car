@@ -178,6 +178,7 @@
         <permission name="android.car.permission.CONTROL_REMOTE_ACCESS"/>
         <!-- use for TunerTestFragment -->
         <permission name="android.permission.ACCESS_BROADCAST_RADIO" />
+        <permission name="android.permission.SCHEDULE_EXACT_ALARM" />
         <!-- use for allowlisting automotive driver assistance packages from camera privacy -->
         <permission name="android.permission.CAMERA_PRIVACY_ALLOWLIST" />
 	<!-- use for Camera2 TestFragment -->
