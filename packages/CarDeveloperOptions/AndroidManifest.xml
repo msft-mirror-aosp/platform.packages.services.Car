@@ -361,6 +361,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.network.SimOnboardingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$TetherSettingsActivity"
             android:enabled="false"
             android:exported="false"
