@@ -187,6 +187,16 @@
         "value": "android.car.permission.CAR_INFO"
       }
     },
+    "INFO_MODEL_TRIM": {
+      "propertyName": "INFO_MODEL_TRIM",
+      "propertyId": 286261517,
+      "description": "Public trim name of the vehicle.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_INFO"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "PERF_ODOMETER": {
       "propertyName": "PERF_ODOMETER",
       "propertyId": 291504644,
