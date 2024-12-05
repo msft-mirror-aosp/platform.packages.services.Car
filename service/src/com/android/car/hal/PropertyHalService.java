@@ -32,6 +32,7 @@ import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAI
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW;
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_TRY_AGAIN;
 
+import static com.android.car.hal.property.HalPropertyDebugUtils.toAreaIdString;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
@@ -48,11 +49,14 @@ import android.car.builtin.os.BuildHelper;
 import android.car.builtin.util.Slogf;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
+import android.car.hardware.property.AreaIdConfig;
 import android.car.hardware.property.CarPropertyEvent;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.CarPropertyManager.CarSetPropertyErrorCode;
+import android.car.hardware.property.ICarPropertyEventListener;
 import android.car.hardware.property.VehicleHalStatusCode.VehicleHalStatusCodeInt;
 import android.content.Context;
+import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.VehiclePropError;
 import android.hardware.automotive.vehicle.VehicleProperty;
 import android.hardware.automotive.vehicle.VehiclePropertyStatus;
@@ -73,6 +77,7 @@ import com.android.car.CarServiceUtils;
 import com.android.car.VehicleStub;
 import com.android.car.VehicleStub.AsyncGetSetRequest;
 import com.android.car.VehicleStub.GetVehicleStubAsyncResult;
+import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.VehicleStub.SetVehicleStubAsyncResult;
 import com.android.car.VehicleStub.VehicleStubCallbackInterface;
 import com.android.car.hal.VehicleHal.HalSubscribeOptions;
@@ -89,6 +94,8 @@ import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.GetSetValueResult;
 import com.android.car.internal.property.GetSetValueResultList;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.property.MinMaxSupportedPropertyValue;
+import com.android.car.internal.property.RawPropertyValue;
 import com.android.car.internal.property.SubscriptionManager;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.PairSparseArray;
@@ -1160,7 +1167,8 @@ public class PropertyHalService extends HalServiceBase {
         } catch (IllegalStateException e) {
             throw new ServiceSpecificException(STATUS_INTERNAL_ERROR,
                     "Cannot convert halPropValue to carPropertyValue, property: "
-                    + VehiclePropertyIds.toString(mgrPropId) + " areaId: " + areaId
+                    + VehiclePropertyIds.toString(mgrPropId) + " areaId: "
+                    + toAreaIdString(mgrPropId, areaId)
                     + ", exception: " + e);
         }
     }
@@ -1360,6 +1368,132 @@ public class PropertyHalService extends HalServiceBase {
         }
     }
 
+    /**
+     * Gets the currently min/max supported value.
+     *
+     * The passed in [mgrPropId, areaId] is already checked and must be supported.
+     *
+     * @return The currently supported min/max value.
+     * @throws ServiceSpecificException If VHAL returns error.
+     * @throws IllegalArgumentException If the property ID is not valid or supported.
+     */
+    public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int mgrPropId, int areaId,
+            AreaIdConfig<?> areaIdConfig) {
+        int halPropId = managerToHalPropId(mgrPropId);
+        HalPropConfig halPropConfig;
+        synchronized (mLock) {
+            halPropConfig = mHalPropIdToPropConfig.get(halPropId);
+            if (halPropConfig == null) {
+                throw new IllegalArgumentException("Property ID: "
+                        + VehiclePropertyIds.toString(mgrPropId) + " is not supported");
+            }
+        }
+
+        var returnValue = new MinMaxSupportedPropertyValue();
+        if (mVehicleHal.isSupportedValuesImplemented()) {
+            MinMaxSupportedRawPropValues minMaxRawPropValues =
+                    mVehicleHal.getMinMaxSupportedValue(halPropId, areaId);
+            if (minMaxRawPropValues.minValue() != null) {
+                returnValue.minValue.setParcelable(HalPropValue.toRawPropertyValue(
+                        halPropId, areaId, mgrPropId, minMaxRawPropValues.minValue(),
+                        halPropConfig));
+            } else {
+                Slogf.d(TAG, "No specified min supported value for property: "
+                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                        + toAreaIdString(mgrPropId, areaId));
+            }
+            if (minMaxRawPropValues.maxValue() != null) {
+                returnValue.maxValue.setParcelable(HalPropValue.toRawPropertyValue(
+                        halPropId, areaId, mgrPropId, minMaxRawPropValues.maxValue(),
+                        halPropConfig));
+            } else {
+                Slogf.d(TAG, "No specified max supported value for property: "
+                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                        + toAreaIdString(mgrPropId, areaId));
+            }
+            return returnValue;
+        } else {
+            // If VHAL does not support value range, we use areaIdConfig.
+            if (areaIdConfig.getMaxValue() != null) {
+                returnValue.maxValue.setParcelable(new RawPropertyValue(
+                        areaIdConfig.getMaxValue()));
+            } else {
+                Slogf.d(TAG, "No specified max supported value for property: "
+                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                        + toAreaIdString(mgrPropId, areaId));
+            }
+            if (areaIdConfig.getMinValue() != null) {
+                returnValue.minValue.setParcelable(new RawPropertyValue(
+                        areaIdConfig.getMinValue()));
+            } else {
+                Slogf.d(TAG, "No specified min supported value for property: "
+                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                        + toAreaIdString(mgrPropId, areaId));
+            }
+            return returnValue;
+        }
+    }
+
+    /**
+     * Gets the currently supported values list.
+     *
+     * The passed in [mgrPropId, areaId] is already checked and must be supported.
+     *
+     * @return The currently supported values list or {@code null} if not specified.
+     * @throws ServiceSpecificException If VHAL returns error.
+     * @throws IllegalArgumentException If the property ID is not valid or supported.
+     */
+    @Nullable
+    public List<RawPropertyValue> getSupportedValuesList(int mgrPropId, int areaId,
+            AreaIdConfig<?> areaIdConfig) {
+        int halPropId = managerToHalPropId(mgrPropId);
+        HalPropConfig halPropConfig;
+        synchronized (mLock) {
+            halPropConfig = mHalPropIdToPropConfig.get(halPropId);
+        }
+
+        if (halPropConfig == null) {
+            throw new IllegalArgumentException("Property ID: "
+                    + VehiclePropertyIds.toString(mgrPropId) + " is not supported");
+        }
+
+        if (mVehicleHal.isSupportedValuesImplemented()) {
+            List<RawPropValues> supportedRawPropValues = mVehicleHal.getSupportedValuesList(
+                    halPropId, areaId);
+            if (supportedRawPropValues == null) {
+                Slogf.d(TAG, "No specified supported values list for property: "
+                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                        + toAreaIdString(mgrPropId, areaId));
+                return null;
+            }
+
+            List<RawPropertyValue> supportedValuesList = new ArrayList<>();
+            for (int i = 0; i < supportedRawPropValues.size(); i++) {
+                var rawPropValues = supportedRawPropValues.get(i);
+                var rawPropertyValue = HalPropValue.toRawPropertyValue(halPropId, areaId, mgrPropId,
+                        rawPropValues, halPropConfig);
+                if (rawPropertyValue != null) {
+                    supportedValuesList.add(rawPropertyValue);
+                }
+            }
+            return supportedValuesList;
+        } else {
+            // If VHAL does not support value range, we use areaIdConfig.
+            if (!areaIdConfig.hasSupportedValuesList()) {
+                Slogf.d(TAG, "No specified supported values list for property: "
+                        + VehiclePropertyIds.toString(mgrPropId) + ", areaId: "
+                        + toAreaIdString(mgrPropId, areaId));
+                return null;
+            }
+            List<RawPropertyValue> returnValues = new ArrayList<>();
+            var supportedEnumValues = areaIdConfig.getSupportedEnumValues();
+            for (int i = 0; i < supportedEnumValues.size(); i++) {
+                returnValues.add(new RawPropertyValue(supportedEnumValues.get(i)));
+            }
+            return returnValues;
+        }
+    }
+
     private static void storeResultForRequest(GetSetValueResult result,
             AsyncPropRequestInfo request,
             Map<VehicleStubCallback, List<GetSetValueResultWrapper>> callbackToResults) {
@@ -1556,6 +1690,71 @@ public class PropertyHalService extends HalServiceBase {
         for (VehicleStubCallback callback : callbackToSetValueResults.keySet()) {
             callback.sendSetValueResults(callbackToSetValueResults.get(callback));
         }
+    }
+
+    /**
+     * Registers a recording listener.
+     *
+     * @param callback The callback to register
+     * @return A list of CarPropertyConfigs that are being recorded
+     */
+    public List<CarPropertyConfig> registerRecordingListener(ICarPropertyEventListener callback) {
+        return new ArrayList<>();
+    }
+
+    /**
+     * @return True If currently recording vehicle properties
+     */
+    public boolean isRecordingVehicleProperties() {
+        return false;
+    }
+
+    /**
+     * Stops the recording.
+     * @param callback The callback to stop recording.
+     */
+    public void stopRecordingVehicleProperties(ICarPropertyEventListener callback) {
+
+    }
+
+    /**
+     * Enables Injection mode with the list of properties to allow to come from the real VHAL.
+     * @param propertyIdsFromRealHardware THe list of properties to allow to come from real VHAL.
+     */
+    public void enableInjectionMode(List<Integer> propertyIdsFromRealHardware) {
+
+    }
+
+    /**
+     * Disables injeciton mode.
+     */
+    public void disableInjectionMode() {
+
+    }
+
+    /**
+     * @return True if Vehicle property injection mode is enabled, false otherwise.
+     */
+    public boolean isVehiclePropertyInjectionModeEnabled() {
+        return false;
+    }
+
+    /**
+     * Gets the last injected vehicle property for the propertyId.
+     *
+     * @param propertyId The propertyId that was last injected.
+     * @return The {@link CarPropertyValue} that was last injected.
+     */
+    public CarPropertyValue getLastInjectedVehicleProperty(int propertyId) {
+        return null;
+    }
+
+    /**
+     * Injects the CarPropertyValues.
+     * @param carPropertyValues The carPropertyValues to inject.
+     */
+    public void injectVehicleProperties(List<CarPropertyValue> carPropertyValues) {
+
     }
 
     private static @CarSetPropertyErrorCode int convertStatusCodeToCarSetPropertyErrorCode(

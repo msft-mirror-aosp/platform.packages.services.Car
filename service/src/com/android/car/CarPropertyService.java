@@ -29,6 +29,7 @@ import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.car.Car;
 import android.car.VehiclePropertyIds;
 import android.car.builtin.os.TraceHelper;
 import android.car.builtin.util.Slogf;
@@ -69,12 +70,16 @@ import com.android.car.internal.property.CarPropertyHelper;
 import com.android.car.internal.property.CarSubscription;
 import com.android.car.internal.property.GetPropertyConfigListResult;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.property.ISupportedValuesChangeCallback;
 import com.android.car.internal.property.InputSanitizationUtils;
+import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
+import com.android.car.internal.property.RawPropertyValue;
 import com.android.car.internal.property.SubscriptionManager;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.IntArray;
+import com.android.car.internal.util.Lists;
 import com.android.car.logging.HistogramFactoryInterface;
 import com.android.car.logging.SystemHistogramFactory;
 import com.android.car.property.CarPropertyServiceClient;
@@ -1136,6 +1141,118 @@ public class CarPropertyService extends ICarProperty.Stub
     @Override
     public void cancelRequests(int[] serviceRequestIds) {
         mPropertyHalService.cancelRequests(serviceRequestIds);
+    }
+
+    /**
+     * Gets the currently min/max supported value.
+     *
+     * @return The currently supported min/max value.
+     * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
+     * @throws SecurityException if the caller does not have read and does not have write access
+     *      for the property.
+     * @throws ServiceSpecificException If VHAL returns error.
+     */
+    @Override
+    public MinMaxSupportedPropertyValue getMinMaxSupportedValue(int propertyId, int areaId) {
+        var areaIdConfig = verifyGetSupportedValueRequestAndGetAreaIdConfig(propertyId, areaId);
+        return mPropertyHalService.getMinMaxSupportedValue(propertyId, areaId, areaIdConfig);
+    }
+
+    /**
+     * Gets the currently supported values list.
+     *
+     * <p>The returned supported value list is in sorted ascending order if the property is of
+     * type int32, int64 or float.
+     *
+     * @return The currently supported values list.
+     * @throws IllegalArgumentException if [propertyId, areaId] is not supported.
+     * @throws SecurityException if the caller does not have read and does not have write access
+     *      for the property.
+     * @throws ServiceSpecificException If VHAL returns error.
+     */
+    @Override
+    public @Nullable List<RawPropertyValue> getSupportedValuesList(int propertyId, int areaId) {
+        var areaIdConfig = verifyGetSupportedValueRequestAndGetAreaIdConfig(propertyId, areaId);
+        return mPropertyHalService.getSupportedValuesList(propertyId, areaId, areaIdConfig);
+    }
+
+    @Override
+    public void registerSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
+            ISupportedValuesChangeCallback callback) {
+    }
+
+    /**
+     * @throws IllegalArgumentException If the propertyId or areaId is not supported.
+     * @throws SecurityException If caller does not have read and does not have write permission.
+     */
+    private AreaIdConfig<?> verifyGetSupportedValueRequestAndGetAreaIdConfig(
+            int propertyId, int areaId) {
+        var config = getCarPropertyConfig(propertyId);
+        var propertyIdStr = VehiclePropertyIds.toString(propertyId);
+        if (config == null) {
+            throw new IllegalArgumentException("The property: " + propertyIdStr
+                    + " is not supported");
+        }
+        // This will throw IllegalArgumentException if areaId is not supported.
+        AreaIdConfig<?> areaIdConfig = config.getAreaIdConfig(areaId);
+
+        if (!mPropertyHalService.isReadable(mContext, propertyId)
+                && !mPropertyHalService.isWritable(mContext, propertyId)) {
+            throw new SecurityException("Caller missing read or write permission to access"
+                    + " property: " + propertyIdStr);
+        }
+        return areaIdConfig;
+    }
+
+    @Override
+    public CarPropertyConfigList registerRecordingListener(ICarPropertyEventListener callback) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_RECORD_VEHICLE_PROPERTIES);
+        List<CarPropertyConfig> carPropertyConfigList = mPropertyHalService
+                .registerRecordingListener(callback);
+        return new CarPropertyConfigList(carPropertyConfigList);
+    }
+
+    @Override
+    public boolean isRecordingVehicleProperties() {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_RECORD_VEHICLE_PROPERTIES);
+        return mPropertyHalService.isRecordingVehicleProperties();
+    }
+
+    @Override
+    public void stopRecordingVehicleProperties(ICarPropertyEventListener callback) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_RECORD_VEHICLE_PROPERTIES);
+        mPropertyHalService.stopRecordingVehicleProperties(callback);
+    }
+
+    @Override
+    public void enableInjectionMode(int[] propertyIdsFromRealHardware) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        mPropertyHalService.enableInjectionMode(Lists.asImmutableList(
+                propertyIdsFromRealHardware));
+    }
+
+    @Override
+    public void disableInjectionMode() {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        mPropertyHalService.disableInjectionMode();
+    }
+
+    @Override
+    public boolean isVehiclePropertyInjectionModeEnabled() {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        return mPropertyHalService.isVehiclePropertyInjectionModeEnabled();
+    }
+
+    @Override
+    public CarPropertyValue getLastInjectedVehicleProperty(int propertyId) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        return mPropertyHalService.getLastInjectedVehicleProperty(propertyId);
+    }
+
+    @Override
+    public void injectVehicleProperties(List<CarPropertyValue> carPropertyValues) {
+        CarServiceUtils.assertPermission(mContext, Car.PERMISSION_INJECT_VEHICLE_PROPERTIES);
+        mPropertyHalService.injectVehicleProperties(carPropertyValues);
     }
 
     private void assertPropertyIsReadable(CarPropertyConfig<?> carPropertyConfig,
