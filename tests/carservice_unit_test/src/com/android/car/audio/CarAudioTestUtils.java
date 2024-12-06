@@ -97,6 +97,7 @@ import android.media.audio.common.AudioDeviceType;
 import android.media.audio.common.AudioFlag;
 import android.media.audio.common.AudioGain;
 import android.media.audio.common.AudioGainMode;
+import android.media.audio.common.AudioHalProductStrategy;
 import android.media.audio.common.AudioPort;
 import android.media.audio.common.AudioPortDeviceExt;
 import android.media.audio.common.AudioPortExt;
@@ -286,7 +287,7 @@ public final class CarAudioTestUtils {
     public static final String USB_ZONE_CONFIG_1 = "USB zone config 1";
 
     public static final String SECONDARY_ZONE_NAME = "secondary zone";
-    public static final int SECONDARY_ZONE_ID = AudioZone.PRIMARY_AUDIO_ZONE + 1;
+    public static final int SECONDARY_ZONE_ID = AudioHalProductStrategy.ZoneId.DEFAULT + 1;
     public static final int SECONDARY_OCCUPANT_ID = 2;
 
     public static final String SECONDARY_ZONE_CONFIG_NAME_1 = "secondary zone config 1";
@@ -299,14 +300,14 @@ public final class CarAudioTestUtils {
 
     public static final String TERTIARY_ZONE_NAME = "tertiary zone";
     public static final int TERTIARY_OCCUPANT_ID = 3;
-    public static final int TERTIARY_ZONE_ID = AudioZone.PRIMARY_AUDIO_ZONE + 2;
+    public static final int TERTIARY_ZONE_ID = AudioHalProductStrategy.ZoneId.DEFAULT + 2;
     private static final int TERTIARY_ZONE_VOLUME_GROUP_ID = 0;
     public static final String TERTIARY_ZONE_CONFIG_NAME_1 = "tertiary zone config 1";
     public static final String TERTIARY_ZONE_CONFIG_NAME_2 = "tertiary zone config 2";
 
     public static final String QUATERNARY_ZONE_NAME = "tertiary zone";
     public static final int QUATERNARY_OCCUPANT_ID = 4;
-    public static final int QUATERNARY_ZONE_ID = AudioZone.PRIMARY_AUDIO_ZONE + 3;
+    public static final int QUATERNARY_ZONE_ID = AudioHalProductStrategy.ZoneId.DEFAULT + 3;
     private static final int QUATERNARY_ZONE_VOLUME_GROUP_ID = 0;
     public static final String QUATERNARY_ZONE_CONFIG_NAME_1 = "tertiary zone config 1";
 
@@ -509,7 +510,7 @@ public final class CarAudioTestUtils {
 
     static AudioZone createPrimaryAudioZone() {
         var audioZone = new AudioZone();
-        audioZone.id = AudioZone.PRIMARY_AUDIO_ZONE;
+        audioZone.id = AudioHalProductStrategy.ZoneId.DEFAULT;
         audioZone.name = PRIMARY_ZONE_NAME;
         audioZone.occupantZoneId = 1;
         audioZone.audioZoneContext = createHALAudioContext();
@@ -519,8 +520,8 @@ public final class CarAudioTestUtils {
     }
 
     static List<AudioZone> createAudioServiceAudioZones() {
-        var primaryAudioZone = createAudioZones(AudioZone.PRIMARY_AUDIO_ZONE, PRIMARY_OCCUPANT_ID,
-                PRIMARY_ZONE_NAME, List.of(createDefaultAudioZoneConfig()));
+        var primaryAudioZone = createAudioZones(AudioHalProductStrategy.ZoneId.DEFAULT,
+                PRIMARY_OCCUPANT_ID, PRIMARY_ZONE_NAME, List.of(createDefaultAudioZoneConfig()));
         return List.of(primaryAudioZone, createSecondaryAudioZone(), createTertiaryAudioZone(),
                 createQuarternaryAudioZone());
     }
