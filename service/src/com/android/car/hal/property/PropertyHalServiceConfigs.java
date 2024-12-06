@@ -96,6 +96,8 @@ public class PropertyHalServiceConfigs {
     private static final String VIC_FLAG_NAME = "FLAG_ANDROID_VIC_VEHICLE_PROPERTIES";
     private static final String REMOVE_SYSTEM_API_TAGS_FLAG_NAME =
             "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS";
+    private static final String FLAG_25Q2_3P_PERMISSIONS =
+            "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS";
 
     private final FeatureFlags mFeatureFlags;
 
@@ -553,6 +555,9 @@ public class PropertyHalServiceConfigs {
                     // do nothing since Android V release is already cut
                     break;
                 case REMOVE_SYSTEM_API_TAGS_FLAG_NAME:
+                    // do nothing as no behavior change
+                    break;
+                case FLAG_25Q2_3P_PERMISSIONS:
                     // do nothing as no behavior change
                     break;
                 default:

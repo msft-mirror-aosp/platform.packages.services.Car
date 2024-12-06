@@ -17,6 +17,7 @@
 package android.car;
 
 import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
+import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 
@@ -410,11 +411,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_MILEAGE} to read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_MILEAGE_3P} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_MILEAGE} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_MILEAGE)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_MILEAGE_3P,
+            Car.PERMISSION_MILEAGE}))
     public static final int PERF_ODOMETER = 291504644;
     /**
      * Speed of the vehicle in meters per second.
@@ -482,12 +486,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_STEERING_STATE} to read
-     *  property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_STEERING_STATE_3P} or
+     *  Signature|Privileged permission {@link Car#PERMISSION_READ_STEERING_STATE} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_STEERING_STATE_3P,
+        Car.PERMISSION_READ_STEERING_STATE}))
     public static final int PERF_STEERING_ANGLE = 291504649;
     /**
      * Rear bicycle model steering angle for vehicle in degrees.
@@ -593,12 +599,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED} to read
-     *  property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED_3P} or
+     *  Signature|Privileged permission {@link Car#PERMISSION_CAR_ENGINE_DETAILED} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_CAR_ENGINE_DETAILED)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_ENGINE_DETAILED_3P,
+        Car.PERMISSION_CAR_ENGINE_DETAILED}))
     public static final int ENGINE_RPM = 291504901;
     /**
      * Represents feature for engine idle automatic stop.
@@ -958,11 +966,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_TIRES} to read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_TIRES_3P} or Signature|Privileged permission
+     *  {@link Car#PERMISSION_TIRES} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission(Car.PERMISSION_TIRES)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_TIRES_3P,
+        Car.PERMISSION_TIRES}))
     public static final int TIRE_PRESSURE = 392168201;
     /**
      * Critically low tire pressure.
@@ -3985,14 +3996,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read
-     *  property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_CAR_SEATS} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CONTROL_CAR_SEATS} to read property.
      *  <li>Property is not writable.
      * </ul>
      *
      * @data_enum {@link VehicleSeatOccupancyState}
      */
-    @RequiresPermission(Car.PERMISSION_CONTROL_CAR_SEATS)
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_CAR_SEATS,
+        Car.PERMISSION_CONTROL_CAR_SEATS}))
     public static final int SEAT_OCCUPANCY = 356518832;
     /**
      * Window Position.
@@ -4146,15 +4159,17 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS} to read
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS_3P} or
+     *  Signature|Privileged permission {@link Car#PERMISSION_READ_WINDSHIELD_WIPERS} to read
      *  property.
      *  <li>Property is not writable.
      * </ul>
      *
      * @data_enum {@link WindshieldWipersState}
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
-    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_WINDSHIELD_WIPERS))
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_WINDSHIELD_WIPERS_3P,
+        Car.PERMISSION_READ_WINDSHIELD_WIPERS}))
     public static final int WINDSHIELD_WIPERS_STATE = 322964422;
 
     /**
@@ -5877,15 +5892,16 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_DRIVING_STATE} to
-     *  read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_CAR_DRIVING_STATE_3P} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CAR_DRIVING_STATE} to read property.
      *  <li>Property is not writable.
      * </ul>
      *
      * @data_enum {@link android.car.hardware.property.VehicleAutonomousState}
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
-    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DRIVING_STATE))
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_DRIVING_STATE_3P,
+        Car.PERMISSION_CAR_DRIVING_STATE}))
     public static final int VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL = 289410892;
 
     /**
