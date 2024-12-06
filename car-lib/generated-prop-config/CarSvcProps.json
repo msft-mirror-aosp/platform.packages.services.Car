@@ -319,6 +319,16 @@
       },
       "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
+    "INSTANTANEOUS_EV_EFFICIENCY": {
+      "propertyName": "INSTANTANEOUS_EV_EFFICIENCY",
+      "propertyId": 291504658,
+      "description": "Instantaneous EV efficiency in km\/kWh.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_MILEAGE_3P"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "ENGINE_COOLANT_TEMP": {
       "propertyName": "ENGINE_COOLANT_TEMP",
       "propertyId": 291504897,
