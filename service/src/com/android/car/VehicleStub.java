@@ -19,6 +19,7 @@ package com.android.car;
 import android.annotation.Nullable;
 import android.car.builtin.os.BuildHelper;
 import android.car.builtin.util.Slogf;
+import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
@@ -31,6 +32,7 @@ import com.android.car.hal.VehicleHalCallback;
 import com.android.car.hal.fakevhal.FakeVehicleStub;
 import com.android.car.internal.property.CarPropertyErrorCodes;
 import com.android.car.internal.property.CarPropertyErrorCodes.CarPropMgrErrorCode;
+import com.android.car.internal.property.PropIdAreaId;
 
 import java.io.FileDescriptor;
 import java.util.List;
@@ -226,6 +228,16 @@ public abstract class VehicleStub {
     }
 
     /**
+     * A callback interface to notify supported values change.
+     */
+    public interface SupportedValuesChangeCallback {
+        /**
+         * Method called when supported values change.
+         */
+        void onSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
+    }
+
+    /**
      * Gets a property asynchronously.
      */
     public abstract void getAsync(List<AsyncGetSetRequest> getVehicleStubAsyncRequests,
@@ -385,4 +397,76 @@ public abstract class VehicleStub {
      * @param requestIds a list of async get/set request IDs.
      */
     public void cancelRequests(List<Integer> requestIds) {}
+
+    /**
+     * Whether this VehicleStub supports dynamic supported values API.
+     *
+     * This is only supported on AIDL VHAL >= V4.
+     */
+    public boolean isSupportedValuesImplemented() {
+        return false;
+    }
+
+    public record MinMaxSupportedRawPropValues(
+            @Nullable RawPropValues minValue, @Nullable RawPropValues maxValue) {};
+
+    /**
+     * Gets the min/max supported value.
+     *
+     * Caller should only call this if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
+     * If no min/max supported value is specified, return an empty structure.
+     *
+     * @throws ServiceSpecificException if the operation fails.
+     */
+    public MinMaxSupportedRawPropValues getMinMaxSupportedValue(int propertyId, int areaId)
+            throws ServiceSpecificException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Gets the supported values list.
+     *
+     * Caller should only call this if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
+     * If no supported values list is specified, return {@code null}.
+     *
+     * @throws ServiceSpecificException if the operation fails.
+     */
+    public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
+            throws ServiceSpecificException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Sets the callback to be called when the min/max supported value or supported values
+     * list change.
+     *
+     * This is only allowed to be called once.
+     */
+    public void setSupportedValuesChangeCallback(SupportedValuesChangeCallback callback) {
+        // Do nothing.
+        return;
+    }
+
+    /**
+     * Registers the callback to be called when the min/max supported value or supportd values
+     * list change for the [propId, areaId]s.
+     *
+     * @throws ServiceSpecificException If VHAL returns error.
+     */
+    public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+        // Do nothing.
+        return;
+    }
+
+    /**
+     * Unregisters the [propId, areaId]s previously registered with registerSupportedValuesChange.
+     *
+     * Do nothing if the [propId, areaId]s were not previously registered.
+     */
+    public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+        // Do nothing.
+        return;
+    }
 }

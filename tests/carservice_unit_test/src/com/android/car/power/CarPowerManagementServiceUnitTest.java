@@ -99,7 +99,6 @@ import com.android.car.R;
 import com.android.car.VehicleStub;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
-import com.android.car.hal.MockedPowerHalService;
 import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.hal.VehicleHal;
@@ -110,6 +109,7 @@ import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.systeminterface.WakeLockInterface;
 import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
+import com.android.car.test.hal.MockedPowerHalService;
 import com.android.car.test.utils.TemporaryDirectory;
 import com.android.car.user.CarUserService;
 import com.android.compatibility.common.util.PollingCheck;
@@ -260,7 +260,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     private DisplayHelperInterface mDisplayHelper;
 
     public CarPowerManagementServiceUnitTest() throws Exception {
-        super(CarPowerManagementService.TAG);
+        super(NO_LOG_TAGS);
     }
 
     @Override
@@ -290,6 +290,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         setCurrentUser(CURRENT_USER_ID, /* isGuest= */ false);
         setService();
         setCarPowerCancelShellCommand(true);
+        mService.setSwapChangeEnabled(false);
     }
 
     @After
@@ -297,6 +298,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         if (mService != null) {
             mService.release();
         }
+        mService.setSwapChangeEnabled(true);
         CarServiceUtils.quitHandlerThreads();
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
         mIOInterface.tearDown();
@@ -337,6 +339,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     @Test
     public void testCanHibernate() throws Exception {
         setStopProcessBeforeSuspendToDisk(false);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
         mPowerSignalListener.addEventListener(PowerHalService.SET_HIBERNATION_ENTRY);
         mPowerSignalListener.addEventListener(PowerHalService.SET_HIBERNATION_EXIT);
@@ -361,6 +364,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     @Test
     public void testHibernateImmediately() throws Exception {
         setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
         when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
                 .thenReturn("none");
         hibernateImmediately();
@@ -373,6 +377,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         doReturn(List.of(mRunningProcess1)).when(
                 () -> ActivityManagerHelper.getRunningAppProcesses());
         setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
         mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
                 .IMPORTANCE_FOREGROUND_SERVICE;
@@ -390,6 +395,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
                 () -> ActivityManagerHelper.getRunningAppProcesses());
         setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
         mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
                 .IMPORTANCE_FOREGROUND_SERVICE;
@@ -415,6 +421,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
                 () -> ActivityManagerHelper.getRunningAppProcesses());
         setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
         mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
                 .IMPORTANCE_FOREGROUND_SERVICE;
@@ -442,6 +449,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
                 () -> ActivityManagerHelper.getRunningAppProcesses());
         setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
         mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
                 .IMPORTANCE_FOREGROUND_SERVICE;
@@ -471,6 +479,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
                 () -> ActivityManagerHelper.getRunningAppProcesses());
         setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
         mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
                 .IMPORTANCE_FOREGROUND_SERVICE;
@@ -498,6 +507,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
                 () -> ActivityManagerHelper.getRunningAppProcesses());
         setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
         mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
                 .IMPORTANCE_FOREGROUND_SERVICE;
@@ -518,6 +528,33 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 UserManagerHelper.USER_ALL);
     }
 
+    @Test
+    public void testHibernateAbort() throws Exception {
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings)).thenReturn("");
+        setStopProcessBeforeSuspendToDisk(false);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        mSystemStateInterface.setSleepEntryResult(SystemStateInterface.SUSPEND_RESULT_ABORT);
+        mSystemStateInterface.setSimulateSleep(false);
+        mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
+
+        // Transition to ON state
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, /* param= */ 0));
+        mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
+
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.HIBERNATE_IMMEDIATELY));
+        assertStateReceivedForShutdownOrSleepWithPostpone(PowerHalService.SET_HIBERNATION_ENTRY,
+                /* expectedSecondParameter= */ 0);
+        assertThat(mService.garageModeShouldExitImmediately()).isTrue();
+
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.FINISHED,
+                /* param= */ 0));
+
+        mSystemStateInterface.waitForSleepEntryAndWakeup(WAIT_TIMEOUT_MS);
+        mSystemStateInterface.waitForShutdown(WAIT_TIMEOUT_MS);
+    }
 
     private void hibernateImmediately() throws Exception {
         mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
@@ -1319,6 +1356,18 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     }
 
     @Test
+    public void testApplyPowerPolicyConcequential_powerPolicyRefactorFlagDisabled()
+            throws Exception {
+        testApplyPowerPolicyConcequential(/* refactoredService= */ false);
+    }
+
+    @Test
+    public void testApplyPowerPolicyConcequential_powerPolicyRefactorFlagEnabled()
+            throws Exception {
+        testApplyPowerPolicyConcequential(/* refactoredService= */ true);
+    }
+
+    @Test
     public void testApplyInvalidPowerPolicy_powerPolicyRefactorFlagDisabled() throws Exception {
         grantPowerPolicyPermission();
         // Power policy which doesn't exist.
@@ -1772,6 +1821,26 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
 
         waitForPowerPolicy(SYSTEM_POWER_POLICY_ALL_ON);
+    }
+
+    @Test
+    public void testSuspendImmediately() throws Exception {
+        mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
+        mPowerSignalListener.addEventListener(PowerHalService.SET_DEEP_SLEEP_ENTRY);
+        // Start in the ON state
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
+        mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
+        // Request suspend
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.CAN_SLEEP));
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY));
+        // Verify suspend
+        mPowerSignalListener.waitFor(PowerHalService.SET_DEEP_SLEEP_ENTRY, WAIT_TIMEOUT_LONG_MS);
     }
 
     @Test
@@ -2600,6 +2669,10 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         mFeatureFlags.setFlag(Flags.FLAG_STOP_PROCESS_BEFORE_SUSPEND_TO_DISK, flagValue);
     }
 
+    private void setChangeSwapDuringSuspendToDiskToFalse() {
+        mFeatureFlags.setFlag(Flags.FLAG_CHANGE_SWAPS_DURING_SUSPEND_TO_DISK, false);
+    }
+
     /**
      * Helper method to create mService and initialize a test case
      */
@@ -2696,7 +2769,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     }
 
     private void suspendWithFailure(Integer nextPowerState) throws Exception {
-        mSystemStateInterface.setSleepEntryResult(false);
+        mSystemStateInterface.setSleepEntryResult(SystemStateInterface.SUSPEND_RESULT_RETRY);
         mSystemStateInterface.setSimulateSleep(false);
         mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
 
@@ -3105,6 +3178,64 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 .checkCallingOrSelfPermission(Car.PERMISSION_CONTROL_SHUTDOWN_PROCESS);
     }
 
+private void testApplyPowerPolicyConcequential(boolean refactoredService) throws Exception {
+        if (refactoredService) {
+            setRefactoredService();
+        }
+        grantPowerPolicyPermission();
+
+        String defaultEmptyPolicy = "default_empty_policy";
+        String waitForVhalPolicy = "wait_for_vhal_policy";
+        String fullyOnPolicy = "fully_on_policy_no_media";
+        String fullyOnMediaOnPolicy = "fully_on_media_on_policy";
+
+        mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
+        mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
+
+        int err = mService.definePowerPolicy(defaultEmptyPolicy, new String[]{}, new String[]{});
+        expectThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        err = mService.definePowerPolicy(waitForVhalPolicy, new String[]{"CPU"},
+                new String[]{"AUDIO", "DISPLAY", "BLUETOOTH", "WIFI", "CELLULAR", "ETHERNET",
+                        "PROJECTION", "NFC", "INPUT", "VOICE_INTERACTION", "VISUAL_INTERACTION",
+                        "TRUSTED_DEVICE_DETECTION", "LOCATION", "MICROPHONE", "MEDIA"});
+        expectThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        err = mService.definePowerPolicy(fullyOnPolicy,
+                new String[]{"AUDIO", "DISPLAY", "BLUETOOTH", "WIFI", "CELLULAR", "ETHERNET",
+                        "PROJECTION", "NFC", "INPUT", "VOICE_INTERACTION", "VISUAL_INTERACTION",
+                        "TRUSTED_DEVICE_DETECTION", "LOCATION", "MICROPHONE", "CPU"},
+                new String[]{"MEDIA"});
+        expectThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        err = mService.definePowerPolicy(fullyOnMediaOnPolicy,
+                new String[]{"AUDIO", "DISPLAY", "BLUETOOTH", "WIFI", "CELLULAR", "ETHERNET",
+                        "PROJECTION", "NFC", "INPUT", "VOICE_INTERACTION", "VISUAL_INTERACTION",
+                        "TRUSTED_DEVICE_DETECTION", "LOCATION", "MICROPHONE", "CPU", "MEDIA"},
+                new String[]{});
+        assertThat(err).isEqualTo(PolicyOperationStatus.OK);
+
+        CarPowerPolicyFilter filterVisual = new CarPowerPolicyFilter.Builder()
+                .setComponents(PowerComponent.VISUAL_INTERACTION).build();
+        MockedPowerPolicyListener listenerToWait = new MockedPowerPolicyListener();
+        mService.addPowerPolicyListener(filterVisual, listenerToWait);
+
+        mService.applyPowerPolicy(defaultEmptyPolicy);
+        waitForPowerPolicy(defaultEmptyPolicy);
+        mService.applyPowerPolicy(waitForVhalPolicy);
+        waitForPowerPolicy(waitForVhalPolicy);
+        // initiate requests from the separate thread
+        new Thread(() -> {
+            mService.applyPowerPolicy(fullyOnPolicy);
+            mService.applyPowerPolicy(fullyOnMediaOnPolicy);
+        }).start();
+
+        waitForPowerPolicy(fullyOnMediaOnPolicy);
+        PollingCheck.check("Wrong power policy in the listener", WAIT_TIMEOUT_LONG_MS,
+                () -> fullyOnPolicy.equals(listenerToWait.mCurrentPowerPolicy.getPolicyId()));
+    }
+
     private static final class MockDisplayInterface extends DisplayInterfaceEmptyImpl {
         private static final int WAIT_FOR_DISPLAY_BRIGHTNESS_RETRIES = 5;
         @GuardedBy("sLock")
@@ -3366,7 +3497,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         private final Semaphore mSleepWait = new Semaphore(0);
         private final Semaphore mSleepExitWait = new Semaphore(0);
 
-        private boolean mSleepEntryResult = true;
+        private int mSleepEntryResult = SystemStateInterface.SUSPEND_RESULT_SUCCESS;
         private boolean mSimulateSleep = true;
 
         @GuardedBy("sLock")
@@ -3382,7 +3513,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         }
 
         @Override
-        public boolean enterDeepSleep() {
+        public int enterDeepSleep() {
             if (mSimulateSleep) {
                 return simulateSleep();
             }
@@ -3392,11 +3523,11 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         }
 
         @Override
-        public boolean enterHibernation() {
+        public int enterHibernation() {
             return simulateSleep();
         }
 
-        private boolean simulateSleep() {
+        private int simulateSleep() {
             mSleepWait.release();
             try {
                 mSleepExitWait.tryAcquire(WAIT_TIMEOUT_MS , TimeUnit.MILLISECONDS);
@@ -3438,7 +3569,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
             return true;
         }
 
-        public void setSleepEntryResult(boolean sleepEntryResult) {
+        public void setSleepEntryResult(int sleepEntryResult) {
             mSleepEntryResult = sleepEntryResult;
         }
 

@@ -25,6 +25,8 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.doAnswer;
@@ -43,6 +45,9 @@ import android.hardware.automotive.vehicle.GetValueResult;
 import android.hardware.automotive.vehicle.GetValueResults;
 import android.hardware.automotive.vehicle.IVehicle;
 import android.hardware.automotive.vehicle.IVehicleCallback;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResult;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResults;
+import android.hardware.automotive.vehicle.PropIdAreaId;
 import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SetValueRequest;
 import android.hardware.automotive.vehicle.SetValueRequests;
@@ -50,6 +55,8 @@ import android.hardware.automotive.vehicle.SetValueResult;
 import android.hardware.automotive.vehicle.SetValueResults;
 import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.hardware.automotive.vehicle.SupportedValuesListResult;
+import android.hardware.automotive.vehicle.SupportedValuesListResults;
 import android.hardware.automotive.vehicle.VehiclePropConfig;
 import android.hardware.automotive.vehicle.VehiclePropConfigs;
 import android.hardware.automotive.vehicle.VehiclePropError;
@@ -63,18 +70,24 @@ import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
+import android.platform.test.annotations.DisabledOnRavenwood;
+import android.platform.test.ravenwood.RavenwoodRule;
 
 import com.android.car.VehicleStub.AsyncGetSetRequest;
+import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.hal.HalPropConfig;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
 import com.android.car.hal.VehicleHalCallback;
 import com.android.car.internal.LargeParcelable;
 import com.android.car.internal.property.CarPropertyErrorCodes;
+import com.android.car.logging.HistogramFactoryInterface;
 import com.android.compatibility.common.util.PollingCheck;
+import com.android.modules.expresslog.Histogram;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -112,6 +125,12 @@ public final class AidlVehicleStubUnitTest {
     private IBinder mAidlBinder;
     @Mock
     private VehicleStub.VehicleStubCallbackInterface mAsyncCallback;
+    @Mock
+    private HistogramFactoryInterface mHistogramFactory;
+
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder().setProvideMainThread(true)
+            .build();
 
     private AidlVehicleStub mAidlVehicleStub;
 
@@ -138,8 +157,10 @@ public final class AidlVehicleStubUnitTest {
         mHandler = new Handler(mHandlerThread.getLooper());
 
         when(mAidlVehicle.asBinder()).thenReturn(mAidlBinder);
+        when(mHistogramFactory.newScaledRangeHistogram(any(), anyInt(), anyInt(), anyFloat(),
+                anyFloat())).thenReturn(mock(Histogram.class));
 
-        mAidlVehicleStub = new AidlVehicleStub(mAidlVehicle, mHandlerThread);
+        mAidlVehicleStub = new AidlVehicleStub(mAidlVehicle, mHandlerThread, mHistogramFactory);
 
         assertThat(mAidlVehicleStub.isValid()).isTrue();
     }
@@ -208,6 +229,7 @@ public final class AidlVehicleStubUnitTest {
         assertThat(configs[0].getAccess()).isEqualTo(TEST_ACCESS);
     }
 
+    @DisabledOnRavenwood(reason = "serialize to shared memory not supported on host")
     @Test
     public void testGetAllPropConfigsAidlLargeData() throws Exception {
         int configSize = 1000;
@@ -290,6 +312,7 @@ public final class AidlVehicleStubUnitTest {
         assertThat(mAidlVehicleStub.countPendingRequests()).isEqualTo(0);
     }
 
+    @DisabledOnRavenwood(reason = "serialize to shared memory not supported on host")
     @Test
     public void testGetAidlLargeData() throws Exception {
         int dataSize = 2000;
@@ -908,6 +931,7 @@ public final class AidlVehicleStubUnitTest {
         assertThat(mAidlVehicleStub.countPendingRequests()).isEqualTo(0);
     }
 
+    @DisabledOnRavenwood(reason = "serialize to shared memory not supported on host")
     @Test
     public void testSetSyncAidlLargeData() throws Exception {
         int dataSize = 2000;
@@ -1270,6 +1294,7 @@ public final class AidlVehicleStubUnitTest {
                 TEST_PROP_VALUE)));
     }
 
+    @DisabledOnRavenwood(reason = "serialize to shared memory not supported on host")
     @Test
     public void testAidlVehicleCallbackOnPropertyEventLargeData() throws Exception {
         VehicleHalCallback callback = mock(VehicleHalCallback.class);
@@ -1315,6 +1340,7 @@ public final class AidlVehicleStubUnitTest {
         verify(callback).onPropertySetError(new ArrayList<VehiclePropError>(Arrays.asList(error)));
     }
 
+    @DisabledOnRavenwood(reason = "serialize to shared memory not supported on host")
     @Test
     public void testAidlVehicleCallbackOnPropertySetErrorLargeData() throws Exception {
         VehicleHalCallback callback = mock(VehicleHalCallback.class);
@@ -1356,4 +1382,197 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAidlBinder).dump(eq(fd), eq(new String[0]));
     }
+
+    @Test
+    public void testisSupportedValuesImplemented_true() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenReturn(4);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented()).isTrue();
+    }
+
+    @Test
+    public void testisSupportedValuesImplemented_false() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenReturn(3);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented()).isFalse();
+    }
+
+    @Test
+    public void testisSupportedValuesImplemented_RemoteException() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenThrow(new RemoteException());
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented()).isFalse();
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+        int testMinValue = 1234;
+        int testMaxValue = 4321;
+
+        var minSupportedRawPropValues = new RawPropValues();
+        minSupportedRawPropValues.int32Values = new int[]{testMinValue};
+        var maxSupportedRawPropValues = new RawPropValues();
+        maxSupportedRawPropValues.int32Values = new int[]{testMaxValue};
+
+        MinMaxSupportedValueResult result = new MinMaxSupportedValueResult();
+        result.status = StatusCode.OK;
+        result.minSupportedValue = minSupportedRawPropValues;
+        result.maxSupportedValue = maxSupportedRawPropValues;
+        MinMaxSupportedValueResults results = new MinMaxSupportedValueResults();
+        results.payloads = new MinMaxSupportedValueResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getMinMaxSupportedValue(captor.capture())).thenReturn(results);
+
+        MinMaxSupportedRawPropValues minMaxSupportedRawPropValues =
+                mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+
+        PropIdAreaId gotPropIdAreaId = (PropIdAreaId) captor.getValue().get(0);
+        assertThat(gotPropIdAreaId).isEqualTo(propIdAreaId);
+        assertThat(minMaxSupportedRawPropValues.minValue()).isEqualTo(minSupportedRawPropValues);
+        assertThat(minMaxSupportedRawPropValues.maxValue()).isEqualTo(maxSupportedRawPropValues);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_RemoteException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getMinMaxSupportedValue(any())).thenThrow(new RemoteException());
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_ServiceSpecificException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getMinMaxSupportedValue(any())).thenThrow(
+                new ServiceSpecificException(StatusCode.INTERNAL_ERROR));
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_nonOkayResult() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        MinMaxSupportedValueResult result = new MinMaxSupportedValueResult();
+        result.status = StatusCode.INTERNAL_ERROR;
+        MinMaxSupportedValueResults results = new MinMaxSupportedValueResults();
+        results.payloads = new MinMaxSupportedValueResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getMinMaxSupportedValue(captor.capture())).thenReturn(results);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+        int testValue1 = 1234;
+        int testValue2 = 4321;
+
+        var rawPropValues1 = new RawPropValues();
+        rawPropValues1.int32Values = new int[]{testValue1};
+        var rawPropValues2 = new RawPropValues();
+        rawPropValues2.int32Values = new int[]{testValue2};
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.OK;
+        result.supportedValuesList = List.of(rawPropValues1, rawPropValues2);
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getSupportedValuesLists(captor.capture())).thenReturn(results);
+
+        List<RawPropValues> supportedRawPropValues = mAidlVehicleStub.getSupportedValuesList(
+                testPropId, testAreaId);
+
+        PropIdAreaId gotPropIdAreaId = (PropIdAreaId) captor.getValue().get(0);
+        assertThat(gotPropIdAreaId).isEqualTo(propIdAreaId);
+        assertThat(supportedRawPropValues).containsExactly(rawPropValues1, rawPropValues2);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_notSpecified() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.OK;
+        // No supported values specified.
+        result.supportedValuesList = null;
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenReturn(results);
+
+        List<RawPropValues> supportedRawPropValues = mAidlVehicleStub.getSupportedValuesList(
+                testPropId, testAreaId);
+
+        assertThat(supportedRawPropValues).isNull();
+    }
+
+    @Test
+    public void testGetSupportedValuesList_RemoteException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenThrow(new RemoteException());
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList_ServiceSpecificException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenThrow(
+                new ServiceSpecificException(StatusCode.INTERNAL_ERROR));
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList_nonOkayStatus() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.INTERNAL_ERROR;
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenReturn(results);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
 }
