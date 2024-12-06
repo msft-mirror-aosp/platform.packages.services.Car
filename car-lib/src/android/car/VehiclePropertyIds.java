@@ -482,7 +482,7 @@ public final class VehiclePropertyIds {
      *  <li>Property is not writable.
      * </ul>
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_MILEAGE_3P,
             Car.PERMISSION_MILEAGE}))
     public static final int PERF_ODOMETER = 291504644;
@@ -587,6 +587,34 @@ public final class VehiclePropertyIds {
      */
     @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
     public static final int PERF_REAR_STEERING_ANGLE = 291504656;
+    /**
+     * Instantaneous Fuel Economy in L/100km.
+     *
+     * <p>This property communicates the instantaneous fuel economy of the vehicle in units of
+     * L/100km. Clients can reference the value of {@link #DISTANCE_DISPLAY_UNITS}, {@link
+     * #FUEL_VOLUME_DISPLAY_UNITS}, and {@link #FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME} before
+     * displaying this property to the user to match the display units used by rest of the system.
+     *
+     * <p>For the EV version of this property, see {@link #INSTANTANEOUS_EV_EFFICIENCY}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_MILEAGE_3P} to read
+     property.
+     *  <li>Property is not writable.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_MILEAGE_3P))
+    public static final int INSTANTANEOUS_FUEL_ECONOMY = 291504657;
     /**
      * Temperature of engine coolant in celsius.
      *

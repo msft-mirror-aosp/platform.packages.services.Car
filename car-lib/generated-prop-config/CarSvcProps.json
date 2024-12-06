@@ -261,7 +261,7 @@
           }
         ]
       },
-      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "PERF_VEHICLE_SPEED": {
       "propertyName": "PERF_VEHICLE_SPEED",
@@ -308,6 +308,16 @@
         "type": "single",
         "value": "android.car.permission.READ_CAR_STEERING"
       }
+    },
+    "INSTANTANEOUS_FUEL_ECONOMY": {
+      "propertyName": "INSTANTANEOUS_FUEL_ECONOMY",
+      "propertyId": 291504657,
+      "description": "Instantaneous Fuel Economy in L\/100km.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_MILEAGE_3P"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "ENGINE_COOLANT_TEMP": {
       "propertyName": "ENGINE_COOLANT_TEMP",
