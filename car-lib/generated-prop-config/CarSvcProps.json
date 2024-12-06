@@ -192,9 +192,19 @@
       "propertyId": 291504644,
       "description": "Current odometer value of the vehicle in kilometers.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CAR_MILEAGE"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_MILEAGE_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_MILEAGE"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "PERF_VEHICLE_SPEED": {
       "propertyName": "PERF_VEHICLE_SPEED",
@@ -219,9 +229,19 @@
       "propertyId": 291504649,
       "description": "Front bicycle model steering angle for vehicle in degrees.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.READ_CAR_STEERING"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_STEERING_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_STEERING"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "PERF_REAR_STEERING_ANGLE": {
       "propertyName": "PERF_REAR_STEERING_ANGLE",
@@ -271,9 +291,19 @@
       "propertyId": 291504901,
       "description": "Engine rpm.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CAR_ENGINE_DETAILED"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_ENGINE_DETAILED_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_ENGINE_DETAILED"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "ENGINE_IDLE_AUTO_STOP_ENABLED": {
       "propertyName": "ENGINE_IDLE_AUTO_STOP_ENABLED",
@@ -443,9 +473,19 @@
       "propertyId": 392168201,
       "description": "Tire pressure in kilopascals.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CAR_TIRES"
-      }
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_TIRES_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_TIRES"
+          }
+        ]
+      },
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "CRITICALLY_LOW_TIRE_PRESSURE": {
       "propertyName": "CRITICALLY_LOW_TIRE_PRESSURE",
@@ -2117,14 +2157,24 @@
       "propertyId": 356518832,
       "description": "Seat Occupancy.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CONTROL_CAR_SEATS"
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_SEATS"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CONTROL_CAR_SEATS"
+          }
+        ]
       },
       "dataEnums": [
         0,
         1,
         2
-      ]
+      ],
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "WINDOW_POS": {
       "propertyName": "WINDOW_POS",
@@ -2180,8 +2230,17 @@
       "propertyId": 322964422,
       "description": "Windshield wipers state.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.READ_WINDSHIELD_WIPERS"
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_WINDSHIELD_WIPERS_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_WINDSHIELD_WIPERS"
+          }
+        ]
       },
       "dataEnums": [
         0,
@@ -2189,7 +2248,7 @@
         2,
         3
       ],
-      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "WINDSHIELD_WIPERS_SWITCH": {
       "propertyName": "WINDSHIELD_WIPERS_SWITCH",
@@ -2922,8 +2981,17 @@
       "propertyId": 289410892,
       "description": "Current state of vehicle autonomy.",
       "readPermission": {
-        "type": "single",
-        "value": "android.car.permission.CAR_DRIVING_STATE"
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_DRIVING_STATE_3P"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CAR_DRIVING_STATE"
+          }
+        ]
       },
       "dataEnums": [
         0,
@@ -2933,7 +3001,7 @@
         4,
         5
       ],
-      "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
+      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
     },
     "AUTOMATIC_EMERGENCY_BRAKING_ENABLED": {
       "propertyName": "AUTOMATIC_EMERGENCY_BRAKING_ENABLED",
