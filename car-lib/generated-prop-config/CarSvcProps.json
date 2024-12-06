@@ -697,6 +697,7 @@
         "type": "single",
         "value": "android.car.permission.CAR_EXTERIOR_LIGHTS"
       },
+      "deprecated": true,
       "dataEnums": [
         0,
         1,
@@ -781,6 +782,58 @@
         2
       ],
       "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
+    },
+    "TURN_SIGNAL_LIGHT_STATE": {
+      "propertyName": "TURN_SIGNAL_LIGHT_STATE",
+      "propertyId": 289408016,
+      "description": "Turn signal light state.",
+      "readPermission": {
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_EXTERIOR_LIGHTS"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS"
+          }
+        ]
+      },
+      "dataEnums": [
+        0,
+        1,
+        2
+      ],
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
+    "TURN_SIGNAL_SWITCH": {
+      "propertyName": "TURN_SIGNAL_SWITCH",
+      "propertyId": 289408017,
+      "description": "Turn signal switch.",
+      "readPermission": {
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_EXTERIOR_LIGHTS"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS"
+          }
+        ]
+      },
+      "writePermission": {
+        "type": "single",
+        "value": "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS"
+      },
+      "dataEnums": [
+        0,
+        1,
+        2
+      ],
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "HVAC_FAN_SPEED": {
       "propertyName": "HVAC_FAN_SPEED",

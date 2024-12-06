@@ -1344,6 +1344,11 @@ public final class VehiclePropertyIds {
     /**
      * State of the vehicles turn signals
      *
+     * @deprecated because it ambiguously defines the state of the vehicle turn signals without
+     * making clear if it means the state of the turn signal lights or the state of the turn signal
+     * switch. {@link #TURN_SIGNAL_LIGHT_STATE} and {@link #TURN_SIGNAL_SWITCH} rectify this
+     * problem.
+     *
      * <p>See {@code VehicleTurnSignal} for possible values for {@code TURN_SIGNAL_STATE}.
      *
      * <p>Property Config:
@@ -1363,6 +1368,7 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link VehicleTurnSignal}
      */
+    @Deprecated
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
     public static final int TURN_SIGNAL_STATE = 289408008;
     /**
@@ -1495,6 +1501,92 @@ public final class VehiclePropertyIds {
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE))
     public static final int ELECTRONIC_STABILITY_CONTROL_STATE = 289408015;
+    /**
+     * Turn signal light state.
+     *
+     * <p>This property communicates the actual state of the turn signal lights. It is independent
+     * from the actual turn signal switch state or the hazard lights button state.
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>1) Left turn signal light is currently pulsing, right turn signal light is currently
+     *   off. This property will return {@link VehicleTurnSignal#STATE_LEFT} while the light is on
+     *   during the pulse, and {@link VehicleTurnSignal#STATE_NONE} when it is off during the pulse.
+     *   <li>2) Right turn signal light is currently pulsing, left turn signal light is currently
+     *   off. This property will return {@link VehicleTurnSignal#STATE_RIGHT} while the light is on
+     *   during the pulse, and {@link VehicleTurnSignal#STATE_NONE} when it is off during the pulse.
+     *   <li>3) Both turn signal lights are currently pulsing (e.g. when hazard lights switch is
+     *   on). This property will return {@link VehicleTurnSignal#STATE_LEFT} | {@link
+     *   VehicleTurnSignal#STATE_RIGHT} while the lights are on during the pulse, and {@link
+     *   VehicleTurnSignal#STATE_NONE} when they are off during the pulse.
+     * </ul>
+     *
+     * <p>This is different from the function of {@link #TURN_SIGNAL_SWITCH}, which must communicate
+     * the state of the turn signal lever/switch.
+     *
+     * <p>Note that this property uses {@link VehicleTurnSignal} as a bit flag, unlike {@link
+     * #TURN_SIGNAL_SWITCH}, which uses it like a regular enum. This means this property supports
+     * ORed together values in {@link VehicleTurnSignal}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_EXTERIOR_LIGHTS} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS} to read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link VehicleTurnSignal}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_EXTERIOR_LIGHTS,
+            Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS}))
+    public static final int TURN_SIGNAL_LIGHT_STATE = 289408016;
+    /**
+     * Turn signal switch.
+     *
+     * <p>This property communicates the state of the turn signal lever/switch. This is different
+     * from the function of {@link #TURN_SIGNAL_LIGHT_STATE}, which must communicate the actual
+     * state of the turn signal lights.
+     *
+     * <p>Note that this property uses {@link VehicleTurnSignal} as a regular enum, unlike {@link
+     * #TURN_SIGNAL_LIGHT_STATE}, which uses it like a bit flag. This means this property does not
+     * support ORed together values in {@link VehicleTurnSignal}.
+     *
+     * <p>This property is defined as read_write, but OEMs have the option to implement it as read
+     * only.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
+     *  {@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_EXTERIOR_LIGHTS} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS} to write
+     *  property.
+     * </ul>
+     *
+     * @data_enum {@link VehicleTurnSignal}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_EXTERIOR_LIGHTS,
+            Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS}))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS))
+    public static final int TURN_SIGNAL_SWITCH = 289408017;
     /**
      * Fan speed setting.
      *
