@@ -16,6 +16,10 @@
 
 package com.android.car.internal.util;
 
+import android.car.VehiclePropertyIds;
+
+import com.android.car.internal.property.PropIdAreaId;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
@@ -105,6 +109,14 @@ public final class DebugUtils {
             }
         }
         return prefix + Integer.toString(value);
+    }
+
+    /**
+     * Gets human-readable representation of a {@code PropIdAreaId} structure.
+     */
+    public static String toDebugString(PropIdAreaId propIdAreaId) {
+        return "PropIdAreaId{propId=" + VehiclePropertyIds.toString(propIdAreaId.propId)
+            + ", areaId=" + propIdAreaId.areaId + "}";
     }
 
     private static String constNameWithoutPrefix(String prefix, Field field) {
