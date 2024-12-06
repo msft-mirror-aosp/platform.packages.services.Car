@@ -486,6 +486,7 @@ package android.car {
     field @FlaggedApi("android.car.feature.android_b_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CAR_INFO)) public static final int INFO_MODEL_TRIM = 286261517; // 0x1110010d
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MODEL_YEAR = 289407235; // 0x11400103
     field @RequiresPermission(android.car.Car.PERMISSION_CAR_INFO) public static final int INFO_MULTI_EV_PORT_LOCATIONS = 289472780; // 0x1141010c
+    field @FlaggedApi("android.car.feature.android_b_vehicle_properties") @RequiresPermission.Read(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CAR_INFO)) public static final int INFO_VEHICLE_SIZE_CLASS = 289472782; // 0x1141010e
     field @RequiresPermission(android.car.Car.PERMISSION_IDENTIFICATION) public static final int INFO_VIN = 286261504; // 0x11100100
     field public static final int INVALID = 0; // 0x0
     field @FlaggedApi("android.car.feature.vehicle_property_remove_system_api_tags") @RequiresPermission.Write(@androidx.annotation.RequiresPermission(android.car.Car.PERMISSION_CONTROL_ADAS_STATES)) public static final int LANE_CENTERING_ASSIST_COMMAND = 289411083; // 0x1140100b
@@ -1128,6 +1129,45 @@ package android.car.hardware.property {
     field public static final int JP_ELECTRONIC_TOLL_COLLECTION_CARD = 1; // 0x1
     field public static final int JP_ELECTRONIC_TOLL_COLLECTION_CARD_V2 = 2; // 0x2
     field public static final int UNKNOWN = 0; // 0x0
+  }
+
+  @FlaggedApi("android.car.feature.android_b_vehicle_properties") public final class VehicleSizeClass {
+    method @NonNull public static String toString(int);
+    field public static final int EPA_COMPACT = 259; // 0x103
+    field public static final int EPA_LARGE = 261; // 0x105
+    field public static final int EPA_LARGE_STATION_WAGON = 264; // 0x108
+    field public static final int EPA_MIDSIZE = 260; // 0x104
+    field public static final int EPA_MIDSIZE_STATION_WAGON = 263; // 0x107
+    field public static final int EPA_MINICOMPACT = 257; // 0x101
+    field public static final int EPA_MINIVAN = 268; // 0x10c
+    field public static final int EPA_SMALL_PICKUP_TRUCK = 265; // 0x109
+    field public static final int EPA_SMALL_STATION_WAGON = 262; // 0x106
+    field public static final int EPA_SMALL_SUV = 269; // 0x10d
+    field public static final int EPA_STANDARD_PICKUP_TRUCK = 266; // 0x10a
+    field public static final int EPA_STANDARD_SUV = 270; // 0x10e
+    field public static final int EPA_SUBCOMPACT = 258; // 0x102
+    field public static final int EPA_TWO_SEATER = 256; // 0x100
+    field public static final int EPA_VAN = 267; // 0x10b
+    field public static final int EU_A_SEGMENT = 512; // 0x200
+    field public static final int EU_B_SEGMENT = 513; // 0x201
+    field public static final int EU_C_SEGMENT = 514; // 0x202
+    field public static final int EU_D_SEGMENT = 515; // 0x203
+    field public static final int EU_E_SEGMENT = 516; // 0x204
+    field public static final int EU_F_SEGMENT = 517; // 0x205
+    field public static final int EU_J_SEGMENT = 518; // 0x206
+    field public static final int EU_M_SEGMENT = 519; // 0x207
+    field public static final int EU_S_SEGMENT = 520; // 0x208
+    field public static final int JPN_KEI = 768; // 0x300
+    field public static final int JPN_NORMAL_SIZE = 770; // 0x302
+    field public static final int JPN_SMALL_SIZE = 769; // 0x301
+    field public static final int US_GVWR_CLASS_1_CV = 1024; // 0x400
+    field public static final int US_GVWR_CLASS_2_CV = 1025; // 0x401
+    field public static final int US_GVWR_CLASS_3_CV = 1026; // 0x402
+    field public static final int US_GVWR_CLASS_4_CV = 1027; // 0x403
+    field public static final int US_GVWR_CLASS_5_CV = 1028; // 0x404
+    field public static final int US_GVWR_CLASS_6_CV = 1029; // 0x405
+    field public static final int US_GVWR_CLASS_7_CV = 1030; // 0x406
+    field public static final int US_GVWR_CLASS_8_CV = 1031; // 0x407
   }
 
 }
