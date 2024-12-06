@@ -1041,9 +1041,11 @@ package android.car.hardware.property {
     field public static final int IEC_TYPE_3_AC = 3; // 0x3
     field public static final int IEC_TYPE_4_DC = 4; // 0x4
     field public static final int OTHER = 101; // 0x65
-    field public static final int TESLA_HPWC = 8; // 0x8
+    field @FlaggedApi("android.car.feature.android_b_vehicle_properties") public static final int SAE_J3400_AC = 8; // 0x8
+    field @FlaggedApi("android.car.feature.android_b_vehicle_properties") public static final int SAE_J3400_DC = 9; // 0x9
+    field @Deprecated public static final int TESLA_HPWC = 8; // 0x8
     field public static final int TESLA_ROADSTER = 7; // 0x7
-    field public static final int TESLA_SUPERCHARGER = 9; // 0x9
+    field @Deprecated public static final int TESLA_SUPERCHARGER = 9; // 0x9
     field public static final int UNKNOWN = 0; // 0x0
   }
 
