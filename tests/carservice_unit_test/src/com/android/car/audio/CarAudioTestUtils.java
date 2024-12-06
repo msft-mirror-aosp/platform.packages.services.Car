@@ -58,8 +58,14 @@ import static com.android.car.audio.CarAudioDeviceInfoTestUtils.CALL_TEST_DEVICE
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.MEDIA_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NAVIGATION_TEST_DEVICE;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.NOTIFICATION_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.QUATERNARY_TEST_DEVICE_1;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.RING_TEST_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_0;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_1_0;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SECONDARY_TEST_DEVICE_CONFIG_1_1;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.SYSTEM_BUS_DEVICE;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TERTIARY_TEST_DEVICE_1;
+import static com.android.car.audio.CarAudioDeviceInfoTestUtils.TERTIARY_TEST_DEVICE_2;
 import static com.android.car.audio.CarAudioDeviceInfoTestUtils.VOICE_TEST_DEVICE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 
@@ -274,6 +280,35 @@ public final class CarAudioTestUtils {
     public static final int VEHICLE_STATUS_CONTEXT_ID = 11;
 
     public static final String PRIMARY_ZONE_NAME = "primary zone";
+    public static final int PRIMARY_OCCUPANT_ID = 1;
+    public static final String PRIMARY_ZONE_CONFIG_1 = "primary zone config 1";
+    public static final String BLUETOOTH_ZONE_CONFIG_1 = "bluetooth zone config 1";
+    public static final String USB_ZONE_CONFIG_1 = "USB zone config 1";
+
+    public static final String SECONDARY_ZONE_NAME = "secondary zone";
+    public static final int SECONDARY_ZONE_ID = AudioZone.PRIMARY_AUDIO_ZONE + 1;
+    public static final int SECONDARY_OCCUPANT_ID = 2;
+
+    public static final String SECONDARY_ZONE_CONFIG_NAME_1 = "secondary zone config 1";
+    public static final int SECONDARY_ZONE_VOLUME_GROUP_COUNT = 1;
+
+    public static final int SECONDARY_ZONE_VOLUME_GROUP_ID = SECONDARY_ZONE_VOLUME_GROUP_COUNT - 1;
+    public static final String SECONDARY_ZONE_CONFIG_NAME_2 = "secondary zone config 2";
+    public static final int TEST_SECONDARY_ZONE_GROUP_0 = 0;
+    public static final int TEST_SECONDARY_ZONE_GROUP_1 = 1;
+
+    public static final String TERTIARY_ZONE_NAME = "tertiary zone";
+    public static final int TERTIARY_OCCUPANT_ID = 3;
+    public static final int TERTIARY_ZONE_ID = AudioZone.PRIMARY_AUDIO_ZONE + 2;
+    private static final int TERTIARY_ZONE_VOLUME_GROUP_ID = 0;
+    public static final String TERTIARY_ZONE_CONFIG_NAME_1 = "tertiary zone config 1";
+    public static final String TERTIARY_ZONE_CONFIG_NAME_2 = "tertiary zone config 2";
+
+    public static final String QUATERNARY_ZONE_NAME = "tertiary zone";
+    public static final int QUATERNARY_OCCUPANT_ID = 4;
+    public static final int QUATERNARY_ZONE_ID = AudioZone.PRIMARY_AUDIO_ZONE + 3;
+    private static final int QUATERNARY_ZONE_VOLUME_GROUP_ID = 0;
+    public static final String QUATERNARY_ZONE_CONFIG_NAME_1 = "tertiary zone config 1";
 
     static final int MEDIA_VOLUME_GROUP_ID = 0;
     static final String MEDIA_VOLUME_NAME = "media_volume";
@@ -391,7 +426,7 @@ public final class CarAudioTestUtils {
 
         return getAudioZoneConfig(List.of(mediaVolume, getNavAndVoiceVolumeGroupConfig(),
                 getTelephonyVolumeGroupConfig(), getSystemVolumeGroupConfig()),
-                /* isDefault= */ true, "primary zone config 1");
+                /* isDefault= */ true, PRIMARY_ZONE_CONFIG_1);
     }
 
     static AudioZoneConfig createBluetoothAudioZoneConfig() {
@@ -405,7 +440,7 @@ public final class CarAudioTestUtils {
 
         return getAudioZoneConfig(List.of(mediaVolume, getNavAndVoiceVolumeGroupConfig(),
                 getTelephonyVolumeGroupConfig(), getSystemVolumeGroupConfig()),
-                /* isDefault= */ false, "bluetooth zone config 1");
+                /* isDefault= */ false, BLUETOOTH_ZONE_CONFIG_1);
     }
 
     static AudioZoneConfig createUSBAudioZoneConfig() {
@@ -419,7 +454,7 @@ public final class CarAudioTestUtils {
 
         return getAudioZoneConfig(List.of(mediaVolume, getNavAndVoiceVolumeGroupConfig(),
                         getTelephonyVolumeGroupConfig(), getSystemVolumeGroupConfig()),
-                /* isDefault= */ false, "USB zone config 1");
+                /* isDefault= */ false, USB_ZONE_CONFIG_1);
     }
 
     private static VolumeGroupConfig getSystemVolumeGroupConfig() {
@@ -481,6 +516,135 @@ public final class CarAudioTestUtils {
         audioZone.audioZoneConfigs = List.of(createDefaultAudioZoneConfig(),
                 createBluetoothAudioZoneConfig(), createUSBAudioZoneConfig());
         return audioZone;
+    }
+
+    static List<AudioZone> createAudioServiceAudioZones() {
+        var primaryAudioZone = createAudioZones(AudioZone.PRIMARY_AUDIO_ZONE, PRIMARY_OCCUPANT_ID,
+                PRIMARY_ZONE_NAME, List.of(createDefaultAudioZoneConfig()));
+        return List.of(primaryAudioZone, createSecondaryAudioZone(), createTertiaryAudioZone(),
+                createQuarternaryAudioZone());
+    }
+
+    private static AudioZone createQuarternaryAudioZone() {
+        return createAudioZones(QUATERNARY_ZONE_ID, QUATERNARY_OCCUPANT_ID, QUATERNARY_ZONE_NAME,
+                List.of(createDefaultQuaternaryAudioZoneConfig()));
+    }
+
+    private static AudioZoneConfig createDefaultQuaternaryAudioZoneConfig() {
+        return getAudioZoneConfig(List.of(getQuatenaryDefaultVolumeGroupConfig()),
+                /* isDefault= */ true, QUATERNARY_ZONE_CONFIG_NAME_1);
+    }
+
+    private static VolumeGroupConfig getQuatenaryDefaultVolumeGroupConfig() {
+        var quaternarySecondaryPort = createBusAudioPort(QUATERNARY_TEST_DEVICE_1, 23,
+                "rear_row_three_zone_bus_1_port");
+        var quateranryBusContextEntry = createDeviceToContextEntry(quaternarySecondaryPort,
+                List.of(MUSIC_CONTEXT, NAVIGATION_CONTEXT, VOICE_COMMAND_CONTEXT, RING_CONTEXT,
+                        CALL_CONTEXT, ALARM_CONTEXT, SYSTEM_CONTEXT, NOTIFICATION_CONTEXT,
+                        EMERGENCY_CONTEXT, SAFETY_CONTEXT, VEHICLE_STATUS_CONTEXT,
+                        ANNOUNCEMENT_CONTEXT));
+        return createVolumeGroupConfig(QUATERNARY_ZONE_VOLUME_GROUP_ID, /* groupName= */ "",
+                List.of(quateranryBusContextEntry));
+    }
+
+    static AudioZone createSecondaryAudioZone() {
+        return createAudioZones(SECONDARY_ZONE_ID, SECONDARY_OCCUPANT_ID, SECONDARY_ZONE_NAME,
+                List.of(createSecondaryDefaultAudioZoneConfig(),
+                        createSecondarySecondAudioZoneConfig()));
+    }
+
+    private static AudioZone createTertiaryAudioZone() {
+        return createAudioZones(TERTIARY_ZONE_ID, TERTIARY_OCCUPANT_ID, TERTIARY_ZONE_NAME,
+                List.of(createDefaultTertiaryAudioZoneConfig(),
+                        createSecondTertiaryAudioZoneConfig()));
+    }
+
+    private static AudioZoneConfig createDefaultTertiaryAudioZoneConfig() {
+        return getAudioZoneConfig(List.of(getTertiaryDefaultVolumeGroupConfig()),
+                /* isDefault= */ true, TERTIARY_ZONE_CONFIG_NAME_1);
+    }
+
+    private static VolumeGroupConfig getTertiaryDefaultVolumeGroupConfig() {
+        var defaultSecondaryPort = createBusAudioPort(TERTIARY_TEST_DEVICE_1, 22,
+                "bus_100_port");
+        var tertiaryBusContextEntry = createDeviceToContextEntry(defaultSecondaryPort,
+                List.of(MUSIC_CONTEXT, NAVIGATION_CONTEXT, VOICE_COMMAND_CONTEXT, RING_CONTEXT,
+                        CALL_CONTEXT, ALARM_CONTEXT, SYSTEM_CONTEXT, NOTIFICATION_CONTEXT,
+                        EMERGENCY_CONTEXT, SAFETY_CONTEXT, VEHICLE_STATUS_CONTEXT,
+                        ANNOUNCEMENT_CONTEXT));
+        return createVolumeGroupConfig(TERTIARY_ZONE_VOLUME_GROUP_ID, /* groupName= */ "",
+                List.of(tertiaryBusContextEntry));
+    }
+
+    private static AudioZoneConfig createSecondTertiaryAudioZoneConfig() {
+        return getAudioZoneConfig(List.of(getTertiarySecondaryVolumeGroupConfig()),
+                /* isDefault= */ false, TERTIARY_ZONE_CONFIG_NAME_2);
+    }
+
+    private static VolumeGroupConfig getTertiarySecondaryVolumeGroupConfig() {
+        var defaultSecondaryPort = createBusAudioPort(TERTIARY_TEST_DEVICE_2, 23,
+                "bus_200_port");
+        var tertiaryBusContextEntry = createDeviceToContextEntry(defaultSecondaryPort,
+                List.of(MUSIC_CONTEXT, NAVIGATION_CONTEXT, VOICE_COMMAND_CONTEXT, RING_CONTEXT,
+                        CALL_CONTEXT, ALARM_CONTEXT, SYSTEM_CONTEXT, NOTIFICATION_CONTEXT,
+                        EMERGENCY_CONTEXT, SAFETY_CONTEXT, VEHICLE_STATUS_CONTEXT,
+                        ANNOUNCEMENT_CONTEXT));
+        return createVolumeGroupConfig(TERTIARY_ZONE_VOLUME_GROUP_ID, /* groupName= */ "",
+                List.of(tertiaryBusContextEntry));
+    }
+
+    private static AudioZone createAudioZones(int zoneId, int occupantZoneId, String zoneName,
+            List<AudioZoneConfig> zoneConfigs) {
+        var audioZone = new AudioZone();
+        audioZone.id = zoneId;
+        audioZone.name = zoneName;
+        audioZone.occupantZoneId = occupantZoneId;
+        audioZone.audioZoneContext = createHALAudioContext();
+        audioZone.audioZoneConfigs = zoneConfigs;
+        return audioZone;
+    }
+
+    private static AudioZoneConfig createSecondaryDefaultAudioZoneConfig() {
+        return getAudioZoneConfig(List.of(getSecondaryDefaultVolumeGroupConfig()),
+                /* isDefault= */ true, SECONDARY_ZONE_CONFIG_NAME_1);
+    }
+
+    private static AudioZoneConfig createSecondarySecondAudioZoneConfig() {
+        return getAudioZoneConfig(List.of(getSecondaryMediaVolumeGroupConfig(),
+                        getSecondarySystemVolumeGroupConfig()),
+                /* isDefault= */ false, SECONDARY_ZONE_CONFIG_NAME_2);
+    }
+
+    private static VolumeGroupConfig getSecondaryMediaVolumeGroupConfig() {
+        var secondaryMediaPort = createBusAudioPort(SECONDARY_TEST_DEVICE_CONFIG_1_0, 20,
+                "secondary_port_1");
+        var secondaryMediaBusContextEntry = createDeviceToContextEntry(secondaryMediaPort,
+                List.of(MUSIC_CONTEXT, ANNOUNCEMENT_CONTEXT, NOTIFICATION_CONTEXT,
+                        NAVIGATION_CONTEXT, VOICE_COMMAND_CONTEXT));
+        return createVolumeGroupConfig(TEST_SECONDARY_ZONE_GROUP_0, /* groupName= */ "",
+                List.of(secondaryMediaBusContextEntry));
+    }
+
+    private static VolumeGroupConfig getSecondarySystemVolumeGroupConfig() {
+        var secondaryMediaPort = createBusAudioPort(SECONDARY_TEST_DEVICE_CONFIG_1_1, 21,
+                "secondary_port_2");
+        var secondaryMediaBusContextEntry = createDeviceToContextEntry(secondaryMediaPort,
+                List.of(RING_CONTEXT, CALL_CONTEXT, ALARM_CONTEXT, SYSTEM_CONTEXT,
+                        EMERGENCY_CONTEXT, SAFETY_CONTEXT, VEHICLE_STATUS_CONTEXT));
+        return createVolumeGroupConfig(TEST_SECONDARY_ZONE_GROUP_1, /* groupName= */ "",
+                List.of(secondaryMediaBusContextEntry));
+    }
+
+    private static VolumeGroupConfig getSecondaryDefaultVolumeGroupConfig() {
+        var defaultSecondaryPort = createBusAudioPort(SECONDARY_TEST_DEVICE_CONFIG_0, 19,
+                "secondary_port");
+        var defaultSecondaryBusContextEntry = createDeviceToContextEntry(defaultSecondaryPort,
+                List.of(MUSIC_CONTEXT, NAVIGATION_CONTEXT, VOICE_COMMAND_CONTEXT, RING_CONTEXT,
+                        CALL_CONTEXT, ALARM_CONTEXT, SYSTEM_CONTEXT, NOTIFICATION_CONTEXT,
+                        EMERGENCY_CONTEXT, SAFETY_CONTEXT, VEHICLE_STATUS_CONTEXT,
+                        ANNOUNCEMENT_CONTEXT));
+        return createVolumeGroupConfig(SECONDARY_ZONE_VOLUME_GROUP_ID, /* groupName= */ "",
+                List.of(defaultSecondaryBusContextEntry));
     }
 
     static VolumeGroupConfig createVolumeGroupConfig(int groupId, String groupName,

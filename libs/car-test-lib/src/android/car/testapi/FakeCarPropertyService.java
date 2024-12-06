@@ -41,6 +41,7 @@ import com.android.car.internal.property.GetPropertyConfigListResult;
 import com.android.car.internal.property.GetSetValueResult;
 import com.android.car.internal.property.GetSetValueResultList;
 import com.android.car.internal.property.IAsyncPropertyResultCallback;
+import com.android.car.internal.property.ISupportedValuesChangeCallback;
 import com.android.car.internal.property.MinMaxSupportedPropertyValue;
 import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.internal.property.RawPropertyValue;
@@ -197,6 +198,46 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
     }
 
     @Override
+    public CarPropertyConfigList registerRecordingListener(ICarPropertyEventListener callback) {
+        return new CarPropertyConfigList(new ArrayList<>());
+    }
+
+    @Override
+    public boolean isRecordingVehicleProperties() {
+        return false;
+    }
+
+    @Override
+    public void stopRecordingVehicleProperties(ICarPropertyEventListener callback) {
+        // no-op
+    }
+
+    @Override
+    public void enableInjectionMode(int[] propertyIdsFromRealHardware) {
+        // no-op
+    }
+
+    @Override
+    public void disableInjectionMode() {
+        // no-op
+    }
+
+    @Override
+    public boolean isVehiclePropertyInjectionModeEnabled() {
+        return false;
+    }
+
+    @Override
+    public CarPropertyValue getLastInjectedVehicleProperty(int propertyId) {
+        return null;
+    }
+
+    @Override
+    public void injectVehicleProperties(List<CarPropertyValue> carPropertyValues) {
+        // no-op
+    }
+
+    @Override
     public String getReadPermission(int propId) throws RemoteException {
         return mConfigs.containsKey(propId) ? mPermissions.getReadPermission(propId) : null;
     }
@@ -263,6 +304,18 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
         // This is currently unused, so just return null indicating the hardware does not specify
         // supported values list.
         return null;
+    }
+
+    @Override
+    public void registerSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
+            ISupportedValuesChangeCallback callback) {
+        // This is currently unused, do nothing.
+    }
+
+    @Override
+    public void unregisterSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
+            ISupportedValuesChangeCallback callback) {
+        // This is currently unused, do nothing.
     }
 
     private void sendEvent(CarPropertyValue v) {
