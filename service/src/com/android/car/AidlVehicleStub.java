@@ -30,12 +30,18 @@ import android.hardware.automotive.vehicle.GetValueResult;
 import android.hardware.automotive.vehicle.GetValueResults;
 import android.hardware.automotive.vehicle.IVehicle;
 import android.hardware.automotive.vehicle.IVehicleCallback;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResult;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResults;
+import android.hardware.automotive.vehicle.PropIdAreaId;
+import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SetValueRequest;
 import android.hardware.automotive.vehicle.SetValueRequests;
 import android.hardware.automotive.vehicle.SetValueResult;
 import android.hardware.automotive.vehicle.SetValueResults;
 import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.hardware.automotive.vehicle.SupportedValuesListResult;
+import android.hardware.automotive.vehicle.SupportedValuesListResults;
 import android.hardware.automotive.vehicle.VehiclePropConfig;
 import android.hardware.automotive.vehicle.VehiclePropConfigs;
 import android.hardware.automotive.vehicle.VehiclePropError;
@@ -371,6 +377,74 @@ final class AidlVehicleStub extends VehicleStub {
         mPendingAsyncRequestPool.cancelRequests(serviceRequestIds);
     }
 
+    @Override
+    public boolean isSupportedValuesImplemented() {
+        // We start supporting dynamic supported values API from V4.
+        try {
+            return mAidlVehicle.getInterfaceVersion() >= 4;
+        } catch (RemoteException e) {
+            Slogf.e(TAG, "Failed to get VHAL interface version, default "
+                    + "isSupportedValuesImplemented to false", e);
+            return false;
+        }
+    }
+
+    @Override
+    public MinMaxSupportedRawPropValues getMinMaxSupportedValue(
+            int propertyId, int areaId) throws ServiceSpecificException {
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = propertyId;
+        propIdAreaId.areaId = areaId;
+        MinMaxSupportedValueResults results;
+        try {
+            // This may throw ServiceSpecificException, we just rethrow it.
+            results = mAidlVehicle.getMinMaxSupportedValue(List.of(propIdAreaId));
+        } catch (RemoteException e) {
+            throw new ServiceSpecificException(StatusCode.INTERNAL_ERROR,
+                    "failed to connect to VHAL: " + e);
+        } catch (ServiceSpecificException e) {
+            throw new ServiceSpecificException(e.errorCode,
+                    "VHAL returns non-okay status code: " + e);
+        }
+        var actualResults = (MinMaxSupportedValueResults)
+                LargeParcelable.reconstructStableAIDLParcelable(
+                        results, /* keepSharedMemory= */ false);
+        MinMaxSupportedValueResult result = actualResults.payloads[0];
+        if (result.status != StatusCode.OK) {
+            throw new ServiceSpecificException(result.status,
+                    "MinMaxSupportedValueResult contains non-okay status code");
+        }
+        return new MinMaxSupportedRawPropValues(result.minSupportedValue, result.maxSupportedValue);
+    }
+
+    @Override
+    public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
+            throws ServiceSpecificException {
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = propertyId;
+        propIdAreaId.areaId = areaId;
+        SupportedValuesListResults results;
+        try {
+            // This may throw ServiceSpecificException, we just rethrow it.
+            results = mAidlVehicle.getSupportedValuesLists(List.of(propIdAreaId));
+        } catch (RemoteException e) {
+            throw new ServiceSpecificException(StatusCode.INTERNAL_ERROR,
+                    "failed to connect to VHAL: " + e);
+        } catch (ServiceSpecificException e) {
+            throw new ServiceSpecificException(e.errorCode,
+                    "VHAL returns non-okay status code: " + e);
+        }
+        var actualResults = (SupportedValuesListResults)
+                LargeParcelable.reconstructStableAIDLParcelable(
+                        results, /* keepSharedMemory= */ false);
+        SupportedValuesListResult result = actualResults.payloads[0];
+        if (result.status != StatusCode.OK) {
+            throw new ServiceSpecificException(result.status,
+                    "SupportedValuesListResult contains non-okay status code");
+        }
+        return result.supportedValuesList;
+    }
+
     /**
      * A thread-safe pending sync request pool.
      */
@@ -617,6 +691,12 @@ final class AidlVehicleStub extends VehicleStub {
         }
 
         @Override
+        public void onSupportedValueChange(List<PropIdAreaId> propIdAreaIds)
+                throws RemoteException {
+            // TODO(371636116): implement this.
+        }
+
+        @Override
         public void onPropertyEvent(VehiclePropValues propValues, int sharedMemoryFileCount)
                 throws RemoteException {
             VehiclePropValues origPropValues = (VehiclePropValues)
@@ -735,14 +815,18 @@ final class AidlVehicleStub extends VehicleStub {
         @Override
         public void onPropertyEvent(VehiclePropValues propValues, int sharedMemoryFileCount)
                 throws RemoteException {
-            throw new UnsupportedOperationException(
-                    "GetSetValuesCallback only support onGetValues or onSetValues");
+            throwUnsupportedException();
         }
 
         @Override
         public void onPropertySetError(VehiclePropErrors errors) throws RemoteException {
-            throw new UnsupportedOperationException(
-                    "GetSetValuesCallback only support onGetValues or onSetValues");
+            throwUnsupportedException();
+        }
+
+        @Override
+        public void onSupportedValueChange(List<PropIdAreaId> propIdAreaIds)
+                throws RemoteException {
+            throwUnsupportedException();
         }
 
         @Override
@@ -753,6 +837,11 @@ final class AidlVehicleStub extends VehicleStub {
         @Override
         public int getInterfaceVersion() {
             return IVehicleCallback.VERSION;
+        }
+
+        private void throwUnsupportedException() {
+            throw new UnsupportedOperationException(
+                    "GetSetValuesCallback only support onGetValues or onSetValues");
         }
     }
 
@@ -808,7 +897,6 @@ final class AidlVehicleStub extends VehicleStub {
             Trace.traceBegin(TRACE_TAG, "Prepare LargeParcelable");
             GetValueRequests largeParcelableRequest = new GetValueRequests();
             largeParcelableRequest.payloads = mVhalRequestItems;
-
             // TODO(b/269669729): Don't try to use large parcelable if the request size is too
             // small.
             largeParcelableRequest = (GetValueRequests) LargeParcelable.toLargeParcelable(
@@ -818,9 +906,14 @@ final class AidlVehicleStub extends VehicleStub {
                         return newRequests;
             });
             Trace.traceEnd(TRACE_TAG);
-            Trace.traceBegin(TRACE_TAG, "IVehicle#getValues");
-            iVehicle.getValues(callbackForVhal, largeParcelableRequest);
-            Trace.traceEnd(TRACE_TAG);
+
+            try {
+                Trace.traceBegin(TRACE_TAG, "IVehicle#getValues");
+                iVehicle.getValues(callbackForVhal, largeParcelableRequest);
+            } finally {
+                LargeParcelable.closeFd(largeParcelableRequest.sharedMemoryFd);
+                Trace.traceEnd(TRACE_TAG);
+            }
         }
 
         @Override
@@ -863,7 +956,11 @@ final class AidlVehicleStub extends VehicleStub {
                         newRequests.payloads = new SetValueRequest[0];
                         return newRequests;
             });
-            iVehicle.setValues(callbackForVhal, largeParcelableRequest);
+            try {
+                iVehicle.setValues(callbackForVhal, largeParcelableRequest);
+            } finally {
+                LargeParcelable.closeFd(largeParcelableRequest.sharedMemoryFd);
+            }
         }
 
         @Override
