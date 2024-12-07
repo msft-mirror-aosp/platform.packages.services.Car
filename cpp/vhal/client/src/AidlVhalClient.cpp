@@ -255,8 +255,14 @@ void AidlVhalClient::onBinderUnlinked(void* cookie) {
 }
 
 void AidlVhalClient::onBinderDiedWithContext() {
-    std::lock_guard<std::mutex> lk(mLock);
-    for (auto callback : mOnBinderDiedCallbacks) {
+    std::unordered_set<std::shared_ptr<OnBinderDiedCallbackFunc>> callbacksCopy;
+    {
+        // Copy the callbacks so that we avoid invoking the callback with lock hold.
+        std::lock_guard<std::mutex> lk(mLock);
+        callbacksCopy = mOnBinderDiedCallbacks;
+    }
+
+    for (auto callback : callbacksCopy) {
         (*callback)();
     }
 }

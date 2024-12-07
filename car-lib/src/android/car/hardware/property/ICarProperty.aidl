@@ -130,6 +130,14 @@ interface ICarProperty {
                 in ISupportedValuesChangeCallback callback);
 
     /**
+     * Unregisters the callback previously registered with registerSupportedValuesChangeCallback.
+     *
+     * Do nothing if the [propertyId, areaId]s were not previously registered.
+     */
+    void unregisterSupportedValuesChangeCallback(in List<PropIdAreaId> propIdAreaIds,
+            in ISupportedValuesChangeCallback callback);
+
+    /**
      * Registers a listener to get all car property changes from the VHAL.
      *
      * @throws IllegalStateException If the build is not userdebug or eng.

@@ -139,7 +139,7 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         MockitoAnnotations.initMocks(this);
 
         mFakeFeatureFlags = new FakeFeatureFlagsImpl();
-        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES, true);
+        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_B_VEHICLE_PROPERTIES, true);
 
         mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
 
@@ -754,5 +754,17 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         assertThat(mPropertyHalServiceConfigs
                         .isSupportedProperty(previouslySignaturePrivilegedProperty))
                 .isTrue();
+    }
+
+    @Test
+    public void testBVehiclePropertiesFlagDisabled() throws Exception {
+        int androidBProperty = VehiclePropertyIds.INFO_MODEL_TRIM;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_B_VEHICLE_PROPERTIES, false);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .doesNotContain(androidBProperty);
+        assertThat(mPropertyHalServiceConfigs.isSupportedProperty(androidBProperty)).isFalse();
     }
 }
