@@ -16,6 +16,7 @@
 
 package android.car;
 
+import static android.car.feature.Flags.FLAG_ANDROID_B_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS;
 import static android.car.feature.Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS;
@@ -399,6 +400,71 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CAR_INFO)
     public static final int INFO_EXTERIOR_DIMENSIONS = 289472779;
     /**
+     * Public trim name of the vehicle.
+     *
+     * <p>This property communicates the vehicle's public trim name.
+     *
+     * <p>For example, say an OEM manufactures two different versions of a vehicle model:
+     * <ul>
+     *   <li>"makeName modelName" and
+     *   <li>"makeName modelName Sport"
+     * </ul>
+     * <p>This property will be empty for the first vehicle (i.e. base model), and set to "Sport"
+     * for the second vehicle.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code String} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Normal permission {@link Car#PERMISSION_CAR_INFO} to read property.
+     *  <li>Property is not writable.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_INFO))
+    public static final int INFO_MODEL_TRIM = 286261517;
+    /**
+     * Vehicle Size Class.
+     *
+     * <p>This property communicates the list of size classifications that the vehicle follows
+     * according to the multiple standards that are defined in {@link
+     * android.car.hardware.property.VehicleSizeClass}
+     *
+     * <p>For example, suppose a vehicle model follows the {@link
+     * android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT} standard in the EU and the
+     * {@link android.car.hardware.property.VehicleSizeClass#JPN_KEI} standard in Japan. In this
+     * scenario this property must return an intArray = [{@link
+     * android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT}, {@link
+     * android.car.hardware.property.VehicleSizeClass#JPN_KEI}]. If this vehicle only follows
+     * the EU {@link android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT} standard, then we
+     * expect intArray = [{@link android.car.hardware.property.VehicleSizeClass#EU_A_SEGMENT}].
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_STATIC}
+     *  <li>{@code Integer[]} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Normal permission {@link Car#PERMISSION_CAR_INFO} to read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link android.car.hardware.property.VehicleSizeClass}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_INFO))
+    public static final int INFO_VEHICLE_SIZE_CLASS = 289472782;
+    /**
      * Current odometer value of the vehicle in kilometers.
      *
      * <p>Property Config:
@@ -416,7 +482,7 @@ public final class VehiclePropertyIds {
      *  <li>Property is not writable.
      * </ul>
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_MILEAGE_3P,
             Car.PERMISSION_MILEAGE}))
     public static final int PERF_ODOMETER = 291504644;
@@ -521,6 +587,34 @@ public final class VehiclePropertyIds {
      */
     @RequiresPermission(Car.PERMISSION_READ_STEERING_STATE)
     public static final int PERF_REAR_STEERING_ANGLE = 291504656;
+    /**
+     * Instantaneous Fuel Economy in L/100km.
+     *
+     * <p>This property communicates the instantaneous fuel economy of the vehicle in units of
+     * L/100km. Clients can reference the value of {@link #DISTANCE_DISPLAY_UNITS}, {@link
+     * #FUEL_VOLUME_DISPLAY_UNITS}, and {@link #FUEL_CONSUMPTION_UNITS_DISTANCE_OVER_VOLUME} before
+     * displaying this property to the user to match the display units used by rest of the system.
+     *
+     * <p>For the EV version of this property, see {@link #INSTANTANEOUS_EV_EFFICIENCY}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_MILEAGE_3P} to read
+     property.
+     *  <li>Property is not writable.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_MILEAGE_3P))
+    public static final int INSTANTANEOUS_FUEL_ECONOMY = 291504657;
     /**
      * Temperature of engine coolant in celsius.
      *
@@ -1278,6 +1372,11 @@ public final class VehiclePropertyIds {
     /**
      * State of the vehicles turn signals
      *
+     * @deprecated because it ambiguously defines the state of the vehicle turn signals without
+     * making clear if it means the state of the turn signal lights or the state of the turn signal
+     * switch. {@link #TURN_SIGNAL_LIGHT_STATE} and {@link #TURN_SIGNAL_SWITCH} rectify this
+     * problem.
+     *
      * <p>See {@code VehicleTurnSignal} for possible values for {@code TURN_SIGNAL_STATE}.
      *
      * <p>Property Config:
@@ -1297,6 +1396,7 @@ public final class VehiclePropertyIds {
      *
      * @data_enum {@link VehicleTurnSignal}
      */
+    @Deprecated
     @RequiresPermission(Car.PERMISSION_EXTERIOR_LIGHTS)
     public static final int TURN_SIGNAL_STATE = 289408008;
     /**
@@ -1429,6 +1529,92 @@ public final class VehiclePropertyIds {
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE))
     public static final int ELECTRONIC_STABILITY_CONTROL_STATE = 289408015;
+    /**
+     * Turn signal light state.
+     *
+     * <p>This property communicates the actual state of the turn signal lights. It is independent
+     * from the actual turn signal switch state or the hazard lights button state.
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>1) Left turn signal light is currently pulsing, right turn signal light is currently
+     *   off. This property will return {@link VehicleTurnSignal#STATE_LEFT} while the light is on
+     *   during the pulse, and {@link VehicleTurnSignal#STATE_NONE} when it is off during the pulse.
+     *   <li>2) Right turn signal light is currently pulsing, left turn signal light is currently
+     *   off. This property will return {@link VehicleTurnSignal#STATE_RIGHT} while the light is on
+     *   during the pulse, and {@link VehicleTurnSignal#STATE_NONE} when it is off during the pulse.
+     *   <li>3) Both turn signal lights are currently pulsing (e.g. when hazard lights switch is
+     *   on). This property will return {@link VehicleTurnSignal#STATE_LEFT} | {@link
+     *   VehicleTurnSignal#STATE_RIGHT} while the lights are on during the pulse, and {@link
+     *   VehicleTurnSignal#STATE_NONE} when they are off during the pulse.
+     * </ul>
+     *
+     * <p>This is different from the function of {@link #TURN_SIGNAL_SWITCH}, which must communicate
+     * the state of the turn signal lever/switch.
+     *
+     * <p>Note that this property uses {@link VehicleTurnSignal} as a bit flag, unlike {@link
+     * #TURN_SIGNAL_SWITCH}, which uses it like a regular enum. This means this property supports
+     * ORed together values in {@link VehicleTurnSignal}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_EXTERIOR_LIGHTS} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS} to read property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link VehicleTurnSignal}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_EXTERIOR_LIGHTS,
+            Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS}))
+    public static final int TURN_SIGNAL_LIGHT_STATE = 289408016;
+    /**
+     * Turn signal switch.
+     *
+     * <p>This property communicates the state of the turn signal lever/switch. This is different
+     * from the function of {@link #TURN_SIGNAL_LIGHT_STATE}, which must communicate the actual
+     * state of the turn signal lights.
+     *
+     * <p>Note that this property uses {@link VehicleTurnSignal} as a regular enum, unlike {@link
+     * #TURN_SIGNAL_LIGHT_STATE}, which uses it like a bit flag. This means this property does not
+     * support ORed together values in {@link VehicleTurnSignal}.
+     *
+     * <p>This property is defined as read_write, but OEMs have the option to implement it as read
+     * only.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
+     *  {@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_EXTERIOR_LIGHTS} or Signature|Privileged
+     *  permission {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CONTROL_EXTERIOR_LIGHTS} to write
+     *  property.
+     * </ul>
+     *
+     * @data_enum {@link VehicleTurnSignal}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_EXTERIOR_LIGHTS,
+            Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS}))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_EXTERIOR_LIGHTS))
+    public static final int TURN_SIGNAL_SWITCH = 289408017;
     /**
      * Fan speed setting.
      *

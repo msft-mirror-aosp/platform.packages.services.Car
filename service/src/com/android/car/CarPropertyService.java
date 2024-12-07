@@ -1176,9 +1176,37 @@ public class CarPropertyService extends ICarProperty.Stub
         return mPropertyHalService.getSupportedValuesList(propertyId, areaId, areaIdConfig);
     }
 
+    /**
+     * Registers the callback to be called when the min/max supported value or supported values
+     * list change.
+     *
+     * @throws IllegalArgumentException if one of the [propertyId, areaId]s are not supported.
+     * @throws SecurityException if the caller does not have read and does not have write access
+     *      for any of the requested property.
+     * @throws ServiceSpecificException If VHAL returns error.
+     */
     @Override
     public void registerSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
             ISupportedValuesChangeCallback callback) {
+        for (int i = 0; i < propIdAreaIds.size(); i++) {
+            var propIdAreaId = propIdAreaIds.get(i);
+            // Verify [propId, areaId] is supported and the caller has read or write permission.
+            // This may throw IllegalArgumentException or SecurityException.
+            verifyGetSupportedValueRequestAndGetAreaIdConfig(propIdAreaId.propId,
+                    propIdAreaId.areaId);
+        }
+        mPropertyHalService.registerSupportedValuesChangeCallback(propIdAreaIds, callback);
+    }
+
+    /**
+     * Unregisters the callback previously registered with registerSupportedValuesChangeCallback.
+     *
+     * Do nothing if the [propertyId, areaId]s were not previously registered.
+     */
+    @Override
+    public void unregisterSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
+            ISupportedValuesChangeCallback callback) {
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(propIdAreaIds, callback);
     }
 
     /**
