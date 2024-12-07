@@ -261,7 +261,7 @@
           }
         ]
       },
-      "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "PERF_VEHICLE_SPEED": {
       "propertyName": "PERF_VEHICLE_SPEED",
@@ -308,6 +308,26 @@
         "type": "single",
         "value": "android.car.permission.READ_CAR_STEERING"
       }
+    },
+    "INSTANTANEOUS_FUEL_ECONOMY": {
+      "propertyName": "INSTANTANEOUS_FUEL_ECONOMY",
+      "propertyId": 291504657,
+      "description": "Instantaneous Fuel Economy in L\/100km.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_MILEAGE_3P"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
+    "INSTANTANEOUS_EV_EFFICIENCY": {
+      "propertyName": "INSTANTANEOUS_EV_EFFICIENCY",
+      "propertyId": 291504658,
+      "description": "Instantaneous EV efficiency in km\/kWh.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_MILEAGE_3P"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "ENGINE_COOLANT_TEMP": {
       "propertyName": "ENGINE_COOLANT_TEMP",
@@ -697,6 +717,7 @@
         "type": "single",
         "value": "android.car.permission.CAR_EXTERIOR_LIGHTS"
       },
+      "deprecated": true,
       "dataEnums": [
         0,
         1,
@@ -781,6 +802,58 @@
         2
       ],
       "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
+    },
+    "TURN_SIGNAL_LIGHT_STATE": {
+      "propertyName": "TURN_SIGNAL_LIGHT_STATE",
+      "propertyId": 289408016,
+      "description": "Turn signal light state.",
+      "readPermission": {
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_EXTERIOR_LIGHTS"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS"
+          }
+        ]
+      },
+      "dataEnums": [
+        0,
+        1,
+        2
+      ],
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
+    "TURN_SIGNAL_SWITCH": {
+      "propertyName": "TURN_SIGNAL_SWITCH",
+      "propertyId": 289408017,
+      "description": "Turn signal switch.",
+      "readPermission": {
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_EXTERIOR_LIGHTS"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS"
+          }
+        ]
+      },
+      "writePermission": {
+        "type": "single",
+        "value": "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS"
+      },
+      "dataEnums": [
+        0,
+        1,
+        2
+      ],
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "HVAC_FAN_SPEED": {
       "propertyName": "HVAC_FAN_SPEED",
