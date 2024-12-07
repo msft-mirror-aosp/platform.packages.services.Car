@@ -415,6 +415,29 @@
       ],
       "featureFlag": "FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS"
     },
+    "VEHICLE_HORN_ENGAGED": {
+      "propertyName": "VEHICLE_HORN_ENGAGED",
+      "propertyId": 287310656,
+      "description": "Vehicle horn engaged.",
+      "readPermission": {
+        "type": "anyOf",
+        "value": [
+          {
+            "type": "single",
+            "value": "android.car.permission.READ_CAR_HORN"
+          },
+          {
+            "type": "single",
+            "value": "android.car.permission.CONTROL_CAR_HORN"
+          }
+        ]
+      },
+      "writePermission": {
+        "type": "single",
+        "value": "android.car.permission.CONTROL_CAR_HORN"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
     "WHEEL_TICK": {
       "propertyName": "WHEEL_TICK",
       "propertyId": 290521862,
@@ -572,6 +595,56 @@
         "type": "single",
         "value": "android.car.permission.CAR_TIRES"
       }
+    },
+    "ACCELERATOR_PEDAL_COMPRESSION_PERCENTAGE": {
+      "propertyName": "ACCELERATOR_PEDAL_COMPRESSION_PERCENTAGE",
+      "propertyId": 291504911,
+      "description": "Accelerator pedal compression percentage.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.READ_CAR_PEDALS"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
+    "BRAKE_PEDAL_COMPRESSION_PERCENTAGE": {
+      "propertyName": "BRAKE_PEDAL_COMPRESSION_PERCENTAGE",
+      "propertyId": 291504912,
+      "description": "Brake pedal compression percentage.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.READ_CAR_PEDALS"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
+    "BRAKE_PAD_WEAR_PERCENTAGE": {
+      "propertyName": "BRAKE_PAD_WEAR_PERCENTAGE",
+      "propertyId": 392168209,
+      "description": "Brake pad wear percentage.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.READ_BRAKE_INFO"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
+    "BRAKE_FLUID_LEVEL_LOW": {
+      "propertyName": "BRAKE_FLUID_LEVEL_LOW",
+      "propertyId": 287310610,
+      "description": "Brake fluid level low.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.READ_BRAKE_INFO"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
+    },
+    "VEHICLE_PASSIVE_SUSPENSION_HEIGHT": {
+      "propertyName": "VEHICLE_PASSIVE_SUSPENSION_HEIGHT",
+      "propertyId": 390071059,
+      "description": "Vehicle Passive Suspension Height in mm.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_DYNAMICS_STATE"
+      },
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "GEAR_SELECTION": {
       "propertyName": "GEAR_SELECTION",
@@ -3132,6 +3205,24 @@
         5
       ],
       "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
+    },
+    "VEHICLE_DRIVING_AUTOMATION_TARGET_LEVEL": {
+      "propertyName": "VEHICLE_DRIVING_AUTOMATION_TARGET_LEVEL",
+      "propertyId": 289410895,
+      "description": "Target state of vehicle autonomy.",
+      "readPermission": {
+        "type": "single",
+        "value": "android.car.permission.CAR_DRIVING_STATE"
+      },
+      "dataEnums": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "featureFlag": "FLAG_ANDROID_B_VEHICLE_PROPERTIES"
     },
     "AUTOMATIC_EMERGENCY_BRAKING_ENABLED": {
       "propertyName": "AUTOMATIC_EMERGENCY_BRAKING_ENABLED",
