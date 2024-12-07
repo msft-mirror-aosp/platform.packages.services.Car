@@ -65,6 +65,24 @@ public abstract class VehicleStub {
          * @throws ServiceSpecificException if VHAL returns service specific error.
          */
         void unsubscribe(int prop) throws RemoteException, ServiceSpecificException;
+
+        /**
+         * Registers the callback to be called when the min/max supported value or supportd values
+         * list change for the [propId, areaId]s.
+         *
+         * @throws ServiceSpecificException If VHAL returns error or VHAL connection fails.
+         */
+        void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
+
+        /**
+         * Unregisters the [propId, areaId]s previously registered with
+         * registerSupportedValuesChange.
+         *
+         * Do nothing if the [propId, areaId]s were not previously registered.
+         *
+         * This operation is always assumed succeeded.
+         */
+        void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
     }
 
     /**
@@ -225,16 +243,6 @@ public abstract class VehicleStub {
          * If the callback's binder is already dead, this function will not be called.
          */
         public abstract void onRequestsTimeout(List<Integer> serviceRequestIds);
-    }
-
-    /**
-     * A callback interface to notify supported values change.
-     */
-    public interface SupportedValuesChangeCallback {
-        /**
-         * Method called when supported values change.
-         */
-        void onSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
     }
 
     /**
@@ -436,37 +444,5 @@ public abstract class VehicleStub {
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Sets the callback to be called when the min/max supported value or supported values
-     * list change.
-     *
-     * This is only allowed to be called once.
-     */
-    public void setSupportedValuesChangeCallback(SupportedValuesChangeCallback callback) {
-        // Do nothing.
-        return;
-    }
-
-    /**
-     * Registers the callback to be called when the min/max supported value or supportd values
-     * list change for the [propId, areaId]s.
-     *
-     * @throws ServiceSpecificException If VHAL returns error.
-     */
-    public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
-        // Do nothing.
-        return;
-    }
-
-    /**
-     * Unregisters the [propId, areaId]s previously registered with registerSupportedValuesChange.
-     *
-     * Do nothing if the [propId, areaId]s were not previously registered.
-     */
-    public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
-        // Do nothing.
-        return;
     }
 }

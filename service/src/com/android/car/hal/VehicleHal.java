@@ -64,7 +64,6 @@ import com.android.car.CarSystemService;
 import com.android.car.VehicleStub;
 import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.VehicleStub.SubscriptionClient;
-import com.android.car.VehicleStub.SupportedValuesChangeCallback;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.DispatchList;
 import com.android.car.internal.property.PropIdAreaId;
@@ -92,8 +91,7 @@ import java.util.concurrent.TimeUnit;
  * implementation. It is the responsibility of {@link HalServiceBase} to convert data to
  * corresponding Car*Service for Car*Manager API.
  */
-public class VehicleHal implements VehicleHalCallback, CarSystemService,
-        SupportedValuesChangeCallback {
+public class VehicleHal implements VehicleHalCallback, CarSystemService {
     private static final boolean DBG = Slogf.isLoggable(CarLog.TAG_HAL, Log.DEBUG);
     private static final long TRACE_TAG = TraceHelper.TRACE_TAG_CAR_SERVICE;
 
@@ -308,7 +306,6 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
                 mPropertyHal);
         mVehicleStub = vehicle;
         mSubscriptionClient = vehicle.newSubscriptionClient(this);
-        vehicle.setSupportedValuesChangeCallback(this);
     }
 
     /** Sets fake feature flag for unit testing. */
@@ -1796,6 +1793,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
 
     /**
      * Gets the min/max supported value.
+     *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
      */
     public MinMaxSupportedRawPropValues getMinMaxSupportedValue(int propertyId, int areaId)
             throws ServiceSpecificException {
@@ -1804,6 +1803,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
 
     /**
      * Gets the supported values list.
+     *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
      */
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
@@ -1856,6 +1857,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
      * Registers the callback to be called when the min/max supported value or supported values
      * list change.
      *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
      * @throws ServiceSpecificException If VHAL returns error.
      * @throws IllegalArgumentException If the service does not own one of the requested property
      *      ID.
@@ -1875,7 +1878,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
 
             // Here we do not filter out already registered [propId, areaId]s, we expect each
             // service to filter out duplicate requests.
-            mVehicleStub.registerSupportedValuesChange(propIdAreaIds);
+            mSubscriptionClient.registerSupportedValuesChange(propIdAreaIds);
 
             for (int i = 0; i < propIdAreaIds.size(); i++) {
                 registeredPropIdAreaIds.add(propIdAreaIds.get(i));
@@ -1889,6 +1892,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
      * registerSupportedValuesChange.
      *
      * Do nothing if the [propId, areaId]s were not previously registered.
+     *
+     * This should only be called if {@link #isSupportedValuesImplemented} is {@code true}.
      *
      * @throws IllegalArgumentException If the service does not own one of the requested property
      *      ID.
@@ -1919,7 +1924,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService,
             if (propIdAreaIdsToUnRegister.isEmpty()) {
                 return;
             }
-            mVehicleStub.unregisterSupportedValuesChange(propIdAreaIdsToUnRegister);
+            mSubscriptionClient.unregisterSupportedValuesChange(propIdAreaIdsToUnRegister);
         }
     }
 }

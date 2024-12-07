@@ -2392,7 +2392,7 @@ public class VehicleHalTest extends AbstractExpectableTestCase {
 
         mVehicleHal.registerSupportedValuesChange(mPropertyHalService, propIdAreaIds);
 
-        verify(mVehicle).registerSupportedValuesChange(propIdAreaIds);
+        verify(mSubscriptionClient).registerSupportedValuesChange(propIdAreaIds);
     }
 
     @Test
@@ -2412,7 +2412,7 @@ public class VehicleHalTest extends AbstractExpectableTestCase {
                 newPropIdAreaId(SOME_READ_WRITE_STATIC_PROPERTY, 0),
                 newPropIdAreaId(CONTINUOUS_PROPERTY, 0)
         );
-        doThrow(new ServiceSpecificException(0)).when(mVehicle)
+        doThrow(new ServiceSpecificException(0)).when(mSubscriptionClient)
                 .registerSupportedValuesChange(any());
 
         assertThrows(ServiceSpecificException.class, () -> {
@@ -2485,7 +2485,7 @@ public class VehicleHalTest extends AbstractExpectableTestCase {
         mVehicleHal.unregisterSupportedValuesChange(mPropertyHalService,
                 List.of(propIdAreaId1));
 
-        verify(mVehicle).unregisterSupportedValuesChange(mListCaptor.capture());
+        verify(mSubscriptionClient).unregisterSupportedValuesChange(mListCaptor.capture());
         var unregisteredPropIdAreaIds = (List<PropIdAreaId>) mListCaptor.getValue();
         assertThat(unregisteredPropIdAreaIds).containsExactly(propIdAreaId1);
 
@@ -2508,7 +2508,7 @@ public class VehicleHalTest extends AbstractExpectableTestCase {
         mVehicleHal.unregisterSupportedValuesChange(mPropertyHalService,
                 List.of(propIdAreaId2));
 
-        verify(mVehicle, never()).unregisterSupportedValuesChange(any());
+        verify(mSubscriptionClient, never()).unregisterSupportedValuesChange(any());
     }
 
     @Test
