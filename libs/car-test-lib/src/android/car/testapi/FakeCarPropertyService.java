@@ -312,6 +312,12 @@ class FakeCarPropertyService extends ICarProperty.Stub implements CarPropertyCon
         // This is currently unused, do nothing.
     }
 
+    @Override
+    public void unregisterSupportedValuesChangeCallback(List<PropIdAreaId> propIdAreaIds,
+            ISupportedValuesChangeCallback callback) {
+        // This is currently unused, do nothing.
+    }
+
     private void sendEvent(CarPropertyValue v) {
         synchronized (mLock) {
             Set<ListenerInfo> listeners = mListenersByPropIdAreaId.get(v.getPropertyId(),

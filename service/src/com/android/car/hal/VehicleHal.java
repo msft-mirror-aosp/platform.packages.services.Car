@@ -23,6 +23,8 @@ import static com.android.car.hal.property.HalPropertyDebugUtils.toAreaIdString;
 import static com.android.car.hal.property.HalPropertyDebugUtils.toAreaTypeString;
 import static com.android.car.hal.property.HalPropertyDebugUtils.toChangeModeString;
 import static com.android.car.hal.property.HalPropertyDebugUtils.toGroupString;
+import static com.android.car.hal.property.HalPropertyDebugUtils.toHalPropIdAreaIdString;
+import static com.android.car.hal.property.HalPropertyDebugUtils.toHalPropIdAreaIdsString;
 import static com.android.car.hal.property.HalPropertyDebugUtils.toPropertyIdString;
 import static com.android.car.hal.property.HalPropertyDebugUtils.toValueTypeString;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
@@ -62,7 +64,10 @@ import com.android.car.CarSystemService;
 import com.android.car.VehicleStub;
 import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
 import com.android.car.VehicleStub.SubscriptionClient;
+import com.android.car.VehicleStub.SupportedValuesChangeCallback;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.common.DispatchList;
+import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.Lists;
 import com.android.car.internal.util.PairSparseArray;
@@ -87,8 +92,9 @@ import java.util.concurrent.TimeUnit;
  * implementation. It is the responsibility of {@link HalServiceBase} to convert data to
  * corresponding Car*Service for Car*Manager API.
  */
-public class VehicleHal implements VehicleHalCallback, CarSystemService {
-    private static final boolean DBG = Slogf.isLoggable(CarLog.TAG_HAL, Log.DEBUG);;
+public class VehicleHal implements VehicleHalCallback, CarSystemService,
+        SupportedValuesChangeCallback {
+    private static final boolean DBG = Slogf.isLoggable(CarLog.TAG_HAL, Log.DEBUG);
     private static final long TRACE_TAG = TraceHelper.TRACE_TAG_CAR_SERVICE;
 
     private static final int GLOBAL_AREA_ID = 0;
@@ -139,6 +145,9 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
     private final SparseArray<HalPropConfig> mAllProperties = new SparseArray<>();
     @GuardedBy("mLock")
     private final PairSparseArray<Integer> mAccessByPropIdAreaId = new PairSparseArray<Integer>();
+    @GuardedBy("mLock")
+    private final ArrayMap<HalServiceBase, ArraySet<PropIdAreaId>>
+            mSupportedValuesChangePropIdAreaIdsByService = new ArrayMap<>();
 
     @GuardedBy("mLock")
     private final SparseArray<VehiclePropertyEventInfo> mEventLog = new SparseArray<>();
@@ -299,6 +308,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
                 mPropertyHal);
         mVehicleStub = vehicle;
         mSubscriptionClient = vehicle.newSubscriptionClient(this);
+        vehicle.setSupportedValuesChangeCallback(this);
     }
 
     /** Sets fake feature flag for unit testing. */
@@ -1411,6 +1421,7 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
         }
     }
 
+
     /** Dumps VehiclePropertyConfigs */
     private static void dumpPropertyConfigsHelp(PrintWriter writer, HalPropConfig config) {
         int propertyId = config.getPropId();
@@ -1797,5 +1808,118 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
         return mVehicleStub.getSupportedValuesList(propertyId, areaId);
+    }
+
+    private static class SupportedValuesChangeDispatchList extends
+            DispatchList<HalServiceBase, PropIdAreaId> {
+        @Override
+        protected void dispatchToClient(HalServiceBase client, List<PropIdAreaId> events) {
+            client.onSupportedValuesChange(events);
+        }
+    }
+
+    @Override
+    public void onSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+        if (DBG) {
+            Slogf.i(CarLog.TAG_HAL, "onSupportedValuesChange called for: %s",
+                    toHalPropIdAreaIdsString(propIdAreaIds));
+        }
+
+        var dispatchList = new SupportedValuesChangeDispatchList();
+        synchronized (mLock) {
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                var propIdAreaId = propIdAreaIds.get(i);
+                HalServiceBase service = mPropertyHandlers.get(propIdAreaId.propId);
+                if (service == null) {
+                    Slogf.e(CarLog.TAG_HAL, "onSupportedValuesChange: HalService not found for %s",
+                            toHalPropIdAreaIdString(propIdAreaId));
+                    continue;
+                }
+
+                var propIdAreaIdsForService = mSupportedValuesChangePropIdAreaIdsByService.get(
+                        service);
+
+                if (!propIdAreaIdsForService.contains(propIdAreaId)) {
+                    Slogf.e(CarLog.TAG_HAL,
+                            "onSupportedValuesChange: not registered for %s, ignore",
+                            toHalPropIdAreaIdString(propIdAreaId));
+                    continue;
+                }
+                dispatchList.addEvent(service, propIdAreaId);
+            }
+        }
+
+        dispatchList.dispatchToClients();
+    }
+
+    /**
+     * Registers the callback to be called when the min/max supported value or supported values
+     * list change.
+     *
+     * @throws ServiceSpecificException If VHAL returns error.
+     * @throws IllegalArgumentException If the service does not own one of the requested property
+     *      ID.
+     */
+    public void registerSupportedValuesChange(HalServiceBase service,
+            List<PropIdAreaId> propIdAreaIds) {
+        synchronized (mLock) {
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                int propertyId = propIdAreaIds.get(i).propId;
+                assertServiceOwnerLocked(service, propertyId);
+            }
+
+            var registeredPropIdAreaIds = mSupportedValuesChangePropIdAreaIdsByService.get(service);
+            if (registeredPropIdAreaIds == null) {
+                registeredPropIdAreaIds = new ArraySet<PropIdAreaId>();
+            }
+
+            // Here we do not filter out already registered [propId, areaId]s, we expect each
+            // service to filter out duplicate requests.
+            mVehicleStub.registerSupportedValuesChange(propIdAreaIds);
+
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                registeredPropIdAreaIds.add(propIdAreaIds.get(i));
+            }
+            mSupportedValuesChangePropIdAreaIdsByService.put(service, registeredPropIdAreaIds);
+        }
+    }
+
+    /**
+     * Unregisters the [propId, areaId]s previously registered with
+     * registerSupportedValuesChange.
+     *
+     * Do nothing if the [propId, areaId]s were not previously registered.
+     *
+     * @throws IllegalArgumentException If the service does not own one of the requested property
+     *      ID.
+     */
+    public void unregisterSupportedValuesChange(HalServiceBase service,
+            List<PropIdAreaId> propIdAreaIds) {
+        synchronized (mLock) {
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                int propertyId = propIdAreaIds.get(i).propId;
+                assertServiceOwnerLocked(service, propertyId);
+            }
+            var registeredPropIdAreaIds = mSupportedValuesChangePropIdAreaIdsByService.get(service);
+            if (registeredPropIdAreaIds == null) {
+                return;
+            }
+
+            List<PropIdAreaId> propIdAreaIdsToUnRegister = new ArrayList<>();
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                var propIdAreaId = propIdAreaIds.get(i);
+                if (registeredPropIdAreaIds.remove(propIdAreaId)) {
+                    propIdAreaIdsToUnRegister.add(propIdAreaId);
+                }
+                if (registeredPropIdAreaIds.isEmpty()) {
+                    mSupportedValuesChangePropIdAreaIdsByService.remove(service);
+                }
+            }
+
+            if (propIdAreaIdsToUnRegister.isEmpty()) {
+                return;
+            }
+            mVehicleStub.unregisterSupportedValuesChange(propIdAreaIdsToUnRegister);
+        }
     }
 }
