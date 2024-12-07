@@ -616,6 +616,35 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_MILEAGE_3P))
     public static final int INSTANTANEOUS_FUEL_ECONOMY = 291504657;
     /**
+     * Instantaneous EV efficiency in km/kWh.
+     *
+     * <p>This property communicates the instantaneous EV battery efficiency of the vehicle in units
+     * of km/kWh. Clients can reference the value of  {@link #DISTANCE_DISPLAY_UNITS} and {@link
+     * #EV_BATTERY_DISPLAY_UNITS} before displaying this property to the user to match the display
+     * units used by rest of the system.
+     *
+     * <p>For the fuel version of this property, see {@link
+     * #INSTANTANEOUS_FUEL_ECONOMY}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_MILEAGE_3P} to read
+     property.
+     *  <li>Property is not writable.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_MILEAGE_3P))
+    public static final int INSTANTANEOUS_EV_EFFICIENCY = 291504658;
+    /**
      * Temperature of engine coolant in celsius.
      *
      * <p>Property Config:
@@ -760,6 +789,33 @@ public final class VehiclePropertyIds {
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_IMPACT_SENSORS))
     public static final int IMPACT_DETECTED = 289407792;
+    /**
+     * Vehicle horn engaged.
+     *
+     * <p>This property communicates if the vehicle's horn is currently engaged or not. If true, the
+     * horn is engaged. If false, the horn is disengaged.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ_WRITE} or
+     *  {@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Boolean} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_CAR_HORN} or dangerous permission {@link
+     *  Car#PERMISSION_CONTROL_CAR_HORN} to read property.
+     *  <li>Dangerous permission {@link Car#PERMISSION_CONTROL_CAR_HORN} to write property.
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_READ_CAR_HORN,
+            Car.PERMISSION_CONTROL_CAR_HORN}))
+    @RequiresPermission.Write(@RequiresPermission(Car.PERMISSION_CONTROL_CAR_HORN))
+    public static final int VEHICLE_HORN_ENGAGED = 287310656;
     /**
      * Reports wheel ticks.
      *
@@ -1093,6 +1149,162 @@ public final class VehiclePropertyIds {
      */
     @RequiresPermission(Car.PERMISSION_TIRES)
     public static final int CRITICALLY_LOW_TIRE_PRESSURE = 392168202;
+    /**
+     * Accelerator pedal compression percentage.
+     *
+     * <p>This property communicates the percentage that the physical accelerator
+     * pedal in the vehicle is compressed. This property returns a float value from
+     * 0 to 100.
+     *
+     * <p>0 indicates the pedal's uncompressed position.
+     * <p>100 indicates the pedal's maximally compressed position.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_CAR_PEDALS} to read property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_PEDALS))
+    public static final int ACCELERATOR_PEDAL_COMPRESSION_PERCENTAGE = 291504911;
+    /**
+     * Brake pedal compression percentage.
+     *
+     * <p>This property communicates the percentage that the physical brake pedal
+     * in the vehicle is compressed. This property returns a float value from 0 to
+     * 100.
+     *
+     * <p>0 indicates the pedal's uncompressed position.
+     * <p>100 indicates the pedal's maximally compressed position.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_CAR_PEDALS} to read property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_CAR_PEDALS))
+    public static final int BRAKE_PEDAL_COMPRESSION_PERCENTAGE = 291504912;
+    /**
+     * Brake pad wear percentage.
+     *
+     * <p>This property communicates the amount of brake pad wear accumulated by
+     * the vehicle as a percentage. This property returns a float value from 0
+     * to 100.
+     *
+     * <p>0 indicates the brake pad has no wear.
+     * <p>100 indicates the brake pad is maximally worn.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WHEEL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Float} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_BRAKE_INFO} to read property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_BRAKE_INFO))
+    public static final int BRAKE_PAD_WEAR_PERCENTAGE = 392168209;
+    /**
+     * Brake fluid level low.
+     *
+     * <p>This property communicates that the brake fluid level in the vehicle is low according to
+     * the OEM. This value will match the vehicle's brake fluid level status as displayed on the
+     * instrument cluster. If the brake fluid level is low, this property will be set to {@code
+     * true}. If not, it will be set to {@code false}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Boolean} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Dangerous permission {@link Car#PERMISSION_READ_BRAKE_INFO} to read property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_READ_BRAKE_INFO))
+    public static final int BRAKE_FLUID_LEVEL_LOW = 287310610;
+    /**
+     * Vehicle Passive Suspension Height in mm.
+     *
+     * <p>This property communicates the real-time suspension displacement of the vehicle relative
+     * to its neutral position, given in mm. In other words, the displacement of the suspension at
+     * any given point in time relative to the suspension's position when the vehicle is on a flat
+     * surface with no passengers or cargo. When the suspension is compressed in comparison to the
+     * neutral position, the value should be negative. When the suspension is decompressed in
+     * comparison to the neutral position, the value should be positive.
+     *
+     * <p>Examples for further clarity:
+     * <ul>
+     *   <li>1) Suppose the user is driving on a smooth flat surface, and all wheels are currently
+     *   compressed by 2 cm in comparison to the default suspension height. In this scenario, this
+     *   property will be set to -20 for all wheels.
+     *   <li>2) Suppose the user drives over a pothole. While the front left wheel is over the
+     *   pothole, it's decompressed by 3 cm in comparison to the rest of the wheels, or 1 cm in
+     *   comparison to the default suspension height. All the others are still compressed by 2 cm.
+     *   In this scenario, this property will be set to -20 for all wheels except for the front
+     *   left, which will be set to 10.
+     * </ul>
+     *
+     * <p>{@link android.car.hardware.property.AreaIdConfig#hasMinSupportedValue()} and {@link
+     * android.car.hardware.property.AreaIdConfig#hasMaxSupportedValue()} will be {@code true} for
+     * all areas.
+     *
+     * <p>{@link android.car.hardware.property.MinMaxSupportedValue#getMinValue()} represents the
+     * lower bound of the suspension height for the wheel at the specified area ID.
+     *
+     * <p>{@link android.car.hardware.property.MinMaxSupportedValue#getMaxValue()} represents the
+     * upper bound of the suspension height for the wheel at the specified area ID.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_WHEEL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permissions:
+     * <ul>
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_CAR_DYNAMICS_STATE} to read
+     *  property.
+     *  <li>Property is not writable
+     * </ul>
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DYNAMICS_STATE))
+    public static final int VEHICLE_PASSIVE_SUSPENSION_HEIGHT = 390071059;
     /**
      * Currently selected gear by user.
      *
@@ -5994,12 +6206,14 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Signature|Privileged permission {@link Car#PERMISSION_PRIVILEGED_CAR_INFO} to read
-     *  property.
+     *  <li>Normal permission {@link Car#PERMISSION_CAR_INFO} or Signature|Privileged permission
+     *  {@link Car#PERMISSION_PRIVILEGED_CAR_INFO} to read property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_PRIVILEGED_CAR_INFO))
+    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_INFO,
+            Car.PERMISSION_PRIVILEGED_CAR_INFO}))
     public static final int VEHICLE_CURB_WEIGHT = 289410886;
 
      /**
@@ -6056,12 +6270,9 @@ public final class VehiclePropertyIds {
     /**
      * Current state of vehicle autonomy.
      *
-     * <p>Defines the level of autonomy currently engaged in the vehicle from the SAE standard
-     * levels 0-5, with 0 representing no autonomy and 5 representing full driving automation. These
-     * levels are defined in accordance with the standards set in the
-     * <a href="https://www.sae.org/standards/content/j3016_202104/">J3016_202104 revision</a> of
-     * the SAE automation level taxonomy and its clarification for international audiences
-     * <a href="https://www.sae.org/blog/sae-j3016-update">here</a>.
+     * <p>Defines the level of autonomy currently engaged in the vehicle from the J3016_202104
+     * revision of the SAE standard levels 0-5, with 0 representing no autonomy and 5 representing
+     * full driving automation.
      *
      * <p>For the global area ID (0), the {@link
      * android.car.hardware.property.AreaIdConfig#getSupportedEnumValues()} array obtained from
@@ -6089,7 +6300,52 @@ public final class VehiclePropertyIds {
     @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_DRIVING_STATE_3P,
         Car.PERMISSION_CAR_DRIVING_STATE}))
     public static final int VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL = 289410892;
-
+    /**
+     * Target state of vehicle autonomy.
+     *
+     * <p>Defines the level of autonomy being targeted by the vehicle from the J3016_202104 revision
+     * of the SAE standard levels 0-5, with 0 representing no autonomy and 5 representing full
+     * driving automation.
+     *
+     * <p>For example, suppose the vehicle is currently in a Level 3 state of automation and wants
+     * to give the driver full manual control (i.e. Level 0) as soon as it's safe to do so. In this
+     * scenario, this property will be set to {@link
+     * android.car.hardware.property.VehicleAutonomousState#LEVEL_0}. Similarly, if the vehicle is
+     * currently in Level 1 state of automation and wants to go up to Level 2, this property will be
+     * set to {@link android.car.hardware.property.VehicleAutonomousState#LEVEL_2}. If the vehicle
+     * has already reached and is currently in the target level of autonomy, this property will be
+     * equal to the value of {@link #VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL}.
+     *
+     * <p>For the global area ID (0), the {@link
+     * android.car.hardware.property.CarPropertyManager#getSupportedValuesList(int, int)} array
+     * specifies which states from {@link android.car.hardware.property.VehicleAutonomousState} are
+     * supported. This will always match the value specified by {@link
+     * android.car.hardware.property.CarPropertyManager#getSupportedValuesList(int, int)} for
+     * {@link #VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL}.
+     *
+     * <p>For the property that communicates the current state of autonomy, see
+     * {@link #VEHICLE_DRIVING_AUTOMATION_CURRENT_LEVEL}.
+     *
+     * <p>Property Config:
+     * <ul>
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_ACCESS_READ}
+     *  <li>{@link VehicleAreaType#VEHICLE_AREA_TYPE_GLOBAL}
+     *  <li>{@link android.car.hardware.CarPropertyConfig#VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE}
+     *  <li>{@code Integer} property type
+     * </ul>
+     *
+     * <p>Required Permission:
+     * <ul>
+     *  <li>Signature|Privileged permission "android.car.permission.CAR_DRIVING_STATE" to read
+     *  property.
+     *  <li>Property is not writable.
+     * </ul>
+     *
+     * @data_enum {@link android.car.hardware.property.VehicleAutonomousState}
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_CAR_DRIVING_STATE))
+    public static final int VEHICLE_DRIVING_AUTOMATION_TARGET_LEVEL = 289410895;
     /**
      * Enable or disable Automatic Emergency Braking (AEB).
      *

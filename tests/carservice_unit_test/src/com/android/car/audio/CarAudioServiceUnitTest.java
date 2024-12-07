@@ -2824,8 +2824,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         callback.onAudioServerDown();
 
         callback.onAudioServerUp();
-        service.waitForInitComplete(INIT_TIMEOUT_MS);
 
+        service.waitForInitComplete(INIT_TIMEOUT_MS);
         expectWithMessage("Re-initialized Car Audio Service Zones")
                 .that(service.getAudioZoneIds()).asList()
                 .containsExactly(PRIMARY_AUDIO_ZONE, TEST_REAR_LEFT_ZONE_ID,
@@ -2861,8 +2861,8 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
         callback.onAudioServerDown();
 
         callback.onAudioServerUp();
-        service.waitForInitComplete(INIT_TIMEOUT_MS);
 
+        service.waitForInitComplete(INIT_TIMEOUT_MS);
         expectWithMessage("Re-initialized Car Audio Service Zones")
                 .that(service.getAudioZoneIds()).asList()
                 .containsExactly(PRIMARY_AUDIO_ZONE);
@@ -2900,6 +2900,7 @@ public final class CarAudioServiceUnitTest extends AbstractExtendedMockitoTestCa
 
         callback.onAudioServerUp();
 
+        service.waitForInitComplete(INIT_TIMEOUT_MS);
         waitForInternalCallback();
         expectWithMessage("Re-initialized Car Audio Service Zones")
                 .that(service.getAudioZoneIds()).asList()
