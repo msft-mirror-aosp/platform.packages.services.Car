@@ -18,10 +18,7 @@ package com.android.car.hal;
 
 import android.hardware.automotive.vehicle.VehiclePropError;
 
-import com.android.car.internal.property.PropIdAreaId;
-
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * VehicleHalCallback is the callback functions that VehicleHal supports.
@@ -36,9 +33,4 @@ public interface VehicleHalCallback {
      * Called when property set errors happen.
      */
     void onPropertySetError(ArrayList<VehiclePropError> errors);
-
-    /**
-     * Method called when supported values change.
-     */
-    void onSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
 }

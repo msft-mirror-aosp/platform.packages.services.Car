@@ -21,8 +21,6 @@ import static com.android.car.audio.FocusInteraction.AUDIO_FOCUS_NAVIGATION_REJE
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 import android.car.settings.CarSettings;
 import android.database.ContentObserver;
@@ -35,7 +33,6 @@ import com.android.car.audio.ContentObserverFactory.ContentChangeCallback;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 
 @RunWith(AndroidJUnit4.class)
 public final class ContentObserverFactoryTest {
@@ -70,29 +67,43 @@ public final class ContentObserverFactoryTest {
 
     @Test
     public void createObserver_withCallback_createsContentObserver() {
-        ContentChangeCallback callback = Mockito.mock(ContentChangeCallback.class);
-        ContentObserver observer = mFactory.createObserver(callback);
+        ContentObserver observer = mFactory.createObserver(new TestObserverCallback());
 
         assertWithMessage("Created Content Observer").that(observer).isNotNull();
     }
 
     @Test
     public void onChange_calledWithCreatedUri_callsCallback() {
-        ContentChangeCallback callback = Mockito.mock(ContentChangeCallback.class);
-        ContentObserver observer = mFactory.createObserver(callback);
+        TestObserverCallback Callback = new TestObserverCallback();
+        ContentObserver observer = mFactory.createObserver(Callback);
 
         observer.onChange(true, AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI);
 
-        verify(callback).onChange();
+        assertWithMessage("Content Change Callback Called Status")
+                .that(Callback.wasCalled()).isTrue();
     }
 
     @Test
     public void onChange_calledWithDifferentUri_doesNotCallCallback() {
-        ContentChangeCallback callback = Mockito.mock(ContentChangeCallback.class);
-        ContentObserver observer = mFactory.createObserver(callback);
+        TestObserverCallback Callback = new TestObserverCallback();
+        ContentObserver observer = mFactory.createObserver(Callback);
 
         observer.onChange(true, TEST_URI);
 
-        verify(callback, never()).onChange();
+        assertWithMessage("Content Change Callback Called Status")
+                .that(Callback.wasCalled()).isFalse();
+    }
+
+    private static final class TestObserverCallback implements ContentChangeCallback {
+
+        private boolean mCalled;
+        @Override
+        public void onChange() {
+            mCalled = true;
+        }
+
+        boolean wasCalled() {
+            return mCalled;
+        }
     }
 }

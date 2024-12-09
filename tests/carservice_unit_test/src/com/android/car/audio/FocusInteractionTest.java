@@ -24,24 +24,29 @@ import static android.media.AudioManager.AUDIOFOCUS_GAIN;
 
 import static com.android.car.audio.CarAudioTestUtils.getInfo;
 import static com.android.car.audio.ContentObserverFactory.ContentChangeCallback;
+import static com.android.car.audio.FocusInteraction.AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI;
 import static com.android.car.audio.FocusInteraction.INTERACTION_CONCURRENT;
 import static com.android.car.audio.FocusInteraction.INTERACTION_EXCLUSIVE;
 import static com.android.car.audio.FocusInteraction.INTERACTION_REJECT;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.car.media.CarAudioManager;
 import android.car.test.AbstractExpectableTestCase;
 import android.content.ContentResolver;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
 import android.media.AudioAttributes;
 import android.media.AudioFocusInfo;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.SparseArray;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -50,7 +55,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
@@ -74,8 +78,12 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     private ContentResolver mMockContentResolver;
     @Mock
     private ContentObserverFactory mMockContentObserverFactory;
+    @Mock
+    private Handler mMockHandler;
     @Rule
     public MockitoRule mMockitoRule = MockitoJUnit.rule();
+
+    private ContentObserver mContentObserver;
 
     private final List<FocusEntry> mLosers = new ArrayList<>();
 
@@ -86,6 +94,18 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     public void setUp() {
         when(mMockCarAudioSettings.getContentResolverForUser(TEST_USER_ID))
                 .thenReturn(mMockContentResolver);
+        doAnswer(invocation -> {
+            ContentChangeCallback wrapper = (ContentChangeCallback) invocation.getArguments()[0];
+            mContentObserver = new ContentObserver(mMockHandler) {
+                @Override
+                public void onChange(boolean selfChange, Uri uri) {
+                    if (AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI.equals(uri)) {
+                        wrapper.onChange();
+                    }
+                }
+            };
+            return mContentObserver;
+        }).when(mMockContentObserverFactory).createObserver(any());
         mFocusInteraction = new FocusInteraction(mMockCarAudioSettings,
                 mMockContentObserverFactory);
         mMockPackageManager = mock(PackageManager.class);
@@ -150,7 +170,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forRejectPair_returnsFailed() {
+    public void evaluateResult_forRejectPair_returnsFailed() {
         FocusEntry focusEntry = newMockFocusEntryWithUsage(USAGE_VIRTUAL_SOURCE);
 
         int result = mFocusInteraction.evaluateRequest(USAGE_VIRTUAL_SOURCE,
@@ -161,7 +181,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forCallAndNavigation_withNavigationNotRejected_returnsConcurrent() {
+    public void evaluateResult_forCallAndNavigation_withNavigationNotRejected_returnsConcurrent() {
         when(mMockCarAudioSettings.isRejectNavigationOnCallEnabledInSettings(TEST_USER_ID))
                 .thenReturn(false);
 
@@ -177,7 +197,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forCallAndNavigation_withNavigationRejected_returnsConcurrent() {
+    public void evaluateResult_forCallAndNavigation_withNavigationRejected_returnsConcurrent() {
         when(mMockCarAudioSettings.isRejectNavigationOnCallEnabledInSettings(TEST_USER_ID))
                 .thenReturn(true);
         mFocusInteraction.setUserIdForSettings(TEST_USER_ID);
@@ -192,7 +212,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forRejectPair_doesNotAddToLosers() {
+    public void evaluateResult_forRejectPair_doesNotAddToLosers() {
         FocusEntry focusEntry = newMockFocusEntryWithUsage(USAGE_VIRTUAL_SOURCE);
 
         mFocusInteraction.evaluateRequest(USAGE_VIRTUAL_SOURCE, focusEntry,
@@ -224,7 +244,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forConcurrentPair_returnsGranted() {
+    public void evaluateResult_forConcurrentPair_returnsGranted() {
         FocusEntry focusEntry = newMockFocusEntryWithUsage(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
 
         int result = mFocusInteraction.evaluateRequest(USAGE_MEDIA, focusEntry,
@@ -235,7 +255,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forConcurrentPair_andNoDucking_addsToLosers() {
+    public void evaluateResult_forConcurrentPair_andNoDucking_addsToLosers() {
         FocusEntry focusEntry =
                 newMockFocusEntryWithDuckingBehavior(/* pauseInsteadOfDucking= */ false,
                         /* receivesDuckingEvents= */ false);
@@ -248,7 +268,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forConcurrentPair_andWantsPauseInsteadOfDucking_addsToLosers() {
+    public void evaluateResult_forConcurrentPair_andWantsPauseInsteadOfDucking_addsToLosers() {
         FocusEntry focusEntry = newMockFocusEntryWithDuckingBehavior(
                 /* pauseInsteadOfDucking= */ true, /* receivesDuckingEvents= */ false);
 
@@ -260,7 +280,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forConcurrentPair_andReceivesDuckEvents_addsToLosers() {
+    public void evaluateResult_forConcurrentPair_andReceivesDuckEvents_addsToLosers() {
         FocusEntry focusEntry = newMockFocusEntryWithDuckingBehavior(
                 /* pauseInsteadOfDucking= */ false, /* receivesDuckingEvents= */ true);
 
@@ -272,7 +292,7 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
     }
 
     @Test
-    public void evaluateRequest_forUndefinedUsage_throws() {
+    public void evaluateResult_forUndefinedUsage_throws() {
         FocusEntry focusEntry = newMockFocusEntryWithUsage(USAGE_ASSISTANCE_NAVIGATION_GUIDANCE);
 
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
@@ -333,10 +353,8 @@ public final class FocusInteractionTest extends AbstractExpectableTestCase {
         when(mMockCarAudioSettings.isRejectNavigationOnCallEnabledInSettings(TEST_USER_ID))
                 .thenReturn(true, false);
         mFocusInteraction.setUserIdForSettings(TEST_USER_ID);
-        var captor = ArgumentCaptor.forClass(ContentChangeCallback.class);
-        verify(mMockContentObserverFactory).createObserver(captor.capture());
 
-        captor.getValue().onChange();
+        mContentObserver.onChange(true, AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI);
 
         expectWithMessage("Reject Navigation on Call Status after Update")
                 .that(mFocusInteraction.isRejectNavigationOnCallEnabled()).isFalse();

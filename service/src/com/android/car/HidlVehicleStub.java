@@ -41,7 +41,6 @@ import com.android.car.hal.HalPropValueBuilder;
 import com.android.car.hal.HidlHalPropConfig;
 import com.android.car.hal.VehicleHalCallback;
 import com.android.car.internal.property.CarPropertyErrorCodes;
-import com.android.car.internal.property.PropIdAreaId;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.FileDescriptor;
@@ -403,18 +402,6 @@ final class HidlVehicleStub extends VehicleStub {
         @Override
         public void unsubscribe(int prop) throws RemoteException {
             mHidlVehicle.unsubscribe(this, prop);
-        }
-
-        @Override
-        public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
-            // Do nothing.
-            return;
-        }
-
-        @Override
-        public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
-            // Do nothing.
-            return;
         }
     }
 

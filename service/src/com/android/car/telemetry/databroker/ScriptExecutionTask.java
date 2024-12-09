@@ -137,9 +137,7 @@ public class ScriptExecutionTask implements Comparable<ScriptExecutionTask> {
         // if equal priority, compare creation timestamps
         if (getCreationTimestampMillis() < other.getCreationTimestampMillis()) {
             return -1;
-        } else if (getCreationTimestampMillis() > other.getCreationTimestampMillis()) {
-            return 1;
         }
-        return 0;  // equal priority and timestamp
+        return 1;
     }
 }

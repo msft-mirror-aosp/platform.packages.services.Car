@@ -16,9 +16,6 @@
 
 package com.android.car.hal;
 
-import android.annotation.Nullable;
-import android.hardware.automotive.vehicle.HasSupportedValueInfo;
-
 /**
  * HalAreaConfig represents a vehicle area config.
  */
@@ -73,12 +70,5 @@ public abstract class HalAreaConfig {
      */
     public boolean isVariableUpdateRateSupported() {
         return false;
-    }
-
-    /**
-     * Gets the {@code hasSupportedValueInfo} field.
-     */
-    public @Nullable HasSupportedValueInfo getHasSupportedValueInfo() {
-        return null;
     }
 }

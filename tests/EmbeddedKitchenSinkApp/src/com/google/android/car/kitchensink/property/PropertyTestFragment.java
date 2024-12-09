@@ -76,14 +76,10 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
         Car.PERMISSION_MILEAGE_3P,
         Car.PERMISSION_ENERGY,
         Car.PERMISSION_READ_CAR_SEATS,
-        Car.PERMISSION_READ_EXTERIOR_LIGHTS,
         Car.PERMISSION_READ_STEERING_STATE_3P,
         Car.PERMISSION_SPEED,
         Car.PERMISSION_TIRES_3P,
-        Car.PERMISSION_READ_WINDSHIELD_WIPERS_3P,
-        Car.PERMISSION_READ_CAR_HORN,
-        Car.PERMISSION_READ_CAR_PEDALS,
-        Car.PERMISSION_READ_BRAKE_INFO
+        Car.PERMISSION_READ_WINDSHIELD_WIPERS_3P
     };
     private static final Float[] SUBSCRIPTION_RATES_HZ = new Float[]{
         0.0f,
