@@ -5808,14 +5808,12 @@ public final class VehiclePropertyIds {
      *
      * <p>Required Permission:
      * <ul>
-     *  <li>Normal permission {@link Car#PERMISSION_CAR_INFO} or Signature|Privileged permission
-     *  {@link Car#PERMISSION_PRIVILEGED_CAR_INFO} to read property.
+     *  <li>Signature|Privileged permission {@link Car#PERMISSION_PRIVILEGED_CAR_INFO} to read
+     *  property.
      *  <li>Property is not writable.
      * </ul>
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
-    @RequiresPermission.Read(@RequiresPermission(anyOf = {Car.PERMISSION_CAR_INFO,
-            Car.PERMISSION_PRIVILEGED_CAR_INFO}))
+    @RequiresPermission.Read(@RequiresPermission(Car.PERMISSION_PRIVILEGED_CAR_INFO))
     public static final int VEHICLE_CURB_WEIGHT = 289410886;
 
      /**
