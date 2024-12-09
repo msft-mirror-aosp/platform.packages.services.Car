@@ -22,6 +22,7 @@ import com.android.car.internal.property.PropIdAreaId;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 // Copied from frameworks/base and kept only used codes
 /**
@@ -117,6 +118,25 @@ public final class DebugUtils {
     public static String toDebugString(PropIdAreaId propIdAreaId) {
         return "PropIdAreaId{propId=" + VehiclePropertyIds.toString(propIdAreaId.propId)
             + ", areaId=" + propIdAreaId.areaId + "}";
+    }
+
+    /**
+     * Gets human-readable representation of a list of {@code PropIdAreaId} structure.
+     */
+    public static String toDebugString(List<PropIdAreaId> propIdAreaIds) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("propIdAreaIds: [");
+        boolean first = true;
+        for (int i = 0; i < propIdAreaIds.size(); i++) {
+            var propIdAreaId = propIdAreaIds.get(i);
+            if (first) {
+                first = false;
+            } else {
+                sb.append(", ");
+            }
+            sb.append(toDebugString(propIdAreaId));
+        }
+        return sb.append("]").toString();
     }
 
     private static String constNameWithoutPrefix(String prefix, Field field) {
