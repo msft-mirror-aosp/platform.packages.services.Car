@@ -582,7 +582,7 @@ public final class Car implements ICarBase {
     /**
      * Dangerous permission necessary to access car's mileage information.
      */
-    @FlaggedApi(FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS)
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
     public static final String PERMISSION_MILEAGE_3P = "android.car.permission.CAR_MILEAGE_3P";
 
     /**
@@ -666,6 +666,33 @@ public final class Car implements ICarBase {
     @FlaggedApi(FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS)
     public static final String PERMISSION_CONTROL_EXTERIOR_LIGHTS =
             "android.car.permission.CONTROL_CAR_EXTERIOR_LIGHTS";
+
+    /**
+     * Dangerous permission necessary to read car horn state.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_READ_CAR_HORN = "android.car.permission.READ_CAR_HORN";
+
+    /**
+     * Signature|Privileged permission necessary to control car horn state.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_CONTROL_CAR_HORN =
+            "android.car.permission.CONTROL_CAR_HORN";
+
+    /**
+     * Dangerous permission necessary to read car pedal information.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_READ_CAR_PEDALS =
+            "android.car.permission.READ_CAR_PEDALS";
+
+    /**
+     * Dangerous permission necessary to read brake information.
+     */
+    @FlaggedApi(FLAG_ANDROID_B_VEHICLE_PROPERTIES)
+    public static final String PERMISSION_READ_BRAKE_INFO =
+            "android.car.permission.READ_BRAKE_INFO";
 
     /**
      * Signature|Privileged permission necessary to control car's interior lights.
