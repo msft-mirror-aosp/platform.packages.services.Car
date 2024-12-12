@@ -3537,5 +3537,15 @@
           <intent-filter tools:node="removeAll" />
         </service>
 
+        <service
+          android:name="com.android.settings.service.PreferenceService"
+          android:enabled="false"
+          android:exported="false"
+          android:featureFlag="com.android.settingslib.flags.settings_catalyst"
+          tools:node="merge"
+          tools:replace="android:exported,android:enabled,android:featureFlag">
+          <intent-filter tools:node="removeAll" />
+        </service>
+
     </application>
 </manifest>

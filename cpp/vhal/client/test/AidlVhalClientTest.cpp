@@ -323,6 +323,8 @@ protected:
 
     AidlVhalClient* getClient() { return mVhalClient.get(); }
 
+    void resetClient() { mVhalClient.reset(); }
+
     MockVhal* getVhal() { return mVhal.get(); }
 
     void triggerBinderDied() {
@@ -817,6 +819,17 @@ TEST_F(AidlVhalClientTest, testAddOnBinderDiedCallback) {
     ASSERT_TRUE(result.callbackTwoCalled);
 
     ASSERT_EQ(countOnBinderDiedCallbacks(), static_cast<size_t>(0));
+}
+
+TEST_F(AidlVhalClientTest, testOnBinderDied_noDeadLock) {
+    getClient()->addOnBinderDiedCallback(
+            std::make_shared<AidlVhalClient::OnBinderDiedCallbackFunc>([this] {
+                // This will trigger the destructor for AidlVhalClient. This must not cause dead
+                // lock.
+                resetClient();
+            }));
+
+    triggerBinderDied();
 }
 
 TEST_F(AidlVhalClientTest, testRemoveOnBinderDiedCallback) {
