@@ -32,7 +32,6 @@ import android.hardware.automotive.vehicle.IVehicle;
 import android.hardware.automotive.vehicle.IVehicleCallback;
 import android.hardware.automotive.vehicle.MinMaxSupportedValueResult;
 import android.hardware.automotive.vehicle.MinMaxSupportedValueResults;
-import android.hardware.automotive.vehicle.PropIdAreaId;
 import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SetValueRequest;
 import android.hardware.automotive.vehicle.SetValueRequests;
@@ -59,6 +58,7 @@ import android.util.ArraySet;
 import android.util.LongSparseArray;
 
 import com.android.car.hal.AidlHalPropConfig;
+import com.android.car.hal.HalAreaConfig;
 import com.android.car.hal.HalPropConfig;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
@@ -68,6 +68,7 @@ import com.android.car.internal.LongPendingRequestPool;
 import com.android.car.internal.LongPendingRequestPool.TimeoutCallback;
 import com.android.car.internal.LongRequestIdWithTimeout;
 import com.android.car.internal.property.CarPropertyErrorCodes;
+import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.logging.HistogramFactoryInterface;
 import com.android.car.logging.SystemHistogramFactory;
 import com.android.internal.annotations.GuardedBy;
@@ -93,6 +94,8 @@ final class AidlVehicleStub extends VehicleStub {
             "android.hardware.automotive.vehicle.IVehicle/default";
     // default timeout: 10s
     private static final long DEFAULT_TIMEOUT_MS = 10_000;
+
+    private static final int MIN_SUPPORTED_VALUES_IMPLEMENTED_VHAL_VERSION = 4;
 
     private static final String TAG = CarLog.tagFor(AidlVehicleStub.class);
     private static final long TRACE_TAG = TraceHelper.TRACE_TAG_CAR_SERVICE;
@@ -378,21 +381,35 @@ final class AidlVehicleStub extends VehicleStub {
     }
 
     @Override
-    public boolean isSupportedValuesImplemented() {
+    public boolean isSupportedValuesImplemented(HalAreaConfig halAreaConfig) {
         // We start supporting dynamic supported values API from V4.
+        int vhalInterfaceVersion;
         try {
-            return mAidlVehicle.getInterfaceVersion() >= 4;
+            vhalInterfaceVersion = mAidlVehicle.getInterfaceVersion();
         } catch (RemoteException e) {
             Slogf.e(TAG, "Failed to get VHAL interface version, default "
                     + "isSupportedValuesImplemented to false", e);
             return false;
         }
+        if (vhalInterfaceVersion < MIN_SUPPORTED_VALUES_IMPLEMENTED_VHAL_VERSION) {
+            return false;
+        }
+        return halAreaConfig.getHasSupportedValueInfo() != null;
     }
 
+    /**
+     * Gets the min/max supported value.
+     *
+     * Caller should only call this if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
+     * If no min/max supported value is specified, return an empty structure.
+     *
+     * @throws ServiceSpecificException if the operation fails.
+     */
     @Override
     public MinMaxSupportedRawPropValues getMinMaxSupportedValue(
             int propertyId, int areaId) throws ServiceSpecificException {
-        var propIdAreaId = new PropIdAreaId();
+        var propIdAreaId = new android.hardware.automotive.vehicle.PropIdAreaId();
         propIdAreaId.propId = propertyId;
         propIdAreaId.areaId = areaId;
         MinMaxSupportedValueResults results;
@@ -417,10 +434,19 @@ final class AidlVehicleStub extends VehicleStub {
         return new MinMaxSupportedRawPropValues(result.minSupportedValue, result.maxSupportedValue);
     }
 
+    /**
+     * Gets the supported values list.
+     *
+     * Caller should only call this if {@link #isSupportedValuesImplemented} is {@code true}.
+     *
+     * If no supported values list is specified, return {@code null}.
+     *
+     * @throws ServiceSpecificException if the operation fails.
+     */
     @Override
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
-        var propIdAreaId = new PropIdAreaId();
+        var propIdAreaId = new android.hardware.automotive.vehicle.PropIdAreaId();
         propIdAreaId.propId = propertyId;
         propIdAreaId.areaId = areaId;
         SupportedValuesListResults results;
@@ -691,9 +717,10 @@ final class AidlVehicleStub extends VehicleStub {
         }
 
         @Override
-        public void onSupportedValueChange(List<PropIdAreaId> propIdAreaIds)
+        public void onSupportedValueChange(
+                List<android.hardware.automotive.vehicle.PropIdAreaId> vhalPropIdAreaIds)
                 throws RemoteException {
-            // TODO(371636116): implement this.
+            mCallback.onSupportedValuesChange(fromVhalPropIdAreaIds(vhalPropIdAreaIds));
         }
 
         @Override
@@ -732,6 +759,43 @@ final class AidlVehicleStub extends VehicleStub {
             mAidlVehicle.unsubscribe(this, new int[]{prop});
         }
 
+        /**
+         * Registers the callback to be called when the min/max supported value or supportd values
+         * list change for the [propId, areaId]s.
+         *
+         * @throws ServiceSpecificException If VHAL returns error or VHAL connection fails.
+         */
+        @Override
+        public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+            try {
+                mAidlVehicle.registerSupportedValueChangeCallback(this,
+                        toVhalPropIdAreaIds(propIdAreaIds));
+            } catch (RemoteException e) {
+                throw new ServiceSpecificException(StatusCode.INTERNAL_ERROR,
+                        "failed to connect to VHAL: " + e);
+            } catch (ServiceSpecificException e) {
+                throw new ServiceSpecificException(e.errorCode,
+                        "VHAL returns non-okay status code: " + e);
+            }
+        }
+
+        /**
+         * Unregisters the [propId, areaId]s previously registered with
+         * registerSupportedValuesChange.
+         *
+         * Do nothing if the [propId, areaId]s were not previously registered.
+         */
+        @Override
+        public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+            try {
+                mAidlVehicle.unregisterSupportedValueChangeCallback(this,
+                        toVhalPropIdAreaIds(propIdAreaIds));
+            } catch (RemoteException | ServiceSpecificException e) {
+                Slogf.e(TAG, "Failed to call unregisterSupportedValueChangeCallback to VHAL for "
+                        + "propIdAreaIds: " + propIdAreaIds, e);
+            }
+        }
+
         @Override
         public String getInterfaceHash() {
             return IVehicleCallback.HASH;
@@ -740,6 +804,33 @@ final class AidlVehicleStub extends VehicleStub {
         @Override
         public int getInterfaceVersion() {
             return IVehicleCallback.VERSION;
+        }
+
+        private static List<android.hardware.automotive.vehicle.PropIdAreaId> toVhalPropIdAreaIds(
+                List<PropIdAreaId> propIdAreaIds) {
+            var vhalPropIdAreaIds =
+                    new ArrayList<android.hardware.automotive.vehicle.PropIdAreaId>();
+            for (int i = 0; i < propIdAreaIds.size(); i++) {
+                var propIdAreaId = propIdAreaIds.get(i);
+                var vhalPropIdAreaId = new android.hardware.automotive.vehicle.PropIdAreaId();
+                vhalPropIdAreaId.propId = propIdAreaId.propId;
+                vhalPropIdAreaId.areaId = propIdAreaId.areaId;
+                vhalPropIdAreaIds.add(vhalPropIdAreaId);
+            }
+            return vhalPropIdAreaIds;
+        }
+
+        private static List<PropIdAreaId> fromVhalPropIdAreaIds(
+                List<android.hardware.automotive.vehicle.PropIdAreaId> vhalPropIdAreaIds) {
+            var propIdAreaIds = new ArrayList<PropIdAreaId>();
+            for (int i = 0; i < vhalPropIdAreaIds.size(); i++) {
+                var vhalPropIdAreaId = vhalPropIdAreaIds.get(i);
+                var propIdAreaId = new PropIdAreaId();
+                propIdAreaId.propId = vhalPropIdAreaId.propId;
+                propIdAreaId.areaId = vhalPropIdAreaId.areaId;
+                propIdAreaIds.add(propIdAreaId);
+            }
+            return propIdAreaIds;
         }
     }
 
@@ -824,7 +915,8 @@ final class AidlVehicleStub extends VehicleStub {
         }
 
         @Override
-        public void onSupportedValueChange(List<PropIdAreaId> propIdAreaIds)
+        public void onSupportedValueChange(
+                List<android.hardware.automotive.vehicle.PropIdAreaId> propIdAreaIds)
                 throws RemoteException {
             throwUnsupportedException();
         }

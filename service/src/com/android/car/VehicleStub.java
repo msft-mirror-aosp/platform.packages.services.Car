@@ -25,6 +25,7 @@ import android.os.IBinder.DeathRecipient;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 
+import com.android.car.hal.HalAreaConfig;
 import com.android.car.hal.HalPropConfig;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
@@ -65,6 +66,24 @@ public abstract class VehicleStub {
          * @throws ServiceSpecificException if VHAL returns service specific error.
          */
         void unsubscribe(int prop) throws RemoteException, ServiceSpecificException;
+
+        /**
+         * Registers the callback to be called when the min/max supported value or supportd values
+         * list change for the [propId, areaId]s.
+         *
+         * @throws ServiceSpecificException If VHAL returns error or VHAL connection fails.
+         */
+        void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
+
+        /**
+         * Unregisters the [propId, areaId]s previously registered with
+         * registerSupportedValuesChange.
+         *
+         * Do nothing if the [propId, areaId]s were not previously registered.
+         *
+         * This operation is always assumed succeeded.
+         */
+        void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
     }
 
     /**
@@ -225,16 +244,6 @@ public abstract class VehicleStub {
          * If the callback's binder is already dead, this function will not be called.
          */
         public abstract void onRequestsTimeout(List<Integer> serviceRequestIds);
-    }
-
-    /**
-     * A callback interface to notify supported values change.
-     */
-    public interface SupportedValuesChangeCallback {
-        /**
-         * Method called when supported values change.
-         */
-        void onSupportedValuesChange(List<PropIdAreaId> propIdAreaIds);
     }
 
     /**
@@ -399,11 +408,12 @@ public abstract class VehicleStub {
     public void cancelRequests(List<Integer> requestIds) {}
 
     /**
-     * Whether this VehicleStub supports dynamic supported values API.
+     * Whether the area config supports dynamic supported values API.
      *
-     * This is only supported on AIDL VHAL >= V4.
+     * This is only supported if area config has non-null
+     * {@code hasSupportedValuesInfo}.
      */
-    public boolean isSupportedValuesImplemented() {
+    public boolean isSupportedValuesImplemented(HalAreaConfig halAreaConfig) {
         return false;
     }
 
@@ -429,6 +439,8 @@ public abstract class VehicleStub {
      *
      * Caller should only call this if {@link #isSupportedValuesImplemented} is {@code true}.
      *
+     * The returned list is not sorted.
+     *
      * If no supported values list is specified, return {@code null}.
      *
      * @throws ServiceSpecificException if the operation fails.
@@ -436,37 +448,5 @@ public abstract class VehicleStub {
     public @Nullable List<RawPropValues> getSupportedValuesList(int propertyId, int areaId)
             throws ServiceSpecificException {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Sets the callback to be called when the min/max supported value or supported values
-     * list change.
-     *
-     * This is only allowed to be called once.
-     */
-    public void setSupportedValuesChangeCallback(SupportedValuesChangeCallback callback) {
-        // Do nothing.
-        return;
-    }
-
-    /**
-     * Registers the callback to be called when the min/max supported value or supportd values
-     * list change for the [propId, areaId]s.
-     *
-     * @throws ServiceSpecificException If VHAL returns error.
-     */
-    public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
-        // Do nothing.
-        return;
-    }
-
-    /**
-     * Unregisters the [propId, areaId]s previously registered with registerSupportedValuesChange.
-     *
-     * Do nothing if the [propId, areaId]s were not previously registered.
-     */
-    public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
-        // Do nothing.
-        return;
     }
 }
