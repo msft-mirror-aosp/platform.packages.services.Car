@@ -361,6 +361,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.network.SimOnboardingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$TetherSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -478,6 +487,24 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$TemperatureUnitSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$FirstDayOfWeekSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$KeyboardSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -517,6 +544,16 @@
             android:name="com.android.settings.Settings$PhysicalKeyboardActivity"
             android:enabled="false"
             android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$PhysicalKeyboardLayoutPickerActivity"
+            android:enabled="false"
+            android:exported="false"
+            android:featureFlag="com.android.settings.keyboard.keyboard_and_touchpad_a11y_new_page_enabled"
             tools:node="merge"
             tools:replace="android:exported">
             <intent-filter tools:node="removeAll"/>
@@ -3356,6 +3393,14 @@
             <intent-filter tools:node="removeAll"/>
         </receiver>
 
+        <receiver android:name="com.android.settings.accessibility.HighContrastTextMigrationReceiver"
+            android:exported="false"
+            android:enabled="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
         <service
             android:name="com.android.settings.wifi.tether.TetherService"
             android:enabled="false"
@@ -3497,6 +3542,16 @@
           android:exported="false"
           tools:node="merge"
           tools:replace="android:exported,android:enabled">
+          <intent-filter tools:node="removeAll" />
+        </service>
+
+        <service
+          android:name="com.android.settings.service.PreferenceService"
+          android:enabled="false"
+          android:exported="false"
+          android:featureFlag="com.android.settingslib.flags.settings_catalyst"
+          tools:node="merge"
+          tools:replace="android:exported,android:enabled,android:featureFlag">
           <intent-filter tools:node="removeAll" />
         </service>
 

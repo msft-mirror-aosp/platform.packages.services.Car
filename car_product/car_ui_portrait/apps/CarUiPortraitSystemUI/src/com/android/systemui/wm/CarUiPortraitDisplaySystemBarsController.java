@@ -254,7 +254,8 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
 
             try {
                 mWmService.updateDisplayWindowRequestedVisibleTypes(mDisplayId,
-                        mRequestedVisibleTypes);
+                        barVisibilities[0], barVisibilities[0] | barVisibilities[1],
+                        /* imeStatsToken= */ null);
             } catch (RemoteException e) {
                 Slog.w(TAG, "Unable to update window manager service.");
             }

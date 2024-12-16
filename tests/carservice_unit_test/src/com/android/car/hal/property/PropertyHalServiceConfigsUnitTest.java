@@ -139,7 +139,9 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         MockitoAnnotations.initMocks(this);
 
         mFakeFeatureFlags = new FakeFeatureFlagsImpl();
-        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES, true);
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS, true);
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, true);
+        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_B_VEHICLE_PROPERTIES, true);
 
         mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
 
@@ -662,6 +664,180 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
     }
 
     @Test
+    public void testParseJsonConfig_25q23pPermissionsFlagDisabledConfig() throws Exception {
+        int propertyId = 1234;
+        int halPropId = 1234;
+        String propertyName = "PROP_NAME";
+        String description = "DESCRIPTION";
+        var permissions =  new PropertyPermissionsBuilder()
+                .setReadPermission(new SinglePermission("PERM1"))
+                .build();
+        var dataEnums = new ArraySet<>(Set.of(0, 1, 2));
+
+        CarSvcPropertyConfig expectedConfig = new CarSvcPropertyConfig(propertyId, halPropId,
+                propertyName, description, permissions, dataEnums, /* validBitFlag= */ null);
+
+        InputStream releasedInputStream = strToInputStream("""
+            {
+                "version": 1,
+                "properties": {
+                    "PROP_NAME": {
+                        "propertyName": "PROP_NAME",
+                        "propertyId": 1234,
+                        "description": "DESCRIPTION",
+                        "readPermission": {
+                                "type": "single",
+                                "value": "PERM1"
+                        },
+                        "dataEnums": [
+                                0,
+                                1,
+                                2
+                        ]
+                    }
+                }
+            }
+                """);
+
+        InputStream generatedInputStream = strToInputStream("""
+            {
+                "version": 1,
+                "properties": {
+                    "PROP_NAME": {
+                        "propertyName": "PROP_NAME",
+                        "propertyId": 1234,
+                        "description": "DESCRIPTION",
+                        "readPermission": {
+                            "type": "anyOf",
+                            "value": [
+                            {
+                                "type": "single",
+                                "value": "PERM1"
+                            },
+                            {
+                                "type": "single",
+                                "value": "PERM2"
+                            }
+                            ]
+                        },
+                        "dataEnums": [
+                            0,
+                            1,
+                            2
+                        ],
+                        "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
+                    }
+                }
+            }
+                """);
+
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, false);
+
+        SparseArray<CarSvcPropertyConfig> releasedConfigs =
+                mPropertyHalServiceConfigs.parseJsonConfig(releasedInputStream, /* path= */ "test");
+        SparseArray<CarSvcPropertyConfig> generatedConfigs =
+                mPropertyHalServiceConfigs.parseJsonConfig(
+                        generatedInputStream, /* path= */ "test", releasedConfigs);
+
+        assertWithMessage("expect one config parsed").that(releasedConfigs.size()).isEqualTo(1);
+        assertWithMessage("expect one config parsed").that(generatedConfigs.size()).isEqualTo(1);
+        CarSvcPropertyConfig releasedConfig = releasedConfigs.get(propertyId);
+        CarSvcPropertyConfig generatedConfig = generatedConfigs.get(propertyId);
+        assertThat(releasedConfig).isNotNull();
+        assertThat(generatedConfig).isNotNull();
+        assertThat(releasedConfig).isEqualTo(expectedConfig);
+        assertThat(generatedConfig).isEqualTo(expectedConfig);
+    }
+
+    @Test
+    public void testParseJsonConfig_25q23pPermissionsFlagEnabledConfig() throws Exception {
+        int propertyId = 1234;
+        int halPropId = 1234;
+        String propertyName = "PROP_NAME";
+        String description = "DESCRIPTION";
+        var permissions =  new PropertyPermissionsBuilder()
+                .setReadPermission(new AnyOfPermissions(
+                        new SinglePermission("PERM1"),
+                        new SinglePermission("PERM2")
+                ))
+                .build();
+        var dataEnums = new ArraySet<>(Set.of(0, 1, 2));
+
+        CarSvcPropertyConfig expectedConfig = new CarSvcPropertyConfig(propertyId, halPropId,
+                propertyName, description, permissions, dataEnums, /* validBitFlag= */ null);
+
+        InputStream releasedInputStream = strToInputStream("""
+            {
+                "version": 1,
+                "properties": {
+                    "PROP_NAME": {
+                            "propertyName": "PROP_NAME",
+                            "propertyId": 1234,
+                            "description": "DESCRIPTION",
+                            "readPermission": {
+                                    "type": "single",
+                                    "value": "PERM1"
+                            },
+                            "dataEnums": [
+                                    0,
+                                    1,
+                                    2
+                            ]
+                    }
+                }
+            }
+                """);
+
+        InputStream generatedInputStream = strToInputStream("""
+            {
+                "version": 1,
+                "properties": {
+                    "PROP_NAME": {
+                            "propertyName": "PROP_NAME",
+                            "propertyId": 1234,
+                            "description": "DESCRIPTION",
+                            "readPermission": {
+                                "type": "anyOf",
+                                "value": [
+                                {
+                                    "type": "single",
+                                    "value": "PERM1"
+                                },
+                                {
+                                    "type": "single",
+                                    "value": "PERM2"
+                                }
+                                ]
+                            },
+                            "dataEnums": [
+                                0,
+                                1,
+                                2
+                            ],
+                            "featureFlag": "FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS"
+                    }
+                }
+            }
+                """);
+
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, true);
+
+        SparseArray<CarSvcPropertyConfig> releasedConfigs =
+                mPropertyHalServiceConfigs.parseJsonConfig(releasedInputStream, /* path= */ "test");
+        SparseArray<CarSvcPropertyConfig> generatedConfigs =
+                mPropertyHalServiceConfigs.parseJsonConfig(
+                        generatedInputStream, /* path= */ "test", releasedConfigs);
+
+        assertWithMessage("expect one config parsed").that(releasedConfigs.size()).isEqualTo(1);
+        assertWithMessage("expect one config parsed").that(generatedConfigs.size()).isEqualTo(1);
+        CarSvcPropertyConfig releasedConfig = releasedConfigs.get(propertyId);
+        CarSvcPropertyConfig generatedConfig = generatedConfigs.get(propertyId);
+        assertThat(releasedConfig).isNotNull();
+        assertThat(generatedConfig).isNotNull();
+        assertThat(generatedConfig).isEqualTo(expectedConfig);
+    }
+
+    @Test
     public void testManagerToHalPropId() {
         assertThat(mPropertyHalServiceConfigs.managerToHalPropId(
                 VehiclePropertyIds.VEHICLE_SPEED_DISPLAY_UNITS)).isEqualTo(
@@ -677,7 +853,18 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
 
 
     @Test
-    public void testVicVehiclePropertiesFlagNoOp() throws Exception {
+    public void testVicVehiclePropertiesFlagEnabledNoOp() throws Exception {
+        int vicProperty = VehiclePropertyIds.DRIVER_DROWSINESS_ATTENTION_SYSTEM_ENABLED;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES, true);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds()).contains(vicProperty);
+        assertThat(mPropertyHalServiceConfigs.isSupportedProperty(vicProperty)).isTrue();
+    }
+
+    @Test
+    public void testVicVehiclePropertiesFlagDisabledNoOp() throws Exception {
         int vicProperty = VehiclePropertyIds.DRIVER_DROWSINESS_ATTENTION_SYSTEM_ENABLED;
         mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_VIC_VEHICLE_PROPERTIES, false);
 
@@ -688,7 +875,20 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
     }
 
     @Test
-    public void testVehiclePropertyRemoveSystemApiTagFlagNoOp() throws Exception {
+    public void testVehiclePropertyRemoveSystemApiTagFlagEnabledNoOp() throws Exception {
+        int previouslySystemApiProperty = VehiclePropertyIds.HEAD_UP_DISPLAY_ENABLED;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS, true);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySystemApiProperty);
+        assertThat(mPropertyHalServiceConfigs.isSupportedProperty(previouslySystemApiProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void testVehiclePropertyRemoveSystemApiTagFlagDisabledNoOp() throws Exception {
         int previouslySystemApiProperty = VehiclePropertyIds.HEAD_UP_DISPLAY_ENABLED;
         mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_REMOVE_SYSTEM_API_TAGS, false);
 
@@ -697,6 +897,80 @@ public final class PropertyHalServiceConfigsUnitTest extends AbstractExpectableT
         assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
                 .contains(previouslySystemApiProperty);
         assertThat(mPropertyHalServiceConfigs.isSupportedProperty(previouslySystemApiProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void testVehicleProperty2025q23pPermissionFlagEnabledNoOp() throws Exception {
+        // SEAT_OCCUPANCY is one of the 8 properties that have permission changes flagged by
+        // FLAG_25Q2_3P_PERMISSIONS.
+        int previouslySignaturePrivilegedProperty = VehiclePropertyIds.SEAT_OCCUPANCY;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, true);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySignaturePrivilegedProperty);
+        assertThat(mPropertyHalServiceConfigs
+                        .isSupportedProperty(previouslySignaturePrivilegedProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void testVehicleProperty2025q23pPermissionFlagDisabledNoOp() throws Exception {
+        // SEAT_OCCUPANCY is one of the 8 properties that have permission changes flagged by
+        // FLAG_25Q2_3P_PERMISSIONS.
+        int previouslySignaturePrivilegedProperty = VehiclePropertyIds.SEAT_OCCUPANCY;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, false);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySignaturePrivilegedProperty);
+        assertThat(mPropertyHalServiceConfigs
+                        .isSupportedProperty(previouslySignaturePrivilegedProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void testBVehiclePropertiesFlagDisabled() throws Exception {
+        int androidBProperty = VehiclePropertyIds.INFO_MODEL_TRIM;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_ANDROID_B_VEHICLE_PROPERTIES, false);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .doesNotContain(androidBProperty);
+        assertThat(mPropertyHalServiceConfigs.isSupportedProperty(androidBProperty)).isFalse();
+    }
+
+    @Test
+    public void test25q23pPermissionsFlagDisabled() throws Exception {
+        int previouslySignaturePrivilegedProperty = VehiclePropertyIds.SEAT_OCCUPANCY;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, false);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySignaturePrivilegedProperty);
+        assertThat(
+                mPropertyHalServiceConfigs
+                        .isSupportedProperty(previouslySignaturePrivilegedProperty))
+                .isTrue();
+    }
+
+    @Test
+    public void test25q23pPermissionsFlagEnabled() throws Exception {
+        int previouslySignaturePrivilegedProperty = VehiclePropertyIds.SEAT_OCCUPANCY;
+        mFakeFeatureFlags.setFlag(Flags.FLAG_VEHICLE_PROPERTY_25Q2_3P_PERMISSIONS, true);
+
+        mPropertyHalServiceConfigs = new PropertyHalServiceConfigs(mFakeFeatureFlags);
+
+        assertThat(mPropertyHalServiceConfigs.getAllSystemHalPropIds())
+                .contains(previouslySignaturePrivilegedProperty);
+        assertThat(
+                mPropertyHalServiceConfigs
+                        .isSupportedProperty(previouslySignaturePrivilegedProperty))
                 .isTrue();
     }
 }
