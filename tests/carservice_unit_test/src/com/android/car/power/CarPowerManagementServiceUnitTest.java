@@ -99,6 +99,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -1277,6 +1278,56 @@ public void testSuspendImmediately() throws Exception {
         assertWithMessage("Custom component is in enabled components of accumulated policy").that(
                 listener.getCurrentPowerPolicy().getEnabledComponents()).asList().doesNotContain(
                 custom_component_1000);
+    }
+
+@Test
+    public void testImmediateShutdownPrepareAfterNonImmediateShutdownPrepare() throws Exception {
+        grantAdjustShutdownProcessPermission();
+        mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
+        mPowerSignalListener.addEventListener(PowerHalService.SET_SHUTDOWN_START);
+        mPowerSignalListener.addEventListener(PowerHalService.SET_SHUTDOWN_PREPARE);
+
+        CountDownLatch shutdownPrepareReceived = new CountDownLatch(1);
+        ICarPowerStateListener listener = new ICarPowerStateListener.Stub() {
+            @Override
+            public void onStateChanged(int state, long expirationTimeMs) {
+                if (state == CarPowerManager.STATE_SHUTDOWN_PREPARE) {
+                    // Start new thread that will signal to test that event is received
+                    // This listener never completes intentionally
+                    new Thread() {
+                        @Override
+                        public void run() {
+                            super.run();
+                            // signal to the test that second SHUTDOWN_PREPARE can be sent
+                            shutdownPrepareReceived.countDown();
+                        }
+                    }.start();
+                } else if (CarPowerManagementService.isCompletionAllowed(state)) {
+                    mService.completeHandlingPowerStateChange(state, this);
+                }
+            }
+        };
+
+        mService.registerInternalListener(listener);
+        // Transition to ON state
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
+        mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
+        // Trigger first SHUTDOWN_PREPARE
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.SHUTDOWN_ONLY));
+        // Wait for signal from listener
+        shutdownPrepareReceived.await(WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        // Trigger second SHUTDOWN_PREPARE
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.SHUTDOWN_IMMEDIATELY));
+        mPowerSignalListener.waitFor(PowerHalService.SET_SHUTDOWN_START, WAIT_TIMEOUT_MS);
+        // Send the finished signal
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.FINISHED, 0));
+        mSystemStateInterface.waitForShutdown(WAIT_TIMEOUT_MS);
     }
 
     private void suspendDevice() throws Exception {
