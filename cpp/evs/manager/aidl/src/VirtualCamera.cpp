@@ -18,6 +18,7 @@
 
 #include "Enumerator.h"
 #include "HalCamera.h"
+#include "ScopedTrace.h"
 #include "utils/include/Utils.h"
 
 #include <android-base/file.h>
@@ -59,6 +60,8 @@ VirtualCamera::~VirtualCamera() {
 }
 
 ScopedAStatus VirtualCamera::doneWithFrame(const std::vector<BufferDesc>& buffers) {
+    ScopedTrace trace(__PRETTY_FUNCTION__,
+                      buffers.empty() ? std::numeric_limits<int>::min() : buffers[0].bufferId);
     std::lock_guard lock(mMutex);
 
     for (auto&& buffer : buffers) {
@@ -75,22 +78,12 @@ ScopedAStatus VirtualCamera::doneWithFrame(const std::vector<BufferDesc>& buffer
             continue;
         }
 
-        // Take this frame out of our "held" list
-        BufferDesc bufferToReturn = std::move(*it);
+        // Move this frame out of our "held" list
+        mFramesUsed[buffer.deviceId].push_back(std::move(*it));
         mFramesHeld[buffer.deviceId].erase(it);
-
-        // Tell our parent that we're done with this buffer
-        std::shared_ptr<HalCamera> pHwCamera = mHalCamera[buffer.deviceId].lock();
-        if (pHwCamera) {
-            auto status = pHwCamera->doneWithFrame(std::move(bufferToReturn));
-            if (!status.isOk()) {
-                LOG(WARNING) << "Failed to return a buffer " << buffer.bufferId;
-            }
-        } else {
-            LOG(WARNING) << "Possible memory leak; " << buffer.deviceId << " is not valid.";
-        }
     }
 
+    mReturnFramesSignal.notify_all();
     return ScopedAStatus::ok();
 }
 
@@ -411,6 +404,7 @@ ScopedAStatus VirtualCamera::setMaxFramesInFlight(int32_t bufferCount) {
 }
 
 ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraStream>& receiver) {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     std::lock_guard lock(mMutex);
 
     if (!receiver) {
@@ -432,31 +426,43 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
     mStreamState = RUNNING;
 
     // Tell the underlying camera hardware that we want to stream
-    for (auto iter = mHalCamera.begin(); iter != mHalCamera.end(); ++iter) {
+    bool cleanUpAndReturn = true;
+    auto iter = mHalCamera.begin();
+    while (iter != mHalCamera.end()) {
         std::shared_ptr<HalCamera> pHwCamera = iter->second.lock();
         if (!pHwCamera) {
-            LOG(ERROR) << "Failed to start a video stream on " << iter->first;
+            LOG(WARNING) << "Failed to start a video stream on " << iter->first;
+            ++iter;
             continue;
         }
 
         LOG(INFO) << __FUNCTION__ << " starts a video stream on " << iter->first;
         if (!pHwCamera->clientStreamStarting().isOk()) {
-            // If we failed to start the underlying stream, then we're not actually running
-            mStream = nullptr;
-            mStreamState = STOPPED;
-
-            // Request to stop streams started by this client.
-            auto rb = mHalCamera.begin();
-            while (rb != iter) {
-                auto ptr = rb->second.lock();
-                if (ptr) {
-                    ptr->clientStreamEnding(this);
-                }
-                ++rb;
-            }
-
-            return Utils::buildScopedAStatusFromEvsResult(EvsResult::UNDERLYING_SERVICE_ERROR);
+            LOG(ERROR) << "Failed to start a video stream on " << iter->first;
+            cleanUpAndReturn = true;
+            break;
         }
+
+        cleanUpAndReturn = false;
+        ++iter;
+    }
+
+    if (cleanUpAndReturn) {
+        // If we failed to start the underlying stream, then we're not actually running
+        mStream = nullptr;
+        mStreamState = STOPPED;
+
+        // Request to stop streams started by this client.
+        auto rb = mHalCamera.begin();
+        while (rb != iter) {
+            auto ptr = rb->second.lock();
+            if (ptr) {
+                ptr->clientStreamEnding(this);
+            }
+            ++rb;
+        }
+
+        return Utils::buildScopedAStatusFromEvsResult(EvsResult::UNDERLYING_SERVICE_ERROR);
     }
 
     mCaptureThread = std::thread([this]() {
@@ -466,6 +472,7 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
         int64_t lastFrameTimestamp = -1;
         EvsResult status = EvsResult::OK;
         while (true) {
+            ScopedTrace trace("Processing a frame buffer", lastFrameTimestamp);
             std::unique_lock lock(mMutex);
             ::android::base::ScopedLockAssertion assume_lock(mMutex);
 
@@ -556,11 +563,60 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
                             : EvsEventType::TIMEOUT,
                     .payload = {static_cast<int32_t>(status)},
             };
-            if (!mStream->notify(std::move(event)).isOk()) {
+            if (!mStream->notify(event).isOk()) {
                 LOG(WARNING) << "Error delivering a stream event"
                              << static_cast<int32_t>(event.aType);
             }
         }
+    });
+
+    mReturnThread = std::thread([this]() {
+        while (true) {
+            ScopedTrace trace("Returning frame buffers");
+            std::unordered_map<std::string, std::vector<BufferDesc>> framesUsed;
+            {
+                std::unique_lock lock(mMutex);
+                ::android::base::ScopedLockAssertion assume_lock(mMutex);
+
+                mReturnFramesSignal.wait(lock, [this]() REQUIRES(mMutex) {
+                    return mStreamState != RUNNING || !mFramesUsed.empty();
+                });
+
+                if (mStreamState != RUNNING) {
+                    // A video stream is stopped while a capture thread is waiting
+                    // for a new frame or we have lost a client.
+                    LOG(DEBUG) << "Requested to stop capturing frames or lost a client";
+                    break;
+                }
+
+                for (auto&& [hwCameraId, buffers] : mFramesUsed) {
+                    std::vector<BufferDesc> bufferToReturn(std::make_move_iterator(buffers.begin()),
+                                                           std::make_move_iterator(buffers.end()));
+                    framesUsed.insert_or_assign(hwCameraId, std::move(bufferToReturn));
+                }
+
+                mFramesUsed.clear();
+            }
+
+            // Tell our parent that we're done with this buffer
+            for (auto&& [hwCameraId, buffers] : framesUsed) {
+                std::shared_ptr<HalCamera> pHwCamera = mHalCamera[hwCameraId].lock();
+                if (!pHwCamera) {
+                    LOG(WARNING) << "Possible memory leak; " << hwCameraId << " is not valid.";
+                    continue;
+                }
+
+                for (auto&& buffer : buffers) {
+                    const auto bufferId = buffer.bufferId;
+                    if (!pHwCamera->doneWithFrame(std::move(buffer)).isOk()) {
+                        LOG(WARNING) << "Failed to return a buffer " << bufferId << " to "
+                                     << hwCameraId;
+                    }
+                }
+            }
+        }
+
+        LOG(DEBUG) << "Exiting a return thread";
     });
 
     // TODO(b/213108625):
@@ -571,6 +627,7 @@ ScopedAStatus VirtualCamera::startVideoStream(const std::shared_ptr<IEvsCameraSt
 }
 
 ScopedAStatus VirtualCamera::stopVideoStream() {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     {
         std::lock_guard lock(mMutex);
         if (mStreamState != RUNNING) {
@@ -581,8 +638,10 @@ ScopedAStatus VirtualCamera::stopVideoStream() {
         // Tell the frame delivery pipeline we don't want any more frames
         mStreamState = STOPPING;
 
-        // Awake the capture thread; this thread will terminate.
+        // Awake the capture and buffer-return threads; they will be terminated.
+        mSourceCameras.clear();
         mFramesReadySignal.notify_all();
+        mReturnFramesSignal.notify_all();
 
         // Deliver the stream-ending notification
         EvsEventDesc event{
@@ -607,12 +666,13 @@ ScopedAStatus VirtualCamera::stopVideoStream() {
         }
     }
 
-    // Signal a condition to unblock a capture thread and then join
-    mSourceCameras.clear();
-    mFramesReadySignal.notify_all();
-
+    // Join a capture and buffer-return threads.
     if (mCaptureThread.joinable()) {
         mCaptureThread.join();
+    }
+
+    if (mReturnThread.joinable()) {
+        mReturnThread.join();
     }
 
     return ScopedAStatus::ok();
@@ -639,6 +699,7 @@ ScopedAStatus VirtualCamera::unsetPrimaryClient() {
 }
 
 void VirtualCamera::shutdown() {
+    ScopedTrace trace(__PRETTY_FUNCTION__);
     {
         std::lock_guard lock(mMutex);
 
@@ -683,16 +744,22 @@ void VirtualCamera::shutdown() {
             pHwCamera->disownVirtualCamera(this);
         }
 
-        // Awakes the capture thread; this thread will terminate.
+        mFramesHeld.clear();
+        mFramesUsed.clear();
+
+        // Awake the capture and buffer-return threads; they will be terminated.
         mFramesReadySignal.notify_all();
+        mReturnFramesSignal.notify_all();
     }
 
-    // Join a capture thread
+    // Join a capture and buffer-return threads.
     if (mCaptureThread.joinable()) {
         mCaptureThread.join();
     }
 
-    mFramesHeld.clear();
+    if (mReturnThread.joinable()) {
+        mReturnThread.join();
+    }
 
     // Drop our reference to our associated hardware camera
     mHalCamera.clear();
@@ -711,6 +778,7 @@ std::vector<std::shared_ptr<HalCamera>> VirtualCamera::getHalCameras() {
 }
 
 bool VirtualCamera::deliverFrame(const BufferDesc& bufDesc) {
+    ScopedTrace trace(__PRETTY_FUNCTION__, bufDesc.bufferId);
     std::lock_guard lock(mMutex);
 
     if (mStreamState == STOPPED) {
@@ -756,6 +824,7 @@ bool VirtualCamera::deliverFrame(const BufferDesc& bufDesc) {
 }
 
 bool VirtualCamera::notify(const EvsEventDesc& event) {
+    ScopedTrace trace(__PRETTY_FUNCTION__, static_cast<int>(event.aType));
     switch (event.aType) {
         case EvsEventType::STREAM_STOPPED: {
             {

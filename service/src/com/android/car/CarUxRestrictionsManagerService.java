@@ -68,6 +68,7 @@ import android.util.AtomicFile;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import android.util.JsonWriter;
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.proto.ProtoOutputStream;
 import android.view.Display;
@@ -122,7 +123,7 @@ import java.util.Set;
 public class CarUxRestrictionsManagerService extends ICarUxRestrictionsManager.Stub implements
         CarServiceBase {
     private static final String TAG = CarLog.tagFor(CarUxRestrictionsManagerService.class);
-    private static final boolean DBG = false;
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
     private static final int MAX_TRANSITION_LOG_SIZE = 20;
     private static final int PROPERTY_UPDATE_RATE = 5; // Update rate in Hz
 
@@ -689,12 +690,14 @@ public class CarUxRestrictionsManagerService extends ICarUxRestrictionsManager.S
         try (JsonWriter jsonWriter = new JsonWriter(
                 new OutputStreamWriter(fos, StandardCharsets.UTF_8))) {
             writeJson(jsonWriter, configs);
+
+            jsonWriter.flush();
+            stagedFile.finishWrite(fos);
         } catch (IOException e) {
             Slogf.e(TAG, "Could not persist config", e);
             stagedFile.failWrite(fos);
             return false;
         }
-        stagedFile.finishWrite(fos);
         return true;
     }
 

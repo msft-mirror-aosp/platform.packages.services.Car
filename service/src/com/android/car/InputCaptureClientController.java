@@ -185,8 +185,7 @@ public class InputCaptureClientController {
             if (client.mGrantedTypes.isEmpty()) {
                 inputTypesToDispatch = EMPTY_INPUT_TYPES;
             } else {
-                inputTypesToDispatch = client.mGrantedTypes.stream().mapToInt(
-                        Integer::intValue).toArray();
+                inputTypesToDispatch = CarServiceUtils.toIntArray(client.mGrantedTypes);
             }
             mClientsToDispatch.put(client.mCallback, inputTypesToDispatch);
         }
@@ -212,13 +211,13 @@ public class InputCaptureClientController {
     private final SparseArray<SparseArray<LinkedList<ClientInfoForDisplay>>>
             mPerInputTypeCapturers = new SparseArray<>(2);
 
-    @GuardedBy("mLock")
     /** key: display type -> client binder */
+    @GuardedBy("mLock")
     private final SparseArray<HashMap<IBinder, ClientInfoForDisplay>> mAllClients =
             new SparseArray<>(1);
 
-    @GuardedBy("mLock")
     /** Keeps events to dispatch together. FIFO, last one added to last */
+    @GuardedBy("mLock")
     private final LinkedList<ClientsToDispatch> mClientDispatchQueue =
             new LinkedList<>();
 

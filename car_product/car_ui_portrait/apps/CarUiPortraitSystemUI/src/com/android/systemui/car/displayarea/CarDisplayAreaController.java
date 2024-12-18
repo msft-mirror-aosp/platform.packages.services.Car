@@ -16,7 +16,7 @@
 
 package com.android.systemui.car.displayarea;
 
-import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_COLLAPSE_APPLICATION_PANEL;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_HIDE_SYSTEM_BAR_FOR_IMMERSIVE_MODE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IMMERSIVE_MODE_REQUESTED_SOURCE;
 import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_IS_IMMERSIVE_MODE_REQUESTED;
@@ -76,6 +76,7 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
     private boolean mUserSetupInProgress;
     private boolean mIsImmersive;
     private boolean mIsLauncherReady;
+    private boolean mIsNotificationCenterOnTop;
     private LoadingViewController mLoadingViewController;
 
     private final CarUiPortraitDisplaySystemBarsController.Callback
@@ -209,10 +210,12 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
 
     @Override
     public void animateCollapsePanels(int flags, boolean force) {
-        Intent intent = new Intent(REQUEST_FROM_SYSTEM_UI);
-        intent.putExtra(INTENT_EXTRA_COLLAPSE_NOTIFICATION_PANEL, true);
-        mApplicationContext.sendBroadcastAsUser(intent,
-                new UserHandle(ActivityManager.getCurrentUser()));
+        if (mIsNotificationCenterOnTop) {
+            Intent intent = new Intent(REQUEST_FROM_SYSTEM_UI);
+            intent.putExtra(INTENT_EXTRA_COLLAPSE_APPLICATION_PANEL, true);
+            mApplicationContext.sendBroadcastAsUser(intent,
+                    new UserHandle(ActivityManager.getCurrentUser()));
+        }
     }
 
     private static void logIfDebuggable(String message) {
@@ -263,5 +266,10 @@ public class CarDisplayAreaController implements ConfigurationController.Configu
         };
         mApplicationContext.registerReceiverForAllUsers(immersiveModeChangeReceiver,
                 new IntentFilter(REQUEST_FROM_LAUNCHER), null, null, Context.RECEIVER_EXPORTED);
+    }
+
+    /** Set Notification Center state. */
+    public void setNotificationCenterOnTop(boolean isNotificationCenterOnTop) {
+        mIsNotificationCenterOnTop = isNotificationCenterOnTop;
     }
 }

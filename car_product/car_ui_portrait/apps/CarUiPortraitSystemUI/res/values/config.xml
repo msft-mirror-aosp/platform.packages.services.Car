@@ -28,7 +28,7 @@
     <!-- Car System UI's OverlayViewsMediator.
          Whenever a new class is added, make sure to also add that class to OverlayWindowModule. -->
     <string-array name="config_carSystemUIOverlayViewsMediators" translatable="false">
-        <item>com.android.systemui.car.hvac.AutoDismissHvacPanelOverlayViewMediator</item>
+        <item>com.android.systemui.car.hvac.HvacPanelOverlayViewMediator</item>
         <item>com.android.systemui.car.keyguard.CarKeyguardOverlayViewMediator</item>
         <item>com.android.systemui.car.userswitcher.FullscreenUserSwitcherViewMediator</item>
         <item>com.android.systemui.car.userswitcher.UserSwitchTransitionViewMediator</item>
@@ -67,4 +67,26 @@
     <!-- 1 left -->
     <!-- 2 right -->
     <integer name="config_showDisplayCompatToolbarOnSystemBar">0</integer>
+
+    <!-- A list of components that are shown on Dock by default -->
+    <string-array name="config_defaultDockApps" translatable="false">
+        <item>com.android.vending/com.google.android.finsky.carmainactivity.MainActivity</item>
+        <item>com.google.android.bluetooth/com.android.bluetooth.avrcpcontroller.BluetoothMediaBrowserService</item>
+        <item>com.android.car.dialer/com.android.car.dialer.ui.TelecomActivity</item>
+    </string-array>
+
+    <!-- A list of packages that are excluded from being shown on Dock -->
+    <string-array name="config_packagesExcludedFromDock" translatable="false">
+        <item>com.android.car.portraitlauncher</item>
+        <item>com.android.car.notification</item>
+        <item>android.car.usb.handler</item>
+    </string-array>
+
+    <!-- Blocking activity feature flag -->
+    <bool name="config_enableAppBlockingActivities">false</bool>
+
+    <string-array name="config_backgroundActivities" translatable="false">
+        <item>com.google.android.apps.maps/com.google.android.maps.MapsActivity</item>
+        <item>com.android.car.portraitlauncher/com.android.car.portraitlauncher.homeactivities.BackgroundPanelBaseActivity</item>
+    </string-array>
 </resources>

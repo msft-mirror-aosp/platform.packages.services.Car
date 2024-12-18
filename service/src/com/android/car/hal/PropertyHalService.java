@@ -32,10 +32,11 @@ import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAI
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW;
 import static android.car.hardware.property.VehicleHalStatusCode.STATUS_TRY_AGAIN;
 
-import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
-import static com.android.car.internal.property.CarPropertyErrorCodes.convertVhalStatusCodeToCarPropertyManagerErrorCodes;
+import static com.android.car.internal.common.CommonConstants.EMPTY_INT_ARRAY;
 import static com.android.car.internal.property.CarPropertyErrorCodes.STATUS_OK;
+import static com.android.car.internal.property.CarPropertyErrorCodes.convertVhalStatusCodeToCarPropertyManagerErrorCodes;
 import static com.android.car.internal.property.CarPropertyHelper.isSystemProperty;
 import static com.android.car.internal.property.GetSetValueResult.newGetValueResult;
 import static com.android.car.internal.property.InputSanitizationUtils.sanitizeUpdateRateHz;
@@ -65,7 +66,6 @@ import android.os.SystemClock;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
-import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.car.CarLog;
@@ -127,7 +127,6 @@ public class PropertyHalService extends HalServiceBase {
     // it should be considered a success. If we get the initial value successfully and the
     // initial value is the same as the target value, we treat the async set as success.
     private static final int GET_INITIAL_VALUE_FOR_SET = 2;
-    private static final float UPDATE_RATE_ERROR = -1f;
 
     // A fake pending request ID for car property service.
     private static final int CAR_PROP_SVC_REQUEST_ID = -1;
@@ -140,12 +139,12 @@ public class PropertyHalService extends HalServiceBase {
     private final PairSparseArray<CarPropertyValue> mStaticPropertyIdAreaIdCache =
             new PairSparseArray<>();
 
-    private static final Histogram sGetAsyncEndToEndLatencyHistogram = new Histogram(
+    private final Histogram mGetAsyncEndToEndLatencyHistogram = new Histogram(
             "automotive_os.value_get_async_end_to_end_latency",
             new Histogram.ScaledRangeOptions(/* binCount= */ 20, /* minValue= */ 0,
                     /* firstBinWidth= */ 2, /* scaleFactor= */ 1.5f));
 
-    private static final Histogram sSetAsyncEndToEndLatencyHistogram = new Histogram(
+    private final Histogram mSetAsyncEndToEndLatencyHistogram = new Histogram(
             "automotive_os.value_set_async_end_to_end_latency",
             new Histogram.ScaledRangeOptions(/* binCount= */ 20, /* minValue= */ 0,
                     /* firstBinWidth= */ 2, /* scaleFactor= */ 1.5f));
@@ -154,6 +153,18 @@ public class PropertyHalService extends HalServiceBase {
     @IntDef({GET, SET, GET_INITIAL_VALUE_FOR_SET})
     @Retention(RetentionPolicy.SOURCE)
     private @interface AsyncRequestType {}
+
+    public record ClientType(Integer requestId) {
+        @Override
+        @ExcludeFromCodeCoverageGeneratedReport(reason = DEBUGGING_CODE)
+        public String toString() {
+            if (requestId == CAR_PROP_SVC_REQUEST_ID) {
+                return "PropertyHalService.subscribeProperty";
+            }
+            return "PropertyHalService.setCarPropertyValuesAsync(requestId="
+                    + requestId.toString() + ")";
+        }
+    }
 
     private static final class GetSetValueResultWrapper {
         private GetSetValueResult mGetSetValueResult;
@@ -384,8 +395,6 @@ public class PropertyHalService extends HalServiceBase {
     @GuardedBy("mLock")
     private final SparseArray<HalPropConfig> mHalPropIdToPropConfig =
             new SparseArray<>();
-    @GuardedBy("mLock")
-    private final SparseArray<Pair<String, String>> mMgrPropIdToPermissions = new SparseArray<>();
     // A pending request pool to store all pending async get/set property request info.
     // Service request ID is int, not long, but we only have one version of PendingRequestPool.
     @GuardedBy("mLock")
@@ -412,7 +421,7 @@ public class PropertyHalService extends HalServiceBase {
     // client requests at 10hz, then we should do nothing, however, if we internally unsubscribe,
     // then the [propA, areaA] should be subscribed at 10hz.
     @GuardedBy("mLock")
-    private final SubscriptionManager<Integer> mSubManager = new SubscriptionManager<>();
+    private final SubscriptionManager<ClientType> mSubManager = new SubscriptionManager<>();
 
     private class AsyncRequestTimeoutCallback implements TimeoutCallback {
         @Override
@@ -426,7 +435,7 @@ public class PropertyHalService extends HalServiceBase {
                     AsyncPropRequestInfo requestInfo =
                             getPendingAsyncPropRequestInfoLocked(serviceRequestId);
                     if (requestInfo == null) {
-                        Slogf.w(TAG, "The pending request: %d finished before timeout handler",
+                        Slogf.i(TAG, "The pending request: %d finished before timeout handler",
                                 serviceRequestId);
                         continue;
                     }
@@ -438,7 +447,8 @@ public class PropertyHalService extends HalServiceBase {
                 }
             }
             for (int i = 0; i < callbackToRequestIds.size(); i++) {
-                callbackToRequestIds.keyAt(i).onRequestsTimeout(callbackToRequestIds.valueAt(i));
+                callbackToRequestIds.keyAt(i).onRequestsTimeout(
+                        callbackToRequestIds.valueAt(i), /* fromVhal= */ false);
             }
         }
     }
@@ -488,7 +498,7 @@ public class PropertyHalService extends HalServiceBase {
                 return;
             }
             List<GetSetValueResult> getSetValueResults = logAndReturnResults(
-                    sGetAsyncEndToEndLatencyHistogram, results, GET);
+                    mGetAsyncEndToEndLatencyHistogram, results, GET);
             try {
                 mAsyncPropertyResultCallback.onGetValueResults(
                         new GetSetValueResultList(getSetValueResults));
@@ -502,7 +512,7 @@ public class PropertyHalService extends HalServiceBase {
                 return;
             }
             List<GetSetValueResult> getSetValueResults = logAndReturnResults(
-                    sSetAsyncEndToEndLatencyHistogram, results, SET);
+                    mSetAsyncEndToEndLatencyHistogram, results, SET);
             try {
                 mAsyncPropertyResultCallback.onSetValueResults(
                         new GetSetValueResultList(getSetValueResults));
@@ -687,7 +697,7 @@ public class PropertyHalService extends HalServiceBase {
                         if (carPropertyValue != null) {
                             int propertyId = carPropertyValue.getPropertyId();
                             int areaId = carPropertyValue.getAreaId();
-                            if (isStaticAndSystemProperty(propertyId)) {
+                            if (isStaticAndSystemPropertyLocked(propertyId)) {
                                 mStaticPropertyIdAreaIdCache.put(propertyId, areaId,
                                         carPropertyValue);
                             }
@@ -777,7 +787,7 @@ public class PropertyHalService extends HalServiceBase {
                                 clientRequestInfo.getAsyncRequestStartTime(),
                                 clientRequestInfo.getRetryCount()));
                         removePendingAsyncPropRequestInfoLocked(clientRequestInfo);
-                        sSetAsyncEndToEndLatencyHistogram
+                        mSetAsyncEndToEndLatencyHistogram
                                 .logSample((float) System.currentTimeMillis()
                                 - clientRequestInfo.getAsyncRequestStartTime());
                         continue;
@@ -844,17 +854,29 @@ public class PropertyHalService extends HalServiceBase {
 
         @Override
         public void onRequestsTimeout(List<Integer> serviceRequestIds) {
+            onRequestsTimeout(serviceRequestIds, /* fromVhal= */ true);
+        }
+
+        private void onRequestsTimeout(List<Integer> serviceRequestIds, boolean fromVhal) {
+            if (fromVhal) {
+                Slogf.w(TAG, "Requests timeout from VHAL, service Request IDs: %s",
+                        serviceRequestIds);
+            } else {
+                Slogf.w(TAG, "Requests timeout internally, service Request IDs: %s",
+                        serviceRequestIds);
+            }
             List<GetSetValueResultWrapper> timeoutGetResults = new ArrayList<>();
             List<GetSetValueResultWrapper> timeoutSetResults = new ArrayList<>();
             synchronized (mLock) {
                 for (int i = 0; i < serviceRequestIds.size(); i++) {
                     int serviceRequestId = serviceRequestIds.get(i);
                     AsyncPropRequestInfo requestInfo =
-                            getAndRemovePendingAsyncPropRequestInfoLocked(serviceRequestId);
+                            getAndRemovePendingAsyncPropRequestInfoLocked(serviceRequestId,
+                                    /* alreadyTimedOut= */ true);
                     if (requestInfo == null) {
-                        Slogf.w(TAG, "Service request ID %d time out but no "
+                        Slogf.i(TAG, "Service request ID %d time out but no "
                                 + "pending request is found. The request may have already been "
-                                + "cancelled or finished", serviceRequestId);
+                                + "cancelled, timeout or finished", serviceRequestId);
                         continue;
                     }
                     if (DBG) {
@@ -935,7 +957,7 @@ public class PropertyHalService extends HalServiceBase {
         AsyncPropRequestInfo requestInfo =
                 mPendingAsyncRequests.getRequestIfFound(serviceRequestId);
         if (requestInfo == null) {
-            Slogf.w(TAG, "the request for propertyHalService request "
+            Slogf.i(TAG, "the request for propertyHalService request "
                     + "ID: %d already timed out or already completed", serviceRequestId);
         }
         return requestInfo;
@@ -944,13 +966,18 @@ public class PropertyHalService extends HalServiceBase {
     @GuardedBy("mLock")
     @Nullable private AsyncPropRequestInfo getAndRemovePendingAsyncPropRequestInfoLocked(
             int serviceRequestId) {
+        return getAndRemovePendingAsyncPropRequestInfoLocked(serviceRequestId,
+                /* alreadyTimedOut= */ false);
+    }
+
+    @GuardedBy("mLock")
+    @Nullable private AsyncPropRequestInfo getAndRemovePendingAsyncPropRequestInfoLocked(
+            int serviceRequestId, boolean alreadyTimedOut) {
         AsyncPropRequestInfo requestInfo = getPendingAsyncPropRequestInfoLocked(serviceRequestId);
         if (requestInfo == null) {
-            Slogf.w(TAG, "the request for propertyHalService request "
-                    + "ID: %d already timed out or already completed", serviceRequestId);
             return null;
         }
-        removePendingAsyncPropRequestInfoLocked(requestInfo);
+        removePendingAsyncPropRequestInfoLocked(requestInfo, alreadyTimedOut);
         return requestInfo;
     }
 
@@ -967,8 +994,25 @@ public class PropertyHalService extends HalServiceBase {
      */
     @GuardedBy("mLock")
     private void removePendingAsyncPropRequestInfoLocked(AsyncPropRequestInfo pendingRequest) {
+        removePendingAsyncPropRequestInfoLocked(pendingRequest, /* alreadyTimedOut= */ false);
+    }
+
+    /**
+     * Remove the pending async request from the pool.
+     *
+     * If the request to remove is an async set request, also remove it from the
+     * {@code mHalPropIdToWaitingUpdateRequestInfo} map. This will cause the subscription rate to
+     * be updated for the specific property because we no longer need to monitor this property
+     * any more internally.
+     *
+     * The {@code updatedAreaIdsByHalPropIds} will store the affected area Ids and property IDs if
+     * their subscription rate need to be recalculated.
+     */
+    @GuardedBy("mLock")
+    private void removePendingAsyncPropRequestInfoLocked(AsyncPropRequestInfo pendingRequest,
+            boolean alreadyTimedOut) {
         int serviceRequestId = pendingRequest.getServiceRequestId();
-        mPendingAsyncRequests.removeRequest(serviceRequestId);
+        mPendingAsyncRequests.removeRequest(serviceRequestId, alreadyTimedOut);
         if (pendingRequest.getRequestType() == SET) {
             cleanupPendingAsyncSetRequestLocked(pendingRequest);
         }
@@ -1008,7 +1052,7 @@ public class PropertyHalService extends HalServiceBase {
             mHalPropIdToWaitingUpdateRequestInfo.remove(halPropId);
         }
         // We no longer need to subscribe to the property.
-        mSubManager.stageUnregister(pendingRequest.getServiceRequestId(),
+        mSubManager.stageUnregister(new ClientType(pendingRequest.getServiceRequestId()),
                 new ArraySet<Integer>(Set.of(halPropId)));
     }
 
@@ -1068,7 +1112,7 @@ public class PropertyHalService extends HalServiceBase {
                 HalPropConfig halPropConfig = mHalPropIdToPropConfig.valueAt(i);
                 int mgrPropId = halToManagerPropId(halPropConfig.getPropId());
                 CarPropertyConfig<?> carPropertyConfig = halPropConfig.toCarPropertyConfig(
-                        mgrPropId);
+                        mgrPropId, mPropertyHalServiceConfigs);
                 mgrPropIdToCarPropConfig.put(mgrPropId, carPropertyConfig);
             }
             return mgrPropIdToCarPropConfig;
@@ -1091,7 +1135,7 @@ public class PropertyHalService extends HalServiceBase {
         HalPropConfig halPropConfig;
         synchronized (mLock) {
             halPropConfig = mHalPropIdToPropConfig.get(halPropId);
-            if (isStaticAndSystemProperty(mgrPropId)) {
+            if (isStaticAndSystemPropertyLocked(mgrPropId)) {
                 CarPropertyValue carPropertyValue = mStaticPropertyIdAreaIdCache.get(mgrPropId,
                         areaId);
                 if (carPropertyValue != null) {
@@ -1106,10 +1150,10 @@ public class PropertyHalService extends HalServiceBase {
         halPropValue = mVehicleHal.get(halPropId, areaId);
         try {
             CarPropertyValue result = halPropValue.toCarPropertyValue(mgrPropId, halPropConfig);
-            if (!isStaticAndSystemProperty(mgrPropId)) {
-                return result;
-            }
             synchronized (mLock) {
+                if (!isStaticAndSystemPropertyLocked(mgrPropId)) {
+                    return result;
+                }
                 mStaticPropertyIdAreaIdCache.put(mgrPropId, areaId, result);
                 return result;
             }
@@ -1193,7 +1237,6 @@ public class PropertyHalService extends HalServiceBase {
     public void subscribeProperty(List<CarSubscription> carSubscriptions)
             throws ServiceSpecificException {
         synchronized (mLock) {
-            Set<Integer> halPropIdsToSubscribe = new ArraySet<>();
             // Even though this involves binder call, this must be done inside the lock so that
             // the state in {@code mSubManager} is consistent with the state in VHAL.
             for (int i = 0; i < carSubscriptions.size(); i++) {
@@ -1207,9 +1250,9 @@ public class PropertyHalService extends HalServiceBase {
                 }
                 int halPropId = managerToHalPropId(mgrPropId);
                 // Note that we use halPropId instead of mgrPropId in mSubManager.
-                mSubManager.stageNewOptions(CAR_PROP_SVC_REQUEST_ID, List.of(newCarSubscription(
-                        halPropId, areaIds, updateRateHz, carSubscription.enableVariableUpdateRate,
-                        carSubscription.resolution)));
+                mSubManager.stageNewOptions(new ClientType(CAR_PROP_SVC_REQUEST_ID),
+                        List.of(newCarSubscription(halPropId, areaIds, updateRateHz,
+                        carSubscription.enableVariableUpdateRate, carSubscription.resolution)));
             }
             try {
                 updateSubscriptionRateLocked();
@@ -1234,8 +1277,8 @@ public class PropertyHalService extends HalServiceBase {
         synchronized (mLock) {
             // Even though this involves binder call, this must be done inside the lock so that
             // the state in {@code mSubManager} is consistent with the state in VHAL.
-            mSubManager.stageUnregister(CAR_PROP_SVC_REQUEST_ID, new ArraySet<Integer>(Set.of(
-                    halPropId)));
+            mSubManager.stageUnregister(new ClientType(CAR_PROP_SVC_REQUEST_ID),
+                    new ArraySet<Integer>(Set.of(halPropId)));
             try {
                 updateSubscriptionRateLocked();
             } catch (ServiceSpecificException e) {
@@ -1244,21 +1287,6 @@ public class PropertyHalService extends HalServiceBase {
                 throw e;
             }
         }
-    }
-
-    @GuardedBy("mLock")
-    private int[] getAllAreaIdsLocked(int mgrPropId) {
-        int[] areaIds = EMPTY_INT_ARRAY;
-        HalPropConfig halPropConfig = mHalPropIdToPropConfig.get(managerToHalPropId(mgrPropId));
-        if (halPropConfig == null) {
-            if (DBG) {
-                Slogf.d(TAG, "Unable to get any areaIds from %s",
-                        VehiclePropertyIds.toString(mgrPropId));
-            }
-            return areaIds;
-        }
-        areaIds = halPropConfig.toCarPropertyConfig(mgrPropId).getAreaIds();
-        return areaIds;
     }
 
     @Override
@@ -1491,10 +1519,9 @@ public class PropertyHalService extends HalServiceBase {
                 // Check payload if it is an userdebug build.
                 if (BuildHelper.isDebuggableBuild()
                         && !mPropertyHalServiceConfigs.checkPayload(halPropValue)) {
-                    Slogf.w(TAG,
+                    Slogf.wtf(TAG,
                             "Drop event for property: %s because it is failed "
                                     + "in payload checking.", halPropValue);
-                    continue;
                 }
                 int mgrPropId = halToManagerPropId(halPropId);
                 if (DBG && halPropValue.getStatus() != VehiclePropertyStatus.AVAILABLE) {
@@ -1786,7 +1813,7 @@ public class PropertyHalService extends HalServiceBase {
                 HalPropConfig halPropConfig = mHalPropIdToPropConfig.get(halPropId);
 
                 setRequestInfo.parseClientUpdateRateHz(halPropConfig.toCarPropertyConfig(
-                        setRequestInfo.getPropertyId()));
+                        setRequestInfo.getPropertyId(), mPropertyHalServiceConfigs));
 
                 if (mHalPropIdToWaitingUpdateRequestInfo.get(halPropId) == null) {
                     mHalPropIdToWaitingUpdateRequestInfo.put(halPropId, new ArrayList<>());
@@ -1797,7 +1824,7 @@ public class PropertyHalService extends HalServiceBase {
                 // Enable VUR for continuous since we only want to know when the value is updated.
                 boolean enableVur = (halPropConfig.getChangeMode()
                         == CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS);
-                mSubManager.stageNewOptions(setRequestInfo.getServiceRequestId(),
+                mSubManager.stageNewOptions(new ClientType(setRequestInfo.getServiceRequestId()),
                         // Note that we use halPropId instead of mgrPropId in mSubManager.
                         List.of(newCarSubscription(halPropId,
                                 new int[]{setRequestInfo.getAreaId()},
@@ -1952,7 +1979,7 @@ public class PropertyHalService extends HalServiceBase {
     }
 
     @GuardedBy("mLock")
-    private boolean isStaticAndSystemProperty(int propertyId) {
+    private boolean isStaticAndSystemPropertyLocked(int propertyId) {
         return mHalPropIdToPropConfig.get(managerToHalPropId(propertyId))
                 .getChangeMode() == VEHICLE_PROPERTY_CHANGE_MODE_STATIC
                 && isSystemProperty(propertyId);

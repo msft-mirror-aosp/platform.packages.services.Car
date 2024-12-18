@@ -29,14 +29,23 @@
         <permission name="android.car.permission.CONTROL_CAR_APP_LAUNCH"/>
         <!-- used by ActivityBlockingActivity -->
         <permission name="android.car.permission.ACCESS_PRIVATE_DISPLAY_ID"/>
+        <!-- used by InCallController#getInCallServiceType to bind InCallService as non-ui -->
+        <permission name="android.permission.CONTROL_INCALL_EXPERIENCE"/>
+        <permission name="android.permission.MANAGE_ONGOING_CALLS"/>
+        <!-- used to query media session related apis -->
+        <permission name="android.permission.MEDIA_CONTENT_CONTROL"/>
         <!-- used to register the system ui proxy with the car service to provide the necessary
              system ui interaction needed by other apps. -->
         <permission name="android.car.permission.REGISTER_CAR_SYSTEM_UI_PROXY"/>
         <!-- used for enabling RemoteCarDefaultRootTaskView -->
         <permission name="android.car.permission.MANAGE_CAR_SYSTEM_UI"/>
-        <!-- used for querying AutoEnhance packages -->
-        <permission name="android.car.permission.QUERY_DISPLAY_COMPATIBILITY"/>
+        <!-- used for managing display compat packages -->
+        <permission name="android.car.permission.MANAGE_DISPLAY_COMPATIBILITY"/>
         <!-- used for receiving broadcasted dock events -->
         <permission name="com.android.car.docklib.permission.BROADCAST_RECEIVER"/>
+        <!-- used for interacting with the CarActivityService -->
+        <permission name="android.car.permission.CONTROL_CAR_APP_LAUNCH"/>
+        <!-- used for checking media notifications -->
+        <permission name="android.permission.ACCESS_NOTIFICATIONS"/>
     </privapp-permissions>
 </permissions>

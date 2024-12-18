@@ -15,9 +15,12 @@
  */
 package com.android.car.hal;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DEBUGGING_CODE;
+
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.car.feature.FeatureFlagsImpl;
 import android.car.test.mocks.JavaMockitoHelper;
 import android.content.Context;
 import android.hardware.automotive.vehicle.VehicleApPowerStateReq;
@@ -27,12 +30,15 @@ import android.view.Display;
 
 import com.android.car.CarServiceUtils;
 import com.android.car.VehicleStub;
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.systeminterface.DisplayHelperInterface;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 
+@ExcludeFromCodeCoverageGeneratedReport(reason = DEBUGGING_CODE)
 public class MockedPowerHalService extends PowerHalService {
     private static final String TAG = MockedPowerHalService.class.getSimpleName();
 
@@ -88,7 +94,8 @@ public class MockedPowerHalService extends PowerHalService {
 
     public MockedPowerHalService(boolean isPowerStateSupported, boolean isDeepSleepAllowed,
             boolean isHibernationAllowed, boolean isTimedWakeupAllowed) {
-        super(mock(Context.class), createVehicleHalWithMockedServices());
+        super(mock(Context.class), new FeatureFlagsImpl(),
+                createVehicleHalWithMockedServices(), new DisplayHelperInterface.DefaultImpl());
         mIsPowerStateSupported = isPowerStateSupported;
         mIsDeepSleepAllowed = isDeepSleepAllowed;
         mIsHibernationAllowed = isHibernationAllowed;
@@ -170,7 +177,7 @@ public class MockedPowerHalService extends PowerHalService {
     }
 
     @Override
-    public void sendDisplayBrightness(int brightness) {
+    public void sendDisplayBrightnessLegacy(int brightness) {
         sendDisplayBrightness(Display.DEFAULT_DISPLAY, brightness);
     }
 

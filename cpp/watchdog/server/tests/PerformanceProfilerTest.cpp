@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "MockPressureMonitor.h"
 #include "MockProcStatCollector.h"
 #include "MockUidStatsCollector.h"
 #include "MockWatchdogServiceHelper.h"
@@ -25,9 +26,11 @@
 #include <gmock/gmock.h>
 #include <utils/RefBase.h>
 
+#include <android_car_feature.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -48,6 +51,8 @@ using ::android::RefBase;
 using ::android::sp;
 using ::android::base::ReadFdToString;
 using ::android::base::Result;
+using ::android::base::StringAppendF;
+using ::android::car::feature::car_watchdog_memory_profiling;
 using ::android::util::ProtoReader;
 using ::google::protobuf::RepeatedPtrField;
 using ::testing::_;
@@ -58,95 +63,155 @@ using ::testing::ExplainMatchResult;
 using ::testing::Field;
 using ::testing::IsSubsetOf;
 using ::testing::Matcher;
+using ::testing::Pointer;
 using ::testing::Property;
 using ::testing::Return;
 using ::testing::Test;
 using ::testing::UnorderedElementsAreArray;
 using ::testing::VariantWith;
 
-using time_point_ms = std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>;
+using PressureLevelDurationPair = std::pair<PressureMonitorInterface::PressureLevel, int64_t>;
+using PressureLevelTransitions = std::vector<PressureLevelDurationPair>;
+using PressureLevelDurations =
+        std::unordered_map<PressureMonitorInterface::PressureLevel, std::chrono::milliseconds>;
 
+constexpr int kTestBaseUserId = 100;
+constexpr bool kTestIsSmapsRollupSupported = true;
 constexpr int kTestTopNStatsPerCategory = 5;
 constexpr int kTestTopNStatsPerSubcategory = 5;
 constexpr int kTestMaxUserSwitchEvents = 3;
+constexpr size_t kTestPeriodicCollectionBufferSize = 3;
 constexpr std::chrono::seconds kTestSystemEventDataCacheDurationSec = 60s;
-const auto kTestNow = std::chrono::time_point_cast<std::chrono::milliseconds>(
+const auto kTestNowMillis = std::chrono::time_point_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::from_time_t(1'683'270'000));
+constexpr int64_t kTestElapsedRealtimeSinceBootMillis = 19'000;
 
-int64_t getTestElapsedRealtimeSinceBootMs() {
-    return 20'000;
+void applyFeatureFilter(UserPackageSummaryStats* userPackageSummaryStatsOut) {
+    if (car_watchdog_memory_profiling()) {
+        return;
+    }
+    userPackageSummaryStatsOut->totalRssKb = 0;
+    userPackageSummaryStatsOut->totalPssKb = 0;
+    userPackageSummaryStatsOut->topNMemStats = {};
 }
 
-MATCHER_P(IoStatsViewEq, expected, "") {
-    return ExplainMatchResult(AllOf(Field("bytes", &UserPackageStats::IoStatsView::bytes,
+MATCHER_P(UidIoSingleOpStatsEq, expected, "") {
+    return ExplainMatchResult(AllOf(Field("bytes", &UserPackageStats::UidIoSingleOpStats::bytes,
                                           ElementsAreArray(expected.bytes)),
-                                    Field("fsync", &UserPackageStats::IoStatsView::fsync,
+                                    Field("fsync", &UserPackageStats::UidIoSingleOpStats::fsync,
                                           ElementsAreArray(expected.fsync))),
                               arg, result_listener);
 }
 
-MATCHER_P(ProcessValueEq, expected, "") {
-    return ExplainMatchResult(AllOf(Field("comm",
-                                          &UserPackageStats::ProcSingleStatsView::ProcessValue::
-                                                  comm,
-                                          Eq(expected.comm)),
-                                    Field("value",
-                                          &UserPackageStats::ProcSingleStatsView::ProcessValue::
-                                                  value,
-                                          Eq(expected.value))),
-                              arg, result_listener);
+MATCHER_P(ProcessSingleStatsEq, expected, "") {
+    return ExplainMatchResult(AllOf(
+              Field(
+                    "comm",
+                    &UserPackageStats::UidSingleStats::ProcessSingleStats::
+                            comm,
+                    Eq(expected.comm)),
+              Field("value",
+                    &UserPackageStats::UidSingleStats::ProcessSingleStats::
+                            value,
+                    Eq(expected.value))),
+        arg, result_listener);
 }
 
-MATCHER_P(ProcSingleStatsViewEq, expected, "") {
-    std::vector<Matcher<const UserPackageStats::ProcSingleStatsView::ProcessValue&>>
-            processValueMatchers;
-    processValueMatchers.reserve(expected.topNProcesses.size());
-    for (const auto& processValue : expected.topNProcesses) {
-        processValueMatchers.push_back(ProcessValueEq(processValue));
+MATCHER_P(UidSingleStatsEq, expected, "") {
+    std::vector<Matcher<const UserPackageStats::UidSingleStats::ProcessSingleStats&>>
+            processSingleStatsMatchers;
+    processSingleStatsMatchers.reserve(expected.topNProcesses.size());
+    for (const auto& processSingleStats : expected.topNProcesses) {
+        processSingleStatsMatchers.push_back(ProcessSingleStatsEq(processSingleStats));
     }
-    return ExplainMatchResult(AllOf(Field("value", &UserPackageStats::ProcSingleStatsView::value,
+    return ExplainMatchResult(AllOf(
+              Field("value", &UserPackageStats::UidSingleStats::value,
                                           Eq(expected.value)),
-                                    Field("topNProcesses",
-                                          &UserPackageStats::ProcSingleStatsView::topNProcesses,
-                                          ElementsAreArray(processValueMatchers))),
-                              arg, result_listener);
+              Field("topNProcesses",
+                    &UserPackageStats::UidSingleStats::topNProcesses,
+                    ElementsAreArray(processSingleStatsMatchers))),
+        arg, result_listener);
 }
 
-MATCHER_P(ProcessCpuValueEq, expected, "") {
-    return ExplainMatchResult(AllOf(Field("pid",
-                                          &UserPackageStats::ProcCpuStatsView::ProcessCpuValue::pid,
-                                          Eq(expected.pid)),
-                                    Field("comm",
-                                          &UserPackageStats::ProcCpuStatsView::ProcessCpuValue::
-                                                  comm,
-                                          Eq(expected.comm)),
-                                    Field("cpuTimeMillis",
-                                          &UserPackageStats::ProcCpuStatsView::ProcessCpuValue::
-                                                  cpuTimeMillis,
-                                          Eq(expected.cpuTimeMillis)),
-                                    Field("cpuCycles",
-                                          &UserPackageStats::ProcCpuStatsView::ProcessCpuValue::
-                                                  cpuCycles,
-                                          Eq(expected.cpuCycles))),
-                              arg, result_listener);
+MATCHER_P(ProcessCpuStatsEq, expected, "") {
+    return ExplainMatchResult(AllOf(
+              Field("pid",
+                    &UserPackageStats::UidCpuStats::ProcessCpuStats::pid,
+                    Eq(expected.pid)),
+              Field("comm",
+                    &UserPackageStats::UidCpuStats::ProcessCpuStats::
+                            comm,
+                    Eq(expected.comm)),
+              Field("cpuTimeMillis",
+                    &UserPackageStats::UidCpuStats::ProcessCpuStats::
+                            cpuTimeMillis,
+                    Eq(expected.cpuTimeMillis)),
+              Field("cpuCycles",
+                    &UserPackageStats::UidCpuStats::ProcessCpuStats::
+                            cpuCycles,
+                    Eq(expected.cpuCycles))),
+        arg, result_listener);
 }
 
-MATCHER_P(ProcCpuStatsViewEq, expected, "") {
-    std::vector<Matcher<const UserPackageStats::ProcCpuStatsView::ProcessCpuValue&>>
-            processValueMatchers;
-    processValueMatchers.reserve(expected.topNProcesses.size());
-    for (const auto& processValue : expected.topNProcesses) {
-        processValueMatchers.push_back(ProcessCpuValueEq(processValue));
+MATCHER_P(UidCpuStatsEq, expected, "") {
+    std::vector<Matcher<const UserPackageStats::UidCpuStats::ProcessCpuStats&>>
+            processSingleStatsMatchers;
+    processSingleStatsMatchers.reserve(expected.topNProcesses.size());
+    for (const auto& processSingleStats : expected.topNProcesses) {
+        processSingleStatsMatchers.push_back(ProcessCpuStatsEq(processSingleStats));
     }
     return ExplainMatchResult(AllOf(Field("cpuTimeMillis",
-                                          &UserPackageStats::ProcCpuStatsView::cpuTimeMillis,
+                                          &UserPackageStats::UidCpuStats::cpuTimeMillis,
                                           Eq(expected.cpuTimeMillis)),
                                     Field("cpuCycles",
-                                          &UserPackageStats::ProcCpuStatsView::cpuCycles,
+                                          &UserPackageStats::UidCpuStats::cpuCycles,
                                           Eq(expected.cpuCycles)),
                                     Field("topNProcesses",
-                                          &UserPackageStats::ProcCpuStatsView::topNProcesses,
-                                          ElementsAreArray(processValueMatchers))),
+                                          &UserPackageStats::UidCpuStats::topNProcesses,
+                                          ElementsAreArray(processSingleStatsMatchers))),
+                              arg, result_listener);
+}
+
+MATCHER_P(MemoryStatsEq, expected, "") {
+    return ExplainMatchResult(AllOf(Field("rssKb", &UserPackageStats::MemoryStats::rssKb,
+                                          Eq(expected.rssKb)),
+                                    Field("pssKb", &UserPackageStats::MemoryStats::pssKb,
+                                          Eq(expected.pssKb)),
+                                    Field("ussKb", &UserPackageStats::MemoryStats::ussKb,
+                                          Eq(expected.ussKb)),
+                                    Field("swapPssKb", &UserPackageStats::MemoryStats::swapPssKb,
+                                          Eq(expected.swapPssKb))),
+                              arg, result_listener);
+}
+
+MATCHER_P(ProcessMemoryStatsEq, expected, "") {
+    return ExplainMatchResult(AllOf(Field("comm",
+                                          &UserPackageStats::UidMemoryStats::ProcessMemoryStats::
+                                                  comm,
+                                          Eq(expected.comm)),
+                                    Field("memoryStats",
+                                          &UserPackageStats::UidMemoryStats::ProcessMemoryStats::
+                                                  memoryStats,
+                                          MemoryStatsEq(expected.memoryStats))),
+                              arg, result_listener);
+}
+
+MATCHER_P(UidMemoryStatsEq, expected, "") {
+    std::vector<Matcher<const UserPackageStats::UidMemoryStats::ProcessMemoryStats&>>
+            processSingleStatsMatchers;
+    processSingleStatsMatchers.reserve(expected.topNProcesses.size());
+    for (const auto& processSingleStats : expected.topNProcesses) {
+        processSingleStatsMatchers.push_back(ProcessMemoryStatsEq(processSingleStats));
+    }
+    return ExplainMatchResult(AllOf(Field("memoryStats",
+                                          &UserPackageStats::UidMemoryStats::memoryStats,
+                                          MemoryStatsEq(expected.memoryStats)),
+                                    Field("isSmapsRollupSupported",
+                                          &UserPackageStats::UidMemoryStats::isSmapsRollupSupported,
+                                          Eq(expected.isSmapsRollupSupported)),
+                                    Field("topNProcesses",
+                                          &UserPackageStats::UidMemoryStats::topNProcesses,
+                                          ElementsAreArray(processSingleStatsMatchers))),
                               arg, result_listener);
 }
 
@@ -156,38 +221,51 @@ MATCHER_P(UserPackageStatsEq, expected, "") {
             Field("genericPackageName", &UserPackageStats::genericPackageName,
                   Eq(expected.genericPackageName));
     return std::visit(
-            [&](const auto& statsView) -> bool {
-                using T = std::decay_t<decltype(statsView)>;
-                if constexpr (std::is_same_v<T, UserPackageStats::IoStatsView>) {
+            [&](const auto& statsVariant) -> bool {
+                using T = std::decay_t<decltype(statsVariant)>;
+                if constexpr (std::is_same_v<T, UserPackageStats::UidIoSingleOpStats>) {
+                    return ExplainMatchResult(
+                      AllOf(uidMatcher, packageNameMatcher,
+                            Field("statsVariant:UidIoSingleOpStats",
+                                  &UserPackageStats::statsVariant,
+                                  VariantWith<
+                                          UserPackageStats::UidIoSingleOpStats>(
+                                          UidIoSingleOpStatsEq(statsVariant)))),
+                      arg, result_listener);
+                } else if constexpr (std::is_same_v<T, UserPackageStats::UidSingleStats>) {
+                    return ExplainMatchResult(AllOf(
+                                  uidMatcher,
+                                  packageNameMatcher,
+                                  Field("statsVariant:UidSingleStats",
+                                        &UserPackageStats::statsVariant,
+                                        VariantWith<UserPackageStats::
+                                                            UidSingleStats>(
+                                                UidSingleStatsEq(
+                                                        statsVariant)))),
+                            arg, result_listener);
+                } else if constexpr (std::is_same_v<T, UserPackageStats::UidCpuStats>) {
+                    return ExplainMatchResult(AllOf(
+                                  uidMatcher,
+                                  packageNameMatcher,
+                                  Field("statsVariant:UidCpuStats",
+                                        &UserPackageStats::statsVariant,
+                                        VariantWith<UserPackageStats::
+                                                            UidCpuStats>(
+                                                UidCpuStatsEq(statsVariant)))),
+                            arg, result_listener);
+                } else if constexpr (std::is_same_v<T, UserPackageStats::UidMemoryStats>) {
                     return ExplainMatchResult(AllOf(uidMatcher, packageNameMatcher,
-                                                    Field("statsView:IoStatsView",
-                                                          &UserPackageStats::statsView,
+                                                    Field("statsVariant:UidMemoryStats",
+                                                          &UserPackageStats::statsVariant,
                                                           VariantWith<
-                                                                  UserPackageStats::IoStatsView>(
-                                                                  IoStatsViewEq(statsView)))),
-                                              arg, result_listener);
-                } else if constexpr (std::is_same_v<T, UserPackageStats::ProcSingleStatsView>) {
-                    return ExplainMatchResult(AllOf(uidMatcher, packageNameMatcher,
-                                                    Field("statsView:ProcSingleStatsView",
-                                                          &UserPackageStats::statsView,
-                                                          VariantWith<UserPackageStats::
-                                                                              ProcSingleStatsView>(
-                                                                  ProcSingleStatsViewEq(
-                                                                          statsView)))),
-                                              arg, result_listener);
-                } else if constexpr (std::is_same_v<T, UserPackageStats::ProcCpuStatsView>) {
-                    return ExplainMatchResult(AllOf(uidMatcher, packageNameMatcher,
-                                                    Field("statsView:ProcCpuStatsView",
-                                                          &UserPackageStats::statsView,
-                                                          VariantWith<UserPackageStats::
-                                                                              ProcCpuStatsView>(
-                                                                  ProcCpuStatsViewEq(statsView)))),
+                                                                  UserPackageStats::UidMemoryStats>(
+                                                                  UidMemoryStatsEq(statsVariant)))),
                                               arg, result_listener);
                 }
                 *result_listener << "Unexpected variant in UserPackageStats::stats";
                 return false;
             },
-            expected.statsView);
+            expected.statsVariant);
 }
 
 MATCHER_P(UserPackageSummaryStatsEq, expected, "") {
@@ -216,6 +294,8 @@ MATCHER_P(UserPackageSummaryStatsEq, expected, "") {
                                     Field("topNMajorFaults",
                                           &UserPackageSummaryStats::topNMajorFaults,
                                           userPackageStatsMatchers(expected.topNMajorFaults)),
+                                    Field("topNMemStats", &UserPackageSummaryStats::topNMemStats,
+                                          userPackageStatsMatchers(expected.topNMemStats)),
                                     Field("totalIoStats", &UserPackageSummaryStats::totalIoStats,
                                           totalIoStatsArrayMatcher(expected.totalIoStats)),
                                     Field("taskCountByUid",
@@ -230,6 +310,10 @@ MATCHER_P(UserPackageSummaryStatsEq, expected, "") {
                                     Field("totalMajorFaults",
                                           &UserPackageSummaryStats::totalMajorFaults,
                                           Eq(expected.totalMajorFaults)),
+                                    Field("totalRssKb", &UserPackageSummaryStats::totalRssKb,
+                                          Eq(expected.totalRssKb)),
+                                    Field("totalPssKb", &UserPackageSummaryStats::totalPssKb,
+                                          Eq(expected.totalPssKb)),
                                     Field("majorFaultsPercentChange",
                                           &UserPackageSummaryStats::majorFaultsPercentChange,
                                           Eq(expected.majorFaultsPercentChange))),
@@ -261,11 +345,16 @@ MATCHER_P(SystemSummaryStatsEq, expected, "") {
 }
 
 MATCHER_P(PerfStatsRecordEq, expected, "") {
-    return ExplainMatchResult(AllOf(Field(&PerfStatsRecord::systemSummaryStats,
+    return ExplainMatchResult(AllOf(Field(&PerfStatsRecord::collectionTimeMillis,
+                                          Eq(expected.collectionTimeMillis)),
+                                    Field(&PerfStatsRecord::systemSummaryStats,
                                           SystemSummaryStatsEq(expected.systemSummaryStats)),
                                     Field(&PerfStatsRecord::userPackageSummaryStats,
                                           UserPackageSummaryStatsEq(
-                                                  expected.userPackageSummaryStats))),
+                                                  expected.userPackageSummaryStats)),
+                                    Field(&PerfStatsRecord::memoryPressureLevelDurations,
+                                          UnorderedElementsAreArray(
+                                                  expected.memoryPressureLevelDurations))),
                               arg, result_listener);
 }
 
@@ -317,8 +406,8 @@ int countOccurrences(std::string str, std::string subStr) {
     return occurrences;
 }
 
-std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto int64Multiplier,
-                                                                          auto uint64Multiplier) {
+std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(
+        auto int64Multiplier, auto uint64Multiplier, bool isSmapsRollupSupported = true) {
     /* The number of returned sample stats are less that the top N stats per category/sub-category.
      * The top N stats per category/sub-category is set to % during test setup. Thus, the default
      * testing behavior is # reported stats < top N stats.
@@ -336,6 +425,8 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                     .totalMajorFaults = uint64Multiplier(11'000),
                                     .totalTasksCount = 1,
                                     .ioBlockedTasksCount = 1,
+                                    .totalRssKb = 2010,
+                                    .totalPssKb = 1635,
                                     .processStatsByPid =
                                             {{/*pid=*/100,
                                               {/*comm=*/"disk I/O", /*startTime=*/234,
@@ -344,7 +435,9 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                                /*totalMajorFaults=*/uint64Multiplier(11'000),
                                                /*totalTasksCount=*/1,
                                                /*ioBlockedTasksCount=*/1,
-                                               /*cpuCyclesByTid=*/{{100, 4000}}}}}}},
+                                               /*cpuCyclesByTid=*/{{100, 4000}},
+                                               /*rssKb=*/2010, /*pssKb=*/1635,
+                                               /*ussKb=*/1286, /*swapPssKb=*/600}}}}},
                      {.packageInfo =
                               constructPackageInfo("com.google.android.car.kitchensink", 1002001),
                       .cpuTimeMillis = int64Multiplier(60),
@@ -359,6 +452,8 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                     .totalMajorFaults = uint64Multiplier(22'445),
                                     .totalTasksCount = 5,
                                     .ioBlockedTasksCount = 3,
+                                    .totalRssKb = 2000,
+                                    .totalPssKb = 1645,
                                     .processStatsByPid =
                                             {{/*pid=*/1001,
                                               {/*comm=*/"CTS", /*startTime=*/789,
@@ -367,7 +462,9 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                                /*totalMajorFaults=*/uint64Multiplier(10'100),
                                                /*totalTasksCount=*/3,
                                                /*ioBlockedTasksCount=*/2,
-                                               /*cpuCyclesByTid=*/{{1001, 3000}, {1002, 2000}}}},
+                                               /*cpuCyclesByTid=*/{{1001, 3000}, {1002, 2000}},
+                                               /*rssKb=*/1000, /*pssKb=*/770,
+                                               /*ussKb=*/656, /*swapPssKb=*/200}},
                                              {/*pid=*/1000,
                                               {/*comm=*/"KitchenSinkApp", /*startTime=*/467,
                                                /*cpuTimeMillis=*/int64Multiplier(25),
@@ -375,7 +472,9 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                                /*totalMajorFaults=*/uint64Multiplier(12'345),
                                                /*totalTasksCount=*/2,
                                                /*ioBlockedTasksCount=*/1,
-                                               /*cpuCyclesByTid=*/{{1000, 4000}}}}}}},
+                                               /*cpuCyclesByTid=*/{{1000, 4000}},
+                                               /*rssKb=*/1000, /*pssKb=*/875,
+                                               /*ussKb=*/630, /*swapPssKb=*/400}}}}},
                      {.packageInfo = constructPackageInfo("", 1012345),
                       .cpuTimeMillis = int64Multiplier(100),
                       .ioStats = {/*fgRdBytes=*/int64Multiplier(1'000),
@@ -389,6 +488,8 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                     .totalMajorFaults = uint64Multiplier(50'900),
                                     .totalTasksCount = 4,
                                     .ioBlockedTasksCount = 2,
+                                    .totalRssKb = 1000,
+                                    .totalPssKb = 865,
                                     .processStatsByPid =
                                             {{/*pid=*/2345,
                                               {/*comm=*/"MapsApp", /*startTime=*/6789,
@@ -397,7 +498,9 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                                /*totalMajorFaults=*/uint64Multiplier(50'900),
                                                /*totalTasksCount=*/4,
                                                /*ioBlockedTasksCount=*/2,
-                                               /*cpuCyclesByTid=*/{{2345, 50'000}}}}}}},
+                                               /*cpuCyclesByTid=*/{{2345, 50'000}},
+                                               /*rssKb=*/1000, /*pssKb=*/865,
+                                               /*ussKb=*/656, /*swapPssKb=*/200}}}}},
                      {.packageInfo = constructPackageInfo("com.google.radio", 1015678),
                       .cpuTimeMillis = 0,
                       .ioStats = {/*fgRdBytes=*/0,
@@ -412,7 +515,7 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                     .ioBlockedTasksCount = 0,
                                     .processStatsByPid = {
                                             {/*pid=*/2345,
-                                             {/*comm=*/"RadioApp", /*startTime=*/19789,
+                                             {/*comm=*/"RadioApp", /*startTime=*/10789,
                                               /*cpuTimeMillis=*/0,
                                               /*totalCpuCycles=*/0,
                                               /*totalMajorFaults=*/0,
@@ -420,66 +523,123 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
                                               /*ioBlockedTasksCount=*/0,
                                               /*cpuCyclesByTid=*/{}}}}}}};
 
+    std::vector<UserPackageStats> topNMemStatsRankedByPss =
+            {{1002001, "com.google.android.car.kitchensink",
+              UserPackageStats::UidMemoryStats{{/*rssKb=*/2000, /*pssKb=*/1645,
+                                                /*ussKb=*/1286, /*swapPssKb=*/600},
+                                               isSmapsRollupSupported,
+                                               {{"KitchenSinkApp",
+                                                 {/*rssKb=*/1000, /*pssKb=*/875,
+                                                  /*ussKb=*/630, /*swapPssKb=*/400}},
+                                                {"CTS",
+                                                 {/*rssKb=*/1000, /*pssKb=*/770,
+                                                  /*ussKb=*/656, /*swapPssKb=*/200}}}}},
+             {1009, "mount",
+              UserPackageStats::UidMemoryStats{{/*rssKb=*/2010, /*pssKb=*/1635,
+                                                /*ussKb=*/1286, /*swapPssKb=*/600},
+                                               isSmapsRollupSupported,
+                                               {{"disk I/O",
+                                                 {/*rssKb=*/2010, /*pssKb=*/1635,
+                                                  /*ussKb=*/1286, /*swapPssKb=*/600}}}}},
+             {1012345, "1012345",
+              UserPackageStats::UidMemoryStats{{/*rssKb=*/1000, /*pssKb=*/865,
+                                                /*ussKb=*/656, /*swapPssKb=*/200},
+                                               isSmapsRollupSupported,
+                                               {{"MapsApp",
+                                                 {/*rssKb=*/1000, /*pssKb=*/865,
+                                                  /*ussKb=*/656, /*swapPssKb=*/200}}}}}};
+    std::vector<UserPackageStats> topNMemStatsRankedByRss =
+            {{1009, "mount",
+              UserPackageStats::UidMemoryStats{{/*rssKb=*/2010, /*pssKb=*/1635,
+                                                /*ussKb=*/1286, /*swapPssKb=*/600},
+                                               isSmapsRollupSupported,
+                                               {{"disk I/O",
+                                                 {/*rssKb=*/2010, /*pssKb=*/1635,
+                                                  /*ussKb=*/1286, /*swapPssKb=*/600}}}}},
+             {1002001, "com.google.android.car.kitchensink",
+              UserPackageStats::UidMemoryStats{{/*rssKb=*/2000, /*pssKb=*/1645,
+                                                /*ussKb=*/1286, /*swapPssKb=*/600},
+                                               isSmapsRollupSupported,
+                                               {{"KitchenSinkApp",
+                                                 {/*rssKb=*/1000, /*pssKb=*/875,
+                                                  /*ussKb=*/630, /*swapPssKb=*/400}},
+                                                {"CTS",
+                                                 {/*rssKb=*/1000, /*pssKb=*/770,
+                                                  /*ussKb=*/656, /*swapPssKb=*/200}}}}},
+             {1012345, "1012345",
+              UserPackageStats::UidMemoryStats{{/*rssKb=*/1000, /*pssKb=*/865,
+                                                /*ussKb=*/656, /*swapPssKb=*/200},
+                                               isSmapsRollupSupported,
+                                               {{"MapsApp",
+                                                 {/*rssKb=*/1000, /*pssKb=*/865,
+                                                  /*ussKb=*/656, /*swapPssKb=*/200}}}}}};
     UserPackageSummaryStats userPackageSummaryStats{
             .topNCpuTimes = {{1012345, "1012345",
-                              UserPackageStats::ProcCpuStatsView{int64Multiplier(100),
+                              UserPackageStats::UidCpuStats{int64Multiplier(100),
                                                                  50'000,
                                                                  {{2345, "MapsApp",
                                                                    int64Multiplier(100), 50'000}}}},
                              {1002001, "com.google.android.car.kitchensink",
-                              UserPackageStats::ProcCpuStatsView{int64Multiplier(60),
+                              UserPackageStats::UidCpuStats{int64Multiplier(60),
                                                                  10'000,
                                                                  {{1001, "CTS", int64Multiplier(30),
                                                                    5000},
                                                                   {1000, "KitchenSinkApp",
                                                                    int64Multiplier(25), 4000}}}},
                              {1009, "mount",
-                              UserPackageStats::ProcCpuStatsView{int64Multiplier(50),
+                              UserPackageStats::UidCpuStats{int64Multiplier(50),
                                                                  4000,
                                                                  {{100, "disk I/O",
                                                                    int64Multiplier(50), 4000}}}}},
             .topNIoReads = {{1009, "mount",
-                             UserPackageStats::IoStatsView{{0, int64Multiplier(14'000)},
+                             UserPackageStats::UidIoSingleOpStats{{0, int64Multiplier(14'000)},
                                                            {0, int64Multiplier(100)}}},
                             {1012345, "1012345",
-                             UserPackageStats::IoStatsView{{int64Multiplier(1'000),
+                             UserPackageStats::UidIoSingleOpStats{{int64Multiplier(1'000),
                                                             int64Multiplier(4'200)},
                                                            {int64Multiplier(600),
                                                             int64Multiplier(300)}}},
                             {1002001, "com.google.android.car.kitchensink",
-                             UserPackageStats::IoStatsView{{0, int64Multiplier(3'400)},
+                             UserPackageStats::UidIoSingleOpStats{{0, int64Multiplier(3'400)},
                                                            {0, int64Multiplier(200)}}}},
             .topNIoWrites =
                     {{1009, "mount",
-                      UserPackageStats::IoStatsView{{0, int64Multiplier(16'000)},
+                      UserPackageStats::UidIoSingleOpStats{{0, int64Multiplier(16'000)},
                                                     {0, int64Multiplier(100)}}},
                      {1002001, "com.google.android.car.kitchensink",
-                      UserPackageStats::IoStatsView{{0, int64Multiplier(6'700)},
+                      UserPackageStats::UidIoSingleOpStats{{0, int64Multiplier(6'700)},
                                                     {0, int64Multiplier(200)}}},
                      {1012345, "1012345",
-                      UserPackageStats::IoStatsView{{int64Multiplier(300), int64Multiplier(5'600)},
-                                                    {int64Multiplier(600), int64Multiplier(300)}}}},
+                      UserPackageStats::UidIoSingleOpStats{{int64Multiplier(300),
+                                                        int64Multiplier(5'600)},
+                                                    {int64Multiplier(600),
+                                                     int64Multiplier(300)}}}},
             .topNIoBlocked =
                     {{1002001, "com.google.android.car.kitchensink",
-                      UserPackageStats::ProcSingleStatsView{3,
+                      UserPackageStats::UidSingleStats{3,
                                                             {{"CTS", 2}, {"KitchenSinkApp", 1}}}},
                      {1012345, "1012345",
-                      UserPackageStats::ProcSingleStatsView{2, {{"MapsApp", 2}}}},
-                     {1009, "mount", UserPackageStats::ProcSingleStatsView{1, {{"disk I/O", 1}}}}},
+                      UserPackageStats::UidSingleStats{2, {{"MapsApp", 2}}}},
+                     {1009,
+                      "mount",
+                      UserPackageStats::UidSingleStats{1, {{"disk I/O",
+                                                                1}}}}},
             .topNMajorFaults =
                     {{1012345, "1012345",
-                      UserPackageStats::ProcSingleStatsView{uint64Multiplier(50'900),
+                      UserPackageStats::UidSingleStats{uint64Multiplier(50'900),
                                                             {{"MapsApp",
                                                               uint64Multiplier(50'900)}}}},
                      {1002001, "com.google.android.car.kitchensink",
-                      UserPackageStats::ProcSingleStatsView{uint64Multiplier(22'445),
+                      UserPackageStats::UidSingleStats{uint64Multiplier(22'445),
                                                             {{"KitchenSinkApp",
                                                               uint64Multiplier(12'345)},
                                                              {"CTS", uint64Multiplier(10'100)}}}},
                      {1009, "mount",
-                      UserPackageStats::ProcSingleStatsView{uint64Multiplier(11'000),
+                      UserPackageStats::UidSingleStats{uint64Multiplier(11'000),
                                                             {{"disk I/O",
                                                               uint64Multiplier(11'000)}}}}},
+            .topNMemStats =
+                    isSmapsRollupSupported ? topNMemStatsRankedByPss : topNMemStatsRankedByRss,
             .totalIoStats = {{int64Multiplier(1'000), int64Multiplier(21'600)},
                              {int64Multiplier(300), int64Multiplier(28'300)},
                              {int64Multiplier(600), int64Multiplier(600)}},
@@ -487,8 +647,11 @@ std::tuple<std::vector<UidStats>, UserPackageSummaryStats> sampleUidStats(auto i
             .totalCpuTimeMillis = int64Multiplier(48'376),
             .totalCpuCycles = 64'000,
             .totalMajorFaults = uint64Multiplier(84'345),
+            .totalRssKb = 5010,
+            .totalPssKb = 4145,
             .majorFaultsPercentChange = 0.0,
     };
+    applyFeatureFilter(&userPackageSummaryStats);
     return std::make_tuple(uidStats, userPackageSummaryStats);
 }
 
@@ -502,7 +665,8 @@ std::tuple<ProcStatInfo, SystemSummaryStats> sampleProcStat(auto int64Multiplier
                                          int64Multiplier(2'930)},
                               /*ctxtSwitches=*/uint64Multiplier(500),
                               /*runnableCnt=*/uint32Multiplier(100),
-                              /*ioBlockedCnt=*/uint32Multiplier(57)};
+                              /*ioBlockedCnt=*/uint32Multiplier(57),
+                              /*kernelStartTimeEpochSeconds=*/0};
     SystemSummaryStats systemSummaryStats{/*cpuIoWaitTimeMillis=*/int64Multiplier(5'900),
                                           /*cpuIdleTimeMillis=*/int64Multiplier(8'900),
                                           /*totalCpuTimeMillis=*/int64Multiplier(48'376),
@@ -513,11 +677,35 @@ std::tuple<ProcStatInfo, SystemSummaryStats> sampleProcStat(auto int64Multiplier
     return std::make_tuple(procStatInfo, systemSummaryStats);
 }
 
-ResourceStats getResourceStatsForSampledStats(auto int32Multiplier, auto int64Multiplier) {
+std::tuple<PressureLevelTransitions, PressureLevelDurations> samplePressureLevels(
+        int advanceUptimeSec = 1) {
+    PressureLevelTransitions pressureLevelTransitions{
+            PressureLevelDurationPair{PressureMonitor::PRESSURE_LEVEL_NONE, 100 * advanceUptimeSec},
+            PressureLevelDurationPair{PressureMonitor::PRESSURE_LEVEL_HIGH, 200 * advanceUptimeSec},
+            PressureLevelDurationPair{PressureMonitor::PRESSURE_LEVEL_HIGH, 100 * advanceUptimeSec},
+            PressureLevelDurationPair{PressureMonitor::PRESSURE_LEVEL_LOW, 200 * advanceUptimeSec},
+            PressureLevelDurationPair{PressureMonitor::PRESSURE_LEVEL_MEDIUM,
+                                      100 * advanceUptimeSec},
+            PressureLevelDurationPair{PressureMonitor::PRESSURE_LEVEL_LOW, 200 * advanceUptimeSec},
+            PressureLevelDurationPair{PressureMonitor::PRESSURE_LEVEL_MEDIUM,
+                                      100 * advanceUptimeSec},
+    };
+    PressureLevelDurations pressureLevelDurations{
+            {PressureMonitor::PRESSURE_LEVEL_NONE, 100ms * advanceUptimeSec},
+            {PressureMonitor::PRESSURE_LEVEL_LOW, 400ms * advanceUptimeSec},
+            {PressureMonitor::PRESSURE_LEVEL_MEDIUM, 200ms * advanceUptimeSec},
+            {PressureMonitor::PRESSURE_LEVEL_HIGH, 300ms * advanceUptimeSec},
+    };
+    return std::make_tuple(pressureLevelTransitions, pressureLevelDurations);
+}
+
+ResourceStats getResourceStatsForSampledStats(auto int32Multiplier, auto int64Multiplier,
+                                              time_point_millis nowMillis,
+                                              int64_t elapsedRealtimeSinceBootMillis) {
     // clang-format off
     return {
         .resourceUsageStats = std::make_optional<ResourceUsageStats>({
-            .startTimeEpochMillis = 1'683'270'000'000,
+            .startTimeEpochMillis = nowMillis.time_since_epoch().count(),
             // Set durationInMillis to zero since this field is set by WatchdogPerfService.
             .durationInMillis = 0,
             .systemSummaryUsageStats = {
@@ -545,7 +733,7 @@ ResourceStats getResourceStatsForSampledStats(auto int32Multiplier, auto int64Mu
                         .name = "mount",
                         .uid = 1009,
                     },
-                    .uidUptimeMillis = 19'766,
+                    .uidUptimeMillis = elapsedRealtimeSinceBootMillis - 234,
                     .cpuUsageStats = {
                         .cpuTimeMillis = int64Multiplier(50),
                         .cpuCycles = 4'000,
@@ -577,7 +765,7 @@ ResourceStats getResourceStatsForSampledStats(auto int32Multiplier, auto int64Mu
                         .name = "com.google.android.car.kitchensink",
                         .uid = 1002001,
                     },
-                    .uidUptimeMillis = 19'533,
+                    .uidUptimeMillis = elapsedRealtimeSinceBootMillis - 467,
                     .cpuUsageStats = {
                         .cpuTimeMillis = int64Multiplier(60),
                         .cpuCycles = 10'000,
@@ -615,7 +803,7 @@ ResourceStats getResourceStatsForSampledStats(auto int32Multiplier, auto int64Mu
                         .name = "1012345",
                         .uid = 1012345,
                     },
-                    .uidUptimeMillis = 13'211,
+                    .uidUptimeMillis = elapsedRealtimeSinceBootMillis - 6789,
                     .cpuUsageStats = {
                         .cpuTimeMillis = int64Multiplier(100),
                         .cpuCycles = 50'000,
@@ -647,7 +835,7 @@ ResourceStats getResourceStatsForSampledStats(auto int32Multiplier, auto int64Mu
                         .name = "com.google.radio",
                         .uid = 1015678,
                     },
-                    .uidUptimeMillis = 211,
+                    .uidUptimeMillis = elapsedRealtimeSinceBootMillis - 10789,
                     .cpuUsageStats = {
                         .cpuTimeMillis = 0,
                         .cpuCycles = 0,
@@ -673,39 +861,12 @@ ResourceStats getResourceStatsForSampledStats(auto int32Multiplier, auto int64Mu
 }
 
 struct StatsInfo {
-    std::vector<UidStats> uidStats;
-    UserPackageSummaryStats userPackageSummaryStats;
-    ProcStatInfo procStatInfo;
-    SystemSummaryStats systemSummaryStats;
-    ResourceStats resourceStats;
+    std::vector<UidStats> uidStats = {};
+    UserPackageSummaryStats userPackageSummaryStats = {};
+    ProcStatInfo procStatInfo = {};
+    SystemSummaryStats systemSummaryStats = {};
+    ResourceStats resourceStats = {};
 };
-
-StatsInfo getSampleStats(int multiplier = 1) {
-    /* Return results in a single value from three methods: sampleUidStats,
-     * sampleProcStat and getResourceStatsForSampledStats.
-     */
-    const auto int64Multiplier = [&](int64_t bytes) -> int64_t {
-        return static_cast<int64_t>(bytes * multiplier);
-    };
-    const auto uint64Multiplier = [&](uint64_t count) -> uint64_t {
-        return static_cast<uint64_t>(count * multiplier);
-    };
-    const auto int32Multiplier = [&](int32_t bytes) -> int32_t {
-        return static_cast<int32_t>(bytes * multiplier);
-    };
-    const auto uint32Multiplier = [&](uint32_t bytes) -> uint32_t {
-        return static_cast<uint32_t>(bytes * multiplier);
-    };
-
-    auto [uidStats, userPackageSummaryStats] = sampleUidStats(int64Multiplier, uint64Multiplier);
-    auto [procStatInfo, systemSummaryStats] =
-            sampleProcStat(int64Multiplier, uint64Multiplier, uint32Multiplier);
-    ResourceStats resourceStats = getResourceStatsForSampledStats(int32Multiplier, int64Multiplier);
-
-    StatsInfo statsInfo(uidStats, userPackageSummaryStats, procStatInfo, systemSummaryStats,
-                        resourceStats);
-    return statsInfo;
-}
 
 MATCHER_P(UserPackageInfoProtoEq, expected, "") {
     return ExplainMatchResult(AllOf(Property("user_id", &UserPackageInfo::user_id,
@@ -734,17 +895,17 @@ MATCHER_P(ProcessCpuStatsProtoEq, expected, "") {
 }
 
 MATCHER_P(PackageCpuStatsProtoEq, expected, "") {
-    const auto& procCpuStatsView =
-            std::get_if<UserPackageStats::ProcCpuStatsView>(&expected.statsView);
+    const auto& uidCpustatsVariant =
+            std::get_if<UserPackageStats::UidCpuStats>(&expected.statsVariant);
     std::vector<Matcher<const PackageCpuStats_ProcessCpuStats&>> processCpuStatsMatchers;
-    for (const auto& expectedProcessCpuValue : procCpuStatsView->topNProcesses) {
-        processCpuStatsMatchers.push_back(ProcessCpuStatsProtoEq(expectedProcessCpuValue));
+    for (const auto& expectedProcessCpuStats : uidCpustatsVariant->topNProcesses) {
+        processCpuStatsMatchers.push_back(ProcessCpuStatsProtoEq(expectedProcessCpuStats));
     }
     return ExplainMatchResult(AllOf(Property("user_package_info",
                                              &PackageCpuStats::user_package_info,
                                              UserPackageInfoProtoEq(expected)),
                                     Property("cpu_stats", &PackageCpuStats::cpu_stats,
-                                             CpuStatsProtoEq(*procCpuStatsView)),
+                                             CpuStatsProtoEq(*uidCpustatsVariant)),
                                     Property("process_cpu_stats",
                                              &PackageCpuStats::process_cpu_stats,
                                              ElementsAreArray(processCpuStatsMatchers))),
@@ -760,18 +921,20 @@ MATCHER_P4(StorageIoStatsProtoEq, fgBytes, fgFsync, bgBytes, byFsync, "") {
 }
 
 MATCHER_P(PackageStorageIoStatsProtoEq, expected, "") {
-    const auto& ioStatsView = std::get_if<UserPackageStats::IoStatsView>(&expected.statsView);
-    return ExplainMatchResult(AllOf(Property("user_package_info",
-                                             &PackageStorageIoStats::user_package_info,
-                                             UserPackageInfoProtoEq(expected)),
-                                    Property("storage_io_stats",
-                                             &PackageStorageIoStats::storage_io_stats,
-                                             StorageIoStatsProtoEq(ioStatsView->bytes[FOREGROUND],
-                                                                   ioStatsView->fsync[FOREGROUND],
-                                                                   ioStatsView->bytes[BACKGROUND],
-                                                                   ioStatsView
-                                                                           ->fsync[BACKGROUND]))),
-                              arg, result_listener);
+    const auto& uidIoSingleOpStats =
+        std::get_if<UserPackageStats::UidIoSingleOpStats>(&expected.statsVariant);
+    return ExplainMatchResult(AllOf(
+              Property("user_package_info",
+                       &PackageStorageIoStats::user_package_info,
+                       UserPackageInfoProtoEq(expected)),
+              Property("storage_io_stats",
+                       &PackageStorageIoStats::storage_io_stats,
+                       StorageIoStatsProtoEq(uidIoSingleOpStats->bytes[FOREGROUND],
+                                             uidIoSingleOpStats->fsync[FOREGROUND],
+                                             uidIoSingleOpStats->bytes[BACKGROUND],
+                                             uidIoSingleOpStats
+                                                     ->fsync[BACKGROUND]))),
+        arg, result_listener);
 }
 
 MATCHER_P(ProcessTaskStateStatsProtoEq, expected, "") {
@@ -786,19 +949,20 @@ MATCHER_P(ProcessTaskStateStatsProtoEq, expected, "") {
 }
 
 MATCHER_P2(PackageTaskStateStatsProtoEq, expected, taskCountByUid, "") {
-    const auto& procSingleStatsView =
-            std::get_if<UserPackageStats::ProcSingleStatsView>(&expected.statsView);
+    const auto& uidSingleStats =
+            std::get_if<UserPackageStats::UidSingleStats>(&expected.statsVariant);
     std::vector<Matcher<const PackageTaskStateStats_ProcessTaskStateStats&>>
             processTaskStateStatsMatchers;
-    for (const auto& expectedProcessValue : procSingleStatsView->topNProcesses) {
-        processTaskStateStatsMatchers.push_back(ProcessTaskStateStatsProtoEq(expectedProcessValue));
+    for (const auto& expectedProcessSingleStats : uidSingleStats->topNProcesses) {
+        processTaskStateStatsMatchers.push_back(
+            ProcessTaskStateStatsProtoEq(expectedProcessSingleStats));
     }
     return ExplainMatchResult(AllOf(Property("user_package_info",
                                              &PackageTaskStateStats::user_package_info,
                                              UserPackageInfoProtoEq(expected)),
                                     Property("io_blocked_task_count",
                                              &PackageTaskStateStats::io_blocked_task_count,
-                                             procSingleStatsView->value),
+                                             uidSingleStats->value),
                                     Property("total_task_count",
                                              &PackageTaskStateStats::total_task_count,
                                              taskCountByUid.at(expected.uid)),
@@ -809,14 +973,14 @@ MATCHER_P2(PackageTaskStateStatsProtoEq, expected, taskCountByUid, "") {
 }
 
 MATCHER_P(PackageMajorPageFaultsProtoEq, expected, "") {
-    const auto& procSingleStatsView =
-            std::get_if<UserPackageStats::ProcSingleStatsView>(&expected.statsView);
+    const auto& uidSingleStats =
+            std::get_if<UserPackageStats::UidSingleStats>(&expected.statsVariant);
     return ExplainMatchResult(AllOf(Property("user_package_info",
                                              &PackageMajorPageFaults::user_package_info,
                                              UserPackageInfoProtoEq(expected)),
                                     Property("major_page_faults_count",
                                              &PackageMajorPageFaults::major_page_faults_count,
-                                             procSingleStatsView->value)),
+                                             uidSingleStats->value)),
                               arg, result_listener);
 }
 
@@ -886,8 +1050,8 @@ MATCHER_P3(StatsRecordProtoEq, userPackageSummaryStats, systemSummaryStats, nowM
     localtime_r(&dateTime, &timeinfo);
 
     std::vector<Matcher<const PackageCpuStats&>> packageCpuStatsMatchers;
-    for (const auto& expectedProcCpuStatsView : userPackageSummaryStats.topNCpuTimes) {
-        packageCpuStatsMatchers.push_back(PackageCpuStatsProtoEq(expectedProcCpuStatsView));
+    for (const auto& expectedUidCpuStats : userPackageSummaryStats.topNCpuTimes) {
+        packageCpuStatsMatchers.push_back(PackageCpuStatsProtoEq(expectedUidCpuStats));
     }
     std::vector<Matcher<const PackageStorageIoStats&>> packageStorageReadIoStatsMatchers;
     for (const auto& expectedPackageStorageReadIoStat : userPackageSummaryStats.topNIoReads) {
@@ -932,6 +1096,27 @@ MATCHER_P3(StatsRecordProtoEq, userPackageSummaryStats, systemSummaryStats, nowM
                                              ElementsAreArray(packageMajorPageFaultsMatchers))),
                               arg, result_listener);
 }
+
+std::string toString(util::ProtoOutputStream* proto) {
+    std::string content;
+    content.reserve(proto->size());
+    sp<ProtoReader> reader = proto->data();
+    while (reader->hasNext()) {
+        content.push_back(reader->next());
+    }
+    return content;
+}
+
+std::string toString(const std::vector<UserSwitchCollectionInfo>& infos) {
+    std::string buffer;
+    StringAppendF(&buffer, "{");
+    for (const auto& info : infos) {
+        StringAppendF(&buffer, "%s\n", info.toString().c_str());
+    }
+    StringAppendF(&buffer, "}");
+    return buffer;
+}
+
 }  // namespace
 
 namespace internal {
@@ -948,24 +1133,35 @@ public:
         mCollector.clear();
     }
 
-    Result<void> init() { return mCollector->init(); }
+    Result<void> init(int topNStatsPerCategory, int topNStatsPerSubcategory,
+                      int maxUserSwitchEvents, std::chrono::seconds systemEventDataCacheDuration,
+                      size_t bufferSize, bool doSendResourceUsageStatsEnabled,
+                      bool isSmapsRollupSupported) {
+        if (auto result = mCollector->init(); !result.ok()) {
+            return result;
+        }
+
+        mCollector->mTopNStatsPerCategory = topNStatsPerCategory;
+        mCollector->mTopNStatsPerSubcategory = topNStatsPerSubcategory;
+        mCollector->mMaxUserSwitchEvents = maxUserSwitchEvents;
+        mCollector->mSystemEventDataCacheDurationSec = systemEventDataCacheDuration;
+        mCollector->mPeriodicCollection.maxCacheSize = bufferSize;
+        mCollector->mDoSendResourceUsageStats = doSendResourceUsageStatsEnabled;
+        mCollector->mIsSmapsRollupSupported = isSmapsRollupSupported;
+
+        return {};
+    }
 
     void setTopNStatsPerCategory(int value) { mCollector->mTopNStatsPerCategory = value; }
 
     void setTopNStatsPerSubcategory(int value) { mCollector->mTopNStatsPerSubcategory = value; }
 
-    void setMaxUserSwitchEvents(int value) { mCollector->mMaxUserSwitchEvents = value; }
-
-    void setSystemEventDataCacheDuration(std::chrono::seconds value) {
-        mCollector->mSystemEventDataCacheDurationSec = value;
-    }
-
     void setSendResourceUsageStatsEnabled(bool enable) {
         mCollector->mDoSendResourceUsageStats = enable;
     }
 
-    void setGetElapsedTimeSinceBootMillisFunc(const std::function<int64_t()>& func) {
-        mCollector->kGetElapsedTimeSinceBootMillisFunc = func;
+    void setSmapsRollupSupportedEnabled(bool enable) {
+        mCollector->mIsSmapsRollupSupported = enable;
     }
 
     const CollectionInfo& getBoottimeCollectionInfo() {
@@ -1002,26 +1198,44 @@ private:
 class PerformanceProfilerTest : public Test {
 protected:
     void SetUp() override {
+        mPeriodicCollectionBufferSize =
+                static_cast<size_t>(sysprop::periodicCollectionBufferSize().value_or(
+                        kDefaultPeriodicCollectionBufferSize));
+        mElapsedRealtimeSinceBootMillis = kTestElapsedRealtimeSinceBootMillis;
+        mNowMillis = kTestNowMillis;
         mMockUidStatsCollector = sp<MockUidStatsCollector>::make();
+        mMockPressureMonitor = sp<MockPressureMonitor>::make();
         mMockProcStatCollector = sp<MockProcStatCollector>::make();
-        mCollector = sp<PerformanceProfiler>::make();
+        mCollector = sp<PerformanceProfiler>::
+                make(mMockPressureMonitor,
+                     std::bind(&PerformanceProfilerTest::getTestElapsedRealtimeSinceBootMs, this));
         mCollectorPeer = sp<internal::PerformanceProfilerPeer>::make(mCollector);
-        ASSERT_RESULT_OK(mCollectorPeer->init());
-        mCollectorPeer->setTopNStatsPerCategory(kTestTopNStatsPerCategory);
-        mCollectorPeer->setTopNStatsPerSubcategory(kTestTopNStatsPerSubcategory);
-        mCollectorPeer->setMaxUserSwitchEvents(kTestMaxUserSwitchEvents);
-        mCollectorPeer->setSystemEventDataCacheDuration(kTestSystemEventDataCacheDurationSec);
-        mCollectorPeer->setSendResourceUsageStatsEnabled(true);
-        mCollectorPeer->setGetElapsedTimeSinceBootMillisFunc(getTestElapsedRealtimeSinceBootMs);
+
+        EXPECT_CALL(*mMockPressureMonitor, registerPressureChangeCallback(Eq(mCollector)))
+                .Times(car_watchdog_memory_profiling() ? 1 : 0);
+
+        ASSERT_RESULT_OK(
+                mCollectorPeer->init(kTestTopNStatsPerCategory, kTestTopNStatsPerSubcategory,
+                                     kTestMaxUserSwitchEvents, kTestSystemEventDataCacheDurationSec,
+                                     kTestPeriodicCollectionBufferSize,
+                                     /*doSendResourceUsageStatsEnabled=*/true,
+                                     /*isSmapsRollupSupported=*/true));
     }
 
     void TearDown() override {
         mMockUidStatsCollector.clear();
         mMockProcStatCollector.clear();
+
+        EXPECT_CALL(*mMockPressureMonitor, unregisterPressureChangeCallback(Eq(mCollector)))
+                .Times(car_watchdog_memory_profiling() ? 1 : 0);
+
         mCollector.clear();
         mCollectorPeer.clear();
     }
 
+    int64_t getTestElapsedRealtimeSinceBootMs() { return mElapsedRealtimeSinceBootMillis; }
+
+protected:
     void checkDumpContents(int wantedEmptyCollectionInstances) {
         TemporaryFile dump;
         ASSERT_RESULT_OK(mCollector->onDump(dump.fd));
@@ -1036,15 +1250,133 @@ protected:
         checkDumpFd(/*wantedEmptyCollectionInstances=*/0, dump.fd);
     }
 
-    std::string toString(util::ProtoOutputStream* proto) {
-        std::string content;
-        content.reserve(proto->size());
-        sp<ProtoReader> reader = proto->data();
-        while (reader->hasNext()) {
-            content.push_back(reader->next());
+    PressureLevelDurations injectPressureLevelTransitions(int advanceUptimeSec) {
+        if (!car_watchdog_memory_profiling()) {
+            mElapsedRealtimeSinceBootMillis += advanceUptimeSec * 1000;
+            return PressureLevelDurations{};
         }
-        return content;
+        auto [pressureLevelTransitions, pressureLevelDurations] =
+                samplePressureLevels(advanceUptimeSec);
+        for (const auto transition : pressureLevelTransitions) {
+            mElapsedRealtimeSinceBootMillis += transition.second;
+            mCollector->onPressureChanged(transition.first);
+        }
+        return pressureLevelDurations;
     }
+
+    // Direct use of this method in tests is not recommended because further setup (such as calling
+    // injectPressureLevelTransitions, constructing CollectionInfo struct, advancing time, and
+    // setting up EXPECT_CALL) is required before testing a collection. Please consider using one of
+    // the PerformanceProfilerTest::setup* methods instead. If none of them work for a new use case,
+    // either update the existing PerformanceProfilerTest::setup* methods or add a new
+    // PerformanceProfilerTest::setup* method.
+    StatsInfo getSampleStatsInfo(int multiplier = 1,
+                                 bool isSmapsRollupSupported = kTestIsSmapsRollupSupported) {
+        const auto int64Multiplier = [&](int64_t bytes) -> int64_t {
+            return static_cast<int64_t>(bytes * multiplier);
+        };
+        const auto uint64Multiplier = [&](uint64_t count) -> uint64_t {
+            return static_cast<uint64_t>(count * multiplier);
+        };
+        const auto int32Multiplier = [&](int32_t bytes) -> int32_t {
+            return static_cast<int32_t>(bytes * multiplier);
+        };
+        const auto uint32Multiplier = [&](uint32_t bytes) -> uint32_t {
+            return static_cast<uint32_t>(bytes * multiplier);
+        };
+
+        auto [uidStats, userPackageSummaryStats] =
+                sampleUidStats(int64Multiplier, uint64Multiplier, isSmapsRollupSupported);
+
+        applyFeatureFilter(&userPackageSummaryStats);
+
+        auto [procStatInfo, systemSummaryStats] =
+                sampleProcStat(int64Multiplier, uint64Multiplier, uint32Multiplier);
+
+        ResourceStats resourceStats =
+                getResourceStatsForSampledStats(int32Multiplier, int64Multiplier, mNowMillis,
+                                                mElapsedRealtimeSinceBootMillis);
+
+        StatsInfo statsInfo(uidStats, userPackageSummaryStats, procStatInfo, systemSummaryStats,
+                            resourceStats);
+        return statsInfo;
+    }
+
+    void advanceTime(int durationMillis) {
+        mNowMillis += std::chrono::milliseconds(durationMillis);
+    }
+
+    std::tuple<CollectionInfo, ResourceStats> setupFirstCollection(
+            size_t maxCollectionCacheSize = std::numeric_limits<std::size_t>::max(),
+            bool isSmapsRollupSupported = kTestIsSmapsRollupSupported) {
+        // Trigger pressure level transitions to test the pressure level accounting done by the
+        // implementation.
+        auto pressureLevelDurations = injectPressureLevelTransitions(/*advanceUptimeSec=*/1);
+        auto statsInfo = getSampleStatsInfo(/*multiplier=*/1, isSmapsRollupSupported);
+
+        EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
+        EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
+
+        auto expectedCollectionInfo =
+                CollectionInfo{.maxCacheSize = maxCollectionCacheSize,
+                               .records = {{
+                                       .collectionTimeMillis = mNowMillis,
+                                       .systemSummaryStats = statsInfo.systemSummaryStats,
+                                       .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
+                                       .memoryPressureLevelDurations = pressureLevelDurations,
+                               }}};
+        auto expectedResourceStats = statsInfo.resourceStats;
+        return std::make_tuple(expectedCollectionInfo, expectedResourceStats);
+    }
+
+    void setupNextCollection(CollectionInfo* prevCollectionInfo, ResourceStats* outResourceStats,
+                             int multiplier = 1) {
+        advanceTime(/*durationMillis=*/1000);
+        // Trigger pressure level transitions to test the pressure level accounting done by the
+        // implementation.
+        auto pressureLevelDurations = injectPressureLevelTransitions(/*advanceUptimeSec=*/1);
+        auto statsInfo = getSampleStatsInfo(multiplier, kTestIsSmapsRollupSupported);
+
+        EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
+        EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
+
+        auto& prevRecord = prevCollectionInfo->records.back();
+        statsInfo.userPackageSummaryStats.majorFaultsPercentChange =
+                (static_cast<double>(statsInfo.userPackageSummaryStats.totalMajorFaults -
+                                     prevRecord.userPackageSummaryStats.totalMajorFaults) /
+                 static_cast<double>(prevRecord.userPackageSummaryStats.totalMajorFaults)) *
+                100.0;
+
+        prevCollectionInfo->records.push_back(PerfStatsRecord{
+                .collectionTimeMillis = mNowMillis,
+                .systemSummaryStats = statsInfo.systemSummaryStats,
+                .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
+                .memoryPressureLevelDurations = pressureLevelDurations,
+        });
+        *outResourceStats = statsInfo.resourceStats;
+    }
+
+    UserSwitchCollectionInfo setupUserSwitchCollection(userid_t fromUserId, userid_t toUserId) {
+        auto [collectionInfo, _] = setupFirstCollection();
+        return UserSwitchCollectionInfo{
+                collectionInfo,
+                .from = fromUserId,
+                .to = toUserId,
+        };
+    }
+
+    // Use this method only in tests where the returned CollectionInfo / UserSwitchCollectionInfo
+    // is not verified.
+    void setupMultipleCollections() {
+        auto statsInfo = getSampleStatsInfo();
+
+        EXPECT_CALL(*mMockUidStatsCollector, deltaStats())
+                .WillRepeatedly(Return(statsInfo.uidStats));
+        EXPECT_CALL(*mMockProcStatCollector, deltaStats())
+                .WillRepeatedly(Return(statsInfo.procStatInfo));
+    }
+
+    time_point_millis getNowMillis() { return mNowMillis; }
 
 private:
     void checkDumpFd(int wantedEmptyCollectionInstances, int fd) {
@@ -1059,39 +1391,32 @@ private:
     }
 
 protected:
+    size_t mPeriodicCollectionBufferSize;
     sp<MockUidStatsCollector> mMockUidStatsCollector;
+    sp<MockPressureMonitor> mMockPressureMonitor;
     sp<MockProcStatCollector> mMockProcStatCollector;
     sp<PerformanceProfiler> mCollector;
     sp<internal::PerformanceProfilerPeer> mCollectorPeer;
+
+private:
+    int64_t mElapsedRealtimeSinceBootMillis;
+    time_point_millis mNowMillis;
 };
 
 TEST_F(PerformanceProfilerTest, TestOnBoottimeCollection) {
-    const auto statsInfo = getSampleStats();
+    auto [expectedCollectionInfo, expectedResourceStats] = setupFirstCollection();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
-
-    ResourceStats expectedResourceStats = statsInfo.resourceStats;
     ResourceStats actualResourceStats = {};
-
-    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(kTestNow, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(getNowMillis(), mMockUidStatsCollector,
                                                       mMockProcStatCollector,
                                                       &actualResourceStats));
 
-    const auto actual = mCollectorPeer->getBoottimeCollectionInfo();
+    const auto actualCollectionInfo = mCollectorPeer->getBoottimeCollectionInfo();
 
-    const CollectionInfo expected{
-            .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-            .records = {{
-                    .systemSummaryStats = statsInfo.systemSummaryStats,
-                    .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-            }},
-    };
-
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Boottime collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
     ASSERT_EQ(actualResourceStats, expectedResourceStats)
             << "Expected: " << expectedResourceStats.toString()
@@ -1102,44 +1427,29 @@ TEST_F(PerformanceProfilerTest, TestOnBoottimeCollection) {
 }
 
 TEST_F(PerformanceProfilerTest, TestOnWakeUpCollection) {
-    const auto statsInfo = getSampleStats();
+    auto [expectedCollectionInfo, expectedResourceStats] = setupFirstCollection();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
-
-    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(kTestNow, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(getNowMillis(), mMockUidStatsCollector,
                                                     mMockProcStatCollector));
 
-    const auto actual = mCollectorPeer->getWakeUpCollectionInfo();
+    const auto actualCollectionInfo = mCollectorPeer->getWakeUpCollectionInfo();
 
-    const CollectionInfo expected{
-            .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-            .records = {{
-                    .systemSummaryStats = statsInfo.systemSummaryStats,
-                    .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-            }},
-    };
-
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Wake-up collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
     ASSERT_NO_FATAL_FAILURE(checkDumpContents(/*wantedEmptyCollectionInstances=*/3))
             << "Boot-time, periodic, and user-switch collections shouldn't be reported";
 }
 
 TEST_F(PerformanceProfilerTest, TestOnSystemStartup) {
-    const auto statsInfo = getSampleStats();
-
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillRepeatedly(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats())
-            .WillRepeatedly(Return(statsInfo.procStatInfo));
+    setupMultipleCollections();
 
     ResourceStats resourceStats = {};
-    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(kTestNow, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(getNowMillis(), mMockUidStatsCollector,
                                                       mMockProcStatCollector, &resourceStats));
-    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(kTestNow, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(getNowMillis(), mMockUidStatsCollector,
                                                     mMockProcStatCollector));
 
     auto actualBoottimeCollection = mCollectorPeer->getBoottimeCollectionInfo();
@@ -1161,35 +1471,19 @@ TEST_F(PerformanceProfilerTest, TestOnSystemStartup) {
 }
 
 TEST_F(PerformanceProfilerTest, TestOnUserSwitchCollection) {
-    auto statsInfo = getSampleStats();
+    std::vector<UserSwitchCollectionInfo> expected;
+    expected.push_back(setupUserSwitchCollection(kTestBaseUserId, kTestBaseUserId + 1));
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
-
-    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(kTestNow, 100, 101, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(getNowMillis(), kTestBaseUserId,
+                                                        kTestBaseUserId + 1, mMockUidStatsCollector,
                                                         mMockProcStatCollector));
 
-    const auto& actualInfos = mCollectorPeer->getUserSwitchCollectionInfos();
-    const auto& actual = actualInfos[0];
+    auto actual = mCollectorPeer->getUserSwitchCollectionInfos();
 
-    UserSwitchCollectionInfo expected{
-            {
-                    .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-                    .records = {{
-                            .systemSummaryStats = statsInfo.systemSummaryStats,
-                            .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-                    }},
-            },
-            .from = 100,
-            .to = 101,
-    };
-
-    EXPECT_THAT(actualInfos.size(), 1);
-
-    EXPECT_THAT(actual, UserSwitchCollectionInfoEq(expected))
-            << "User switch collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+    EXPECT_THAT(actual, UserSwitchCollectionsEq(expected))
+            << "User switch collection infos doesn't match.\nExpected:\n"
+            << toString(expected) << "\nActual:\n"
+            << toString(actual);
 
     // Continuation of the previous user switch collection
     std::vector<UidStats> nextUidStats = {
@@ -1215,12 +1509,16 @@ TEST_F(PerformanceProfilerTest, TestOnUserSwitchCollection) {
                                                    /*cpuCyclesByTid=*/{{100, 3'500}}}}}}}};
 
     UserPackageSummaryStats nextUserPackageSummaryStats = {
-            .topNIoReads = {{1009, "mount", UserPackageStats::IoStatsView{{0, 5'000}, {0, 50}}}},
-            .topNIoWrites = {{1009, "mount", UserPackageStats::IoStatsView{{0, 3'000}, {0, 50}}}},
+            .topNIoReads = {{1009, "mount",
+                             UserPackageStats::UidIoSingleOpStats{{0, 5'000},
+                                                              {0, 50}}}},
+            .topNIoWrites = {{1009, "mount",
+                              UserPackageStats::UidIoSingleOpStats{{0, 3'000},
+                                                               {0, 50}}}},
             .topNIoBlocked = {{1009, "mount",
-                               UserPackageStats::ProcSingleStatsView{2, {{"disk I/O", 2}}}}},
+                               UserPackageStats::UidSingleStats{2, {{"disk I/O", 2}}}}},
             .topNMajorFaults = {{1009, "mount",
-                                 UserPackageStats::ProcSingleStatsView{6'000,
+                                 UserPackageStats::UidSingleStats{6'000,
                                                                        {{"disk I/O", 6'000}}}}},
             .totalIoStats = {{0, 5'000}, {0, 3'000}, {0, 50}},
             .taskCountByUid = {{1009, 1}},
@@ -1230,6 +1528,12 @@ TEST_F(PerformanceProfilerTest, TestOnUserSwitchCollection) {
             .majorFaultsPercentChange = (6'000.0 - 84'345.0) / 84'345.0 * 100.0,
     };
 
+    // TODO(b/336835345): Revisit this test and update the below logic to use setupNextCollection
+    //  instead.
+    auto nextPressureLevelDurations = injectPressureLevelTransitions(/*advanceUptimeSec=*/2);
+    advanceTime(/*durationMillis=*/2000);
+
+    const auto statsInfo = getSampleStatsInfo();
     ProcStatInfo nextProcStatInfo = statsInfo.procStatInfo;
     SystemSummaryStats nextSystemSummaryStats = statsInfo.systemSummaryStats;
 
@@ -1240,131 +1544,87 @@ TEST_F(PerformanceProfilerTest, TestOnUserSwitchCollection) {
     EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(nextUidStats));
     EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(nextProcStatInfo));
 
-    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(kTestNow + std::chrono::seconds(2), 100,
-                                                        101, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(getNowMillis(), kTestBaseUserId,
+                                                        kTestBaseUserId + 1, mMockUidStatsCollector,
                                                         mMockProcStatCollector));
 
-    auto& continuationActualInfos = mCollectorPeer->getUserSwitchCollectionInfos();
-    auto& continuationActual = continuationActualInfos[0];
+    actual = mCollectorPeer->getUserSwitchCollectionInfos();
 
-    expected = {
-            {
-                    .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-                    .records = {{.systemSummaryStats = statsInfo.systemSummaryStats,
-                                 .userPackageSummaryStats = statsInfo.userPackageSummaryStats},
-                                {.systemSummaryStats = nextSystemSummaryStats,
-                                 .userPackageSummaryStats = nextUserPackageSummaryStats}},
-            },
-            .from = 100,
-            .to = 101,
-    };
+    expected[0].records.push_back(
+            PerfStatsRecord{.collectionTimeMillis = getNowMillis(),
+                            .systemSummaryStats = nextSystemSummaryStats,
+                            .userPackageSummaryStats = nextUserPackageSummaryStats,
+                            .memoryPressureLevelDurations = nextPressureLevelDurations});
 
-    EXPECT_THAT(continuationActualInfos.size(), 1);
-
-    EXPECT_THAT(continuationActual, UserSwitchCollectionInfoEq(expected))
+    EXPECT_THAT(actual, UserSwitchCollectionsEq(expected))
             << "User switch collection info after continuation doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << toString(expected) << "\nActual:\n"
+            << toString(actual);
 
     ASSERT_NO_FATAL_FAILURE(checkDumpContents(/*wantedEmptyCollectionInstances=*/3))
             << "Boot-time, wake-up and periodic collections shouldn't be reported";
 }
 
 TEST_F(PerformanceProfilerTest, TestUserSwitchCollectionsMaxCacheSize) {
-    auto statsInfo = getSampleStats();
+    std::vector<UserSwitchCollectionInfo> expected;
+    userid_t userIdToTriggerEviction = kTestBaseUserId + kTestMaxUserSwitchEvents;
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillRepeatedly(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats())
-            .WillRepeatedly(Return(statsInfo.procStatInfo));
-
-    std::vector<UserSwitchCollectionInfo> expectedEvents;
-    for (userid_t userId = 100; userId < 100 + kTestMaxUserSwitchEvents; ++userId) {
-        expectedEvents.push_back({
-                {
-                        .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-                        .records = {{
-                                .systemSummaryStats = statsInfo.systemSummaryStats,
-                                .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-                        }},
-                },
-                .from = userId,
-                .to = userId + 1,
-        });
-    }
-
-    for (userid_t userId = 100; userId < 100 + kTestMaxUserSwitchEvents; ++userId) {
-        ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(kTestNow, userId, userId + 1,
+    for (userid_t userId = kTestBaseUserId; userId < userIdToTriggerEviction; ++userId) {
+        expected.push_back(setupUserSwitchCollection(userId, userId + 1));
+        ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(getNowMillis(), userId, userId + 1,
                                                             mMockUidStatsCollector,
                                                             mMockProcStatCollector));
     }
 
-    const auto& actual = mCollectorPeer->getUserSwitchCollectionInfos();
+    auto actual = mCollectorPeer->getUserSwitchCollectionInfos();
 
     EXPECT_THAT(actual.size(), kTestMaxUserSwitchEvents);
 
-    EXPECT_THAT(actual, UserSwitchCollectionsEq(expectedEvents))
-            << "User switch collection infos don't match.";
+    EXPECT_THAT(actual, UserSwitchCollectionsEq(expected))
+            << "User switch collection infos don't match before crossing limit.\nExpected:\n"
+            << toString(expected) << "\nActual:\n"
+            << toString(actual);
 
     // Add new user switch event with max cache size. The oldest user switch event should be dropped
     // and the new one added to the cache.
-    userid_t userId = 100 + kTestMaxUserSwitchEvents;
+    expected.push_back(
+            setupUserSwitchCollection(userIdToTriggerEviction, userIdToTriggerEviction + 1));
+    expected.erase(expected.begin());
 
-    expectedEvents.push_back({
-            {
-                    .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-                    .records = {{
-                            .systemSummaryStats = statsInfo.systemSummaryStats,
-                            .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-                    }},
-            },
-            .from = userId,
-            .to = userId + 1,
-    });
-    expectedEvents.erase(expectedEvents.begin());
-
-    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(kTestNow, userId, userId + 1,
+    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(getNowMillis(), userIdToTriggerEviction,
+                                                        userIdToTriggerEviction + 1,
                                                         mMockUidStatsCollector,
                                                         mMockProcStatCollector));
 
-    const auto& actualInfos = mCollectorPeer->getUserSwitchCollectionInfos();
+    actual = mCollectorPeer->getUserSwitchCollectionInfos();
 
-    EXPECT_THAT(actualInfos.size(), kTestMaxUserSwitchEvents);
+    EXPECT_THAT(actual.size(), kTestMaxUserSwitchEvents);
 
-    EXPECT_THAT(actualInfos, UserSwitchCollectionsEq(expectedEvents))
-            << "User switch collection infos don't match.";
+    EXPECT_THAT(actual, UserSwitchCollectionsEq(expected))
+            << "User switch collection infos don't match after crossing limit.\nExpected:\n"
+            << toString(expected) << "\nActual:\n"
+            << toString(actual);
 }
 
 TEST_F(PerformanceProfilerTest, TestOnPeriodicCollection) {
-    const auto statsInfo = getSampleStats();
-
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
+    const auto [expectedCollectionInfo, expectedResourceStats] =
+            setupFirstCollection(kTestPeriodicCollectionBufferSize);
 
     ResourceStats actualResourceStats = {};
-
-    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(kTestNow, SystemState::NORMAL_MODE,
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
                                                       mMockUidStatsCollector,
                                                       mMockProcStatCollector,
                                                       &actualResourceStats));
 
-    const auto actual = mCollectorPeer->getPeriodicCollectionInfo();
+    const auto actualCollectionInfo = mCollectorPeer->getPeriodicCollectionInfo();
 
-    const CollectionInfo expected{
-            .maxCacheSize = static_cast<size_t>(sysprop::periodicCollectionBufferSize().value_or(
-                    kDefaultPeriodicCollectionBufferSize)),
-            .records = {{
-                    .systemSummaryStats = statsInfo.systemSummaryStats,
-                    .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-            }},
-    };
-
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Periodic collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
-    ASSERT_EQ(actualResourceStats, statsInfo.resourceStats)
-            << "Expected: " << statsInfo.resourceStats.toString()
+    ASSERT_EQ(actualResourceStats, expectedResourceStats)
+            << "Expected: " << expectedResourceStats.toString()
             << "\nActual: " << actualResourceStats.toString();
 
     ASSERT_NO_FATAL_FAILURE(checkDumpContents(/*wantedEmptyCollectionInstances=*/3))
@@ -1373,33 +1633,22 @@ TEST_F(PerformanceProfilerTest, TestOnPeriodicCollection) {
 
 TEST_F(PerformanceProfilerTest, TestOnPeriodicCollectionWithSendingUsageStatsDisabled) {
     mCollectorPeer->setSendResourceUsageStatsEnabled(false);
-    const auto statsInfo = getSampleStats();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
+    auto [expectedCollectionInfo, _] = setupFirstCollection(kTestPeriodicCollectionBufferSize);
 
     ResourceStats actualResourceStats = {};
-    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(kTestNow, SystemState::NORMAL_MODE,
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
                                                       mMockUidStatsCollector,
                                                       mMockProcStatCollector,
                                                       &actualResourceStats));
 
-    const auto actual = mCollectorPeer->getPeriodicCollectionInfo();
-
-    const CollectionInfo expected{
-            .maxCacheSize = static_cast<size_t>(sysprop::periodicCollectionBufferSize().value_or(
-                    kDefaultPeriodicCollectionBufferSize)),
-            .records = {{
-                    .systemSummaryStats = statsInfo.systemSummaryStats,
-                    .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-            }},
-    };
+    const auto actualCollectionInfo = mCollectorPeer->getPeriodicCollectionInfo();
     const ResourceStats expectedResourceStats = {};
 
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Periodic collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
     ASSERT_EQ(actualResourceStats, expectedResourceStats)
             << "Expected: " << expectedResourceStats.toString()
@@ -1410,32 +1659,19 @@ TEST_F(PerformanceProfilerTest, TestOnPeriodicCollectionWithSendingUsageStatsDis
 }
 
 TEST_F(PerformanceProfilerTest, TestOnCustomCollectionWithoutPackageFilter) {
-    const auto statsInfo = getSampleStats();
+    auto [expectedCollectionInfo, expectedResourceStats] = setupFirstCollection();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
-
-    ResourceStats expectedResourceStats = statsInfo.resourceStats;
     ResourceStats actualResourceStats = {};
-
-    ASSERT_RESULT_OK(mCollector->onCustomCollection(kTestNow, SystemState::NORMAL_MODE, {},
+    ASSERT_RESULT_OK(mCollector->onCustomCollection(getNowMillis(), SystemState::NORMAL_MODE, {},
                                                     mMockUidStatsCollector, mMockProcStatCollector,
                                                     &actualResourceStats));
 
-    const auto actual = mCollectorPeer->getCustomCollectionInfo();
+    const auto actualCollectionInfo = mCollectorPeer->getCustomCollectionInfo();
 
-    CollectionInfo expected{
-            .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-            .records = {{
-                    .systemSummaryStats = statsInfo.systemSummaryStats,
-                    .userPackageSummaryStats = statsInfo.userPackageSummaryStats,
-            }},
-    };
-
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Custom collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
     ASSERT_EQ(actualResourceStats, expectedResourceStats)
             << "Expected: " << expectedResourceStats.toString()
@@ -1449,9 +1685,9 @@ TEST_F(PerformanceProfilerTest, TestOnCustomCollectionWithoutPackageFilter) {
     // Should clear the cache.
     ASSERT_RESULT_OK(mCollector->onCustomCollectionDump(-1));
 
-    expected.records.clear();
+    expectedCollectionInfo.records.clear();
     const CollectionInfo& emptyCollectionInfo = mCollectorPeer->getCustomCollectionInfo();
-    EXPECT_THAT(emptyCollectionInfo, CollectionInfoEq(expected))
+    EXPECT_THAT(emptyCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Custom collection should be cleared.";
 }
 
@@ -1459,70 +1695,82 @@ TEST_F(PerformanceProfilerTest, TestOnCustomCollectionWithPackageFilter) {
     // Filter by package name should ignore this limit with package filter.
     mCollectorPeer->setTopNStatsPerCategory(1);
 
-    const auto statsInfo = getSampleStats();
+    auto [expectedCollectionInfo, expectedResourceStats] = setupFirstCollection();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
-
-    ResourceStats expectedResourceStats = statsInfo.resourceStats;
     ResourceStats actualResourceStats = {};
-
-    ASSERT_RESULT_OK(mCollector->onCustomCollection(kTestNow, SystemState::NORMAL_MODE,
+    ASSERT_RESULT_OK(mCollector->onCustomCollection(getNowMillis(), SystemState::NORMAL_MODE,
                                                     {"mount", "com.google.android.car.kitchensink"},
                                                     mMockUidStatsCollector, mMockProcStatCollector,
                                                     &actualResourceStats));
-
-    const auto actual = mCollectorPeer->getCustomCollectionInfo();
+    const auto actualCollectionInfo = mCollectorPeer->getCustomCollectionInfo();
 
     UserPackageSummaryStats userPackageSummaryStats{
             .topNCpuTimes = {{1009, "mount",
-                              UserPackageStats::ProcCpuStatsView{50,
+                              UserPackageStats::UidCpuStats{50,
                                                                  4'000,
                                                                  {{100, "disk I/O", 50, 4'000}}}},
                              {1002001, "com.google.android.car.kitchensink",
-                              UserPackageStats::ProcCpuStatsView{60,
+                              UserPackageStats::UidCpuStats{60,
                                                                  10'000,
                                                                  {{1001, "CTS", 30, 5'000},
                                                                   {1000, "KitchenSinkApp", 25,
                                                                    4'000}}}}},
-            .topNIoReads = {{1009, "mount", UserPackageStats::IoStatsView{{0, 14'000}, {0, 100}}},
+            .topNIoReads = {{1009, "mount",
+                             UserPackageStats::UidIoSingleOpStats{{0, 14'000},
+                                                              {0, 100}}},
                             {1002001, "com.google.android.car.kitchensink",
-                             UserPackageStats::IoStatsView{{0, 3'400}, {0, 200}}}},
-            .topNIoWrites = {{1009, "mount", UserPackageStats::IoStatsView{{0, 16'000}, {0, 100}}},
+                             UserPackageStats::UidIoSingleOpStats{{0, 3'400}, {0, 200}}}},
+            .topNIoWrites = {{1009, "mount",
+                              UserPackageStats::UidIoSingleOpStats{{0, 16'000},
+                                                               {0, 100}}},
                              {1002001, "com.google.android.car.kitchensink",
-                              UserPackageStats::IoStatsView{{0, 6'700}, {0, 200}}}},
+                              UserPackageStats::UidIoSingleOpStats{{0, 6'700}, {0, 200}}}},
             .topNIoBlocked =
-                    {{1009, "mount", UserPackageStats::ProcSingleStatsView{1, {{"disk I/O", 1}}}},
+                    {{1009, "mount", UserPackageStats::UidSingleStats{1, {{"disk I/O", 1}}}},
                      {1002001, "com.google.android.car.kitchensink",
-                      UserPackageStats::ProcSingleStatsView{3,
+                      UserPackageStats::UidSingleStats{3,
                                                             {{"CTS", 2}, {"KitchenSinkApp", 1}}}}},
             .topNMajorFaults = {{1009, "mount",
-                                 UserPackageStats::ProcSingleStatsView{11'000,
+                                 UserPackageStats::UidSingleStats{11'000,
                                                                        {{"disk I/O", 11'000}}}},
                                 {1002001, "com.google.android.car.kitchensink",
-                                 UserPackageStats::ProcSingleStatsView{22'445,
+                                 UserPackageStats::UidSingleStats{22'445,
                                                                        {{"KitchenSinkApp", 12'345},
                                                                         {"CTS", 10'100}}}}},
+            .topNMemStats =
+                    {{1009, "mount",
+                      UserPackageStats::UidMemoryStats{{/*rssKb=*/2010, /*pssKb=*/1635,
+                                                        /*ussKb=*/1286, /*swapPssKb=*/600},
+                                                       kTestIsSmapsRollupSupported,
+                                                       {{"disk I/O",
+                                                         {/*rssKb=*/2010, /*pssKb=*/1635,
+                                                          /*ussKb=*/1286, /*swapPssKb=*/600}}}}},
+                     {1002001, "com.google.android.car.kitchensink",
+                      UserPackageStats::UidMemoryStats{{/*rssKb=*/2000, /*pssKb=*/1645,
+                                                        /*ussKb=*/1286, /*swapPssKb=*/600},
+                                                       kTestIsSmapsRollupSupported,
+                                                       {{"KitchenSinkApp",
+                                                         {/*rssKb=*/1000, /*pssKb=*/875,
+                                                          /*ussKb=*/630, /*swapPssKb=*/400}},
+                                                        {"CTS",
+                                                         {/*rssKb=*/1000, /*pssKb=*/770,
+                                                          /*ussKb=*/656, /*swapPssKb=*/200}}}}}},
             .totalIoStats = {{1000, 21'600}, {300, 28'300}, {600, 600}},
             .taskCountByUid = {{1009, 1}, {1002001, 5}},
             .totalCpuTimeMillis = 48'376,
             .totalCpuCycles = 64'000,
             .totalMajorFaults = 84'345,
+            .totalRssKb = 5010,
+            .totalPssKb = 4145,
             .majorFaultsPercentChange = 0.0,
     };
+    applyFeatureFilter(&userPackageSummaryStats);
+    expectedCollectionInfo.records[0].userPackageSummaryStats = userPackageSummaryStats;
 
-    CollectionInfo expected{
-            .maxCacheSize = std::numeric_limits<std::size_t>::max(),
-            .records = {{
-                    .systemSummaryStats = statsInfo.systemSummaryStats,
-                    .userPackageSummaryStats = userPackageSummaryStats,
-            }},
-    };
-
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Custom collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
     ASSERT_EQ(actualResourceStats, expectedResourceStats)
             << "Expected: " << expectedResourceStats.toString()
@@ -1536,9 +1784,9 @@ TEST_F(PerformanceProfilerTest, TestOnCustomCollectionWithPackageFilter) {
     // Should clear the cache.
     ASSERT_RESULT_OK(mCollector->onCustomCollectionDump(-1));
 
-    expected.records.clear();
+    expectedCollectionInfo.records.clear();
     const CollectionInfo& emptyCollectionInfo = mCollectorPeer->getCustomCollectionInfo();
-    EXPECT_THAT(emptyCollectionInfo, CollectionInfoEq(expected))
+    EXPECT_THAT(emptyCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Custom collection should be cleared.";
 }
 
@@ -1546,64 +1794,69 @@ TEST_F(PerformanceProfilerTest, TestOnPeriodicCollectionWithTrimmingStatsAfterTo
     mCollectorPeer->setTopNStatsPerCategory(1);
     mCollectorPeer->setTopNStatsPerSubcategory(1);
 
-    auto statsInfo = getSampleStats();
+    auto [expectedCollectionInfo, expectedResourceStats] =
+            setupFirstCollection(kTestPeriodicCollectionBufferSize);
 
     // Top N stats per category/sub-category is set to 1, so remove entries in the
     // expected value to match this.
-    ASSERT_FALSE(statsInfo.resourceStats.resourceUsageStats->uidResourceUsageStats.empty());
+    ASSERT_FALSE(expectedResourceStats.resourceUsageStats->uidResourceUsageStats.empty());
     UidResourceUsageStats& kitchenSinkStats =
-            statsInfo.resourceStats.resourceUsageStats->uidResourceUsageStats.at(1);
+            expectedResourceStats.resourceUsageStats->uidResourceUsageStats.at(1);
     ASSERT_FALSE(kitchenSinkStats.processCpuUsageStats.empty());
     kitchenSinkStats.processCpuUsageStats.pop_back();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats()).WillOnce(Return(statsInfo.procStatInfo));
-
     ResourceStats actualResourceStats = {};
-    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(kTestNow, SystemState::NORMAL_MODE,
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
                                                       mMockUidStatsCollector,
                                                       mMockProcStatCollector,
                                                       &actualResourceStats));
 
-    const auto actual = mCollectorPeer->getPeriodicCollectionInfo();
+    const auto actualCollectionInfo = mCollectorPeer->getPeriodicCollectionInfo();
 
     UserPackageSummaryStats userPackageSummaryStats{
             .topNCpuTimes = {{1012345, "1012345",
-                              UserPackageStats::ProcCpuStatsView{100,
+                              UserPackageStats::UidCpuStats{100,
                                                                  50'000,
                                                                  {{2345, "MapsApp", 100,
                                                                    50'000}}}}},
-            .topNIoReads = {{1009, "mount", UserPackageStats::IoStatsView{{0, 14'000}, {0, 100}}}},
-            .topNIoWrites = {{1009, "mount", UserPackageStats::IoStatsView{{0, 16'000}, {0, 100}}}},
+            .topNIoReads = {{1009, "mount",
+                             UserPackageStats::UidIoSingleOpStats{{0, 14'000},
+                                                              {0, 100}}}},
+            .topNIoWrites = {{1009, "mount",
+                              UserPackageStats::UidIoSingleOpStats{{0, 16'000},
+                                                               {0, 100}}}},
             .topNIoBlocked = {{1002001, "com.google.android.car.kitchensink",
-                               UserPackageStats::ProcSingleStatsView{3, {{"CTS", 2}}}}},
+                               UserPackageStats::UidSingleStats{3, {{"CTS", 2}}}}},
             .topNMajorFaults = {{1012345, "1012345",
-                                 UserPackageStats::ProcSingleStatsView{50'900,
+                                 UserPackageStats::UidSingleStats{50'900,
                                                                        {{"MapsApp", 50'900}}}}},
+            .topNMemStats = {{1002001, "com.google.android.car.kitchensink",
+                              UserPackageStats::UidMemoryStats{{/*rssKb=*/2000, /*pssKb=*/1645,
+                                                                /*ussKb=*/1286, /*swapPssKb=*/600},
+                                                               kTestIsSmapsRollupSupported,
+                                                               {{"KitchenSinkApp",
+                                                                 {/*rssKb=*/1000, /*pssKb=*/875,
+                                                                  /*ussKb=*/630,
+                                                                  /*swapPssKb=*/400}}}}}},
             .totalIoStats = {{1000, 21'600}, {300, 28'300}, {600, 600}},
             .taskCountByUid = {{1009, 1}, {1002001, 5}, {1012345, 4}},
             .totalCpuTimeMillis = 48'376,
             .totalCpuCycles = 64'000,
             .totalMajorFaults = 84'345,
+            .totalRssKb = 5010,
+            .totalPssKb = 4145,
             .majorFaultsPercentChange = 0.0,
     };
+    applyFeatureFilter(&userPackageSummaryStats);
+    expectedCollectionInfo.records[0].userPackageSummaryStats = userPackageSummaryStats;
 
-    const CollectionInfo expected{
-            .maxCacheSize = static_cast<size_t>(sysprop::periodicCollectionBufferSize().value_or(
-                    kDefaultPeriodicCollectionBufferSize)),
-            .records = {{
-                    .systemSummaryStats = statsInfo.systemSummaryStats,
-                    .userPackageSummaryStats = userPackageSummaryStats,
-            }},
-    };
-
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Periodic collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
-    ASSERT_EQ(actualResourceStats, statsInfo.resourceStats)
-            << "Expected: " << statsInfo.resourceStats.toString()
+    ASSERT_EQ(actualResourceStats, expectedResourceStats)
+            << "Expected: " << expectedResourceStats.toString()
             << "\nActual: " << actualResourceStats.toString();
 
     ASSERT_NO_FATAL_FAILURE(checkDumpContents(/*wantedEmptyCollectionInstances=*/3))
@@ -1611,151 +1864,139 @@ TEST_F(PerformanceProfilerTest, TestOnPeriodicCollectionWithTrimmingStatsAfterTo
 }
 
 TEST_F(PerformanceProfilerTest, TestConsecutiveOnPeriodicCollection) {
-    const auto firstStatsInfo = getSampleStats();
-
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(firstStatsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats())
-            .WillOnce(Return(firstStatsInfo.procStatInfo));
+    auto [expectedCollectionInfo, expectedResourceStats] =
+            setupFirstCollection(kTestPeriodicCollectionBufferSize);
 
     ResourceStats actualResourceStats = {};
-    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(kTestNow, SystemState::NORMAL_MODE,
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
                                                       mMockUidStatsCollector,
                                                       mMockProcStatCollector,
                                                       &actualResourceStats));
 
-    auto secondStatsInfo = getSampleStats(/*multiplier=*/2);
-    ResourceStats expectedResourceStats = secondStatsInfo.resourceStats;
+    for (size_t i = 1; i < kTestPeriodicCollectionBufferSize; i++) {
+        setupNextCollection(&expectedCollectionInfo, &expectedResourceStats, /*multiplier=*/2);
 
-    secondStatsInfo.userPackageSummaryStats.majorFaultsPercentChange =
-            (static_cast<double>(secondStatsInfo.userPackageSummaryStats.totalMajorFaults -
-                                 firstStatsInfo.userPackageSummaryStats.totalMajorFaults) /
-             static_cast<double>(firstStatsInfo.userPackageSummaryStats.totalMajorFaults)) *
-            100.0;
+        ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
+                                                          mMockUidStatsCollector,
+                                                          mMockProcStatCollector,
+                                                          &actualResourceStats));
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillOnce(Return(secondStatsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats())
-            .WillOnce(Return(secondStatsInfo.procStatInfo));
+        ASSERT_EQ(actualResourceStats, expectedResourceStats)
+                << "Resource stats don't match for collection " << i
+                << "\nExpected: " << expectedResourceStats.toString()
+                << "\nActual: " << actualResourceStats.toString();
+    }
 
-    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(kTestNow, SystemState::NORMAL_MODE,
-                                                      mMockUidStatsCollector,
-                                                      mMockProcStatCollector,
-                                                      &actualResourceStats));
+    auto actualCollectionInfo = mCollectorPeer->getPeriodicCollectionInfo();
 
-    const auto actual = mCollectorPeer->getPeriodicCollectionInfo();
-
-    const CollectionInfo expected{
-            .maxCacheSize = static_cast<size_t>(sysprop::periodicCollectionBufferSize().value_or(
-                    kDefaultPeriodicCollectionBufferSize)),
-            .records = {{.systemSummaryStats = firstStatsInfo.systemSummaryStats,
-                         .userPackageSummaryStats = firstStatsInfo.userPackageSummaryStats},
-                        {.systemSummaryStats = secondStatsInfo.systemSummaryStats,
-                         .userPackageSummaryStats = secondStatsInfo.userPackageSummaryStats}},
-    };
-
-    EXPECT_THAT(actual, CollectionInfoEq(expected))
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
             << "Periodic collection info doesn't match.\nExpected:\n"
-            << expected.toString() << "\nActual:\n"
-            << actual.toString();
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
-    ASSERT_EQ(actualResourceStats, expectedResourceStats)
-            << "Expected: " << expectedResourceStats.toString()
-            << "\nActual: " << actualResourceStats.toString();
+    // Collection beyond kTestPeriodicCollectionBufferSize should evict the first collection data.
+    setupNextCollection(&expectedCollectionInfo, &expectedResourceStats, /*multiplier=*/2);
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
+                                                      mMockUidStatsCollector,
+                                                      mMockProcStatCollector,
+                                                      &actualResourceStats));
+
+    expectedCollectionInfo.records.erase(expectedCollectionInfo.records.begin());
+    actualCollectionInfo = mCollectorPeer->getPeriodicCollectionInfo();
+
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
+            << "Periodic collection info doesn't match after exceeding cache limit.\nExpected:\n"
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
 
     ASSERT_NO_FATAL_FAILURE(checkDumpContents(/*wantedEmptyCollectionInstances=*/3))
             << "Boot-time, wake-up and user-switch collection shouldn't be reported";
 }
 
-TEST_F(PerformanceProfilerTest, TestBoottimeCollectionCacheEviction) {
-    const auto statsInfo = getSampleStats();
+TEST_F(PerformanceProfilerTest, TestBoottimeCollectionCacheEvictionAfterTimeout) {
+    setupMultipleCollections();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillRepeatedly(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats())
-            .WillRepeatedly(Return(statsInfo.procStatInfo));
+    ResourceStats actualResourceStats = {};
+    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(getNowMillis(), mMockUidStatsCollector,
+                                                      mMockProcStatCollector,
+                                                      &actualResourceStats));
 
-    ResourceStats resourceStats = {};
-    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(kTestNow, mMockUidStatsCollector,
-                                                      mMockProcStatCollector, &resourceStats));
+    auto actualCollectionInfo = mCollectorPeer->getBoottimeCollectionInfo();
 
-    auto actual = mCollectorPeer->getBoottimeCollectionInfo();
+    EXPECT_THAT(actualCollectionInfo.records.size(), 1)
+            << "Boot-time collection info missing after collection";
 
-    EXPECT_THAT(actual.records.size(), 1) << "Boot-time collection info doesn't have size 1";
+    advanceTime(/*durationMillis=*/kTestSystemEventDataCacheDurationSec.count() * 1000);
 
     // Call |onPeriodicCollection| 1 hour past the last boot-time collection event.
-    ASSERT_RESULT_OK(
-            mCollector->onPeriodicCollection(kTestNow + kTestSystemEventDataCacheDurationSec,
-                                             SystemState::NORMAL_MODE, mMockUidStatsCollector,
-                                             mMockProcStatCollector, &resourceStats));
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
+                                                      mMockUidStatsCollector,
+                                                      mMockProcStatCollector,
+                                                      &actualResourceStats));
 
-    actual = mCollectorPeer->getBoottimeCollectionInfo();
+    actualCollectionInfo = mCollectorPeer->getBoottimeCollectionInfo();
 
-    EXPECT_THAT(actual.records.empty(), true) << "Boot-time collection info records are not empty";
+    EXPECT_THAT(actualCollectionInfo.records.empty(), true)
+            << "Boot-time collection info records are not empty after cache eviction period";
 }
 
-TEST_F(PerformanceProfilerTest, TestWakeUpCollectionCacheEviction) {
-    const auto statsInfo = getSampleStats();
+TEST_F(PerformanceProfilerTest, TestWakeUpCollectionCacheEvictionAfterTimeout) {
+    setupMultipleCollections();
 
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillRepeatedly(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats())
-            .WillRepeatedly(Return(statsInfo.procStatInfo));
-
-    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(kTestNow, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(getNowMillis(), mMockUidStatsCollector,
                                                     mMockProcStatCollector));
 
-    auto actual = mCollectorPeer->getWakeUpCollectionInfo();
+    auto actualCollectionInfo = mCollectorPeer->getWakeUpCollectionInfo();
 
-    EXPECT_THAT(actual.records.size(), 1) << "Wake-up collection info doesn't have size 1";
+    EXPECT_THAT(actualCollectionInfo.records.size(), 1)
+            << "Wake-up collection info missing after collection";
 
-    ResourceStats resourceStats = {};
+    advanceTime(/*durationMillis=*/kTestSystemEventDataCacheDurationSec.count() * 1000);
+    ResourceStats actualResourceStats = {};
 
     // Call |onPeriodicCollection| 1 hour past the last wake-up collection event.
-    ASSERT_RESULT_OK(
-            mCollector->onPeriodicCollection(kTestNow + kTestSystemEventDataCacheDurationSec,
-                                             SystemState::NORMAL_MODE, mMockUidStatsCollector,
-                                             mMockProcStatCollector, &resourceStats));
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
+                                                      mMockUidStatsCollector,
+                                                      mMockProcStatCollector,
+                                                      &actualResourceStats));
 
-    actual = mCollectorPeer->getWakeUpCollectionInfo();
+    actualCollectionInfo = mCollectorPeer->getWakeUpCollectionInfo();
 
-    EXPECT_THAT(actual.records.empty(), true) << "Wake-up collection info records are not empty";
+    EXPECT_THAT(actualCollectionInfo.records.empty(), true)
+            << "Wake-up collection info records are not empty after cache eviction period";
 }
 
-TEST_F(PerformanceProfilerTest, TestUserSwitchCollectionCacheEviction) {
-    auto statsInfo = getSampleStats();
-
-    EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillRepeatedly(Return(statsInfo.uidStats));
-    EXPECT_CALL(*mMockProcStatCollector, deltaStats())
-            .WillRepeatedly(Return(statsInfo.procStatInfo));
-
-    auto updatedNow = kTestNow;
-
-    for (userid_t userId = 100; userId < 100 + kTestMaxUserSwitchEvents; ++userId) {
-        ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(updatedNow, userId, userId + 1,
+TEST_F(PerformanceProfilerTest, TestUserSwitchCollectionCacheEvictionAfterTimeout) {
+    userid_t userIdToTriggerEviction = kTestBaseUserId + kTestMaxUserSwitchEvents;
+    for (userid_t userId = kTestBaseUserId; userId < userIdToTriggerEviction; ++userId) {
+        ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(getNowMillis(), userId, userId + 1,
                                                             mMockUidStatsCollector,
                                                             mMockProcStatCollector));
-        updatedNow += kTestSystemEventDataCacheDurationSec;
+        advanceTime(/*advanceUptimeMillis=*/kTestSystemEventDataCacheDurationSec.count() * 1000);
     }
 
     const auto& actual = mCollectorPeer->getUserSwitchCollectionInfos();
 
     EXPECT_THAT(actual.size(), kTestMaxUserSwitchEvents);
 
-    updatedNow = kTestNow + kTestSystemEventDataCacheDurationSec;
     ResourceStats resourceStats = {};
     for (int i = 1; i <= kTestMaxUserSwitchEvents; ++i) {
-        ASSERT_RESULT_OK(mCollector->onPeriodicCollection(updatedNow, SystemState::NORMAL_MODE,
+        ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
                                                           mMockUidStatsCollector,
                                                           mMockProcStatCollector, &resourceStats));
 
         const auto& actual = mCollectorPeer->getUserSwitchCollectionInfos();
 
         EXPECT_THAT(actual.size(), kTestMaxUserSwitchEvents - i)
-                << "User-switch collection size is incorrect";
+                << "Expired user switch collection infos are still retained after " << i
+                << "iterations";
 
-        updatedNow += kTestSystemEventDataCacheDurationSec;
+        advanceTime(/*durationMillis=*/kTestSystemEventDataCacheDurationSec.count() * 1000);
     }
 }
 
 TEST_F(PerformanceProfilerTest, TestOnDumpProto) {
-    auto statsInfo = getSampleStats();
+    auto statsInfo = getSampleStatsInfo();
 
     EXPECT_CALL(*mMockUidStatsCollector, deltaStats()).WillRepeatedly(Return(statsInfo.uidStats));
     EXPECT_CALL(*mMockProcStatCollector, deltaStats())
@@ -1769,26 +2010,25 @@ TEST_F(PerformanceProfilerTest, TestOnDumpProto) {
              .mCustomIntervalMillis = std::chrono::milliseconds(10000)};
 
     ResourceStats actualResourceStats = {};
-    int userId = 100;
 
-    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(kTestNow, SystemState::NORMAL_MODE,
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
                                                       mMockUidStatsCollector,
                                                       mMockProcStatCollector,
                                                       &actualResourceStats));
 
-    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(kTestNow, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onBoottimeCollection(getNowMillis(), mMockUidStatsCollector,
                                                       mMockProcStatCollector,
                                                       &actualResourceStats));
 
-    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(kTestNow, mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onWakeUpCollection(getNowMillis(), mMockUidStatsCollector,
                                                     mMockProcStatCollector));
 
-    ASSERT_RESULT_OK(mCollector->onCustomCollection(kTestNow, SystemState::NORMAL_MODE, {},
+    ASSERT_RESULT_OK(mCollector->onCustomCollection(getNowMillis(), SystemState::NORMAL_MODE, {},
                                                     mMockUidStatsCollector, mMockProcStatCollector,
                                                     &actualResourceStats));
 
-    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(kTestNow, userId, userId + 1,
-                                                        mMockUidStatsCollector,
+    ASSERT_RESULT_OK(mCollector->onUserSwitchCollection(getNowMillis(), kTestBaseUserId,
+                                                        kTestBaseUserId + 1, mMockUidStatsCollector,
                                                         mMockProcStatCollector));
 
     util::ProtoOutputStream proto;
@@ -1803,18 +2043,18 @@ TEST_F(PerformanceProfilerTest, TestOnDumpProto) {
     for (auto& record : bootTimeStats.records()) {
         EXPECT_THAT(record,
                     StatsRecordProtoEq(statsInfo.userPackageSummaryStats,
-                                       statsInfo.systemSummaryStats, kTestNow));
+                                       statsInfo.systemSummaryStats, getNowMillis()));
     }
 
     for (const auto& userSwitchStat : performanceStats.user_switch_stats()) {
-        EXPECT_EQ(userSwitchStat.to_user_id(), userId + 1);
-        EXPECT_EQ(userSwitchStat.from_user_id(), userId);
+        EXPECT_EQ(userSwitchStat.to_user_id(), kTestBaseUserId + 1);
+        EXPECT_EQ(userSwitchStat.from_user_id(), kTestBaseUserId);
         auto userSwitchCollection = userSwitchStat.user_switch_collection();
         EXPECT_EQ(userSwitchCollection.collection_interval_millis(), 100);
         for (const auto& record : userSwitchCollection.records()) {
             EXPECT_THAT(record,
                         StatsRecordProtoEq(statsInfo.userPackageSummaryStats,
-                                           statsInfo.systemSummaryStats, kTestNow));
+                                           statsInfo.systemSummaryStats, getNowMillis()));
         }
     }
 
@@ -1823,7 +2063,7 @@ TEST_F(PerformanceProfilerTest, TestOnDumpProto) {
     for (auto& record : wakeUpStats.records()) {
         EXPECT_THAT(record,
                     StatsRecordProtoEq(statsInfo.userPackageSummaryStats,
-                                       statsInfo.systemSummaryStats, kTestNow));
+                                       statsInfo.systemSummaryStats, getNowMillis()));
     }
 
     auto lastNMinutesStats = performanceStats.last_n_minutes_stats();
@@ -1831,7 +2071,7 @@ TEST_F(PerformanceProfilerTest, TestOnDumpProto) {
     for (auto& record : lastNMinutesStats.records()) {
         EXPECT_THAT(record,
                     StatsRecordProtoEq(statsInfo.userPackageSummaryStats,
-                                       statsInfo.systemSummaryStats, kTestNow));
+                                       statsInfo.systemSummaryStats, getNowMillis()));
     }
 
     auto customCollectionStats = performanceStats.custom_collection_stats();
@@ -1839,8 +2079,35 @@ TEST_F(PerformanceProfilerTest, TestOnDumpProto) {
     for (auto& record : customCollectionStats.records()) {
         EXPECT_THAT(record,
                     StatsRecordProtoEq(statsInfo.userPackageSummaryStats,
-                                       statsInfo.systemSummaryStats, kTestNow));
+                                       statsInfo.systemSummaryStats, getNowMillis()));
     }
+}
+
+TEST_F(PerformanceProfilerTest, TestOnPeriodicCollectionWithSmapsRollupSupportInverted) {
+    mCollectorPeer->setSmapsRollupSupportedEnabled(!kTestIsSmapsRollupSupported);
+    auto [expectedCollectionInfo, expectedResourceStats] =
+            setupFirstCollection(kTestPeriodicCollectionBufferSize, !kTestIsSmapsRollupSupported);
+
+    ResourceStats actualResourceStats = {};
+    ASSERT_RESULT_OK(mCollector->onPeriodicCollection(getNowMillis(), SystemState::NORMAL_MODE,
+                                                      mMockUidStatsCollector,
+                                                      mMockProcStatCollector,
+                                                      &actualResourceStats));
+
+    const auto actualCollectionInfo = mCollectorPeer->getPeriodicCollectionInfo();
+
+    EXPECT_THAT(actualCollectionInfo, CollectionInfoEq(expectedCollectionInfo))
+            << "When smaps rollup is not supported, periodic collection info doesn't match."
+            << "\nExpected:\n"
+            << expectedCollectionInfo.toString() << "\nActual:\n"
+            << actualCollectionInfo.toString();
+
+    ASSERT_EQ(actualResourceStats, expectedResourceStats)
+            << "Expected: " << expectedResourceStats.toString()
+            << "\nActual: " << actualResourceStats.toString();
+
+    ASSERT_NO_FATAL_FAILURE(checkDumpContents(/*wantedEmptyCollectionInstances=*/3))
+            << "Boot-time, wake-up and user-switch collections shouldn't be reported";
 }
 
 }  // namespace watchdog

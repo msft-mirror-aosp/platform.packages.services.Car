@@ -185,6 +185,9 @@ ScopedAStatus EvsV4lCamera::startVideoStream(const std::shared_ptr<IEvsCameraStr
                 case V4L2_PIX_FMT_YUYV:
                     mFillBufferFromVideo = fillRGBAFromYUYV;
                     break;
+                case V4L2_PIX_FMT_BGRX32:
+                    mFillBufferFromVideo = fillRGBAFromBGRA;
+                    break;
                 default:
                     LOG(ERROR) << "Unhandled camera source format " << (char*)&videoSrcFormat;
             }
@@ -382,8 +385,7 @@ ScopedAStatus EvsV4lCamera::importExternalBuffers(const std::vector<BufferDesc>&
 
     // If we've been displaced by another owner of the camera, then we can't do anything else
     if (!mVideo.isOpen()) {
-        LOG(WARNING) << "Ignoring a request add external buffers "
-                     << "when camera has been lost.";
+        LOG(WARNING) << "Ignoring a request add external buffers " << "when camera has been lost.";
         *_aidl_return = 0;
         return ScopedAStatus::fromServiceSpecificError(static_cast<int>(EvsResult::OWNERSHIP_LOST));
     }

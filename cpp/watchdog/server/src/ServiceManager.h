@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef CPP_WATCHDOG_SERVER_SRC_SERVICEMANAGER_H_
-#define CPP_WATCHDOG_SERVER_SRC_SERVICEMANAGER_H_
+#pragma once
 
 #include "IoOveruseMonitor.h"
+#include "PressureMonitor.h"
 #include "WatchdogBinderMediator.h"
 #include "WatchdogPerfService.h"
 #include "WatchdogProcessService.h"
@@ -40,21 +40,24 @@ public:
           mWatchdogPerfService(nullptr),
           mWatchdogBinderMediator(nullptr),
           mWatchdogServiceHelper(nullptr),
-          mIoOveruseMonitor(nullptr) {}
+          mIoOveruseMonitor(nullptr),
+          mPressureMonitor(nullptr) {}
 
-    static android::sp<ServiceManager> getInstance() {
+    // Returns the singleton ServiceManager instance.
+    static std::shared_ptr<ServiceManager> getInstance() {
         if (sServiceManager == nullptr) {
-            sServiceManager = android::sp<ServiceManager>::make();
+            sServiceManager = std::make_shared<ServiceManager>();
         }
         return sServiceManager;
     }
 
+    // Terminates all services and resets the singleton instance.
     static void terminate() {
         if (sServiceManager == nullptr) {
             return;
         }
         sServiceManager->terminateServices();
-        sServiceManager.clear();
+        sServiceManager.reset();
     }
 
     // Starts early-init services.
@@ -76,10 +79,11 @@ public:
     }
 
 private:
-    inline static android::sp<ServiceManager> sServiceManager = nullptr;
+    inline static std::shared_ptr<ServiceManager> sServiceManager = nullptr;
 
     void terminateServices();
     android::base::Result<void> startWatchdogProcessService(const android::sp<Looper>& mainLooper);
+    android::base::Result<void> startPressureMonitor();
     android::base::Result<void> startWatchdogPerfService(
             const sp<WatchdogServiceHelperInterface>& watchdogServiceHelper);
 
@@ -88,10 +92,9 @@ private:
     std::shared_ptr<WatchdogBinderMediatorInterface> mWatchdogBinderMediator;
     android::sp<WatchdogServiceHelperInterface> mWatchdogServiceHelper;
     android::sp<IoOveruseMonitorInterface> mIoOveruseMonitor;
+    android::sp<PressureMonitorInterface> mPressureMonitor;
 };
 
 }  // namespace watchdog
 }  // namespace automotive
 }  // namespace android
-
-#endif  // CPP_WATCHDOG_SERVER_SRC_SERVICEMANAGER_H_

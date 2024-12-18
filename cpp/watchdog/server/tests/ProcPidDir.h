@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef CPP_WATCHDOG_SERVER_TESTS_PROCPIDDIR_H_
-#define CPP_WATCHDOG_SERVER_TESTS_PROCPIDDIR_H_
+#pragma once
 
 #include <android-base/result.h>
 #include <stdint.h>
@@ -34,6 +33,8 @@ android::base::Result<void> populateProcPidDir(
         const std::unordered_map<pid_t, std::vector<pid_t>>& pidToTids,
         const std::unordered_map<pid_t, std::string>& processStat,
         const std::unordered_map<pid_t, std::string>& processStatus,
+        const std::unordered_map<pid_t, std::string>& processSmapsRollup,
+        const std::unordered_map<pid_t, std::string>& processStatm,
         const std::unordered_map<pid_t, std::string>& threadStat,
         const std::unordered_map<pid_t, std::string>& threadTimeInState);
 
@@ -41,5 +42,3 @@ android::base::Result<void> populateProcPidDir(
 }  // namespace watchdog
 }  // namespace automotive
 }  // namespace android
-
-#endif  //  CPP_WATCHDOG_SERVER_TESTS_PROCPIDDIR_H_

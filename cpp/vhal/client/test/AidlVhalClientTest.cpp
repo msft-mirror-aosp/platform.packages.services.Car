@@ -55,6 +55,7 @@ using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfig;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfigs;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropError;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropErrors;
+using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyAccess;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyStatus;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropValue;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropValues;
@@ -248,24 +249,44 @@ protected:
                                     [[maybe_unused]] AIBinder_DeathRecipient* recipient,
                                     void* cookie) override {
             mCookie = cookie;
+            mDeathRecipient = recipient;
             return STATUS_OK;
         }
 
-        binder_status_t unlinkToDeath(AIBinder*, AIBinder_DeathRecipient*, void*) override {
-            // DO nothing.
-            return STATUS_OK;
+        void deleteDeathRecipient(AIBinder_DeathRecipient* recipient) override {
+            if (mDeathRecipient == recipient) {
+                triggerBinderUnlinked();
+            }
+        }
+
+        void setOnUnlinked([[maybe_unused]] AIBinder_DeathRecipient* recipient,
+                           AIBinder_DeathRecipient_onBinderUnlinked onUnlinked) override {
+            mOnUnlinked = onUnlinked;
         }
 
         void* getCookie() { return mCookie; }
 
+        void triggerBinderUnlinked() {
+            if (mDeathRecipient == nullptr) {
+                // Already unlinked, do nothing.
+                return;
+            }
+            (*mOnUnlinked)(mCookie);
+            mDeathRecipient = nullptr;
+        }
+
     private:
         void* mCookie;
+        AIBinder_DeathRecipient_onBinderUnlinked mOnUnlinked;
+        AIBinder_DeathRecipient* mDeathRecipient;
     };
 
     constexpr static int32_t TEST_PROP_ID = 1;
     constexpr static int32_t TEST_AREA_ID = 2;
     constexpr static int32_t TEST_PROP_ID_2 = 3;
     constexpr static int32_t TEST_AREA_ID_2 = 4;
+    constexpr static VehiclePropertyAccess TEST_GLOBAL_ACCESS = VehiclePropertyAccess::READ_WRITE;
+    constexpr static VehiclePropertyAccess TEST_AREA_ACCESS = VehiclePropertyAccess::READ;
     constexpr static int64_t TEST_TIMEOUT_IN_MS = 100;
 
     void SetUp() override {
@@ -281,9 +302,10 @@ protected:
 
     MockVhal* getVhal() { return mVhal.get(); }
 
-    void triggerBinderDied() { AidlVhalClient::onBinderDied(mLinkUnlinkImpl->getCookie()); }
-
-    void triggerBinderUnlinked() { AidlVhalClient::onBinderUnlinked(mLinkUnlinkImpl->getCookie()); }
+    void triggerBinderDied() {
+        AidlVhalClient::onBinderDied(mLinkUnlinkImpl->getCookie());
+        mLinkUnlinkImpl->triggerBinderUnlinked();
+    }
 
     size_t countOnBinderDiedCallbacks() { return mVhalClient->countOnBinderDiedCallbacks(); }
 
@@ -771,8 +793,6 @@ TEST_F(AidlVhalClientTest, testAddOnBinderDiedCallback) {
     ASSERT_TRUE(result.callbackOneCalled);
     ASSERT_TRUE(result.callbackTwoCalled);
 
-    triggerBinderUnlinked();
-
     ASSERT_EQ(countOnBinderDiedCallbacks(), static_cast<size_t>(0));
 }
 
@@ -793,9 +813,6 @@ TEST_F(AidlVhalClientTest, testRemoveOnBinderDiedCallback) {
 
     ASSERT_FALSE(result.callbackOneCalled);
     ASSERT_TRUE(result.callbackTwoCalled);
-
-    triggerBinderUnlinked();
-
     ASSERT_EQ(countOnBinderDiedCallbacks(), static_cast<size_t>(0));
 }
 
@@ -803,6 +820,7 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
     getVhal()->setPropConfigs({
             VehiclePropConfig{
                     .prop = TEST_PROP_ID,
+                    .access = TEST_GLOBAL_ACCESS,
                     .areaConfigs = {{
                                             .areaId = TEST_AREA_ID,
                                             .minInt32Value = 0,
@@ -811,6 +829,7 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
                                     },
                                     {
                                             .areaId = TEST_AREA_ID_2,
+                                            .access = TEST_AREA_ACCESS,
                                             .minInt32Value = 2,
                                             .maxInt32Value = 3,
                                     }},
@@ -827,22 +846,31 @@ TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
 
     ASSERT_EQ(configs.size(), static_cast<size_t>(2));
     ASSERT_EQ(configs[0]->getPropId(), TEST_PROP_ID);
+    ASSERT_EQ(configs[0]->getAccess(), toInt(TEST_GLOBAL_ACCESS));
     ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(2));
 
     const std::unique_ptr<IHalAreaConfig>& areaConfig0 = configs[0]->getAreaConfigs()[0];
     ASSERT_EQ(areaConfig0->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(areaConfig0->getAccess(), toInt(TEST_GLOBAL_ACCESS));
     ASSERT_EQ(areaConfig0->getMinInt32Value(), 0);
     ASSERT_EQ(areaConfig0->getMaxInt32Value(), 1);
     ASSERT_TRUE(areaConfig0->isVariableUpdateRateSupported());
 
     const std::unique_ptr<IHalAreaConfig>& areaConfig1 = configs[0]->getAreaConfigs()[1];
     ASSERT_EQ(areaConfig1->getAreaId(), TEST_AREA_ID_2);
+    ASSERT_EQ(areaConfig1->getAccess(), toInt(TEST_AREA_ACCESS));
     ASSERT_EQ(areaConfig1->getMinInt32Value(), 2);
     ASSERT_EQ(areaConfig1->getMaxInt32Value(), 3);
     ASSERT_FALSE(areaConfig1->isVariableUpdateRateSupported());
 
     ASSERT_EQ(configs[1]->getPropId(), TEST_PROP_ID_2);
-    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(0));
+    ASSERT_EQ(configs[1]->getAccess(), 0);
+    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(1));
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig2 = configs[1]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig2->getAreaId(), 0);
+    ASSERT_EQ(areaConfig2->getAccess(), 0);
+    ASSERT_FALSE(areaConfig2->isVariableUpdateRateSupported());
 }
 
 TEST_F(AidlVhalClientTest, testGetAllPropConfigsError) {
@@ -858,13 +886,16 @@ TEST_F(AidlVhalClientTest, testGetPropConfigs) {
     getVhal()->setPropConfigs({
             VehiclePropConfig{
                     .prop = TEST_PROP_ID,
+                    .access = TEST_GLOBAL_ACCESS,
                     .areaConfigs = {{
                                             .areaId = TEST_AREA_ID,
                                             .minInt32Value = 0,
                                             .maxInt32Value = 1,
+                                            .supportVariableUpdateRate = true,
                                     },
                                     {
                                             .areaId = TEST_AREA_ID_2,
+                                            .access = TEST_AREA_ACCESS,
                                             .minInt32Value = 2,
                                             .maxInt32Value = 3,
                                     }},
@@ -883,20 +914,31 @@ TEST_F(AidlVhalClientTest, testGetPropConfigs) {
 
     ASSERT_EQ(configs.size(), static_cast<size_t>(2));
     ASSERT_EQ(configs[0]->getPropId(), TEST_PROP_ID);
+    ASSERT_EQ(configs[0]->getAccess(), toInt(TEST_GLOBAL_ACCESS));
     ASSERT_EQ(configs[0]->getAreaConfigSize(), static_cast<size_t>(2));
 
     const std::unique_ptr<IHalAreaConfig>& areaConfig0 = configs[0]->getAreaConfigs()[0];
     ASSERT_EQ(areaConfig0->getAreaId(), TEST_AREA_ID);
+    ASSERT_EQ(areaConfig0->getAccess(), toInt(TEST_GLOBAL_ACCESS));
     ASSERT_EQ(areaConfig0->getMinInt32Value(), 0);
     ASSERT_EQ(areaConfig0->getMaxInt32Value(), 1);
+    ASSERT_TRUE(areaConfig0->isVariableUpdateRateSupported());
 
     const std::unique_ptr<IHalAreaConfig>& areaConfig1 = configs[0]->getAreaConfigs()[1];
     ASSERT_EQ(areaConfig1->getAreaId(), TEST_AREA_ID_2);
+    ASSERT_EQ(areaConfig1->getAccess(), toInt(TEST_AREA_ACCESS));
     ASSERT_EQ(areaConfig1->getMinInt32Value(), 2);
     ASSERT_EQ(areaConfig1->getMaxInt32Value(), 3);
+    ASSERT_FALSE(areaConfig1->isVariableUpdateRateSupported());
 
     ASSERT_EQ(configs[1]->getPropId(), TEST_PROP_ID_2);
-    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(0));
+    ASSERT_EQ(configs[1]->getAccess(), 0);
+    ASSERT_EQ(configs[1]->getAreaConfigSize(), static_cast<size_t>(1));
+
+    const std::unique_ptr<IHalAreaConfig>& areaConfig2 = configs[1]->getAreaConfigs()[0];
+    ASSERT_EQ(areaConfig2->getAreaId(), 0);
+    ASSERT_EQ(areaConfig2->getAccess(), 0);
+    ASSERT_FALSE(areaConfig2->isVariableUpdateRateSupported());
 }
 
 TEST_F(AidlVhalClientTest, testGetPropConfigsError) {

@@ -127,6 +127,7 @@ public final class PowerComponentHandler {
                     // We don't not associate a mediator with the component.
                     continue;
                 }
+                mComponentStates.put(component, mediator.isEnabled());
                 mPowerComponentMediators.put(component, mediator);
             }
             if (customComponents != null) {
@@ -469,7 +470,8 @@ public final class PowerComponentHandler {
         }
     }
 
-    private final class VoiceInteractionPowerComponentMediator extends PowerComponentMediator {
+    private static final class VoiceInteractionPowerComponentMediator
+            extends PowerComponentMediator {
 
         private boolean mIsEnabled = true;
 

@@ -546,7 +546,10 @@ public final class CarPropertyConfig<T> implements Parcelable {
      *
      * @return Builder<T>
      * @hide
+     * @deprecated marked as deprecated because clients should not have direct access to the
+     * CarPropertyConfig.Builder class
      */
+    @Deprecated
     @SystemApi
     public static <T> Builder<T> newBuilder(Class<T> type, int propertyId, int areaType,
                                             int areaCapacity) {
@@ -570,7 +573,10 @@ public final class CarPropertyConfig<T> implements Parcelable {
      *
      * @param <T>
      * @hide
-     * */
+     * @deprecated marked as deprecated because clients should not have direct access to the
+     * CarPropertyConfig.Builder class
+     */
+    @Deprecated
     @SystemApi
     public static class Builder<T> {
         private int mAccess = VEHICLE_PROPERTY_ACCESS_NONE;
@@ -598,7 +604,7 @@ public final class CarPropertyConfig<T> implements Parcelable {
          * function.
          *
          * @return Builder<T>
-         * @deprecated - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
+         * @removed - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
          */
         @Deprecated
         public Builder<T> addAreas(int[] areaIds) {
@@ -619,7 +625,7 @@ public final class CarPropertyConfig<T> implements Parcelable {
          * function.
          *
          * @return Builder<T>
-         * @deprecated - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
+         * @removed - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
          */
         @Deprecated
         public Builder<T> addArea(int areaId) {
@@ -638,7 +644,7 @@ public final class CarPropertyConfig<T> implements Parcelable {
          * function.
          *
          * @return Builder<T>
-         * @deprecated - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
+         * @removed - use {@link #addAreaIdConfig(AreaIdConfig)} instead.
          */
         @Deprecated
         public Builder<T> addAreaConfig(int areaId, T min, T max) {

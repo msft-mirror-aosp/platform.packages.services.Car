@@ -115,8 +115,24 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
     }
 
     @Override
+    public boolean assignUserToExtraDisplay(int userId, int displayId) {
+        Log.d(TAG, "assignUserToExtraDisplay(userId=" + userId
+                + ", displayId=" + displayId + ")");
+
+        return false;
+    }
+
+    @Override
+    public boolean unassignUserFromExtraDisplay(int userId, int displayId) {
+        Log.d(TAG, "unassignUserFromExtraDisplay(userId=" + userId
+                + ", displayId=" + displayId + ")");
+
+        return false;
+    }
+
+    @Override
     public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
-        Log.d(TAG, "startUserInBackgroundVisibleOnDisplay(" + userId + ",displaId" + displayId
+        Log.d(TAG, "startUserInBackgroundVisibleOnDisplay(" + userId + ",displayId" + displayId
                 + ")");
 
         return false;
@@ -125,8 +141,6 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
     @Override
     public void setProcessProfile(int pid, int uid, @NonNull String profile) {
         Log.d(TAG, "setProcessProfile(" + pid + "," + uid + "," + profile + ")");
-
-        return;
     }
 
     @Override

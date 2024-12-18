@@ -16,7 +16,6 @@
 
 package com.android.car.watchdog;
 
-import static android.car.PlatformVersion.VERSION_CODES;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static android.car.user.CarUserManager.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -81,6 +80,7 @@ import com.android.car.CarLocalServices;
 import com.android.car.CarLog;
 import com.android.car.CarServiceBase;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.ArrayUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.power.CarPowerManagementService;
@@ -135,6 +135,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
 
     private CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
 
+    private boolean mIsPowerShutdownHandled;
+
     /*
      * TODO(b/192481350): Listen for GarageMode change notification rather than depending on the
      *  system_server broadcast when the CarService internal API for listening GarageMode change is
@@ -144,6 +146,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
+            Trace.beginSection("CarWatchdogService-broadcast-" + action);
             switch (action) {
                 case CAR_WATCHDOG_ACTION_DISMISS_RESOURCE_OVERUSE_NOTIFICATION:
                 case CAR_WATCHDOG_ACTION_LAUNCH_APP_SETTINGS:
@@ -171,17 +174,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                     if ((intent.getFlags() & Intent.FLAG_RECEIVER_FOREGROUND) == 0) {
                         break;
                     }
-                    int powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER;
-                    try {
-                        mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
-                                powerCycle, /* arg2= */ 0);
-                        if (DEBUG) {
-                            Slogf.d(TAG, "Notified car watchdog daemon of power cycle(%d)",
-                                    powerCycle);
-                        }
-                    } catch (Exception e) {
-                        Slogf.w(TAG, e, "Notifying power cycle state change failed");
-                    }
+                    notifyPowerCycleChange(PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER);
                     break;
                 case ACTION_USER_REMOVED: {
                     UserHandle userHandle = intent.getParcelableExtra(Intent.EXTRA_USER);
@@ -207,6 +200,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 default:
                     Slogf.i(TAG, "Ignoring unknown intent %s", intent);
             }
+            Trace.endSection();
         }
     };
 
@@ -216,10 +210,19 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         public void onStateChanged(int state, long expirationTimeMs) {
             CarPowerManagementService powerService =
                     CarLocalServices.getService(CarPowerManagementService.class);
-            if (powerService == null) {
+            if (powerService == null
+                || state == CarPowerManager.STATE_POST_SHUTDOWN_ENTER
+                || state == CarPowerManager.STATE_POST_SUSPEND_ENTER
+                || state == CarPowerManager.STATE_POST_HIBERNATION_ENTER) {
                 return;
             }
-            int powerCycle = carPowerStateToPowerCycle(powerService.getPowerState());
+            int powerState = powerService.getPowerState();
+            int powerCycle = carPowerStateToPowerCycle(powerState);
+            if (powerCycle < 0) {
+                return;
+            }
+            Trace.beginSection("CarWatchdogService-powerStateChanged-"
+                    + CarPowerManagementService.powerStateToString(powerState));
             switch (powerCycle) {
                 case PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE:
                     // Perform time consuming disk I/O operation during shutdown prepare to avoid
@@ -243,6 +246,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                     return;
             }
             notifyPowerCycleChange(powerCycle);
+            Trace.endSection();
         }
     };
 
@@ -251,6 +255,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 @Override
                 public void onPolicyChanged(CarPowerPolicy appliedPolicy,
                         CarPowerPolicy accumulatedPolicy) {
+                    Trace.beginSection("CarWatchdogService-carPowerPolicyChanged-"
+                            + appliedPolicy.getPolicyId());
                     boolean isDisplayEnabled =
                             appliedPolicy.isComponentEnabled(PowerComponent.DISPLAY);
                     boolean didStateChange = false;
@@ -261,6 +267,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                     if (didStateChange) {
                         mWatchdogPerfHandler.onDisplayStateChanged(isDisplayEnabled);
                     }
+                    Trace.endSection();;
                 }
             };
 
@@ -322,6 +329,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
 
     @Override
     public void init() {
+        Trace.beginSection("CarWatchdogService.init");
         // TODO(b/266008677): The daemon reads the sendResourceUsageStatsEnabled sysprop at the
         // moment the CarWatchdogService connects to it. Therefore, the property must be set by
         // CarWatchdogService before connecting with the CarWatchdog daemon. Set the property to
@@ -333,6 +341,9 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         subscribeBroadcastReceiver();
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
+        synchronized (mLock) {
+            mIsPowerShutdownHandled = false;
+        }
         // To make sure the main handler is ready for responding to car watchdog daemon, registering
         // to the daemon is done through the main handler. Once the registration is completed, we
         // can assume that the main handler is not too busy handling other stuffs.
@@ -340,16 +351,19 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         if (DEBUG) {
             Slogf.d(TAG, "CarWatchdogService is initialized");
         }
+        Trace.endSection();
     }
 
     @Override
     public void release() {
+        Trace.beginSection("CarWatchdogService.release");
         mContext.unregisterReceiver(mBroadcastReceiver);
         unsubscribePowerManagementService();
         mWatchdogPerfHandler.release();
         mWatchdogStorage.release();
         unregisterFromDaemon();
         mCarWatchdogDaemonHelper.disconnect();
+        Trace.endSection();
     }
 
     @Override
@@ -359,6 +373,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         writer.increaseIndent();
         synchronized (mLock) {
             writer.println("Current garage mode: " + toGarageModeString(mCurrentGarageMode));
+            writer.println("Is power shutdown handled: " + mIsPowerShutdownHandled);
         }
         mWatchdogProcessHandler.dump(writer);
         mWatchdogPerfHandler.dump(writer);
@@ -541,6 +556,25 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
      */
     public boolean performResourceOveruseKill(String packageName, @UserIdInt int userId) {
         assertPermission(mContext, Car.PERMISSION_USE_CAR_WATCHDOG);
+
+        UserHandle userHandle = UserHandle.of(userId);
+        List<PackageKillableState> packageKillableStates =
+                getPackageKillableStatesAsUser(userHandle);
+
+        for (int i = 0; i < packageKillableStates.size(); i++) {
+            PackageKillableState state = packageKillableStates.get(i);
+            if (packageName.equals(state.getPackageName())) {
+                int killableState = state.getKillableState();
+                if (killableState != PackageKillableState.KILLABLE_STATE_YES) {
+                    String stateName = PackageKillableState.killableStateToString(killableState);
+                    Slogf.d(TAG, "Failed to kill package '%s' for user %d because the "
+                            + "package has state '%s'\n", packageName, userId, stateName);
+                    return false;
+                }
+                break;
+            }
+        }
+
         return mWatchdogPerfHandler.disablePackageForUser(packageName, userId);
     }
 
@@ -597,6 +631,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     }
 
     private void notifyAllUserStates() {
+        Trace.beginSection("CarWatchdogService.notifyAllUserStates");
         UserManager userManager = mContext.getSystemService(UserManager.class);
         List<UserHandle> users = userManager.getUserHandles(/* excludeDying= */ false);
         try {
@@ -619,15 +654,22 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             // throws IllegalStateException. Catch the exception to avoid crashing the process.
             Slogf.w(TAG, e, "Notifying latest user states failed");
         }
+        Trace.endSection();
     }
 
     private void notifyPowerCycleChange(@PowerCycle int powerCycle) {
-        // TODO(b/236876940): Change version check to TIRAMISU_2 when cherry picking to T-QPR2.
-        if (!Car.getPlatformVersion().isAtLeast(VERSION_CODES.UPSIDE_DOWN_CAKE_0)
-                && powerCycle == PowerCycle.POWER_CYCLE_SUSPEND_EXIT) {
-            return;
-        }
         try {
+            // There are two signals sent during power off, ACTION_SHUTDOWN (from the broadcast
+            // receiver) and SHUTDOWN_ENTER (from the ICarPowerStateListener). This checks
+            // if one signal has already been sent and avoids doing shutdown twice.
+            synchronized (mLock) {
+                if (powerCycle == PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER) {
+                    if (mIsPowerShutdownHandled) {
+                        return;
+                    }
+                    mIsPowerShutdownHandled = true;
+                }
+            }
             mCarWatchdogDaemonHelper.notifySystemStateChange(
                     StateType.POWER_CYCLE, powerCycle, MISSING_ARG_VALUE);
             if (DEBUG) {
@@ -669,6 +711,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 return;
             }
         }
+        Trace.beginSection("CarWatchdogService.registerToDaemon");
         try {
             mCarWatchdogDaemonHelper.registerCarWatchdogService(mWatchdogServiceForSystem);
             if (DEBUG) {
@@ -700,9 +743,11 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             garageMode = mCurrentGarageMode;
         }
         notifyGarageModeChange(garageMode);
+        Trace.endSection();
     }
 
     private void unregisterFromDaemon() {
+        Trace.beginSection("CarWatchdogService.unregisterFromDaemon");
         try {
             mCarWatchdogDaemonHelper.unregisterCarWatchdogService(mWatchdogServiceForSystem);
             if (DEBUG) {
@@ -713,6 +758,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             // throws IllegalStateException. Catch the exception to avoid crashing the process.
             Slogf.w(TAG, e, "Cannot unregister from car watchdog daemon");
         }
+        Trace.endSection();
     }
 
     private void subscribePowerManagementService() {
@@ -756,11 +802,6 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             if (!isEventAnyOfTypes(TAG, event, USER_LIFECYCLE_EVENT_TYPE_STARTING,
                     USER_LIFECYCLE_EVENT_TYPE_SWITCHING, USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
                     USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) {
-                return;
-            }
-            if (!Car.getPlatformVersion().isAtLeast(VERSION_CODES.TIRAMISU_1)
-                    && !isEventAnyOfTypes(TAG, event,
-                    USER_LIFECYCLE_EVENT_TYPE_STARTING, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) {
                 return;
             }
 

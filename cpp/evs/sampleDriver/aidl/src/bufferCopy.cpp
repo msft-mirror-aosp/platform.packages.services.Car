@@ -136,6 +136,16 @@ void fillRGBAFromYUYV(const BufferDesc& tgtBuff, uint8_t* tgt, void* imgData, un
     }
 }
 
+void fillRGBAFromBGRA(const BufferDesc& tgtBuff, uint8_t* tgt, void* imgData, unsigned imgStride) {
+    const AHardwareBuffer_Desc* pDesc =
+            reinterpret_cast<const AHardwareBuffer_Desc*>(&tgtBuff.buffer.description);
+    auto result = libyuv::ABGRToARGB((const uint8_t*)imgData, imgStride, tgt, imgStride,
+                                     pDesc->width, pDesc->height);
+    if (result) {
+        LOG(ERROR) << "Failed to convert BGRA to RGBA.";
+    }
+}
+
 void fillYUYVFromYUYV(const BufferDesc& tgtBuff, uint8_t* tgt, void* imgData, unsigned imgStride) {
     const AHardwareBuffer_Desc* pDesc =
             reinterpret_cast<const AHardwareBuffer_Desc*>(&tgtBuff.buffer.description);
@@ -172,7 +182,7 @@ void fillYUYVFromUYVY(const BufferDesc& tgtBuff, uint8_t* tgt, void* imgData, un
             // Note:  we're walking two pixels at a time here (even/odd)
             uint32_t srcPixel = *src++;
 
-            uint8_t Y1 = (srcPixel)&0xFF;
+            uint8_t Y1 = (srcPixel) & 0xFF;
             uint8_t U = (srcPixel >> 8) & 0xFF;
             uint8_t Y2 = (srcPixel >> 16) & 0xFF;
             uint8_t V = (srcPixel >> 24) & 0xFF;

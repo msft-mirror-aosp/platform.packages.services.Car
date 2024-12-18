@@ -49,8 +49,12 @@ import android.hardware.automotive.vehicle.VehiclePropertyAccess;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
+import android.platform.test.ravenwood.RavenwoodRule;
 import android.util.SparseArray;
 
+import androidx.test.filters.SmallTest;
+
+import com.android.car.CarServiceUtils;
 import com.android.car.IVehicleDeathRecipient;
 import com.android.car.VehicleStub;
 import com.android.car.VehicleStub.AsyncGetSetRequest;
@@ -67,6 +71,7 @@ import com.android.car.internal.property.CarPropertyErrorCodes;
 
 import com.google.common.truth.Expect;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -83,8 +88,10 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+@SmallTest
 @RunWith(MockitoJUnitRunner.class)
 public class FakeVehicleStubUnitTest {
+    private static final int FLAKY_RETRY_COUNT = 10;
 
     private static final int DOOR_1_LEFT = VehicleAreaDoor.ROW_1_LEFT;
     private static final int WINDOW_1_LEFT = VehicleAreaWindow.ROW_1_LEFT;
@@ -151,11 +158,19 @@ public class FakeVehicleStubUnitTest {
 
     @Rule
     public final Expect expect = Expect.create();
+    @Rule
+    public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder()
+            .build();
 
     @Before
     public void setup() throws Exception {
         when(mMockRealVehicleStub.isValid()).thenReturn(true);
         when(mMockRealVehicleStub.getAllPropConfigs()).thenReturn(new HalPropConfig[0]);
+    }
+
+    @After
+    public void teardown() throws Exception {
+        CarServiceUtils.quitHandlerThreads();
     }
 
     @Test
@@ -293,7 +308,7 @@ public class FakeVehicleStubUnitTest {
         customFileList.addAll(createFilenameList(invalidJsonString));
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 0);
+                .build(/* prop= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 0);
 
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
@@ -308,10 +323,9 @@ public class FakeVehicleStubUnitTest {
     public void testGetMethodPropIdNotSupported() throws Exception {
         // Mock config files parsing results to be empty.
         when(mParser.parseJsonConfig(any(InputStream.class))).thenReturn(new SparseArray<>());
-        when(mParser.parseJsonConfig(any(File.class))).thenReturn(new SparseArray<>());
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 0);
+                .build(/* prop= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 0);
         // Create a FakeVehicleStub instance.
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub, mParser,
                 new ArrayList<>());
@@ -334,7 +348,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.ANDROID_EPOCH_TIME, /* areaId= */ 0);
+                .build(/* prop= */ VehicleProperty.ANDROID_EPOCH_TIME, /* areaId= */ 0);
         // Create a FakeVehicleStub instance.
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
@@ -354,7 +368,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.INFO_FUEL_CAPACITY, /* areaId= */ 123);
+                .build(/* prop= */ VehicleProperty.INFO_FUEL_CAPACITY, /* areaId= */ 123);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -378,7 +392,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 1);
+                .build(/* prop= */ VehicleProperty.DISPLAY_BRIGHTNESS, /* areaId= */ 1);
 
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
@@ -399,7 +413,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 123);
+                .build(/* prop= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 123);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -420,7 +434,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.WINDOW_POS, /* areaId= */ WINDOW_1_LEFT);
+                .build(/* prop= */ VehicleProperty.WINDOW_POS, /* areaId= */ WINDOW_1_LEFT);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -444,7 +458,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.WINDOW_POS, /* areaId= */ WINDOW_1_LEFT);
+                .build(/* prop= */ VehicleProperty.WINDOW_POS, /* areaId= */ WINDOW_1_LEFT);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -487,7 +501,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.SEAT_BELT_BUCKLED, /* areaId= */ 0);
+                .build(/* prop= */ VehicleProperty.SEAT_BELT_BUCKLED, /* areaId= */ 0);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -511,7 +525,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_ALL);
+                .build(/* prop= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_ALL);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -528,7 +542,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ SEAT_1_LEFT);
+                .build(/* prop= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ SEAT_1_LEFT);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -553,7 +567,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_LEFT);
+                .build(/* prop= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_LEFT);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -581,7 +595,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_LEFT);
+                .build(/* prop= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_LEFT);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -611,7 +625,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_ALL);
+                .build(/* prop= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ HVAC_ALL);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -626,7 +640,7 @@ public class FakeVehicleStubUnitTest {
                 + "\"defaultValue\": {\"int32Values\": [\"FuelType::FUEL_TYPE_UNLEADED\"]}}]}";
         List<File> customFileList = createFilenameList(jsonString);
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 123);
+                .build(/* prop= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 123);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
         AsyncGetSetRequest getRequest = new AsyncGetSetRequest(/* serviceRequestId= */ 0,
@@ -651,7 +665,7 @@ public class FakeVehicleStubUnitTest {
                 + "\"access\": \"VehiclePropertyAccess::WRITE\"}]}";
         List<File> customFileList = createFilenameList(jsonString);
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.ANDROID_EPOCH_TIME, /* areaId= */ 0);
+                .build(/* prop= */ VehicleProperty.ANDROID_EPOCH_TIME, /* areaId= */ 0);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
         AsyncGetSetRequest getRequest = new AsyncGetSetRequest(/* serviceRequestId= */ 0,
@@ -673,7 +687,7 @@ public class FakeVehicleStubUnitTest {
         String jsonString = "{\"properties\": [" + PROPERTY_CONFIG_STRING_HVAC_POWER_OFF + "]}";
         List<File> customFileList = createFilenameList(jsonString);
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ SEAT_1_LEFT);
+                .build(/* prop= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ SEAT_1_LEFT);
         AsyncGetSetRequest getRequest = new AsyncGetSetRequest(/* serviceRequestId= */ 0,
                 requestPropValue, DEFAULT_TIMEOUT);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
@@ -718,9 +732,9 @@ public class FakeVehicleStubUnitTest {
                 + "\"access\": \"VehiclePropertyAccess::WRITE\"}]}";
         List<File> customFileList = createFilenameList(jsonString);
         HalPropValue requestPropValue1 = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.ANDROID_EPOCH_TIME, /* areaId= */ 0);
+                .build(/* prop= */ VehicleProperty.ANDROID_EPOCH_TIME, /* areaId= */ 0);
         HalPropValue requestPropValue2 = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 123);
+                .build(/* prop= */ VehicleProperty.INFO_FUEL_TYPE, /* areaId= */ 123);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
         AsyncGetSetRequest getRequest1 = new AsyncGetSetRequest(/* serviceRequestId= */ 0,
@@ -754,8 +768,8 @@ public class FakeVehicleStubUnitTest {
                 + "\"areas\": [{\"areaId\": \"Constants::SEAT_1_LEFT\"}]}]}";
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
-        HalPropValue requestPropValue = new HalPropValueBuilder(/* isAdil= */ true)
-                .build(/* propId= */ 123456, /* areaId= */ 0);
+        HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
+                .build(/* prop= */ 123456, /* areaId= */ 0);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -968,7 +982,7 @@ public class FakeVehicleStubUnitTest {
         List<File> customFileList = createFilenameList(jsonString);
         // Create a request prop value.
         HalPropValue requestPropValue = new HalPropValueBuilder(/* isAidl= */ true)
-                .build(/* propId= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ SEAT_1_LEFT);
+                .build(/* prop= */ VehicleProperty.HVAC_FAN_SPEED, /* areaId= */ SEAT_1_LEFT);
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
 
@@ -1276,13 +1290,17 @@ public class FakeVehicleStubUnitTest {
                 new FakeVhalConfigParser(), customFileList);
 
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
-        try {
-            client.subscribe(options);
+        testWithRetry(() -> {
+            try {
+                client.subscribe(options);
 
-            verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
-        } finally {
-            client.unsubscribe(VehicleProperty.FUEL_LEVEL);
-        }
+                // 200ms should generate 20 events, check for 5 events to be safe.
+                verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            } finally {
+                client.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                clearInvocations(callback);
+            }
+        });
     }
 
     @Test
@@ -1304,18 +1322,23 @@ public class FakeVehicleStubUnitTest {
                 new FakeVhalConfigParser(), customFileList);
 
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
-        try {
-            client.subscribe(options1);
+        testWithRetry(() -> {
+            try {
+                client.subscribe(options1);
 
-            verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
-            clearInvocations(callback);
+                // 200ms should generate 20 events, check for 5 events to be safe.
+                verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+                clearInvocations(callback);
 
-            client.subscribe(options2);
+                client.subscribe(options2);
 
-            verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
-        } finally {
-            client.unsubscribe(VehicleProperty.FUEL_LEVEL);
-        }
+                // 400ms should generate 20 events, check for 5 events to be safe.
+                verify(callback, timeout(400).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            } finally {
+                client.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                clearInvocations(callback);
+            }
+        });
     }
 
     @Test
@@ -1326,6 +1349,7 @@ public class FakeVehicleStubUnitTest {
         // Create subscribe options
         SubscribeOptions option = new SubscribeOptions();
         option.propId = VehicleProperty.FUEL_LEVEL;
+        // Sample rate will fit to 100f.
         option.sampleRate = 200f;
         SubscribeOptions[] options = new SubscribeOptions[]{option};
 
@@ -1333,13 +1357,17 @@ public class FakeVehicleStubUnitTest {
         FakeVehicleStub fakeVehicleStub = new FakeVehicleStub(mMockRealVehicleStub,
                 new FakeVhalConfigParser(), customFileList);
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
-        try {
-            client.subscribe(options);
+        testWithRetry(() -> {
+            try {
+                client.subscribe(options);
 
-            verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
-        } finally {
-            client.unsubscribe(VehicleProperty.FUEL_LEVEL);
-        }
+                // 200ms should generate 20 events, check for 5 events to be safe.
+                verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            } finally {
+                client.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                clearInvocations(callback);
+            }
+        });
     }
 
     @Test
@@ -1350,6 +1378,7 @@ public class FakeVehicleStubUnitTest {
         // Create subscribe options
         SubscribeOptions option = new SubscribeOptions();
         option.propId = VehicleProperty.FUEL_LEVEL;
+        // Sample rate will fit to 1f.
         option.sampleRate = -50f;
         SubscribeOptions[] options = new SubscribeOptions[]{option};
         VehicleHalCallback callback = mock(VehicleHalCallback.class);
@@ -1357,13 +1386,17 @@ public class FakeVehicleStubUnitTest {
                 new FakeVhalConfigParser(), customFileList);
 
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
-        try {
-            client.subscribe(options);
+        testWithRetry(() -> {
+            try {
+                client.subscribe(options);
 
-            verify(callback, timeout(100).atLeast(1)).onPropertyEvent(any(ArrayList.class));
-        } finally {
-            client.unsubscribe(VehicleProperty.FUEL_LEVEL);
-        }
+                // 2000ms should generate 2 events, check for 1 event to be safe.
+                verify(callback, timeout(2000).atLeast(1)).onPropertyEvent(any(ArrayList.class));
+            } finally {
+                client.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                clearInvocations(callback);
+            }
+        });
     }
 
     @Test
@@ -1517,14 +1550,22 @@ public class FakeVehicleStubUnitTest {
                 new FakeVhalConfigParser(), customFileList);
 
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
-        client.subscribe(options);
 
-        verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+        testWithRetry(() -> {
+            try {
+                client.subscribe(options);
 
-        client.unsubscribe(VehicleProperty.FUEL_LEVEL);
-        clearInvocations(callback);
+                // 200ms should generate 20 events, check for 5 events to be safe.
+                verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
 
-        verify(callback, after(200).atMost(1)).onPropertyEvent(any(ArrayList.class));
+                client.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                clearInvocations(callback);
+
+                verify(callback, after(200).atMost(1)).onPropertyEvent(any(ArrayList.class));
+            } finally {
+                clearInvocations(callback);
+            }
+        });
     }
 
     @Test
@@ -1544,22 +1585,28 @@ public class FakeVehicleStubUnitTest {
 
         VehicleStub.SubscriptionClient client1 = fakeVehicleStub.newSubscriptionClient(callback1);
         VehicleStub.SubscriptionClient client2 = fakeVehicleStub.newSubscriptionClient(callback2);
-        try {
-            client1.subscribe(options);
-            client2.subscribe(options);
 
-            verify(callback1, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
-            verify(callback2, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+        testWithRetry(() -> {
+            try {
+                client1.subscribe(options);
+                client2.subscribe(options);
 
-            client1.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                // 200ms should generate 20 events, check for 5 events to be safe.
+                verify(callback1, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+                verify(callback2, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+
+                client1.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                clearInvocations(callback1);
+                clearInvocations(callback2);
+
+                verify(callback1, after(200).atMost(1)).onPropertyEvent(any(ArrayList.class));
+                verify(callback2, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            } finally {
+                client2.unsubscribe(VehicleProperty.FUEL_LEVEL);
+            }
             clearInvocations(callback1);
             clearInvocations(callback2);
-
-            verify(callback1, after(200).atMost(1)).onPropertyEvent(any(ArrayList.class));
-            verify(callback2, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
-        } finally {
-            client2.unsubscribe(VehicleProperty.FUEL_LEVEL);
-        }
+        });
     }
 
     @Test
@@ -1581,14 +1628,23 @@ public class FakeVehicleStubUnitTest {
                 new FakeVhalConfigParser(), customFileList);
 
         VehicleStub.SubscriptionClient client = fakeVehicleStub.newSubscriptionClient(callback);
-        client.subscribe(options);
 
-        verify(callback, timeout(100).atLeast(10)).onPropertyEvent(any(ArrayList.class));
+        testWithRetry(() -> {
+            try {
+                client.subscribe(options);
 
-        client.unsubscribe(VehicleProperty.FUEL_LEVEL);
-        clearInvocations(callback);
+                // 200ms should generate 2 * 20 = 40 events, check for 10 events to be safe.
+                verify(callback, timeout(200).atLeast(10)).onPropertyEvent(any(ArrayList.class));
 
-        verify(callback, timeout(100).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+                client.unsubscribe(VehicleProperty.FUEL_LEVEL);
+                clearInvocations(callback);
+
+                // 200ms should generate 20 events, check for 5 events to be safe.
+                verify(callback, timeout(200).atLeast(5)).onPropertyEvent(any(ArrayList.class));
+            } finally {
+                clearInvocations(callback);
+            }
+        });
     }
 
     @Test
@@ -1758,5 +1814,24 @@ public class FakeVehicleStubUnitTest {
         verify(mCallback, timeout(DEFAULT_TIMEOUT)).onSetAsyncResults(
                 mSetVehicleStubAsyncResultCaptor.capture());
         return mSetVehicleStubAsyncResultCaptor.getValue();
+    }
+
+    private interface RunnableWithException {
+        void run() throws Exception;
+    }
+
+    private void testWithRetry(RunnableWithException runnable) throws Exception {
+        int retryCount = 0;
+        Exception lastException = null;
+        while (retryCount < FLAKY_RETRY_COUNT) {
+            retryCount++;
+            try {
+                runnable.run();
+                return;
+            } catch (Exception e) {
+                lastException = e;
+            }
+        }
+        throw lastException;
     }
 }

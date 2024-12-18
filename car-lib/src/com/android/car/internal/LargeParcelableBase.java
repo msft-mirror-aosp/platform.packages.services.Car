@@ -27,6 +27,7 @@ import android.os.Parcelable;
 import android.os.SharedMemory;
 import android.system.ErrnoException;
 import android.util.Log;
+import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -45,8 +46,6 @@ import java.nio.ByteBuffer;
  * <li>@Nullable SharedMemory which include serialized Parcelable if non-null. This will be set
  * only when the previous Parcelable is null or this also can be null for no data case.
  * </ul>
- *
- * @hide
  */
 public abstract class LargeParcelableBase implements Parcelable, Closeable {
     /** Payload size bigger than this value will be passed over shared memory. */
@@ -108,7 +107,7 @@ public abstract class LargeParcelableBase implements Parcelable, Closeable {
         }
         in.setDataPosition(startPosition + totalPayloadSize);
         if (DBG_PAYLOAD) {
-            Log.d(TAG, "Read, start:" + startPosition + " totalPayloadSize:" + totalPayloadSize
+            Slog.d(TAG, "Read, start:" + startPosition + " totalPayloadSize:" + totalPayloadSize
                     + " sharedMemoryPosition:" + sharedMemoryPosition
                     + " hasSharedMemory:" + hasSharedMemory + " dataAvail:" + in.dataAvail());
         }
@@ -127,7 +126,7 @@ public abstract class LargeParcelableBase implements Parcelable, Closeable {
             // created shared memory
             totalPayloadSize = serializeMemoryFdOrPayloadToParcel(dest, flags, sharedMemory);
             if (DBG_PAYLOAD) {
-                Log.d(TAG, "Write, reusing shared memory, start:" + startPosition
+                Slog.d(TAG, "Write, reusing shared memory, start:" + startPosition
                         + " totalPayloadSize:" + totalPayloadSize);
             }
             return;
@@ -141,13 +140,13 @@ public abstract class LargeParcelableBase implements Parcelable, Closeable {
         boolean hasNonNullPayload = true;
         if (noSharedMemory) {
             if (DBG_PAYLOAD) {
-                Log.d(TAG, "not using shared memory");
+                Slog.d(TAG, "not using shared memory");
             }
             dest.appendFrom(dataParcel, 0, totalPayloadSize);
             dataParcel.recycle();
         } else {
             if (DBG_PAYLOAD) {
-                Log.d(TAG, "using shared memory");
+                Slog.d(TAG, "using shared memory");
             }
             sharedMemory = serializeParcelToSharedMemory(dataParcel);
             dataParcel.recycle();
@@ -162,7 +161,7 @@ public abstract class LargeParcelableBase implements Parcelable, Closeable {
             totalPayloadSize = serializeMemoryFdOrPayloadToParcel(dest, flags, sharedMemory);
         }
         if (DBG_PAYLOAD) {
-            Log.d(TAG, "Write, start:" + startPosition + " totalPayloadSize:" + totalPayloadSize
+            Slog.d(TAG, "Write, start:" + startPosition + " totalPayloadSize:" + totalPayloadSize
                     + " hasNonNullPayload:" + hasNonNullPayload
                     + " hasSharedMemory:" + !noSharedMemory + " dataSize:" + dest.dataSize());
         }
@@ -246,7 +245,7 @@ public abstract class LargeParcelableBase implements Parcelable, Closeable {
                         bd.append(',');
                     }
                 }
-                Log.d(TAG, bd.toString());
+                Slog.d(TAG, bd.toString());
             }
             if (!memory.setProtect(PROT_READ)) {
                 memory.close();
@@ -297,7 +296,7 @@ public abstract class LargeParcelableBase implements Parcelable, Closeable {
                     bd.append(payload[i]);
                     if (i != dumpSize - 1) bd.append(',');
                 }
-                Log.d(TAG, bd.toString());
+                Slog.d(TAG, bd.toString());
                 in.setDataPosition(parcelStartPosition);
             }
         } catch (ErrnoException e) {
@@ -322,7 +321,7 @@ public abstract class LargeParcelableBase implements Parcelable, Closeable {
             // the data position.
             int fileSize = in.readInt();
             if (DBG_PAYLOAD) {
-                Log.d(TAG, "file size in shared memory file: " + fileSize);
+                Slog.d(TAG, "file size in shared memory file: " + fileSize);
             }
             deserialize(in);
             // There is an additional 0 in the parcel, but we ignore that.

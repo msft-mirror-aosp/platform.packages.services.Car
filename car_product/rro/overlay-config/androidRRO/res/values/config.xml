@@ -212,6 +212,16 @@
         on selected text. -->
     <bool name="config_textShareSupported">false</bool>
 
-     <!-- Uses customized system bar controls -->
-    <bool name="config_remoteInsetsControllerControlsSystemBars">true</bool>
+    <!-- Make sure that auto-suspend mode is not used. -->
+    <bool name="config_useAutoSuspend">false</bool>
+
+    <!-- Name of the starting activity for launch on private display. -->
+    <string name="config_defaultLaunchOnPrivateDisplayRouterActivity" translatable="false">
+        com.android.systemui/com.android.systemui.car.wm.activity.LaunchOnPrivateDisplayRouterActivity
+    </string>
+
+    <!-- Allowlisted packages for launch on a private display. -->
+    <string-array name="config_defaultAllowlistLaunchOnPrivateDisplayPackages">
+        <item>com.example.android.launchonprivatedisplay</item>
+    </string-array>
 </resources>

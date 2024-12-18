@@ -47,7 +47,9 @@ import android.app.ActivityManager;
 import android.automotive.powerpolicy.internal.ICarPowerPolicyDelegate;
 import android.car.Car;
 import android.car.ICarResultReceiver;
+import android.car.builtin.app.ActivityManagerHelper;
 import android.car.builtin.app.VoiceInteractionHelper;
+import android.car.builtin.os.UserManagerHelper;
 import android.car.feature.FakeFeatureFlagsImpl;
 import android.car.feature.Flags;
 import android.car.hardware.power.CarPowerManager;
@@ -59,7 +61,6 @@ import android.car.hardware.power.PowerComponent;
 import android.car.remoteaccess.CarRemoteAccessManager;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.mocks.JavaMockitoHelper;
-import android.car.test.util.TemporaryFile;
 import android.car.testapi.FakeRefactoredCarPowerPolicyDaemon;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -103,11 +104,12 @@ import com.android.car.hal.PowerHalService;
 import com.android.car.hal.PowerHalService.PowerState;
 import com.android.car.hal.VehicleHal;
 import com.android.car.internal.util.IndentingPrintWriter;
-import com.android.car.systeminterface.DisplayInterface;
+import com.android.car.systeminterface.DisplayHelperInterface;
 import com.android.car.systeminterface.IOInterface;
 import com.android.car.systeminterface.SystemInterface;
 import com.android.car.systeminterface.SystemStateInterface;
 import com.android.car.systeminterface.WakeLockInterface;
+import com.android.car.systeminterface.test.DisplayInterfaceEmptyImpl;
 import com.android.car.test.utils.TemporaryDirectory;
 import com.android.car.user.CarUserService;
 import com.android.compatibility.common.util.PollingCheck;
@@ -115,11 +117,14 @@ import com.android.internal.annotations.GuardedBy;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.mockito.Mock;
 import org.mockito.Spy;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.lang.annotation.ElementType;
@@ -180,6 +185,8 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     private static final String POWER_POLICY_GROUP_VALID = "policy_group_id_valid";
     private static final String POWER_POLICY_GROUP_INVALID = "policy_group_id_invalid";
     private static final String POWER_POLICY_GROUP_1 = "policy_group_1";
+    private static final String PROCESS_TEST_NAME_1 = "test.process.name";
+    private static final String PROCESS_TEST_NAME_2 = "test.process.name2";
 
     public static final int CUSTOM_COMPONENT_1000 = 1000;
     public static final int CUSTOM_COMPONENT_1001 = 1001;
@@ -206,6 +213,9 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
             PowerComponent.AUDIO, PowerComponent.DISPLAY, PowerComponent.VISUAL_INTERACTION,
             CUSTOM_COMPONENT_1002, CUSTOM_COMPONENT_1003);
 
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
     private final FakeFeatureFlagsImpl mFeatureFlags = new FakeFeatureFlagsImpl();
     private final MockDisplayInterface mDisplayInterface = new MockDisplayInterface();
     private final MockSystemStateInterface mSystemStateInterface = new MockSystemStateInterface();
@@ -214,7 +224,6 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     private final PowerSignalListener mPowerSignalListener = new PowerSignalListener();
     @Spy
     private final Context mContext = InstrumentationRegistry.getInstrumentation().getContext();
-    private final TemporaryFile mComponentStateFile;
     private final HalPropValueBuilder mHalPropValueBuilder = new HalPropValueBuilder(
             /* isAidl= */ true);
 
@@ -223,8 +232,9 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     private PowerComponentHandler mPowerComponentHandler;
     private CarPowerManagementService mService;
     private CompletableFuture<Void> mFuture;
-    private TemporaryFile mFileHwStateMonitoring;
-    private TemporaryFile mFileKernelSilentMode;
+    private File mComponentStateFile;
+    private File mFileHwStateMonitoring;
+    private File mFileKernelSilentMode;
     private FakeCarPowerPolicyDaemon mPowerPolicyDaemon;
     private FakeRefactoredCarPowerPolicyDaemon mRefactoredPowerPolicyDaemon;
     private boolean mVoiceInteractionEnabled;
@@ -240,30 +250,38 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     private WifiManager mWifiManager;
     @Mock
     private TetheringManager mTetheringManager;
+    @Mock
+    private ActivityManager mMockActivityManager;
+    @Mock
+    private ActivityManager.RunningAppProcessInfo mRunningProcess1;
+    @Mock
+    private ActivityManager.RunningAppProcessInfo mRunningProcess2;
+    @Mock
+    private DisplayHelperInterface mDisplayHelper;
 
     public CarPowerManagementServiceUnitTest() throws Exception {
         super(CarPowerManagementService.TAG);
-
-        mComponentStateFile = new TemporaryFile("COMPONENT_STATE_FILE");
     }
 
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
         session
             .spyStatic(ActivityManager.class)
+            .spyStatic(ActivityManagerHelper.class)
             .spyStatic(VoiceInteractionHelper.class);
     }
 
     @Before
     public void setUp() throws Exception {
+        mComponentStateFile = temporaryFolder.newFile("COMPONENT_STATE_FILE");
         mPowerHal = new MockedPowerHalService(/*isPowerStateSupported=*/true,
                 /*isDeepSleepAllowed=*/true,
                 /*isHibernationAllowed=*/true,
                 /*isTimedWakeupAllowed=*/true);
-        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext)
+        mSystemInterface = SystemInterface.Builder.defaultSystemInterface(mContext,
+                mWakeLockInterface)
             .withDisplayInterface(mDisplayInterface)
             .withSystemStateInterface(mSystemStateInterface)
-            .withWakeLockInterface(mWakeLockInterface)
             .withIOInterface(mIOInterface).build();
         HandlerThread handlerThread = CarServiceUtils.getHandlerThread(TAG);
         mScreenOffHandler = new FakeScreenOffHandler(
@@ -271,6 +289,8 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
 
         setCurrentUser(CURRENT_USER_ID, /* isGuest= */ false);
         setService();
+        setCarPowerCancelShellCommand(true);
+        mService.changeShouldChangeSwap(false);
     }
 
     @After
@@ -278,13 +298,25 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         if (mService != null) {
             mService.release();
         }
+        mService.changeShouldChangeSwap(true);
+        CarServiceUtils.quitHandlerThreads();
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
-        CarServiceUtils.finishAllHandlerTasks();
         mIOInterface.tearDown();
     }
 
     @Test
     public void testShutdown() throws Exception {
+        shutdownTest_withCarPowerCancelShellCommand(/* carShellCommandFlag= */ true);
+    }
+
+    @Test
+    public void testShutdown_carPowerShellCommandDisabled() throws Exception {
+        shutdownTest_withCarPowerCancelShellCommand(/* carShellCommandFlag= */ false);
+    }
+
+    private void shutdownTest_withCarPowerCancelShellCommand(boolean carShellCommandFlag)
+            throws Exception {
+        setCarPowerCancelShellCommand(carShellCommandFlag);
         mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
         mPowerSignalListener.addEventListener(PowerHalService.SET_SHUTDOWN_START);
         // Transition to ON state
@@ -306,6 +338,8 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testCanHibernate() throws Exception {
+        setStopProcessBeforeSuspendToDisk(false);
+        setChangeSwapDuringSuspendToDiskToFalse();
         mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
         mPowerSignalListener.addEventListener(PowerHalService.SET_HIBERNATION_ENTRY);
         mPowerSignalListener.addEventListener(PowerHalService.SET_HIBERNATION_EXIT);
@@ -329,6 +363,173 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
 
     @Test
     public void testHibernateImmediately() throws Exception {
+        setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
+                .thenReturn("none");
+        hibernateImmediately();
+    }
+
+    @Test
+    public void testHibernateFreeMemory() throws Exception {
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
+                .thenReturn("high");
+        doReturn(List.of(mRunningProcess1)).when(
+                () -> ActivityManagerHelper.getRunningAppProcesses());
+        setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
+        mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_FOREGROUND_SERVICE;
+
+        hibernateImmediately();
+
+        verify(mMockActivityManager).forceStopPackageAsUser(PROCESS_TEST_NAME_1,
+                UserManagerHelper.USER_ALL);
+    }
+
+    @Test
+    public void testHibernateFreeMemory_multipleProcesses() throws Exception {
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
+                .thenReturn("high");
+        doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
+                () -> ActivityManagerHelper.getRunningAppProcesses());
+        setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
+        mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_FOREGROUND_SERVICE;
+        mRunningProcess1.uid = 1;
+        mRunningProcess2.pkgList = new String[]{PROCESS_TEST_NAME_2};
+        mRunningProcess2.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_FOREGROUND_SERVICE;
+        mRunningProcess2.uid = 2;
+
+        hibernateImmediately();
+
+        verify(mMockActivityManager).forceStopPackageAsUser(PROCESS_TEST_NAME_1,
+                UserManagerHelper.USER_ALL);
+        verify(mMockActivityManager).forceStopPackageAsUser(PROCESS_TEST_NAME_2,
+                UserManagerHelper.USER_ALL);
+    }
+
+    @Test
+    public void testHibernateFreeMemory_multipleProcessesWithOneProcessTooLow()
+            throws Exception {
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
+                .thenReturn("medium");
+        doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
+                () -> ActivityManagerHelper.getRunningAppProcesses());
+        setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
+        mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_FOREGROUND_SERVICE;
+        mRunningProcess1.uid = 1;
+        mRunningProcess2.pkgList = new String[]{PROCESS_TEST_NAME_2};
+        mRunningProcess2.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_SERVICE;
+        mRunningProcess2.uid = 2;
+
+        hibernateImmediately();
+
+        verify(mMockActivityManager, never()).forceStopPackageAsUser(PROCESS_TEST_NAME_1,
+                UserManagerHelper.USER_ALL);
+        verify(mMockActivityManager).forceStopPackageAsUser(PROCESS_TEST_NAME_2,
+                UserManagerHelper.USER_ALL);
+    }
+
+    @Test
+    public void testHibernateFreeMemory_multipleProcessesWithOneProcessNotInAllowList()
+            throws Exception {
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
+                .thenReturn("high");
+        when(mResources.getStringArray(R.array.config_packages_not_to_stop_during_suspend))
+                .thenReturn(new String[] {PROCESS_TEST_NAME_1});
+        doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
+                () -> ActivityManagerHelper.getRunningAppProcesses());
+        setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
+        mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_FOREGROUND_SERVICE;
+        mRunningProcess1.processName = PROCESS_TEST_NAME_1;
+        mRunningProcess1.uid = 1;
+        mRunningProcess2.pkgList = new String[]{PROCESS_TEST_NAME_2};
+        mRunningProcess2.processName = PROCESS_TEST_NAME_2;
+        mRunningProcess2.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_SERVICE;
+        mRunningProcess2.uid = 2;
+
+        hibernateImmediately();
+
+        verify(mMockActivityManager, never()).forceStopPackageAsUser(PROCESS_TEST_NAME_1,
+                UserManagerHelper.USER_ALL);
+        verify(mMockActivityManager).forceStopPackageAsUser(PROCESS_TEST_NAME_2,
+                UserManagerHelper.USER_ALL);
+    }
+
+    @Test
+    public void testHibernateFreeMemory_multipleProcessesSameUid()
+            throws Exception {
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
+                .thenReturn("high");
+        when(mResources.getStringArray(R.array.config_packages_not_to_stop_during_suspend))
+                .thenReturn(new String[] {PROCESS_TEST_NAME_1});
+        doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
+                () -> ActivityManagerHelper.getRunningAppProcesses());
+        setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
+        mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_FOREGROUND_SERVICE;
+        mRunningProcess1.processName = PROCESS_TEST_NAME_1;
+        mRunningProcess1.uid = 42;
+        mRunningProcess2.pkgList = new String[]{PROCESS_TEST_NAME_2};
+        mRunningProcess2.processName = PROCESS_TEST_NAME_2;
+        mRunningProcess2.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_SERVICE;
+        mRunningProcess2.uid = 42;
+
+        hibernateImmediately();
+
+        verify(mMockActivityManager, never()).forceStopPackageAsUser(PROCESS_TEST_NAME_1,
+                UserManagerHelper.USER_ALL);
+        verify(mMockActivityManager, never()).forceStopPackageAsUser(PROCESS_TEST_NAME_2,
+                UserManagerHelper.USER_ALL);
+    }
+
+    @Test
+    public void testHibernateFreeMemory_multipleProcessesPersistentProcess()
+            throws Exception {
+        when(mResources.getString(R.string.config_suspend_to_disk_memory_savings))
+                .thenReturn("high");
+        doReturn(List.of(mRunningProcess1, mRunningProcess2)).when(
+                () -> ActivityManagerHelper.getRunningAppProcesses());
+        setStopProcessBeforeSuspendToDisk(true);
+        setChangeSwapDuringSuspendToDiskToFalse();
+        mRunningProcess1.pkgList = new String[]{PROCESS_TEST_NAME_1};
+        mRunningProcess1.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_FOREGROUND_SERVICE;
+        mRunningProcess1.processName = PROCESS_TEST_NAME_1;
+        mRunningProcess1.flags = ActivityManagerHelper.PROCESS_INFO_PERSISTENT_FLAG;
+        mRunningProcess1.uid = 42;
+        mRunningProcess2.pkgList = new String[]{PROCESS_TEST_NAME_2};
+        mRunningProcess2.processName = PROCESS_TEST_NAME_2;
+        mRunningProcess2.importance = ActivityManager.RunningAppProcessInfo
+                .IMPORTANCE_SERVICE;
+        mRunningProcess2.uid = 42;
+
+        hibernateImmediately();
+
+        verify(mMockActivityManager, never()).forceStopPackageAsUser(PROCESS_TEST_NAME_1,
+                UserManagerHelper.USER_ALL);
+        verify(mMockActivityManager, never()).forceStopPackageAsUser(PROCESS_TEST_NAME_2,
+                UserManagerHelper.USER_ALL);
+    }
+
+
+    private void hibernateImmediately() throws Exception {
         mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
         mPowerSignalListener.addEventListener(PowerHalService.SET_HIBERNATION_ENTRY);
         mPowerSignalListener.addEventListener(PowerHalService.SET_HIBERNATION_EXIT);
@@ -488,32 +689,19 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         }
     }
 
-
-    private String stateToString(int state) {
-        String result;
-        switch (state) {
-            case CarPowerManager.STATE_INVALID ->  result = "Invalid";
-            case CarPowerManager.STATE_WAIT_FOR_VHAL ->  result = "WaitForVHAL";
-            case CarPowerManager.STATE_SUSPEND_ENTER ->  result = "SuspendEnter";
-            case CarPowerManager.STATE_SUSPEND_EXIT ->  result = "SuspendExit";
-            case CarPowerManager.STATE_SHUTDOWN_ENTER ->  result = "ShutdownEnter";
-            case CarPowerManager.STATE_ON ->  result = "ON";
-            case CarPowerManager.STATE_SHUTDOWN_PREPARE ->  result = "ShutdownPrepare";
-            case CarPowerManager.STATE_SHUTDOWN_CANCELLED ->  result = "ShutdownCancelled";
-            case CarPowerManager.STATE_HIBERNATION_ENTER ->  result = "HibernationEnter";
-            case CarPowerManager.STATE_HIBERNATION_EXIT ->  result = "HibernationExit";
-            case CarPowerManager.STATE_PRE_SHUTDOWN_PREPARE ->  result = "PreShutdownPrepare";
-            case CarPowerManager.STATE_POST_SUSPEND_ENTER ->  result = "PostSuspendEnter";
-            case CarPowerManager.STATE_POST_SHUTDOWN_ENTER ->  result = "PostShutdownEnter";
-            case CarPowerManager.STATE_POST_HIBERNATION_ENTER ->  result = "PostHibernationEnter";
-            default -> result = "Unknown";
-        }
-        return result;
-    }
-
-
     @Test
     public void testSuspend() throws Exception {
+        suspendTest_withCarPowerCancelShellCommand(/* carShellCommandFlag= */ true);
+    }
+
+    @Test
+    public void testSuspend_carPowerCancelShellDisabled() throws Exception {
+        suspendTest_withCarPowerCancelShellCommand(/* carShellCommandFlag= */ false);
+    }
+
+    private void suspendTest_withCarPowerCancelShellCommand(boolean carShellCommandFlag)
+            throws Exception {
+        setCarPowerCancelShellCommand(carShellCommandFlag);
         mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
         // Start in the ON state
         mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
@@ -917,6 +1105,39 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
 
         // Arguments don't matter
         verify(callback).send(anyInt(), any());
+    }
+
+    @Test
+    public void testInitializePowerPolicy_invalidPowerState_powerPolicyRefactorFlagEnabled()
+            throws Exception {
+        mRefactoredPowerPolicyDaemon = new FakeRefactoredCarPowerPolicyDaemon(mFileKernelSilentMode,
+                new int[]{CUSTOM_COMPONENT_1000, CUSTOM_COMPONENT_1001, CUSTOM_COMPONENT_1002,
+                        CUSTOM_COMPONENT_1003});
+        setCarPowerPolicyRefactoringFeatureFlag(true);
+        mService = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(mPowerHal).setSystemInterface(mSystemInterface)
+                .setUserManager(mUserManager).setCarUserService(mUserService)
+                .setPowerPolicyDaemon(mRefactoredPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
+        CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
+        CarLocalServices.addService(CarPowerManagementService.class, mService);
+        mService.init();
+        int invalidPowerState = -1;
+        int shutdownParam = 0;
+        mPowerHal.setCurrentPowerState(new PowerState(invalidPowerState, shutdownParam));
+        assertWithMessage("Power HAL current power state").that(
+                mPowerHal.getCurrentPowerState().mState).isEqualTo(invalidPowerState);
+
+        mService.initializePowerPolicy();
+
+        assertWithMessage("Power policy daemon last notified power state").that(
+                mRefactoredPowerPolicyDaemon.getLastNotifiedPowerState()).isNotEqualTo(
+                        invalidPowerState);
     }
 
     @Test
@@ -1564,6 +1785,26 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
     }
 
     @Test
+    public void testSuspendImmediately() throws Exception {
+        mPowerSignalListener.addEventListener(PowerHalService.SET_ON);
+        mPowerSignalListener.addEventListener(PowerHalService.SET_DEEP_SLEEP_ENTRY);
+        // Start in the ON state
+        mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
+        mPowerSignalListener.waitFor(PowerHalService.SET_ON, WAIT_TIMEOUT_MS);
+        // Request suspend
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.CAN_SLEEP));
+        mPowerHal.setCurrentPowerState(
+                new PowerState(
+                        VehicleApPowerStateReq.SHUTDOWN_PREPARE,
+                        VehicleApPowerStateShutdownParam.SLEEP_IMMEDIATELY));
+        // Verify suspend
+        mPowerSignalListener.waitFor(PowerHalService.SET_DEEP_SLEEP_ENTRY, WAIT_TIMEOUT_LONG_MS);
+    }
+
+    @Test
     public void testPowerPolicyAfterShutdownCancel_powerPolicyRefactorFlagEnabled()
             throws Exception {
         setRefactoredService();
@@ -1727,11 +1968,16 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 .thenReturn(true);
         when(mWifiManager.isWifiEnabled()).thenReturn(true);
         when(mWifiManager.isWifiApEnabled()).thenReturn(true);
-        mService = new CarPowerManagementService(mContext, mResources, mPowerHal,
-                    mSystemInterface, mUserManager, mUserService, mPowerPolicyDaemon,
-                    mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                    mFileHwStateMonitoring.getFile().getPath(),
-                    mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        mService = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(mPowerHal).setSystemInterface(mSystemInterface)
+                .setUserManager(mUserManager).setCarUserService(mUserService)
+                .setPowerPolicyDaemon(mPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
         CarLocalServices.addService(CarPowerManagementService.class, mService);
         mService.init();
@@ -1851,7 +2097,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         int brightness = 25;
         int displayId = Display.DEFAULT_DISPLAY;
 
-        mService.sendDisplayBrightness(brightness);
+        mService.sendDisplayBrightnessLegacy(brightness);
 
         mPowerHal.waitForBrightnessSent(displayId, brightness, WAIT_TIMEOUT_MS);
         assertWithMessage("Display " + displayId + " brightness sent with no display ID").that(
@@ -2179,12 +2425,17 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         when(mockVehicleStub.isAidlVhal()).thenReturn(true);
 
         var vehicleHal = new VehicleHal(mContext, mockVehicleStub);
-        var service = new CarPowerManagementService(mContext, mResources,
-                new PowerHalService(mContext, vehicleHal),
-                mSystemInterface, mUserManager, mUserService, mRefactoredPowerPolicyDaemon,
-                mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                mFileHwStateMonitoring.getFile().getPath(),
-                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        var service = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(new PowerHalService(mContext, mFeatureFlags, vehicleHal,
+                        mDisplayHelper))
+                .setSystemInterface(mSystemInterface).setUserManager(mUserManager)
+                .setCarUserService(mUserService).setPowerPolicyDaemon(mRefactoredPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
 
         HalPropValue vehicleInUseRequest = mHalPropValueBuilder.build(
                 VehicleProperty.VEHICLE_IN_USE, /* areaId= */ 0);
@@ -2215,12 +2466,17 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         when(mockVehicleStub.isAidlVhal()).thenReturn(true);
 
         var vehicleHal = new VehicleHal(mContext, mockVehicleStub);
-        var service = new CarPowerManagementService(mContext, mResources,
-                new PowerHalService(mContext, vehicleHal),
-                mSystemInterface, mUserManager, mUserService, mRefactoredPowerPolicyDaemon,
-                mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                mFileHwStateMonitoring.getFile().getPath(),
-                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        var service = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(new PowerHalService(mContext, mFeatureFlags, vehicleHal,
+                        mDisplayHelper))
+                .setSystemInterface(mSystemInterface).setUserManager(mUserManager)
+                .setCarUserService(mUserService).setPowerPolicyDaemon(mRefactoredPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
 
         service.onInitComplete();
     }
@@ -2235,17 +2491,21 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         when(mockVehicleStub.isAidlVhal()).thenReturn(true);
 
         var vehicleHal = new VehicleHal(mContext, mockVehicleStub);
-        var service = new CarPowerManagementService(mContext, mResources,
-                new PowerHalService(mContext, vehicleHal),
-                mSystemInterface, mUserManager, mUserService, mRefactoredPowerPolicyDaemon,
-                mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                mFileHwStateMonitoring.getFile().getPath(),
-                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        var service = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(new PowerHalService(mContext, mFeatureFlags, vehicleHal,
+                        mDisplayHelper))
+                .setSystemInterface(mSystemInterface).setUserManager(mUserManager)
+                .setCarUserService(mUserService).setPowerPolicyDaemon(mRefactoredPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
 
         HalPropValue bootupReasonRequest = mHalPropValueBuilder.build(
                 VehicleProperty.AP_POWER_BOOTUP_REASON, /* areaId= */ 0);
-        HalPropValue bootupReasonResponse = mHalPropValueBuilder.build(
-                VehicleProperty.AP_POWER_BOOTUP_REASON,
+        mHalPropValueBuilder.build(VehicleProperty.AP_POWER_BOOTUP_REASON,
                 /* areaId= */ 0, VehicleApPowerBootupReason.SYSTEM_ENTER_GARAGE_MODE);
         when(mockVehicleStub.get(eq(bootupReasonRequest))).thenThrow(
                 new IllegalArgumentException());
@@ -2265,12 +2525,17 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         when(mockVehicleStub.isAidlVhal()).thenReturn(true);
 
         var vehicleHal = new VehicleHal(mContext, mockVehicleStub);
-        var service = new CarPowerManagementService(mContext, mResources,
-                new PowerHalService(mContext, vehicleHal),
-                mSystemInterface, mUserManager, mUserService, mRefactoredPowerPolicyDaemon,
-                mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                mFileHwStateMonitoring.getFile().getPath(),
-                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        var service = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(new PowerHalService(mContext, mFeatureFlags, vehicleHal,
+                        mDisplayHelper))
+                .setSystemInterface(mSystemInterface).setUserManager(mUserManager)
+                .setCarUserService(mUserService).setPowerPolicyDaemon(mRefactoredPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
 
         HalPropValue vehicleInUseRequest = mHalPropValueBuilder.build(
                 VehicleProperty.VEHICLE_IN_USE, /* areaId= */ 0);
@@ -2301,12 +2566,17 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         when(mockVehicleStub.isAidlVhal()).thenReturn(true);
 
         var vehicleHal = new VehicleHal(mContext, mockVehicleStub);
-        var service = new CarPowerManagementService(mContext, mResources,
-                new PowerHalService(mContext, vehicleHal),
-                mSystemInterface, mUserManager, mUserService, mRefactoredPowerPolicyDaemon,
-                mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                mFileHwStateMonitoring.getFile().getPath(),
-                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        var service = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(new PowerHalService(mContext, mFeatureFlags, vehicleHal,
+                        mDisplayHelper))
+                .setSystemInterface(mSystemInterface).setUserManager(mUserManager)
+                .setCarUserService(mUserService).setPowerPolicyDaemon(mRefactoredPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
 
         HalPropValue vehicleInUseRequest = mHalPropValueBuilder.build(
                 VehicleProperty.VEHICLE_IN_USE, /* areaId= */ 0);
@@ -2327,12 +2597,41 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         verify(mockVehicleStub, never()).set(any());
     }
 
+    @Test
+    public void testApplyNonPreemptivePolicyOverPreemptivePolicy() throws Exception {
+        setRefactoredService();
+        grantPowerPolicyPermission();
+        String policyId = SYSTEM_POWER_POLICY_NO_USER_INTERACTION;
+        boolean isSuccess = applyPowerPolicyFromCommand(policyId);
+        assertWithMessage("Apply power policy from command status").that(
+                isSuccess).isTrue();
+        waitForPowerPolicy(policyId);
+
+        MockedPowerPolicyListener listenerToWait = setUpPowerPolicyAudioInvert();
+
+        mService.applyPowerPolicy(POWER_POLICY_AUDIO_INVERT);
+
+        assertPowerPolicyNotApplied(POWER_POLICY_AUDIO_INVERT, listenerToWait);
+    }
+
     private void setCarPowerPolicyRefactoringFeatureFlag(boolean flagValue) {
         mFeatureFlags.setFlag(Flags.FLAG_CAR_POWER_POLICY_REFACTORING, flagValue);
     }
 
     private void setServerlessRemoteAccessFlag(boolean flagValue) {
         mFeatureFlags.setFlag(Flags.FLAG_SERVERLESS_REMOTE_ACCESS, flagValue);
+    }
+
+    private void setCarPowerCancelShellCommand(boolean flagValue) {
+        mFeatureFlags.setFlag(Flags.FLAG_CAR_POWER_CANCEL_SHELL_COMMAND, flagValue);
+    }
+
+    private void setStopProcessBeforeSuspendToDisk(boolean flagValue) {
+        mFeatureFlags.setFlag(Flags.FLAG_STOP_PROCESS_BEFORE_SUSPEND_TO_DISK, flagValue);
+    }
+
+    private void setChangeSwapDuringSuspendToDiskToFalse() {
+        mFeatureFlags.setFlag(Flags.FLAG_CHANGE_SWAPS_DURING_SUSPEND_TO_DISK, false);
     }
 
     /**
@@ -2344,6 +2643,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         // to timeout. Also, we don't want to actually change Wifi state.
         doReturn(mWifiManager).when(mContext).getSystemService(WifiManager.class);
         doReturn(mTetheringManager).when(mContext).getSystemService(TetheringManager.class);
+        doReturn(mMockActivityManager).when(mContext).getSystemService(ActivityManager.class);
         when(mResources.getInteger(R.integer.maxGarageModeRunningDurationInSecs))
                 .thenReturn(900);
         when(mResources.getInteger(R.integer.config_maxSuspendWaitDuration))
@@ -2356,18 +2656,23 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
             return null;
         }).when(() -> VoiceInteractionHelper.setEnabled(anyBoolean()));
 
-        mFileHwStateMonitoring = new TemporaryFile("HW_STATE_MONITORING");
-        mFileKernelSilentMode = new TemporaryFile("KERNEL_SILENT_MODE");
-        mFileHwStateMonitoring.write(NONSILENT_STRING);
+        mFileHwStateMonitoring = temporaryFolder.newFile("HW_STATE_MONITORING");
+        mFileKernelSilentMode = temporaryFolder.newFile("KERNEL_SILENT_MODE");
+        writeToTempFile(mFileHwStateMonitoring, NONSILENT_STRING);
         mPowerComponentHandler = new PowerComponentHandler(mContext, mSystemInterface,
-                new AtomicFile(mComponentStateFile.getFile()));
+                new AtomicFile(mComponentStateFile));
         mPowerPolicyDaemon = new FakeCarPowerPolicyDaemon();
         setCarPowerPolicyRefactoringFeatureFlag(false);
-        mService = new CarPowerManagementService(mContext, mResources, mPowerHal,
-                mSystemInterface, mUserManager, mUserService, mPowerPolicyDaemon,
-                mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                mFileHwStateMonitoring.getFile().getPath(),
-                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        mService = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(mPowerHal).setSystemInterface(mSystemInterface)
+                .setUserManager(mUserManager).setCarUserService(mUserService)
+                .setPowerPolicyDaemon(mPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
         CarLocalServices.addService(CarPowerManagementService.class, mService);
         mService.init();
@@ -2385,11 +2690,16 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 new int[]{CUSTOM_COMPONENT_1000, CUSTOM_COMPONENT_1001, CUSTOM_COMPONENT_1002,
                         CUSTOM_COMPONENT_1003});
         setCarPowerPolicyRefactoringFeatureFlag(true);
-        mService = new CarPowerManagementService(mContext, mResources, mPowerHal,
-                mSystemInterface, mUserManager, mUserService, mRefactoredPowerPolicyDaemon,
-                mPowerComponentHandler, mFeatureFlags, mScreenOffHandler,
-                mFileHwStateMonitoring.getFile().getPath(),
-                mFileKernelSilentMode.getFile().getPath(), NORMAL_BOOT);
+        mService = new CarPowerManagementService.Builder()
+                .setContext(mContext).setResources(mResources)
+                .setPowerHalService(mPowerHal).setSystemInterface(mSystemInterface)
+                .setUserManager(mUserManager).setCarUserService(mUserService)
+                .setPowerPolicyDaemon(mRefactoredPowerPolicyDaemon)
+                .setPowerComponentHandler(mPowerComponentHandler).setFeatureFlags(mFeatureFlags)
+                .setScreenOffHandler(mScreenOffHandler)
+                .setSilentModeHwStatePath(mFileHwStateMonitoring.getPath())
+                .setSilentModeKernelStatePath(mFileKernelSilentMode.getPath())
+                .setBootReason(NORMAL_BOOT).build();
         CarLocalServices.removeServiceForTest(CarPowerManagementService.class);
         CarLocalServices.addService(CarPowerManagementService.class, mService);
         mService.init();
@@ -2397,6 +2707,12 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         mService.setShutdownTimersForTest(0, 0);
         mService.scheduleNextWakeupTime(WAKE_UP_DELAY);
         assertStateReceived(MockedPowerHalService.SET_WAIT_FOR_VHAL, 0);
+    }
+
+    private void writeToTempFile(File file, String content) throws IOException {
+        try (FileWriter fw = new FileWriter(file)) {
+            fw.write(content);
+        }
     }
 
     private void suspendDevice() throws Exception {
@@ -2465,7 +2781,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 SYSTEM_POWER_POLICY_INITIAL_ON);
         assertThat(mDisplayInterface.isAnyDisplayEnabled()).isTrue();
 
-        mFileHwStateMonitoring.write(NONSILENT_STRING); // Wake non-silently
+        writeToTempFile(mFileHwStateMonitoring, NONSILENT_STRING); // Wake non-silently
         mService.setStateForWakeUp();
         mPowerHal.setCurrentPowerState(new PowerState(VehicleApPowerStateReq.ON, 0));
         assertVoiceInteractionEnabled();
@@ -2645,10 +2961,32 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 () -> listenerToWait.getCurrentPowerPolicy() != null);
         if (mFeatureFlags.carPowerPolicyRefactoring()) {
             assertWithMessage("Power policy daemon last notified policy ID").that(
-                    mRefactoredPowerPolicyDaemon.getLastAppliedPowerPolicyId()).isEqualTo(policyId);
+                    mRefactoredPowerPolicyDaemon.getCurrentPowerPolicyId()).isEqualTo(policyId);
         } else {
             assertWithMessage("Power policy daemon last notified policy ID").that(
                     mPowerPolicyDaemon.getLastNotifiedPolicyId()).isEqualTo(policyId);
+        }
+    }
+
+    private void assertPowerPolicyNotApplied(String policyId,
+            MockedPowerPolicyListener listenerToCheck) throws Exception {
+        CarPowerPolicy policy = mService.getCurrentPowerPolicy();
+        if (policy != null) {
+            assertWithMessage("Current policy ID").that(policy.getPolicyId())
+                    .isNotEqualTo(policyId);
+        }
+        policy = listenerToCheck.getCurrentPowerPolicy();
+        if (policy != null) {
+            assertWithMessage("Notified policy ID").that(policy.getPolicyId())
+                    .isNotEqualTo(policyId);
+        }
+        if (mFeatureFlags.carPowerPolicyRefactoring()) {
+            assertWithMessage("Power policy daemon last notified policy ID")
+                    .that(mRefactoredPowerPolicyDaemon.getCurrentPowerPolicyId())
+                    .isNotEqualTo(policyId);
+        } else {
+            assertWithMessage("Power policy daemon last notified policy ID").that(
+                    mPowerPolicyDaemon.getLastNotifiedPolicyId()).isNotEqualTo(policyId);
         }
     }
 
@@ -2801,7 +3139,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
                 .checkCallingOrSelfPermission(Car.PERMISSION_CONTROL_SHUTDOWN_PROCESS);
     }
 
-    private static final class MockDisplayInterface implements DisplayInterface {
+    private static final class MockDisplayInterface extends DisplayInterfaceEmptyImpl {
         private static final int WAIT_FOR_DISPLAY_BRIGHTNESS_RETRIES = 5;
         @GuardedBy("sLock")
         private final SparseBooleanArray mDisplayOn = new SparseBooleanArray();
@@ -2819,12 +3157,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         }
 
         @Override
-        public void setDisplayBrightness(int brightness) {
-            setDisplayBrightness(Display.DEFAULT_DISPLAY, brightness);
-        }
-
-        @Override
-        public void setDisplayBrightness(int displayId, int percentBright) {
+        public void onDisplayBrightnessChangeFromVhal(int displayId, int percentBright) {
             synchronized (sLock) {
                 if (percentBright == mDisplayBrightnessSet.get(displayId)) {
                     return;
@@ -2929,7 +3262,7 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         public void stopDisplayStateMonitoring() {}
 
         @Override
-        public void refreshDisplayBrightness() {}
+        public void refreshDefaultDisplayBrightness() {}
 
         @Override
         public void refreshDisplayBrightness(int displayId) {}
@@ -2981,17 +3314,15 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
         @Override
         void init() {}
 
-        private boolean isAutoPowerSaving() {
-            return mIsAutoPowerSaving;
-        }
-
         private void setIsAutoPowerSaving(boolean isPowerSaving) {
             mIsAutoPowerSaving = isPowerSaving;
         }
 
         private void setDisplayPowerInfo(int displayId, @FakeDisplayPowerMode int powerMode) {
             FakeDisplayPowerInfo info = new FakeDisplayPowerInfo(powerMode);
-            mDisplayPowerInfos.put(displayId, info);
+            synchronized (sLock) {
+                mDisplayPowerInfos.put(displayId, info);
+            }
         }
 
         boolean canTurnOnDisplay(int displayId) {
@@ -3055,10 +3386,6 @@ public final class CarPowerManagementServiceUnitTest extends AbstractExtendedMoc
             private @FakeDisplayPowerMode int mMode;
 
             FakeDisplayPowerInfo(@FakeDisplayPowerMode int mode) {
-                mMode = mode;
-            }
-
-            private void setMode(@FakeDisplayPowerMode int mode) {
                 mMode = mode;
             }
 

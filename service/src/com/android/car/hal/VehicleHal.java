@@ -64,6 +64,7 @@ import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.Lists;
 import com.android.car.internal.util.PairSparseArray;
+import com.android.car.systeminterface.DisplayHelperInterface;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -77,7 +78,6 @@ import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * Abstraction for vehicle HAL. This class handles interface with native HAL and does basic parsing
@@ -271,7 +271,8 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
         mPropValueBuilder = vehicle.getHalPropValueBuilder();
         mHandlerThread = handlerThread;
         mHandler = new Handler(mHandlerThread.getLooper());
-        mPowerHal = powerHal != null ? powerHal : new PowerHalService(context, this);
+        mPowerHal = powerHal != null ? powerHal : new PowerHalService(context, mFeatureFlags, this,
+                new DisplayHelperInterface.DefaultImpl());
         mPropertyHal = propertyHal != null ? propertyHal : new PropertyHalService(this);
         mInputHal = inputHal != null ? inputHal : new InputHalService(this);
         mVmsHal = vmsHal != null ? vmsHal : new VmsHalService(context, this);
@@ -1266,8 +1267,11 @@ public class VehicleHal implements VehicleHalCallback, CarSystemService {
      */
     public void dumpSpecificHals(PrintWriter writer, String... halNames) {
         synchronized (mLock) {
-            Map<String, HalServiceBase> byName = mAllServices.stream()
-                    .collect(Collectors.toMap(s -> s.getClass().getSimpleName(), s -> s));
+            ArrayMap<String, HalServiceBase> byName = new ArrayMap<>();
+            for (int index = 0; index < mAllServices.size(); index++) {
+                HalServiceBase halService = mAllServices.get(index);
+                byName.put(halService.getClass().getSimpleName(), halService);
+            }
             for (String halName : halNames) {
                 HalServiceBase service = byName.get(halName);
                 if (service == null) {

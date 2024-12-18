@@ -55,6 +55,7 @@ import com.android.car.systeminterface.SystemInterface;
 import com.android.car.util.SlidingWindow;
 import com.android.car.util.SparseArrayStream;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -74,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -89,13 +91,21 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
     public static final long SHUTDOWN_COST_INFO_MISSING =
             CarStorageMonitoringManager.SHUTDOWN_COST_INFO_MISSING;
 
-    private static final boolean DBG = false;
     private static final String TAG = CarLog.tagFor(CarStorageMonitoringService.class);
+
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
+
     private static final int MIN_WEAR_ESTIMATE_OF_CONCERN = 80;
 
-    static final String UPTIME_TRACKER_FILENAME = "service_uptime";
-    static final String WEAR_INFO_FILENAME = "wear_info";
-    static final String LIFETIME_WRITES_FILENAME = "lifetime_write";
+    // uptime tracker filename.
+    @VisibleForTesting
+    public static final String UPTIME_TRACKER_FILENAME = "service_uptime";
+    // wear info filename.
+    @VisibleForTesting
+    public static final String WEAR_INFO_FILENAME = "wear_info";
+    // lifetime writes filename.
+    @VisibleForTesting
+    public static final String LIFETIME_WRITES_FILENAME = "lifetime_write";
 
     private final WearInformationProvider[] mWearInformationProviders;
     private final Context mContext;
@@ -464,7 +474,7 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
     private List<LifetimeWriteInfo> loadLifetimeWrites() {
         if (!mLifetimeWriteFile.exists() || !mLifetimeWriteFile.isFile()) {
             Slogf.d(TAG, "lifetime write file missing or inaccessible " + mLifetimeWriteFile);
-            return Collections.emptyList();
+            return new ArrayList<>();
         }
         try {
             JSONObject jsonObject = new JSONObject(
@@ -479,7 +489,7 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
             return result;
         } catch (JSONException | IOException e) {
             Slogf.e(TAG, "lifetime write file does not contain valid JSON", e);
-            return Collections.emptyList();
+            return new ArrayList<>();
         }
     }
 
@@ -521,14 +531,9 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
             doInitServiceIfNeededLocked();
             writer.println("last wear information retrieved: "
                     + mWearInformation.map(WearInformation::toString).orElse("missing"));
-            writer.println("wear change history: "
-                    + mWearEstimateChanges.stream()
-                    .map(WearEstimateChange::toString)
-                    .collect(Collectors.joining("\n")));
-            writer.println("boot I/O stats: "
-                    + mBootIoStats.stream()
-                    .map(IoStatsEntry::toString)
-                    .collect(Collectors.joining("\n")));
+            writer.println(listToString(mWearEstimateChanges, "\n",
+                    "wear change history: "));
+            writer.println(listToString(mBootIoStats, "\n", "boot I/O stats: "));
             writer.println("aggregate I/O stats: "
                     + SparseArrayStream.valueStream(mIoStatsTracker.getTotal())
                     .map(IoStatsEntry::toString)
@@ -536,9 +541,7 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
             writer.println("I/O stats snapshots: ");
             writer.println(
                     mIoStatsSamples.stream().map(
-                            sample -> sample.getStats().stream()
-                                    .map(IoStatsEntry::toString)
-                                    .collect(Collectors.joining("\n")))
+                            sample -> listToString(sample.getStats(), "\n", ""))
                             .collect(Collectors.joining("\n------\n")));
             if (mShutdownCostInfo < 0) {
                 writer.print("last shutdown cost: missing. ");
@@ -549,6 +552,14 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
                 writer.println("last shutdown cost: " + mShutdownCostInfo + " bytes, estimated");
             }
         }
+    }
+
+    private <T> String listToString(List<T> list, CharSequence delimiter, String prefix) {
+        StringJoiner stringJoiner = new StringJoiner(delimiter, prefix, /* suffix= */ "");
+        for (int index = 0; index < list.size(); index++) {
+            stringJoiner.add(list.get(index).toString());
+        }
+        return stringJoiner.toString();
     }
 
     @Override
@@ -709,12 +720,12 @@ public class CarStorageMonitoringService extends ICarStorageMonitoring.Stub
         Configuration(Resources resources) throws Resources.NotFoundException {
             ioStatsNumSamplesToStore = resources.getInteger(R.integer.ioStatsNumSamplesToStore);
             acceptableBytesWrittenPerSample =
-                    1024 * resources.getInteger(R.integer.acceptableWrittenKBytesPerSample);
+                    1024L * resources.getInteger(R.integer.acceptableWrittenKBytesPerSample);
             acceptableFsyncCallsPerSample =
                     resources.getInteger(R.integer.acceptableFsyncCallsPerSample);
             maxExcessiveIoSamplesInWindow =
                     resources.getInteger(R.integer.maxExcessiveIoSamplesInWindow);
-            uptimeIntervalBetweenUptimeDataWriteMs = 60 * 60 * 1000
+            uptimeIntervalBetweenUptimeDataWriteMs = 60L * 60 * 1000
                     * resources.getInteger(R.integer.uptimeHoursIntervalBetweenUptimeDataWrite);
             acceptableHoursPerOnePercentFlashWear =
                     resources.getInteger(R.integer.acceptableHoursPerOnePercentFlashWear);

@@ -45,9 +45,10 @@ public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
 
     // IDs that only exist in VHAL, not exposed by CarPropertyManager.
     private static final List<String> MISSING_VEHICLE_PROPERTY_IDS = List.of(
-                    "EXTERNAL_CAR_TIME",
+                    "CAMERA_SERVICE_CURRENT_STATE",
                     "DISABLED_OPTIONAL_FEATURES",
                     "EVS_SERVICE_REQUEST",
+                    "EXTERNAL_CAR_TIME",
                     "HW_KEY_INPUT_V2",
                     "HW_MOTION_INPUT",
                     "HW_CUSTOM_INPUT",
@@ -56,7 +57,8 @@ public final class VehiclePropertyIdsTest extends CarLessApiTestBase {
                     "SUPPORTED_PROPERTY_IDS",
                     "STORAGE_ENCRYPTION_BINDING_SEED",
                     "SHUTDOWN_REQUEST",
-                    "VEHICLE_IN_USE");
+                    "VEHICLE_IN_USE",
+                    "PER_DISPLAY_MAX_BRIGHTNESS");
 
     @Test
     @NonApiTest(exemptionReasons = {}, justification = "Large number of constant fields")

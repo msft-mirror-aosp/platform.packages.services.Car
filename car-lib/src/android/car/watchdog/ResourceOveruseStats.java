@@ -45,11 +45,14 @@ public final class ResourceOveruseStats implements Parcelable {
      */
     private @NonNull UserHandle mUserHandle;
 
-    /*
-     * I/O overuse stats for the package. If the package didn't opt-in to receive I/O overuse stats
-     * or the package doesn't have I/O overuse stats, this value will be null.
+    /**
+     * I/O overuse stats for the package.
+     *
+     * If the package didn't opt-in to receive I/O overuse stats or the package doesn't have
+     * I/O overuse stats, this value will be null.
      */
     private @Nullable IoOveruseStats mIoOveruseStats = null;
+
 
 
 
@@ -60,7 +63,6 @@ public final class ResourceOveruseStats implements Parcelable {
     //
     // To regenerate run:
     // $ codegen $ANDROID_BUILD_TOP/packages/services/Car/car-lib/src/android/car/watchdog/ResourceOveruseStats.java
-    // Added AddedInOrBefore or ApiRequirement Annotation manually
     //
     // To exclude the generated code from IntelliJ auto-formatting enable (one-time):
     //   Settings > Editor > Code Style > Formatter Control
@@ -102,6 +104,12 @@ public final class ResourceOveruseStats implements Parcelable {
         return mUserHandle;
     }
 
+    /**
+     * I/O overuse stats for the package.
+     *
+     * If the package didn't opt-in to receive I/O overuse stats or the package doesn't have
+     * I/O overuse stats, this value will be null.
+     */
     @DataClass.Generated.Member
     public @Nullable IoOveruseStats getIoOveruseStats() {
         return mIoOveruseStats;
@@ -237,6 +245,12 @@ public final class ResourceOveruseStats implements Parcelable {
             return this;
         }
 
+        /**
+         * I/O overuse stats for the package.
+         *
+         * If the package didn't opt-in to receive I/O overuse stats or the package doesn't have
+         * I/O overuse stats, this value will be null.
+         */
         @DataClass.Generated.Member
         public @NonNull Builder setIoOveruseStats(@NonNull IoOveruseStats value) {
             checkNotUsed();
@@ -269,7 +283,7 @@ public final class ResourceOveruseStats implements Parcelable {
     }
 
     @DataClass.Generated(
-            time = 1628099343131L,
+            time = 1721756572114L,
             codegenVersion = "1.0.23",
             sourceFile = "packages/services/Car/car-lib/src/android/car/watchdog/ResourceOveruseStats.java",
             inputSignatures = "private @android.annotation.NonNull java.lang.String mPackageName\nprivate @android.annotation.NonNull android.os.UserHandle mUserHandle\nprivate @android.annotation.Nullable android.car.watchdog.IoOveruseStats mIoOveruseStats\nclass ResourceOveruseStats extends java.lang.Object implements [android.os.Parcelable]\n@com.android.car.internal.util.DataClass(genToString=true, genHiddenBuilder=true)")

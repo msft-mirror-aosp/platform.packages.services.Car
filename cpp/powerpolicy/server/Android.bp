@@ -39,6 +39,7 @@ cc_defaults {
         "libtinyxml2",
         "libutils",
         "server_configurable_flags",
+        "libaconfig_storage_read_api_cc",
     ],
     static_libs: [
         "android.car.feature-aconfig-cpp",
@@ -91,6 +92,11 @@ cc_test {
     data: [":powerpolicyxmlfiles"],
 }
 
+vintf_fragment {
+    name: "carpowerpolicyd.xml",
+    src: "carpowerpolicyd.xml",
+}
+
 cc_binary {
     name: "carpowerpolicyd",
     defaults: [
@@ -103,7 +109,7 @@ cc_binary {
         "lib_carpowerpolicyserver",
     ],
     init_rc: ["carpowerpolicyd.rc"],
-    vintf_fragments: ["carpowerpolicyd.xml"],
+    vintf_fragment_modules: ["carpowerpolicyd.xml"],
 }
 
 cc_fuzz {

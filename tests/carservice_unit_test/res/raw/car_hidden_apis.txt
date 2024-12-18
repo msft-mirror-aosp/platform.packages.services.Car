@@ -20,7 +20,6 @@ android.car Car String CAR_SERVICE_INTERFACE_NAME
 android.car Car String CAR_TEMPLATE_HOST_RENDERER_SERVICE
 android.car Car String CLUSTER_HOME_SERVICE
 android.car Car String EXPERIMENTAL_CAR_KEYGUARD_SERVICE
-android.car Car String EXPERIMENTAL_CAR_USER_SERVICE
 android.car Car String PERMISSION_BIND_VMS_CLIENT
 android.car Car String PERMISSION_CAR_DISPLAY_IN_CLUSTER
 android.car Car String PERMISSION_COLLECT_CAR_CPU_INFO
@@ -28,8 +27,15 @@ android.car Car String PROPERTY_EMULATED_PLATFORM_VERSION_MAJOR
 android.car Car String PROPERTY_EMULATED_PLATFORM_VERSION_MINOR
 android.car Car T handleRemoteExceptionFromCarService(RemoteException e, T returnValue)
 android.car Car T handleRemoteExceptionFromCarService(Service service, RemoteException e, T returnValue)
+android.car Car record Deps(ServiceManager serviceManager, Process process, long carServiceBindRetryIntervalMs, long carServiceBindMaxRetry)
 android.car Car void handleRemoteExceptionFromCarService(RemoteException e)
 android.car Car void handleRemoteExceptionFromCarService(Service service, RemoteException e)
+android.car Car.CarBuilder Car createCar(Context context)
+android.car Car.CarBuilder Car createCar(Context context, Handler handler)
+android.car Car.CarBuilder Car createCar(Context context, Handler handler, long waitTimeoutMs, CarServiceLifecycleListener statusChangeListener)
+android.car Car.CarBuilder Car createCar(Context context, ServiceConnection serviceConnectionListener)
+android.car Car.CarBuilder Car createCar(Context context, ServiceConnection serviceConnectionListener, Handler handler)
+android.car Car.CarBuilder CarBuilder setFakeDeps(Deps deps)
 android.car CarAppFocusManager int APP_FOCUS_MAX
 android.car CarAppFocusManager int[] getActiveAppTypes()
 android.car CarAppFocusManager void onCarDisconnected()
@@ -68,6 +74,7 @@ android.car CarOccupantZoneManager int DISPLAY_TYPE_AUXILIARY_2
 android.car CarOccupantZoneManager int DISPLAY_TYPE_AUXILIARY_3
 android.car CarOccupantZoneManager int DISPLAY_TYPE_AUXILIARY_4
 android.car CarOccupantZoneManager int DISPLAY_TYPE_AUXILIARY_5
+android.car CarOccupantZoneManager int DISPLAY_TYPE_DISPLAY_COMPATIBILITY
 android.car CarOccupantZoneManager int OCCUPANT_TYPE_INVALID
 android.car CarOccupantZoneManager void onCarDisconnected()
 android.car CarOccupantZoneManager.OccupantZoneInfo int INVALID_ZONE_ID
@@ -259,8 +266,11 @@ android.car.content.pm CarPackageManager String getCurrentDrivingSafetyRegion()
 android.car.content.pm CarPackageManager int ERROR_CODE_NO_PACKAGE
 android.car.content.pm CarPackageManager void controlTemporaryActivityBlockingBypassingAsUser(String packageName, String activityClassName, boolean bypass, int userId)
 android.car.content.pm CarPackageManager void onCarDisconnected()
+android.car.content.pm CarPackageManager void registerBlockingUiCommandListener(int displayId, Executor callbackExecutor, BlockingUiCommandListener listener)
 android.car.content.pm CarPackageManager void restartTask(int taskId)
 android.car.content.pm CarPackageManager void setEnableActivityBlocking(boolean enable)
+android.car.content.pm CarPackageManager void unregisterBlockingUiCommandListener(BlockingUiCommandListener listener)
+android.car.content.pm CarPackageManager.BlockingUiCommandListener void finishBlockingUi()
 android.car.diagnostic CarDiagnosticEvent CarDiagnosticEvent checkFreezeFrame()
 android.car.diagnostic CarDiagnosticEvent CarDiagnosticEvent checkLiveFrame()
 android.car.diagnostic CarDiagnosticEvent CarDiagnosticEvent withVendorSensorsRemoved()
@@ -633,6 +643,8 @@ android.car.projection ProjectionOptions.Builder Builder setConsentActivity(Comp
 android.car.projection ProjectionOptions.Builder Builder setProjectionActivityOptions(ActivityOptions activityOptions)
 android.car.projection ProjectionOptions.Builder Builder setUiMode(int uiMode)
 android.car.projection ProjectionOptions.Builder ProjectionOptions build()
+android.car.remoteaccess CarRemoteAccessManager boolean isShutdownRequestSupported()
+android.car.remoteaccess CarRemoteAccessManager boolean isVehicleInUseSupported()
 android.car.remoteaccess CarRemoteAccessManager void addServerlessRemoteTaskClient(String packageName, String clientId)
 android.car.remoteaccess CarRemoteAccessManager void onCarDisconnected()
 android.car.remoteaccess CarRemoteAccessManager void removeServerlessRemoteTaskClient(String packageName)
@@ -698,15 +710,6 @@ android.car.user CarUserManager void updatePreCreatedUsers()
 android.car.user CarUserManager.UserLifecycleEvent int getPreviousUserId()
 android.car.user CarUserManager.UserLifecycleEvent int getUserId()
 android.car.user CarUserManager.UserSwitchUiCallback void showUserSwitchDialog(int userId)
-android.car.user ExperimentalCarUserManager AndroidFuture<UserCreationResult> createDriver(String name, boolean admin)
-android.car.user ExperimentalCarUserManager AndroidFuture<UserSwitchResult> switchDriver(int driverId)
-android.car.user ExperimentalCarUserManager List<Integer> getAllDrivers()
-android.car.user ExperimentalCarUserManager List<Integer> getPassengers(int driverId)
-android.car.user ExperimentalCarUserManager String TAG
-android.car.user ExperimentalCarUserManager boolean startPassenger(int passengerId, int zoneId)
-android.car.user ExperimentalCarUserManager boolean stopPassenger(int passengerId)
-android.car.user ExperimentalCarUserManager int createPassenger(String name, int driverId)
-android.car.user ExperimentalCarUserManager void onCarDisconnected()
 android.car.user OperationResult boolean isSuccess()
 android.car.user UserIdentificationAssociationResponse Parcelable.Creator<UserIdentificationAssociationResponse> CREATOR
 android.car.user UserIdentificationAssociationResponse String getErrorMessage()

@@ -36,6 +36,7 @@ import static android.media.AudioDeviceInfo.TYPE_USB_HEADSET;
 import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES;
 import static android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET;
 
+import static com.android.car.audio.CarActivationVolumeConfig.ActivationVolumeInvocationType;
 import static com.android.car.audio.hal.HalAudioGainCallback.reasonToString;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
@@ -107,8 +108,7 @@ import java.util.Set;
     protected final Object mLock = new Object();
     private final CarAudioContext mCarAudioContext;
 
-    private final int mMinActivationVolumePercentage;
-    private final int mMaxActivationVolumePercentage;
+    private final CarActivationVolumeConfig mCarActivationVolumeConfig;
 
     @GuardedBy("mLock")
     protected final SparseArray<String> mContextToAddress;
@@ -174,7 +174,7 @@ import java.util.Set;
     protected CarVolumeGroup(CarAudioContext carAudioContext, CarAudioSettings settingsManager,
             SparseArray<CarAudioDeviceInfo> contextToDevices, int zoneId, int configId,
             int volumeGroupId, String name, boolean useCarVolumeGroupMute,
-            int maxActivationVolumePercentage, int minActivationVolumePercentage) {
+            CarActivationVolumeConfig carActivationVolumeConfig) {
         mSettingsManager = settingsManager;
         mCarAudioContext = carAudioContext;
         mContextToDevices = contextToDevices;
@@ -197,8 +197,8 @@ import java.util.Set;
         }
 
         mHasCriticalAudioContexts = containsCriticalAttributes(volumeAttributes);
-        mMaxActivationVolumePercentage = maxActivationVolumePercentage;
-        mMinActivationVolumePercentage = minActivationVolumePercentage;
+        mCarActivationVolumeConfig = Objects.requireNonNull(carActivationVolumeConfig,
+                "Activation volume config can not be null");
     }
 
     void init() {
@@ -207,11 +207,6 @@ import java.util.Set;
                     mUserId, mZoneId, mConfigId, mId);
             updateCurrentGainIndexLocked();
         }
-    }
-
-    @GuardedBy("mLock")
-    protected boolean hasPendingAttenuationReasonsLocked() {
-        return !mReasons.isEmpty();
     }
 
     @GuardedBy("mLock")
@@ -460,15 +455,21 @@ import java.util.Set;
     int getMaxActivationGainIndex() {
         int maxGainIndex = getMaxGainIndex();
         int minGainIndex = getMinGainIndex();
-        return minGainIndex + (int) Math.round(mMaxActivationVolumePercentage / 100.0
+        return minGainIndex + (int) Math.round(
+                mCarActivationVolumeConfig.getMaxActivationVolumePercentage() / 100.0
                 * (maxGainIndex - minGainIndex));
     }
 
     int getMinActivationGainIndex() {
         int maxGainIndex = getMaxGainIndex();
         int minGainIndex = getMinGainIndex();
-        return minGainIndex + (int) Math.round(mMinActivationVolumePercentage / 100.0
+        return minGainIndex + (int) Math.round(
+                mCarActivationVolumeConfig.getMinActivationVolumePercentage() / 100.0
                 * (maxGainIndex - minGainIndex));
+    }
+
+    int getActivationVolumeInvocationType() {
+        return mCarActivationVolumeConfig.getInvocationType();
     }
 
     int getCurrentGainIndex() {
@@ -539,8 +540,12 @@ import java.util.Set;
         storeGainIndexForUserLocked(gainIndex, mUserId);
     }
 
-    boolean handleActivationVolume() {
-        if (!carAudioMinMaxActivationVolume()) {
+    boolean handleActivationVolume(
+            @ActivationVolumeInvocationType int activationVolumeInvocationType) {
+        if (!carAudioMinMaxActivationVolume()
+                || (getActivationVolumeInvocationType() & activationVolumeInvocationType) == 0) {
+            // Min/max activation volume is not invoked if the given invocation type is not allowed
+            // for the volume group.
             return false;
         }
         boolean invokeVolumeGainIndexChanged = true;
@@ -609,8 +614,9 @@ import java.util.Set;
             writer.printf("Gain indexes (min / max / default / current): %d %d %d %d\n",
                     getMinGainIndex(), getMaxGainIndex(), getDefaultGainIndex(),
                     mCurrentGainIndex);
-            writer.printf("Activation gain indexes (min / max): %d %d\n",
-                    getMinActivationGainIndex(), getMaxActivationGainIndex());
+            writer.printf("Activation gain (min index / max index / invocation type): %d %d %d\n",
+                    getMinActivationGainIndex(), getMaxActivationGainIndex(),
+                    getActivationVolumeInvocationType());
             for (int i = 0; i < mContextToAddress.size(); i++) {
                 writer.printf("Context: %s -> Address: %s\n",
                         mCarAudioContext.toString(mContextToAddress.keyAt(i)),
@@ -671,6 +677,8 @@ import java.util.Set;
                     getMinActivationGainIndex());
             proto.write(CarAudioDumpProto.CarVolumeGain.MAX_ACTIVATION_GAIN_INDEX,
                     getMaxActivationGainIndex());
+            proto.write(CarAudioDumpProto.CarVolumeGain.ACTIVATION_INVOCATION_TYPE,
+                    getActivationVolumeInvocationType());
             proto.end(volumeGainToken);
 
             for (int i = 0; i < mContextToAddress.size(); i++) {
@@ -733,20 +741,24 @@ import java.util.Set;
      */
     boolean setMute(boolean mute) {
         synchronized (mLock) {
-            // if hal muted the audio devices, then do not allow other incoming requests
-            // to perform unmute.
-            if (!mute && isHalMutedLocked()) {
-                Slogf.e(CarLog.TAG_AUDIO, "Un-mute request cannot be processed due to active "
-                        + "hal mute restriction!");
-                return false;
-            }
-            applyMuteLocked(mute);
             return setMuteLocked(mute);
         }
     }
 
     @GuardedBy("mLock")
-    protected boolean setMuteLocked(boolean mute) {
+    boolean setMuteLocked(boolean mute) {
+        // If hal mutes the audio devices, then do not allow other incoming requests to unmute.
+        if (!mute && isHalMutedLocked()) {
+            Slogf.e(CarLog.TAG_AUDIO, "Un-mute request cannot be processed due to active "
+                    + "hal mute restriction!");
+            return false;
+        }
+        applyMuteLocked(mute);
+        return saveMuteStateToSettingsLocked(mute);
+    }
+
+    @GuardedBy("mLock")
+    protected boolean saveMuteStateToSettingsLocked(boolean mute) {
         boolean hasChanged = mIsMuted != mute;
         mIsMuted = mute;
         if (mSettingsManager.isPersistVolumeGroupMuteEnabled(mUserId)) {
@@ -976,18 +988,9 @@ import java.util.Set;
 
     boolean hasAudioAttributes(AudioAttributes audioAttributes) {
         synchronized (mLock) {
-            for (int index = 0; index < mContextToAddress.size(); index++) {
-                int context = mContextToAddress.keyAt(index);
-                AudioAttributes[] contextAttributes =
-                        mCarAudioContext.getAudioAttributesForContext(context);
-                for (int attrIndex = 0; attrIndex < contextAttributes.length; attrIndex++) {
-                    if (Objects.equals(contextAttributes[attrIndex], audioAttributes)) {
-                        return true;
-                    }
-                }
-            }
+            return mContextToAddress.contains(mCarAudioContext.getContextForAttributes(
+                    audioAttributes));
         }
-        return false;
     }
 
     List<AudioAttributes> getAudioAttributes() {

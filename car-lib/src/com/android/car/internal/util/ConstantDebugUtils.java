@@ -20,7 +20,7 @@ import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.PR
 
 import android.annotation.Nullable;
 import android.util.ArrayMap;
-import android.util.Log;
+import android.util.Slog;
 import android.util.SparseArray;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
@@ -33,8 +33,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Utility class to convert integer constants to and from their value or name.
- *
- * @hide
  */
 public final class ConstantDebugUtils {
     private static final String TAG = ConstantDebugUtils.class.getSimpleName();
@@ -155,7 +153,7 @@ public final class ConstantDebugUtils {
                     constantNameToValue.put(candidateField.getName(), candidateField.getInt(null));
                 }
             } catch (IllegalAccessException e) {
-                Log.wtf(TAG, "Failed trying to find value for " + candidateField.getName(), e);
+                Slog.wtf(TAG, "Failed trying to find value for " + candidateField.getName(), e);
             }
         }
         return constantNameToValue;
@@ -174,7 +172,7 @@ public final class ConstantDebugUtils {
                     constantValueToName.put(candidateField.getInt(null), candidateField.getName());
                 }
             } catch (IllegalAccessException e) {
-                Log.wtf(TAG, "Failed trying to find value for " + candidateField.getName(), e);
+                Slog.wtf(TAG, "Failed trying to find value for " + candidateField.getName(), e);
             }
         }
         return constantValueToName;

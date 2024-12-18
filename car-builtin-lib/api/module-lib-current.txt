@@ -31,6 +31,8 @@ package android.car.builtin.app {
     method public static int checkComponentPermission(@NonNull String, int, int, boolean);
     method @NonNull public static android.app.ActivityOptions createActivityOptions(@NonNull android.os.Bundle);
     method public static android.os.IBinder getActivityToken(android.app.Activity);
+    method public static int getFlagsForRunningAppProcessInfo(@NonNull android.app.ActivityManager.RunningAppProcessInfo);
+    method public static java.util.List<android.app.ActivityManager.RunningAppProcessInfo> getRunningAppProcesses();
     method public static java.util.List<android.app.ActivityManager.RunningTaskInfo> getTasks(int, boolean, boolean, int);
     method public static boolean isVisible(android.app.Activity);
     method public static void killAllBackgroundProcesses();
@@ -38,7 +40,6 @@ package android.car.builtin.app {
     method @RequiresPermission(android.Manifest.permission.INTERNAL_SYSTEM_WINDOW) public static void moveRootTaskToDisplay(int, int);
     method public static void registerProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
     method public static boolean removeTask(int);
-    method public static void setFocusedRootTask(int);
     method public static void setFocusedTask(int);
     method public static boolean startUserInBackground(int);
     method public static boolean startUserInBackgroundVisibleOnDisplay(int, int);
@@ -49,6 +50,7 @@ package android.car.builtin.app {
     method public static boolean unlockUser(int);
     method public static void unregisterProcessObserverCallback(android.car.builtin.app.ActivityManagerHelper.ProcessObserverCallback);
     field public static final int INVALID_TASK_ID = -1; // 0xffffffff
+    field public static final int PROCESS_INFO_PERSISTENT_FLAG = 2; // 0x2
   }
 
   public abstract static class ActivityManagerHelper.ProcessObserverCallback {
@@ -153,10 +155,20 @@ package android.car.builtin.content.pm {
 
 }
 
+package android.car.builtin.devicepolicy {
+
+  public final class DevicePolicyManagerHelper {
+    method public static void addUserRestriction(@NonNull android.app.admin.DevicePolicyManager, @NonNull String, @NonNull String, @NonNull android.os.UserHandle);
+    method public static void clearUserRestriction(@NonNull android.app.admin.DevicePolicyManager, @NonNull String, @NonNull String, @NonNull android.os.UserHandle);
+  }
+
+}
+
 package android.car.builtin.display {
 
   public final class DisplayManagerHelper {
     method public static float getBrightness(android.content.Context, int);
+    method @Nullable public static String getUniqueId(@NonNull android.view.Display);
     method public static void registerDisplayListener(android.content.Context, android.hardware.display.DisplayManager.DisplayListener, android.os.Handler, long);
     method public static void setBrightness(android.content.Context, int, @FloatRange(from=0.0f, to=1.0f) float);
     field public static final long EVENT_FLAG_DISPLAY_ADDED = 1L; // 0x1L
@@ -170,8 +182,10 @@ package android.car.builtin.display {
 package android.car.builtin.input {
 
   public class InputManagerHelper {
+    method public static void addUniqueIdAssociationByDescriptor(@NonNull android.hardware.input.InputManager, @NonNull String, @NonNull String);
     method public static boolean injectInputEvent(@NonNull android.hardware.input.InputManager, @NonNull android.view.InputEvent);
     method public static void pilferPointers(@NonNull android.hardware.input.InputManager, @NonNull android.view.View);
+    method public static void removeUniqueIdAssociationByDescriptor(@NonNull android.hardware.input.InputManager, @NonNull String);
   }
 
 }
@@ -297,7 +311,12 @@ package android.car.builtin.os {
     method @Nullable public static android.os.IBinder checkService(@NonNull String);
     method @Nullable public static String[] getDeclaredInstances(@NonNull String);
     method @Nullable public static android.os.IBinder getService(@NonNull String);
+    method public static void registerForNotifications(@NonNull String, @NonNull android.car.builtin.os.ServiceManagerHelper.IServiceRegistrationCallback) throws android.os.RemoteException;
     method @Nullable public static android.os.IBinder waitForDeclaredService(@NonNull String);
+  }
+
+  public static interface ServiceManagerHelper.IServiceRegistrationCallback {
+    method public void onRegistration(@NonNull String, android.os.IBinder);
   }
 
   public final class SharedMemoryHelper {
@@ -309,6 +328,7 @@ package android.car.builtin.os {
   }
 
   public final class TraceHelper {
+    field public static final long TRACE_TAG_CAR_EVS_SERVICE = 1024L; // 0x400L
     field public static final long TRACE_TAG_CAR_SERVICE = 524288L; // 0x80000L
   }
 
@@ -342,6 +362,7 @@ package android.car.builtin.os {
     field public static final int FLAG_QUIET_MODE = 128; // 0x80
     field public static final int FLAG_RESTRICTED = 8; // 0x8
     field public static final int FLAG_SYSTEM = 2048; // 0x800
+    field public static final int USER_ALL = -1; // 0xffffffff
     field public static final int USER_NULL = -10000; // 0xffffd8f0
     field public static final int USER_SYSTEM = 0; // 0x0
   }
@@ -544,13 +565,14 @@ package android.car.builtin.util {
 
   public class TimingsTraceLog {
     ctor public TimingsTraceLog(@NonNull String, long);
+    ctor public TimingsTraceLog(@NonNull String, long, int);
     method public void logDuration(@NonNull String, long);
     method public void traceBegin(@NonNull String);
     method public void traceEnd();
   }
 
   public final class UsageStatsManagerHelper {
-    method public static void reportUserInteraction(@NonNull android.app.usage.UsageStatsManager, @NonNull String, int);
+    method public static void reportUserInteraction(@NonNull android.app.usage.UsageStatsManager, @NonNull String, int, @NonNull android.os.PersistableBundle);
   }
 
   public final class ValidationHelper {
@@ -569,6 +591,7 @@ package android.car.builtin.view {
     field public static final int INVALID_PORT = -1; // 0xffffffff
     field public static final int TYPE_EXTERNAL = 2; // 0x2
     field public static final int TYPE_INTERNAL = 1; // 0x1
+    field public static final int TYPE_OVERLAY = 4; // 0x4
     field public static final int TYPE_VIRTUAL = 5; // 0x5
   }
 

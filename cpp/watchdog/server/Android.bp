@@ -40,14 +40,18 @@ cc_defaults {
         "libbinder",
         "libbinder_ndk",
         "liblog",
+        "libmeminfo",
+        "libpsi",
         "libutils",
         "packagemanager_aidl-cpp",
         "libprotoutil",
         "libcutils",
+        "server_configurable_flags",
     ],
     static_libs: [
         "android.automotive.watchdog.internal-V3-ndk",
         "android.automotive.watchdog-V3-ndk",
+        "android.car.feature-aconfig-cpp",
         "libvhalclient",
         "libwatchdog_properties",
     ],
@@ -117,17 +121,18 @@ cc_library {
         "libwatchdog_perf_service_defaults",
     ],
     srcs: [
-        "src/WatchdogPerfService.cpp",
         "src/IoOveruseConfigs.cpp",
         "src/IoOveruseMonitor.cpp",
-        "src/PerformanceProfiler.cpp",
         "src/OveruseConfigurationXmlHelper.cpp",
+        "src/PerformanceProfiler.cpp",
+        "src/PressureMonitor.cpp",
         "src/ProcDiskStatsCollector.cpp",
         "src/ProcStatCollector.cpp",
         "src/UidCpuStatsCollector.cpp",
         "src/UidIoStatsCollector.cpp",
         "src/UidProcStatsCollector.cpp",
         "src/UidStatsCollector.cpp",
+        "src/WatchdogPerfService.cpp",
     ],
     static_libs: [
         "libwatchdog_binder_utils",
@@ -181,6 +186,7 @@ cc_test {
         "tests/IoOveruseConfigsTest.cpp",
         "tests/IoOveruseMonitorTest.cpp",
         "tests/PerformanceProfilerTest.cpp",
+        "tests/PressureMonitorTest.cpp",
         "tests/LooperStub.cpp",
         "tests/OveruseConfigurationTestUtils.cpp",
         "tests/OveruseConfigurationXmlHelperTest.cpp",
@@ -299,6 +305,11 @@ cc_library {
     ],
 }
 
+vintf_fragment {
+    name: "carwatchdogd.xml",
+    src: "carwatchdogd.xml",
+}
+
 cc_binary {
     name: "carwatchdogd",
     defaults: [
@@ -316,7 +327,7 @@ cc_binary {
         "libwatchdog_binder_utils",
         "libwatchdog_service_manager",
     ],
-    vintf_fragments: ["carwatchdogd.xml"],
+    vintf_fragment_modules: ["carwatchdogd.xml"],
     required: [
         "system_resource_overuse_configuration.xml",
         "third_party_resource_overuse_configuration.xml",

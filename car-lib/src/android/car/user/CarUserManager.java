@@ -31,7 +31,6 @@ import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.annotation.UserIdInt;
-import android.car.Car;
 import android.car.CarManagerBase;
 import android.car.ICarResultReceiver;
 import android.car.ICarUserService;
@@ -53,7 +52,9 @@ import android.util.ArrayMap;
 import android.util.Dumpable;
 import android.util.Log;
 import android.util.Pair;
+import android.util.Slog;
 
+import com.android.car.internal.ICarBase;
 import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.common.CommonConstants;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
@@ -360,6 +361,7 @@ public final class CarUserManager extends CarManagerBase {
 
     private final ICarUserService mService;
     private final UserManager mUserManager;
+    private final boolean mIsHeadlessSystemUserMode;
 
     /**
      * Map of listeners registers by the app.
@@ -393,24 +395,26 @@ public final class CarUserManager extends CarManagerBase {
     /**
      * @hide
      */
-    public CarUserManager(@NonNull Car car, @NonNull IBinder service) {
+    public CarUserManager(@NonNull ICarBase car, @NonNull IBinder service) {
         this(car, ICarUserService.Stub.asInterface(service),
-                car.getContext().getSystemService(UserManager.class));
+                car.getContext().getSystemService(UserManager.class),
+                UserManager.isHeadlessSystemUserMode());
     }
 
     /**
      * @hide
      */
     @VisibleForTesting
-    public CarUserManager(@NonNull Car car, @NonNull ICarUserService service,
-            @NonNull UserManager userManager) {
+    public CarUserManager(@NonNull ICarBase car, @NonNull ICarUserService service,
+            @NonNull UserManager userManager, boolean isHeadlessSystemUserMode) {
         super(car);
 
         mDumper = addDumpable(car.getContext(), () -> new Dumper());
-        Log.d(TAG, "CarUserManager(): DBG= " + DBG + ", mDumper=" + mDumper);
+        Slog.d(TAG, "CarUserManager(): DBG= " + DBG + ", mDumper=" + mDumper);
 
         mService = service;
         mUserManager = userManager;
+        mIsHeadlessSystemUserMode = isHeadlessSystemUserMode;
     }
 
     /**
@@ -441,7 +445,7 @@ public final class CarUserManager extends CarManagerBase {
             };
             mService.startUser(request, callbackImpl);
         } catch (SecurityException e) {
-            Log.e(TAG, "startUser(userId=" + userId + ", displayId=" + displayId + ")", e);
+            Slog.e(TAG, "startUser(userId=" + userId + ", displayId=" + displayId + ")", e);
             throw e;
         } catch (RemoteException | RuntimeException e) {
             UserStartResponse response = handleExceptionFromCarService(e,
@@ -477,7 +481,7 @@ public final class CarUserManager extends CarManagerBase {
             };
             mService.stopUser(request, callbackImpl);
         } catch (SecurityException e) {
-            Log.e(TAG, "stopUser(userId=" + userId + ")", e);
+            Slog.e(TAG, "stopUser(userId=" + userId + ")", e);
             throw e;
         } catch (RemoteException | RuntimeException e) {
             UserStopResponse response = handleExceptionFromCarService(e,
@@ -529,7 +533,7 @@ public final class CarUserManager extends CarManagerBase {
             @NonNull @CallbackExecutor Executor executor,
             @NonNull ResultCallback<UserSwitchResult> callback, boolean ignoreUxRestriction) {
         if (DBG) {
-            Log.d(TAG, "switchuser(): userHandle=" + userSwitchRequest.getUserHandle()
+            Slog.d(TAG, "switchuser(): userHandle=" + userSwitchRequest.getUserHandle()
                     + ", ignoreUxRestriction=" + ignoreUxRestriction);
         }
         int uid = myUid();
@@ -554,7 +558,7 @@ public final class CarUserManager extends CarManagerBase {
             mService.switchUser(targetUserId, HAL_TIMEOUT_MS, resultCallbackImpl,
                     ignoreUxRestriction);
         } catch (SecurityException e) {
-            Log.w(TAG, "switchUser(" + targetUserId + ") failed: " + e);
+            Slog.w(TAG, "switchUser(" + targetUserId + ") failed: " + e);
             throw e;
         } catch (RemoteException | RuntimeException e) {
             UserSwitchResult result = handleExceptionFromCarService(e,
@@ -718,7 +722,6 @@ public final class CarUserManager extends CarManagerBase {
             EventLogHelper.writeCarUserManagerCreateUserReq(uid,
                     UserHelperLite.safeName(name), userType, flags);
             mService.createUser(userCreationRequest, HAL_TIMEOUT_MS, resultCallbackImpl);
-            System.out.println("manager test API replied");
         } catch (SecurityException e) {
             throw e;
         } catch (RemoteException | RuntimeException e) {
@@ -740,7 +743,7 @@ public final class CarUserManager extends CarManagerBase {
     @RequiresPermission(anyOf = {android.Manifest.permission.MANAGE_USERS,
             android.Manifest.permission.CREATE_USERS})
     public void updatePreCreatedUsers() {
-        Log.w(TAG, "updatePreCreatedUsers(): This method should not be called."
+        Slog.w(TAG, "updatePreCreatedUsers(): This method should not be called."
                 + " Pre-created users are no longer supported.");
     }
 
@@ -777,7 +780,7 @@ public final class CarUserManager extends CarManagerBase {
             mService.removeUser(userRemovalRequest.getUserHandle().getIdentifier(),
                     resultCallbackImpl);
         } catch (SecurityException e) {
-            Log.e(TAG, "CarUserManager removeUser", e);
+            Slog.e(TAG, "CarUserManager removeUser", e);
             throw e;
         } catch (RemoteException | RuntimeException e) {
             UserRemovalResult result = handleExceptionFromCarService(e,
@@ -817,10 +820,10 @@ public final class CarUserManager extends CarManagerBase {
             userRemovalResult = userRemovalResultCallback.get(USER_CALL_TIMEOUT_MS,
                     TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            Log.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
+            Slog.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            Log.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
+            Slog.e(TAG, "CarUserManager removeUser(" + userId + "): ", e);
         }
 
         return userRemovalResult;
@@ -865,7 +868,7 @@ public final class CarUserManager extends CarManagerBase {
         int uid = myUid();
         String packageName = getContext().getPackageName();
         if (DBG) {
-            Log.d(TAG, "addListener(): uid=" + uid + ", pkg=" + packageName
+            Slog.d(TAG, "addListener(): uid=" + uid + ", pkg=" + packageName
                     + ", listener=" + listener + ", filter= " + filter);
         }
         synchronized (mLock) {
@@ -874,12 +877,12 @@ public final class CarUserManager extends CarManagerBase {
             if (mReceiver == null) {
                 mReceiver = new LifecycleResultReceiver();
                 if (DBG) {
-                    Log.d(TAG, "Setting lifecycle receiver with filter " + filter
+                    Slog.d(TAG, "Setting lifecycle receiver with filter " + filter
                             + " for uid " + uid + " and package " + packageName);
                 }
             } else {
                 if (DBG) {
-                    Log.d(TAG, "Already set receiver for uid " + uid + " and package "
+                    Slog.d(TAG, "Already set receiver for uid " + uid + " and package "
                             + packageName + " adding new filter " + filter);
                 }
             }
@@ -894,13 +897,13 @@ public final class CarUserManager extends CarManagerBase {
             if (mListeners == null) {
                 mListeners = new ArrayMap<>(1); // Most likely app will have just one listener
             } else if (DBG) {
-                Log.d(TAG, "addListener(" + getLambdaName(listener) + "): context " + getContext()
+                Slog.d(TAG, "addListener(" + getLambdaName(listener) + "): context " + getContext()
                         + " already has " + mListeners.size() + " listeners: "
                         + mListeners.keySet().stream()
                                 .map((l) -> getLambdaName(l))
                                 .collect(Collectors.toList()), new Exception("caller's stack"));
             }
-            if (DBG) Log.d(TAG, "Adding listener: " + listener + " with filter " + filter);
+            if (DBG) Slog.d(TAG, "Adding listener: " + listener + " with filter " + filter);
             mListeners.put(listener, Pair.create(filter, executor));
         }
     }
@@ -920,7 +923,7 @@ public final class CarUserManager extends CarManagerBase {
         int uid = myUid();
         String packageName = getContext().getPackageName();
         if (DBG) {
-            Log.d(TAG, "removeListener(): uid=" + uid + ", pkg=" + packageName
+            Slog.d(TAG, "removeListener(): uid=" + uid + ", pkg=" + packageName
                     + ", listener=" + listener);
         }
         synchronized (mLock) {
@@ -933,19 +936,19 @@ public final class CarUserManager extends CarManagerBase {
             // due to unnecessary receiver calls. It will still be functionally correct, because the
             // removed listener will no longer be invoked.
             if (!mListeners.isEmpty()) {
-                if (DBG) Log.d(TAG, "removeListeners(): still " + mListeners.size() + " left");
+                if (DBG) Slog.d(TAG, "removeListeners(): still " + mListeners.size() + " left");
                 return;
             }
             mListeners = null;
 
             if (mReceiver == null) {
-                Log.wtf(TAG, "removeListener(): receiver already null");
+                Slog.wtf(TAG, "removeListener(): receiver already null");
                 return;
             }
 
             EventLogHelper.writeCarUserManagerRemoveListener(uid, packageName);
             if (DBG) {
-                Log.d(TAG, "Removing lifecycle receiver for uid=" + uid + " and package "
+                Slog.d(TAG, "Removing lifecycle receiver for uid=" + uid + " and package "
                         + packageName);
             }
             try {
@@ -1050,7 +1053,7 @@ public final class CarUserManager extends CarManagerBase {
                             EventLogHelper.writeCarUserManagerSetUserAuthResp(loggedValues);
                         }
                     } else {
-                        Log.w(TAG, "setUserIdentificationAssociation(" + Arrays.toString(types)
+                        Slog.w(TAG, "setUserIdentificationAssociation(" + Arrays.toString(types)
                                 + ", " + Arrays.toString(values) + ") failed: " + err);
                     }
                     super.onCompleted(result, err);
@@ -1132,7 +1135,7 @@ public final class CarUserManager extends CarManagerBase {
         @Override
         public void send(int resultCode, Bundle resultData) {
             if (resultData == null) {
-                Log.w(TAG, "Received result (" + resultCode + ") without data");
+                Slog.w(TAG, "Received result (" + resultCode + ") without data");
                 return;
             }
             int from = resultData.getInt(BUNDLE_PARAM_PREVIOUS_USER_ID,
@@ -1143,7 +1146,7 @@ public final class CarUserManager extends CarManagerBase {
             ArrayMap<UserLifecycleListener, Pair<UserLifecycleEventFilter, Executor>> listeners;
             synchronized (mLock) {
                 if (mListeners == null) {
-                    Log.w(TAG, "No listeners for event " + event);
+                    Slog.w(TAG, "No listeners for event " + event);
                     return;
                 }
                 listeners = new ArrayMap<>(mListeners);
@@ -1155,7 +1158,7 @@ public final class CarUserManager extends CarManagerBase {
                 UserLifecycleEventFilter filter = listeners.valueAt(i).first;
                 if (filter != null && !filter.apply(event)) {
                     if (DBG) {
-                        Log.d(TAG, "Listener " + getLambdaName(listener)
+                        Slog.d(TAG, "Listener " + getLambdaName(listener)
                                 + " is skipped for the event " + event + " due to the filter "
                                 + filter);
                     }
@@ -1163,7 +1166,7 @@ public final class CarUserManager extends CarManagerBase {
                 }
                 Executor executor = listeners.valueAt(i).second;
                 if (DBG) {
-                    Log.d(TAG, "Calling " + getLambdaName(listener) + " for event " + event);
+                    Slog.d(TAG, "Calling " + getLambdaName(listener) + " for event " + event);
                 }
                 executor.execute(() -> listener.onEvent(event));
             }
@@ -1295,7 +1298,7 @@ public final class CarUserManager extends CarManagerBase {
         for (int i = 0; i < allUsers.size(); i++) {
             UserHandle user = allUsers.get(i);
             if (user.equals(userHandle) && (!userHandle.equals(UserHandle.SYSTEM)
-                    || !UserManager.isHeadlessSystemUserMode())) {
+                    || !mIsHeadlessSystemUserMode)) {
                 return true;
             }
         }

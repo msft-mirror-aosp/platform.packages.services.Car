@@ -43,8 +43,6 @@ import java.util.function.IntFunction;
 /**
  * ArrayUtils contains some methods that you can call to find out
  * the most efficient increments by which to grow arrays.
- *
- * @hide
  */
 public final class ArrayUtils {
     private static final int CACHE_SIZE = 73;
@@ -104,7 +102,7 @@ public final class ArrayUtils {
             cache = Array.newInstance(kind, 0);
             sCache[bucket] = cache;
 
-            // Log.e("cache", "new empty " + kind.getName() + " at " + bucket);
+            // Slog.e("cache", "new empty " + kind.getName() + " at " + bucket);
         }
 
         return (T[]) cache;

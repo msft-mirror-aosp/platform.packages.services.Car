@@ -28,11 +28,11 @@ import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.car.Car;
 import android.car.CarManagerBase;
+import android.car.builtin.util.Slogf;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArrayMap;
-import android.util.Log;
 import android.util.Pair;
 import android.util.SparseIntArray;
 
@@ -486,7 +486,7 @@ public class CarPowerManager extends CarManagerBase {
         }
 
         if (listenerToService == null) {
-            Log.w(TAG, "clearListener: listener was not registered");
+            Slogf.w(TAG, "clearListener: listener was not registered");
             return;
         }
 
@@ -526,8 +526,11 @@ public class CarPowerManager extends CarManagerBase {
      * If the given power policy doesn't exist, this method throws
      * {@link java.lang.IllegalArgumentException}.
      *
+     * <p>When this API returns, it doesn't mean the given power policy is applied. The application
+     * of a power policy can be checked with {@link CarPowerPolicyListener}.
+     *
      * @param policyId ID of power policy.
-     * @throws IllegalArgumentException if {@code policyId} is null.
+     * @throws IllegalArgumentException if {@code policyId} is {@code null}.
      *
      * @hide
      */
@@ -794,7 +797,7 @@ public class CarPowerManager extends CarManagerBase {
     private void cleanupFutureLocked() {
         if (mFuture != null) {
             mFuture.invalidate();
-            Log.w(TAG, "The current future becomes invalid");
+            Slogf.w(TAG, "The current future becomes invalid");
             mFuture = null;
         }
     }
@@ -884,7 +887,7 @@ public class CarPowerManager extends CarManagerBase {
         public void complete() {
             synchronized (mCompletionLock) {
                 if (!mCanBeCompleted) {
-                    Log.w(TAG, "Cannot complete: already completed or invalid state");
+                    Slogf.w(TAG, "Cannot complete: already completed or invalid state");
                     return;
                 }
                 // Once completed, this instance cannot be completed again.

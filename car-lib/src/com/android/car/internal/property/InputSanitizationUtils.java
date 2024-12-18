@@ -24,6 +24,7 @@ import android.car.feature.FeatureFlags;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.property.CarPropertyManager;
 import android.util.Log;
+import android.util.Slog;
 
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.internal.annotations.VisibleForTesting;
@@ -34,8 +35,6 @@ import java.util.List;
 
 /**
  * Common utility functions used by {@link CarPropertyManager} stack to sanitize input arguments.
- *
- * @hide
  */
 public final class InputSanitizationUtils {
 
@@ -89,7 +88,7 @@ public final class InputSanitizationUtils {
             return;
         }
         double log = Math.log10(resolution);
-        Preconditions.checkArgument(Math.abs(log - (int) log) < 0.0000001f,
+        Preconditions.checkArgument(Math.abs(log - Math.round(log)) < 0.0000001f,
                 "resolution must be an integer power of 10. Instead, got resolution: " + resolution
                         + ", whose log10 value is: " + log);
     }
@@ -105,14 +104,14 @@ public final class InputSanitizationUtils {
             CarPropertyConfig<?> carPropertyConfig) {
         if (!featureFlags.variableUpdateRate()) {
             if (DBG) {
-                Log.d(TAG, "VUR feature is not enabled, VUR is always off");
+                Slog.d(TAG, "VUR feature is not enabled, VUR is always off");
             }
             return false;
         }
         if (carPropertyConfig.getChangeMode()
                 != CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS) {
             if (DBG) {
-                Log.d(TAG, "VUR is always off for non-continuous property");
+                Slog.d(TAG, "VUR is always off for non-continuous property");
             }
             return false;
         }
@@ -165,7 +164,7 @@ public final class InputSanitizationUtils {
                 // Do nothing.
             }
             if (DBG) {
-                Log.d(TAG, "VUR is enabled but not supported for areaId: " + areaId);
+                Slog.d(TAG, "VUR is enabled but not supported for areaId: " + areaId);
             }
             disabledAreaIds.add(areaId);
         }

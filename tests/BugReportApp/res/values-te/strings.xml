@@ -18,7 +18,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name" msgid="2596316479611335185">"బగ్ రిపోర్ట్‌"</string>
-    <string name="bugreport_info_quit" msgid="5590138890181142473">"మూసివేయి"</string>
+    <string name="bugreport_info_quit" msgid="5590138890181142473">"మూసివేయండి"</string>
     <string name="bugreport_info_start" msgid="667324824650830832">"బగ్ రిపోర్ట్‌ను ప్రారంభించండి"</string>
     <string name="bugreport_info_status" msgid="7211044508792815451">"స్టేటస్‌:"</string>
     <string name="bugreport_info_expires_soon_notice" msgid="927139313070992675">"ఈ బగ్ రిపోర్ట్‌ గడువు త్వరలో ముగుస్తుంది"</string>
@@ -28,7 +28,7 @@
     <string name="bugreport_dialog_upload" msgid="2517386929450370781">"అప్‌లోడ్ చేయి"</string>
     <string name="bugreport_dialog_save" msgid="3291363266190644226">"సేవ్ చేయండి"</string>
     <string name="bugreport_dialog_show_bugreports" msgid="6964385141627170297">"బగ్ రిపోర్ట్‌లను చూపండి"</string>
-    <string name="bugreport_dialog_close" msgid="289925437277364266">"మూసివేయి"</string>
+    <string name="bugreport_dialog_close" msgid="289925437277364266">"మూసివేయండి"</string>
     <string name="bugreport_dialog_title" msgid="3315160684205929910">"మాట్లాడండి &amp; సమస్యను వివరించండి"</string>
     <string name="bugreport_dialog_add_audio_to_existing" msgid="4958460267276935700">"బగ్ రిపోర్ట్‌ కోసం %s వద్ద ఆడియో మెసేజ్‌"</string>
     <string name="bugreport_dialog_recording_finished" msgid="3982335902169398758">"రికార్డ్ చేయడం పూర్తయింది"</string>
@@ -52,4 +52,7 @@
     <string name="notification_bugreport_channel_name" msgid="776902295433824255">"బగ్ రిపోర్ట్‌ స్టేటస్‌ ఛానెల్"</string>
     <string name="notification_screenshot_message" msgid="4334354123333893911">"స్క్రీన్‌షాట్ తీయడం"</string>
     <string name="notification_screenshot_channel_name" msgid="147055389545365419">"బగ్ రిపోర్ట్ స్క్రీన్‌షాట్ ఛానెల్"</string>
+    <string name="choice_dialog_title" msgid="2105355715733829907">"బగ్ వివరణను గురించి మాట్లాడటానికి సిద్ధంగా ఉంది"</string>
+    <string name="choice_dialog_begin_now" msgid="7326462054665389346">"ఇప్పుడే ప్రారంభించండి"</string>
+    <string name="choice_dialog_speak_later" msgid="1297471567273228307">"తర్వాత మాట్లాడండి"</string>
 </resources>

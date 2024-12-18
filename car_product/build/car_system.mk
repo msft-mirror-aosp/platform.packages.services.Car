@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+PRODUCT_RELEASE_CONFIG_MAPS += $(wildcard build/release/automotive/release_config_map.textproto)
+
 # This makefile comprises the minimal system partition content for an
 # automotive device.
 $(call inherit-product, $(SRC_TARGET_DIR)/product/handheld_system.mk)
@@ -135,10 +137,6 @@ PRODUCT_SYSTEM_PROPERTIES += \
 
 ### end of multi-user properties ###
 
-# TODO(b/255631687): Enable the shell transition as soon as all CTS issues are resolved.
-PRODUCT_SYSTEM_PROPERTIES += \
-    persist.wm.debug.shell_transit=0
-
 # TODO(b/198516172): Find a better location to add this read only property
 # It is added here to check the functionality, will be updated in next CL
 PRODUCT_SYSTEM_PROPERTIES += \
@@ -206,6 +204,7 @@ PRODUCT_PACKAGES += carpowerpolicyd
 PRODUCT_IS_AUTOMOTIVE := true
 
 PRODUCT_PACKAGES += \
+    CarDocumentsUI \
     CarFrameworkPackageStubs \
     CarService \
     CarShell \
@@ -237,8 +236,6 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     CarPermissionControllerRRO \
     CarSystemUIRRO
-
-$(call inherit-product-if-exists, packages/apps/Car/SystemUI/samples/systemui_sample_rros.mk)
 
 # System Server components
 # Order is important: if X depends on Y, then Y should precede X on the list.

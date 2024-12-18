@@ -235,7 +235,7 @@ public class ProfileUserFragment extends Fragment {
         IActivityManager am = ActivityManager.getService();
         Log.i(TAG, "stop user:" + userToUpdate);
         try {
-            am.stopUser(userToUpdate, /* force= */ false, /* callback= */ null);
+            am.stopUserWithCallback(userToUpdate, /* callback= */ null);
         } catch (RemoteException e) {
             setMessage(WARN_MESSAGE, "Cannot stop user", e);
             return;
@@ -494,7 +494,6 @@ public class ProfileUserFragment extends Fragment {
     private ArrayList<String> getApps() {
         ArrayList<String> apps = new ArrayList<>();
         apps.add("com.google.android.car.kitchensink/.KitchenSinkActivity");
-        apps.add("com.android.car.multidisplay/.launcher.LauncherActivity");
         apps.add("com.google.android.car.multidisplaytest/.MDTest");
         return apps;
     }

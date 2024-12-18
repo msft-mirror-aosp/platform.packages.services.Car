@@ -30,13 +30,11 @@
         android:layout_weight="1"
         android:layoutDirection="ltr">
 
-        <LinearLayout
-            android:id="@+id/qc_entry_points_container"
+        <include layout="@layout/qc_status_icons_horizontal"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_centerVertical="true"
-            android:layout_alignParentStart="true"
-        />
+            android:layout_alignParentStart="true" />
 
         <FrameLayout
             android:id="@+id/clock_container"
@@ -77,68 +75,32 @@
                  android:contentDescription="@string/system_bar_mic_privacy_chip"
         />
 
-        <FrameLayout
-            xmlns:android="http://schemas.android.com/apk/res/android"
+        <com.android.systemui.car.systembar.CarSystemBarPanelButtonView
             android:id="@+id/distant_display_nav_container"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_toLeftOf="@id/user_name_container"
-            style="@style/QuickControlEntryPointButton">
-                <ImageView
+            style="@style/TopBarButton"
+            systemui:controller="com.android.systemui.car.statusicon.ui.DistantDisplayStatusIconPanelController"
+            systemui:panelLayoutRes="@layout/qc_distant_display_panel"
+            systemui:panelWidthRes="@dimen/car_profile_quick_controls_panel_width"
+            systemui:gravity="top|end"
+            systemui:disabledWhileUnprovisioned="true">
+                <com.android.systemui.car.statusicon.StatusIconView
                     android:id="@+id/distant_display_nav"
                     android:layout_height="match_parent"
                     android:layout_width="@dimen/distant_display_button_size"
                     android:scaleType="center"
                     android:layout_gravity="center"
-                    android:tint="@color/system_bar_icon_color_with_selection"
-                    android:background="@drawable/status_icon_background"
-                    android:src="@drawable/ic_sys_ui_send_to_distant_display"/>
-        </FrameLayout>
+                    android:tint="@color/car_status_icon_color"
+                    android:duplicateParentState="true"
+                    systemui:controller="com.android.systemui.car.statusicon.ui.DistantDisplayStatusIconController"/>
+        </com.android.systemui.car.systembar.CarSystemBarPanelButtonView>
 
-        <FrameLayout
-            android:id="@+id/user_name_container"
+        <include layout="@layout/user_name_container"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true">
-            <com.android.systemui.car.systembar.CarSystemBarButton
-                android:id="@+id/user_name"
-                android:layout_width="wrap_content"
-                android:layout_height="@dimen/car_system_bar_user_name_button_height"
-                android:layout_marginEnd="@dimen/car_padding_2"
-                android:background="@drawable/status_icon_background"
-                android:layout_gravity="center_vertical">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal"
-                    android:layout_marginStart="@dimen/car_padding_2"
-                    android:layout_marginEnd="@dimen/car_padding_2"
-                    android:gravity="center_vertical"
-                >
-                    <ImageView
-                        android:id="@+id/user_avatar"
-                        android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
-                        android:src="@drawable/car_ic_users_icon"
-                        android:tint="@color/system_bar_icon_color_with_selection"
-                        android:layout_marginEnd="@dimen/system_bar_user_icon_padding"
-                        android:contentDescription="@string/system_bar_user_avatar"
-                    />
-                    <TextView
-                        android:id="@+id/user_name_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
-                        android:gravity="center_vertical"
-                        android:textAppearance="@style/TextAppearance.SystemBar.Username"
-                        android:singleLine="true"
-                        android:maxWidth="@dimen/car_system_bar_user_name_max_width"
-                        android:layout_marginEnd="@dimen/system_bar_user_icon_padding"
-                        android:contentDescription="@string/system_bar_user_name_text"
-                    />
-                </LinearLayout>
-            </com.android.systemui.car.systembar.CarSystemBarButton>
-        </FrameLayout>
+            android:layout_alignParentEnd="true" />
     </RelativeLayout>
 
 </com.android.systemui.car.systembar.CarSystemBarView>
