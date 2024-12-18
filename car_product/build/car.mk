@@ -36,6 +36,7 @@ PRODUCT_PACKAGES += \
     pppd \
     screenrecord
 
+ifneq ($(PRODUCT_IS_AUTOMOTIVE_SDK),true)
 # This is for testing
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
@@ -44,7 +45,6 @@ PRODUCT_PACKAGES += \
     GarageModeTestApp \
     ExperimentalCarService \
     BugReportApp \
-    NetworkPreferenceApp \
     SampleCustomInputService \
     AdasLocationTestApp \
     curl \
@@ -56,6 +56,11 @@ PRODUCT_PACKAGES += \
 
 # SEPolicy for test apps / services
 PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/test
+endif
+endif # PRODUCT_IS_AUTOMOTIVE_SDK
+
+ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+PRODUCT_PACKAGES += NetworkPreferenceApp
 endif
 
 # ClusterOsDouble is the testing app to test Cluster2 framework and it can handle Cluster VHAL
@@ -154,6 +159,8 @@ PRODUCT_PACKAGES += \
     CarSettings \
     CarUsbHandler \
     RotaryIME \
+    CarRotaryImeRRO \
+    CarRotaryController \
     RotaryPlayground \
     android.car.builtin \
     car-frameworks-service \
