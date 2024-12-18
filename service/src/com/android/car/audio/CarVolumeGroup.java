@@ -66,7 +66,9 @@ import com.android.car.audio.hal.HalAudioDeviceInfo;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.util.DebugUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.internal.util.LocalLog;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
 import java.util.ArrayList;
@@ -95,6 +97,8 @@ import java.util.Set;
  */
 /* package */ abstract class CarVolumeGroup {
     public static final int UNINITIALIZED = -1;
+    private static final int EVENT_LOGGER_QUEUE_SIZE = 50;
+    private static final String TAG = CarLog.tagFor(CarVolumeGroup.class);
 
     private final boolean mUseCarVolumeGroupMute;
     private final boolean mHasCriticalAudioContexts;
@@ -170,6 +174,11 @@ import java.util.Set;
      * com.android.car.audio.hal.HalAudioGainCallback#onAudioDeviceGainsChanged}.
      */
     protected List<Integer> mReasons = new ArrayList<>();
+
+    /**
+     * Event logger for volume group changes such as activation volume invocation
+     */
+    protected final LocalLog mEventLogger = new LocalLog(EVENT_LOGGER_QUEUE_SIZE);
 
     protected CarVolumeGroup(CarAudioContext carAudioContext, CarAudioSettings settingsManager,
             SparseArray<CarAudioDeviceInfo> contextToDevices, int zoneId, int configId,
@@ -576,8 +585,19 @@ import java.util.Set;
             }
             mCurrentGainIndex = activationVolume;
             setCurrentGainIndexLocked(mCurrentGainIndex);
+            if (invokeVolumeGainIndexChanged) {
+                String activationVolumeMsg = "Change gain index " + curGainIndex + " to "
+                        + mCurrentGainIndex + " due to min/max activation type "
+                        + activationVolumeInvocationType;
+                logEvent(activationVolumeMsg);
+            }
         }
         return invokeVolumeGainIndexChanged;
+    }
+
+    protected void logEvent(String message) {
+        mEventLogger.log(message);
+        Slogf.d(TAG, message);
     }
 
     boolean hasCriticalAudioContexts() {
@@ -648,6 +668,10 @@ import java.util.Set;
                     isAttenuatedLocked(),
                     (isAttenuatedLocked() ? " (at: " + mAttenuatedGainIndex + ")" : ""));
             writer.printf("Muted by HAL: %b\n", isHalMutedLocked());
+            writer.decreaseIndent();
+            writer.println("Events:");
+            writer.increaseIndent();
+            mEventLogger.dump(writer);
             writer.decreaseIndent();
             // Empty line for comfortable reading
             writer.println();
@@ -741,20 +765,29 @@ import java.util.Set;
      */
     boolean setMute(boolean mute) {
         synchronized (mLock) {
-            // if hal muted the audio devices, then do not allow other incoming requests
-            // to perform unmute.
-            if (!mute && isHalMutedLocked()) {
-                Slogf.e(CarLog.TAG_AUDIO, "Un-mute request cannot be processed due to active "
-                        + "hal mute restriction!");
-                return false;
-            }
-            applyMuteLocked(mute);
             return setMuteLocked(mute);
         }
     }
 
+    @VisibleForTesting
+    CarActivationVolumeConfig getCarActivationVolumeConfig() {
+        return mCarActivationVolumeConfig;
+    }
+
     @GuardedBy("mLock")
-    protected boolean setMuteLocked(boolean mute) {
+    boolean setMuteLocked(boolean mute) {
+        // If hal mutes the audio devices, then do not allow other incoming requests to unmute.
+        if (!mute && isHalMutedLocked()) {
+            Slogf.e(CarLog.TAG_AUDIO, "Un-mute request cannot be processed due to active "
+                    + "hal mute restriction!");
+            return false;
+        }
+        applyMuteLocked(mute);
+        return saveMuteStateToSettingsLocked(mute);
+    }
+
+    @GuardedBy("mLock")
+    protected boolean saveMuteStateToSettingsLocked(boolean mute) {
         boolean hasChanged = mIsMuted != mute;
         mIsMuted = mute;
         if (mSettingsManager.isPersistVolumeGroupMuteEnabled(mUserId)) {

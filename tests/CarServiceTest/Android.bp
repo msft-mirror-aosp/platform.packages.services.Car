@@ -62,8 +62,8 @@ java_defaults {
     libs: [
         "android.car",
         "android.car.watchdoglib",
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs.system",
+        "android.test.base.stubs.system",
     ],
 
     // mockito-target-inline dependency
@@ -83,6 +83,7 @@ java_defaults {
 
 android_test {
     name: "CarServiceCarTest",
+    team: "trendy_team_aaos_framework",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -102,6 +103,7 @@ android_test {
 
 android_test {
     name: "CarServiceDrivingStateTest",
+    team: "trendy_team_aaos_user_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -116,6 +118,7 @@ android_test {
 
 android_test {
     name: "CarServicePropertyTest",
+    team: "trendy_team_aaos_vac_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -136,6 +139,7 @@ android_test {
 
 android_test {
     name: "CarServiceDiagnosticTest",
+    team: "trendy_team_aaos_carframework_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -150,6 +154,7 @@ android_test {
 
 android_test {
     name: "CarServiceStorageMonitoringTest",
+    team: "trendy_team_aaos_storage_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -166,6 +171,7 @@ android_test {
 
 android_test {
     name: "CarServiceVmsTest",
+    team: "trendy_team_aaos_vac_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -180,6 +186,7 @@ android_test {
 
 android_test {
     name: "CarServiceTelemetryTest",
+    team: "trendy_team_connectivity_telemetry",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -194,6 +201,7 @@ android_test {
 
 android_test {
     name: "CarServiceAudioTest",
+    team: "trendy_team_aaos_audio_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -208,6 +216,7 @@ android_test {
 
 android_test {
     name: "CarServicePowerTest",
+    team: "trendy_team_aaos_power_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -215,6 +224,7 @@ android_test {
 
     srcs: [
         "src/com/android/car/power/*.java",
+        "src/com/android/car/hardware/power/*.java",
     ],
 
     test_config: "AndroidTest_PowerTest.xml",
@@ -222,6 +232,7 @@ android_test {
 
 android_test {
     name: "CarServiceInputTest",
+    team: "trendy_team_aaos_input_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -236,6 +247,7 @@ android_test {
 
 android_test {
     name: "CarServiceRemoteAccessTest",
+    team: "trendy_team_aaos_power_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -250,6 +262,7 @@ android_test {
 
 android_test {
     name: "CarServiceGarageModeTest",
+    team: "trendy_team_aaos_power_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -264,6 +277,7 @@ android_test {
 
 android_test {
     name: "CarServiceOsTest",
+    team: "trendy_team_aaos_carframework_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -278,6 +292,7 @@ android_test {
 
 android_test {
     name: "CarServiceClusterTest",
+    team: "trendy_team_aaos_window_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -292,6 +307,7 @@ android_test {
 
 android_test {
     name: "CarServiceWatchdogTest",
+    team: "trendy_team_aaos_performance_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -306,6 +322,7 @@ android_test {
 
 android_test {
     name: "CarServicePmTest",
+    team: "trendy_team_aaos_user_triage",
 
     defaults: [
         "CarServiceTestDefaults",
@@ -323,6 +340,7 @@ android_test {
 
 android_test {
     name: "CarServiceEvsTest",
+    team: "trendy_team_perception_virtualization",
 
     defaults: [
         "CarServiceTestDefaults",

@@ -317,7 +317,7 @@ final class VendorServiceController implements UserLifecycleListener {
         boolean isCurrentUser = userId == currentUserId;
 
         return (isSystemUser && serviceInfo.isSystemUserService())
-            || (isCurrentUser && serviceInfo.isForegroundUserService())
+            || (!isSystemUser && isCurrentUser && serviceInfo.isForegroundUserService())
             || ((serviceInfo.isVisibleUserService()
                     || (!isCurrentUser && serviceInfo.isBackgroundVisibleUserService()))
                 && carUserService.isUserVisible(userId));
@@ -383,9 +383,14 @@ final class VendorServiceController implements UserLifecycleListener {
     }
 
     private void startOrBindServicesForUser(UserHandle user, @Nullable Boolean forPostUnlock) {
+        int userId = user.getIdentifier();
+        if (!mUserManager.isUserRunning(user)) {
+            Slogf.w(TAG, "User %d is not running, skip startOrBindServicesForUser", userId);
+            return;
+        }
+
         boolean unlocked = mUserManager.isUserUnlockingOrUnlocked(user);
         int currentUserId = mCurrentUserFetcher.getCurrentUser();
-        int userId = user.getIdentifier();
         for (VendorServiceInfo service: mVendorServiceInfos) {
             if (forPostUnlock != null
                     && service.shouldStartOnPostUnlock() != forPostUnlock.booleanValue()) {
@@ -552,7 +557,13 @@ final class VendorServiceController implements UserLifecycleListener {
                         /* executor= */ this, /* conn= */ this);
                 if (!canBind) {
                     // Still need to unbind when an attempt to bind fails.
-                    unbindService();
+                    try {
+                        unbindService();
+                    } catch (Exception e) {
+                        // When binding already failed, log and ignore an exception from unbind.
+                        Slogf.w(TAG, "After bindService() failed, unbindService() threw "
+                                + "an exception:", e);
+                    }
                 }
                 return canBind;
             } else if (mVendorServiceInfo.shouldBeStartedInForeground()) {

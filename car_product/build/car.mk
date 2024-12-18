@@ -76,9 +76,6 @@ PRODUCT_PROPERTY_OVERRIDES += \
     ro.carrier=unknown \
     ro.hardware.type=automotive \
 
-# Disable developer options activity embedding
-PRODUCT_SYSTEM_PROPERTIES += \
-    persist.sys.fflag.override.settings_support_large_screen=false
 
 # Set default Bluetooth profiles
 TARGET_SYSTEM_PROP += \
@@ -208,7 +205,7 @@ PRODUCT_LOCALES := \
     de_DE \
     el_GR \
     en_AU en_CA en_GB en_IN en_XA \
-    es_ES es_US \
+    es_ES es_US es_AR \
     et_EE \
     eu_ES \
     fa_IR \

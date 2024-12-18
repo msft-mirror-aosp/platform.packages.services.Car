@@ -16,11 +16,13 @@
 
 package com.android.car.audio;
 
-import static com.android.car.audio.FocusInteraction.AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI;
+import static android.car.settings.CarSettings.Secure.KEY_AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import android.car.settings.CarSettings;
 import android.database.ContentObserver;
@@ -33,15 +35,13 @@ import com.android.car.audio.ContentObserverFactory.ContentChangeCallback;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 
 @RunWith(AndroidJUnit4.class)
 public final class ContentObserverFactoryTest {
 
     private static final Uri TEST_URI = Settings.Secure.getUriFor(
             CarSettings.Secure.KEY_AUDIO_PERSIST_VOLUME_GROUP_MUTE_STATES);
-
-    private ContentObserverFactory mFactory =
-            new ContentObserverFactory(AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI);
 
     @Test
     public void constructor_withNullUri_fails() {
@@ -56,7 +56,7 @@ public final class ContentObserverFactoryTest {
     @Test
     public void createObserver_withNullCallback_fails() {
         ContentObserverFactory factory =
-                new ContentObserverFactory(AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI);
+                new ContentObserverFactory(getNavigationRejectedUri());
         NullPointerException thrown =
                 assertThrows(NullPointerException.class,
                         () -> factory.createObserver(null));
@@ -67,43 +67,37 @@ public final class ContentObserverFactoryTest {
 
     @Test
     public void createObserver_withCallback_createsContentObserver() {
-        ContentObserver observer = mFactory.createObserver(new TestObserverCallback());
+        ContentChangeCallback callback = Mockito.mock(ContentChangeCallback.class);
+        ContentObserver observer = getTestContentObserverFactory().createObserver(callback);
 
         assertWithMessage("Created Content Observer").that(observer).isNotNull();
     }
 
     @Test
     public void onChange_calledWithCreatedUri_callsCallback() {
-        TestObserverCallback Callback = new TestObserverCallback();
-        ContentObserver observer = mFactory.createObserver(Callback);
+        ContentChangeCallback callback = Mockito.mock(ContentChangeCallback.class);
+        ContentObserver observer = getTestContentObserverFactory().createObserver(callback);
 
-        observer.onChange(true, AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL_URI);
+        observer.onChange(true, getNavigationRejectedUri());
 
-        assertWithMessage("Content Change Callback Called Status")
-                .that(Callback.wasCalled()).isTrue();
+        verify(callback).onChange();
     }
 
     @Test
     public void onChange_calledWithDifferentUri_doesNotCallCallback() {
-        TestObserverCallback Callback = new TestObserverCallback();
-        ContentObserver observer = mFactory.createObserver(Callback);
+        ContentChangeCallback callback = Mockito.mock(ContentChangeCallback.class);
+        ContentObserver observer = getTestContentObserverFactory().createObserver(callback);
 
         observer.onChange(true, TEST_URI);
 
-        assertWithMessage("Content Change Callback Called Status")
-                .that(Callback.wasCalled()).isFalse();
+        verify(callback, never()).onChange();
     }
 
-    private static final class TestObserverCallback implements ContentChangeCallback {
+    private static ContentObserverFactory getTestContentObserverFactory() {
+        return new ContentObserverFactory(getNavigationRejectedUri());
+    }
 
-        private boolean mCalled;
-        @Override
-        public void onChange() {
-            mCalled = true;
-        }
-
-        boolean wasCalled() {
-            return mCalled;
-        }
+    private static Uri getNavigationRejectedUri() {
+        return Settings.Secure.getUriFor(KEY_AUDIO_FOCUS_NAVIGATION_REJECTED_DURING_CALL);
     }
 }

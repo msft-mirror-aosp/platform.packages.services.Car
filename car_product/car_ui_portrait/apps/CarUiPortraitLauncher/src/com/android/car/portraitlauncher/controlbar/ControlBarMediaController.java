@@ -17,15 +17,16 @@
 package com.android.car.portraitlauncher.controlbar;
 
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.getFirstCustomActionInSet;
-import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.skipForwardStandardActions;
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.skipBackStandardActions;
+import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.skipForwardStandardActions;
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updateActionsWithPlaybackState;
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updatePlayButtonWithPlaybackState;
 import static com.android.car.media.common.ui.PlaybackCardControllerUtilities.updateTextViewAndVisibility;
 
-import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
@@ -36,7 +37,7 @@ import androidx.constraintlayout.motion.widget.MotionLayout;
 
 import com.android.car.apps.common.RoundedDrawable;
 import com.android.car.apps.common.util.ViewUtils;
-import com.android.car.carlauncher.homescreen.audio.media.MediaIntentRouter;
+import com.android.car.carlauncher.homescreen.audio.media.MediaLaunchRouter;
 import com.android.car.media.common.MediaItemMetadata;
 import com.android.car.media.common.playback.PlaybackProgress;
 import com.android.car.media.common.playback.PlaybackViewModel;
@@ -53,7 +54,7 @@ import java.util.List;
 public class ControlBarMediaController extends PlaybackCardController {
 
     private static final int MAX_ACTIONS_IN_DEFAULT_LAYOUT = 6;
-    private final MediaIntentRouter mMediaIntentRouter = MediaIntentRouter.getInstance();
+    private final MediaLaunchRouter mMediaLaunchRouter = MediaLaunchRouter.getInstance();
 
     private ViewGroup mCustomActionLayout;
     private ViewGroup mCustomActionOverflowLayout;
@@ -95,11 +96,47 @@ public class ControlBarMediaController extends PlaybackCardController {
     public ControlBarMediaController(ControlBarMediaController.Builder builder) {
         super(builder);
 
-        mView.setOnClickListener(view -> {
-            MediaSource mediaSource = mDataModel.getMediaSource().getValue();
-            Intent intent = mediaSource != null ? mediaSource.getIntent() : null;
-            mMediaIntentRouter.handleMediaIntent(intent);
-        });
+        GestureDetector gestureDetector =
+                new GestureDetector(
+                        mView.getContext(),
+                        new GestureDetector.SimpleOnGestureListener() {
+                            private void sendMediaIntent() {
+                                mMediaLaunchRouter
+                                        .handleLaunchMedia(mDataModel.getMediaSource().getValue());
+                            }
+
+                            @Override
+                            public boolean onDown(MotionEvent event) {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean onSingleTapUp(MotionEvent e) {
+                                sendMediaIntent();
+                                return true;
+                            }
+
+                            @Override
+                            public boolean onFling(
+                                    MotionEvent e1,
+                                    MotionEvent e2,
+                                    float velocityX,
+                                    float velocityY) {
+                                if (velocityY < 0) {
+                                    sendMediaIntent();
+                                }
+                                return true;
+                            }
+                        });
+
+        mView.setOnTouchListener(
+                (v, event) -> {
+                    if (gestureDetector.onTouchEvent(event)) {
+                        return true;
+                    }
+
+                    return v.onTouchEvent(event);
+                });
 
         mCustomActionLayout = mView.findViewById(R.id.custom_action_container);
         mCustomActionOverflowLayout = mView.findViewById(R.id.custom_action_overflow_container);
@@ -191,7 +228,10 @@ public class ControlBarMediaController extends PlaybackCardController {
 
     @Override
     protected void updateAlbumCoverWithDrawable(Drawable drawable) {
-        RoundedDrawable roundedDrawable = new RoundedDrawable(drawable, mView.getResources()
+        Drawable drawableToUse = drawable == null ? mView.getResources().getDrawable(
+                /* drawable */ R.drawable.media_card_default_album_art, /* theme */ null)
+                : drawable;
+        RoundedDrawable roundedDrawable = new RoundedDrawable(drawableToUse, mView.getResources()
                 .getFloat(R.dimen.control_bar_media_card_album_art_drawable_corner_ratio));
         super.updateAlbumCoverWithDrawable(roundedDrawable);
     }
@@ -344,6 +384,7 @@ public class ControlBarMediaController extends PlaybackCardController {
     @Override
     protected void updateQueueState(boolean hasQueue, boolean isQueueVisible) {
         super.updateQueueState(hasQueue, isQueueVisible);
+        ViewUtils.setVisible(mQueueButton, hasQueue);
         if (isPanelOpen() && mViewModel.getQueueVisible() && !hasQueue) {
             unselectPanelButtons();
 
@@ -424,6 +465,7 @@ public class ControlBarMediaController extends PlaybackCardController {
         mCustomActionOverflowLayoutVisibility = mCustomActionOverflowLayout.getVisibility();
 
         mSeekBar.getThumb().mutate().setAlpha(0);
+        mSeekBar.setEnabled(false);
 
         mMotionLayout.transitionToEnd();
     }
@@ -441,6 +483,7 @@ public class ControlBarMediaController extends PlaybackCardController {
         mCustomActionOverflowLayout.setVisibility(mCustomActionOverflowLayoutVisibility);
 
         mSeekBar.getThumb().mutate().setAlpha(255);
+        mSeekBar.setEnabled(true);
 
         mMotionLayout.transitionToStart();
     }

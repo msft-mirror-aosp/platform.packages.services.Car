@@ -37,7 +37,8 @@
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:gravity="center_vertical"
-            systemui:hvacAreaId="68">
+            systemui:hvacAreaId="68"
+            systemui:controller="com.android.systemui.car.hvac.TemperatureControlViewController">
             <include layout="@layout/adjustable_temperature_view"/>
         </com.android.systemui.car.hvac.TemperatureControlView>
 
@@ -73,7 +74,8 @@
                 systemui:highlightWhenSelected="true"
                 systemui:icon="@drawable/car_ic_control_center"
                 systemui:intent="intent:#Intent;action=android.intent.action.MAIN;package=com.android.car.multidisplay.controlcenter;component=com.android.car.multidisplay.controlcenter/.ControlCenterActivity;B.BOTTOM_BAR_LAUNCH=true;end"
-                systemui:componentNames="com.android.car.multidisplay.controlcenter/.ControlCenterActivity"/>
+                systemui:componentNames="com.android.car.multidisplay.controlcenter/.ControlCenterActivity"
+                systemui:controller="com.android.systemui.car.systembar.ControlCenterButtonController"/>
 
             <com.android.systemui.car.systembar.CarSystemBarButton
                 android:id="@+id/notifications"
@@ -81,7 +83,9 @@
                 style="@style/SystemBarButton"
                 android:layout_marginEnd="0dp"
                 systemui:highlightWhenSelected="true"
-                systemui:icon="@drawable/car_ic_notification"/>
+                systemui:icon="@drawable/car_ic_notification"
+                systemui:systemBarDisableFlags="notificationIcons"
+                systemui:controller="com.android.systemui.car.notification.NotificationButtonController"/>
 
             <Space
                 android:layout_width="0dp"
@@ -106,19 +110,15 @@
             app:systemBarDisable2Flags="quickSettings"
             app:showAsDropDown="false"
             app:gravity="bottom|end">
-            <ImageView
+            <com.android.systemui.car.systembar.element.layout.CarSystemBarImageView
                 android:id="@+id/user_icon"
                 android:layout_width="@dimen/car_quick_controls_entry_points_icon_width"
                 android:layout_height="match_parent"
                 android:adjustViewBounds="true"
                 android:src="@drawable/car_user_icon_circle_background"
                 android:scaleType="fitCenter"
-                android:layout_marginEnd="@dimen/car_quick_controls_entry_points_icon_space"/>
-            <TextView
-                android:id="@+id/user_name_text"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:visibility="gone"/>
+                android:layout_marginEnd="@dimen/car_quick_controls_entry_points_icon_space"
+                systemui:controller="com.android.systemui.car.systembar.UserNameImageViewController"/>
             <com.android.systemui.car.statusicon.StatusIconView
                 android:id="@+id/media_volume_status_icon"
                 android:layout_width="wrap_content"

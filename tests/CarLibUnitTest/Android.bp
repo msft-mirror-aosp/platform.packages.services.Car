@@ -49,9 +49,10 @@ java_defaults {
         "platform-test-annotations",
         "truth",
         "vehicle-hal-support-lib",
+        "car-helper-lib",
     ],
     libs: [
-        "android.test.base",
+        "android.test.base.stubs.system",
         "framework-annotations-lib",
     ],
 }
@@ -63,7 +64,7 @@ java_defaults {
         "ravenwood-junit",
     ],
     libs: [
-        "android.car.builtin",
+        "android.car.builtin.stubs.module_lib",
     ],
     defaults: [
         "CarLibUnitTestDefault",
@@ -83,6 +84,7 @@ java_defaults {
 
 android_ravenwood_test {
     name: "CarLibHostUnitTest",
+    team: "trendy_team_aaos_framework",
     static_libs: [
         "android.car.builtin.testonly",
     ],
@@ -106,6 +108,10 @@ android_ravenwood_test {
         "src/android/car/app/**/*.java",
         // TODO(b/354796364): Enable cluster renderer test on host.
         "src/android/car/cluster/renderer/*.java",
+        // TODO(b/374729716): Enable internal BinderKeyValueContainerTest on host.
+        "src/com/android/car/internal/util/BinderKeyValueContainerTest.java",
+        // TODO(b/376501867): Enable UserHelperUnitTest on host.
+        "src/com/android/car/internal/user/UserHelperUnitTest.java",
         // The following cannot be enabled because AudioAttributes is
         // not supported on host.
         "src/android/car/media/CarAudioZoneConfigInfoUnitTest.java",
@@ -121,6 +127,7 @@ android_ravenwood_test {
 
 android_test {
     name: "CarLibAdminUnitTest",
+    team: "trendy_team_aaos_user_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -131,6 +138,7 @@ android_test {
 
 android_test {
     name: "CarLibAppUnitTest",
+    team: "trendy_team_aaos_window_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -142,6 +150,7 @@ android_test {
 
 android_test {
     name: "CarLibCarUnitTest",
+    team: "trendy_team_aaos_framework",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -152,6 +161,7 @@ android_test {
 
 android_test {
     name: "CarLibClusterUnitTest",
+    team: "trendy_team_aaos_window_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -162,6 +172,7 @@ android_test {
 
 android_test {
     name: "CarLibPmUnitTest",
+    team: "trendy_team_aaos_user_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -172,6 +183,7 @@ android_test {
 
 android_test {
     name: "CarLibEvsUnitTest",
+    team: "trendy_team_perception_virtualization",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -182,6 +194,7 @@ android_test {
 
 android_test {
     name: "CarLibPropertyUnitTest",
+    team: "trendy_team_aaos_vac_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -192,6 +205,7 @@ android_test {
 
 android_test {
     name: "CarLibMediaUnitTest",
+    team: "trendy_team_aaos_audio_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -203,6 +217,7 @@ android_test {
 
 android_test {
     name: "CarLibNavigationUnitTest",
+    team: "trendy_team_aaos_user_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -213,6 +228,7 @@ android_test {
 
 android_test {
     name: "CarLibOccupantConnectionUnitTest",
+    team: "trendy_team_aaos_user_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -229,6 +245,7 @@ android_test {
 
 android_test {
     name: "CarLibOemUnitTest",
+    team: "trendy_team_aaos_audio_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -239,6 +256,7 @@ android_test {
 
 android_test {
     name: "CarLibOsUnitTest",
+    team: "trendy_team_aaos_carframework_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -249,6 +267,7 @@ android_test {
 
 android_test {
     name: "CarLibRemoteAccessUnitTest",
+    team: "trendy_team_aaos_power_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -259,6 +278,7 @@ android_test {
 
 android_test {
     name: "CarLibUserUnitTest",
+    team: "trendy_team_aaos_user_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -269,6 +289,7 @@ android_test {
 
 android_test {
     name: "CarLibUtilConcurrentUnitTest",
+    team: "trendy_team_aaos_framework",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -279,6 +300,7 @@ android_test {
 
 android_test {
     name: "CarLibVmsUnitTest",
+    team: "trendy_team_aaos_vac_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -289,6 +311,7 @@ android_test {
 
 android_test {
     name: "CarLibWifiUnitTest",
+    team: "trendy_team_connectivity_telemetry",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],
@@ -299,6 +322,7 @@ android_test {
 
 android_test {
     name: "CarLibInternalUnitTest",
+    team: "trendy_team_aaos_framework",
     defaults: [
         "CarLibDeviceUnitTestDefault",
     ],

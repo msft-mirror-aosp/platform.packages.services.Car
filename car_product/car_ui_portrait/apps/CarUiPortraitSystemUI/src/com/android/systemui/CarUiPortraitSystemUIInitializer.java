@@ -21,8 +21,8 @@ import android.os.UserHandle;
 
 import com.android.systemui.dagger.GlobalRootComponent;
 import com.android.systemui.dagger.SysUIComponent;
-import com.android.systemui.dagger.WMComponent;
 import com.android.systemui.wmshell.CarUiPortraitWMComponent;
+import com.android.wm.shell.dagger.WMComponent;
 
 import java.util.Optional;
 
@@ -57,6 +57,7 @@ public class CarUiPortraitSystemUIInitializer extends CarSystemUIInitializer {
                         : Optional.empty())
                 .setCarUiPortraitDisplaySystemBarsController(
                         carWm.getCarUiPortraitDisplaySystemBarsController())
-                        .setMDSystemBarsController(carWm.getMDSystemBarController());
+                .setFullscreenTaskListener(carWm.getFullscreenTaskListener())
+                .setTransitions(carWm.getTransitions());
     }
 }
