@@ -16,11 +16,10 @@
 
 package com.android.car.hal.fakevhal;
 
-import static com.android.car.internal.property.CarPropertyErrorCodes.convertVhalStatusCodeToCarPropertyManagerErrorCodes;
+import static com.android.car.internal.property.CarPropertyErrorCodes.createFromVhalStatusCode;
 
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
-import android.car.hardware.property.CarPropertyManager;
 import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
@@ -51,6 +50,7 @@ import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
 import com.android.car.hal.VehicleHalCallback;
 import com.android.car.internal.property.CarPropertyErrorCodes;
+import com.android.car.internal.property.PropIdAreaId;
 import com.android.car.internal.util.PairSparseArray;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -199,22 +199,16 @@ public final class FakeVehicleStub extends VehicleStub {
                     halPropValue);
                 if (halPropValue == null) {
                     result = new GetVehicleStubAsyncResult(request.getServiceRequestId(),
-                            new CarPropertyErrorCodes(
-                                    CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE,
-                                    /* vendorErrorCode= */ 0,
-                                    /* systemErrorCode */ 0));
+                            CarPropertyErrorCodes.ERROR_CODES_NOT_AVAILABLE);
                 }
             } catch (ServiceSpecificException e) {
                 CarPropertyErrorCodes carPropertyErrorCodes =
-                        convertVhalStatusCodeToCarPropertyManagerErrorCodes(e.errorCode);
+                        createFromVhalStatusCode(e.errorCode);
                 result = new GetVehicleStubAsyncResult(request.getServiceRequestId(),
                         carPropertyErrorCodes);
             } catch (RemoteException e) {
                 result = new GetVehicleStubAsyncResult(request.getServiceRequestId(),
-                        new CarPropertyErrorCodes(
-                                CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR,
-                                /* vendorErrorCode= */ 0,
-                                /* systemErrorCode */ 0));
+                        CarPropertyErrorCodes.ERROR_CODES_INTERNAL);
             }
             onGetAsyncResultList.add(result);
         }
@@ -242,13 +236,10 @@ public final class FakeVehicleStub extends VehicleStub {
                 result = new SetVehicleStubAsyncResult(serviceRequestId);
             } catch (RemoteException e) {
                 result = new SetVehicleStubAsyncResult(serviceRequestId,
-                        new CarPropertyErrorCodes(
-                                CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR,
-                                /* vendorErrorCode= */ 0,
-                                /* systemErrorCode */ 0));
+                        CarPropertyErrorCodes.ERROR_CODES_INTERNAL);
             } catch (ServiceSpecificException e) {
                 CarPropertyErrorCodes carPropertyErrorCodes =
-                        convertVhalStatusCodeToCarPropertyManagerErrorCodes(e.errorCode);
+                        createFromVhalStatusCode(e.errorCode);
                 result = new SetVehicleStubAsyncResult(serviceRequestId, carPropertyErrorCodes);
             }
             onSetAsyncResultsList.add(result);
@@ -492,6 +483,18 @@ public final class FakeVehicleStub extends VehicleStub {
                 return;
             }
             FakeVehicleStub.this.unsubscribe(this, propId);
+        }
+
+        @Override
+        public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+            // TODO(371636116): Implement this.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+            // TODO(371636116): Implement this.
+            throw new UnsupportedOperationException();
         }
     }
 

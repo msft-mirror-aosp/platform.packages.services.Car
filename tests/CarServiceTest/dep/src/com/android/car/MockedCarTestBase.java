@@ -26,23 +26,20 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-import android.automotive.powerpolicy.internal.ICarPowerPolicyDelegate;
+import android.automotive.power.internal.ICarPowerManagementDelegate;
 import android.car.Car;
 import android.car.ICarResultReceiver;
 import android.car.feature.Flags;
-import android.car.test.CarTestManager;
-import android.car.testapi.FakeRefactoredCarPowerPolicyDaemon;
+import android.car.testapi.FakeRefactoredCarPowerManagementDaemon;
 import android.car.user.CarUserManager.UserLifecycleListener;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.res.Resources;
 import android.frameworks.automotive.powerpolicy.internal.ICarPowerPolicySystemNotification;
 import android.hardware.automotive.vehicle.VehiclePropertyAccess;
 import android.hardware.automotive.vehicle.VehiclePropertyChangeMode;
-import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -107,8 +104,6 @@ public class MockedCarTestBase {
     private static final int STATE_HANDLING_TIMEOUT = 5_000;
     private static final int MAIN_LOOPER_TIMEOUT_MS = 1_000;
     private static final String TAG = MockedCarTestBase.class.getSimpleName();
-    private static final IBinder sCarServiceToken = new Binder();
-    private static boolean sRealCarServiceReleased;
 
     // Use the Mocked AIDL VHAL backend by default.
     private boolean mUseAidlVhal = true;
@@ -150,7 +145,7 @@ public class MockedCarTestBase {
     @GuardedBy("mLock")
     private final List<UserLifecycleListener> mUserLifecycleListeners = new ArrayList<>();
 
-    private ICarPowerPolicyDelegate mRefactoredPowerPolicyDaemon;
+    private ICarPowerManagementDelegate mRefactoredPowerManagementDaemon;
     private MockitoSession mSession;
 
     protected HidlMockedVehicleHal createHidlMockedVehicleHal() {
@@ -173,9 +168,9 @@ public class MockedCarTestBase {
         return mFakeSystemInterface;
     }
 
-    protected android.os.IInterface getMockedPowerPolicyDaemon() {
+    protected android.os.IInterface getMockedPowerManagementDaemon() {
         if (Flags.carPowerPolicyRefactoring()) {
-            return mRefactoredPowerPolicyDaemon;
+            return mRefactoredPowerManagementDaemon;
         } else {
             return mPowerPolicyDaemon;
         }
@@ -327,8 +322,6 @@ public class MockedCarTestBase {
 
         mSession = createMockingSession();
 
-        releaseRealCarService(getContext());
-
         // Create mock dependencies
         mHidlMockedVehicleHal = createHidlMockedVehicleHal();
         mAidlMockedVehicleHal = createAidlMockedVehicleHal();
@@ -377,13 +370,13 @@ public class MockedCarTestBase {
         }
 
         // Setup car
-        IInterface powerPolicyDaemon;
+        IInterface powerManagementDaemon;
         if (Flags.carPowerPolicyRefactoring()) {
-            mRefactoredPowerPolicyDaemon = new FakeRefactoredCarPowerPolicyDaemon(
+            mRefactoredPowerManagementDaemon = new FakeRefactoredCarPowerManagementDaemon(
                     /* fileKernelSilentMode= */ null, /* customComponents= */ null);
-            powerPolicyDaemon = mRefactoredPowerPolicyDaemon;
+            powerManagementDaemon = mRefactoredPowerManagementDaemon;
         } else {
-            powerPolicyDaemon = mPowerPolicyDaemon;
+            powerManagementDaemon = mPowerPolicyDaemon;
         }
         ICarImpl carImpl = new ICarImpl.Builder()
                 .setServiceContext(mMockedCarTestContext)
@@ -397,7 +390,7 @@ public class MockedCarTestBase {
                 .setCarRemoteAccessServiceConstructor(mCarRemoteAccessServiceConstructor)
                 .setAppFocusService(mAppFocusService)
                 .setGarageModeService(mGarageModeService)
-                .setPowerPolicyDaemon(powerPolicyDaemon)
+                .setPowerManagementDaemon(powerManagementDaemon)
                 .setDoPriorityInitInConstruction(false)
                 .setTestStaticBinder(new StaticBinderInterface() {
                     @Override
@@ -599,48 +592,6 @@ public class MockedCarTestBase {
 
     protected android.car.Car getCar() {
         return mCar;
-    }
-
-    /*
-     * In order to eliminate interfering with real car service we will disable it. It will be
-     * enabled back in CarTestService when sCarServiceToken will go away (tests finish).
-     */
-    private static void releaseRealCarService(Context context) throws Exception {
-        if (sRealCarServiceReleased) {
-            return;  // We just want to release it once.
-        }
-        sRealCarServiceReleased = true;  // To make sure it was called once.
-
-        Object waitForConnection = new Object();
-        Car car = android.car.Car.createCar(context, new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {
-                synchronized (waitForConnection) {
-                    waitForConnection.notifyAll();
-                }
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) { }
-        });
-
-        car.connect();
-        synchronized (waitForConnection) {
-            if (!car.isConnected()) {
-                long nowMs = System.currentTimeMillis();
-                long deadlineMs = nowMs + DEFAULT_WAIT_TIMEOUT_MS;
-                while (!car.isConnected() && nowMs < deadlineMs) {
-                    waitForConnection.wait(deadlineMs - nowMs);
-                    nowMs = System.currentTimeMillis();
-                }
-            }
-        }
-
-        if (car.isConnected()) {
-            Log.i(TAG, "Connected to real car service");
-            CarTestManager carTestManager = (CarTestManager) car.getCarManager(Car.TEST_SERVICE);
-            carTestManager.stopCarService(sCarServiceToken);
-        }
     }
 
     static final class MockActivityManagerInterface implements ActivityManagerInterface {

@@ -19,14 +19,15 @@ package com.android.car;
 import static android.car.VehiclePropertyIds.HVAC_TEMPERATURE_SET;
 
 import static com.android.car.internal.property.CarPropertyErrorCodes.STATUS_OK;
+import static com.android.car.internal.property.CarPropertyHelper.newPropIdAreaId;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.doAnswer;
@@ -43,8 +44,12 @@ import android.hardware.automotive.vehicle.GetValueRequest;
 import android.hardware.automotive.vehicle.GetValueRequests;
 import android.hardware.automotive.vehicle.GetValueResult;
 import android.hardware.automotive.vehicle.GetValueResults;
+import android.hardware.automotive.vehicle.HasSupportedValueInfo;
 import android.hardware.automotive.vehicle.IVehicle;
 import android.hardware.automotive.vehicle.IVehicleCallback;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResult;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResults;
+import android.hardware.automotive.vehicle.PropIdAreaId;
 import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SetValueRequest;
 import android.hardware.automotive.vehicle.SetValueRequests;
@@ -52,6 +57,9 @@ import android.hardware.automotive.vehicle.SetValueResult;
 import android.hardware.automotive.vehicle.SetValueResults;
 import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.hardware.automotive.vehicle.SupportedValuesListResult;
+import android.hardware.automotive.vehicle.SupportedValuesListResults;
+import android.hardware.automotive.vehicle.VehicleAreaConfig;
 import android.hardware.automotive.vehicle.VehiclePropConfig;
 import android.hardware.automotive.vehicle.VehiclePropConfigs;
 import android.hardware.automotive.vehicle.VehiclePropError;
@@ -69,6 +77,8 @@ import android.platform.test.annotations.DisabledOnRavenwood;
 import android.platform.test.ravenwood.RavenwoodRule;
 
 import com.android.car.VehicleStub.AsyncGetSetRequest;
+import com.android.car.VehicleStub.MinMaxSupportedRawPropValues;
+import com.android.car.hal.AidlHalAreaConfig;
 import com.android.car.hal.HalPropConfig;
 import com.android.car.hal.HalPropValue;
 import com.android.car.hal.HalPropValueBuilder;
@@ -85,6 +95,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -121,6 +132,9 @@ public final class AidlVehicleStubUnitTest {
     private VehicleStub.VehicleStubCallbackInterface mAsyncCallback;
     @Mock
     private HistogramFactoryInterface mHistogramFactory;
+
+    @Captor
+    private ArgumentCaptor<List> mListCaptor;
 
     @Rule
     public final RavenwoodRule mRavenwood = new RavenwoodRule.Builder().setProvideMainThread(true)
@@ -489,7 +503,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
     }
 
@@ -511,7 +526,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
     }
 
@@ -524,7 +540,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyErrorCodes.STATUS_TRY_AGAIN);
     }
 
@@ -537,7 +554,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -550,7 +568,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -563,7 +582,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -576,7 +596,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -590,7 +611,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -603,7 +625,8 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAsyncCallback, timeout(1000)).onGetAsyncResults(
                 argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -1111,7 +1134,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(STATUS_OK);
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(STATUS_OK);
     }
 
     @Test
@@ -1126,7 +1150,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
     }
 
@@ -1143,7 +1168,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyErrorCodes.STATUS_TRY_AGAIN);
     }
 
@@ -1160,7 +1186,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -1177,7 +1204,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -1194,7 +1222,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -1212,7 +1241,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -1230,7 +1260,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -1247,7 +1278,8 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
     }
 
@@ -1265,9 +1297,11 @@ public final class AidlVehicleStubUnitTest {
         verify(mAsyncCallback, timeout(1000)).onSetAsyncResults(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue()).hasSize(1);
         assertThat(argumentCaptor.getValue().get(0).getServiceRequestId()).isEqualTo(0);
-        assertThat(argumentCaptor.getValue().get(0).getErrorCode()).isEqualTo(
+        assertThat(argumentCaptor.getValue().get(0).getCarPropertyErrorCodes()
+                .getCarPropertyManagerErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
-        assertThat(argumentCaptor.getValue().get(0).getVendorErrorCode()).isEqualTo(0x1234);
+        assertThat(argumentCaptor.getValue().get(0)
+                .getCarPropertyErrorCodes().getVendorErrorCode()).isEqualTo(0x1234);
     }
 
     @Test
@@ -1376,4 +1410,362 @@ public final class AidlVehicleStubUnitTest {
 
         verify(mAidlBinder).dump(eq(fd), eq(new String[0]));
     }
+
+    @Test
+    public void testIsSupportedValuesImplemented_true() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenReturn(4);
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        vehicleAreaConfig.hasSupportedValueInfo = new HasSupportedValueInfo();
+        var halAreaConfig = new AidlHalAreaConfig(vehicleAreaConfig);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented(halAreaConfig)).isTrue();
+    }
+
+    @Test
+    public void testIsSupportedValuesImplemented_false() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenReturn(4);
+        // VechielAreaConfig has null hasSupportedValueInfo
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        var halAreaConfig = new AidlHalAreaConfig(vehicleAreaConfig);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented(halAreaConfig)).isFalse();
+    }
+
+    @Test
+    public void testIsSupportedValuesImplemented_vhalInterfaceVersionTooLow() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenReturn(3);
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        vehicleAreaConfig.hasSupportedValueInfo = new HasSupportedValueInfo();
+        var halAreaConfig = new AidlHalAreaConfig(vehicleAreaConfig);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented(halAreaConfig)).isFalse();
+    }
+
+    @Test
+    public void testIsSupportedValuesImplemented_RemoteException() throws Exception {
+        when(mAidlVehicle.getInterfaceVersion()).thenThrow(new RemoteException());
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        vehicleAreaConfig.hasSupportedValueInfo = new HasSupportedValueInfo();
+        var halAreaConfig = new AidlHalAreaConfig(vehicleAreaConfig);
+
+        assertThat(mAidlVehicleStub.isSupportedValuesImplemented(halAreaConfig)).isFalse();
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+        int testMinValue = 1234;
+        int testMaxValue = 4321;
+
+        var minSupportedRawPropValues = new RawPropValues();
+        minSupportedRawPropValues.int32Values = new int[]{testMinValue};
+        var maxSupportedRawPropValues = new RawPropValues();
+        maxSupportedRawPropValues.int32Values = new int[]{testMaxValue};
+
+        MinMaxSupportedValueResult result = new MinMaxSupportedValueResult();
+        result.status = StatusCode.OK;
+        result.minSupportedValue = minSupportedRawPropValues;
+        result.maxSupportedValue = maxSupportedRawPropValues;
+        MinMaxSupportedValueResults results = new MinMaxSupportedValueResults();
+        results.payloads = new MinMaxSupportedValueResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getMinMaxSupportedValue(captor.capture())).thenReturn(results);
+
+        MinMaxSupportedRawPropValues minMaxSupportedRawPropValues =
+                mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+
+        PropIdAreaId gotPropIdAreaId = (PropIdAreaId) captor.getValue().get(0);
+        assertThat(gotPropIdAreaId).isEqualTo(propIdAreaId);
+        assertThat(minMaxSupportedRawPropValues.minValue()).isEqualTo(minSupportedRawPropValues);
+        assertThat(minMaxSupportedRawPropValues.maxValue()).isEqualTo(maxSupportedRawPropValues);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_RemoteException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getMinMaxSupportedValue(any())).thenThrow(new RemoteException());
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_ServiceSpecificException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getMinMaxSupportedValue(any())).thenThrow(
+                new ServiceSpecificException(StatusCode.INTERNAL_ERROR));
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_nonOkayResult() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        MinMaxSupportedValueResult result = new MinMaxSupportedValueResult();
+        result.status = StatusCode.INTERNAL_ERROR;
+        MinMaxSupportedValueResults results = new MinMaxSupportedValueResults();
+        results.payloads = new MinMaxSupportedValueResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getMinMaxSupportedValue(captor.capture())).thenReturn(results);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getMinMaxSupportedValue(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+        int testValue1 = 1234;
+        int testValue2 = 4321;
+
+        var rawPropValues1 = new RawPropValues();
+        rawPropValues1.int32Values = new int[]{testValue1};
+        var rawPropValues2 = new RawPropValues();
+        rawPropValues2.int32Values = new int[]{testValue2};
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.OK;
+        result.supportedValuesList = List.of(rawPropValues1, rawPropValues2);
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        when(mAidlVehicle.getSupportedValuesLists(captor.capture())).thenReturn(results);
+
+        List<RawPropValues> supportedRawPropValues = mAidlVehicleStub.getSupportedValuesList(
+                testPropId, testAreaId);
+
+        PropIdAreaId gotPropIdAreaId = (PropIdAreaId) captor.getValue().get(0);
+        assertThat(gotPropIdAreaId).isEqualTo(propIdAreaId);
+        assertThat(supportedRawPropValues).containsExactly(rawPropValues1, rawPropValues2);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_notSpecified() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.OK;
+        // No supported values specified.
+        result.supportedValuesList = null;
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenReturn(results);
+
+        List<RawPropValues> supportedRawPropValues = mAidlVehicleStub.getSupportedValuesList(
+                testPropId, testAreaId);
+
+        assertThat(supportedRawPropValues).isNull();
+    }
+
+    @Test
+    public void testGetSupportedValuesList_RemoteException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenThrow(new RemoteException());
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList_ServiceSpecificException() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenThrow(
+                new ServiceSpecificException(StatusCode.INTERNAL_ERROR));
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
+    @Test
+    public void testGetSupportedValuesList_nonOkayStatus() throws Exception {
+        int testPropId = 123;
+        int testAreaId = 321;
+        var propIdAreaId = new PropIdAreaId();
+        propIdAreaId.propId = testPropId;
+        propIdAreaId.areaId = testAreaId;
+
+        SupportedValuesListResult result = new SupportedValuesListResult();
+        result.status = StatusCode.INTERNAL_ERROR;
+        var results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[] {result};
+        when(mAidlVehicle.getSupportedValuesLists(any())).thenReturn(results);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            mAidlVehicleStub.getSupportedValuesList(testPropId, testAreaId);
+        });
+    }
+
+    private android.hardware.automotive.vehicle.PropIdAreaId newVhalPropIdAreaId(
+            int propId, int areaId) {
+        var propIdAreaId = new android.hardware.automotive.vehicle.PropIdAreaId();
+        propIdAreaId.propId = propId;
+        propIdAreaId.areaId = areaId;
+        return propIdAreaId;
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChange() throws Exception {
+        int testPropId1 = 123;
+        int testAreaId1 = 321;
+        int testPropId2 = 1234;
+        int testAreaId2 = 4321;
+
+        VehicleHalCallback callback = mock(VehicleHalCallback.class);
+
+        VehicleStub.SubscriptionClient client = mAidlVehicleStub.newSubscriptionClient(callback);
+        client.registerSupportedValuesChange(List.of(
+                newPropIdAreaId(testPropId1, testAreaId1),
+                newPropIdAreaId(testPropId2, testAreaId2)));
+
+        verify(mAidlVehicle).registerSupportedValueChangeCallback(any(), mListCaptor.capture());
+        var vhalPropIdAreaIds = (List<android.hardware.automotive.vehicle.PropIdAreaId>)
+                mListCaptor.getValue();
+        assertThat(vhalPropIdAreaIds).hasSize(2);
+        assertThat(vhalPropIdAreaIds.get(0)).isEqualTo(
+                newVhalPropIdAreaId(testPropId1, testAreaId1));
+        assertThat(vhalPropIdAreaIds.get(1)).isEqualTo(
+                newVhalPropIdAreaId(testPropId2, testAreaId2));
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChange_RemoteException() throws Exception {
+        int testPropId1 = 123;
+        int testAreaId1 = 321;
+        doThrow(new RemoteException()).when(mAidlVehicle).registerSupportedValueChangeCallback(
+                any(), any());
+        VehicleHalCallback callback = mock(VehicleHalCallback.class);
+        VehicleStub.SubscriptionClient client = mAidlVehicleStub.newSubscriptionClient(callback);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            client.registerSupportedValuesChange(List.of(
+                    newPropIdAreaId(testPropId1, testAreaId1)));
+        });
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChange_ServiceSpecificException() throws Exception {
+        int testPropId1 = 123;
+        int testAreaId1 = 321;
+        doThrow(new ServiceSpecificException(0)).when(mAidlVehicle)
+                .registerSupportedValueChangeCallback(any(), any());
+        VehicleHalCallback callback = mock(VehicleHalCallback.class);
+        VehicleStub.SubscriptionClient client = mAidlVehicleStub.newSubscriptionClient(callback);
+
+        assertThrows(ServiceSpecificException.class, () -> {
+            client.registerSupportedValuesChange(List.of(
+                    newPropIdAreaId(testPropId1, testAreaId1)));
+        });
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChange() throws Exception {
+        int testPropId1 = 123;
+        int testAreaId1 = 321;
+        int testPropId2 = 1234;
+        int testAreaId2 = 4321;
+
+        VehicleHalCallback callback = mock(VehicleHalCallback.class);
+
+        VehicleStub.SubscriptionClient client = mAidlVehicleStub.newSubscriptionClient(callback);
+        client.unregisterSupportedValuesChange(List.of(
+                newPropIdAreaId(testPropId1, testAreaId1),
+                newPropIdAreaId(testPropId2, testAreaId2)));
+
+        verify(mAidlVehicle).unregisterSupportedValueChangeCallback(any(), mListCaptor.capture());
+        var vhalPropIdAreaIds = (List<android.hardware.automotive.vehicle.PropIdAreaId>)
+                mListCaptor.getValue();
+        assertThat(vhalPropIdAreaIds).hasSize(2);
+        assertThat(vhalPropIdAreaIds.get(0)).isEqualTo(
+                newVhalPropIdAreaId(testPropId1, testAreaId1));
+        assertThat(vhalPropIdAreaIds.get(1)).isEqualTo(
+                newVhalPropIdAreaId(testPropId2, testAreaId2));
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChange_RemoteException() throws Exception {
+        int testPropId1 = 123;
+        int testAreaId1 = 321;
+        doThrow(new RemoteException()).when(mAidlVehicle).unregisterSupportedValueChangeCallback(
+                any(), any());
+        VehicleHalCallback callback = mock(VehicleHalCallback.class);
+        VehicleStub.SubscriptionClient client = mAidlVehicleStub.newSubscriptionClient(callback);
+
+        // A warning is logged, no exception.
+        client.unregisterSupportedValuesChange(List.of(
+                newPropIdAreaId(testPropId1, testAreaId1)));
+    }
+
+    @Test
+    public void testUnregisterSupportedValuesChange_ServiceSpecificException() throws Exception {
+        int testPropId1 = 123;
+        int testAreaId1 = 321;
+        doThrow(new ServiceSpecificException(0)).when(mAidlVehicle)
+                .unregisterSupportedValueChangeCallback(any(), any());
+        VehicleHalCallback callback = mock(VehicleHalCallback.class);
+        VehicleStub.SubscriptionClient client = mAidlVehicleStub.newSubscriptionClient(callback);
+
+        // A warning is logged, no exception.
+        client.unregisterSupportedValuesChange(List.of(
+                newPropIdAreaId(testPropId1, testAreaId1)));
+    }
+
+    @Test
+    public void testOnSupportedValuesChange() throws Exception {
+        int testPropId1 = 123;
+        int testAreaId1 = 321;
+        int testPropId2 = 1234;
+        int testAreaId2 = 4321;
+
+        VehicleHalCallback callback = mock(VehicleHalCallback.class);
+
+        VehicleStub.SubscriptionClient client = mAidlVehicleStub.newSubscriptionClient(callback);
+        client.registerSupportedValuesChange(List.of(
+                newPropIdAreaId(testPropId1, testAreaId1),
+                newPropIdAreaId(testPropId2, testAreaId2)));
+
+        ArgumentCaptor<IVehicleCallback.Stub> callbackCaptor = ArgumentCaptor.forClass(
+                IVehicleCallback.Stub.class);
+        verify(mAidlVehicle).registerSupportedValueChangeCallback(callbackCaptor.capture(), any());
+        var vhalCallback = callbackCaptor.getValue();
+
+        vhalCallback.onSupportedValueChange(List.of(
+                newVhalPropIdAreaId(testPropId1, testAreaId1),
+                newVhalPropIdAreaId(testPropId2, testAreaId2)
+        ));
+
+        verify(callback).onSupportedValuesChange(mListCaptor.capture());
+
+        var propIdAreaIds = (List<PropIdAreaId>) mListCaptor.getValue();
+        assertThat(propIdAreaIds).hasSize(2);
+        assertThat(propIdAreaIds.get(0)).isEqualTo(newPropIdAreaId(testPropId1, testAreaId1));
+        assertThat(propIdAreaIds.get(1)).isEqualTo(newPropIdAreaId(testPropId2, testAreaId2));
+    }
+
 }

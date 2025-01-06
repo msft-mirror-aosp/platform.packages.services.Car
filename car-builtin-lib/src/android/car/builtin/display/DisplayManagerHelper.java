@@ -23,7 +23,6 @@ import android.annotation.SystemApi;
 import android.content.Context;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManager.DisplayListener;
-import android.hardware.display.DisplayManager.EventFlag;
 import android.os.Handler;
 import android.view.Display;
 
@@ -40,21 +39,21 @@ public final class DisplayManagerHelper {
      *
      * @see #registerDisplayListener(DisplayListener, Handler, long)
      */
-    public static final long EVENT_FLAG_DISPLAY_ADDED = DisplayManager.EVENT_FLAG_DISPLAY_ADDED;
+    public static final long EVENT_TYPE_DISPLAY_ADDED = DisplayManager.EVENT_TYPE_DISPLAY_ADDED;
 
     /**
      * Event type for when a display is removed.
      *
      * @see #registerDisplayListener(DisplayListener, Handler, long)
      */
-    public static final long EVENT_FLAG_DISPLAY_REMOVED = DisplayManager.EVENT_FLAG_DISPLAY_REMOVED;
+    public static final long EVENT_TYPE_DISPLAY_REMOVED = DisplayManager.EVENT_TYPE_DISPLAY_REMOVED;
 
     /**
      * Event type for when a display is changed.
      *
      * @see #registerDisplayListener(DisplayListener, Handler, long)
      */
-    public static final long EVENT_FLAG_DISPLAY_CHANGED = DisplayManager.EVENT_FLAG_DISPLAY_CHANGED;
+    public static final long EVENT_TYPE_DISPLAY_CHANGED = DisplayManager.EVENT_TYPE_DISPLAY_CHANGED;
 
     /**
      * Event flag to register for a display's brightness changes. This notification is sent
@@ -63,8 +62,8 @@ public final class DisplayManagerHelper {
      *
      * @see #registerDisplayListener(DisplayListener, Handler, long)
      */
-    public static final long EVENT_FLAG_DISPLAY_BRIGHTNESS =
-            DisplayManager.EVENT_FLAG_DISPLAY_BRIGHTNESS;
+    public static final long EVENT_TYPE_DISPLAY_BRIGHTNESS =
+            DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_BRIGHTNESS;
 
     private DisplayManagerHelper() {
         throw new UnsupportedOperationException("contains only static members");
@@ -79,17 +78,19 @@ public final class DisplayManagerHelper {
      * if the listener should be invoked on the calling thread's looper.
      * @param eventsMask A bitmask of the event types for which this listener is subscribed.
      *
-     * @see DisplayManager#EVENT_FLAG_DISPLAY_ADDED
-     * @see DisplayManager#EVENT_FLAG_DISPLAY_CHANGED
-     * @see DisplayManager#EVENT_FLAG_DISPLAY_REMOVED
-     * @see DisplayManager#EVENT_FLAG_DISPLAY_BRIGHTNESS
+     * @see DisplayManager#EVENT_TYPE_DISPLAY_ADDED
+     * @see DisplayManager#EVENT_TYPE_DISPLAY_CHANGED
+     * @see DisplayManager#EVENT_TYPE_DISPLAY_REMOVED
+     * @see DisplayManager#EVENT_TYPE_DISPLAY_BRIGHTNESS
      * @see DisplayManager#registerDisplayListener(DisplayListener, Handler)
      * @see DisplayManager#unregisterDisplayListener
      */
     public static void registerDisplayListener(Context context, DisplayListener listener,
-            Handler handler, @EventFlag long eventFlagsMask) {
+            Handler handler, @DisplayManager.EventType long eventFilter,
+            @DisplayManager.PrivateEventType long privateEventFilter) {
         DisplayManager displayManager = context.getSystemService(DisplayManager.class);
-        displayManager.registerDisplayListener(listener, handler, eventFlagsMask);
+        displayManager.registerDisplayListener(listener, handler, eventFilter,
+                privateEventFilter);
     }
 
     /**

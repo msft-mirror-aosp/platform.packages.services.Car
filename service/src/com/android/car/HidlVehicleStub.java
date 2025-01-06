@@ -17,11 +17,10 @@
 package com.android.car;
 
 import static com.android.car.CarServiceUtils.subscribeOptionsToHidl;
-import static com.android.car.internal.property.CarPropertyErrorCodes.convertVhalStatusCodeToCarPropertyManagerErrorCodes;
+import static com.android.car.internal.property.CarPropertyErrorCodes.createFromVhalStatusCode;
 
 import android.annotation.Nullable;
 import android.car.builtin.util.Slogf;
-import android.car.hardware.property.CarPropertyManager;
 import android.hardware.automotive.vehicle.SubscribeOptions;
 import android.hardware.automotive.vehicle.V2_0.IVehicle;
 import android.hardware.automotive.vehicle.V2_0.IVehicleCallback;
@@ -41,6 +40,7 @@ import com.android.car.hal.HalPropValueBuilder;
 import com.android.car.hal.HidlHalPropConfig;
 import com.android.car.hal.VehicleHalCallback;
 import com.android.car.internal.property.CarPropertyErrorCodes;
+import com.android.car.internal.property.PropIdAreaId;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.FileDescriptor;
@@ -241,7 +241,7 @@ final class HidlVehicleStub extends VehicleStub {
                     halPropValue = get(getVehicleStubAsyncRequest.getHalPropValue());
                 } catch (ServiceSpecificException e) {
                     CarPropertyErrorCodes carPropertyErrorCodes =
-                            convertVhalStatusCodeToCarPropertyManagerErrorCodes(e.errorCode);
+                            createFromVhalStatusCode(e.errorCode);
                     callGetAsyncErrorCallback(carPropertyErrorCodes, serviceRequestId,
                             getVehicleStubAsyncCallback);
                     continue;
@@ -249,20 +249,14 @@ final class HidlVehicleStub extends VehicleStub {
                     Slogf.w(CarLog.TAG_SERVICE,
                             "Received RemoteException from VHAL. VHAL is likely dead.");
                     callGetAsyncErrorCallback(
-                            new CarPropertyErrorCodes(
-                                    CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR,
-                                    /* vendorErrorCode= */ 0,
-                                    /* systemErrorCode= */ 0),
+                            CarPropertyErrorCodes.ERROR_CODES_INTERNAL,
                             serviceRequestId, getVehicleStubAsyncCallback);
                     continue;
                 }
 
                 if (halPropValue == null) {
                     callGetAsyncErrorCallback(
-                            new CarPropertyErrorCodes(
-                                    CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE,
-                                    /* vendorErrorCode= */ 0,
-                                    /* systemErrorCode= */ 0),
+                            CarPropertyErrorCodes.ERROR_CODES_NOT_AVAILABLE,
                             serviceRequestId, getVehicleStubAsyncCallback);
                     continue;
                 }
@@ -286,7 +280,7 @@ final class HidlVehicleStub extends VehicleStub {
                             List.of(new SetVehicleStubAsyncResult(serviceRequestId)));
                 } catch (ServiceSpecificException e) {
                     CarPropertyErrorCodes carPropertyErrorCodes =
-                            convertVhalStatusCodeToCarPropertyManagerErrorCodes(e.errorCode);
+                            createFromVhalStatusCode(e.errorCode);
                     callSetAsyncErrorCallback(
                             carPropertyErrorCodes,
                             serviceRequestId,
@@ -295,10 +289,7 @@ final class HidlVehicleStub extends VehicleStub {
                     Slogf.w(CarLog.TAG_SERVICE,
                             "Received RemoteException from VHAL. VHAL is likely dead.");
                     callSetAsyncErrorCallback(
-                        new CarPropertyErrorCodes(
-                                CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR,
-                                /* vendorErrorCode= */ 0,
-                                /* systemErrorCode= */ 0),
+                            CarPropertyErrorCodes.ERROR_CODES_INTERNAL,
                             serviceRequestId, setVehicleStubAsyncCallback);
                 }
             }
@@ -402,6 +393,18 @@ final class HidlVehicleStub extends VehicleStub {
         @Override
         public void unsubscribe(int prop) throws RemoteException {
             mHidlVehicle.unsubscribe(this, prop);
+        }
+
+        @Override
+        public void registerSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+            // Do nothing.
+            return;
+        }
+
+        @Override
+        public void unregisterSupportedValuesChange(List<PropIdAreaId> propIdAreaIds) {
+            // Do nothing.
+            return;
         }
     }
 

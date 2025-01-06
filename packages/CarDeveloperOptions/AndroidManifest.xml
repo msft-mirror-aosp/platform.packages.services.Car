@@ -361,6 +361,15 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.network.SimOnboardingActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$TetherSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -478,6 +487,51 @@
         </activity>
 
         <activity
+            android:name="com.android.settings.Settings$RegionSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$NumberingSystemSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$MeasurementSystemSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$TemperatureUnitSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$FirstDayOfWeekSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.Settings$KeyboardSettingsActivity"
             android:enabled="false"
             android:exported="false"
@@ -517,6 +571,16 @@
             android:name="com.android.settings.Settings$PhysicalKeyboardActivity"
             android:enabled="false"
             android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$PhysicalKeyboardLayoutPickerActivity"
+            android:enabled="false"
+            android:exported="false"
+            android:featureFlag="com.android.settings.keyboard.keyboard_and_touchpad_a11y_new_page_enabled"
             tools:node="merge"
             tools:replace="android:exported">
             <intent-filter tools:node="removeAll"/>
@@ -699,6 +763,25 @@
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$LockScreenNotificationsSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.security.ActionDisabledByAdvancedProtectionDialog"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            android:featureFlag="android.security.aapm_api"
             tools:replace="android:exported">
             <intent-filter tools:node="removeAll"/>
         </activity>
@@ -1785,7 +1868,7 @@
         </activity>
 
         <activity
-            android:name="com.android.settings.PowerUsageAdvancedActivity"
+            android:name="com.android.settings.Settings$PowerUsageAdvancedActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2981,11 +3064,30 @@
        </activity>
 
         <activity
+            android:name="com.android.settings.Settings$ContactsStorageSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            android:featureFlag="android.provider.new_default_account_api_enabled"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
             android:name="com.android.settings.spa.search.SpaSearchLandingActivity"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
             tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ChangeNfcTagAppsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
             <intent-filter tools:node="removeAll"/>
         </activity>
 
@@ -3337,6 +3439,14 @@
             <intent-filter tools:node="removeAll"/>
         </receiver>
 
+        <receiver android:name="com.android.settings.accessibility.HighContrastTextMigrationReceiver"
+            android:exported="false"
+            android:enabled="false"
+            tools:node="merge"
+            tools:replace="android:exported">
+            <intent-filter tools:node="removeAll"/>
+        </receiver>
+
         <service
             android:name="com.android.settings.wifi.tether.TetherService"
             android:enabled="false"
@@ -3478,6 +3588,16 @@
           android:exported="false"
           tools:node="merge"
           tools:replace="android:exported,android:enabled">
+          <intent-filter tools:node="removeAll" />
+        </service>
+
+        <service
+          android:name="com.android.settings.service.PreferenceService"
+          android:enabled="false"
+          android:exported="false"
+          android:featureFlag="com.android.settingslib.flags.settings_catalyst"
+          tools:node="merge"
+          tools:replace="android:exported,android:enabled,android:featureFlag">
           <intent-filter tools:node="removeAll" />
         </service>
 

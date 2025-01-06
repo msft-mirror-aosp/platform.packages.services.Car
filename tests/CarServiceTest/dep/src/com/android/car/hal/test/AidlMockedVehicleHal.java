@@ -29,12 +29,18 @@ import android.hardware.automotive.vehicle.GetValueResult;
 import android.hardware.automotive.vehicle.GetValueResults;
 import android.hardware.automotive.vehicle.IVehicle;
 import android.hardware.automotive.vehicle.IVehicleCallback;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResult;
+import android.hardware.automotive.vehicle.MinMaxSupportedValueResults;
+import android.hardware.automotive.vehicle.PropIdAreaId;
+import android.hardware.automotive.vehicle.RawPropValues;
 import android.hardware.automotive.vehicle.SetValueRequest;
 import android.hardware.automotive.vehicle.SetValueRequests;
 import android.hardware.automotive.vehicle.SetValueResult;
 import android.hardware.automotive.vehicle.SetValueResults;
 import android.hardware.automotive.vehicle.StatusCode;
 import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.hardware.automotive.vehicle.SupportedValuesListResult;
+import android.hardware.automotive.vehicle.SupportedValuesListResults;
 import android.hardware.automotive.vehicle.VehiclePropConfig;
 import android.hardware.automotive.vehicle.VehiclePropConfigs;
 import android.hardware.automotive.vehicle.VehiclePropError;
@@ -67,6 +73,11 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
      */
     public interface VehicleHalPropertyHandler
             extends GenericVehicleHalPropertyHandler<VehiclePropValue> {
+        @Override
+        default VehiclePropValue[] onGetMinMaxSupportedValue(int propertyId, int areaId) {
+            throw new UnsupportedOperationException();
+        }
+
         /**
          * Same as onPropertySet, except that it returns whether to generate property change event
          * for the new value. By default, this will return true.
@@ -96,6 +107,8 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
     private final SparseArray<VehiclePropConfig> mConfigs = new SparseArray<>();
     @GuardedBy("mLock")
     private final SparseArray<List<IVehicleCallback>> mSubscribers = new SparseArray<>();
+    @GuardedBy("mLock")
+    private int mVersion = IVehicle.VERSION;
 
     public void addProperties(VehiclePropConfig... configs) {
         for (VehiclePropConfig config : configs) {
@@ -380,6 +393,73 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
     }
 
     @Override
+    public SupportedValuesListResults getSupportedValuesLists(List<PropIdAreaId> propIdAreaIds) {
+        SupportedValuesListResults results = new SupportedValuesListResults();
+        results.payloads = new SupportedValuesListResult[propIdAreaIds.size()];
+        for (int i = 0; i < propIdAreaIds.size(); i++) {
+            var propIdAreaId = propIdAreaIds.get(i);
+            int propId = propIdAreaId.propId;
+            int areaId = propIdAreaId.areaId;
+            var handler = mPropertyHandlerMap.get(propId);
+            if (handler == null) {
+                throw new ServiceSpecificException(StatusCode.INVALID_ARG,
+                        "no registered handler");
+            }
+            results.payloads[i] = new SupportedValuesListResult();
+            results.payloads[i].status = StatusCode.OK;
+            List<VehiclePropValue> propValues = handler.onGetSupportedValuesList(propId, areaId);
+            if (propValues != null) {
+                results.payloads[i].supportedValuesList = new ArrayList<RawPropValues>();
+                for (int j = 0; j < propValues.size(); j++) {
+                    results.payloads[i].supportedValuesList.add(propValues.get(j).value);
+                }
+            }
+        }
+        return results;
+    }
+
+    @Override
+    public MinMaxSupportedValueResults getMinMaxSupportedValue(List<PropIdAreaId> propIdAreaIds) {
+        MinMaxSupportedValueResults results = new MinMaxSupportedValueResults();
+        results.payloads = new MinMaxSupportedValueResult[propIdAreaIds.size()];
+        for (int i = 0; i < propIdAreaIds.size(); i++) {
+            var propIdAreaId = propIdAreaIds.get(i);
+            int propId = propIdAreaId.propId;
+            int areaId = propIdAreaId.areaId;
+            var handler = mPropertyHandlerMap.get(propId);
+            if (handler == null) {
+                throw new ServiceSpecificException(StatusCode.INVALID_ARG,
+                        "no registered handler");
+            }
+
+            VehiclePropValue[] minMaxPropValue = handler.onGetMinMaxSupportedValue(propId, areaId);
+            results.payloads[i] = new MinMaxSupportedValueResult();
+            results.payloads[i].status = StatusCode.OK;
+            if (minMaxPropValue[0] != null) {
+                results.payloads[i].minSupportedValue = minMaxPropValue[0].value;
+            }
+            if (minMaxPropValue[1] != null) {
+                results.payloads[i].maxSupportedValue = minMaxPropValue[1].value;
+            }
+        }
+        return results;
+    }
+
+    @Override
+    public void registerSupportedValueChangeCallback(IVehicleCallback callback,
+            List<PropIdAreaId> propIdAreaIds) {
+        // Not used now.
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void unregisterSupportedValueChangeCallback(IVehicleCallback callback,
+            List<PropIdAreaId> propIdAreaIds) {
+        // Not used now.
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void returnSharedMemory(IVehicleCallback callback, long sharedMemoryId)
             throws RemoteException {
         // Do nothing.
@@ -390,9 +470,20 @@ public class AidlMockedVehicleHal extends IVehicle.Stub {
         return IVehicle.HASH;
     }
 
+    /**
+     * Sets the VHAL interface version.
+     */
+    public void setInterfaceVersion(int version) {
+        synchronized (mLock) {
+            mVersion = version;
+        }
+    }
+
     @Override
     public int getInterfaceVersion() {
-        return IVehicle.VERSION;
+        synchronized (mLock) {
+            return mVersion;
+        }
     }
 
     @ThreadSafe

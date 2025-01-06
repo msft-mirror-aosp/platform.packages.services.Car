@@ -17,10 +17,10 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:background="@drawable/control_bar_background"
-    android:gravity="bottom"
+    android:gravity="top"
     android:id="@+id/control_bar_area"
     android:layout_gravity="bottom"
-    android:layout_height="wrap_content"
+    android:layout_height="@dimen/control_bar_height"
     android:layout_width="match_parent"
     android:orientation="vertical"
     android:paddingTop="@dimen/car_panel_border_width">

@@ -16,8 +16,13 @@
 
 package com.android.car.internal.util;
 
+import android.car.VehiclePropertyIds;
+
+import com.android.car.internal.property.PropIdAreaId;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 // Copied from frameworks/base and kept only used codes
 /**
@@ -27,10 +32,19 @@ public final class DebugUtils {
     private DebugUtils() {}
 
     /**
+     * Gets human-readable representation of constants (static final values).
+     *
+     * @see #constantToString(Class, String, int)
+     */
+    public static String constantToString(Class<?> clazz, int value) {
+        return constantToString(clazz, "", value);
+    }
+
+    /**
      * Use prefixed constants (static final values) on given class to turn value
      * into human-readable string.
      */
-    public static String valueToString(Class<?> clazz, String prefix, int value) {
+    public static String constantToString(Class<?> clazz, String prefix, int value) {
         for (Field field : clazz.getDeclaredFields()) {
             final int modifiers = field.getModifiers();
             if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers)
@@ -43,7 +57,7 @@ public final class DebugUtils {
                 }
             }
         }
-        return Integer.toString(value);
+        return prefix + value;
     }
 
     /**
@@ -72,7 +86,7 @@ public final class DebugUtils {
                 }
             }
         }
-        if (flags != 0 || res.length() == 0) {
+        if (flags != 0 || res.isEmpty()) {
             res.append(Integer.toHexString(flags));
         } else {
             res.deleteCharAt(res.length() - 1);
@@ -81,30 +95,30 @@ public final class DebugUtils {
     }
 
     /**
-     * Gets human-readable representation of constants (static final values).
-     *
-     * @see #constantToString(Class, String, int)
+     * Gets human-readable representation of a {@code PropIdAreaId} structure.
      */
-    public static String constantToString(Class<?> clazz, int value) {
-        return constantToString(clazz, "", value);
+    public static String toDebugString(PropIdAreaId propIdAreaId) {
+        return "PropIdAreaId{propId=" + VehiclePropertyIds.toString(propIdAreaId.propId)
+            + ", areaId=" + propIdAreaId.areaId + "}";
     }
 
     /**
-     * Gets human-readable representation of constants (static final values).
+     * Gets human-readable representation of a list of {@code PropIdAreaId} structure.
      */
-    public static String constantToString(Class<?> clazz, String prefix, int value) {
-        for (Field field : clazz.getDeclaredFields()) {
-            final int modifiers = field.getModifiers();
-            try {
-                if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers)
-                        && field.getType().equals(int.class) && field.getName().startsWith(prefix)
-                        && field.getInt(null) == value) {
-                    return constNameWithoutPrefix(prefix, field);
-                }
-            } catch (IllegalAccessException ignored) {
+    public static String toDebugString(List<PropIdAreaId> propIdAreaIds) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("propIdAreaIds: [");
+        boolean first = true;
+        for (int i = 0; i < propIdAreaIds.size(); i++) {
+            var propIdAreaId = propIdAreaIds.get(i);
+            if (first) {
+                first = false;
+            } else {
+                sb.append(", ");
             }
+            sb.append(toDebugString(propIdAreaId));
         }
-        return prefix + Integer.toString(value);
+        return sb.append("]").toString();
     }
 
     private static String constNameWithoutPrefix(String prefix, Field field) {

@@ -263,9 +263,13 @@
     <string name="property_subscription_rate_hz" translatable="false">Subscription Rate (Hz)</string>
     <string name="property_resolution" translatable="false">Resolution</string>
     <string name="property_variable_update_rate" translatable="false">Variable Update Rate</string>
+    <string name="property_get_min_max_supported_values" translatable="false">Get min/max values</string>
+    <string name="property_get_supported_values_list" translatable="false">Get supported values list</string>
     <string name="set_value_hint" translatable="false">value</string>
     <string name="subscribe" translatable="false">Subscribe</string>
     <string name="unsubscribe" translatable="false">Unsubscribe</string>
+    <string name="subscribeSupportedValuesChange" translatable="false">Subscribe Supported Values</string>
+    <string name="unsubscribeSupportedValuesChange" translatable="false">Unsubscribe Supported Values</string>
 
     <!-- radio test -->
     <string name="radio_fm_am_tuner" translatable="false">FM/AM Tuner</string>
@@ -298,8 +302,6 @@
     <string name="radio_na" translatable="false">N/A</string>
     <string name="radio_program_list" translatable="false">Program List</string>
     <string name="radio_program_station_title" translatable="false">Station</string>
-    <string name="radio_alert_title_text" translatable="false">Emergency Alert on %1$s</string>
-    <string name="radio_alert_detail_text" translatable="false">Status: %1$s, Message Type: %2$s, Scope: PUBLIC</string>
     <string name="alert_snooze" translatable="false">Snooze</string>
     <string name="alert_ignore" translatable="false">Ignore</string>
     <string name="alert_decision" translatable="false">%1$s alert message</string>

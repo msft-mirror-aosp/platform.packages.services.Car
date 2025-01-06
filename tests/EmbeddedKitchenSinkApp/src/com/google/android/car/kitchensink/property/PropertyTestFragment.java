@@ -32,6 +32,8 @@ import android.car.hardware.property.CarPropertyManager.CarPropertyEventCallback
 import android.car.hardware.property.CarPropertyManager.GetPropertyCallback;
 import android.car.hardware.property.CarPropertyManager.GetPropertyRequest;
 import android.car.hardware.property.CarPropertyManager.GetPropertyResult;
+import android.car.hardware.property.CarPropertyManager.SupportedValuesChangeCallback;
+import android.car.hardware.property.MinMaxSupportedValue;
 import android.car.hardware.property.Subscription;
 import android.content.Context;
 import android.os.Bundle;
@@ -71,8 +73,19 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
 
     // The dangerous permissions that need to be granted at run-time.
     private static final String[] REQUIRED_DANGEROUS_PERMISSIONS = new String[]{
+        Car.PERMISSION_CAR_DRIVING_STATE_3P,
+        Car.PERMISSION_CAR_ENGINE_DETAILED_3P,
+        Car.PERMISSION_MILEAGE_3P,
         Car.PERMISSION_ENERGY,
-        Car.PERMISSION_SPEED
+        Car.PERMISSION_READ_CAR_SEATS,
+        Car.PERMISSION_READ_EXTERIOR_LIGHTS,
+        Car.PERMISSION_READ_STEERING_STATE_3P,
+        Car.PERMISSION_SPEED,
+        Car.PERMISSION_TIRES_3P,
+        Car.PERMISSION_READ_WINDSHIELD_WIPERS_3P,
+        Car.PERMISSION_READ_CAR_HORN,
+        Car.PERMISSION_READ_CAR_PEDALS,
+        Car.PERMISSION_READ_BRAKE_INFO
     };
     private static final Float[] SUBSCRIPTION_RATES_HZ = new Float[]{
         0.0f,
@@ -97,6 +110,7 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
     private Spinner mResolution;
     private Spinner mVariableUpdateRate;
     private ToggleButton mSubscribeButton;
+    private ToggleButton mSubscribeSupportedValuesChangeButton;
     private Spinner mAreaId;
     private TextView mEventLog;
     private Spinner mPropertyId;
@@ -107,6 +121,8 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
     private final SparseIntArray mPropertyResolutionSelection = new SparseIntArray();
     private final SparseIntArray mPropertyVariableUpdateRateSelection = new SparseIntArray();
     private final SparseBooleanArray mPropertyIsSubscribedSelection = new SparseBooleanArray();
+    private final SparseBooleanArray mPropertyIsSubscribedSupportedValuesChange =
+            new SparseBooleanArray();
     private GetPropertyCallback mGetPropertyCallback = new GetPropertyCallback() {
         @Override
         public void onSuccess(@NonNull GetPropertyResult<?> getPropertyResult) {
@@ -167,6 +183,15 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
         mKitchenSinkHelper.requestRefreshManager(r, new Handler(getContext().getMainLooper()));
     }
 
+    private int getSelectedPropertyId() {
+        PropertyInfo info = (PropertyInfo) mPropertyId.getSelectedItem();
+        return info.mConfig.getPropertyId();
+    }
+
+    private int getSelectedAreaId() {
+        return Integer.decode(mAreaId.getSelectedItem().toString());
+    }
+
     @Nullable
     @Override
     public View onCreateView(LayoutInflater inflater,
@@ -193,13 +218,15 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
         mSubscribeButton = view.findViewById(R.id.tbSubscribeButton);
         mSubscribeButton.setEnabled(false);
 
+        mSubscribeSupportedValuesChangeButton = view.findViewById(
+                R.id.tbSubscribeSupportedValuesChangeButton);
+
         // Configure listeners for buttons
         Button b = view.findViewById(R.id.bGetProperty);
         b.setOnClickListener(v -> {
             try {
-                PropertyInfo info = (PropertyInfo) mPropertyId.getSelectedItem();
-                int propId = info.mConfig.getPropertyId();
-                int areaId = Integer.decode(mAreaId.getSelectedItem().toString());
+                int propId = getSelectedPropertyId();
+                int areaId = getSelectedAreaId();
                 CarPropertyValue value = mMgr.getProperty(propId, areaId);
                 setTextOnSuccess(propId, value.getTimestamp(), value.getValue(), value.getStatus());
             } catch (Exception e) {
@@ -212,9 +239,8 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
         b = view.findViewById(R.id.getPropertyAsync);
         b.setOnClickListener(v -> {
             try {
-                PropertyInfo info = (PropertyInfo) mPropertyId.getSelectedItem();
-                int propId = info.mConfig.getPropertyId();
-                int areaId = Integer.decode(mAreaId.getSelectedItem().toString());
+                int propId = getSelectedPropertyId();
+                int areaId = getSelectedAreaId();
                 GetPropertyRequest getPropertyRequest = mMgr.generateGetPropertyRequest(propId,
                         areaId);
                 mMgr.getPropertiesAsync(List.of(getPropertyRequest),
@@ -227,12 +253,67 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
             }
         });
 
+        b = view.findViewById(R.id.bGetMinMaxSupportedValues);
+        b.setOnClickListener(v -> {
+            try {
+                int propId = getSelectedPropertyId();
+                int areaId = getSelectedAreaId();
+                MinMaxSupportedValue<Object> minMaxSupportedValue = mMgr.getMinMaxSupportedValue(
+                        propId, areaId);
+
+                mEventLog.append("getMinMaxSupportedValue: ");
+                Object minValue = minMaxSupportedValue.getMinValue();
+                Object maxValue = minMaxSupportedValue.getMaxValue();
+                if (minValue == null && maxValue == null) {
+                    mEventLog.append("not specified\n");
+                } else {
+                    String message = "";
+                    if (minValue != null) {
+                        message += "MinValue: " + minValue;
+                    }
+                    if (maxValue != null) {
+                        if (!message.equals("")) {
+                            message += ", ";
+                        }
+                        message += "MaxValue: " + maxValue;
+                    }
+                    mEventLog.append(message + "\n");
+                }
+                scrollEventLogsToBottom();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to get min max supported values", e);
+                Toast.makeText(mContext, "Failed to get min max supported values: "
+                                + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        b = view.findViewById(R.id.bGetSupportedValuesList);
+        b.setOnClickListener(v -> {
+            try {
+                int propId = getSelectedPropertyId();
+                int areaId = getSelectedAreaId();
+                List<Object> supportedValuesList = mMgr.getSupportedValuesList(
+                        propId, areaId);
+
+                mEventLog.append("getSupportedValuesList: ");
+                if (supportedValuesList == null) {
+                    mEventLog.append("not specified\n");
+                } else {
+                    mEventLog.append(supportedValuesList + "\n");
+                }
+                scrollEventLogsToBottom();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to get supported values list", e);
+                Toast.makeText(mContext, "Failed to get supported values list: "
+                                + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+
         b = view.findViewById(R.id.bSetProperty);
         b.setOnClickListener(v -> {
             try {
-                PropertyInfo info = (PropertyInfo) mPropertyId.getSelectedItem();
-                int propId = info.mConfig.getPropertyId();
-                int areaId = Integer.decode(mAreaId.getSelectedItem().toString());
+                int propId = getSelectedPropertyId();
+                int areaId = getSelectedAreaId();
                 String valueString = mSetValue.getText().toString();
 
                 switch (propId & VehiclePropertyType.MASK) {
@@ -264,9 +345,8 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
         b = view.findViewById(R.id.SetPropertyAsync);
         b.setOnClickListener(v -> {
             try {
-                PropertyInfo info = (PropertyInfo) mPropertyId.getSelectedItem();
-                int propId = info.mConfig.getPropertyId();
-                int areaId = Integer.decode(mAreaId.getSelectedItem().toString());
+                int propId = getSelectedPropertyId();
+                int areaId = getSelectedAreaId();
                 String valueString = mSetValue.getText().toString();
 
                 switch (propId & VehiclePropertyType.MASK) {
@@ -484,6 +564,27 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
                 }
             }
         });
+
+        mSubscribeSupportedValuesChangeButton.setChecked(
+                mPropertyIsSubscribedSupportedValuesChange.get(propertyId));
+
+        mSubscribeSupportedValuesChangeButton.setOnClickListener(v -> {
+            if (mSubscribeSupportedValuesChangeButton.isChecked()) {
+                try {
+                    mMgr.registerSupportedValuesChangeCallback(propertyId, mListener);
+                    mPropertyIsSubscribedSupportedValuesChange.put(propertyId, true);
+                } catch (Exception e) {
+                    Log.e(TAG, "Unhandled exception: ", e);
+                }
+            } else {
+                try {
+                    mMgr.unregisterSupportedValuesChangeCallback(propertyId);
+                    mPropertyIsSubscribedSupportedValuesChange.put(propertyId, false);
+                } catch (Exception e) {
+                    Log.e(TAG, "Unhandled exception: ", e);
+                }
+            }
+        });
     }
 
     public void onNothingSelected(AdapterView<?> parent) {
@@ -528,7 +629,8 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
                 /* callbackExecutor= */ null, mSetPropertyCallback);
     }
 
-    private class PropertyListEventListener implements CarPropertyEventCallback {
+    private class PropertyListEventListener implements CarPropertyEventCallback,
+            SupportedValuesChangeCallback {
         private final TextView mTvLogEvent;
         private final SparseArray<Float> mPropSubscriptionRateHz = new SparseArray<>();
         private final SparseLongArray mStartTime = new SparseLongArray();
@@ -580,7 +682,14 @@ public class PropertyTestFragment extends Fragment implements OnItemSelectedList
 
         @Override
         public void onErrorEvent(int propId, int areaId) {
-            mTvLogEvent.append("Received error event propId=0x"
+            mTvLogEvent.append("Received error event propId="
+                    + VehiclePropertyIds.toString(propId) + ", areaId=0x" + toHexString(areaId));
+            scrollEventLogsToBottom();
+        }
+
+        @Override
+        public void onSupportedValuesChange(int propId, int areaId) {
+            mTvLogEvent.append("Received onSupportedValuesChange event propId="
                     + VehiclePropertyIds.toString(propId) + ", areaId=0x" + toHexString(areaId));
             scrollEventLogsToBottom();
         }

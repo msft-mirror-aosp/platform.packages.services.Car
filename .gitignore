@@ -8,3 +8,6 @@ gen/
 __pycache__
 .idea
 /bin/
+.vscode/
+**/._*
+.gradle/
