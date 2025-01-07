@@ -26,6 +26,7 @@ import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
 import com.android.systemui.wm.DisplaySystemBarsController;
 import com.android.wm.shell.ShellTaskOrganizer;
+import com.android.wm.shell.automotive.AutoShellModule;
 import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.DisplayInsetsController;
 import com.android.wm.shell.common.SyncTransactionQueue;
@@ -46,7 +47,7 @@ import dagger.Provides;
 import java.util.Optional;
 
 /** Provides dependencies from {@link com.android.wm.shell} for CarSystemUI. */
-@Module(includes = WMShellBaseModule.class)
+@Module(includes = {WMShellBaseModule.class, AutoShellModule.class})
 public abstract class CarUiPortraitWMShellModule {
 
     @WMSingleton
