@@ -22,6 +22,7 @@ import android.view.IWindowManager;
 
 import com.android.systemui.car.CarServiceProvider;
 import com.android.systemui.car.wm.CarFullscreenTaskMonitorListener;
+import com.android.systemui.car.wm.scalableui.ScalableUIWMInitializer;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
 import com.android.systemui.wm.DisplaySystemBarsController;
@@ -89,5 +90,11 @@ public abstract class CarUiPortraitWMShellModule {
                 recentTasksOptional,
                 windowDecorViewModelOptional,
                 taskViewTransitions);
+    }
+
+    @WMSingleton
+    @Provides
+    static Optional<ScalableUIWMInitializer> provideScalableUIInitializer() {
+        return Optional.empty();
     }
 }

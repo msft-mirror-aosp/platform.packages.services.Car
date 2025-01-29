@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021 The Android Open-Source Project
+# Copyright (C) 2025 The Android Open-Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-# All apps that should be included in CarUiPortrait builds
 PRODUCT_PACKAGES += \
-    car-ui-lib-diagnostic-plugin \
-    car-ui-lib-portrait-proxyplugin \
-    CarNotification \
-    CarUiPortraitCommon \
-    CarUiPortraitLauncher \
-    CarUiPortraitSystemUI \
-    PaintBooth
-
-# All apps to be excluded in car_ui_portrait builds should be specified as part of CarUiPortraitHideApps.
-PRODUCT_PACKAGES += \
-    CarUiPortraitHideApps
-
-PRODUCT_PRODUCT_PROPERTIES += \
-    persist.wm.debug.shell_transit=0
+    CarFrameworkDewdRRO \
+    CarSystemUIDewdUIRRO \
