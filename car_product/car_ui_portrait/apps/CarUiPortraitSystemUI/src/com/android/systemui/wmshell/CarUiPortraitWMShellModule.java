@@ -20,7 +20,6 @@ import android.content.Context;
 import android.os.Handler;
 import android.view.IWindowManager;
 
-import com.android.systemui.R;
 import com.android.systemui.car.CarServiceProvider;
 import com.android.systemui.car.taskview.CarFullscreenTaskMonitorListener;
 import com.android.systemui.car.wm.AutoDisplayCompatWindowDecorViewModel;
@@ -109,19 +108,14 @@ public abstract class CarUiPortraitWMShellModule {
             DisplayInsetsController displayInsetsController,
             SyncTransactionQueue syncQueue,
             CarServiceProvider carServiceProvider) {
-        if (context.getResources()
-                .getInteger(R.integer.config_showDisplayCompatWindowDecoration) == 0) {
-            return null;
-        } else {
-            return new AutoDisplayCompatWindowDecorViewModel(
-                    context,
-                    mainExecutor,
-                    bgExecutor,
-                    taskOrganizer,
-                    displayController,
-                    displayInsetsController,
-                    syncQueue,
-                    carServiceProvider);
-        }
+        return new AutoDisplayCompatWindowDecorViewModel(
+                context,
+                mainExecutor,
+                bgExecutor,
+                taskOrganizer,
+                displayController,
+                displayInsetsController,
+                syncQueue,
+                carServiceProvider);
     }
 }
