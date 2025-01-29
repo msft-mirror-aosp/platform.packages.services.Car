@@ -1300,7 +1300,13 @@ void WatchdogProcessService::checkVhalHealth() {
         }
         lastEventTime = mVhalHeartBeat.eventTime;
     }
-    if (currentUptime > lastEventTime + mVhalHealthCheckWindowMs.count()) {
+
+    // Make sure that we have received at least one new event during this check window. The
+    // event we received from the previous window is <= [currentUptime - window], so
+    // if the latest event time is <= [currentUptime - window], it means we have not received
+    // any new event.
+    if (currentUptime >=
+        lastEventTime + (mVhalHealthCheckWindowMs + kHealthCheckDelayMs).count()) {
         ALOGW("VHAL failed to update heart beat within timeout. Terminating VHAL...");
         terminateVhal();
     }
