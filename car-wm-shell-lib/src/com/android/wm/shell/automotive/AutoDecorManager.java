@@ -16,8 +16,6 @@
 
 package com.android.wm.shell.automotive;
 
-import static com.android.wm.shell.Flags.enableAutoTaskStackController;
-
 import android.content.Context;
 import android.graphics.Rect;
 import android.util.ArraySet;
@@ -70,13 +68,6 @@ public class AutoDecorManager {
      */
     @ShellMainThread
     public AutoDecor createAutoDecor(View view, int initialZOrder, Rect initialBounds) {
-        if (!enableAutoTaskStackController()) {
-            Slogf.e(TAG,
-                    "Failed to create root task stack as the auto_task_stack_windowing TS flag is"
-                            + " disabled.");
-            return null;
-        }
-
         AutoDecorImpl autoDecorImpl = new AutoDecorImpl(mContext, mDisplayController, view,
                 initialZOrder, initialBounds, mShellExecutor);
         if (DBG) {
@@ -97,13 +88,6 @@ public class AutoDecorManager {
     @ShellMainThread
     public void attachAutoDecorToDisplay(SurfaceControl.Transaction t, AutoDecor autoDecor,
             int displayId) {
-        if (!enableAutoTaskStackController()) {
-            Slogf.e(TAG,
-                    "Failed to create root task stack as the auto_task_stack_windowing TS flag is"
-                            + " disabled.");
-            return;
-        }
-
         AutoDecorImpl autoDecorImpl = (AutoDecorImpl) autoDecor;
 
         if (DBG) {
@@ -139,13 +123,6 @@ public class AutoDecorManager {
      */
     @ShellMainThread
     public void removeAutoDecor(SurfaceControl.Transaction t, AutoDecor autoDecor) {
-        if (!enableAutoTaskStackController()) {
-            Slogf.e(TAG,
-                    "Failed to create root task stack as the auto_task_stack_windowing TS flag is"
-                            + " disabled.");
-            return;
-        }
-
         AutoDecorImpl autoDecorImpl = (AutoDecorImpl) autoDecor;
         if (DBG) {
             Slogf.d(TAG, "Deleting decor %s", autoDecorImpl);
