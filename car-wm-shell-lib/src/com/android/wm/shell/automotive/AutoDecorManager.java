@@ -104,7 +104,7 @@ public class AutoDecorManager {
                             + "new Decor using createAutoDecor call.");
         }
 
-        if (autoDecorImpl.isAttached()) {
+        if (autoDecorImpl.isEverAttached()) {
             throw new IllegalArgumentException(
                     "AutoDecor has already been added to Task Display area. To update the "
                             + "AutoDecor, use AutoDecor APIs.");
