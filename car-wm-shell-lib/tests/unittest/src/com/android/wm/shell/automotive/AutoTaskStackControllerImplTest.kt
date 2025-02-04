@@ -190,8 +190,10 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             shellMainThread,
             transitions,
             shellInit,
-            rootTdaOrganizer
+            rootTdaOrganizer,
+            context
         )
+        controller.onInit()
         mMainThreadHandler = Handler(Looper.getMainLooper())
 
         controller.autoTransitionHandlerDelegate = delegate
