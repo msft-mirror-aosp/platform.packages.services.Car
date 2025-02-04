@@ -26,7 +26,6 @@ import android.view.View;
 import com.android.server.utils.Slogf;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.common.DisplayController;
-import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.dagger.WMSingleton;
 import com.android.wm.shell.shared.annotations.ShellMainThread;
 
@@ -44,18 +43,15 @@ public class AutoDecorManager {
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
     private final Context mContext;
     private final DisplayController mDisplayController;
-    private final ArraySet<AutoDecorImpl> mDecors = new ArraySet<>();
+    private final ArraySet<AutoDecor> mDecors = new ArraySet<>();
     private final RootTaskDisplayAreaOrganizer mRootTaskDisplayAreaOrganizer;
-    private final ShellExecutor mShellExecutor;
 
     @Inject
     AutoDecorManager(Context context, DisplayController displayController,
-            RootTaskDisplayAreaOrganizer rootTdaOrganizer,
-            @ShellMainThread ShellExecutor shellExecutor) {
+            RootTaskDisplayAreaOrganizer rootTdaOrganizer) {
         mContext = context;
         mDisplayController = displayController;
         mRootTaskDisplayAreaOrganizer = rootTdaOrganizer;
-        mShellExecutor = shellExecutor;
     }
 
     /**
@@ -64,47 +60,47 @@ public class AutoDecorManager {
      * @param view          The view associated with the AutoDecor.
      * @param initialZOrder The Z-order of the AutoDecor.
      * @param initialBounds The bounds of the AutoDecor.
+     * @param decorName     AutoDecor name for debugging and identification
      * @return The newly created AutoDecor object, or null if creation failed.
      */
     @ShellMainThread
-    public AutoDecor createAutoDecor(View view, int initialZOrder, Rect initialBounds) {
-        AutoDecorImpl autoDecorImpl = new AutoDecorImpl(mContext, mDisplayController, view,
-                initialZOrder, initialBounds, mShellExecutor);
+    public AutoDecor createAutoDecor(View view, int initialZOrder, Rect initialBounds,
+            String decorName) {
+
+        AutoDecor autoDecor = new AutoDecor(mContext, mDisplayController, view, initialZOrder,
+                initialBounds, decorName);
         if (DBG) {
-            Slogf.d(TAG, "Creating auto decor %s", autoDecorImpl);
+            Slogf.d(TAG, "Creating auto decor %s", autoDecor);
         }
 
-        mDecors.add(autoDecorImpl);
-        return autoDecorImpl;
+        mDecors.add(autoDecor);
+        return autoDecor;
     }
 
     /**
      * Adds a AutoDecor to the Default Task display Area of the given display.
      *
-     * @param t         The transaction to apply the addition to.
      * @param autoDecor The AutoDecor to add.
      * @param displayId display where decor needs to be added.
      */
     @ShellMainThread
-    public void attachAutoDecorToDisplay(SurfaceControl.Transaction t, AutoDecor autoDecor,
+    public void attachAutoDecorToDisplay(AutoDecor autoDecor,
             int displayId) {
-        AutoDecorImpl autoDecorImpl = (AutoDecorImpl) autoDecor;
-
         if (DBG) {
-            Slogf.d(TAG, "Adding global decor %s to the display %d", autoDecorImpl, displayId);
+            Slogf.d(TAG, "Adding global decor %s to the display %d", autoDecor, displayId);
         }
 
-        if (autoDecorImpl == null) {
+        if (autoDecor == null) {
             throw new IllegalArgumentException("Invalid AutoDecor argument");
         }
 
-        if (!mDecors.contains(autoDecorImpl)) {
+        if (!mDecors.contains(autoDecor)) {
             throw new IllegalArgumentException(
                     "Invalid AutoDecor argument. The Decor has been deleted previously. Create "
                             + "new Decor using createAutoDecor call.");
         }
 
-        if (autoDecorImpl.isEverAttached()) {
+        if (autoDecor.isEverAttached()) {
             throw new IllegalArgumentException(
                     "AutoDecor has already been added to Task Display area. To update the "
                             + "AutoDecor, use AutoDecor APIs.");
@@ -112,22 +108,20 @@ public class AutoDecorManager {
 
         SurfaceControl parentSurface = mRootTaskDisplayAreaOrganizer.getDisplayAreaLeash(
                 displayId);
-        autoDecorImpl.attachDecorToParentSurface(t, displayId, parentSurface);
+        autoDecor.attachDecorToParentSurface(displayId, parentSurface);
     }
 
     /**
      * Deletes an AutoDecor from the manager.
      *
-     * @param t         The transaction to apply the removal to.
      * @param autoDecor The AutoDecor to remove.
      */
     @ShellMainThread
-    public void removeAutoDecor(SurfaceControl.Transaction t, AutoDecor autoDecor) {
-        AutoDecorImpl autoDecorImpl = (AutoDecorImpl) autoDecor;
+    public void removeAutoDecor(AutoDecor autoDecor) {
         if (DBG) {
-            Slogf.d(TAG, "Deleting decor %s", autoDecorImpl);
+            Slogf.d(TAG, "Deleting decor %s", autoDecor);
         }
-        autoDecorImpl.detachDecorFromParentSurface(t);
-        mDecors.remove(autoDecorImpl);
+        autoDecor.detachDecorFromParentSurface();
+        mDecors.remove(autoDecor);
     }
 }
