@@ -20,12 +20,11 @@ import static android.car.feature.Flags.FLAG_CAR_PROPERTY_SUPPORTED_VALUE;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.property.CarPropertyErrorCodes.STATUS_OK;
-import static com.android.car.internal.property.CarPropertyErrorCodes.STATUS_TRY_AGAIN;
 import static com.android.car.internal.property.CarPropertyHelper.SYNC_OP_LIMIT_TRY_AGAIN;
 import static com.android.car.internal.property.CarPropertyHelper.getPropIdAreaIdsFromCarSubscriptions;
 import static com.android.car.internal.property.CarPropertyHelper.newPropIdAreaId;
+import static com.android.car.internal.util.DebugUtils.toAreaIdString;
 
-import static java.lang.Integer.toHexString;
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.CallbackExecutor;
@@ -238,8 +237,9 @@ public class CarPropertyManager extends CarManagerBase {
         default void onErrorEvent(int propertyId, int areaId,
                 @CarSetPropertyErrorCode int errorCode) {
             if (DBG) {
-                Slog.d(TAG, "onErrorEvent propertyId: " + VehiclePropertyIds.toString(propertyId)
-                        + " areaId: 0x" + toHexString(areaId) + " ErrorCode: " + errorCode);
+                Slogf.d(TAG, "onErrorEvent: propertyId: %s, areaId: %s, errorCode: %d",
+                        VehiclePropertyIds.toString(propertyId),
+                        toAreaIdString(propertyId, areaId), errorCode);
             }
             onErrorEvent(propertyId, areaId);
         }
@@ -377,7 +377,7 @@ public class CarPropertyManager extends CarManagerBase {
                     .append(", property ID: ")
                     .append(VehiclePropertyIds.toString(mPropertyId))
                     .append(", area ID: ")
-                    .append(mAreaId)
+                    .append(toAreaIdString(mPropertyId, mAreaId))
                     .append("}").toString();
         }
     }
@@ -539,7 +539,7 @@ public class CarPropertyManager extends CarManagerBase {
                     .append(", property ID: ")
                     .append(VehiclePropertyIds.toString(mPropertyId))
                     .append(", area ID: ")
-                    .append(mAreaId)
+                    .append(toAreaIdString(mPropertyId, mAreaId))
                     .append(", value: ")
                     .append(mValue)
                     .append(", waitForPropertyUpdate: ")
@@ -572,8 +572,7 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         public @CarPropertyAsyncErrorCode int getErrorCode() {
-            return getCarPropertyAsyncErrorCodeFromCarPropertyManagerErrorCode(
-                    mCarPropertyErrorCodes.getCarPropertyManagerErrorCode());
+            return mCarPropertyErrorCodes.toCarPropertyAsyncErrorCode();
         }
 
         /**
@@ -600,8 +599,10 @@ public class CarPropertyManager extends CarManagerBase {
          */
         @FlaggedApi(Flags.FLAG_CAR_PROPERTY_DETAILED_ERROR_CODES)
         public int getDetailedErrorCode() {
-            return getDetailedErrorCodeFromSystemErrorCode(
-                    mCarPropertyErrorCodes.getSystemErrorCode());
+            if (!Flags.carPropertyDetailedErrorCodes()) {
+                return 0;
+            }
+            return mCarPropertyErrorCodes.toDetailedErrorCode();
         }
 
         /**
@@ -632,7 +633,7 @@ public class CarPropertyManager extends CarManagerBase {
                     .append(", property: ")
                     .append(VehiclePropertyIds.toString(mPropertyId))
                     .append(", areaId: ")
-                    .append(mAreaId)
+                    .append(toAreaIdString(mPropertyId, mAreaId))
                     .append(", error codes: ")
                     .append(mCarPropertyErrorCodes)
                     .append("}").toString();
@@ -726,7 +727,7 @@ public class CarPropertyManager extends CarManagerBase {
                     .append(", property: ")
                     .append(VehiclePropertyIds.toString(mPropertyId))
                     .append(", areaId: ")
-                    .append(mAreaId)
+                    .append(toAreaIdString(mPropertyId, mAreaId))
                     .append(", value: ")
                     .append(mValue)
                     .append(", timestamp: ")
@@ -802,7 +803,7 @@ public class CarPropertyManager extends CarManagerBase {
                     .append(", property: ")
                     .append(VehiclePropertyIds.toString(mPropertyId))
                     .append(", areaId: ")
-                    .append(mAreaId)
+                    .append(toAreaIdString(mPropertyId, mAreaId))
                     .append(", updated timestamp: ")
                     .append(mUpdateTimestampNanos).append("ns")
                     .append("}").toString();
@@ -831,14 +832,14 @@ public class CarPropertyManager extends CarManagerBase {
 
         public void onSuccess(GetPropertyCallback callback, GetPropertyResult result) {
             if (DBG) {
-                Slog.d(TAG, "delivering success get property result: " + result);
+                Slogf.d(TAG, "delivering success get property result: %s", result);
             }
             callback.onSuccess(result);
         }
 
         public void onFailure(GetPropertyCallback callback, PropertyAsyncError error) {
             if (DBG) {
-                Slog.d(TAG, "delivering error get property result: " + error);
+                Slogf.d(TAG, "delivering error get property result: %s", error);
             }
             callback.onFailure(error);
         }
@@ -856,14 +857,14 @@ public class CarPropertyManager extends CarManagerBase {
 
         public void onSuccess(SetPropertyCallback callback, SetPropertyResult result) {
             if (DBG) {
-                Slog.d(TAG, "delivering success set property result: " + result);
+                Slogf.d(TAG, "delivering success set property result: %s", result);
             }
             callback.onSuccess(result);
         }
 
         public void onFailure(SetPropertyCallback callback, PropertyAsyncError error) {
             if (DBG) {
-                Slog.d(TAG, "delivering error set property result: " + error);
+                Slogf.d(TAG, "delivering error set property result: %s", error);
             }
             callback.onFailure(error);
         }
@@ -907,36 +908,38 @@ public class CarPropertyManager extends CarManagerBase {
                     mRequestIdToAsyncRequestInfo.remove(requestId);
                 }
                 if (requestInfo == null) {
-                    Slog.w(TAG, "onResults: Request ID: " + requestId
+                    Slogf.w(TAG, "onResults: Request ID: %d"
                             + " might have been completed, cancelled or an exception might have "
-                            + "been thrown");
+                            + "been thrown", requestId);
                     continue;
                 }
                 Executor callbackExecutor = requestInfo.getCallbackExecutor();
                 CallbackType clientCallback = requestInfo.getCallback();
-                @CarPropertyAsyncErrorCode int errorCode =
-                        result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode();
+                var errorCodes = result.getCarPropertyErrorCodes();
                 int propertyId = requestInfo.getRequest().getPropertyId();
                 String propertyName = VehiclePropertyIds.toString(propertyId);
                 int areaId = requestInfo.getRequest().getAreaId();
-                if (errorCode == STATUS_OK) {
+                if (errorCodes.isOkay()) {
                     CarPropertyValue<?> carPropertyValue = result.getCarPropertyValue();
                     long timestampNanos;
                     if (carPropertyValue != null) {
                         // This is a get result.
                         int valuePropertyId = carPropertyValue.getPropertyId();
                         if (propertyId  != valuePropertyId) {
-                            Slog.e(TAG, "onResults: Request ID: " + requestId + " received get "
+                            Slogf.e(TAG, "onResults: Request ID: %d received get "
                                     + "property value result, but has mismatch property ID, "
-                                    + " expect: " + propertyName + ", got: "
-                                    + VehiclePropertyIds.toString(valuePropertyId));
+                                    + " expect: %s, got: %s",
+                                    requestId, propertyName,
+                                    VehiclePropertyIds.toString(valuePropertyId));
                         }
                         int valueAreaId = carPropertyValue.getAreaId();
-                        if (areaId  != valueAreaId) {
-                            Slog.e(TAG, "onResults: Property: " + propertyName + " Request ID: "
-                                    + requestId + " received get property value result, but has "
-                                    + "mismatch area ID, expect: " + areaId + ", got: "
-                                    + valueAreaId);
+                        if (areaId != valueAreaId) {
+                            Slogf.e(TAG, "onResults: Property: %s Request ID: %d "
+                                    + "received get property value result, but has "
+                                    + "mismatch area ID, expect: %s, got: %s",
+                                    propertyName, requestId,
+                                    toAreaIdString(propertyId, areaId),
+                                    toAreaIdString(propertyId, valueAreaId));
                         }
                         timestampNanos = carPropertyValue.getTimestamp();
                     } else {
@@ -953,7 +956,7 @@ public class CarPropertyManager extends CarManagerBase {
                     runOnExecutor(callbackExecutor, () ->
                             propertyResultCallback.onFailure(clientCallback,
                                     new PropertyAsyncError(requestId, propertyId, areaId,
-                                            result.getCarPropertyErrorCodes())));
+                                            errorCodes)));
                 }
             }
         }
@@ -1197,9 +1200,9 @@ public class CarPropertyManager extends CarManagerBase {
     public boolean registerCallback(@NonNull CarPropertyEventCallback carPropertyEventCallback,
             int propertyId, @FloatRange(from = 0.0, to = 100.0) float updateRateHz) {
         if (DBG) {
-            Slog.d(TAG, String.format("registerCallback, callback: %s propertyId: %s, "
-                            + "updateRateHz: %f", carPropertyEventCallback,
-                    VehiclePropertyIds.toString(propertyId), updateRateHz));
+            Slogf.d(TAG, "registerCallback, callback: %s propertyId: %s, updateRateHz: %f",
+                    carPropertyEventCallback, VehiclePropertyIds.toString(propertyId),
+                    updateRateHz);
         }
 
         boolean hasWritePermissionOnly = false;
@@ -1235,7 +1238,7 @@ public class CarPropertyManager extends CarManagerBase {
             return subscribePropertyEventsInternal(List.of(subscribeOption),
                     /* callbackExecutor= */ null, carPropertyEventCallback);
         } catch (IllegalArgumentException | SecurityException e) {
-            Slog.w(TAG, "register: PropertyId=" + propertyId + ", exception=", e);
+            Slogf.w(TAG, "register: PropertyId=%d, exception=%s", propertyId, e);
             return false;
         }
     }
@@ -1540,8 +1543,8 @@ public class CarPropertyManager extends CarManagerBase {
         requireNonNull(carPropertyEventCallback);
         validateAreaDisjointness(subscribeOptions);
         if (DBG) {
-            Slog.d(TAG, String.format("subscribePropertyEvents, callback: %s subscribeOptions: %s",
-                             carPropertyEventCallback, subscribeOptions));
+            Slogf.d(TAG, "subscribePropertyEvents, callback: %s subscribeOptions: %s",
+                             carPropertyEventCallback, subscribeOptions);
         }
         int[] noReadPermPropertyIds;
         try {
@@ -1659,8 +1662,8 @@ public class CarPropertyManager extends CarManagerBase {
             mService.getAndDispatchInitialValue(getInitialValuePropIdAreaIds,
                     mCarPropertyEventToService);
         } catch (Exception e) {
-            Slog.w(TAG, "getAndDispatchInitialValue failed for PropIdAreaIds: "
-                    + getInitialValuePropIdAreaIds, e);
+            Slogf.w(TAG, e, "getAndDispatchInitialValue failed for PropIdAreaIds: %s",
+                    getInitialValuePropIdAreaIds);
         }
 
         return true;
@@ -1682,7 +1685,7 @@ public class CarPropertyManager extends CarManagerBase {
                 if (propertyToAreaId.contains(propertyId, areaId)) {
                     throw new IllegalArgumentException("Subscribe options contain overlapping "
                             + "propertyId: " + VehiclePropertyIds.toString(propertyId) + " areaId: "
-                            + areaId);
+                            + toAreaIdString(propertyId, areaId));
                 }
                 propertyToAreaId.append(propertyId, areaId, placeHolder);
             }
@@ -1735,8 +1738,8 @@ public class CarPropertyManager extends CarManagerBase {
                 var clientCallbacks = mSupportedValuesChangeCallbackByPropIdAreaId.get(propId,
                         areaId);
                 if (clientCallbacks == null) {
-                    Slogf.w(TAG, "No client callback registered for property: %s, areaId: %d",
-                            VehiclePropertyIds.toString(propId), areaId);
+                    Slogf.w(TAG, "No client callback registered for property: %s, areaId: %s",
+                            VehiclePropertyIds.toString(propId), toAreaIdString(propId, areaId));
                     continue;
                 }
                 for (int j = 0; j < clientCallbacks.size(); j++) {
@@ -1800,15 +1803,15 @@ public class CarPropertyManager extends CarManagerBase {
         }
 
         if (DBG) {
-            Slog.d(TAG, "updatedCarSubscriptions to subscribe is: "
-                    + updatedCarSubscriptions + " and the list of properties to unsubscribe is: "
-                    + CarPropertyHelper.propertyIdsToString(propertiesToUnsubscribe));
+            Slogf.d(TAG, "updatedCarSubscriptions to subscribe is: %s"
+                    + " and the list of properties to unsubscribe is: %s", updatedCarSubscriptions,
+                    CarPropertyHelper.propertyIdsToString(propertiesToUnsubscribe));
         }
 
         try {
             if (!updatedCarSubscriptions.isEmpty()) {
                 if (!registerLocked(updatedCarSubscriptions)) {
-                    Slog.e(TAG, "failed to register subscriptions: " + updatedCarSubscriptions);
+                    Slogf.e(TAG, "failed to register subscriptions: %s", updatedCarSubscriptions);
                     mSubscriptionManager.dropCommit();
                     return Optional.empty();
                 }
@@ -1817,8 +1820,8 @@ public class CarPropertyManager extends CarManagerBase {
             if (!propertiesToUnsubscribe.isEmpty()) {
                 for (int i = 0; i < propertiesToUnsubscribe.size(); i++) {
                     if (!unregisterLocked(propertiesToUnsubscribe.get(i))) {
-                        Slog.w(TAG, "Failed to unsubscribe to: " + VehiclePropertyIds.toString(
-                                propertiesToUnsubscribe.get(i)));
+                        Slogf.w(TAG, "Failed to unsubscribe to: %s",
+                                VehiclePropertyIds.toString(propertiesToUnsubscribe.get(i)));
                         mSubscriptionManager.dropCommit();
                         return Optional.empty();
                     }
@@ -1850,8 +1853,7 @@ public class CarPropertyManager extends CarManagerBase {
         } catch (SecurityException e) {
             throw e;
         } catch (Exception e) {
-            Slog.w(TAG, "registerLocked with options: " + options
-                    + ", unexpected exception=", e);
+            Slogf.w(TAG, "registerLocked with options: %s, unexpected exception=%s", options, e);
             return false;
         }
         return true;
@@ -1873,9 +1875,8 @@ public class CarPropertyManager extends CarManagerBase {
         } catch (SecurityException e) {
             throw e;
         } catch (Exception e) {
-            Slog.w(TAG, "unregisterLocked with property: "
-                    + VehiclePropertyIds.toString(propertyId)
-                    + ", unexpected exception=", e);
+            Slogf.w(TAG, "unregisterLocked with property: %s, unexpected exception=%s",
+                    VehiclePropertyIds.toString(propertyId), e);
             return false;
         }
         return true;
@@ -1895,7 +1896,7 @@ public class CarPropertyManager extends CarManagerBase {
             @NonNull CarPropertyEventCallback carPropertyEventCallback) {
         requireNonNull(carPropertyEventCallback);
         if (DBG) {
-            Slog.d(TAG, "unsubscribePropertyEvents, callback: " + carPropertyEventCallback);
+            Slogf.d(TAG, "unsubscribePropertyEvents, callback: %s", carPropertyEventCallback);
         }
         int[] propertyIds;
         synchronized (mLock) {
@@ -1929,7 +1930,7 @@ public class CarPropertyManager extends CarManagerBase {
     @Deprecated
     public void unregisterCallback(@NonNull CarPropertyEventCallback carPropertyEventCallback) {
         if (DBG) {
-            Slog.d(TAG, "unregisterCallback, callback: " + carPropertyEventCallback);
+            Slogf.d(TAG, "unregisterCallback, callback: %s", carPropertyEventCallback);
         }
         requireNonNull(carPropertyEventCallback);
         int[] propertyIds;
@@ -1982,8 +1983,8 @@ public class CarPropertyManager extends CarManagerBase {
     public void unregisterCallback(@NonNull CarPropertyEventCallback carPropertyEventCallback,
             int propertyId) {
         if (DBG) {
-            Slog.d(TAG, String.format("unregisterCallback, callback: %s, property Id: %s",
-                    carPropertyEventCallback, VehiclePropertyIds.toString(propertyId)));
+            Slogf.d(TAG, "unregisterCallback, callback: %s, property Id: %s",
+                    carPropertyEventCallback, VehiclePropertyIds.toString(propertyId));
         }
         requireNonNull(carPropertyEventCallback);
         unsubscribePropertyEventsInternal(List.of(propertyId), carPropertyEventCallback);
@@ -2009,9 +2010,8 @@ public class CarPropertyManager extends CarManagerBase {
             for (int i = 0; i < filteredPropertyIds.size(); i++) {
                 int propertyId = filteredPropertyIds.get(i);
                 if (DBG) {
-                    Slog.d(TAG, String.format(
-                            "unsubscribePropertyEvents, callback: %s, property Id: %s",
-                            carPropertyEventCallback, VehiclePropertyIds.toString(propertyId)));
+                    Slogf.d(TAG, "unsubscribePropertyEvents, callback: %s, property Id: %s",
+                            carPropertyEventCallback, VehiclePropertyIds.toString(propertyId));
                 }
 
                 if (configs.isNotSupported(propertyId)) {
@@ -2074,9 +2074,9 @@ public class CarPropertyManager extends CarManagerBase {
             return handleRemoteExceptionFromCarService(e, new ArrayList<>());
         }
         if (DBG) {
-            Slog.d(TAG, "getPropertyList returns " + configs.size() + " configs");
+            Slogf.d(TAG, "getPropertyList returns %d configs", configs.size());
             for (int i = 0; i < configs.size(); i++) {
-                Slog.v(TAG, i + ": " + configs.get(i));
+                Slogf.v(TAG, "%d: %s", i, configs.get(i));
             }
         }
         return configs;
@@ -2093,8 +2093,7 @@ public class CarPropertyManager extends CarManagerBase {
     @NonNull
     public List<CarPropertyConfig> getPropertyList(@NonNull ArraySet<Integer> propertyIds) {
         if (DBG) {
-            Slog.d(TAG, "getPropertyList(" + CarPropertyHelper.propertyIdsToString(propertyIds)
-                    + ")");
+            Slogf.d(TAG, "getPropertyList(%s)", CarPropertyHelper.propertyIdsToString(propertyIds));
         }
         CarPropertyConfigs configs = getPropertyConfigsFromService(propertyIds);
         if (configs == null) {
@@ -2110,8 +2109,8 @@ public class CarPropertyManager extends CarManagerBase {
         }
         List<CarPropertyConfig> configList = configs.getConfigs();
         if (DBG) {
-            Slog.d(TAG, "getPropertyList(" + CarPropertyHelper.propertyIdsToString(propertyIds)
-                    + ") returns " + configList.size() + " configs");
+            Slogf.d(TAG, "getPropertyList(%s) returns %d configs",
+                    CarPropertyHelper.propertyIdsToString(propertyIds), configList.size());
             for (int i = 0; i < configList.size(); i++) {
                 Slog.v(TAG, i + ": " + configList.get(i));
             }
@@ -2129,12 +2128,11 @@ public class CarPropertyManager extends CarManagerBase {
     @Nullable
     public CarPropertyConfig<?> getCarPropertyConfig(int propertyId) {
         if (DBG) {
-            Slog.d(TAG, "getCarPropertyConfig(" + VehiclePropertyIds.toString(propertyId) + ")");
+            Slogf.d(TAG, "getCarPropertyConfig(%s)", VehiclePropertyIds.toString(propertyId));
         }
         assertNotUserHalProperty(propertyId);
         if (!CarPropertyHelper.isSupported(propertyId)) {
-            Slog.w(TAG, "Property: " + VehiclePropertyIds.toString(propertyId)
-                    + " is not supported");
+            Slogf.w(TAG, "Property: %s is not supported", VehiclePropertyIds.toString(propertyId));
             return null;
         }
 
@@ -2157,8 +2155,8 @@ public class CarPropertyManager extends CarManagerBase {
 
         CarPropertyConfig<?> config = configs.getConfigs().get(0);
         if (DBG) {
-            Slog.d(TAG, "getCarPropertyConfig(" + VehiclePropertyIds.toString(propertyId)
-                    + ") returns " + config);
+            Slogf.d(TAG, "getCarPropertyConfig(%s) returns %s",
+                    VehiclePropertyIds.toString(propertyId), config);
         }
         return config;
     }
@@ -2176,7 +2174,8 @@ public class CarPropertyManager extends CarManagerBase {
         assertNotUserHalProperty(propertyId);
         String propertyIdStr = VehiclePropertyIds.toString(propertyId);
         if (DBG) {
-            Slog.d(TAG, "getAreaId(propertyId = " + propertyIdStr + ", area = " + area + ")");
+            Slogf.d(TAG, "getAreaId(propertyId=%s, areaId=%s)",
+                    propertyIdStr, toAreaIdString(propertyId, area));
         }
         CarPropertyConfigs configs = getPropertyConfigsFromService(
                 new ArraySet<>(Set.of(propertyId)));
@@ -2201,14 +2200,14 @@ public class CarPropertyManager extends CarManagerBase {
         for (int areaId : propConfig.getAreaIds()) {
             if ((area & areaId) == area) {
                 if (DBG) {
-                    Slog.d(TAG, "getAreaId returns " + areaId);
+                    Slog.d(TAG, "getAreaId returns " + toAreaIdString(propertyId, areaId));
                 }
                 return areaId;
             }
         }
 
         throw new IllegalArgumentException("The propertyId: " + propertyIdStr
-                + " is not available at the area: 0x" + toHexString(area));
+                + " is not available at the area: " + toAreaIdString(propertyId, area));
     }
 
     /**
@@ -2227,8 +2226,8 @@ public class CarPropertyManager extends CarManagerBase {
         try {
             String permission = mService.getReadPermission(propId);
             if (DBG) {
-                Slog.d(TAG, "getReadPermission(propId =" + VehiclePropertyIds.toString(propId)
-                        + ") returns " + permission);
+                Slogf.d(TAG, "getReadPermission(propId=%s) returns %s",
+                        VehiclePropertyIds.toString(propId), permission);
             }
             return permission;
         } catch (RemoteException e) {
@@ -2252,8 +2251,8 @@ public class CarPropertyManager extends CarManagerBase {
         try {
             String permission = mService.getWritePermission(propId);
             if (DBG) {
-                Slog.d(TAG, "getWritePermission(propId = " + VehiclePropertyIds.toString(propId)
-                        + ") returns " + permission);
+                Slogf.d(TAG, "getWritePermission(propId=%s) returns %s",
+                        VehiclePropertyIds.toString(propId), permission);
             }
             return permission;
         } catch (RemoteException e) {
@@ -2272,14 +2271,15 @@ public class CarPropertyManager extends CarManagerBase {
      */
     public boolean isPropertyAvailable(int propertyId, int areaId) {
         if (DBG) {
-            Slog.d(TAG, "isPropertyAvailable(propertyId = "
-                    + VehiclePropertyIds.toString(propertyId) + ", areaId = " + areaId + ")");
+            Slogf.d(TAG, "isPropertyAvailable(propertyId=%s, areaId=%s)",
+                    VehiclePropertyIds.toString(propertyId),
+                    toAreaIdString(propertyId, areaId));
         }
         assertNotUserHalProperty(propertyId);
         if (!CarPropertyHelper.isSupported(propertyId)) {
             if (DBG) {
-                Slog.d(TAG, "Property: " + VehiclePropertyIds.toString(propertyId)
-                        + " is not supported");
+                Slogf.d(TAG, "Property: %s is not supported",
+                        VehiclePropertyIds.toString(propertyId));
             }
             return false;
         }
@@ -2296,7 +2296,7 @@ public class CarPropertyManager extends CarManagerBase {
         } catch (RemoteException e) {
             return handleRemoteExceptionFromCarService(e, false);
         } catch (ServiceSpecificException e) {
-            Slog.e(TAG, "unable to get property, error: " + e);
+            Slog.e(TAG, "unable to get property", e);
             return false;
         }
     }
@@ -2528,8 +2528,8 @@ public class CarPropertyManager extends CarManagerBase {
                 }
                 // If car service don't have enough binder thread to handle this request. Sleep for
                 // 10ms and try again.
-                Slog.d(TAG, "too many sync request, sleeping for " + SYNC_OP_RETRY_SLEEP_IN_MS
-                        + " ms before retry");
+                Slogf.d(TAG, "too many sync request, sleeping for %d ms before retry",
+                        SYNC_OP_RETRY_SLEEP_IN_MS);
                 SystemClock.sleep(SYNC_OP_RETRY_SLEEP_IN_MS);
             } catch (RemoteException e) {
                 throw e;
@@ -2754,8 +2754,8 @@ public class CarPropertyManager extends CarManagerBase {
     @Nullable
     public <E> CarPropertyValue<E> getProperty(int propertyId, int areaId) {
         if (DBG) {
-            Slog.d(TAG, "getProperty, propertyId: " + VehiclePropertyIds.toString(propertyId)
-                    + ", areaId: 0x" + toHexString(areaId));
+            Slogf.d(TAG, "getProperty, propertyId: %s, areaId: %s",
+                    VehiclePropertyIds.toString(propertyId), toAreaIdString(propertyId, areaId));
         }
 
         assertNotUserHalProperty(propertyId);
@@ -2810,8 +2810,8 @@ public class CarPropertyManager extends CarManagerBase {
                     return null;
                 } else {
                     throw new IllegalStateException("Failed to get propertyId: "
-                            + VehiclePropertyIds.toString(propertyId) + " areaId: 0x"
-                            + toHexString(areaId), e);
+                            + VehiclePropertyIds.toString(propertyId) + " areaId: "
+                            + toAreaIdString(propertyId, areaId), e);
                 }
             }
             handleCarServiceSpecificException(e, propertyId, areaId);
@@ -2888,8 +2888,9 @@ public class CarPropertyManager extends CarManagerBase {
     public <E> void setProperty(@NonNull Class<E> clazz, int propertyId, int areaId,
             @NonNull E val) {
         if (DBG) {
-            Slog.d(TAG, "setProperty, propertyId: " + VehiclePropertyIds.toString(propertyId)
-                    + ", areaId: 0x" + toHexString(areaId) + ", class: " + clazz + ", val: " + val);
+            Slogf.d(TAG, "setProperty, propertyId: %s, areaId: %s, class: %s, val: %s",
+                    VehiclePropertyIds.toString(propertyId), toAreaIdString(propertyId, areaId),
+                    clazz, val);
         }
 
         assertNotUserHalProperty(propertyId);
@@ -2912,12 +2913,12 @@ public class CarPropertyManager extends CarManagerBase {
             if (mAppTargetSdk < Build.VERSION_CODES.R) {
                 if (e.errorCode == VehicleHalStatusCode.STATUS_TRY_AGAIN) {
                     throw new RuntimeException("Failed to set propertyId: "
-                            + VehiclePropertyIds.toString(propertyId) + " areaId: 0x"
-                            + toHexString(areaId), e);
+                            + VehiclePropertyIds.toString(propertyId) + " areaId: "
+                            + toAreaIdString(propertyId, areaId), e);
                 } else {
                     throw new IllegalStateException("Failed to set propertyId: "
-                            + VehiclePropertyIds.toString(propertyId) + " areaId: 0x"
-                            + toHexString(areaId), e);
+                            + VehiclePropertyIds.toString(propertyId) + " areaId: "
+                            + toAreaIdString(propertyId, areaId), e);
                 }
             }
             handleCarServiceSpecificException(e, propertyId, areaId);
@@ -2976,112 +2977,10 @@ public class CarPropertyManager extends CarManagerBase {
             ServiceSpecificException e, int propertyId, int areaId) {
         // We are not passing the error message down, so log it here.
         Slog.w(TAG, "received ServiceSpecificException: " + e);
-        int errorCode = CarPropertyErrorCodes.getVhalSystemErrorCode(e.errorCode);
-        int vendorErrorCode = CarPropertyErrorCodes.getVhalVendorErrorCode(e.errorCode);
-
-        switch (errorCode) {
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE:
-                throw new PropertyNotAvailableException(propertyId, areaId, vendorErrorCode);
-            case VehicleHalStatusCode.STATUS_TRY_AGAIN:
-                // Vendor error code is ignored for STATUS_TRY_AGAIN error
-                throw new PropertyNotAvailableAndRetryException(propertyId, areaId);
-            case VehicleHalStatusCode.STATUS_ACCESS_DENIED:
-                // Vendor error code is ignored for STATUS_ACCESS_DENIED error
-                throw new PropertyAccessDeniedSecurityException(propertyId, areaId);
-            case VehicleHalStatusCode.STATUS_INTERNAL_ERROR:
-                throw new CarInternalErrorException(propertyId, areaId, vendorErrorCode);
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED:
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW:
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_HIGH:
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_POOR_VISIBILITY:
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SAFETY:
-                throw new PropertyNotAvailableException(propertyId, areaId,
-                        getPropertyNotAvailableErrorCodeFromStatusCode(errorCode), vendorErrorCode);
-            default:
-                Slog.e(TAG, "Invalid errorCode: " + errorCode + " in CarService");
-                throw new CarInternalErrorException(propertyId, areaId);
-        }
-    }
-
-    /**
-     * Convert {@link VehicleHalStatusCode} into public {@link PropertyNotAvailableErrorCode}
-     * equivalents.
-     *
-     * @throws IllegalArgumentException if an invalid status code is passed in.
-     * @hide
-     */
-    private static int getPropertyNotAvailableErrorCodeFromStatusCode(int statusCode) {
-        switch (statusCode) {
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE:
-                return PropertyNotAvailableErrorCode.NOT_AVAILABLE;
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED:
-                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_DISABLED;
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW:
-                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_SPEED_LOW;
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_HIGH:
-                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_SPEED_HIGH;
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_POOR_VISIBILITY:
-                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_POOR_VISIBILITY;
-            case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SAFETY:
-                return PropertyNotAvailableErrorCode.NOT_AVAILABLE_SAFETY;
-            default:
-                throw new IllegalArgumentException("Invalid status code: " + statusCode);
-        }
-    }
-
-    /**
-     * Convert {@link VehicleHalStatusCode} system error code into its public
-     * {@link DetailedErrorCode} equivalent.
-     *
-     * @return the detailed error code if available, otherwise set to 0.
-     * @throws IllegalArgumentException if an invalid error code is passed in.
-     */
-    private static int getDetailedErrorCodeFromSystemErrorCode(int systemErrorCode) {
-        if (Flags.carPropertyDetailedErrorCodes()) {
-            switch (systemErrorCode) {
-                case VehicleHalStatusCode.STATUS_OK: // Fallthrough
-                case VehicleHalStatusCode.STATUS_TRY_AGAIN: // Fallthrough
-                case VehicleHalStatusCode.STATUS_INVALID_ARG: // Fallthrough
-                case VehicleHalStatusCode.STATUS_NOT_AVAILABLE: // Fallthrough
-                case VehicleHalStatusCode.STATUS_ACCESS_DENIED: // Fallthrough
-                case VehicleHalStatusCode.STATUS_INTERNAL_ERROR: // Fallthrough
-                    return DetailedErrorCode.NO_DETAILED_ERROR_CODE;
-                case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_DISABLED:
-                    return DetailedErrorCode.NOT_AVAILABLE_DISABLED;
-                case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_LOW:
-                    return DetailedErrorCode.NOT_AVAILABLE_SPEED_LOW;
-                case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SPEED_HIGH:
-                    return DetailedErrorCode.NOT_AVAILABLE_SPEED_HIGH;
-                case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_POOR_VISIBILITY:
-                    return DetailedErrorCode.NOT_AVAILABLE_POOR_VISIBILITY;
-                case VehicleHalStatusCode.STATUS_NOT_AVAILABLE_SAFETY:
-                    return DetailedErrorCode.NOT_AVAILABLE_SAFETY;
-                default:
-                    throw new IllegalArgumentException("Invalid error code: " + systemErrorCode);
-            }
-        }
-
-        return 0;
-    }
-
-    /**
-     * Convert {@link CarPropMgrErrorCode} error code in {@link CarPropertyErrorCodes} into the
-     * {@link CarPropertyAsyncErrorCode} equivalent.
-     *
-     * @return the async error code
-     * @throws IllegalArgumentException if an invalid error code is passed in.
-     */
-    private static int getCarPropertyAsyncErrorCodeFromCarPropertyManagerErrorCode(int errorCode) {
-        switch (errorCode) {
-            case STATUS_OK: // Fallthrough
-            case STATUS_ERROR_INTERNAL_ERROR: // Fallthrough
-            case STATUS_ERROR_NOT_AVAILABLE: // Fallthrough
-            case STATUS_ERROR_TIMEOUT: // Fallthrough
-                return errorCode;
-            case STATUS_TRY_AGAIN: // Fallthrough
-            default:
-                throw new IllegalArgumentException("Invalid error code: " + errorCode);
-        }
+        // The e.errorCode here is not 0. This always throws a CarInternalErrorException or
+        // PropertyNotAvailableException.
+        CarPropertyErrorCodes.createFromVhalStatusCode(e.errorCode)
+                .checkAndMaybeThrowException(propertyId, areaId);
     }
 
     private void clearRequestIdToAsyncRequestInfo(
@@ -3146,9 +3045,9 @@ public class CarPropertyManager extends CarManagerBase {
     public GetPropertyRequest generateGetPropertyRequest(int propertyId, int areaId) {
         int requestIdCounter = mRequestIdCounter.getAndIncrement();
         if (DBG) {
-            Slog.d(TAG, String.format("generateGetPropertyRequest, requestId: %d, propertyId: %s, "
-                    + "areaId: %d", requestIdCounter, VehiclePropertyIds.toString(propertyId),
-                    areaId));
+            Slogf.d(TAG, "generateGetPropertyRequest, requestId: %d, propertyId: %s, "
+                    + "areaId: %s", requestIdCounter, VehiclePropertyIds.toString(propertyId),
+                    toAreaIdString(propertyId, areaId));
         }
         return new GetPropertyRequest(requestIdCounter, propertyId, areaId);
     }
@@ -3170,9 +3069,10 @@ public class CarPropertyManager extends CarManagerBase {
         requireNonNull(value);
         int requestIdCounter = mRequestIdCounter.getAndIncrement();
         if (DBG) {
-            Slog.d(TAG, String.format("generateSetPropertyRequest, requestId: %d, propertyId: %s, "
-                    + "areaId: %d, value: %s", requestIdCounter,
-                    VehiclePropertyIds.toString(propertyId), areaId, value));
+            Slogf.d(TAG, "generateSetPropertyRequest, requestId: %d, propertyId: %s, "
+                            + "areaId: %s, value: %s", requestIdCounter,
+                    VehiclePropertyIds.toString(propertyId), toAreaIdString(propertyId, areaId),
+                    value);
         }
         return new SetPropertyRequest(requestIdCounter, propertyId, areaId, value);
     }
@@ -3222,8 +3122,8 @@ public class CarPropertyManager extends CarManagerBase {
             @Nullable @CallbackExecutor Executor callbackExecutor,
             @NonNull GetPropertyCallback getPropertyCallback) {
         if (DBG) {
-            Slog.d(TAG, "getPropertiesAsync, requests: " + getPropertyRequests + ", timeoutInMs: "
-                    + timeoutInMs + ", callback: " + getPropertyCallback);
+            Slogf.d(TAG, "getPropertiesAsync, requests: %s, timeoutInMs: %d, callback: %s",
+                    getPropertyRequests, timeoutInMs, getPropertyCallback);
         }
 
         checkAsyncArguments(getPropertyRequests, getPropertyCallback, timeoutInMs);
@@ -3341,8 +3241,8 @@ public class CarPropertyManager extends CarManagerBase {
             @Nullable @CallbackExecutor Executor callbackExecutor,
             @NonNull SetPropertyCallback setPropertyCallback) {
         if (DBG) {
-            Slog.d(TAG, "setPropertiesAsync, requests: " + setPropertyRequests + ", timeoutInMs: "
-                    + timeoutInMs + ", callback: " + setPropertyCallback);
+            Slogf.d(TAG, "setPropertiesAsync, requests: %s, timeoutInMs: %d, callback: %s",
+                    setPropertyRequests, timeoutInMs, setPropertyCallback);
         }
 
         checkAsyncArguments(setPropertyRequests, setPropertyCallback, timeoutInMs);
@@ -3652,8 +3552,8 @@ public class CarPropertyManager extends CarManagerBase {
             var areaIds = mSupportedValuesChangeCallbackByPropIdAreaId.getSecondKeysForFirstKey(
                     propertyId);
             if (areaIds.isEmpty()) {
-                Slog.d(TAG, "No SupportedValuesChangeCallback was registered for property: "
-                        + VehiclePropertyIds.toString(propertyId) + ", do nothing");
+                Slogf.d(TAG, "No SupportedValuesChangeCallback was registered for property: "
+                        + "%s, do nothing", VehiclePropertyIds.toString(propertyId));
                 return;
             }
             List<PropIdAreaId> propIdAreaIds = new ArrayList<>();
@@ -3667,11 +3567,11 @@ public class CarPropertyManager extends CarManagerBase {
                     var registeredPropIdAreaIdsForCallback =
                             mPropIdAreaIdsBySupportedValuesChangeCallback.get(registeredCallback);
                     if (registeredPropIdAreaIdsForCallback == null) {
-                        Slog.e(TAG, "No registered propIdAreaId for "
-                                + "supportedValuesChangeCallback: " + registeredCallback
-                                + ", must not happen should at least contain property: "
-                                + VehiclePropertyIds.toString(propertyId) + ", areaId: "
-                                + areaId);
+                        Slogf.e(TAG, "No registered propIdAreaId for "
+                                + "supportedValuesChangeCallback: %s, must not happen should at "
+                                + "least contain property: %s, areaId: %s",
+                                registeredCallback, VehiclePropertyIds.toString(propertyId),
+                                toAreaIdString(propertyId, areaId));
                         continue;
                     }
                     registeredPropIdAreaIdsForCallback.remove(newPropIdAreaId(propertyId, areaId));
@@ -3709,8 +3609,8 @@ public class CarPropertyManager extends CarManagerBase {
             var areaIds = mSupportedValuesChangeCallbackByPropIdAreaId.getSecondKeysForFirstKey(
                     propertyId);
             if (areaIds.isEmpty()) {
-                Slog.d(TAG, "No SupportedValuesChangeCallback was registered for property: "
-                        + VehiclePropertyIds.toString(propertyId) + ", do nothing");
+                Slogf.d(TAG, "No SupportedValuesChangeCallback was registered for property: "
+                        + "%s, do nothing", VehiclePropertyIds.toString(propertyId));
                 return;
             }
             unregisterSupportedValuesChangeCallbackWithAreaIdsLocked(propertyId, areaIds, cb);
@@ -3766,9 +3666,8 @@ public class CarPropertyManager extends CarManagerBase {
             mExecutorBySupportedValuesChangeCallback.remove(cb);
         }
         if (!found) {
-            Slog.d(TAG, "No SupportedValuesChangeCallback was registered for the callback "
-                    + "for property: " + VehiclePropertyIds.toString(propertyId)
-                    + ", do nothing");
+            Slogf.d(TAG, "No SupportedValuesChangeCallback was registered for the callback "
+                    + "for property: %s, do nothing", VehiclePropertyIds.toString(propertyId));
             return;
         }
         if (propIdAreaIds.isEmpty()) {

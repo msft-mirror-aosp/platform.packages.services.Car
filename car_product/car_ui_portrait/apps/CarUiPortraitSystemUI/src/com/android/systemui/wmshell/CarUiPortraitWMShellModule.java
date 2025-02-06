@@ -25,10 +25,12 @@ import androidx.annotation.NonNull;
 import com.android.systemui.car.CarServiceProvider;
 import com.android.systemui.car.wm.AutoDisplayCompatWindowDecorViewModel;
 import com.android.systemui.car.wm.CarFullscreenTaskMonitorListener;
+import com.android.systemui.car.wm.scalableui.ScalableUIWMInitializer;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
 import com.android.systemui.wm.DisplaySystemBarsController;
 import com.android.wm.shell.ShellTaskOrganizer;
+import com.android.wm.shell.automotive.AutoShellModule;
 import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.DisplayInsetsController;
 import com.android.wm.shell.common.ShellExecutor;
@@ -58,7 +60,7 @@ import kotlinx.coroutines.CoroutineScope;
 import java.util.Optional;
 
 /** Provides dependencies from {@link com.android.wm.shell} for CarSystemUI. */
-@Module(includes = WMShellBaseModule.class)
+@Module(includes = {WMShellBaseModule.class, AutoShellModule.class})
 public abstract class CarUiPortraitWMShellModule {
 
     @WMSingleton
@@ -118,6 +120,7 @@ public abstract class CarUiPortraitWMShellModule {
             ShellInit shellInit,
             ShellTaskOrganizer taskOrganizer,
             DisplayController displayController,
+            DisplayInsetsController displayInsetsController,
             SyncTransactionQueue syncQueue,
             FocusTransitionObserver focusTransitionObserver,
             WindowDecorViewHostSupplier<WindowDecorViewHost> windowDecorViewHostSupplier,
@@ -130,9 +133,16 @@ public abstract class CarUiPortraitWMShellModule {
                 shellInit,
                 taskOrganizer,
                 displayController,
+                displayInsetsController,
                 syncQueue,
                 focusTransitionObserver,
                 windowDecorViewHostSupplier,
                 carServiceProvider);
+    }
+
+    @WMSingleton
+    @Provides
+    static Optional<ScalableUIWMInitializer> provideScalableUIInitializer() {
+        return Optional.empty();
     }
 }

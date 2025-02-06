@@ -1300,7 +1300,7 @@
         </activity>
 
         <activity
-            android:name="com.android.settings.biometrics.face.FaceEnrollIntroduction"
+            android:name="com.android.settings.biometrics.face.FaceEnroll"
             android:enabled="false"
             android:exported="false"
             tools:node="merge"
@@ -2721,6 +2721,15 @@
             <intent-filter tools:node="removeAll"/>
         </activity>
 
+	<activity
+            android:name="com.android.settings.Settings$DoubleTapPowerSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
         <activity
             android:name="com.android.settings.Settings$ButtonNavigationSettingsActivity"
             android:enabled="false"
@@ -3086,6 +3095,16 @@
             android:name="com.android.settings.Settings$ChangeNfcTagAppsActivity"
             android:enabled="false"
             android:exported="false"
+            tools:node="merge"
+            tools:replace="android:exported, android:enabled">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+
+        <activity
+            android:name="com.android.settings.Settings$ContentProtectionSettingsActivity"
+            android:enabled="false"
+            android:exported="false"
+            android:featureFlag="android.view.contentprotection.flags.exported_settings_activity_enabled"
             tools:node="merge"
             tools:replace="android:exported, android:enabled">
             <intent-filter tools:node="removeAll"/>
@@ -3586,6 +3605,7 @@
           android:name="com.android.settings.SettingsService"
           android:enabled="false"
           android:exported="false"
+          android:featureFlag="com.android.settings.flags.catalyst_service"
           tools:node="merge"
           tools:replace="android:exported,android:enabled">
           <intent-filter tools:node="removeAll" />

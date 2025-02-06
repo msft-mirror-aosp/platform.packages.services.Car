@@ -19,6 +19,8 @@ package android.car.hardware;
 import static android.car.feature.Flags.FLAG_CAR_PROPERTY_VALUE_PROPERTY_STATUS;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.util.DebugUtils.constantToString;
+import static com.android.car.internal.util.DebugUtils.toAreaIdString;
 
 import static java.lang.Integer.toHexString;
 
@@ -212,9 +214,10 @@ public final class CarPropertyValue<T> implements Parcelable {
 
         this(propertyId, areaId, status, timestampNanos, new RawPropertyValue(
                 Objects.requireNonNull(value, "value for propertyId: "
-                        + VehiclePropertyIds.toString(propertyId) + ", areaId: 0x"
-                        + toHexString(areaId) + ", status: " + status + " must not be null")
-                ));
+                        + VehiclePropertyIds.toString(propertyId) + ", areaId: "
+                        + toAreaIdString(propertyId, areaId) + ", status: " + status
+                        + " must not be null")
+        ));
     }
 
     /**
@@ -351,7 +354,8 @@ public final class CarPropertyValue<T> implements Parcelable {
      * <p>Simulation property is a property which is used by car service and vehicle hardware but
      * is not defined in {@link android.car.VehiclePropertyIds}
      *
-     * @return This will only be {@code true} if returned from CarSimulationManager.
+     * @return This will only be {@code true} if returned from
+     * {@link android.car.hardware.property.CarPropertySimulationManager}.
      *
      * @hide
      */
@@ -376,8 +380,8 @@ public final class CarPropertyValue<T> implements Parcelable {
         String propertyValueString = "CarPropertyValue{"
                 + "mPropertyId=0x" + toHexString(mPropertyId)
                 + ", propertyName=" + propertyIdToString
-                + ", mAreaId=0x" + toHexString(mAreaId)
-                + ", mStatus=" + mStatus
+                + ", mAreaId=" + toAreaIdString(mPropertyId, mAreaId)
+                + ", mStatus=" + constantToString(CarPropertyValue.class, "STATUS_", mStatus)
                 + ", mTimestampNanos=" + mTimestampNanos
                 + ", mValue=" + mValue;
         if (Flags.carPropertySimulation()) {

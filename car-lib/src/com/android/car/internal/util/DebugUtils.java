@@ -16,12 +16,22 @@
 
 package com.android.car.internal.util;
 
-import android.car.VehiclePropertyIds;
+import static java.lang.Integer.toHexString;
 
+import android.annotation.Nullable;
+import android.car.VehicleAreaDoor;
+import android.car.VehicleAreaMirror;
+import android.car.VehicleAreaSeat;
+import android.car.VehicleAreaType;
+import android.car.VehicleAreaWheel;
+import android.car.VehicleAreaWindow;
+import android.car.VehiclePropertyIds;
+import android.car.feature.Flags;
+import android.util.Slog;
+
+import com.android.car.internal.property.CarPropertyHelper;
 import com.android.car.internal.property.PropIdAreaId;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.List;
 
 // Copied from frameworks/base and kept only used codes
@@ -29,7 +39,10 @@ import java.util.List;
  * <p>Various utilities for debugging and logging.</p>
  */
 public final class DebugUtils {
-    private DebugUtils() {}
+    public static final String TAG = DebugUtils.class.getSimpleName();
+
+    private DebugUtils() {
+    }
 
     /**
      * Gets human-readable representation of constants (static final values).
@@ -45,53 +58,107 @@ public final class DebugUtils {
      * into human-readable string.
      */
     public static String constantToString(Class<?> clazz, String prefix, int value) {
-        for (Field field : clazz.getDeclaredFields()) {
-            final int modifiers = field.getModifiers();
-            if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers)
-                    && field.getType().equals(int.class) && field.getName().startsWith(prefix)) {
-                try {
-                    if (value == field.getInt(null)) {
-                        return constNameWithoutPrefix(prefix, field);
-                    }
-                } catch (IllegalAccessException ignored) {
-                }
-            }
-        }
-        return prefix + value;
+        String constantString = ConstantDebugUtils.toName(clazz, prefix, value);
+        return constantString != null ? constantString : prefix + value;
     }
 
     /**
-     * Use prefixed constants (static final values) on given class to turn flags
-     * into human-readable string.
+     * Use prefixed constants (public static final int values) on a given class to turn flags into
+     * human-readable string.
      */
-    public static String flagsToString(Class<?> clazz, String prefix, int flagsToConvert) {
-        int flags = flagsToConvert;
-        final StringBuilder res = new StringBuilder();
-        boolean flagsWasZero = flags == 0;
+    public static String flagsToString(Class<?> bitFlagClazz, String prefix, int flagsToConvert) {
+        String flagsString = flagsToOptionalString(bitFlagClazz, prefix, flagsToConvert);
+        return flagsString != null ? flagsString : "0x" + Integer.toHexString(flagsToConvert);
+    }
 
-        for (Field field : clazz.getDeclaredFields()) {
-            final int modifiers = field.getModifiers();
-            if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers)
-                    && field.getType().equals(int.class) && field.getName().startsWith(prefix)) {
-                try {
-                    final int value = field.getInt(null);
-                    if (value == 0 && flagsWasZero) {
-                        return constNameWithoutPrefix(prefix, field);
-                    }
-                    if (value != 0 && (flags & value) == value) {
-                        flags &= ~value;
-                        res.append(constNameWithoutPrefix(prefix, field)).append('|');
-                    }
-                } catch (IllegalAccessException ignored) {
-                }
+    /**
+     * Use constants (public static final int values) on given class to turn flags into
+     * human-readable string if possible. If no conversion found, returns {@code null}.
+     */
+    public static @Nullable String flagsToOptionalString(Class<?> bitFlagClazz,
+            int flagsToConvert) {
+        return flagsToOptionalString(bitFlagClazz, "", flagsToConvert);
+    }
+
+    /**
+     * Use prefixed constants (public static final int values) on a given class to turn flags into
+     * human-readable string if possible. If no conversion found, returns {@code null}.
+     */
+    public static @Nullable String flagsToOptionalString(Class<?> bitFlagClazz, String prefix,
+            int flagsToConvert) {
+        boolean inputFlagsWasZero = flagsToConvert == 0;
+        int flagsToConvertCopy = flagsToConvert;
+        final StringBuilder result = new StringBuilder();
+
+        List<Integer> bitFlags = ConstantDebugUtils.getValues(bitFlagClazz, prefix);
+        for (int i = 0; i < bitFlags.size(); i++) {
+            int bitFlag = bitFlags.get(i);
+
+            if (bitFlag == 0 && inputFlagsWasZero) {
+                return ConstantDebugUtils.toName(bitFlagClazz, prefix, bitFlag);
+            }
+            if (bitFlag != 0 && (flagsToConvertCopy & bitFlag) == bitFlag) {
+                flagsToConvertCopy &= ~bitFlag;
+                result.append(ConstantDebugUtils.toName(bitFlagClazz, prefix, bitFlag)).append('|');
             }
         }
-        if (flags != 0 || res.isEmpty()) {
-            res.append(Integer.toHexString(flags));
+
+        if (result.isEmpty()) {
+            return null;
+        } else if (flagsToConvertCopy != 0) {
+            result.append("0x").append(Integer.toHexString(flagsToConvertCopy));
         } else {
-            res.deleteCharAt(res.length() - 1);
+            result.deleteCharAt(result.length() - 1);
         }
-        return res.toString();
+
+        return result.toString();
+    }
+
+    /**
+     * Gets a user-friendly string representation of an {@code areaId} for the given
+     * {@code propertyId}.
+     */
+    public static String toAreaIdString(int propertyId, int areaId) {
+        int areaType;
+        try {
+            areaType = CarPropertyHelper.getAreaType(propertyId);
+        } catch (IllegalArgumentException e) {
+            Slog.w(TAG, "Property ID: " + VehiclePropertyIds.toString(propertyId)
+                    + " has invalid area type for area ID: " + areaId, e);
+            areaType = -1;
+        }
+
+        if (Flags.androidVicVehicleProperties()
+                && areaType == VehicleAreaType.VEHICLE_AREA_TYPE_VENDOR) {
+            return "VENDOR_AREA_ID(0x" + toHexString(areaId) + ")";
+        }
+
+        switch (areaType) {
+            case VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL -> {
+                if (areaId == 0) {
+                    return "GLOBAL";
+                }
+                return "INVALID_GLOBAL_AREA_ID(0x" + toHexString(areaId) + ")";
+            }
+            case VehicleAreaType.VEHICLE_AREA_TYPE_DOOR -> {
+                return areaIdToString(VehicleAreaDoor.class, "DOOR_", areaId);
+            }
+            case VehicleAreaType.VEHICLE_AREA_TYPE_MIRROR -> {
+                return areaIdToString(VehicleAreaMirror.class, "MIRROR_", areaId);
+            }
+            case VehicleAreaType.VEHICLE_AREA_TYPE_SEAT -> {
+                return areaIdToString(VehicleAreaSeat.class, "SEAT_", areaId);
+            }
+            case VehicleAreaType.VEHICLE_AREA_TYPE_WHEEL -> {
+                return areaIdToString(VehicleAreaWheel.class, "WHEEL_", areaId);
+            }
+            case VehicleAreaType.VEHICLE_AREA_TYPE_WINDOW -> {
+                return areaIdToString(VehicleAreaWindow.class, "WINDOW_", areaId);
+            }
+            default -> {
+                return "UNKNOWN_AREA_TYPE_AREA_ID(0x" + toHexString(areaId) + ")";
+            }
+        }
     }
 
     /**
@@ -99,7 +166,7 @@ public final class DebugUtils {
      */
     public static String toDebugString(PropIdAreaId propIdAreaId) {
         return "PropIdAreaId{propId=" + VehiclePropertyIds.toString(propIdAreaId.propId)
-            + ", areaId=" + propIdAreaId.areaId + "}";
+            + ", areaId=" + toAreaIdString(propIdAreaId.propId, propIdAreaId.areaId) + "}";
     }
 
     /**
@@ -121,7 +188,11 @@ public final class DebugUtils {
         return sb.append("]").toString();
     }
 
-    private static String constNameWithoutPrefix(String prefix, Field field) {
-        return field.getName().substring(prefix.length());
+    private static String areaIdToString(Class<?> areaTypeClazz, String prefix, int areaId) {
+        String areaIdString = flagsToOptionalString(areaTypeClazz, prefix, areaId);
+        if (areaIdString != null) {
+            return areaIdString;
+        }
+        return "UNKNOWN_" + prefix + "AREA_ID(0x" + toHexString(areaId) + ")";
     }
 }

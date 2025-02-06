@@ -34,6 +34,7 @@ import android.car.drivingstate.CarUxRestrictions;
 import android.car.drivingstate.CarUxRestrictionsConfiguration;
 import android.car.drivingstate.CarUxRestrictionsConfiguration.Builder;
 import android.car.drivingstate.CarUxRestrictionsConfiguration.DrivingStateRestrictions;
+import android.car.extendedapitest.testbase.CarLessApiTestBase;
 import android.os.Parcel;
 import android.util.JsonReader;
 import android.util.JsonWriter;

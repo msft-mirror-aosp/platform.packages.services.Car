@@ -17,6 +17,8 @@
 package android.car.hardware;
 
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.BOILERPLATE_CODE;
+import static com.android.car.internal.util.DebugUtils.constantToString;
+import static com.android.car.internal.util.DebugUtils.toAreaIdString;
 
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
@@ -265,7 +267,7 @@ public final class CarPropertyConfig<T> implements Parcelable {
     @NonNull
     public AreaIdConfig<T> getAreaIdConfig(int areaId) {
         if (!mAreaIdToAreaIdConfig.contains(areaId)) {
-            throw new IllegalArgumentException("Area ID: " + Integer.toHexString(areaId)
+            throw new IllegalArgumentException("Area ID: " + toAreaIdString(mPropertyId, areaId)
                     + " is not supported for property ID: " + propertyIdToString());
         }
         return mAreaIdToAreaIdConfig.get(areaId);
@@ -491,14 +493,18 @@ public final class CarPropertyConfig<T> implements Parcelable {
     public String toString() {
         String configString = "CarPropertyConfig{"
                 + "mPropertyId=" + propertyIdToString()
-                + ", mAccess=" + mAccess
-                + ", mAreaType=" + mAreaType
-                + ", mChangeMode=" + mChangeMode
+                + ", mAccess=" + constantToString(CarPropertyConfig.class,
+                "VEHICLE_PROPERTY_ACCESS_", mAccess)
+                + ", mAreaType=" + constantToString(VehicleAreaType.class, "VEHICLE_AREA_TYPE_",
+                mAreaType)
+                + ", mChangeMode=" + constantToString(CarPropertyConfig.class,
+                "VEHICLE_PROPERTY_CHANGE_MODE_", mChangeMode)
                 + ", mConfigArray=" + mConfigArray
                 + ", mConfigString=" + mConfigString
-                + ", mMaxSampleRate=" + mMaxSampleRate
-                + ", mMinSampleRate=" + mMinSampleRate
-                + ", mAreaIdConfigs =" + mAreaIdConfigs
+                + ", mMaxSampleRate(Hz)=" + mMaxSampleRate
+                + ", mMinSampleRate(Hz)=" + mMinSampleRate
+                + ", mAreaIdConfigs =" + mAreaIdConfigs.stream().map(
+                    areaIdConfig -> areaIdConfig.toString(mPropertyId)).toList()
                 + ", mType=" + mType;
         if (Flags.carPropertySimulation()) {
             if (isPropertyIdSimulationPropId()) {

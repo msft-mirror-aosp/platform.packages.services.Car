@@ -22,6 +22,7 @@ import static org.junit.Assume.assumeTrue;
 
 import android.car.Car;
 import android.car.app.CarDisplayCompatManager;
+import android.car.extendedapitest.testbase.CarApiTestBase;
 import android.car.feature.Flags;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;

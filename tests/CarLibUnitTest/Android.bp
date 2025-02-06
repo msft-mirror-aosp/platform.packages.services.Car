@@ -51,8 +51,16 @@ java_defaults {
         "vehicle-hal-support-lib",
         "car-helper-lib",
     ],
-    libs: [
-        "android.test.base.stubs.system",
+}
+
+java_defaults {
+    name: "CarLibHostUnitTestDefault",
+    defaults: [
+        "CarLibUnitTestDefault",
+    ],
+    static_libs: [
+        "android.car.builtin.testonly",
+        "android.car.testapi",
         "framework-annotations-lib",
     ],
 }
@@ -65,6 +73,8 @@ java_defaults {
     ],
     libs: [
         "android.car.builtin.stubs.module_lib",
+        "android.test.base.stubs.system",
+        "framework-annotations-lib",
     ],
     defaults: [
         "CarLibUnitTestDefault",
@@ -85,11 +95,8 @@ java_defaults {
 android_ravenwood_test {
     name: "CarLibHostUnitTest",
     team: "trendy_team_aaos_framework",
-    static_libs: [
-        "android.car.builtin.testonly",
-    ],
     defaults: [
-        "CarLibUnitTestDefault",
+        "CarLibHostUnitTestDefault",
     ],
     auto_gen_config: true,
     srcs: [
@@ -122,6 +129,10 @@ android_ravenwood_test {
         // The following cannot be enabled because FadeManagerConfiguration
         // is not supported on host.
         "src/android/car/oem/CarAudioFadeConfigurationUnitTest.java",
+        // The following cannot be enabled because Messenger/Context is not supported on host.
+        "src/android/car/projection/CarProjectionManagerUnitTest.java",
+        // The following cannot be enabled because UserManager is not supported on host.
+        "src/android/car/drivingstate/CarUxRestrictionsManagerUnitTest.java",
     ],
 }
 
@@ -160,6 +171,20 @@ android_test {
 }
 
 android_test {
+    name: "CarLibProjectionUnitTest",
+    team: "trendy_team_aaos_window_triage",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    static_libs: [
+        "android.car.testapi",
+    ],
+    srcs: [
+        "src/android/car/projection/CarProjectionManagerUnitTest.java",
+    ],
+}
+
+android_test {
     name: "CarLibClusterUnitTest",
     team: "trendy_team_aaos_window_triage",
     defaults: [
@@ -178,6 +203,20 @@ android_test {
     ],
     srcs: [
         "src/android/car/content/pm/*.java",
+    ],
+}
+
+android_test {
+    name: "CarLibUxRestrictionsUnitTest",
+    team: "trendy_team_aaos_user_triage",
+    defaults: [
+        "CarLibDeviceUnitTestDefault",
+    ],
+    static_libs: [
+        "android.car.testapi",
+    ],
+    srcs: [
+        "src/android/car/drivingstate/*.java",
     ],
 }
 
@@ -220,6 +259,9 @@ android_test {
     team: "trendy_team_aaos_user_triage",
     defaults: [
         "CarLibDeviceUnitTestDefault",
+    ],
+    static_libs: [
+        "android.car.testapi",
     ],
     srcs: [
         "src/android/car/navigation/*.java",

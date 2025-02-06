@@ -18,6 +18,9 @@ package com.android.car.hal;
 
 import static android.car.Car.PERMISSION_VENDOR_EXTENSION;
 import static android.car.VehiclePropertyIds.EPOCH_TIME;
+import static android.car.VehiclePropertyIds.EV_CHARGE_CURRENT_DRAW_LIMIT;
+import static android.car.VehiclePropertyIds.EV_CHARGE_PERCENT_LIMIT;
+import static android.car.VehiclePropertyIds.HVAC_FAN_DIRECTION;
 import static android.car.VehiclePropertyIds.HVAC_FAN_SPEED;
 import static android.car.VehiclePropertyIds.HVAC_TEMPERATURE_SET;
 import static android.car.VehiclePropertyIds.INFO_FUEL_DOOR_LOCATION;
@@ -638,7 +641,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_TIMEOUT);
 
         verifyNoPendingRequest();
@@ -658,7 +661,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_TIMEOUT);
 
         verifyNoPendingRequest();
@@ -689,7 +692,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_TIMEOUT);
 
         verifyNoPendingRequest();
@@ -712,7 +715,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
         assertThat(result.getCarPropertyValue()).isEqualTo(null);
 
@@ -738,7 +741,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
         assertThat(result.getCarPropertyErrorCodes().getVendorErrorCode())
                 .isEqualTo(VENDOR_ERROR_CODE);
@@ -768,7 +771,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
         assertThat(result.getCarPropertyErrorCodes().getVendorErrorCode()).isEqualTo(0);
         assertThat(result.getCarPropertyErrorCodes().getSystemErrorCode()).isEqualTo(0);
@@ -796,7 +799,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
         assertThat(result.getCarPropertyErrorCodes().getVendorErrorCode()).isEqualTo(0);
         assertThat(result.getCarPropertyErrorCodes().getSystemErrorCode()).isEqualTo(0);
@@ -906,11 +909,14 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
     @Test
     public void testSetCarPropertyValuesAsync() {
+        Object lock = new Object();
         Set<Integer> vhalCancelledRequestIds = new ArraySet<>();
         doAnswer((invocation) -> {
             List<Integer> ids = (List<Integer>) invocation.getArgument(0);
-            for (int i = 0; i < ids.size(); i++) {
-                vhalCancelledRequestIds.add(ids.get(i));
+            synchronized (lock) {
+                for (int i = 0; i < ids.size(); i++) {
+                    vhalCancelledRequestIds.add(ids.get(i));
+                }
             }
             return null;
         }).when(mVehicleHal).cancelRequests(any());
@@ -934,7 +940,9 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         // Because we cancel the onging async set property request, the ongoing get initial value
         // request should be cancelled as well.
         verify(mVehicleHal, timeout(1000).times(2)).cancelRequests(any());
-        assertThat(vhalCancelledRequestIds).containsExactlyElementsIn(new Integer[]{0, 1});
+        synchronized (lock) {
+            assertThat(vhalCancelledRequestIds).containsExactlyElementsIn(new Integer[]{0, 1});
+        }
 
         verifyNoPendingRequest();
     }
@@ -1002,7 +1010,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
         // This should be the time when the request is successfully sent.
         assertThat(result.getUpdateTimestampNanos()).isGreaterThan(0);
@@ -1043,12 +1051,12 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result1 = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result1.getRequestId()).isEqualTo(REQUEST_ID_4);
-        assertThat(result1.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result1.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result2 = mAsyncResultCaptor.getValue().getList().get(1);
         assertThat(result2.getRequestId()).isEqualTo(REQUEST_ID_5);
-        assertThat(result2.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result2.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
 
         // This should be the time when the request is successfully sent.
@@ -1115,7 +1123,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         for (GetSetValueResultList results: mAsyncResultCaptor.getAllValues()) {
             GetSetValueResult result = results.getList().get(0);
-            assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+            assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                     .isEqualTo(STATUS_OK);
             if (result.getRequestId() == REQUEST_ID_1) {
                 assertThat(result.getUpdateTimestampNanos()).isEqualTo(
@@ -1173,7 +1181,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
         assertThat(result.getUpdateTimestampNanos()).isEqualTo(TEST_UPDATE_TIMESTAMP_NANOS);
         // After the result comes, we must unsubscribe the property.
@@ -1222,7 +1230,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
         assertThat(result.getUpdateTimestampNanos()).isEqualTo(TEST_UPDATE_TIMESTAMP_NANOS);
         // After the result comes, we must unsubscribe the property.
@@ -1276,7 +1284,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
         assertThat(result.getUpdateTimestampNanos()).isEqualTo(TEST_UPDATE_TIMESTAMP_NANOS);
         // After the result comes, we must unsubscribe the property.
@@ -1324,7 +1332,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_TIMEOUT);
 
         verifyNoPendingRequest();
@@ -1366,7 +1374,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
         // After the result comes, we must unsubscribe the property.
         verify(mVehicleHal).unsubscribeProperty(any(), eq(HVAC_TEMPERATURE_SET));
@@ -1447,7 +1455,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode()).isEqualTo(
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode()).isEqualTo(
                 CarPropertyManager.STATUS_ERROR_TIMEOUT);
 
         verifyNoPendingRequest();
@@ -1504,7 +1512,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         for (GetSetValueResultList results : mAsyncResultCaptor.getAllValues()) {
             GetSetValueResult result = results.getList().get(0);
-            assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+            assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                     .isEqualTo(STATUS_OK);
             assertThat(result.getUpdateTimestampNanos()).isEqualTo(TEST_UPDATE_TIMESTAMP_NANOS);
         }
@@ -1564,7 +1572,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
         assertThat(result.getUpdateTimestampNanos()).isEqualTo(TEST_UPDATE_TIMESTAMP_NANOS);
         // After the result comes, we must unsubscribe the property.
@@ -1638,7 +1646,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         assertThat(
                 mAsyncResultCaptor.getValue().getList().get(0)
-                        .getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+                        .getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(STATUS_OK);
 
         // After the internal subscription is finished, the client subscription must be kept,
@@ -1759,9 +1767,9 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         assertThat(mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
-                .getCarPropertyManagerErrorCode()).isEqualTo(STATUS_OK);
+                .toCarPropertyAsyncErrorCode()).isEqualTo(STATUS_OK);
         assertThat(mAsyncResultCaptor.getValue().getList().get(1).getCarPropertyErrorCodes()
-                .getCarPropertyManagerErrorCode()).isEqualTo(STATUS_OK);
+                .toCarPropertyAsyncErrorCode()).isEqualTo(STATUS_OK);
 
         mPropertyHalService.unsubscribeProperty(PERF_VEHICLE_SPEED);
 
@@ -1926,7 +1934,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
 
         verify(mSetAsyncPropertyResultCallback).onSetValueResults(mAsyncResultCaptor.capture());
         assertThat(mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
-                .getCarPropertyManagerErrorCode()).isEqualTo(STATUS_OK);
+                .toCarPropertyAsyncErrorCode()).isEqualTo(STATUS_OK);
 
         // After the internal subscription is finished, the client is still subscribed at 50hz
         // and no update rate change is required.
@@ -2059,9 +2067,9 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         // Both request must succeed.
         assertThat(mAsyncResultCaptor.getValue().getList()).hasSize(2);
         assertThat(mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
-                .getCarPropertyManagerErrorCode()).isEqualTo(STATUS_OK);
+                .toCarPropertyAsyncErrorCode()).isEqualTo(STATUS_OK);
         assertThat(mAsyncResultCaptor.getValue().getList().get(1).getCarPropertyErrorCodes()
-                .getCarPropertyManagerErrorCode()).isEqualTo(STATUS_OK);
+                .toCarPropertyAsyncErrorCode()).isEqualTo(STATUS_OK);
 
         // After internal subscription complete, the client subscription rate must be kept.
         verify(mVehicleHal).subscribeProperty(any(), mListArgumentCaptor.capture());
@@ -2164,7 +2172,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         assertThat(mAsyncResultCaptor.getValue().getList()).hasSize(1);
         assertThat(
                 mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
-                        .getCarPropertyManagerErrorCode())
+                        .toCarPropertyAsyncErrorCode())
                 .isEqualTo(CarPropertyManager.STATUS_ERROR_TIMEOUT);
         verify(mVehicleHal).unsubscribeProperty(any(), eq(HVAC_TEMPERATURE_SET));
 
@@ -2213,7 +2221,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         assertThat(mAsyncResultCaptor.getValue().getList()).hasSize(1);
         assertThat(
                 mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
-                        .getCarPropertyManagerErrorCode())
+                        .toCarPropertyAsyncErrorCode())
                 .isEqualTo(CarPropertyManager.STATUS_ERROR_NOT_AVAILABLE);
         assertThat(
                 mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
@@ -2245,7 +2253,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 .isEqualTo(REQUEST_ID_1);
         assertThat(
                 mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
-                        .getCarPropertyManagerErrorCode())
+                        .toCarPropertyAsyncErrorCode())
                 .isEqualTo(CarPropertyManager.STATUS_ERROR_TIMEOUT);
 
         verifyNoPendingRequest();
@@ -2274,7 +2282,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         assertThat(mAsyncResultCaptor.getValue().getList().get(0).getRequestId())
                 .isEqualTo(REQUEST_ID_1);
         assertThat(mAsyncResultCaptor.getValue().getList().get(0).getCarPropertyErrorCodes()
-                        .getCarPropertyManagerErrorCode())
+                        .toCarPropertyAsyncErrorCode())
                 .isEqualTo(CarPropertyManager.STATUS_ERROR_TIMEOUT);
 
         verifyNoPendingRequest();
@@ -2296,7 +2304,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mAsyncResultCaptor.capture());
         GetSetValueResult result = mAsyncResultCaptor.getValue().getList().get(0);
         assertThat(result.getRequestId()).isEqualTo(REQUEST_ID_1);
-        assertThat(result.getCarPropertyErrorCodes().getCarPropertyManagerErrorCode())
+        assertThat(result.getCarPropertyErrorCodes().toCarPropertyAsyncErrorCode())
                 .isEqualTo(CarPropertyManager.STATUS_ERROR_INTERNAL_ERROR);
         assertThat(result.getCarPropertyValue()).isEqualTo(null);
 
@@ -3014,6 +3022,75 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 .isNull();
     }
 
+    // Verifies that EV_CHARGE_CURRENT_DRAW_LIMIT max value comes from config array.
+    @Test
+    public void testGetMinMaxSupportedValue_EV_CHARGE_CURRENT_DRAW_LIMIT_fromConfig() {
+        int mgrPropId = EV_CHARGE_CURRENT_DRAW_LIMIT;
+        // This property does not implement the new APIs so it falls back to config array.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, 0)))
+                .thenReturn(false);
+        int areaId = 0;
+        int maxValue = 123;
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.EV_CHARGE_CURRENT_DRAW_LIMIT;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        vehiclePropConfig.configArray = new int[]{maxValue};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        expectThat(areaIdConfig.hasMinSupportedValue()).isTrue();
+        expectThat(areaIdConfig.hasMaxSupportedValue()).isTrue();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                mgrPropId, areaId, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo(0.f);
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class)
+                .getTypedValue()).isEqualTo((float) maxValue);
+    }
+
+    @Test
+    public void testGetMinMaxSupportedValue_EV_CHARGE_CURRENT_DRAW_LIMIT_noConfig() {
+        int mgrPropId = EV_CHARGE_CURRENT_DRAW_LIMIT;
+        // This property does not implement the new APIs so it falls back to config array.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, 0)))
+                .thenReturn(false);
+        int areaId = 0;
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.EV_CHARGE_CURRENT_DRAW_LIMIT;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        // No element in config array.
+        vehiclePropConfig.configArray = new int[]{};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        expectThat(areaIdConfig.hasMinSupportedValue()).isFalse();
+        expectThat(areaIdConfig.hasMaxSupportedValue()).isFalse();
+
+        var minMaxSupportedPropertyValue = mPropertyHalService.getMinMaxSupportedValue(
+                mgrPropId, areaId, areaIdConfig);
+
+        expectThat(minMaxSupportedPropertyValue.minValue.getParcelable(RawPropertyValue.class))
+                .isNull();
+        expectThat(minMaxSupportedPropertyValue.maxValue.getParcelable(RawPropertyValue.class))
+                .isNull();
+    }
+
     @Test
     public void testGetSupportedValuesList_dynamicSupportedValuesNotSupported() {
         when(mVehicleHal.isSupportedValuesImplemented(
@@ -3240,6 +3317,235 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         });
     }
 
+    // Verifies that properties that has annotation: legacy_supported_values_in_config gets
+    // supported values from config.
+    @Test
+    public void testGetSupportedValuesList_withAnnotationfromConfig() {
+        int mgrPropId = EV_CHARGE_PERCENT_LIMIT;
+        // This property does not implement the new APIs so it falls back to config array.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, 0)))
+                .thenReturn(false);
+        int areaId = 0;
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.EV_CHARGE_PERCENT_LIMIT;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        vehiclePropConfig.configArray = new int[]{1, 2, 3};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        expectThat(areaIdConfig.hasSupportedValuesList()).isTrue();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                mgrPropId, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).hasSize(3);
+        expectThat(supportedValuesList.get(0).getTypedValue()).isEqualTo(1.f);
+        expectThat(supportedValuesList.get(1).getTypedValue()).isEqualTo(2.f);
+        expectThat(supportedValuesList.get(2).getTypedValue()).isEqualTo(3.f);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_withAnnotationfromConfig_noConfig() {
+        int mgrPropId = EV_CHARGE_PERCENT_LIMIT;
+        // This property does not implement the new APIs so it falls back to config array.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, 0)))
+                .thenReturn(false);
+        int areaId = 0;
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.EV_CHARGE_PERCENT_LIMIT;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        // No element in config array.
+        vehiclePropConfig.configArray = new int[]{};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        expectThat(areaIdConfig.hasSupportedValuesList()).isFalse();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                mgrPropId, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).isNull();
+    }
+
+    // Verifies that the supported values for HVAC_FAN_DIRECTION comes from
+    // HVAC_FAN_DIRECTION_AVAILABLE
+    @Test
+    public void testGetSupportedValuesList_HVAC_FAN_DIRECTION() {
+        int mgrPropId = HVAC_FAN_DIRECTION;
+        int areaId = VehicleAreaSeat.ROW_1_LEFT;
+        // This property does not implement the new APIs.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, areaId)))
+                .thenReturn(false);
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.HVAC_FAN_DIRECTION;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        vehicleAreaConfig.areaId = areaId;
+        vehicleAreaConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.areaConfigs = new VehicleAreaConfig[] {vehicleAreaConfig};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        var hvacFanDirectionAvailablePropConfig = new VehiclePropConfig();
+        hvacFanDirectionAvailablePropConfig.prop = VehicleProperty.HVAC_FAN_DIRECTION_AVAILABLE;
+        hvacFanDirectionAvailablePropConfig.access = VehiclePropertyAccess.READ;
+        hvacFanDirectionAvailablePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        hvacFanDirectionAvailablePropConfig.areaConfigs = new VehicleAreaConfig[] {
+                vehicleAreaConfig};
+        HalPropConfig hvacFanDirectionAvailableHalPropConfig = new AidlHalPropConfig(
+                hvacFanDirectionAvailablePropConfig);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig,
+                hvacFanDirectionAvailableHalPropConfig));
+
+        when(mVehicleHal.get(VehicleProperty.HVAC_FAN_DIRECTION_AVAILABLE, areaId))
+                .thenReturn(mPropValueBuilder.build(
+                        VehicleProperty.HVAC_FAN_DIRECTION_AVAILABLE, areaId,
+                        TEST_UPDATE_TIMESTAMP_NANOS, /* status= */ 0, new int[]{1, 2, 3}));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                mgrPropId, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).hasSize(3);
+        expectThat(supportedValuesList.get(0).getTypedValue()).isEqualTo(1);
+        expectThat(supportedValuesList.get(1).getTypedValue()).isEqualTo(2);
+        expectThat(supportedValuesList.get(2).getTypedValue()).isEqualTo(3);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_HVAC_FAN_DIRECTION_getHvacFanDirectAvailableFailed() {
+        int mgrPropId = HVAC_FAN_DIRECTION;
+        int areaId = VehicleAreaSeat.ROW_1_LEFT;
+        // This property does not implement the new APIs.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, areaId)))
+                .thenReturn(false);
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.HVAC_FAN_DIRECTION;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        vehicleAreaConfig.areaId = areaId;
+        vehicleAreaConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.areaConfigs = new VehicleAreaConfig[] {vehicleAreaConfig};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        var hvacFanDirectionAvailablePropConfig = new VehiclePropConfig();
+        hvacFanDirectionAvailablePropConfig.prop = VehicleProperty.HVAC_FAN_DIRECTION_AVAILABLE;
+        hvacFanDirectionAvailablePropConfig.access = VehiclePropertyAccess.READ;
+        hvacFanDirectionAvailablePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        hvacFanDirectionAvailablePropConfig.areaConfigs = new VehicleAreaConfig[] {
+                vehicleAreaConfig};
+        HalPropConfig hvacFanDirectionAvailableHalPropConfig = new AidlHalPropConfig(
+                hvacFanDirectionAvailablePropConfig);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig,
+                hvacFanDirectionAvailableHalPropConfig));
+
+        // Simulate some error from VHAL while getting the property.
+        when(mVehicleHal.get(VehicleProperty.HVAC_FAN_DIRECTION_AVAILABLE, areaId))
+                .thenThrow(new ServiceSpecificException(0));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                mgrPropId, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).isNull();
+    }
+
+    // Verifies that the supported values for HVAC_TEMPERATURE_SET comes from config array.
+    @Test
+    public void testGetSupportedValuesList_HVAC_TEMPERATURE_SET() {
+        int mgrPropId = HVAC_TEMPERATURE_SET;
+        int areaId = VehicleAreaSeat.ROW_1_LEFT;
+        // This property does not implement the new APIs.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, areaId)))
+                .thenReturn(false);
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.HVAC_TEMPERATURE_SET;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        vehiclePropConfig.configArray = new int[]{100, 110, 5, 20, 30, 5};
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        vehicleAreaConfig.areaId = areaId;
+        vehicleAreaConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.areaConfigs = new VehicleAreaConfig[] {vehicleAreaConfig};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        expectThat(areaIdConfig.hasSupportedValuesList()).isTrue();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                mgrPropId, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).hasSize(3);
+        expectThat(supportedValuesList.get(0).getTypedValue()).isEqualTo(10.f);
+        expectThat(supportedValuesList.get(1).getTypedValue()).isEqualTo(10.5f);
+        expectThat(supportedValuesList.get(2).getTypedValue()).isEqualTo(11.f);
+    }
+
+    @Test
+    public void testGetSupportedValuesList_HVAC_TEMPERATURE_SET_invalidConfig() {
+        int mgrPropId = HVAC_TEMPERATURE_SET;
+        int areaId = VehicleAreaSeat.ROW_1_LEFT;
+        // This property does not implement the new APIs.
+        when(mVehicleHal.isSupportedValuesImplemented(newPropIdAreaId(mgrPropId, areaId)))
+                .thenReturn(false);
+
+        var vehiclePropConfig = new VehiclePropConfig();
+        vehiclePropConfig.prop = VehicleProperty.HVAC_TEMPERATURE_SET;
+        vehiclePropConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.changeMode = VehiclePropertyChangeMode.ON_CHANGE;
+        // Invalid config, expect 6 elements.
+        vehiclePropConfig.configArray = new int[]{100, 110, 5, 20, 30};
+        var vehicleAreaConfig = new VehicleAreaConfig();
+        vehicleAreaConfig.areaId = areaId;
+        vehicleAreaConfig.access = VehiclePropertyAccess.READ;
+        vehiclePropConfig.areaConfigs = new VehicleAreaConfig[] {vehicleAreaConfig};
+        HalPropConfig halPropConfig = new AidlHalPropConfig(vehiclePropConfig);
+        CarPropertyConfig carPropertyConfig = halPropConfig.toCarPropertyConfig(
+                mgrPropId, PropertyHalServiceConfigs.newConfigs(), /* isVhalPropId= */ false);
+
+        mPropertyHalService.takeProperties(List.of(halPropConfig));
+
+        var areaIdConfig = carPropertyConfig.getAreaIdConfig(areaId);
+
+        expectThat(areaIdConfig.hasSupportedValuesList()).isFalse();
+
+        var supportedValuesList = mPropertyHalService.getSupportedValuesList(
+                mgrPropId, areaId, areaIdConfig);
+
+        assertThat(supportedValuesList).isNull();
+    }
+
     @Test
     public void testRegisterSupportedValuesChangeCallback() throws Exception {
         when(mVehicleHal.isSupportedValuesImplemented(any())).thenReturn(true);
@@ -3287,6 +3593,7 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 List.of(propIdAreaId1, propIdAreaId2, propIdAreaId3),
                 mSupportedValuesChangeCallback);
 
+        assertThat(mPropertyHalService.countSupportedValuesChangeClient()).isEqualTo(1);
         ArgumentCaptor<List> propIdAreaIdsCaptor = ArgumentCaptor.forClass(List.class);
         verify(mVehicleHal).registerSupportedValuesChange(any(), propIdAreaIdsCaptor.capture());
 
@@ -3298,6 +3605,12 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         expectThat(requestedPropIdAreaIds.get(1).propId).isEqualTo(
                 VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS);
         expectThat(requestedPropIdAreaIds.get(1).areaId).isEqualTo(0);
+
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(
+                List.of(propIdAreaId1, propIdAreaId2, propIdAreaId3),
+                mSupportedValuesChangeCallback);
+
+        assertThat(mPropertyHalService.countSupportedValuesChangeClient()).isEqualTo(0);
     }
 
     @Test
@@ -3401,6 +3714,116 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
                 mSupportedValuesChangeCallback);
 
         verify(mVehicleHal, never()).registerSupportedValuesChange(any(), any());
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChangeCallback_twoClients()
+            throws Exception {
+        var propIdAreaId1 = newPropIdAreaId(HVAC_FAN_SPEED,
+                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        var propIdAreaId2 = newPropIdAreaId(VEHICLE_SPEED_DISPLAY_UNITS, 0);
+        var halPropIdAreaId1 = newPropIdAreaId(VehicleProperty.HVAC_FAN_SPEED,
+                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        var halPropIdAreaId2 = newPropIdAreaId(VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS, 0);
+        when(mVehicleHal.isSupportedValuesImplemented(halPropIdAreaId1)).thenReturn(true);
+        when(mVehicleHal.isSupportedValuesImplemented(halPropIdAreaId2)).thenReturn(true);
+
+        // We use two binders to simulate two different clients.
+        ISupportedValuesChangeCallback callback1 = mock(ISupportedValuesChangeCallback.class);
+        IBinder binder1 = mock(IBinder.class);
+        ISupportedValuesChangeCallback callback2 = mock(ISupportedValuesChangeCallback.class);
+        IBinder binder2 = mock(IBinder.class);
+        when(callback1.asBinder()).thenReturn(binder1);
+        when(callback2.asBinder()).thenReturn(binder2);
+
+        mPropertyHalService.registerSupportedValuesChangeCallback(
+                List.of(propIdAreaId1, propIdAreaId2), callback1);
+        mPropertyHalService.registerSupportedValuesChangeCallback(
+                List.of(propIdAreaId1), callback2);
+
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(
+                List.of(propIdAreaId1), callback1);
+
+        // propIdAreaId1 is still subscribed by callback2
+        verify(mVehicleHal, never()).unregisterSupportedValuesChange(any(), any());
+
+        // Trigger an on-change event to verify callback2 can still receive event.
+        mPropertyHalService.onSupportedValuesChange(List.of(halPropIdAreaId1, halPropIdAreaId2));
+
+        verify(callback2).onSupportedValuesChange(mListArgumentCaptor.capture());
+        var updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+        assertThat(updatedPropIdAreaIds).hasSize(1);
+        expectThat(updatedPropIdAreaIds.get(0)).isEqualTo(propIdAreaId1);
+
+        verify(callback1).onSupportedValuesChange(mListArgumentCaptor.capture());
+        updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+        assertThat(updatedPropIdAreaIds).hasSize(1);
+        expectThat(updatedPropIdAreaIds.get(0)).isEqualTo(propIdAreaId2);
+
+        // Unregister propIdAreaId1 for callback2 as well, after this, there is no client for
+        // propIdAreaId1, so it should be unsubscribed from VehicleHal.
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(
+                List.of(propIdAreaId1), callback2);
+
+        verify(mVehicleHal).unregisterSupportedValuesChange(any(), mListArgumentCaptor.capture());
+        updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+        assertThat(updatedPropIdAreaIds).hasSize(1);
+        // Must be converted from CarPropertyManager property ID to VHAL property ID.
+        assertThat(updatedPropIdAreaIds.get(0)).isEqualTo(halPropIdAreaId1);
+
+        clearInvocations(mVehicleHal);
+
+        // Unregister propIdAreaId2 for callback1, after this, there is no client for propIdAreaId2.
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(
+                List.of(propIdAreaId2), callback1);
+
+        verify(mVehicleHal).unregisterSupportedValuesChange(any(), mListArgumentCaptor.capture());
+        updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+        assertThat(updatedPropIdAreaIds).hasSize(1);
+        // Must be converted from CarPropertyManager property ID to VHAL property ID.
+        assertThat(updatedPropIdAreaIds.get(0)).isEqualTo(halPropIdAreaId2);
+
+        // Trigger an on-change event to verify both callback1 and callback2 cannot receive the
+        // event.
+        clearInvocations(callback1);
+        clearInvocations(callback2);
+
+        mPropertyHalService.onSupportedValuesChange(List.of(halPropIdAreaId1, halPropIdAreaId2));
+
+        verify(callback1, never()).onSupportedValuesChange(any());
+        verify(callback2, never()).onSupportedValuesChange(any());
+    }
+
+    @Test
+    public void testRegisterSupportedValuesChangeCallback_sameClientDifferentCallback()
+            throws Exception {
+        // We should uniquely identify a client via IBinder, not the Callback interface
+        // object.
+        var propIdAreaId1 = newPropIdAreaId(HVAC_FAN_SPEED,
+                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        var propIdAreaId2 = newPropIdAreaId(VEHICLE_SPEED_DISPLAY_UNITS, 0);
+        var halPropIdAreaId1 = newPropIdAreaId(VehicleProperty.HVAC_FAN_SPEED,
+                android.car.VehicleAreaSeat.SEAT_ROW_1_LEFT);
+        var halPropIdAreaId2 = newPropIdAreaId(VehicleProperty.VEHICLE_SPEED_DISPLAY_UNITS, 0);
+        when(mVehicleHal.isSupportedValuesImplemented(halPropIdAreaId1)).thenReturn(true);
+        when(mVehicleHal.isSupportedValuesImplemented(halPropIdAreaId2)).thenReturn(true);
+
+        ISupportedValuesChangeCallback callback1 = mock(ISupportedValuesChangeCallback.class);
+        ISupportedValuesChangeCallback callback2 = mock(ISupportedValuesChangeCallback.class);
+        IBinder binder = mock(IBinder.class);
+
+        // callback1 and callback2 is the same client.
+        when(callback1.asBinder()).thenReturn(binder);
+        when(callback2.asBinder()).thenReturn(binder);
+
+        mPropertyHalService.registerSupportedValuesChangeCallback(
+                List.of(propIdAreaId1, propIdAreaId2), callback1);
+        mPropertyHalService.unregisterSupportedValuesChangeCallback(
+                List.of(propIdAreaId1, propIdAreaId2), callback2);
+
+        verify(mVehicleHal).unregisterSupportedValuesChange(any(), mListArgumentCaptor.capture());
+        var updatedPropIdAreaIds = (List<PropIdAreaId>) mListArgumentCaptor.getValue();
+        assertThat(updatedPropIdAreaIds).hasSize(2);
     }
 
     @Test
@@ -3545,6 +3968,42 @@ public class PropertyHalServiceTest extends AbstractExpectableTestCase{
         mPropertyHalService.stopRecordingVehicleProperties(mCallback);
 
         verify(mVehicleHal).stopRecordingVehicleProperties(eq(mCallback));
+    }
+
+    @Test
+    public void testEnableInjectionModeReturnsValue() {
+        when(mVehicleHal.enableInjectionMode(anyList())).thenReturn(5000L);
+
+        assertThat(mPropertyHalService.enableInjectionMode(List.of())).isEqualTo(5000L);
+    }
+
+    @Test
+    public void testEnableInjectionMode() {
+        List<Integer> list = List.of(52);
+        mPropertyHalService.enableInjectionMode(list);
+
+        verify(mVehicleHal).enableInjectionMode(list);
+    }
+
+    @Test
+    public void testDisableInjectionMode() {
+        mPropertyHalService.disableInjectionMode();
+
+        verify(mVehicleHal).disableInjectionMode();
+    }
+
+    @Test
+    public void testIsVehiclePropertyInjectionModeEnabled() {
+        mPropertyHalService.isVehiclePropertyInjectionModeEnabled();
+
+        verify(mVehicleHal).isVehiclePropertyInjectionModeEnabled();
+    }
+
+    @Test
+    public void testIsVehiclePropertyInjectionModeEnabledReturnsValue() {
+        when(mVehicleHal.isVehiclePropertyInjectionModeEnabled()).thenReturn(true);
+
+        assertThat(mPropertyHalService.isVehiclePropertyInjectionModeEnabled()).isTrue();
     }
 
     /** Creates a {@code CarSubscription} with Vur off. */

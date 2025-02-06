@@ -24,6 +24,7 @@ import static org.junit.Assert.assertThrows;
 import android.car.Car;
 import android.car.CarVersion;
 import android.car.content.pm.CarPackageManager;
+import android.car.extendedapitest.testbase.CarApiTestBase;
 import android.content.pm.PackageManager.NameNotFoundException;
 
 import androidx.test.filters.MediumTest;

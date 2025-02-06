@@ -228,8 +228,9 @@ std::string timeoutToString(TimeoutLength timeout) {
 }
 
 WatchdogProcessService::WatchdogProcessService(const sp<Looper>& handlerLooper) :
-      WatchdogProcessService(IVhalClient::tryCreate, kDefaultTryGetHidlServiceManager,
-                             getStartTimeForPid, kDefaultVhalPidCachingRetryDelayNs, handlerLooper,
+      WatchdogProcessService((std::shared_ptr<IVhalClient> (*)())IVhalClient::tryCreate,
+                             kDefaultTryGetHidlServiceManager, getStartTimeForPid,
+                             kDefaultVhalPidCachingRetryDelayNs, handlerLooper,
                              sp<AIBinderDeathRegistrationWrapper>::make()) {}
 
 WatchdogProcessService::WatchdogProcessService(
@@ -708,7 +709,6 @@ Result<void> WatchdogProcessService::start() {
 }
 
 void WatchdogProcessService::terminate() {
-    std::unique_ptr<ISubscriptionClient> propertySubscriptionClient;
     {
         Mutex::Autolock lock(mMutex);
         if (!mServiceStarted) {
@@ -732,19 +732,8 @@ void WatchdogProcessService::terminate() {
         if (mVhalService == nullptr) {
             return;
         }
-        if (mNotSupportedVhalProperties.count(VehicleProperty::VHAL_HEARTBEAT) == 0) {
-            propertySubscriptionClient =
-                    mVhalService->getSubscriptionClient(mPropertyChangeListener);
-        }
         mVhalService->removeOnBinderDiedCallback(mVhalBinderDiedCallback);
         resetVhalInfoLocked();
-    }
-    if (propertySubscriptionClient != nullptr) {
-        std::vector<int32_t> propIds = {static_cast<int32_t>(VehicleProperty::VHAL_HEARTBEAT)};
-        auto result = propertySubscriptionClient->unsubscribe(propIds);
-        if (!result.ok()) {
-            ALOGW("Failed to unsubscribe from VHAL_HEARTBEAT.");
-        }
     }
 }
 
@@ -1094,10 +1083,12 @@ Result<void> WatchdogProcessService::connectToVhal() {
         if (mVhalService != nullptr) {
             return {};
         }
-        mVhalService = kTryCreateVhalClientFunc();
-        if (mVhalService == nullptr) {
+        auto vhalService = kTryCreateVhalClientFunc();
+        if (vhalService == nullptr) {
             return Error() << "Failed to connect to VHAL.";
         }
+        mVhalService = vhalService;
+        mVhalSubscriptionClient = vhalService->getSubscriptionClient(mPropertyChangeListener);
         mVhalService->addOnBinderDiedCallback(mVhalBinderDiedCallback);
     }
     queryVhalProperties();
@@ -1129,7 +1120,6 @@ void WatchdogProcessService::queryVhalProperties() {
 }
 
 void WatchdogProcessService::subscribeToVhalHeartBeat() {
-    std::unique_ptr<ISubscriptionClient> propertySubscriptionClient;
     {
         Mutex::Autolock lock(mMutex);
         if (mNotSupportedVhalProperties.count(VehicleProperty::VHAL_HEARTBEAT) > 0) {
@@ -1141,15 +1131,14 @@ void WatchdogProcessService::subscribeToVhalHeartBeat() {
                 .eventTime = 0,
                 .value = 0,
         };
-        propertySubscriptionClient = mVhalService->getSubscriptionClient(mPropertyChangeListener);
-    }
-    std::vector<SubscribeOptions> options = {
-            {.propId = static_cast<int32_t>(VehicleProperty::VHAL_HEARTBEAT), .areaIds = {}},
-    };
-    if (auto result = propertySubscriptionClient->subscribe(options); !result.ok()) {
-        ALOGW("Failed to subscribe to VHAL_HEARTBEAT. Checking VHAL health is disabled. '%s'",
-              result.error().message().c_str());
-        return;
+        std::vector<SubscribeOptions> options = {
+                {.propId = static_cast<int32_t>(VehicleProperty::VHAL_HEARTBEAT), .areaIds = {}},
+        };
+        if (auto result = mVhalSubscriptionClient->subscribe(options); !result.ok()) {
+            ALOGW("Failed to subscribe to VHAL_HEARTBEAT. Checking VHAL health is disabled. '%s'",
+                  result.error().message().c_str());
+            return;
+        }
     }
     std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMillis + kHealthCheckDelayMillis;
     mHandlerLooper->sendMessageDelayed(intervalNs.count(), mMessageHandler,
@@ -1287,6 +1276,8 @@ void WatchdogProcessService::updateVhalHeartBeat(int64_t value) {
         return;
     }
     std::chrono::nanoseconds intervalNs = mVhalHealthCheckWindowMillis + kHealthCheckDelayMillis;
+    // TODO(b/392721766): remove existing check vhal health message here and repurpose
+    // checkVhalHealth to a timeout handler.
     mHandlerLooper->sendMessageDelayed(intervalNs.count(), mMessageHandler,
                                        Message(MSG_VHAL_HEALTH_CHECK));
 }
@@ -1301,13 +1292,22 @@ void WatchdogProcessService::checkVhalHealth() {
         }
         lastEventTime = mVhalHeartBeat.eventTime;
     }
-    if (currentUptime > lastEventTime + mVhalHealthCheckWindowMillis.count()) {
+    // Make sure that we have received at least one new event during this check window. The
+    // event we received from the previous window is <= [currentUptime - window], so
+    // if the latest event time is <= [currentUptime - window], it means we have not received
+    // any new event.
+    if (currentUptime >=
+        lastEventTime + (mVhalHealthCheckWindowMillis + kHealthCheckDelayMillis).count()) {
         ALOGW("VHAL failed to update heart beat within timeout. Terminating VHAL...");
         terminateVhal();
     }
 }
 
 void WatchdogProcessService::resetVhalInfoLocked() {
+    if (mVhalSubscriptionClient != nullptr) {
+        mVhalSubscriptionClient->unsubscribeAll();
+    }
+    mVhalSubscriptionClient.reset();
     mVhalService.reset();
     mVhalProcessIdentifier.reset();
     mTotalVhalPidCachingAttempts = 0;

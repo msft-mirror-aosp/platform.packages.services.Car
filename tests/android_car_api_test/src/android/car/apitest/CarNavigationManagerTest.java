@@ -35,6 +35,7 @@ import android.car.cluster.navigation.NavigationState.NavigationStateProto;
 import android.car.cluster.navigation.NavigationState.Road;
 import android.car.cluster.navigation.NavigationState.Step;
 import android.car.cluster.navigation.NavigationState.Timestamp;
+import android.car.extendedapitest.testbase.CarApiTestBase;
 import android.car.navigation.CarNavigationStatusManager;
 import android.os.Bundle;
 import android.util.Log;

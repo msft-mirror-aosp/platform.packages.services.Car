@@ -29,6 +29,7 @@ import static com.android.car.internal.property.VehiclePropertyIdDebugUtils.toNa
 import android.annotation.FlaggedApi;
 import android.annotation.RequiresPermission;
 import android.car.hardware.CarHvacFanDirection;
+import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.AutomaticEmergencyBrakingState;
 import android.car.hardware.property.BlindSpotWarningState;
@@ -1849,12 +1850,16 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_FAN_SPEED = 356517120;
     /**
-     * Fan direction setting.
+     * The current {@link CarHvacFanDirection} setting.
      *
-     * The supported values for this property is exposed via {@link #HVAC_FAN_DIRECTION_AVAILABLE}.
-     * Caller should not call {@link CarPropertyManager#getSupportedValuesList} or
+     * <p>The supported values for this property is exposed via
+     * {@link #HVAC_FAN_DIRECTION_AVAILABLE}. Caller should not call
+     * {@link CarPropertyManager#getSupportedValuesList} or
      * {@link CarPropertyManager#getMinMaxSupportedValue} or
      * {@link AreaIdConfig#getSupportedEnumValues}.
+     *
+     * <p>This property will be supported if {@link #HVAC_FAN_DIRECTION_AVAILABLE} is supported
+     * on the vehicle, and vice versa.
      *
      * <p>Property Config:
      * <ul>
@@ -2314,7 +2319,14 @@ public final class VehiclePropertyIds {
     @RequiresPermission(Car.PERMISSION_CONTROL_CAR_CLIMATE)
     public static final int HVAC_POWER_ON = 354419984;
     /**
-     * Fan Positions Available.
+     * List of supported {@link CarHvacFanDirection} values for the vehicle.
+     *
+     * <p>For each supported area ID, this property provides a list of supported HVAC fan
+     * positions for the {@link #HVAC_FAN_DIRECTION} property (e.g.
+     * {@link CarHvacFanDirection#DEFROST_AND_FLOOR}).
+     *
+     * <p>This property will be supported if {@link #HVAC_FAN_DIRECTION} is supported on the
+     * vehicle, and vice versa.
      *
      * <p>Property Config:
      * <ul>
@@ -6015,10 +6027,13 @@ public final class VehiclePropertyIds {
     public static final int REAR_FOG_LIGHTS_SWITCH = 289410878;
 
     /**
-     * EV charge current draw limit.
+     * The vehicle's selected alternating current (AC) EV charging draw limit in Amperes.
      *
-     * <p>Indicates the maximum current draw threshold for charging set by the user. {@code
-     * configArray[0]} contains the max current draw allowed by the vehicle in Amperes.
+     * <p>This may or may not match the vehicle's maximum possible draw limit. This maximum draw
+     * limit in Amperes is listed in the first entry in its
+     * {@link CarPropertyConfig#getConfigArray()}.
+     *
+     * <p>If property is writable, the user may adjust this value.
      *
      * <p>Property Config:
      * <ul>

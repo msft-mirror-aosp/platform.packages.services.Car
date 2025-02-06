@@ -23,8 +23,12 @@
 #include <aidl/android/hardware/automotive/vehicle/StatusCode.h>
 #include <aidl/android/hardware/automotive/vehicle/SubscribeOptions.h>
 #include <android-base/result.h>
+#include <android-base/strings.h>
+#include <android-base/thread_annotations.h>
 
 #include <VehicleUtils.h>
+
+#include <unordered_set>
 
 namespace android {
 namespace frameworks {
@@ -131,6 +135,10 @@ using VhalClientResult = android::base::Result<T, VhalClientError>;
 using ClientStatusError = android::base::Error<VhalClientError>;
 
 // ISubscriptionCallback is a client that could be used to subscribe/unsubscribe.
+//
+// Before destroying this client instance, client must call unsubscribeAll, otherwise, the
+// subscribed properties will still be subscribed and the callback will be kept alive until
+// the process ends.
 class ISubscriptionClient {
 public:
     virtual ~ISubscriptionClient() = default;
@@ -142,6 +150,8 @@ public:
                     options) = 0;
 
     virtual VhalClientResult<void> unsubscribe(const std::vector<int32_t>& propIds) = 0;
+
+    virtual void unsubscribeAll() = 0;
 };
 
 class SubscribeOptionsBuilder {
@@ -208,14 +218,48 @@ public:
 // IVhalClient is a thread-safe client for AIDL or HIDL VHAL backend.
 class IVhalClient {
 public:
+    [[deprecated("Use create(startThreadPool) instead")]]
+    static std::shared_ptr<IVhalClient> create() {
+        return create(/*startThreadPool=*/true);
+    }
+
     // Wait for VHAL service and create a client. Return nullptr if failed to connect to VHAL.
-    static std::shared_ptr<IVhalClient> create();
+    //
+    // This waits for a certain short time period determined by the system. It is recommended to
+    // use tryCreate if you do not want to block.
+    //
+    // startThreadPool indicates whether the IVhalClient will create a binder thread pool for
+    // receiving callbacks. It is recommended to call ABinderProcess_startThreadPool only once from
+    // the app's main function and then call this method with startThreadPool as false.
+    static std::shared_ptr<IVhalClient> create(bool startThreadPool);
+
+    [[deprecated("Use tryCreate(startThreadPool) instead")]]
+    static std::shared_ptr<IVhalClient> tryCreate() {
+        return tryCreate(/*startThreadPool=*/true);
+    }
 
     // Try to get the VHAL service and create a client. Return nullptr if failed to connect to VHAL.
-    static std::shared_ptr<IVhalClient> tryCreate();
+    //
+    // This function does not block and returns immediately. It is possible that VHAL is still
+    // starting up so the client should typically retry if failed to connect to VHAL.
+    //
+    // startThreadPool indicates whether the IVhalClient will create a binder thread pool for
+    // receiving callbacks. It is recommended to call ABinderProcess_startThreadPool only once from
+    // the app's main function and then call this method with startThreadPool as false.
+    static std::shared_ptr<IVhalClient> tryCreate(bool startThreadPool);
+
+    [[deprecated("Use tryCreateAidlClient(descriptor, startThreadPool) instead")]]
+    static std::shared_ptr<IVhalClient> tryCreateAidlClient(const char* descriptor) {
+        return tryCreateAidlClient(descriptor, /*startThreadPool=*/true);
+    }
 
     // Try to create a client based on the AIDL VHAL service descriptor.
-    static std::shared_ptr<IVhalClient> tryCreateAidlClient(const char* descriptor);
+    //
+    // startThreadPool indicates whether the IVhalClient will create a binder thread pool for
+    // receiving callbacks. It is recommended to call ABinderProcess_startThreadPool only once from
+    // the app's main function and then call this method with startThreadPool as false.
+    static std::shared_ptr<IVhalClient> tryCreateAidlClient(const char* descriptor,
+                                                            bool startThreadPool);
 
     // Try to create a client based on the HIDL VHAL service descriptor.
     static std::shared_ptr<IVhalClient> tryCreateHidlClient(const char* descriptor);
@@ -350,6 +394,36 @@ public:
      */
     virtual int32_t getRemoteInterfaceVersion() { return 0; }
 };
+
+namespace internal {
+
+inline std::string toString(const std::vector<int32_t>& values) {
+    std::vector<std::string> strings;
+    for (int32_t value : values) {
+        strings.push_back(std::to_string(value));
+    }
+    return "[" + android::base::Join(strings, ",") + "]";
+}
+
+// SubscriptionClient is the common base class for Aidl and Hidl Subscription Client.
+class SubscriptionClient : public ISubscriptionClient {
+protected:
+    virtual std::unordered_set<int32_t> getSubscribedPropIds() = 0;
+
+    // This should be called inside subclass's destructor.
+    void verifySubscribedPropIdsEmpty() {
+        const auto& subscribedPropIds = getSubscribedPropIds();
+        if (!subscribedPropIds.empty()) {
+            ALOGW("Properties: %s are still subscribed when the SubscriptionClient is destroyed, "
+                  "they will always be subscribed until the client process ends, do you forget"
+                  " to call unsubscribeAll?",
+                  toString(std::vector<int32_t>(subscribedPropIds.begin(), subscribedPropIds.end()))
+                          .c_str());
+        }
+    }
+};
+
+}  // namespace internal
 
 }  // namespace vhal
 }  // namespace automotive

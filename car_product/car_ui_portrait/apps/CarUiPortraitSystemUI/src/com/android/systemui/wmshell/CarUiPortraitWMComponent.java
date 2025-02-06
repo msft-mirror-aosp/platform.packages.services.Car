@@ -16,6 +16,8 @@
 
 package com.android.systemui.wmshell;
 
+import com.android.systemui.car.wm.scalableui.EventDispatcher;
+import com.android.systemui.car.wm.scalableui.ScalableUIWMInitializer;
 import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.dagger.WMSingleton;
@@ -23,6 +25,8 @@ import com.android.wm.shell.fullscreen.FullscreenTaskListener;
 import com.android.wm.shell.transition.Transitions;
 
 import dagger.Subcomponent;
+
+import java.util.Optional;
 
 /**
  * Dagger Subcomponent for WindowManager.
@@ -61,4 +65,14 @@ public interface CarUiPortraitWMComponent extends CarWMComponent {
      */
     @WMSingleton
     Transitions getTransitions();
+
+    /**
+     * Optional {@link ScalableUIWMInitializer} component for initializing scalable ui
+     */
+    @WMSingleton
+    Optional<ScalableUIWMInitializer> getScalableUIWMInitializer();
+
+    /** Provides the {@link EventDispatcher} used to dispatch ScalableUI events. */
+    @WMSingleton
+    EventDispatcher getScalableUIEventDispatcher();
 }
