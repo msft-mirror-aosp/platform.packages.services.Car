@@ -307,6 +307,30 @@ public final class CarServiceHelperWrapper {
         return INVALID_PID;
     }
 
+    /**
+     * See {@code ICarServiceHelper}.
+     */
+    public boolean requiresDisplayCompat(String packageName, int userId) {
+        try {
+            return waitForCarServiceHelper().requiresDisplayCompat(packageName, userId);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+        return false;
+    }
+
+    /**
+     * See {@code ICarServiceHelper}.
+     */
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        try {
+            waitForCarServiceHelper()
+                  .setAllowedAppInstallSources(allowedAppInstallSources);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+    }
+
     private CarServiceHelperWrapper(long carServiceHelperWaitTimeoutMs) {
         mCarServiceHelperWaitTimeoutMs = carServiceHelperWaitTimeoutMs;
     }

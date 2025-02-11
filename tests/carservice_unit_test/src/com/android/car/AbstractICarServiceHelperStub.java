@@ -143,4 +143,16 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
 
         return INVALID_PID;
     }
+
+    @Override
+    public boolean requiresDisplayCompat(String packageName, int userId) {
+        Log.d(TAG, "requiresDisplayCompat " + packageName + " " + userId);
+
+        return false;
+    }
+
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppinstallSources) {
+        Log.d(TAG, "setAllowedAppInstallSources " + allowedAppinstallSources);
+    }
 }

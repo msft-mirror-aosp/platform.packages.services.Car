@@ -85,9 +85,10 @@ import androidx.lifecycle.ViewModelProvider;
 import com.android.car.carlauncher.CarLauncher;
 import com.android.car.carlauncher.CarLauncherUtils;
 import com.android.car.carlauncher.homescreen.HomeCardModule;
-import com.android.car.carlauncher.homescreen.audio.IntentHandler;
-import com.android.car.carlauncher.homescreen.audio.media.MediaIntentRouter;
+import com.android.car.carlauncher.homescreen.audio.MediaLaunchHandler;
+import com.android.car.carlauncher.homescreen.audio.media.MediaLaunchRouter;
 import com.android.car.carlauncher.taskstack.TaskStackChangeListeners;
+import com.android.car.media.common.source.MediaSource;
 import com.android.car.portraitlauncher.R;
 import com.android.car.portraitlauncher.common.CarUiPortraitServiceManager;
 import com.android.car.portraitlauncher.common.UserEventReceiver;
@@ -182,22 +183,21 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
     private boolean mIsAppGridOnTop;
     private TaskInfoCache mTaskInfoCache;
     private TaskViewPanel mRootTaskViewPanel;
-    private final IntentHandler mMediaIntentHandler = new IntentHandler() {
+    private final MediaLaunchHandler mMediaLaunchHandler = new MediaLaunchHandler() {
         @Override
-        public void handleIntent(Intent intent) {
+        public void handleLaunchMedia(@NonNull MediaSource mediaSource) {
             logIfDebuggable("handleIntent mCurrentTaskInRootTaskView: " + mCurrentTaskInRootTaskView
-                    + ", incoming intent =" + intent);
+                    + ", incoming media source =" + mediaSource);
             if (TaskCategoryManager.isMediaApp(mCurrentTaskInRootTaskView)
                     && mRootTaskViewPanel.isOpen()) {
-                mRootTaskViewPanel.closePanel(createReason(ON_MEDIA_INTENT, intent.getComponent()));
+                Intent intent = mediaSource.getIntent();
+                TaskViewPanelStateChangeReason reason = intent != null
+                        ? createReason(ON_MEDIA_INTENT, intent.getComponent())
+                        : createReason(ON_MEDIA_INTENT, mediaSource.getPackageName());
+                mRootTaskViewPanel.closePanel(reason);
                 return;
             }
-
-            if (intent != null) {
-                ActivityOptions options = ActivityOptions.makeBasic();
-                options.setLaunchDisplayId(getDisplay().getDisplayId());
-                startActivity(intent, options.toBundle());
-            }
+            mediaSource.launchActivity(CarUiPortraitHomeScreen.this, ActivityOptions.makeBasic());
         }
     };
     /**
@@ -476,7 +476,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
         TaskStackChangeListeners.getInstance().registerTaskStackListener(mTaskStackListener);
         mCarUiPortraitDriveStateController = new CarUiPortraitDriveStateController(
                 getApplicationContext());
-        MediaIntentRouter.getInstance().registerMediaIntentHandler(mMediaIntentHandler);
+        MediaLaunchRouter.getInstance().registerMediaLaunchHandler(mMediaLaunchHandler);
 
         if (mTaskViewControllerWrapper == null) {
             boolean useRemoteCarTaskView = getResources().getBoolean(R.bool.use_remoteCarTaskView);

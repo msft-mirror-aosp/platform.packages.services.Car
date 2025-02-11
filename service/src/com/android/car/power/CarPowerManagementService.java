@@ -421,7 +421,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
             mBinderHandler.unlinkToDeath();
         }
         synchronized (mLock) {
-            clearWaitingForCompletion(/*clearQueue=*/false);
+            clearWaitingForCompletion(/* clearQueue= */ false);
             mCurrentState = null;
             mCarPowerPolicyDaemon = null;
             mHandler.cancelAll();
@@ -585,7 +585,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                     && newState.mCarPowerStateListenerState == STATE_PRE_SHUTDOWN_PREPARE) {
                 // Nothing to do here, skipping clearing completion queue
             } else {
-                clearWaitingForCompletion(/*clearQueue=*/false);
+                clearWaitingForCompletion(/* clearQueue= */ false);
             }
 
             mCurrentState = newState;
@@ -803,7 +803,14 @@ public class CarPowerManagementService extends ICarPower.Stub implements
                         mCurrentState = currentState;
                     }
                     if (!areListenersEmpty) {
-                        Slogf.e(TAG, "Received 2nd shutdown request. Waiting for listeners.");
+                      if (garageModeShouldExitImmediately()) {
+                            Slogf.e(TAG, "Received 2nd shutdown request. Waiting for listeners is "
+                                + "not allowed. Clearing listeners.");
+                          clearWaitingForCompletion(/* clearQueue= */ true);
+                      } else {
+                            Slogf.e(TAG, "Received 2nd shutdown request. Waiting for listeners to "
+                                + "complete.");
+                      }
                     } else {
                         // new shutdown prepare request can interrupt completion of shutdown prepare
                         // call handler to complete it - this may result in 2nd call
@@ -1407,7 +1414,7 @@ public class CarPowerManagementService extends ICarPower.Stub implements
     private void doHandleProcessingComplete() {
         int listenerState = CarPowerManager.STATE_SHUTDOWN_ENTER;
         synchronized (mLock) {
-            clearWaitingForCompletion(/*clearQueue=*/false);
+            clearWaitingForCompletion(/* clearQueue= */ false);
             boolean shutdownOnFinish = (mActionOnFinish == ACTION_ON_FINISH_SHUTDOWN);
             if (!shutdownOnFinish && mLastSleepEntryTime > mShutdownStartTime) {
                 // entered sleep after processing start. So this could be duplicate request.

@@ -17,6 +17,7 @@
 package android.car.content.pm;
 
 import static android.car.Car.PERMISSION_CONTROL_APP_BLOCKING;
+import static android.car.Car.PERMISSION_CONTROL_CAR_APP_LAUNCH;
 import static android.car.CarLibLog.TAG_CAR;
 
 import android.Manifest;
@@ -549,6 +550,29 @@ public final class CarPackageManager extends CarManagerBase {
             e.rethrowFromSystemServer();
             return null;
         }
+    }
+
+    /**
+     * @return true if a package requires launching in automotive display compatibility mode.
+     * false otherwise.
+     *
+     * @hide
+     */
+    @AddedInOrBefore(majorVersion = 33)
+    @RequiresPermission(allOf = {PERMISSION_CONTROL_CAR_APP_LAUNCH,
+            android.Manifest.permission.QUERY_ALL_PACKAGES})
+    public boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId)
+            throws NameNotFoundException {
+        try {
+            return mService.requiresDisplayCompat(packageName, userId);
+        } catch (ServiceSpecificException e) {
+            handleServiceSpecificFromCarService(e, packageName, "", userId);
+        } catch (SecurityException e) {
+            throw e;
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
+        return false;
     }
 
     private void handleServiceSpecificFromCarService(ServiceSpecificException e,

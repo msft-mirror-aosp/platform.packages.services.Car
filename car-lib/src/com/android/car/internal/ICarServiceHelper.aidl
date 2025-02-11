@@ -19,6 +19,7 @@ package com.android.car.internal;
 import android.content.ComponentName;
 import android.os.UserHandle;
 
+import java.lang.String;
 import java.util.List;
 
 /**
@@ -106,4 +107,14 @@ interface ICarServiceHelper {
      */
     void setPersistentActivitiesOnRootTask(in List<ComponentName> activity,
         in IBinder rootTaskToken) = 14;
+
+    /**
+     * Returns true if the given package requires launching in automotive compatibility mode.
+     */
+    boolean requiresDisplayCompat(String packageName, int userId) = 15;
+
+    /**
+    * Sets / replaces the list of allowed app install sources
+    */
+    void setAllowedAppInstallSources(in List<String> allowedAppInstallSources) = 16;
 }
