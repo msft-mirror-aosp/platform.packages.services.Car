@@ -103,5 +103,11 @@ interface ICarActivityService {
 
     void setPersistentActivitiesOnRootTask(in List<ComponentName> activities,
         in IBinder launchCookie) = 17;
+
+    boolean isUsingAutoTaskStackWindowing() = 18;
+
+    void onRootTaskVanished(int taskId) = 19;
+
+    void onRootTaskAppeared(int taskId, in RunningTaskInfo taskInfo) = 20;
 }
 

@@ -506,6 +506,21 @@ public final class CarActivityManager extends CarManagerBase {
         }
     }
 
+    /**
+     * Returns the boolean value of config_isAutoTaskStackUsed set in CarService resources.
+     *
+     * @return boolean value of config_isAutoTaskStackUsed.
+     * @hide
+     */
+    public boolean isUsingAutoTaskStackWindowing() {
+        try {
+            return mService.isUsingAutoTaskStackWindowing();
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+            return false;
+        }
+    }
+
     private boolean hasValidToken() {
         boolean valid = mTaskMonitorToken != null;
         if (!valid) {
@@ -513,5 +528,31 @@ public final class CarActivityManager extends CarManagerBase {
                     + new Throwable().getStackTrace()[1].getMethodName());
         }
         return valid;
+    }
+
+    /**
+     * Updates CarService that a rootTask is removed.
+     *
+     * @hide
+     */
+    public void onRootTaskVanished(int taskId) {
+        try {
+            mService.onRootTaskVanished(taskId);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
+    }
+
+    /**
+     * Updates CarService that a rootTask is added.
+     *
+     * @hide
+     */
+    public void onRootTaskAppeared(int taskId, ActivityManager.RunningTaskInfo taskInfo) {
+        try {
+            mService.onRootTaskAppeared(taskId, taskInfo);
+        } catch (RemoteException e) {
+            handleRemoteExceptionFromCarService(e);
+        }
     }
 }

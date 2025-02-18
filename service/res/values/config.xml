@@ -668,4 +668,9 @@
 
     <!-- Controls the use of bluetooth pairing when long pressing the voice assist button in CarInputService. -->
     <bool name="config_enableLongPressBluetoothPairing">true</bool>
+
+    <!-- Auto task stack is the new functionality added as part of the Car-WindowManager-Shell
+         library. SystemUI can use this library for windowing. CarService makes some internal
+         changes if Auto Task Stack is used. Set it to true if Auto Task is used. -->
+    <bool name="config_isUsingAutoTaskStackWindowing">false</bool>
 </resources>

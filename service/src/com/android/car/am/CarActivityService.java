@@ -67,8 +67,8 @@ import com.android.car.CarServiceHelperWrapper;
 import com.android.car.CarServiceUtils;
 import com.android.car.R;
 import com.android.car.SystemActivityMonitoringService;
-import com.android.car.internal.dep.Trace;
 import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -107,6 +107,9 @@ public final class CarActivityService extends ICarActivityService.Stub
     private final SparseArray<SurfaceControl> mTaskToSurfaceMap = new SparseArray<>();
 
     @GuardedBy("mLock")
+    private final SparseArray<ActivityManager.RunningTaskInfo> mRootTaskMap = new SparseArray<>();
+
+    @GuardedBy("mLock")
     private final ArrayMap<IBinder, IBinder.DeathRecipient> mMonitorTokens = new ArrayMap<>();
 
     @GuardedBy("mLock")
@@ -118,6 +121,7 @@ public final class CarActivityService extends ICarActivityService.Stub
     private final RemoteCallbackList<ICarSystemUIProxyCallback> mCarSystemUIProxyCallbacks =
             new RemoteCallbackList<ICarSystemUIProxyCallback>();
 
+    private final boolean mIsUsingAutoTaskStackWindowing;
     private IBinder mCurrentMonitor;
 
     /**
@@ -155,6 +159,13 @@ public final class CarActivityService extends ICarActivityService.Stub
         mContext = context;
         mDisplayManager = context.getSystemService(DisplayManager.class);
         mMirroringTokenTimeoutMs = mirroringTokenTimeout;
+        mIsUsingAutoTaskStackWindowing = context.getResources().getBoolean(
+                R.bool.config_isUsingAutoTaskStackWindowing);
+    }
+
+    @Override
+    public boolean isUsingAutoTaskStackWindowing() {
+        return mIsUsingAutoTaskStackWindowing;
     }
 
     @Override
@@ -384,6 +395,19 @@ public final class CarActivityService extends ICarActivityService.Stub
         Trace.endSection();
     }
 
+    @Override
+    public void onRootTaskVanished(int taskId) {
+        synchronized (mLock) {
+            mRootTaskMap.remove(taskId);
+        }
+    }
+
+    @Override
+    public void onRootTaskAppeared(int taskId, ActivityManager.RunningTaskInfo taskInfo) {
+        synchronized (mLock) {
+            mRootTaskMap.put(taskId, taskInfo);
+        }
+    }
     @Override
     public void unregisterTaskMonitor(IBinder token) {
         if (DBG) Slogf.d(TAG, "unregisterTaskMonitor: %s", token);
@@ -733,8 +757,12 @@ public final class CarActivityService extends ICarActivityService.Stub
      * block the current task with the provided new activity.
      */
     private void handleBlockActivity(TaskInfo currentTask, Intent newActivityIntent) {
+        if (DBG) {
+            Slogf.d(CarLog.TAG_AM, "Blocking activity on: " + currentTask);
+        }
         int displayId = newActivityIntent.getIntExtra(BLOCKING_INTENT_EXTRA_DISPLAY_ID,
                 Display.DEFAULT_DISPLAY);
+
         Trace.beginSection(
                 "CarActivityService-blockTask: " + currentTask.taskId + "-onDisplay: " + displayId);
         if (Slogf.isLoggable(CarLog.TAG_AM, Log.DEBUG)) {
@@ -742,7 +770,20 @@ public final class CarActivityService extends ICarActivityService.Stub
         }
 
         ActivityOptions options = ActivityOptions.makeBasic();
-        options.setLaunchDisplayId(displayId);
+        TaskInfo parentTask;
+        synchronized (mLock) {
+            parentTask = mRootTaskMap.get(TaskInfoHelper.geParentTaskId(currentTask));
+        }
+        if (parentTask != null && mIsUsingAutoTaskStackWindowing) {
+            newActivityIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+            TaskInfoHelper.setLaunchRootTask(options, parentTask);
+            if (DBG) {
+                Slogf.d(CarLog.TAG_AM, "launching ABA on root task: " + parentTask);
+            }
+        } else {
+            options.setLaunchDisplayId(displayId);
+        }
         // Starts ABA as User 0 consistenly since the target apps can be any users (User 0 -
         // UserPicker, Driver/Passegners - general NDO apps) and launching ABA as passengers
         // have some issue (b/294447050).
@@ -790,6 +831,7 @@ public final class CarActivityService extends ICarActivityService.Stub
             }
             writer.println(" Surfaces: " + mTaskToSurfaceMap.toString());
             writer.println(" ActivityListeners: " + mActivityListeners.toString());
+            writer.println(" IsAutoTaskStackUsed: " + mIsUsingAutoTaskStackWindowing);
         }
     }
 

@@ -25,6 +25,7 @@ import android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED
 import android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW
 import android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED
 import android.graphics.Rect
+import android.content.Context
 import android.os.IBinder
 import android.util.Log
 import android.util.Slog
@@ -54,7 +55,9 @@ class AutoTaskStackControllerImpl @Inject constructor(
     @ShellMainThread private val shellMainThread: ShellExecutor,
     val transitions: Transitions,
     val shellInit: ShellInit,
-    val rootTdaOrganizer: RootTaskDisplayAreaOrganizer
+    val rootTdaOrganizer: RootTaskDisplayAreaOrganizer,
+    val context: Context,
+    val taskRepository: TaskRepository
 ) : AutoTaskStackController, Transitions.TransitionHandler {
     override var autoTransitionHandlerDelegate: AutoTaskStackTransitionHandlerDelegate? = null
     override val taskStackStateMap = mutableMapOf<Int, AutoTaskStackState>()
@@ -72,6 +75,8 @@ class AutoTaskStackControllerImpl @Inject constructor(
 
     fun onInit() {
         transitions.addHandler(this)
+        // TODO(b/392757141): Add a listener to get all the tasks instead of modifying the
+        // RootTaskStackListenerAdapter
     }
 
     /** Translates the [AutoTaskStackState] to relevant WM and surface transactions. */
@@ -152,10 +157,12 @@ class AutoTaskStackControllerImpl @Inject constructor(
 
                 rootTaskStack = rootTask
                 rootTaskStackListener.onRootTaskStackCreated(rootTask)
+                taskRepository.onRootTaskStackCreated(rootTask)
                 return
             }
             appTasksMap[taskInfo.taskId] = taskInfo
             rootTaskStackListener.onTaskAppeared(taskInfo, leash)
+            taskRepository.onTaskAppeared(rootTaskStack, taskInfo, leash)
         }
 
         override fun onTaskInfoChanged(taskInfo: ActivityManager.RunningTaskInfo?) {
@@ -180,6 +187,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
 
             appTasksMap[taskInfo.taskId] = taskInfo
             rootTaskStackListener.onTaskInfoChanged(taskInfo)
+            taskRepository.onTaskChanged(rootTaskStack, taskInfo)
         }
 
         override fun onTaskVanished(taskInfo: ActivityManager.RunningTaskInfo?) {
@@ -197,11 +205,13 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 rootTaskStackListener.onRootTaskStackDestroyed(rootTask)
                 taskStackMap.remove(rootTask.id)
                 taskStackStateMap.remove(rootTask.id)
+                taskRepository.onRootTaskStackDestroyed(rootTask)
                 rootTaskStack = null
                 return
             }
             appTasksMap.remove(taskInfo.taskId)
             rootTaskStackListener.onTaskVanished(taskInfo)
+            taskRepository.onTaskVanished(rootTaskStack, taskInfo)
         }
 
         override fun onBackPressedOnTaskRoot(taskInfo: ActivityManager.RunningTaskInfo?) {
