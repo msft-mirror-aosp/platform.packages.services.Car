@@ -254,9 +254,16 @@ protected:
         }
 
         void deleteDeathRecipient(AIBinder_DeathRecipient* recipient) override {
-            if (mDeathRecipient == recipient) {
-                triggerBinderUnlinked();
+            if (mDeathRecipient != recipient) {
+                return;
             }
+            if (mOnBinderDiedOngoing) {
+                // If onBinderDied is ongoing, we do not call unlink until the function
+                // returns.
+                mToUnlink = true;
+                return;
+            }
+            triggerBinderUnlinked();
         }
 
         void setOnUnlinked([[maybe_unused]] AIBinder_DeathRecipient* recipient,
@@ -275,10 +282,21 @@ protected:
             mDeathRecipient = nullptr;
         }
 
+        void triggerBinderDied() { mOnBinderDiedOngoing = true; }
+
+        void endBinderDied() {
+            mOnBinderDiedOngoing = false;
+            if (mToUnlink) {
+                triggerBinderUnlinked();
+            }
+        }
+
     private:
         void* mCookie;
         AIBinder_DeathRecipient_onBinderUnlinked mOnUnlinked;
         AIBinder_DeathRecipient* mDeathRecipient;
+        bool mOnBinderDiedOngoing = false;
+        bool mToUnlink = false;
     };
 
     constexpr static int32_t TEST_PROP_ID = 1;
@@ -296,6 +314,7 @@ protected:
         mLinkUnlinkImpl = impl.get();
         mVhalClient = std::unique_ptr<AidlVhalClient>(
                 new AidlVhalClient(mVhal, TEST_TIMEOUT_IN_MS, std::move(impl)));
+        mVhalClient->linkToDeath();
     }
 
     AidlVhalClient* getClient() { return mVhalClient.get(); }
@@ -303,8 +322,11 @@ protected:
     MockVhal* getVhal() { return mVhal.get(); }
 
     void triggerBinderDied() {
+        // We cannot directly trigger onBinderDied inside mLinkUnlinkImpl because the recipient
+        // implementation is private.
+        mLinkUnlinkImpl->triggerBinderDied();
         AidlVhalClient::onBinderDied(mLinkUnlinkImpl->getCookie());
-        mLinkUnlinkImpl->triggerBinderUnlinked();
+        mLinkUnlinkImpl->endBinderDied();
     }
 
     size_t countOnBinderDiedCallbacks() { return mVhalClient->countOnBinderDiedCallbacks(); }
@@ -792,8 +814,7 @@ TEST_F(AidlVhalClientTest, testAddOnBinderDiedCallback) {
 
     ASSERT_TRUE(result.callbackOneCalled);
     ASSERT_TRUE(result.callbackTwoCalled);
-
-    ASSERT_EQ(countOnBinderDiedCallbacks(), static_cast<size_t>(0));
+    ASSERT_EQ(countOnBinderDiedCallbacks(), static_cast<size_t>(2));
 }
 
 TEST_F(AidlVhalClientTest, testRemoveOnBinderDiedCallback) {
@@ -813,7 +834,7 @@ TEST_F(AidlVhalClientTest, testRemoveOnBinderDiedCallback) {
 
     ASSERT_FALSE(result.callbackOneCalled);
     ASSERT_TRUE(result.callbackTwoCalled);
-    ASSERT_EQ(countOnBinderDiedCallbacks(), static_cast<size_t>(0));
+    ASSERT_EQ(countOnBinderDiedCallbacks(), static_cast<size_t>(1));
 }
 
 TEST_F(AidlVhalClientTest, testGetAllPropConfigs) {
