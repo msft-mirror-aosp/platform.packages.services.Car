@@ -16,6 +16,7 @@
 
 package com.android.wm.shell.automotive;
 
+import android.app.ActivityManager;
 import android.content.Context;
 import android.graphics.Rect;
 import android.util.ArraySet;
@@ -47,21 +48,32 @@ public class AutoDecorManager {
     private final DisplayController mDisplayController;
     private final ArraySet<AutoDecor> mDecors = new ArraySet<>();
     private final RootTaskDisplayAreaOrganizer mRootTaskDisplayAreaOrganizer;
+    private final AutoTaskRepository mAutoTaskRepository;
 
     @Inject
     AutoDecorManager(Context context, DisplayController displayController,
-            RootTaskDisplayAreaOrganizer rootTdaOrganizer) {
+            RootTaskDisplayAreaOrganizer rootTdaOrganizer,
+            AutoTaskRepository autoTaskRepository) {
         mContext = context;
         mDisplayController = displayController;
         mRootTaskDisplayAreaOrganizer = rootTdaOrganizer;
+        mAutoTaskRepository = autoTaskRepository;
     }
 
     /**
      * Creates a new AutoDecor object.
      *
      * @param view          The view associated with the AutoDecor.
-     * @param initialZOrder The Z-order of the AutoDecor.
-     * @param initialBounds The bounds of the AutoDecor.
+     * @param initialZOrder The Z-order of the AutoDecor. If the decor is attached to the
+     *                      display, it would be attached to default task display area and Z
+     *                      layer will be resolved at the default Task display area level. If the
+     *                      decor is attached to the task, then Z layer resolution will happen at
+     *                      the task level.
+     * @param initialBounds The bounds of the AutoDecor. The bounds are relative to the display
+     *                      if the decor is used as global decor and decor is attached to the
+     *                      default task display area. If the decor is attached to the task, then
+     *                      the bounds are related to the task. So bounds are relative to the
+     *                      surface it is being attached.
      * @param decorName     AutoDecor name for debugging and identification
      * @return The newly created AutoDecor object, or null if creation failed.
      */
@@ -69,8 +81,8 @@ public class AutoDecorManager {
     public AutoDecor createAutoDecor(View view, int initialZOrder, Rect initialBounds,
             String decorName) {
 
-        AutoDecor autoDecor = new AutoDecor(mContext, mDisplayController, view, initialZOrder,
-                initialBounds, decorName);
+        AutoDecor autoDecor = new AutoDecor(mContext, mDisplayController, mAutoTaskRepository,
+                 view, initialZOrder, initialBounds, decorName);
         if (DBG) {
             Slogf.d(TAG, "Creating auto decor %s", autoDecor);
         }
@@ -80,7 +92,7 @@ public class AutoDecorManager {
     }
 
     /**
-     * Adds a AutoDecor to the Default Task display Area of the given display.
+     * Adds an AutoDecor to the Default Task display Area of the given display.
      *
      * @param autoDecor The AutoDecor to add.
      * @param displayId display where decor needs to be added.
@@ -92,6 +104,34 @@ public class AutoDecorManager {
             Slogf.d(TAG, "Adding global decor %s to the display %d", autoDecor, displayId);
         }
 
+        validateAutoDecor(autoDecor);
+
+        SurfaceControl parentSurface = mRootTaskDisplayAreaOrganizer.getDisplayAreaLeash(
+                displayId);
+        autoDecor.attachDecorToParentSurface(displayId, parentSurface);
+    }
+
+    /**
+     * Adds an AutoDecor to the specific task.
+     *
+     * <p>The Decor surface is re-parented to the task. No inset is passed to the task.
+     *
+     * @param autoDecor The AutoDecor to add.
+     * @param taskId task where decor needs to be added. The task could be root task.
+     */
+    @ShellMainThread
+    public void attachAutoDecorToTask(AutoDecor autoDecor, int taskId) {
+        if (DBG) {
+            Slogf.d(TAG, "Adding local decor %s to the task %d", autoDecor, taskId);
+        }
+
+        ActivityManager.RunningTaskInfo taskInfo = mAutoTaskRepository.getTaskInfo(taskId);
+        validateAutoDecor(autoDecor);
+
+        autoDecor.attachDecorToTask(taskInfo);
+    }
+
+    private void validateAutoDecor(AutoDecor autoDecor) {
         if (autoDecor == null) {
             throw new IllegalArgumentException("Invalid AutoDecor argument");
         }
@@ -107,10 +147,6 @@ public class AutoDecorManager {
                     "AutoDecor has already been added to Task Display area. To update the "
                             + "AutoDecor, use AutoDecor APIs.");
         }
-
-        SurfaceControl parentSurface = mRootTaskDisplayAreaOrganizer.getDisplayAreaLeash(
-                displayId);
-        autoDecor.attachDecorToParentSurface(displayId, parentSurface);
     }
 
     /**
