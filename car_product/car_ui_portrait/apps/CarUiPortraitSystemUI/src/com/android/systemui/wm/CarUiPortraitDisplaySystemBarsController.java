@@ -233,15 +233,16 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
                 return;
             }
 
-            int[] barVisibilities = BarControlPolicy.getBarVisibilities(mPackageName);
+            int[] barVisibilities;
             //TODO(b/260948168): Check with UX on how to deal with activity resize when changing
             // between STATE_IMMERSIVE_WITHOUT_NAV_BAR and STATE_IMMERSIVE_WITH_NAV_BAR
             if (mImmersiveState == STATE_IMMERSIVE_WITHOUT_NAV_BAR) {
                 barVisibilities = mFullImmersiveVisibilities;
             } else if (mImmersiveState == STATE_IMMERSIVE_WITH_NAV_BAR) {
                 barVisibilities = mImmersiveWithNavBarVisibilities;
-            } else if (barVisibilities == mDefaultVisibilities) {
-                barVisibilities = mDefaultVisibilities;
+            } else {
+                barVisibilities = BarControlPolicy.getBarVisibilities(
+                        mPackageName, mWindowRequestedVisibleTypes);
             }
 
             Slog.d(TAG, "Update barVisibilities to " + mImmersiveState);
