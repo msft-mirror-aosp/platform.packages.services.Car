@@ -48,7 +48,7 @@ import java.util.Set;
  * Manages the task categories for {@link CarUiPortraitHomeScreen}, check which category a task
  * belongs to.
  */
-public class TaskCategoryManager {
+class TaskCategoryManager {
     public static final String TAG = TaskCategoryManager.class.getSimpleName();
     private static final boolean DBG = Build.IS_DEBUGGABLE;
     /** Stub geo data to help query navigation intent. */
