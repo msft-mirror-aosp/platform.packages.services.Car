@@ -25,4 +25,5 @@
     <string name="audio_route_handset" msgid="8283803824498570957">"Simu"</string>
     <string name="back" msgid="2360066808525519279">"Nyuma"</string>
     <string name="fullscreen" msgid="4312009981831027701">"Skrini Nzima"</string>
+    <string name="blank_home_message" msgid="1931676618245482098">"Tafadhali fungua programu"</string>
 </resources>
