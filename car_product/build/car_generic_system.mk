@@ -120,9 +120,9 @@ ifeq ($(USE_HIDL_DISPLAY_SERVICE), true)
 $(warning HIDL version of the Automotive Display Service is deprecated \
           and will be replaced with cardisplayproxyd.)
 PRODUCT_PACKAGES += android.frameworks.automotive.display@1.0-service
-else
-PRODUCT_PACKAGES += cardisplayproxyd
 endif  # USE_HIDL_DISPLAY_SERVICE
+
+PRODUCT_PACKAGES += cardisplayproxyd
 
 PRODUCT_NAME := car_generic_system
 PRODUCT_BRAND := generic
