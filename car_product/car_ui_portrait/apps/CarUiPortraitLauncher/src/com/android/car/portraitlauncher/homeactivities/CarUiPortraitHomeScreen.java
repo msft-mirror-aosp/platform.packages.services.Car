@@ -625,7 +625,7 @@ public final class CarUiPortraitHomeScreen extends FragmentActivity {
                 HomeCardModule cardModule = Class.forName(providerClassName).asSubclass(
                         HomeCardModule.class).getDeclaredConstructor().newInstance();
 
-                cardModule.setViewModelProvider(new ViewModelProvider(/* owner= */ this));
+                cardModule.setViewModelProvider(new ViewModelProvider(/* owner= */ this), this);
                 homeCardModules.add(cardModule);
             } catch (IllegalAccessException | InstantiationException | ClassNotFoundException
                      | InvocationTargetException | NoSuchMethodException e) {
