@@ -60,9 +60,12 @@ public class AutoLayoutManager {
      * Sets safe region for a window container.
      *
      * <p>Calling this API for same window container would update the safe region. If activities
-     * using the safe region are present, they will receive a config change.
+     * using the safe region are present, they will receive a config change. Pass safeRegion null
+     * for resetting the safe region.
      */
     public void setOrUpdateSafeRegion(WindowContainerToken windowContainerToken, Rect safeRegion) {
+        Slogf.i(TAG, "Defining safe region [%s] for WindowContainerToken [%s]",
+                safeRegion, windowContainerToken);
         WindowContainerTransaction wct = new WindowContainerTransaction();
         wct.setSafeRegionBounds(windowContainerToken, safeRegion);
         mShellTaskOrganizer.applyTransaction(wct);
