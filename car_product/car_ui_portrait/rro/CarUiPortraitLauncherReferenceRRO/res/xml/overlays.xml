@@ -21,6 +21,8 @@
     <item target="attr/strokeColor" value="@attr/strokeColor" />
     <item target="attr/strokeWidth" value="@attr/strokeWidth" />
 
+    <item target="bool/config_enableMediaCardFullscreen" value="@bool/config_enableMediaCardFullscreen" />
+
     <item target="color/dialer_button_icon_color" value="@color/dialer_button_icon_color" />
     <item target="color/dialer_icon_tint_state_list" value="@color/dialer_icon_tint_state_list" />
     <item target="color/icon_tint" value="@color/icon_tint" />
