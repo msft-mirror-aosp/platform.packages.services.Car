@@ -16,31 +16,33 @@
 
 package com.android.car.portraitlauncher.controlbar;
 
+import android.content.Context;
+
 import androidx.lifecycle.ViewModelProvider;
 
-import com.android.car.carlauncher.Flags;
 import com.android.car.carlauncher.homescreen.audio.AudioCardModel;
 import com.android.car.carlauncher.homescreen.audio.AudioCardModule;
 import com.android.car.carlauncher.homescreen.audio.AudioCardPresenter;
 import com.android.car.carlauncher.homescreen.audio.dialer.DialerCardPresenter;
 import com.android.car.carlauncher.homescreen.audio.media.MediaCardPresenter;
+import com.android.car.portraitlauncher.R;
 
 public class ControlBarModule extends AudioCardModule {
     @Override
-    public void setViewModelProvider(ViewModelProvider viewModelProvider) {
-        if (Flags.mediaCardFullscreen()) {
+    public void setViewModelProvider(ViewModelProvider viewModelProvider, Context context) {
+        if (context.getResources().getBoolean(R.bool.config_enableMediaCardFullscreen)) {
             if (mViewModelProvider != null) {
                 throw new IllegalStateException("Cannot reset the view model provider");
             }
             mViewModelProvider = viewModelProvider;
 
             mAudioCardPresenter = new AudioCardPresenter(
-                    new DialerCardPresenter(), new MediaCardPresenter());
+                    new DialerCardPresenter(), new MediaCardPresenter(), context);
             mAudioCardPresenter.setModel(new AudioCardModel(mViewModelProvider));
             mAudioCardView = new ControlBarAudioFragment();
             mAudioCardPresenter.setView(mAudioCardView);
         } else {
-            super.setViewModelProvider(viewModelProvider);
+            super.setViewModelProvider(viewModelProvider, context);
         }
     }
 }
