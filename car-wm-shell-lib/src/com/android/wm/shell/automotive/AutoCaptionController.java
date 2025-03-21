@@ -16,6 +16,7 @@
 
 package com.android.wm.shell.automotive;
 
+import android.annotation.NonNull;
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.car.Car;
@@ -34,6 +35,9 @@ import com.android.server.utils.Slogf;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.dagger.WMSingleton;
+
+import java.io.PrintWriter;
+import java.util.Objects;
 
 import javax.inject.Inject;
 
@@ -136,8 +140,14 @@ public class AutoCaptionController {
      * @param autoCaptionBarViewFactory The factory for providing view of the caption bar.
      */
     // TODO(b/398655273): Use builder pattern to avoid confusion in the parameter names.
-    public void setSafeRegionAndCaptionRegion(RootTaskStack rootTaskStack, Rect relativeSafeRegion,
-            Rect relativeCaptionRegion, AutoCaptionBarViewFactory autoCaptionBarViewFactory) {
+    public void setSafeRegionAndCaptionRegion(@NonNull RootTaskStack rootTaskStack,
+            @NonNull Rect relativeSafeRegion, @NonNull Rect relativeCaptionRegion,
+            @NonNull AutoCaptionBarViewFactory autoCaptionBarViewFactory) {
+        Objects.requireNonNull(rootTaskStack);
+        Objects.requireNonNull(relativeSafeRegion);
+        Objects.requireNonNull(relativeCaptionRegion);
+        Objects.requireNonNull(autoCaptionBarViewFactory);
+
         if (mSafeAreaInfoPerRootTask.contains(rootTaskStack.getId())) {
             Slogf.i(TAG,
                     "Root task already have a safe regions. Updating it to new values. safe "
@@ -182,7 +192,9 @@ public class AutoCaptionController {
      *
      * @param rootTaskStack The root task stack.
      */
-    public void removeSafeRegionAndCaptionRegion(RootTaskStack rootTaskStack) {
+    public void removeSafeRegionAndCaptionRegion(@NonNull RootTaskStack rootTaskStack) {
+        Objects.requireNonNull(rootTaskStack);
+
         Slogf.i(TAG, "Removing safe region and caption region for root task stack %d",
                 rootTaskStack.getId());
 
@@ -208,8 +220,13 @@ public class AutoCaptionController {
      * @param autoCaptionBarViewFactory The factory for providing view of the caption bar.
      */
     // TODO(b/398655273): Use builder pattern to avoid confusion in the parameter names.
-    public void setSafeRegionAndCaptionRegion(int displayId, Rect safeRegion, Rect captionRegion,
-            AutoCaptionBarViewFactory autoCaptionBarViewFactory) {
+    public void setSafeRegionAndCaptionRegion(int displayId, @NonNull Rect safeRegion,
+            @NonNull Rect captionRegion,
+            @NonNull AutoCaptionBarViewFactory autoCaptionBarViewFactory) {
+        Objects.requireNonNull(safeRegion);
+        Objects.requireNonNull(captionRegion);
+        Objects.requireNonNull(autoCaptionBarViewFactory);
+
         if (mSafeAreaInfoPerDisplay.contains(displayId)) {
             Slogf.i(TAG, "Display already have a safe regions. Updating it to new values. "
                             + "safe region [%s] and caption region [%s] for display %d", safeRegion,
@@ -412,6 +429,42 @@ public class AutoCaptionController {
         return false;
     }
 
+    void dump(PrintWriter pw, String prefix) {
+        pw.println(prefix + "AutoCaptionController");
+
+        if (mSafeAreaInfoPerRootTask.size() > 0) {
+            pw.println(prefix + "SafeAreaInfoPerRootTask");
+        }
+
+        for (int i = 0; i < mSafeAreaInfoPerRootTask.size(); i++) {
+            int rootTaskId = mSafeAreaInfoPerRootTask.keyAt(i);
+            SafeRegionInfo safeRegionInfo = mSafeAreaInfoPerRootTask.valueAt(i);
+            pw.println(prefix + "Root task id:" + rootTaskId);
+            pw.println(prefix + "SafeRegionInfo:" + safeRegionInfo);
+        }
+
+        if (mSafeAreaInfoPerDisplay.size() > 0) {
+            pw.println(prefix + "SafeAreaInfoPerDisplay");
+        }
+
+        for (int i = 0; i < mSafeAreaInfoPerDisplay.size(); i++) {
+            int displayId = mSafeAreaInfoPerDisplay.keyAt(i);
+            SafeRegionInfo safeRegionInfo = mSafeAreaInfoPerDisplay.valueAt(i);
+            pw.println(prefix + "Display id:" + displayId);
+            pw.println(prefix + "SafeRegionInfo:" + safeRegionInfo);
+        }
+
+        if (mTaskIdToCaptionBar.size() > 0) {
+            pw.println(prefix + "TaskIdToCaptionBar");
+        }
+
+        for (int i = 0; i < mTaskIdToCaptionBar.size(); i++) {
+            int taskId = mTaskIdToCaptionBar.keyAt(i);
+            AutoDecor captionBarDecor = mTaskIdToCaptionBar.valueAt(i);
+            pw.println(prefix + "taskId id:" + taskId);
+            pw.println(prefix + "captionBarDecor:" + captionBarDecor);
+        }
+    }
 
     /**
      * Contains all relevant information for safe area.

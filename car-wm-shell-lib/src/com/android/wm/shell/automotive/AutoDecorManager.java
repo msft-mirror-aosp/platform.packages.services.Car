@@ -16,6 +16,7 @@
 
 package com.android.wm.shell.automotive;
 
+import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.graphics.Rect;
@@ -31,6 +32,7 @@ import com.android.wm.shell.dagger.WMSingleton;
 import com.android.wm.shell.shared.annotations.ShellMainThread;
 
 import java.io.PrintWriter;
+import java.util.Objects;
 
 import javax.inject.Inject;
 
@@ -78,11 +80,21 @@ public class AutoDecorManager {
      * @return The newly created AutoDecor object, or null if creation failed.
      */
     @ShellMainThread
-    public AutoDecor createAutoDecor(View view, int initialZOrder, Rect initialBounds,
+    public AutoDecor createAutoDecor(@NonNull View view, int initialZOrder,
+            @NonNull Rect initialBounds,
             String decorName) {
+        Objects.requireNonNull(view);
+        Objects.requireNonNull(initialBounds);
+
+        if (initialBounds.width() <= 0 || initialBounds.height() <= 0) {
+            Slogf.e(TAG, "initialBounds [%s] are not correct. Can't create AutoDecor",
+                    initialBounds);
+            return null;
+        }
 
         AutoDecor autoDecor = new AutoDecor(mContext, mDisplayController, mAutoTaskRepository,
                  view, initialZOrder, initialBounds, decorName);
+
         if (DBG) {
             Slogf.d(TAG, "Creating auto decor %s", autoDecor);
         }
@@ -98,8 +110,10 @@ public class AutoDecorManager {
      * @param displayId display where decor needs to be added.
      */
     @ShellMainThread
-    public void attachAutoDecorToDisplay(AutoDecor autoDecor,
+    public void attachAutoDecorToDisplay(@NonNull AutoDecor autoDecor,
             int displayId) {
+        Objects.requireNonNull(autoDecor);
+
         if (DBG) {
             Slogf.d(TAG, "Adding global decor %s to the display %d", autoDecor, displayId);
         }
@@ -120,7 +134,9 @@ public class AutoDecorManager {
      * @param taskId task where decor needs to be added. The task could be root task.
      */
     @ShellMainThread
-    public void attachAutoDecorToTask(AutoDecor autoDecor, int taskId) {
+    public void attachAutoDecorToTask(@NonNull AutoDecor autoDecor, int taskId) {
+        Objects.requireNonNull(autoDecor);
+
         if (DBG) {
             Slogf.d(TAG, "Adding local decor %s to the task %d", autoDecor, taskId);
         }
@@ -132,10 +148,6 @@ public class AutoDecorManager {
     }
 
     private void validateAutoDecor(AutoDecor autoDecor) {
-        if (autoDecor == null) {
-            throw new IllegalArgumentException("Invalid AutoDecor argument");
-        }
-
         if (!mDecors.contains(autoDecor)) {
             throw new IllegalArgumentException(
                     "Invalid AutoDecor argument. The Decor has been deleted previously. Create "
@@ -155,7 +167,9 @@ public class AutoDecorManager {
      * @param autoDecor The AutoDecor to remove.
      */
     @ShellMainThread
-    public void removeAutoDecor(AutoDecor autoDecor) {
+    public void removeAutoDecor(@NonNull AutoDecor autoDecor) {
+        Objects.requireNonNull(autoDecor);
+
         if (DBG) {
             Slogf.d(TAG, "Deleting decor %s", autoDecor);
         }
