@@ -21,12 +21,15 @@ import android.os.Handler;
 import android.view.IWindowManager;
 
 import com.android.systemui.car.CarServiceProvider;
+import com.android.systemui.car.wm.AutoCaptionPerDisplayInitializer;
 import com.android.systemui.car.wm.CarFullscreenTaskMonitorListener;
 import com.android.systemui.car.wm.scalableui.ScalableUIWMInitializer;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.wm.CarUiPortraitDisplaySystemBarsController;
 import com.android.systemui.wm.DisplaySystemBarsController;
+import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
+import com.android.wm.shell.automotive.AutoCaptionController;
 import com.android.wm.shell.automotive.AutoShellModule;
 import com.android.wm.shell.automotive.AutoTaskRepository;
 import com.android.wm.shell.common.DisplayController;
@@ -99,5 +102,18 @@ public abstract class CarUiPortraitWMShellModule {
     @Provides
     static Optional<ScalableUIWMInitializer> provideScalableUIInitializer() {
         return Optional.empty();
+    }
+
+    @WMSingleton
+    @Provides
+    static Optional<AutoCaptionPerDisplayInitializer> provideAutoCaptionPerDisplayInitializer(
+            Context context,
+            ShellTaskOrganizer shellTaskOrganizer,
+            AutoCaptionController autoCaptionController,
+            DisplayController displayController,
+            RootTaskDisplayAreaOrganizer rootTaskDisplayAreaOrganizer) {
+        return Optional.of(
+                new AutoCaptionPerDisplayInitializer(context, shellTaskOrganizer,
+                        autoCaptionController, displayController, rootTaskDisplayAreaOrganizer));
     }
 }
