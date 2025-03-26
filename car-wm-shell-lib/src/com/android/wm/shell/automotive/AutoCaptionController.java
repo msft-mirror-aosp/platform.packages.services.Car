@@ -16,7 +16,12 @@
 
 package com.android.wm.shell.automotive;
 
+import android.annotation.SuppressLint;
 import android.app.ActivityManager;
+import android.car.Car;
+import android.car.content.pm.CarPackageManager;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Rect;
 import android.util.Log;
 import android.util.SparseArray;
@@ -39,7 +44,7 @@ import javax.inject.Inject;
  * {@code CarPackageManager#requiresDisplayCompat}.
  */
 @WMSingleton
-public class AutoCaptionController {
+public class AutoCaptionController implements AutoTaskRepository.AutoAppTaskListener {
 
     private static final String TAG = "AutoCaptionController";
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
@@ -54,17 +59,36 @@ public class AutoCaptionController {
     private final SparseArray<SafeRegionInfo> mSafeAreaInfoPerDisplay = new SparseArray<>();
     // To keep the AutoDecor added to the task as caption bar.
     private final SparseArray<AutoDecor> mTaskIdToCaptionBar = new SparseArray<>();
+    private final AutoTaskRepository mAutoTaskRepository;
+
+    private CarPackageManager mCarPackageManager;
+
+    private boolean mIsCarReady = false;
 
     @Inject
-    AutoCaptionController(
-            ShellTaskOrganizer shellTaskOrganizer,
+    AutoCaptionController(Context context,
+            ShellTaskOrganizer shellTaskOrganizer, AutoTaskRepository autoTaskRepository,
             RootTaskDisplayAreaOrganizer rootTaskDisplayAreaOrganizer,
             AutoDecorManager autoDecorManager,
             AutoSurfaceTransactionFactory autoSurfaceTransactionFactory) {
         mShellTaskOrganizer = shellTaskOrganizer;
+        mAutoTaskRepository = autoTaskRepository;
         mRootTaskDisplayAreaOrganizer = rootTaskDisplayAreaOrganizer;
         mAutoDecorManager = autoDecorManager;
         mAutoSurfaceTransactionFactory = autoSurfaceTransactionFactory;
+        autoTaskRepository.addAppTaskListener(this);
+        // TODO((b/401349206): Add a factory or provider for CarService connection.
+        Car.createCar(context, /* handler= */ null, Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT,
+                (car, ready) -> {
+                    if (mIsCarReady) {
+                        return;
+                    }
+                    mIsCarReady = ready;
+                    if (ready) {
+                        mCarPackageManager = (CarPackageManager) car.getCarManager(
+                                Car.PACKAGE_SERVICE);
+                    }
+                });
     }
 
     /**
@@ -174,9 +198,9 @@ public class AutoCaptionController {
      * @param rootTaskStack The root task stack containing the task.
      * @param taskInfo      The running task information.
      */
-    void addCaption(RootTaskStack rootTaskStack, ActivityManager.RunningTaskInfo taskInfo) {
+    void addCaptionBar(RootTaskStack rootTaskStack, ActivityManager.RunningTaskInfo taskInfo) {
         SafeRegionInfo safeRegionInfo = mSafeAreaInfoPerRootTask.get(rootTaskStack.getId());
-        attachCaption(taskInfo, safeRegionInfo);
+        attachCaptionBar(taskInfo, safeRegionInfo);
     }
 
     /**
@@ -185,9 +209,9 @@ public class AutoCaptionController {
      * @param displayId The display ID.
      * @param taskInfo  The running task information.
      */
-    void addCaption(int displayId, ActivityManager.RunningTaskInfo taskInfo) {
+    void addCaptionBar(int displayId, ActivityManager.RunningTaskInfo taskInfo) {
         SafeRegionInfo safeRegionInfo = mSafeAreaInfoPerDisplay.get(displayId);
-        attachCaption(taskInfo, safeRegionInfo);
+        attachCaptionBar(taskInfo, safeRegionInfo);
     }
 
     /**
@@ -196,7 +220,7 @@ public class AutoCaptionController {
      * @param taskInfo     The running task information.
      * @param safeRegionInfo The safe area information containing caption bar details.
      */
-    private void attachCaption(ActivityManager.RunningTaskInfo taskInfo,
+    private void attachCaptionBar(ActivityManager.RunningTaskInfo taskInfo,
             SafeRegionInfo safeRegionInfo) {
         if (safeRegionInfo == null) {
             Slogf.e(TAG, "Safe area is not provided for task %d", taskInfo.taskId);
@@ -232,7 +256,7 @@ public class AutoCaptionController {
      * @param taskInfo The running task information.
      * @param visibility to be updated.
      */
-    void updateCaptionVisibility(ActivityManager.RunningTaskInfo taskInfo, boolean visibility) {
+    void updateCaptionBarVisibility(ActivityManager.RunningTaskInfo taskInfo, boolean visibility) {
         AutoDecor captionDecor = mTaskIdToCaptionBar.get(taskInfo.taskId);
         if (captionDecor != null) {
             AutoSurfaceTransaction autoSurfaceTransaction =
@@ -248,7 +272,7 @@ public class AutoCaptionController {
      *
      * @param taskInfo The running task information.
      */
-    void removeCaption(ActivityManager.RunningTaskInfo taskInfo) {
+    void removeCaptionBar(ActivityManager.RunningTaskInfo taskInfo) {
         AutoDecor captionDecor = mTaskIdToCaptionBar.get(taskInfo.taskId);
         mTaskIdToCaptionBar.remove(taskInfo.taskId);
         if (captionDecor != null) {
@@ -259,6 +283,75 @@ public class AutoCaptionController {
                     taskInfo.taskId, captionDecor);
         }
     }
+    @Override
+    public void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo) {
+        if (taskInfo.parentTaskId != -1) {
+            // task is within a root task
+            handleCaptionBarOnTaskAppeared(
+                    mAutoTaskRepository.getRootTaskStack(taskInfo.parentTaskId), taskInfo);
+            return;
+        }
+
+        handleCaptionBarOnTaskAppeared(taskInfo);
+    }
+
+    @Override
+    public void onTaskChanged(ActivityManager.RunningTaskInfo taskInfo) {
+        handleCaptionBarOnTaskChanged(taskInfo);
+    }
+
+    @Override
+    public void onTaskVanished(ActivityManager.RunningTaskInfo taskInfo) {
+        handleCaptionBarOnTaskVanished(taskInfo);
+    }
+
+    private void handleCaptionBarOnTaskAppeared(RootTaskStack rootTaskStack,
+            ActivityManager.RunningTaskInfo task) {
+        if (requiresCaptionBar(task)) {
+            addCaptionBar(rootTaskStack, task);
+        }
+    }
+
+    private void handleCaptionBarOnTaskAppeared(ActivityManager.RunningTaskInfo task) {
+        if (requiresCaptionBar(task)) {
+            addCaptionBar(task.displayId, task);
+        }
+    }
+
+    private void handleCaptionBarOnTaskChanged(ActivityManager.RunningTaskInfo task) {
+        if (requiresCaptionBar(task)) {
+            updateCaptionBarVisibility(task, /* visibility= */ true);
+        } else {
+            updateCaptionBarVisibility(task, /* visibility= */ false);
+        }
+    }
+
+    private void handleCaptionBarOnTaskVanished(ActivityManager.RunningTaskInfo task) {
+        if (requiresCaptionBar(task)) {
+            removeCaptionBar(task);
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private boolean requiresCaptionBar(ActivityManager.RunningTaskInfo task) {
+        if (!mIsCarReady) {
+            Slogf.i(TAG, "Car Service is not yet connected.");
+            return false;
+        }
+
+        try {
+            if (mCarPackageManager.requiresDisplayCompatForUser(task.topActivity.getPackageName(),
+                    task.userId)) {
+                return true;
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            Slogf.e(TAG, "Package name found. TaskId %d. PackageName: %s", task.taskId,
+                    task.topActivity.getPackageName());
+        }
+        return false;
+    }
+
+
 
     /**
      * Contains all relevant information for safe area.
