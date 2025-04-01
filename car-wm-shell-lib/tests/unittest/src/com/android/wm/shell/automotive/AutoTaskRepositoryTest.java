@@ -100,9 +100,9 @@ public class AutoTaskRepositoryTest {
         mRootTaskStackTask1 = createMockTaskInfo(ROOT_TASK_ID_1);
         mRootTaskStackTask2 = createMockTaskInfo(ROOT_TASK_ID_2);
         mRootTaskStack1 = new RootTaskStack(1, 0, mock(SurfaceControl.class),
-                "testRootTaskStack1", mRootTaskStackTask1);
+                mRootTaskStackTask1);
         mRootTaskStack2 = new RootTaskStack(1, 0, mock(SurfaceControl.class),
-                "testRootTaskStack2", mRootTaskStackTask2);
+                mRootTaskStackTask2);
     }
 
     @After
