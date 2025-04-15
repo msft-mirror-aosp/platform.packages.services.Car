@@ -133,7 +133,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     private final WatchdogProcessHandler mWatchdogProcessHandler;
     private final WatchdogPerfHandler mWatchdogPerfHandler;
     private final CarWatchdogDaemonHelper.OnConnectionChangeListener mConnectionListener;
-    private final Handler mHandler;
+    private final Handler mServiceHandler;
 
     private CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
 
@@ -273,7 +273,8 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             WatchdogPerfHandler watchdogPerfHandler) {
         mContext = context;
         mWatchdogStorage = watchdogStorage;
-        mHandler = handler != null ? handler : new Handler(getHandlerThread(TAG).getLooper());
+        mServiceHandler = handler != null ? handler
+                : new Handler(getHandlerThread(TAG).getLooper());
         mPackageInfoHandler = new PackageInfoHandler(mContext.getPackageManager());
         mCarWatchdogDaemonHelper = new CarWatchdogDaemonHelper(TAG_WATCHDOG);
         mWatchdogServiceForSystem = new ICarWatchdogServiceForSystemImpl(this);
@@ -719,7 +720,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     }
 
     private void postRegisterToDaemonMessage() {
-        mHandler.post(() -> {
+        mServiceHandler.post(() -> {
             synchronized (mLock) {
                 mReadyToRespond = true;
             }
@@ -883,7 +884,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         filter.addAction(ACTION_SHUTDOWN);
 
         mContext.registerReceiverForAllUsers(mBroadcastReceiver, filter,
-                Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG, /* scheduler= */ null,
+                Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG, /* scheduler= */ mServiceHandler,
                 Context.RECEIVER_NOT_EXPORTED);
 
         // The package data scheme applies only for the ACTION_PACKAGE_CHANGED action. So, add a
@@ -894,7 +895,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         packageChangedFilter.addDataScheme("package");
 
         mContext.registerReceiverForAllUsers(mBroadcastReceiver, packageChangedFilter,
-                /* broadcastPermission= */ null, /* scheduler= */ null,
+                /* broadcastPermission= */ null, /* scheduler= */ mServiceHandler,
                 Context.RECEIVER_NOT_EXPORTED);
     }
 
