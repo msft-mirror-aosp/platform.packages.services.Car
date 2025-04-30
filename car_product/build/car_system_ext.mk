@@ -32,7 +32,7 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES_DEBUG += \
     BugReportApp \
 
-ifneq ($(AOSP_CAR_EMULATOR),true)
+ifneq ($(DO_NOT_INCLUDE_DEFAULT_CAR_PROVISION),true)
 PRODUCT_PACKAGES += CarProvision
 endif
 
