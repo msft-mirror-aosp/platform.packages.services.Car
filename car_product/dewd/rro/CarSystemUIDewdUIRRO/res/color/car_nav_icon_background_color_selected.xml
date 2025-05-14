@@ -16,5 +16,5 @@
   -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="?oemColorPrimary"/>
+    <item android:color="@color/car_primary"/>
 </selector>

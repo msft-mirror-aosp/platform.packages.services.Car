@@ -27,16 +27,11 @@ android_app {
     manifest: "AndroidManifest.xml",
     system_ext_specific: true,
     static_libs: [
-        "car-portrait-ui-common",
+        "car-resource-common",
         "car-ui-lib",
-        "oem-token-lib"
-    ],
-    libs: [
-        "token-shared-lib-prebuilt",
     ],
     aaptflags: [
         "--no-resource-deduping",
         "--no-resource-removal",
     ],
-    enforce_uses_libs: false,
 }
