@@ -16,7 +16,7 @@
   -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="?oemColorOnPrimary"  android:state_selected="true"/>
+    <item android:color="@color/car_on_primary"  android:state_selected="true"/>
     <!-- This needs to be onSurface to work with both dark and light theme-->
-    <item android:color="?oemColorOnSurface"/>
+    <item android:color="@color/car_on_surface"/>
 </selector>

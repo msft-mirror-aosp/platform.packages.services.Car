@@ -55,11 +55,6 @@
     <item target="attr/useDefaultAppIconForRole" value="@attr/useDefaultAppIconForRole"/>
     <item target="attr/clearBackStack" value="@attr/clearBackStack"/>
     <item target="attr/toggleSelected" value="@attr/toggleSelected" />
-    <!-- Tokens -->
-    <item target="attr/oemColorSurface" value="@attr/oemColorSurface" />
-    <item target="attr/oemColorOnSurface" value="@attr/oemColorOnSurface" />
-    <item target="attr/oemColorPrimary" value="@attr/oemColorPrimary" />
-    <item target="attr/oemColorOutline" value="@attr/oemColorOutline" />
 
     <item target="bool/config_enableScalableUI" value="@bool/config_enableScalableUI"/>
     <item target="bool/config_enableClearBackStack" value="@bool/config_enableClearBackStack"/>
@@ -116,6 +111,7 @@
 
     <item target="layout/text_toast" value="@layout/text_toast"/>
     <item target="layout/car_bottom_system_bar" value="@layout/car_bottom_system_bar"/>
+    <item target="layout/car_bottom_system_bar_dock" value="@layout/car_bottom_system_bar"/>
     <item target="layout/auth_credential_password_view" value="@layout/auth_credential_password_view" />
     <item target="layout/auth_credential_pattern_view" value="@layout/auth_credential_pattern_view" />
     <item target="layout/auth_credential_pin_view" value="@layout/auth_credential_pin_view" />
