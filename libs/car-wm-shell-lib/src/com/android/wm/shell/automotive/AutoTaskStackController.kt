@@ -18,6 +18,7 @@ package com.android.wm.shell.automotive
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.Rect
 import android.os.Bundle
 import android.os.IBinder
 import android.view.SurfaceControl
@@ -173,6 +174,11 @@ internal sealed class TaskStackOperation {
     data class SetFocusedTaskStack(
         val taskStackId: Int,
     ) : TaskStackOperation()
+
+    data class SetSafeRegionBounds(
+        val taskStackId: Int,
+        val safeRegionBounds: Rect
+    ) : TaskStackOperation()
 }
 
 data class AutoTaskStackTransaction internal constructor(
@@ -220,6 +226,29 @@ data class AutoTaskStackTransaction internal constructor(
             operations[index] = TaskStackOperation.SetTaskStackState(taskStackId, state)
         } else {
             operations.add(TaskStackOperation.SetTaskStackState(taskStackId, state))
+        }
+        return this
+    }
+
+    /**
+     * Adds a set safe region bounds operation to the transaction.
+     *
+     * If an operation with the same task stack ID already exists, it is replaced with the new one.
+     *
+     * @param taskStackId The ID of the task stack.
+     * @param safeRegionBounds The safe region bounds of the task stack.
+     * @return The transaction with the added operation.
+     */
+    fun setSafeRegionBounds(taskStackId: Int, safeRegionBounds: Rect): AutoTaskStackTransaction {
+        val existingOperation = operations.find {
+            it is TaskStackOperation.SetSafeRegionBounds && it.taskStackId == taskStackId
+        }
+        if (existingOperation != null) {
+            val index = operations.indexOf(existingOperation)
+            operations[index] =
+                TaskStackOperation.SetSafeRegionBounds(taskStackId, safeRegionBounds)
+        } else {
+            operations.add(TaskStackOperation.SetSafeRegionBounds(taskStackId, safeRegionBounds))
         }
         return this
     }
