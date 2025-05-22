@@ -21,8 +21,6 @@ import android.app.WindowConfiguration.ACTIVITY_TYPE_ASSISTANT
 import android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS
 import android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD
 import android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED
-import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
-import android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW
 import android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED
 import android.graphics.Rect
 import android.os.Binder
@@ -51,6 +49,7 @@ import com.android.wm.shell.transition.Transitions.TransitionFinishCallback
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -375,9 +374,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         )
         assertThat(wctCaptor.firstValue.hierarchyOps[0].windowingModes).isEqualTo(
             intArrayOf(
-                WINDOWING_MODE_UNDEFINED,
-                WINDOWING_MODE_MULTI_WINDOW,
-                WINDOWING_MODE_FULLSCREEN
+                WINDOWING_MODE_UNDEFINED
             ),
 
         )
@@ -739,7 +736,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         assertThat(delegate.lastTaskStackStates).containsKey(rootTaskInfo3.taskId)
         assertThat(delegate.lastTaskStackStates).containsEntry(
             rootTaskInfo3.taskId,
-            AutoTaskStackState(Rect(), true, 1)
+            AutoTaskStackState(Rect(), true, AutoTaskStackController.UNKNOWN_Z_LAYER)
         )
     }
 
@@ -802,5 +799,18 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             rootTaskInfo3.taskId,
             AutoTaskStackState(Rect(10, 10, 40, 300), true, 900)
         )
+    }
+
+    @Test
+    fun minLayerCheck_AutoTaskStackTransaction() {
+        // Arrange
+        val taskLeash = mock(SurfaceControl::class.java)
+        val (rootTaskInfo, listener) = setupRootTask(taskId = 18, leash = taskLeash)
+        assertThrows(IllegalArgumentException::class.java) {
+            AutoTaskStackTransaction().setTaskStackState(
+                rootTaskInfo.taskId,
+                AutoTaskStackState(Rect(10, 10, 30, 30), true, -1)
+            )
+        }
     }
 }
