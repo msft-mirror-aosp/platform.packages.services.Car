@@ -16,5 +16,6 @@
   -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="@color/car_primary"/>
+    <!-- Use color_primary night color as system bars are not configured for day/night mode -->
+    <item android:color="#91cef5"/>
 </selector>

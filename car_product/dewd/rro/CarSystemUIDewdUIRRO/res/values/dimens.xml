@@ -79,4 +79,8 @@
     <dimen name="safe_bounds_open_top">747px</dimen>
     <dimen name="safe_bounds_close_top">2156px</dimen>
     <dimen name="safe_bounds_close_bottom">2837px</dimen>
+
+    <!-- Rotary dimens -->
+    <dimen name="car_rotary_focus_stroke_width">8dp</dimen>
+    <dimen name="car_rotary_focus_pressed_stroke_width">4dp</dimen>
 </resources>
