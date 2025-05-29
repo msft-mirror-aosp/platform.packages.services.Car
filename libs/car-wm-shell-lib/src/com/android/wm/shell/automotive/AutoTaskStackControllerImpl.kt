@@ -717,4 +717,8 @@ class AutoTaskStackControllerImpl @Inject constructor(
     ) {
         var isClaimed: IBinder? = null
     }
+
+    fun getRootTasks(): List<AutoTaskStack> {
+        return taskStackMap.values.toList()
+    }
 }
