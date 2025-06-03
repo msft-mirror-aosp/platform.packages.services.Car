@@ -29,7 +29,6 @@
 #include <binder/IBinder.h>
 #include <binder/Status.h>
 #include <utils/Looper.h>
-#include <utils/Mutex.h>
 #include <utils/String16.h>
 #include <utils/StrongPointer.h>
 #include <utils/Vector.h>
@@ -122,7 +121,7 @@ public:
     void terminate() EXCLUDES(mMutex);
 
 private:
-    android::Mutex mMutex;
+    std::mutex mMutex;
     CarPowerPolicyServer* mService GUARDED_BY(mMutex);
 };
 
@@ -159,7 +158,7 @@ public:
             const std::string& actionTitle) EXCLUDES(mMutex);
 
 private:
-    android::Mutex mMutex;
+    std::mutex mMutex;
     CarPowerPolicyServer* mService GUARDED_BY(mMutex);
 };
 
@@ -341,7 +340,7 @@ private:
     PowerComponentHandler mComponentHandler;
     PolicyManager mPolicyManager;
     SilentModeHandler mSilentModeHandler;
-    android::Mutex mMutex;
+    std::mutex mMutex;
     CarPowerPolicyMeta mCurrentPowerPolicyMeta GUARDED_BY(mMutex);
     std::string mCurrentPolicyGroupId GUARDED_BY(mMutex);
     std::string mPendingPowerPolicyId GUARDED_BY(mMutex);
