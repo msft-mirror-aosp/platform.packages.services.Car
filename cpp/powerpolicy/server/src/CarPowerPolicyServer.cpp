@@ -189,12 +189,12 @@ CarServiceNotificationHandler::CarServiceNotificationHandler(CarPowerPolicyServe
       mService(service) {}
 
 void CarServiceNotificationHandler::terminate() {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     mService = nullptr;
 }
 
 binder_status_t CarServiceNotificationHandler::dump(int fd, const char** args, uint32_t numArgs) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mService == nullptr) {
         ALOGD("Skip dumping, CarPowerPolicyServer is ending");
         return STATUS_OK;
@@ -203,7 +203,7 @@ binder_status_t CarServiceNotificationHandler::dump(int fd, const char** args, u
 }
 
 ScopedAStatus CarServiceNotificationHandler::notifyCarServiceReady(PolicyState* policyState) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mService == nullptr) {
         ALOGD("Skip notifying CarServiceReady, CarPowerPolicyServer is ending");
         return ScopedAStatus::ok();
@@ -213,7 +213,7 @@ ScopedAStatus CarServiceNotificationHandler::notifyCarServiceReady(PolicyState* 
 
 ScopedAStatus CarServiceNotificationHandler::notifyPowerPolicyChange(const std::string& policyId,
                                                                      bool force) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mService == nullptr) {
         ALOGD("Skip notifying PowerPolicyChange, CarPowerPolicyServer is ending");
         return ScopedAStatus::ok();
@@ -224,7 +224,7 @@ ScopedAStatus CarServiceNotificationHandler::notifyPowerPolicyChange(const std::
 ScopedAStatus CarServiceNotificationHandler::notifyPowerPolicyDefinition(
         const std::string& policyId, const std::vector<std::string>& enabledComponents,
         const std::vector<std::string>& disabledComponents) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mService == nullptr) {
         ALOGD("Skip notifying PowerPolicyDefinition, CarPowerPolicyServer is ending");
         return ScopedAStatus::ok();
@@ -235,12 +235,12 @@ ScopedAStatus CarServiceNotificationHandler::notifyPowerPolicyDefinition(
 CarPowerPolicyDelegate::CarPowerPolicyDelegate(CarPowerPolicyServer* service) : mService(service) {}
 
 void CarPowerPolicyDelegate::terminate() {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     mService = nullptr;
 }
 
 binder_status_t CarPowerPolicyDelegate::dump(int fd, const char** args, uint32_t numArgs) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mService == nullptr) {
         ALOGD("Skip dumping, CarPowerPolicyServer is ending");
         return STATUS_OK;
@@ -269,7 +269,7 @@ ScopedAStatus CarPowerPolicyDelegate::applyPowerPolicyAsync(int32_t requestId,
 }
 
 ScopedAStatus CarPowerPolicyDelegate::setPowerPolicyGroup(const std::string& policyGroupId) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mService == nullptr) {
         ALOGD("Skip setting power policy group, CarPowerPolicyServer is ending");
         return ScopedAStatus::ok();
@@ -321,7 +321,7 @@ ScopedAStatus CarPowerPolicyDelegate::setSilentMode(const std::string& silentMod
 ScopedAStatus CarPowerPolicyDelegate::runWithService(
         const std::function<ScopedAStatus(CarPowerPolicyServer*)>& action,
         const std::string& actionTitle) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mService == nullptr) {
         ALOGD("Skip %s, CarPowerPolicyServer is ending", actionTitle.c_str());
         return ScopedAStatus::ok();
@@ -376,7 +376,7 @@ void CarPowerPolicyServer::setLinkUnlinkImpl(
 }
 
 ScopedAStatus CarPowerPolicyServer::getCurrentPowerPolicy(CarPowerPolicy* aidlReturn) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (!isPowerPolicyAppliedLocked()) {
         return ScopedAStatus::
                 fromServiceSpecificErrorWithMessage(EX_ILLEGAL_STATE,
@@ -409,7 +409,7 @@ ScopedAStatus CarPowerPolicyServer::registerPowerPolicyChangeCallback(
         return ScopedAStatus::fromServiceSpecificErrorWithMessage(EX_ILLEGAL_ARGUMENT,
                                                                   errorMsg.c_str());
     }
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
     uid_t callingUid = IPCThreadState::self()->getCallingUid();
     SpAIBinder binder = callback->asBinder();
@@ -447,7 +447,7 @@ ScopedAStatus CarPowerPolicyServer::registerPowerPolicyChangeCallback(
 
 ScopedAStatus CarPowerPolicyServer::unregisterPowerPolicyChangeCallback(
         const std::shared_ptr<ICarPowerPolicyChangeCallback>& callback) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
     uid_t callingUid = IPCThreadState::self()->getCallingUid();
     if (callback == nullptr) {
@@ -515,7 +515,7 @@ ScopedAStatus CarPowerPolicyServer::notifyCarServiceReady(PolicyState* policySta
         return status;
     }
     mSilentModeHandler.stopMonitoringSilentModeHwState();
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     policyState->policyId =
             isPowerPolicyAppliedLocked() ? mCurrentPowerPolicyMeta.powerPolicy->policyId : "";
     policyState->policyGroupId = mCurrentPolicyGroupId;
@@ -612,7 +612,7 @@ ScopedAStatus CarPowerPolicyServer::applyPowerPolicyPerPowerStateChangeAsync(
     ALOGI("Power policy change for new power state(%s) is requested", powerStateName.c_str());
     std::string currentPolicyGroupId;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         currentPolicyGroupId = mCurrentPolicyGroupId;
     }
     const auto& policy =
@@ -666,7 +666,7 @@ ScopedAStatus CarPowerPolicyServer::applyPowerPolicyAsync(int32_t requestId,
 ScopedAStatus CarPowerPolicyServer::enqueuePowerPolicyRequest(int32_t requestId,
                                                               const std::string& policyId,
                                                               bool force) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (mPolicyRequestById.count(requestId) > 0) {
         return ScopedAStatus::
                 fromServiceSpecificErrorWithMessage(EX_ILLEGAL_ARGUMENT,
@@ -694,7 +694,7 @@ ScopedAStatus CarPowerPolicyServer::notifyCarServiceReadyInternal(
         return ScopedAStatus::fromServiceSpecificErrorWithMessage(EX_ILLEGAL_ARGUMENT,
                                                                   errorMsg.c_str());
     }
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     // Override with the newer callback.
     mPowerPolicyDelegateCallback = callback->asBinder();
     binder_status_t linkStatus =
@@ -711,14 +711,6 @@ ScopedAStatus CarPowerPolicyServer::notifyCarServiceReadyInternal(
     }
 
     aidlReturn->registeredCustomComponents = mPolicyManager.getCustomComponents();
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-        if (isPowerPolicyAppliedLocked()) {
-            aidlReturn->currentPowerPolicy = *mCurrentPowerPolicyMeta.powerPolicy;
-        } else {
-            ALOGW("Current policy is not set, so it's not copied to CPMS");
-        }
-    }
     aidlReturn->currentPowerPolicy = *mCurrentPowerPolicyMeta.powerPolicy;
     aidlReturn->registeredPolicies = mPolicyManager.getRegisteredPolicies();
     ALOGI("CarService registers ICarPowerPolicyDelegateCallback");
@@ -732,7 +724,7 @@ status_t CarPowerPolicyServer::dump(int fd, const char** args, uint32_t numArgs)
     }
 
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         const char* indent = "  ";
         const char* doubleIndent = "    ";
         WriteStringToFd("CAR POWER POLICY DAEMON\n", fd);
@@ -788,7 +780,7 @@ status_t CarPowerPolicyServer::dump(int fd, const char** args, uint32_t numArgs)
 Result<void> CarPowerPolicyServer::init(const sp<Looper>& looper) {
     AIBinder* binderCarService = AServiceManager_checkService(kCarServiceInterface);
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         // Before initializing power policy daemon, we need to update mIsCarServiceInOperation
         // according to whether CPMS is running.
         mIsCarServiceInOperation = binderCarService != nullptr;
@@ -827,7 +819,7 @@ Result<void> CarPowerPolicyServer::init(const sp<Looper>& looper) {
 }
 
 void CarPowerPolicyServer::terminate() {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     mPolicyChangeCallbacks.clear();
     if (mVhalService != nullptr) {
         mSubscriptionClient->unsubscribe(
@@ -866,7 +858,7 @@ void CarPowerPolicyServer::onCarServiceBinderDied(void* cookie) {
 }
 
 void CarPowerPolicyServer::handleClientBinderDeath(const AIBinder* clientId) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     auto it = lookupPowerPolicyChangeCallback(mPolicyChangeCallbacks, clientId);
     if (it != mPolicyChangeCallbacks.end()) {
         ALOGW("Power policy callback(pid: %d) died", it->pid);
@@ -876,13 +868,13 @@ void CarPowerPolicyServer::handleClientBinderDeath(const AIBinder* clientId) {
 }
 
 void CarPowerPolicyServer::handleCarServiceBinderDeath() {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     mPowerPolicyDelegateCallback = nullptr;
 }
 
 void CarPowerPolicyServer::handleVhalDeath() {
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         ALOGW("VHAL has died.");
         mVhalService = nullptr;
     }
@@ -894,7 +886,7 @@ void CarPowerPolicyServer::handleApplyPowerPolicyRequest(const int32_t requestId
     PolicyRequest policyRequest;
     std::shared_ptr<ICarPowerPolicyDelegateCallback> callback;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         if (mPolicyRequestById.count(requestId) == 0) {
             ALOGW("Request ID(%d) for applying power policy is not found", requestId);
             return;
@@ -930,8 +922,7 @@ Result<void> CarPowerPolicyServer::applyPowerPolicy(const std::string& policyId,
     }
 
     std::vector<CallbackInfo> clients;
-    if (std::lock_guard<std::mutex> lock(mMutex);
-        mIsCarServiceInOperation != carServiceInOperation) {
+    if (Mutex::Autolock lock(mMutex); mIsCarServiceInOperation != carServiceInOperation) {
         return Error() << (mIsCarServiceInOperation
                                    ? "After CarService starts serving, power policy cannot be "
                                      "managed in car power policy daemon"
@@ -989,7 +980,7 @@ void CarPowerPolicyServer::applyAndNotifyPowerPolicy(const CarPowerPolicyMeta& p
     std::shared_ptr<ICarPowerPolicyDelegateCallback> callback = nullptr;
     if (car_power_policy_refactoring()) {
         {
-            std::lock_guard<std::mutex> lock(mMutex);
+            Mutex::Autolock lock(mMutex);
             callback = ICarPowerPolicyDelegateCallback::fromBinder(mPowerPolicyDelegateCallback);
         }
         if (callback != nullptr) {
@@ -1026,7 +1017,7 @@ Result<bool> CarPowerPolicyServer::applyPowerPolicyInternal(const std::string& p
     }
     std::vector<CallbackInfo> clients;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         if (!canApplyPowerPolicyLocked(*policyMeta, force, /*out*/ clients)) {
             return false;
         }
@@ -1040,7 +1031,7 @@ Result<void> CarPowerPolicyServer::setPowerPolicyGroupInternal(const std::string
         return Error(EX_ILLEGAL_ARGUMENT)
                 << StringPrintf("Power policy group(%s) is not available", groupId.c_str());
     }
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     if (!car_power_policy_refactoring() && mIsCarServiceInOperation) {
         return Error(EX_ILLEGAL_STATE) << "After CarService starts serving, power policy group "
                                           "cannot be set in car power policy daemon";
@@ -1060,7 +1051,7 @@ void CarPowerPolicyServer::notifySilentModeChange(const bool isSilent) {
 
 void CarPowerPolicyServer::notifySilentModeChangeLegacy(const bool isSilent) {
     std::string pendingPowerPolicyId;
-    if (std::lock_guard<std::mutex> lock(mMutex); mIsCarServiceInOperation) {
+    if (Mutex::Autolock lock(mMutex); mIsCarServiceInOperation) {
         return;
     } else {
         pendingPowerPolicyId = mPendingPowerPolicyId;
@@ -1082,7 +1073,7 @@ void CarPowerPolicyServer::notifySilentModeChangeLegacy(const bool isSilent) {
 void CarPowerPolicyServer::notifySilentModeChangeInternal(const bool isSilent) {
     std::string pendingPowerPolicyId;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         pendingPowerPolicyId = mPendingPowerPolicyId;
     }
     ALOGI("Silent Mode is set to %s", isSilent ? "silent" : "non-silent");
@@ -1113,7 +1104,7 @@ void CarPowerPolicyServer::connectToVhal() {
 // connectToVhalHelper is always executed in the main thread.
 void CarPowerPolicyServer::connectToVhalHelper() {
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         if (mVhalService != nullptr) {
             return;
         }
@@ -1136,7 +1127,7 @@ void CarPowerPolicyServer::connectToVhalHelper() {
             std::make_shared<IVhalClient::OnBinderDiedCallbackFunc>([this] { handleVhalDeath(); }));
     std::string currentPolicyId;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         mVhalService = vhalService;
         mSubscriptionClient = mVhalService->getSubscriptionClient(mPropertyChangeListener);
         if (isPowerPolicyAppliedLocked()) {
@@ -1163,7 +1154,7 @@ void CarPowerPolicyServer::applyInitialPowerPolicy() {
     std::string currentPolicyGroupId;
     CarPowerPolicyPtr powerPolicy;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         if (mIsCarServiceInOperation) {
             ALOGI("Skipping initial power policy application because CarService is running");
             return;
@@ -1210,7 +1201,7 @@ void CarPowerPolicyServer::subscribeToVhal() {
                             if (stringValue.size() > 0) {
                                 const auto& ret = setPowerPolicyGroupInternal(stringValue);
                                 if (ret.ok()) {
-                                    std::lock_guard<std::mutex> lock(mMutex);
+                                    Mutex::Autolock lock(mMutex);
                                     mLastSetDefaultPowerPolicyGroupUptimeMs = value.getTimestamp();
                                 } else {
                                     ALOGW("Failed to set power policy group(%s): %s",
@@ -1228,7 +1219,7 @@ void CarPowerPolicyServer::subscribeToProperty(
     }
     std::shared_ptr<IVhalClient> vhalService;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         if (mVhalService == nullptr) {
             ALOGW("Failed to subscribe to property(%d): VHAL is not ready", prop);
             return;
@@ -1262,7 +1253,7 @@ Result<void> CarPowerPolicyServer::notifyVhalNewPowerPolicy(const std::string& p
     }
     std::shared_ptr<IVhalClient> vhalService;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         if (mVhalService == nullptr) {
             return Error() << "VHAL is not ready";
         }
@@ -1287,7 +1278,7 @@ bool CarPowerPolicyServer::isPropertySupported(const int32_t prop) {
     hidl_vec<int32_t> props = {prop};
     std::shared_ptr<IVhalClient> vhalService;
     {
-        std::lock_guard<std::mutex> lock(mMutex);
+        Mutex::Autolock lock(mMutex);
         if (mVhalService == nullptr) {
             ALOGW("Failed to check if property(%d) is supported: VHAL is not ready", prop);
             return false;
@@ -1309,12 +1300,12 @@ std::string CarPowerPolicyServer::callbackToString(const CallbackInfo& callback)
 }
 
 std::vector<CallbackInfo> CarPowerPolicyServer::getPolicyChangeCallbacks() {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     return mPolicyChangeCallbacks;
 }
 
 size_t CarPowerPolicyServer::countOnClientBinderDiedContexts() {
-    std::lock_guard<std::mutex> lock(mMutex);
+    Mutex::Autolock lock(mMutex);
     return mOnClientBinderDiedContexts.size();
 }
 
