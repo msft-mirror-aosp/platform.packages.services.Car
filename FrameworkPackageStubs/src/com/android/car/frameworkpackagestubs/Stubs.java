@@ -56,7 +56,8 @@ public final class Stubs {
         }
 
         /* No result is expected by default */
-        protected void setResultImp() {}
+        protected void setResultImp() {
+        }
 
         private void showToast() {
             cancelToast();
@@ -74,37 +75,56 @@ public final class Stubs {
     /**
      * Stub activity for Browser events.
      */
-    public static class BrowserStub extends BaseActivity { }
+    public static class BrowserStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for Calendar events.
      */
-    public static class CalendarStub extends BaseActivity { }
+    public static class CalendarStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for Contacts events.
      */
-    public static class ContactsStub extends BaseActivity { }
+    public static class ContactsStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for Desk Clock events.
      */
-    public static class DeskClockStub extends BaseActivity { }
+    public static class DeskClockStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for Dialer events.
      */
-    public static class DialerStub extends BaseActivity { }
+    public static class DialerStub extends BaseActivity {
+    }
+
+    /**
+     * Stub activity for Gallery events.
+     */
+    public static class GalleryStub extends BaseActivity {
+    }
+
+    /**
+     * Stub activity for Launcher events.
+     */
+    public static class LauncherStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for media events.
      */
-    public static class MediaStub extends BaseActivity { }
+    public static class MediaStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for setting events.
      */
-    public static class SettingsStub extends BaseActivity { }
+    public static class SettingsStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for android.settings.MANAGE_UNKNOWN_APP_SOURCES intent. It returns
@@ -126,22 +146,26 @@ public final class Stubs {
     /**
      * Stub activity for ignore background data restriction setting.
      */
-    public static class IgnoreBackgroundDataRestrictionsSettingsStub extends BaseActivity { }
+    public static class IgnoreBackgroundDataRestrictionsSettingsStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for ignore battery optimization setting.
      */
-    public static class IgnoreBatteryOptimizationSettingsStub extends BaseActivity { }
+    public static class IgnoreBatteryOptimizationSettingsStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for request battery optimization.
      */
-    public static class RequestIgnoreBatteryOptimizationsStub extends BaseActivity { }
+    public static class RequestIgnoreBatteryOptimizationsStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for webview setting.
      */
-    public static class WebViewSettingsStub extends BaseActivity { }
+    public static class WebViewSettingsStub extends BaseActivity {
+    }
 
     /**
      * Stub activity for picture in picture settings.
@@ -153,6 +177,14 @@ public final class Stubs {
                 return getResources().getString(R.string.pip_not_supported);
             }
             return super.getMessage();
+        }
+    }
+
+    /** Stub activity for intents to browse files/documents */
+    public static class FileManagerStub extends BaseActivity {
+        @Override
+        protected CharSequence getMessage() {
+            return getResources().getString(R.string.file_manager_not_supported);
         }
     }
 

@@ -30,7 +30,7 @@ import static com.android.car.CarLog.TAG_WATCHDOG;
 import static com.android.car.CarServiceUtils.assertAnyPermission;
 import static com.android.car.CarServiceUtils.assertPermission;
 import static com.android.car.CarServiceUtils.isEventAnyOfTypes;
-import static com.android.car.CarServiceUtils.runOnMain;
+import static com.android.car.CarServiceUtils.getHandlerThread;
 import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.NotificationHelperBase.CAR_WATCHDOG_ACTION_DISMISS_RESOURCE_OVERUSE_NOTIFICATION;
 import static com.android.car.internal.NotificationHelperBase.CAR_WATCHDOG_ACTION_LAUNCH_APP_SETTINGS;
@@ -68,6 +68,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Handler;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.UserHandle;
@@ -132,6 +133,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     private final WatchdogProcessHandler mWatchdogProcessHandler;
     private final WatchdogPerfHandler mWatchdogPerfHandler;
     private final CarWatchdogDaemonHelper.OnConnectionChangeListener mConnectionListener;
+    private final Handler mServiceHandler;
 
     private CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
 
@@ -216,37 +218,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
                 || state == CarPowerManager.STATE_POST_HIBERNATION_ENTER) {
                 return;
             }
-            int powerState = powerService.getPowerState();
-            int powerCycle = carPowerStateToPowerCycle(powerState);
-            if (powerCycle < 0) {
-                return;
-            }
-            Trace.beginSection("CarWatchdogService-powerStateChanged-"
-                    + CarPowerManagementService.powerStateToString(powerState));
-            switch (powerCycle) {
-                case PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE:
-                    // Perform time consuming disk I/O operation during shutdown prepare to avoid
-                    // incomplete I/O.
-                    mWatchdogPerfHandler.writeMetadataFile();
-                    break;
-                case PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER:
-                    // Watchdog service and daemon performs garage mode monitoring so delay writing
-                    // to database until after shutdown enter.
-                    mWatchdogPerfHandler.writeToDatabase();
-                    break;
-                case PowerCycle.POWER_CYCLE_SUSPEND_EXIT:
-                    break;
-                // ON covers resume.
-                case PowerCycle.POWER_CYCLE_RESUME:
-                    // There might be outdated & incorrect info. We should reset them before
-                    // starting to do health check.
-                    mWatchdogProcessHandler.prepareHealthCheck();
-                    break;
-                default:
-                    return;
-            }
-            notifyPowerCycleChange(powerCycle);
-            Trace.endSection();
+            onPowerState(powerService.getPowerState());
         }
     };
 
@@ -283,23 +255,26 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
 
     public CarWatchdogService(Context context, Context carServiceBuiltinPackageContext) {
         this(context, carServiceBuiltinPackageContext,
-                new WatchdogStorage(context, SYSTEM_INSTANCE), SYSTEM_INSTANCE);
+                new WatchdogStorage(context, SYSTEM_INSTANCE), SYSTEM_INSTANCE, /*handler=*/ null);
     }
 
     @VisibleForTesting
     public CarWatchdogService(Context context, Context carServiceBuiltinPackageContext,
-            WatchdogStorage watchdogStorage, TimeSource timeSource) {
+            WatchdogStorage watchdogStorage, TimeSource timeSource, Handler handler) {
         this(context, carServiceBuiltinPackageContext, watchdogStorage,
-                timeSource, /*watchdogProcessHandler=*/ null, /*watchdogPerfHandler=*/ null);
+                timeSource, handler, /*watchdogProcessHandler=*/ null, /*watchdogPerfHandler=*/
+                null);
     }
 
     @VisibleForTesting
     CarWatchdogService(Context context, Context carServiceBuiltinPackageContext,
-            WatchdogStorage watchdogStorage, TimeSource timeSource,
+            WatchdogStorage watchdogStorage, TimeSource timeSource, Handler handler,
             WatchdogProcessHandler watchdogProcessHandler,
             WatchdogPerfHandler watchdogPerfHandler) {
         mContext = context;
         mWatchdogStorage = watchdogStorage;
+        mServiceHandler = handler != null ? handler
+                : new Handler(getHandlerThread(TAG).getLooper());
         mPackageInfoHandler = new PackageInfoHandler(mContext.getPackageManager());
         mCarWatchdogDaemonHelper = new CarWatchdogDaemonHelper(TAG_WATCHDOG);
         mWatchdogServiceForSystem = new ICarWatchdogServiceForSystemImpl(this);
@@ -550,6 +525,54 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     }
 
     /**
+     * Injects power state signals.
+     *
+     * <p>Called by car shell command.
+     *
+     * @param powerState Power state to inject.
+     */
+    public void injectPowerState(int powerState) {
+        assertPermission(mContext, Car.PERMISSION_USE_CAR_WATCHDOG);
+        onPowerState(powerState);
+    }
+
+    /**
+     * Handles power state signals.
+     */
+    private void onPowerState(int powerState) {
+        int powerCycle = carPowerStateToPowerCycle(powerState);
+        if (powerCycle < 0) {
+            return;
+        }
+        Trace.beginSection("CarWatchdogService-powerStateChanged-"
+                + CarPowerManagementService.powerStateToString(powerState));
+        switch (powerCycle) {
+            case PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE:
+                // Perform time consuming disk I/O operation during shutdown prepare to avoid
+                // incomplete I/O.
+                mWatchdogPerfHandler.writeMetadataFile();
+                break;
+            case PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER:
+                // Watchdog service and daemon performs garage mode monitoring so delay writing
+                // to database until after shutdown enter.
+                mWatchdogPerfHandler.writeToDatabase();
+                break;
+            case PowerCycle.POWER_CYCLE_SUSPEND_EXIT:
+                break;
+            // ON covers resume.
+            case PowerCycle.POWER_CYCLE_RESUME:
+                // There might be outdated & incorrect info. We should reset them before
+                // starting to do health check.
+                mWatchdogProcessHandler.prepareHealthCheck();
+                break;
+            default:
+                return;
+        }
+        notifyPowerCycleChange(powerCycle);
+        Trace.endSection();
+    }
+
+    /**
      * Kills a specific package for a user due to resource overuse.
      *
      * @return whether package was killed
@@ -697,7 +720,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     }
 
     private void postRegisterToDaemonMessage() {
-        runOnMain(() -> {
+        mServiceHandler.post(() -> {
             synchronized (mLock) {
                 mReadyToRespond = true;
             }
@@ -861,7 +884,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         filter.addAction(ACTION_SHUTDOWN);
 
         mContext.registerReceiverForAllUsers(mBroadcastReceiver, filter,
-                Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG, /* scheduler= */ null,
+                Car.PERMISSION_CONTROL_CAR_WATCHDOG_CONFIG, /* scheduler= */ mServiceHandler,
                 Context.RECEIVER_NOT_EXPORTED);
 
         // The package data scheme applies only for the ACTION_PACKAGE_CHANGED action. So, add a
@@ -872,7 +895,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
         packageChangedFilter.addDataScheme("package");
 
         mContext.registerReceiverForAllUsers(mBroadcastReceiver, packageChangedFilter,
-                /* broadcastPermission= */ null, /* scheduler= */ null,
+                /* broadcastPermission= */ null, /* scheduler= */ mServiceHandler,
                 Context.RECEIVER_NOT_EXPORTED);
     }
 

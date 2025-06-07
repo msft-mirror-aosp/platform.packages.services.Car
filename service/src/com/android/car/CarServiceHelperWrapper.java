@@ -199,6 +199,28 @@ public final class CarServiceHelperWrapper {
     /**
      * See {@code ICarServiceHelper}.
      */
+    public void onRootTaskAppeared(String name, IBinder rootTaskToken) {
+        try {
+            waitForCarServiceHelper().onRootTaskAppeared(name, rootTaskToken);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+    }
+
+    /**
+     * See {@code ICarServiceHelper}.
+     */
+    public void onRootTaskVanished(String name) {
+        try {
+            waitForCarServiceHelper().onRootTaskVanished(name);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+    }
+
+    /**
+     * See {@code ICarServiceHelper}.
+     */
     public void sendInitialUser(UserHandle user) {
         try {
             waitForCarServiceHelper().sendInitialUser(user);
@@ -320,6 +342,19 @@ public final class CarServiceHelperWrapper {
     public boolean requiresDisplayCompat(String packageName) {
         try {
             return waitForCarServiceHelper().requiresDisplayCompat(packageName);
+        } catch (RemoteException e) {
+            Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
+        }
+        return false;
+    }
+
+    /**
+     * @return true if a package requires launching in automotive compatibility mode for the given
+     * user id.
+     */
+    public boolean requiresDisplayCompatForUser(String packageName, int userId) {
+        try {
+            return waitForCarServiceHelper().requiresDisplayCompatForUser(packageName, userId);
         } catch (RemoteException e) {
             Slogf.e(TAG, REMOTE_EXCEPTION_STR, e);
         }

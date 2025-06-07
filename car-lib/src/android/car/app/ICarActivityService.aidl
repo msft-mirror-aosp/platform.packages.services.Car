@@ -104,8 +104,13 @@ interface ICarActivityService {
     void setPersistentActivitiesOnRootTask(in List<ComponentName> activities,
         in IBinder launchCookie);
 
+    /**
+    * Reports that a Root Task has vanished.
+    */
     void onRootTaskVanished(int taskId);
 
-    void onRootTaskAppeared(int taskId, in RunningTaskInfo taskInfo);
+    /**
+    * Reports that a Root Task is created.
+    */
+    void onRootTaskAppeared(String name, in RunningTaskInfo taskInfo, IBinder rootTaskToken);
 }
-

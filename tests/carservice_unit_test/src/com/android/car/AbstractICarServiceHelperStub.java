@@ -154,4 +154,19 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
     public boolean requiresDisplayCompat(String packageName) {
         return false;
     }
+
+    @Override
+    public boolean requiresDisplayCompatForUser(String packageName, int userId) {
+        return false;
+    }
+
+    @Override
+    public void onRootTaskAppeared(String name, IBinder rootTaskToken) {
+        Log.d(TAG, "onRootTaskAppeared for root task " + name);
+    }
+
+    @Override
+    public void onRootTaskVanished(String name) {
+        Log.d(TAG, "onRootTaskVanished for root task " + name);
+    }
 }

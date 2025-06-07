@@ -24,6 +24,6 @@
     <string name="hvac_panel_header" msgid="1299061170810305529">"אמצעי בקרת נוחות"</string>
     <string name="confirm_pin_title" msgid="8340408103287697843">"מה קוד האימות שלך?"</string>
     <string name="confirm_pattern_title" msgid="601765683212039890">"צריך להזין קו ביטול נעילה"</string>
-    <string name="confirm_password_title" msgid="4719840258132492554">"צריך להזין סיסמה"</string>
+    <string name="confirm_password_title" msgid="4719840258132492554">"צריך להזין את הסיסמה"</string>
     <string name="cancel" msgid="8552804384519299161">"ביטול"</string>
 </resources>

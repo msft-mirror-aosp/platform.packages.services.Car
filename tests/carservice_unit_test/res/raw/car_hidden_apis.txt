@@ -165,7 +165,7 @@ android.car.app CarActivityManager Pair<SurfaceControl,Rect> getMirroredSurface(
 android.car.app CarActivityManager boolean registerTaskMonitor()
 android.car.app CarActivityManager int ERROR_CODE_ACTIVITY_NOT_FOUND
 android.car.app CarActivityManager void onCarDisconnected()
-android.car.app CarActivityManager void onRootTaskAppeared(int taskId, ActivityManager.RunningTaskInfo taskInfo)
+android.car.app CarActivityManager void onRootTaskAppeared(String name, ActivityManager.RunningTaskInfo taskInfo, IBinder rootTaskToken)
 android.car.app CarActivityManager void onRootTaskVanished(int taskId)
 android.car.app CarActivityManager void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo)
 android.car.app CarActivityManager void onTaskAppeared(ActivityManager.RunningTaskInfo taskInfo, SurfaceControl leash)
@@ -265,6 +265,7 @@ android.car.content.pm CarPackageManager String BLOCKING_INTENT_EXTRA_ROOT_ACTIV
 android.car.content.pm CarPackageManager String DRIVING_SAFETY_ACTIVITY_METADATA_REGIONS
 android.car.content.pm CarPackageManager String DRIVING_SAFETY_REGION_ALL
 android.car.content.pm CarPackageManager String getCurrentDrivingSafetyRegion()
+android.car.content.pm CarPackageManager boolean requiresDisplayCompatForUser(String packageName, int userId)
 android.car.content.pm CarPackageManager int ERROR_CODE_NO_PACKAGE
 android.car.content.pm CarPackageManager void controlTemporaryActivityBlockingBypassingAsUser(String packageName, String activityClassName, boolean bypass, int userId)
 android.car.content.pm CarPackageManager void onCarDisconnected()
@@ -498,6 +499,7 @@ android.car.hardware.property VehicleHalStatusCode int STATUS_NOT_AVAILABLE_SPEE
 android.car.hardware.property VehicleHalStatusCode int STATUS_NOT_AVAILABLE_SPEED_LOW
 android.car.hardware.property VehicleHalStatusCode int STATUS_OK
 android.car.hardware.property VehicleHalStatusCode int STATUS_TRY_AGAIN
+android.car.input CarInputManager int INPUT_TYPE_VOICE_ASSIST
 android.car.input CarInputManager void onCarDisconnected()
 android.car.media CarAudioManager String AUDIOFOCUS_EXTRA_REQUEST_ZONE_ID
 android.car.media CarAudioManager boolean clearZoneIdForUid(int uid)

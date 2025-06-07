@@ -28,8 +28,8 @@
     <string name="car_permission_desc_adjust_range_remaining" msgid="2369321650437370673">"Úprava zbývající hodnoty dojezdu auta."</string>
     <string name="car_permission_label_hvac" msgid="1499454192558727843">"přístup k topení, větrání a klimatizaci auta"</string>
     <string name="car_permission_desc_hvac" msgid="3754229695589774195">"Přístup k systému HVAC auta."</string>
-    <string name="car_permission_label_mileage" msgid="4661317074631150551">"přístup k ujetým kilometrům auta"</string>
-    <string name="car_permission_desc_mileage" msgid="7179735693278681090">"Přístup k údajům o spotřebě auta."</string>
+    <string name="car_permission_label_mileage" msgid="4661317074631150551">"přístup k informacím o počtu najetých kilometrů auta"</string>
+    <string name="car_permission_desc_mileage" msgid="7179735693278681090">"Přístup k informacím o počtu najetých kilometrů auta."</string>
     <string name="car_permission_label_speed" msgid="1149027717860529745">"čtení rychlosti auta"</string>
     <string name="car_permission_desc_speed" msgid="2047965198165448241">"Přístup k rychlosti auta."</string>
     <string name="car_permission_label_vehicle_dynamics_state" msgid="313779267420048367">"přístup k dynamickému stavu auta"</string>
