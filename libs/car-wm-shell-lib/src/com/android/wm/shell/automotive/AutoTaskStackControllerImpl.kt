@@ -456,12 +456,23 @@ class AutoTaskStackControllerImpl @Inject constructor(
             }
         }
 
-        if (ast == null || ast.operations.isEmpty()) {
-            return null
-        }
         val wct = WindowContainerTransaction()
+        if (ast == null) {
+            Slog.i(
+                TAG,
+                "A transition ${request.debugId} not being handled by Delegate. " +
+                    "CarWmShell will take control"
+            )
+            ast = AutoTaskStackTransaction()
+            pendingTransitions.add(
+                PendingTransition(request.type, wct, ast, delegateToClient = false)
+                    .apply { isClaimed = transition }
+            )
+            return wct
+        }
+        // When ast.operations is empty, it will trigger the regular flow and transition will be
+        // delegated to the client
         convertToWct(ast, wct)
-
         pendingTransitions.add(
             PendingTransition(request.type, wct, ast).apply { isClaimed = transition }
         )
@@ -597,23 +608,25 @@ class AutoTaskStackControllerImpl @Inject constructor(
             }
         }
 
-        val isPlayedByDelegate = autoTransitionHandlerDelegate?.startAnimation(
-            transition,
-            changedTaskStacks,
-            info,
-            startTransaction,
-            finishTransaction,
-            {
-                shellMainThread.execute {
-                    finishCallback.onTransitionFinished(it)
-                    startNextTransition()
+        if ((pending?.delegateToClient ?: true)) {
+            val isPlayedByDelegate = autoTransitionHandlerDelegate?.startAnimation(
+                transition,
+                changedTaskStacks,
+                info,
+                startTransaction,
+                finishTransaction,
+                {
+                    shellMainThread.execute {
+                        finishCallback.onTransitionFinished(it)
+                        startNextTransition()
+                    }
                 }
-            }
-        ) ?: false
+            ) ?: false
 
-        if (isPlayedByDelegate) {
-            if (DBG) Slog.d(TAG, "${info.debugId} played")
-            return true
+            if (isPlayedByDelegate) {
+                if (DBG) Slog.d(TAG, "${info.debugId} played")
+                return true
+            }
         }
 
         // If for an animation which is not played by the delegate, contains a change in a known
@@ -724,7 +737,17 @@ class AutoTaskStackControllerImpl @Inject constructor(
         mergeTarget: IBinder,
         finishCallback: TransitionFinishCallback
     ) {
+        // If either of the current playing transition or the new one is not to be delegated to
+        // client, skip sending the merge signal.
         val pending: PendingTransition? = findPending(transition)
+        if (!(pending?.delegateToClient ?: true)) {
+            return
+        }
+
+        val pendingMergeTarget: PendingTransition? = findPending(mergeTarget)
+        if (!(pendingMergeTarget?.delegateToClient ?: true)) {
+            return
+        }
 
         autoTransitionHandlerDelegate?.mergeAnimation(
             transition,
@@ -746,6 +769,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
         aborted: Boolean,
         finishTransaction: Transaction?
     ) {
+        if (DBG) Slog.d(TAG, "onTransitionConsumed, aborted=$aborted")
         val pending: PendingTransition? = findPending(transition)
         if (pending != null) {
             pendingTransitions.remove(pending)
@@ -753,6 +777,11 @@ class AutoTaskStackControllerImpl @Inject constructor(
             // Still update the surface order because this means wm didn't lead to any change
             if (finishTransaction != null) {
                 reorderLeashes(finishTransaction)
+            }
+
+            if (!pending.delegateToClient) {
+                if (DBG) Slog.d(TAG, "prevent client delegation")
+                return
             }
         }
         autoTransitionHandlerDelegate?.onTransitionConsumed(
@@ -803,6 +832,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
         @field:WindowManager.TransitionType @param:WindowManager.TransitionType val mType: Int,
         val wct: WindowContainerTransaction,
         val transaction: AutoTaskStackTransaction,
+        val delegateToClient: Boolean = true
     ) {
         var isClaimed: IBinder? = null
     }

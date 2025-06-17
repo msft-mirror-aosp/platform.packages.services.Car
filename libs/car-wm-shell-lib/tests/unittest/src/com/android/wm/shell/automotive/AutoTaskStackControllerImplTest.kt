@@ -106,6 +106,9 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         var lastTaskStackStates: Map<Int, AutoTaskStackState>? = null
         var handleRequestReturn: AutoTaskStackTransaction? = null
         var play = true
+        var startAnimationCalled = false
+        var onTransitionConsumedCalled = false
+        var mergeAnimationCalled = false
 
         override fun handleRequest(
             transition: IBinder,
@@ -122,6 +125,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             finishTransaction: SurfaceControl.Transaction,
             finishCallback: TransitionFinishCallback
         ): Boolean {
+            startAnimationCalled = true
             lastStartTransaction = startTransaction
             lastFinishTransaction = finishTransaction
             lastTaskStackStates = changedTaskStacks
@@ -134,6 +138,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             aborted: Boolean,
             finishTransaction: SurfaceControl.Transaction?
         ) {
+            onTransitionConsumedCalled = true
         }
 
         override fun mergeAnimation(
@@ -144,6 +149,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             mergeTarget: IBinder,
             finishCallback: TransitionFinishCallback
         ) {
+            mergeAnimationCalled = true
         }
     }
 
@@ -376,8 +382,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         assertThat(wctCaptor.firstValue.hierarchyOps[0].windowingModes).isEqualTo(
             intArrayOf(
                 WINDOWING_MODE_UNDEFINED
-            ),
-
+            )
         )
         assertThat(wctCaptor.firstValue.hierarchyOps[0].activityTypes).isEqualTo(
             intArrayOf(
@@ -567,21 +572,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
     }
 
     @Test
-    fun transitionFromCore_delegateReturnsNull_handleRequestReturnsNull() {
-        // Arrange
-        val transition = mock(IBinder::class.java)
-        val request = mock(TransitionRequestInfo::class.java)
-        delegate.handleRequestReturn = null
-
-        // Act
-        val result = controller.handleRequest(transition, request)
-
-        // Assert
-        assertThat(result).isNull()
-    }
-
-    @Test
-    fun transitionFromCore_delegateWithEmptyOperations_handleRequestReturnsNull() {
+    fun transitionFromCore_delegateWithEmptyOperations_handledInternally() {
         // Arrange
         val transition = mock(IBinder::class.java)
         val request = mock(TransitionRequestInfo::class.java)
@@ -591,7 +582,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         val result = controller.handleRequest(transition, request)
 
         // Assert
-        assertThat(result).isNull()
+        assertThat(result).isNotNull()
     }
 
     @Test
@@ -865,6 +856,135 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             rootTaskInfo3.taskId,
             AutoTaskStackState(Rect(), true, AutoTaskStackController.UNKNOWN_Z_LAYER)
         )
+    }
+
+    @Test
+    fun transition_fromCore_notDelegatedToClient_notPlayed_leashesOrdered() {
+        val leash1 = mock(SurfaceControl::class.java)
+        val leash2 = mock(SurfaceControl::class.java)
+        val (rootTask1, _) = setupRootTask(taskId = 101, leash = leash1)
+        setupRootTask(taskId = 102, leash = leash2)
+
+        controller.updateTaskStackStates(mapOf(
+            101 to AutoTaskStackState(Rect(), true, 1),
+            102 to AutoTaskStackState(Rect(), true, 2)
+        ))
+
+        // When the delegate returns null, ATSC should take control and not delegate to client
+        delegate.handleRequestReturn = null
+        delegate.play = false // This shouldn't matter as startAnimation won't be called
+
+        val transition = Binder()
+        val requestInfo = mock(TransitionRequestInfo::class.java)
+        val info = TransitionInfoBuilder(WindowManager.TRANSIT_OPEN)
+            .addChange(
+                TransitionInfo.Change(rootTask1.token, leash1).apply { taskInfo = rootTask1 }
+            )
+            .build()
+
+        val startTransaction = mock(SurfaceControl.Transaction::class.java)
+        val finishTransaction = mock(SurfaceControl.Transaction::class.java)
+        val finishCallback = mock(TransitionFinishCallback::class.java)
+
+        // Act
+        controller.handleRequest(transition, requestInfo)
+        controller.startAnimation(
+            transition,
+            info,
+            startTransaction,
+            finishTransaction,
+            finishCallback
+        )
+
+        // Assert
+        assertThat(delegate.startAnimationCalled).isFalse()
+        // Leashes should still be reordered even if the animation is not delegated
+        verify(startTransaction).setLayer(leash1, 1)
+        verify(startTransaction).setLayer(leash2, 2)
+        verify(finishTransaction).setLayer(leash1, 1)
+        verify(finishTransaction).setLayer(leash2, 2)
+    }
+
+    @Test
+    fun transition_fromCore_notDelegatedToClient_aborted_leashesOrdered() {
+        val leash1 = mock(SurfaceControl::class.java)
+        val leash2 = mock(SurfaceControl::class.java)
+        setupRootTask(taskId = 101, leash = leash1)
+        setupRootTask(taskId = 102, leash = leash2)
+
+        controller.updateTaskStackStates(mapOf(
+            101 to AutoTaskStackState(Rect(), true, 1),
+            102 to AutoTaskStackState(Rect(), true, 2)
+        ))
+
+        delegate.handleRequestReturn = null
+
+        val transition = Binder()
+        val requestInfo = mock(TransitionRequestInfo::class.java)
+        val finishTransaction = mock(SurfaceControl.Transaction::class.java)
+
+        // Act
+        controller.handleRequest(transition, requestInfo)
+        controller.onTransitionConsumed(transition, aborted = true, finishTransaction)
+
+        // Assert
+        assertThat(delegate.onTransitionConsumedCalled).isFalse()
+        verify(finishTransaction).setLayer(leash1, 1)
+        verify(finishTransaction).setLayer(leash2, 2)
+    }
+
+    @Test
+    fun mergeTargetNotDelegatedToClient_mergeSkipped() {
+        val transitionToBeMerged = Binder()
+        val mergeTargetTransition = Binder()
+        val requestInfo = mock(TransitionRequestInfo::class.java)
+
+        // Setup merge target to NOT be delegated to client
+        delegate.handleRequestReturn = null
+        controller.handleRequest(mergeTargetTransition, requestInfo)
+
+        // Setup transition-to-be-merged to be delegated to client
+        delegate.handleRequestReturn = AutoTaskStackTransaction()
+        controller.handleRequest(transitionToBeMerged, requestInfo)
+
+        // Act
+        controller.mergeAnimation(
+            transitionToBeMerged,
+            mock(TransitionInfo::class.java),
+            mock(SurfaceControl.Transaction::class.java),
+            mergeTargetTransition,
+            mock(TransitionFinishCallback::class.java)
+        )
+
+        // Assert
+        assertThat(delegate.mergeAnimationCalled).isFalse()
+    }
+
+    @Test
+    fun transitionToBeMerged_notDelegatedToClient_mergeSkipped() {
+        val transitionToBeMerged = Binder()
+        val mergeTargetTransition = Binder()
+        val requestInfo = mock(TransitionRequestInfo::class.java)
+
+        // Setup transition-to-be-merged to NOT be delegated
+        delegate.handleRequestReturn = null
+        controller.handleRequest(transitionToBeMerged, requestInfo)
+
+        // Setup merge target to BE delegated
+        delegate.handleRequestReturn = AutoTaskStackTransaction()
+        controller.handleRequest(mergeTargetTransition, requestInfo)
+
+        // Act
+        controller.mergeAnimation(
+            transitionToBeMerged,
+            mock(TransitionInfo::class.java),
+            mock(SurfaceControl.Transaction::class.java),
+            mergeTargetTransition,
+            mock(TransitionFinishCallback::class.java)
+        )
+
+        // Assert
+        assertThat(delegate.mergeAnimationCalled).isFalse()
     }
 
     @Test
