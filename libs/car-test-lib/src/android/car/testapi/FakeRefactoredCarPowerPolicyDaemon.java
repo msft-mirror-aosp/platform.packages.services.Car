@@ -192,10 +192,6 @@ public final class FakeRefactoredCarPowerPolicyDaemon extends ICarPowerPolicyDel
     public void applyPowerPolicyAsync(int requestId, String policyId, boolean force)
             throws RemoteException {
         Log.i(TAG, "Fake refactored CPPD is attempting to apply power policy " + policyId);
-        if (mCallback == null) {
-            throw new IllegalStateException("Fake refactored CPPD callback is null, was "
-                    + "notifyCarServiceReady() called?");
-        }
         boolean deferred = isPreemptivePolicy(mCurrentPowerPolicyId)
                 && !isPreemptivePolicy(policyId);
         CarPowerPolicy currentPolicy = mPolicies.get(policyId);
@@ -204,11 +200,18 @@ public final class FakeRefactoredCarPowerPolicyDaemon extends ICarPowerPolicyDel
         }
         mComponentHandler.applyPolicy(currentPolicy);
         CarPowerPolicy accumulatedPolicy = mComponentHandler.getAccumulatedPolicy(policyId);
-        mCallback.updatePowerComponents(accumulatedPolicy);
-        mCallback.onApplyPowerPolicySucceeded(requestId, accumulatedPolicy, deferred);
-        if (!deferred) {
-            mCurrentPowerPolicyId = policyId;
-        }
+        ICarPowerPolicyDelegateCallback callback = getPowerPolicyDelegateCallback();
+        mHandler.post(() -> {
+            try {
+                callback.updatePowerComponents(accumulatedPolicy);
+                callback.onApplyPowerPolicySucceeded(requestId, accumulatedPolicy, deferred);
+                if (!deferred) {
+                    mCurrentPowerPolicyId = policyId;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Cannot call onApplyPowerPolicySucceeded", e);
+            }
+        });
     }
 
     @Override
@@ -218,11 +221,19 @@ public final class FakeRefactoredCarPowerPolicyDaemon extends ICarPowerPolicyDel
         if (policy == null) {
             throw new IllegalArgumentException("No default policy defined for state " + state);
         }
+        ICarPowerPolicyDelegateCallback callback = getPowerPolicyDelegateCallback();
         if (mSilentModeOn) {
-            mPendingPowerPolicyId = policy.policyId;
-            Log.d(TAG, "Silent mode is on, so applying power policy for state " + state
-                    + " is deferred, setting pending power policy to " + mPendingPowerPolicyId);
-            mCallback.onApplyPowerPolicySucceeded(requestId, policy, /* deferred= */ true);
+            mHandler.post(() -> {
+                mPendingPowerPolicyId = policy.policyId;
+
+                Log.d(TAG, "Silent mode is on, so applying power policy for state " + state
+                        + " is deferred, setting pending power policy to " + mPendingPowerPolicyId);
+                try {
+                    callback.onApplyPowerPolicySucceeded(requestId, policy, /* deferred= */ true);
+                } catch (Exception e) {
+                    Log.w(TAG, "Cannot call onApplyPowerPolicySucceeded", e);
+                }
+            });
             return;
         }
         mHandler.post(() -> {
@@ -241,13 +252,16 @@ public final class FakeRefactoredCarPowerPolicyDaemon extends ICarPowerPolicyDel
     private void applyPowerPolicyInternal(String policyId, String errMsg) {
         mComponentHandler.applyPolicy(mPolicies.get(policyId));
         CarPowerPolicy accumulatedPolicy = mComponentHandler.getAccumulatedPolicy(policyId);
-        try {
-            mCallback.onPowerPolicyChanged(accumulatedPolicy);
-            mCallback.updatePowerComponents(accumulatedPolicy);
-            mCurrentPowerPolicyId = policyId;
-        } catch (RemoteException e) {
-            Log.d(TAG, errMsg, e);
-        }
+        mHandler.post(() -> {
+            try {
+                ICarPowerPolicyDelegateCallback callback = getPowerPolicyDelegateCallback();
+                callback.onPowerPolicyChanged(accumulatedPolicy);
+                callback.updatePowerComponents(accumulatedPolicy);
+                mCurrentPowerPolicyId = policyId;
+            } catch (RemoteException e) {
+                Log.d(TAG, errMsg, e);
+            }
+        });
     }
 
     @Override
@@ -339,6 +353,14 @@ public final class FakeRefactoredCarPowerPolicyDaemon extends ICarPowerPolicyDel
     @Override
     public String getInterfaceHash() {
         return ICarPowerPolicyDelegate.HASH;
+    }
+
+    private ICarPowerPolicyDelegateCallback getPowerPolicyDelegateCallback() {
+        if (mCallback == null) {
+            throw new IllegalStateException("Fake refactored CPPD callback is null, was "
+                    + "notifyCarServiceReady() called?");
+        }
+        return mCallback;
     }
 
     private boolean isPreemptivePolicy(String policyId) {
