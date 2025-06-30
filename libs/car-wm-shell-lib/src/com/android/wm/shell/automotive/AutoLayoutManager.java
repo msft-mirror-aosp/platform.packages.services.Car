@@ -216,4 +216,8 @@ public class AutoLayoutManager {
 
         }
     }
+
+    ArraySet<InsetsFrameProvider> getInsets(int rootTaskStackId) {
+        return mTaskIdToInsetFrameProviderMap.get(rootTaskStackId);
+    }
 }
