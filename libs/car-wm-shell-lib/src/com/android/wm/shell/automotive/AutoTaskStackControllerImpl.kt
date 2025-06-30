@@ -210,7 +210,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
                         previousRootTaskStackInfo.copy(rootTaskInfo = taskInfo)
                     taskStackMap[previousRootTaskStackInfo.id] = previousRootTaskStackInfo
                     rootTaskStack = previousRootTaskStackInfo
-                    rootTaskStackListener.onRootTaskStackInfoChanged(it)
+                    rootTaskStackListener.onRootTaskStackInfoChanged(rootTaskStack!!)
                     return
                 }
             }
