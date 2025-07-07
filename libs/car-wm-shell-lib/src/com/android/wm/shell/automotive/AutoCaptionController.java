@@ -404,9 +404,7 @@ public class AutoCaptionController {
     }
 
     private void handleCaptionBarOnTaskVanished(ActivityManager.RunningTaskInfo task) {
-        if (requiresCaptionBar(task)) {
-            removeCaptionBar(task);
-        }
+        removeCaptionBar(task);
     }
 
     @SuppressLint("MissingPermission")
