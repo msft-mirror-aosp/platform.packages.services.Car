@@ -45,7 +45,6 @@ import com.android.wm.shell.automotive.utility.TestRunningTaskInfoBuilder
 import com.android.wm.shell.automotive.utility.TestShellExecutor
 import com.android.wm.shell.automotive.utility.TransitionInfoBuilder
 import com.android.wm.shell.common.ShellExecutor
-import com.android.wm.shell.sysui.ShellInit
 import com.android.wm.shell.transition.Transitions
 import com.android.wm.shell.transition.Transitions.TransitionFinishCallback
 import com.google.common.truth.Truth.assertThat
@@ -79,9 +78,6 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
 
     @Mock
     lateinit var transitions: Transitions
-
-    @Mock
-    lateinit var shellInit: ShellInit
 
     @Mock
     lateinit var rootTdaOrganizer: RootTaskDisplayAreaOrganizer
@@ -205,13 +201,12 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             taskOrganizer,
             shellMainThread,
             transitions,
-            shellInit,
             rootTdaOrganizer,
             context,
             mAutoTaskRepository,
             mAutoWmShellCommandHandler
         )
-        controller.onInit()
+        controller.initialize()
         mMainThreadHandler = Handler(Looper.getMainLooper())
 
         controller.autoTransitionHandlerDelegate = delegate
