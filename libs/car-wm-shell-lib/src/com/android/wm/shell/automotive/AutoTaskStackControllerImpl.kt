@@ -34,6 +34,7 @@ import android.view.SurfaceControl
 import android.view.SurfaceControl.Transaction
 import android.view.WindowManager
 import android.view.WindowManager.TRANSIT_CHANGE
+import android.window.TaskOrganizer
 import android.window.TransitionInfo
 import android.window.TransitionRequestInfo
 import android.window.WindowContainerTransaction
@@ -333,13 +334,13 @@ class AutoTaskStackControllerImpl @Inject constructor(
         listener: RootTaskStackListener
     ) {
         shellMainThread.execute {
-            // TODO(b/400484573): Add name capability to the root task stack in core.
             taskOrganizer.createRootTask(
-                displayId,
-                WINDOWING_MODE_MULTI_WINDOW,
+                TaskOrganizer.CreateRootTaskRequest()
+                    .setName(name)
+                    .setDisplayId(displayId)
+                    .setWindowingMode(WINDOWING_MODE_MULTI_WINDOW)
+                    .setRemoveWithTaskOrganizer(true),
                 RootTaskStackListenerAdapter(listener, name),
-                /* removeWithTaskOrganizer= */
-                true
             )
         }
     }
