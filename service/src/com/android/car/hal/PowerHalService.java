@@ -897,7 +897,7 @@ public class PowerHalService extends HalServiceBase {
                         if (mPerDisplayBrightnessSupported) {
                             Slogf.w(CarLog.TAG_POWER, "Received DISPLAY_BRIGHTNESS "
                                     + "while PER_DISPLAY_BRIGHTNESS is supported, ignore");
-                            return;
+                            break;
                         }
                         maxBrightness = mMaxDisplayBrightness;
                     }
@@ -923,7 +923,7 @@ public class PowerHalService extends HalServiceBase {
                         synchronized (mLock) {
                             if (hasRecentlySetBrightnessChangeLocked(brightness,
                                     getDisplayPort(Display.DEFAULT_DISPLAY))) {
-                                return;
+                                break;
                             }
                         }
 
@@ -952,7 +952,7 @@ public class PowerHalService extends HalServiceBase {
                     // caused by that change and is duplicate. Ignore to prevent loop.
                     synchronized (mLock) {
                         if (hasRecentlySetBrightnessChangeLocked(brightness, displayPort)) {
-                            return;
+                            break;
                         }
                     }
 
