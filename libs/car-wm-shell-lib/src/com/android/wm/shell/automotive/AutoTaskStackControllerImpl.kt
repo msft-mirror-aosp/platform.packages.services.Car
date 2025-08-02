@@ -22,11 +22,11 @@ import android.app.WindowConfiguration.ACTIVITY_TYPE_ASSISTANT
 import android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS
 import android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD
 import android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED
-import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
 import android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW
 import android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED
-import android.graphics.Rect
 import android.content.Context
+import android.content.Intent
+import android.graphics.Rect
 import android.os.IBinder
 import android.util.Log
 import android.util.Slog
@@ -89,6 +89,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
     }
 
     /** Translates the [AutoTaskStackState] to relevant WM and surface transactions. */
+    // TODO(b/421471212): Move it to a separate class.
     inner class TaskStackStateTranslator {
         // TODO(b/384946072): Move to an interface with 2 implementations, one for root task and
         //  other for TDA
@@ -103,6 +104,21 @@ class AutoTaskStackControllerImpl @Inject constructor(
             }
             wct.setBounds(taskStack.rootTaskInfo.token, state.bounds)
             wct.reorder(taskStack.rootTaskInfo.token, state.childrenTasksVisible)
+        }
+
+        fun applyVisibility(
+            wct: WindowContainerTransaction,
+            taskStack: AutoTaskStack,
+        ) {
+            if (taskStack !is RootTaskStack) {
+                Slog.e(TAG, "Unsupported task stack, unable to convertToWct")
+                return
+            }
+            wct.reorder(
+                taskStack.rootTaskInfo.token,
+                /* onTop = */
+                true
+            )
         }
 
         fun reorderLeash(
@@ -139,6 +155,21 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 rootTdaOrganizer.getDisplayAreaLeash(taskStack.displayId)
             )
         }
+
+        fun setSafeRegionBounds(
+            wct: WindowContainerTransaction,
+            taskStack: AutoTaskStack,
+            safeRegionBounds: Rect
+        ) {
+            if (taskStack !is RootTaskStack) {
+                Slog.e(TAG, "Unsupported task stack, unable to convertToWct")
+                return
+            }
+            if (DBG) {
+                Slog.d(TAG, "Setting safe region bounds $safeRegionBounds on ${taskStack.id}")
+            }
+            wct.setSafeRegionBounds(taskStack.rootTaskInfo.token, safeRegionBounds)
+        }
     }
 
     inner class RootTaskStackListenerAdapter(
@@ -168,6 +199,10 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 rootTaskStack = rootTask
                 autoTaskRepository.onRootTaskStackCreated(rootTask)
                 rootTaskStackListener.onRootTaskStackCreated(rootTask)
+                taskOrganizer.setInterceptBackPressedOnTaskRoot(
+                    rootTaskStack!!.rootTaskInfo.token,
+                    true
+                )
                 return
             }
             appTasksMap[taskInfo.taskId] = taskInfo
@@ -190,7 +225,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
                         previousRootTaskStackInfo.copy(rootTaskInfo = taskInfo)
                     taskStackMap[previousRootTaskStackInfo.id] = previousRootTaskStackInfo
                     rootTaskStack = previousRootTaskStackInfo
-                    rootTaskStackListener.onRootTaskStackInfoChanged(it)
+                    rootTaskStackListener.onRootTaskStackInfoChanged(rootTaskStack!!)
                     return
                 }
             }
@@ -230,6 +265,15 @@ class AutoTaskStackControllerImpl @Inject constructor(
             }
             super.onBackPressedOnTaskRoot(taskInfo)
             rootTaskStackListener.onBackPressedOnTaskRoot(taskInfo)
+
+            // Handle back event and close the task.
+            val taskId = taskInfo.taskId
+            Slog.i(TAG, "Received onBackPressedOnTaskRoot, closing the task: " + taskInfo.taskId)
+            try {
+                ActivityManager.getService().removeTask(taskId)
+            } catch (e: Exception) {
+                Slog.e(TAG, "Failed to remove task$taskId. Exception: " + e)
+            }
         }
 
         override fun attachChildSurfaceToTask(taskId: Int, b: SurfaceControl.Builder) {
@@ -337,14 +381,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
                     }
                     wct.setLaunchRoot(
                         taskStack.rootTaskInfo.token,
-                        intArrayOf(
-                            WINDOWING_MODE_UNDEFINED,
-                            WINDOWING_MODE_MULTI_WINDOW,
-                            // This is required. Tasks will be reparent to default
-                            // TDA when back event in injected in the root task. Without this flag, the
-                            // same app/task may open in TDA instead of root task.
-                            WINDOWING_MODE_FULLSCREEN
-                        ),
+                        intArrayOf(WINDOWING_MODE_UNDEFINED),
                         intArrayOf(
                             ACTIVITY_TYPE_STANDARD,
                             ACTIVITY_TYPE_UNDEFINED,
@@ -392,15 +429,15 @@ class AutoTaskStackControllerImpl @Inject constructor(
             Slog.d(
                 TAG,
                 "handle request, id=${request.debugId}, type=${request.type}, " +
-                        "triggertask = ${request.triggerTask?.let { toStringTaskInfo(it) }}"
+                        "triggertask = ${request.triggerTask?.toShortString()}"
             )
         }
         var ast = autoTransitionHandlerDelegate?.handleRequest(transition, request)
         val action = request.triggerTask?.baseIntent?.action
         val category = request.triggerTask?.baseIntent?.categories
 
-        if (action?.equals("android.intent.action.MAIN") == true &&
-            category?.contains("android.intent.category.HOME") == true &&
+        if (action?.equals(Intent.ACTION_MAIN) == true &&
+            category?.contains(Intent.CATEGORY_HOME) == true &&
             TransitionUtil.isOpeningType(request.type)
         ) {
             Slog.i(
@@ -419,30 +456,41 @@ class AutoTaskStackControllerImpl @Inject constructor(
             }
         }
 
-        if (ast == null || ast.operations.isEmpty()) {
-            return null
-        }
         val wct = WindowContainerTransaction()
+        if (ast == null) {
+            Slog.i(
+                TAG,
+                "A transition ${request.debugId} not being handled by Delegate. " +
+                    "CarWmShell will take control"
+            )
+            ast = AutoTaskStackTransaction()
+            pendingTransitions.add(
+                PendingTransition(request.type, wct, ast, delegateToClient = false)
+                    .apply { isClaimed = transition }
+            )
+            return wct
+        }
+        // When ast.operations is empty, it will trigger the regular flow and transition will be
+        // delegated to the client
         convertToWct(ast, wct)
-
         pendingTransitions.add(
             PendingTransition(request.type, wct, ast).apply { isClaimed = transition }
         )
         return wct
     }
 
-    private fun toStringTaskInfo(task: ActivityManager.RunningTaskInfo): String {
+    fun ActivityManager.RunningTaskInfo.toShortString(): String {
         return "TaskInfo{" +
-                "taskId=" + task.taskId +
-                " userId=" + task.userId +
-                " displayId=" + task.displayId +
-                " isFocused=" + task.isFocused +
-                " isVisible=" + task.isVisible +
-                " isRunning=" + task.isRunning +
-                " isSleeping=" + task.isSleeping +
-                " topActivity=" + task.topActivity +
-                " baseIntent=" + task.baseIntent +
-                " baseActivity=" + task.baseActivity +
+                "taskId=" + this.taskId +
+                " userId=" + this.userId +
+                " displayId=" + this.displayId +
+                " isFocused=" + this.isFocused +
+                " isVisible=" + this.isVisible +
+                " isRunning=" + this.isRunning +
+                " isSleeping=" + this.isSleeping +
+                " topActivity=" + this.topActivity +
+                " baseIntent=" + this.baseIntent +
+                " baseActivity=" + this.baseActivity +
                 "}"
     }
 
@@ -470,10 +518,18 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 continue
             }
 
+            // Here want to reconcile those panels which are becoming visible and was not
+            // visible in original request.
+
+            // Check for the change request if the change is for being visible. If not, ignore the
+            // change
             if (!TransitionUtil.isOpeningMode(chg.mode)) {
                 if (DBG) Slog.v(TAG, "${taskInfo.taskId} is not opening type")
                 continue
             }
+
+            // Check if the change was visible in original request, if it is, then there is no
+            // conflict.
             if (requestedTaskStackChanges[taskInfo.parentTaskId] != null &&
                 requestedTaskStackChanges[taskInfo.parentTaskId]!!.childrenTasksVisible
             ) {
@@ -486,14 +542,16 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 }
                 continue
             }
+
+            //  If the change was not visible in original request, but visible in change list,
+            //  it is a conflict, reconcile the unknown changes.
             if (DBG) {
                 Slog.v(TAG, "${taskInfo.taskId} found conflicting task change")
             }
             val taskStackLayer = (_taskStackStateMap[taskInfo.parentTaskId]
                 ?: requestedTaskStackChanges[taskInfo.parentTaskId])
-                ?.layer ?: 1
-            // Use a fixed layer 1 when state is unknown. This is just a placeholder and clients
-            // should anyway see this as a conflict and fire a new transition with the correct layer
+                ?.layer ?: AutoTaskStackController.UNKNOWN_Z_LAYER
+
             changedTaskStacks[taskInfo.parentTaskId] = AutoTaskStackState(
                 bounds = (_taskStackStateMap[taskInfo.parentTaskId]
                     ?: requestedTaskStackChanges[taskInfo.parentTaskId])?.bounds ?: Rect(),
@@ -550,35 +608,27 @@ class AutoTaskStackControllerImpl @Inject constructor(
             }
         }
 
-        val isPlayedByDelegate = autoTransitionHandlerDelegate?.startAnimation(
-            transition,
-            changedTaskStacks,
-            info,
-            startTransaction,
-            finishTransaction,
-            {
-                shellMainThread.execute {
-                    finishCallback.onTransitionFinished(it)
-                    startNextTransition()
+        if ((pending?.delegateToClient ?: true)) {
+            val isPlayedByDelegate = autoTransitionHandlerDelegate?.startAnimation(
+                transition,
+                changedTaskStacks,
+                info,
+                startTransaction,
+                finishTransaction,
+                {
+                    shellMainThread.execute {
+                        finishCallback.onTransitionFinished(it)
+                        startNextTransition()
+                    }
                 }
+            ) ?: false
+
+            if (isPlayedByDelegate) {
+                if (DBG) Slog.d(TAG, "${info.debugId} played")
+                return true
             }
-        ) ?: false
-
-        if (isPlayedByDelegate) {
-            if (DBG) Slog.d(TAG, "${info.debugId} played")
-            return true
         }
 
-        // If for an animation which is not played by the delegate, contains a change in a known
-        // task stack, it should be leveraged to correct the leashes. So, handle the animation in
-        // this case.
-        if (info.changes.any { taskStackMap.containsKey(it.taskInfo?.taskId) }) {
-            startTransaction.apply()
-            finishCallback.onTransitionFinished(null)
-            startNextTransition()
-            if (DBG) Slog.d(TAG, "${info.debugId} played")
-            return true
-        }
         return false
     }
 
@@ -632,6 +682,40 @@ class AutoTaskStackControllerImpl @Inject constructor(
                                     "not found."
                         )
                 }
+
+                is TaskStackOperation.SetFocusedTaskStack -> {
+                    // Do nothing here. Focus needs to be set in the last.
+                }
+
+                is TaskStackOperation.SetSafeRegionBounds -> {
+                    taskStackMap[operation.taskStackId]?.let { taskStack ->
+                        mTaskStackStateTranslator.setSafeRegionBounds(
+                            wct,
+                            taskStack,
+                            operation.safeRegionBounds
+                        )
+                    }
+                        ?: Slog.w(
+                            TAG, "AutoTaskStack with id ${operation.taskStackId} " +
+                                    "not found."
+                        )
+                }
+            }
+        }
+
+        // process focus task in the end so that it would get the focus.
+        ast.operations.forEach { operation ->
+            if (operation is TaskStackOperation.SetFocusedTaskStack) {
+                taskStackMap[operation.taskStackId]?.let { taskStack ->
+                    mTaskStackStateTranslator.applyVisibility(
+                        wct,
+                        taskStack,
+                    )
+                }
+                    ?: Slog.w(
+                        TAG, "AutoTaskStack with id ${operation.taskStackId} " +
+                                "not found."
+                    )
             }
         }
     }
@@ -643,7 +727,17 @@ class AutoTaskStackControllerImpl @Inject constructor(
         mergeTarget: IBinder,
         finishCallback: TransitionFinishCallback
     ) {
+        // If either of the current playing transition or the new one is not to be delegated to
+        // client, skip sending the merge signal.
         val pending: PendingTransition? = findPending(transition)
+        if (!(pending?.delegateToClient ?: true)) {
+            return
+        }
+
+        val pendingMergeTarget: PendingTransition? = findPending(mergeTarget)
+        if (!(pendingMergeTarget?.delegateToClient ?: true)) {
+            return
+        }
 
         autoTransitionHandlerDelegate?.mergeAnimation(
             transition,
@@ -665,6 +759,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
         aborted: Boolean,
         finishTransaction: Transaction?
     ) {
+        if (DBG) Slog.d(TAG, "onTransitionConsumed, aborted=$aborted")
         val pending: PendingTransition? = findPending(transition)
         if (pending != null) {
             pendingTransitions.remove(pending)
@@ -672,6 +767,11 @@ class AutoTaskStackControllerImpl @Inject constructor(
             // Still update the surface order because this means wm didn't lead to any change
             if (finishTransaction != null) {
                 reorderLeashes(finishTransaction)
+            }
+
+            if (!pending.delegateToClient) {
+                if (DBG) Slog.d(TAG, "prevent client delegation")
+                return
             }
         }
         autoTransitionHandlerDelegate?.onTransitionConsumed(
@@ -722,7 +822,12 @@ class AutoTaskStackControllerImpl @Inject constructor(
         @field:WindowManager.TransitionType @param:WindowManager.TransitionType val mType: Int,
         val wct: WindowContainerTransaction,
         val transaction: AutoTaskStackTransaction,
+        val delegateToClient: Boolean = true
     ) {
         var isClaimed: IBinder? = null
+    }
+
+    fun getRootTasks(): List<AutoTaskStack> {
+        return taskStackMap.values.toList()
     }
 }

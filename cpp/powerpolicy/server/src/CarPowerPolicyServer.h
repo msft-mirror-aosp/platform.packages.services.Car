@@ -56,6 +56,13 @@ struct CallbackInfo {
     pid_t pid;
 };
 
+enum class PolicyRequestEvaluation {
+    POLICY_REQUEST_UNKNOWN = 0,
+    POLICY_REQUEST_APPLICABLE,
+    POLICY_REQUEST_ALREADY_APPLIED,
+    POLICY_REQUEST_DEFERRED,
+};
+
 // Forward declaration for testing use only.
 namespace internal {
 
@@ -188,6 +195,8 @@ public:
     static void terminateService();
 
     CarPowerPolicyServer();
+    CarPowerPolicyServer(const std::function<
+            std::shared_ptr<android::frameworks::automotive::vhal::IVhalClient>()>& vhalCreationFn);
     android::base::Result<void> init(const sp<android::Looper>& looper);
 
     // Implements ICarPowerPolicyServer.aidl.
@@ -305,8 +314,10 @@ private:
                     processor) EXCLUDES(mMutex);
     bool isPropertySupported(const int32_t prop) EXCLUDES(mMutex);
     bool isPowerPolicyAppliedLocked() const REQUIRES(mMutex);
-    bool canApplyPowerPolicyLocked(const CarPowerPolicyMeta& policyMeta, const bool force,
-                                   std::vector<CallbackInfo>& outClients) REQUIRES(mMutex);
+    PolicyRequestEvaluation canApplyPowerPolicyLocked(const CarPowerPolicyMeta& policyMeta,
+                                                      const bool force,
+                                                      std::vector<CallbackInfo>& outClients)
+        REQUIRES(mMutex);
     void applyInitialPowerPolicy() EXCLUDES(mMutex);
     void applyAndNotifyPowerPolicy(const CarPowerPolicyMeta& policyMeta,
                                    const std::vector<CallbackInfo>& clients,
@@ -341,7 +352,7 @@ private:
     PowerComponentHandler mComponentHandler;
     PolicyManager mPolicyManager;
     SilentModeHandler mSilentModeHandler;
-    android::Mutex mMutex;
+    std::mutex mMutex;
     CarPowerPolicyMeta mCurrentPowerPolicyMeta GUARDED_BY(mMutex);
     std::string mCurrentPolicyGroupId GUARDED_BY(mMutex);
     std::string mPendingPowerPolicyId GUARDED_BY(mMutex);
@@ -349,11 +360,16 @@ private:
     std::vector<CallbackInfo> mPolicyChangeCallbacks GUARDED_BY(mMutex);
     std::shared_ptr<android::frameworks::automotive::vhal::IVhalClient> mVhalService
             GUARDED_BY(mMutex);
+    // Used by testing to mock vhal service.
+    std::function<std::shared_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
+            mVhalCreationFn;
     std::optional<int64_t> mLastApplyPowerPolicyUptimeMs GUARDED_BY(mMutex);
     std::optional<int64_t> mLastSetDefaultPowerPolicyGroupUptimeMs GUARDED_BY(mMutex);
     bool mIsCarServiceInOperation GUARDED_BY(mMutex);
     // No thread-safety guard is needed because only accessed through main thread handler.
     bool mIsFirstConnectionToVhal;
+    // A cv to indicate if power policy has been initialized, protected by mMutex.
+    std::condition_variable mPowerPolicyInitializedCv;
     std::unordered_map<int32_t, bool> mSupportedProperties;
     ndk::ScopedAIBinder_DeathRecipient mClientDeathRecipient GUARDED_BY(mMutex);
     ndk::ScopedAIBinder_DeathRecipient mCarServiceDeathRecipient GUARDED_BY(mMutex);

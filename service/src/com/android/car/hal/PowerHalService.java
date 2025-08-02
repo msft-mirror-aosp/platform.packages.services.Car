@@ -897,7 +897,7 @@ public class PowerHalService extends HalServiceBase {
                         if (mPerDisplayBrightnessSupported) {
                             Slogf.w(CarLog.TAG_POWER, "Received DISPLAY_BRIGHTNESS "
                                     + "while PER_DISPLAY_BRIGHTNESS is supported, ignore");
-                            return;
+                            break;
                         }
                         maxBrightness = mMaxDisplayBrightness;
                     }
@@ -923,7 +923,7 @@ public class PowerHalService extends HalServiceBase {
                         synchronized (mLock) {
                             if (hasRecentlySetBrightnessChangeLocked(brightness,
                                     getDisplayPort(Display.DEFAULT_DISPLAY))) {
-                                return;
+                                break;
                             }
                         }
 
@@ -952,7 +952,7 @@ public class PowerHalService extends HalServiceBase {
                     // caused by that change and is duplicate. Ignore to prevent loop.
                     synchronized (mLock) {
                         if (hasRecentlySetBrightnessChangeLocked(brightness, displayPort)) {
-                            return;
+                            break;
                         }
                     }
 
@@ -991,8 +991,12 @@ public class PowerHalService extends HalServiceBase {
     @GuardedBy("mLock")
     private void addRecentlySetBrightnessChangeLocked(int brightness, int displayPort) {
         mRecentlySetBrightness.add(new BrightnessForDisplayPort(brightness, displayPort));
+        // TODO(b/408303884): remove the log here after we investigate the issue.
+        Slogf.v(CarLog.TAG_POWER, "post recently set brightness change message");
         mHandler.postDelayed(() -> {
+            Slogf.v(CarLog.TAG_POWER, "run recently set brightness change message");
             synchronized (mLock) {
+                Slogf.v(CarLog.TAG_POWER, "inside lock");
                 mRecentlySetBrightness.removeFirst();
             }
         }, PREVENT_LOOP_REQUEST_TIME_WINDOW_MS);

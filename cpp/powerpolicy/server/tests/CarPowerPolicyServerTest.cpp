@@ -25,8 +25,11 @@
 #include <aidl/android/frameworks/automotive/powerpolicy/ICarPowerPolicyChangeCallback.h>
 #include <aidl/android/frameworks/automotive/powerpolicy/ICarPowerPolicyServer.h>
 #include <aidl/android/frameworks/automotive/powerpolicy/PowerComponent.h>
+#include <aidl/android/hardware/automotive/vehicle/IVehicle.h>
 #include <android-base/file.h>
 #include <android-base/thread_annotations.h>
+#include <android/binder_status.h>
+#include <android/hardware/automotive/vehicle/2.0/IVehicleCallback.h>
 #include <binder/IPCThreadState.h>
 #include <gmock/gmock.h>
 #include <private/android_filesystem_config.h>
@@ -34,13 +37,17 @@
 #include <utils/Mutex.h>
 #include <utils/StrongPointer.h>
 
+#include <AidlHalPropValue.h>
+#include <IVhalClient.h>
 #include <android_car_feature.h>
 #include <tinyxml2.h>
 
 #include <chrono>  // NOLINT(build/c++11)
+#include <functional>
 #include <mutex>   // NOLINT(build/c++11)
 #include <thread>  // NOLINT(build/c++11)
 #include <unordered_set>
+#include <utility>
 
 namespace android {
 namespace frameworks {
@@ -60,8 +67,20 @@ using ::aidl::android::frameworks::automotive::powerpolicy::CarPowerPolicyFilter
 using ::aidl::android::frameworks::automotive::powerpolicy::ICarPowerPolicyChangeCallback;
 using ::aidl::android::frameworks::automotive::powerpolicy::ICarPowerPolicyServer;
 using ::aidl::android::frameworks::automotive::powerpolicy::PowerComponent;
+using ::aidl::android::hardware::automotive::vehicle::GetValueRequest;
+using ::aidl::android::hardware::automotive::vehicle::SetValueRequest;
+using ::aidl::android::hardware::automotive::vehicle::SubscribeOptions;
+using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfigs;
+using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyStatus;
 
 using ::android::car::feature::car_power_policy_refactoring;
+using ::android::frameworks::automotive::vhal::AidlHalPropValue;
+using ::android::frameworks::automotive::vhal::IHalPropConfig;
+using ::android::frameworks::automotive::vhal::IHalPropValue;
+using ::android::frameworks::automotive::vhal::ISubscriptionCallback;
+using ::android::frameworks::automotive::vhal::ISubscriptionClient;
+using ::android::frameworks::automotive::vhal::IVhalClient;
+using ::android::frameworks::automotive::vhal::VhalClientResult;
 
 using ::ndk::ScopedAStatus;
 using ::ndk::SpAIBinder;
@@ -69,7 +88,12 @@ using ::ndk::SpAIBinder;
 using ::std::chrono_literals::operator""ms;
 
 using ::testing::_;
+using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::Invoke;
+using ::testing::Mock;
+using ::testing::MockFunction;
+using ::testing::NotNull;
 using ::testing::Return;
 
 using ::tinyxml2::XML_SUCCESS;
@@ -80,6 +104,7 @@ namespace {
 constexpr const char* kDirPrefix = "/tests/data/";
 constexpr const char* kValidPowerPolicyXmlFile = "valid_power_policy.xml";
 constexpr const char* kTestLooperThreadName = "LooperThread";
+constexpr char kTestVin[] = "test_VIN";
 constexpr std::chrono::duration kCallbackWaitTime = 5000ms;
 constexpr std::chrono::duration kGeneralWaitTime = 2000ms;
 
@@ -100,6 +125,81 @@ public:
     MOCK_METHOD(ScopedAStatus, onPowerPolicyChanged, (const CarPowerPolicy&), (override));
 };
 
+class MockSubscriptionClient : public android::frameworks::automotive::vhal::ISubscriptionClient {
+public:
+    MockSubscriptionClient() {}
+    ~MockSubscriptionClient() {}
+
+    MOCK_METHOD(VhalClientResult<void>, subscribe,
+                (const std::vector<aidl::android::hardware::automotive::vehicle::SubscribeOptions>&
+                            options),
+                (override));
+    MOCK_METHOD(VhalClientResult<void>, unsubscribe, (const std::vector<int32_t>& propIds),
+                (override));
+};
+
+class FakeVhal : public IVhalClient {
+public:
+    explicit FakeVhal() {}
+    ~FakeVhal() {}
+
+    bool isAidlVhal() override { return true; }
+
+    std::unique_ptr<IHalPropValue> createHalPropValue(int32_t propId) override {
+        return std::make_unique<AidlHalPropValue>(propId);
+    }
+
+    std::unique_ptr<IHalPropValue> createHalPropValue([[maybe_unused]] int32_t propId,
+                                                        [[maybe_unused]] int32_t areaId) override {
+        return nullptr;
+    }
+
+    void getValue([[maybe_unused]] const IHalPropValue&,
+                    std::shared_ptr<GetValueCallbackFunc>) override {
+        return;
+    }
+
+    VhalClientResult<std::unique_ptr<IHalPropValue>> getValueSync(
+            const IHalPropValue& requestValue) override {
+        auto propValue = std::make_unique<AidlHalPropValue>(requestValue.getPropId());
+        propValue->setStringValue(kTestVin);
+        return propValue;
+    }
+
+    void setValue([[maybe_unused]] const IHalPropValue&,
+                    std::shared_ptr<SetValueCallbackFunc>) override {
+        return;
+    }
+
+    VhalClientResult<void> setValueSync([[maybe_unused]] const IHalPropValue&) override {
+        return {};
+    }
+
+    VhalClientResult<void> addOnBinderDiedCallback(
+            [[maybe_unused]] std::shared_ptr<OnBinderDiedCallbackFunc> callback) override {
+        return {};
+    }
+
+    VhalClientResult<void> removeOnBinderDiedCallback(
+            [[maybe_unused]] std::shared_ptr<OnBinderDiedCallbackFunc>) override {
+        return {};
+    }
+
+    VhalClientResult<std::vector<std::unique_ptr<IHalPropConfig>>> getAllPropConfigs() override {
+        return {};
+    }
+
+    VhalClientResult<std::vector<std::unique_ptr<IHalPropConfig>>> getPropConfigs(
+            [[maybe_unused]] std::vector<int32_t>) override {
+        return {};
+    }
+
+    std::unique_ptr<ISubscriptionClient> getSubscriptionClient(
+            [[maybe_unused]] std::shared_ptr<ISubscriptionCallback> callback) override {
+        return std::make_unique<MockSubscriptionClient>();
+    }
+};
+
 std::string getTestDataPath(const char* filename) {
     static std::string baseDir = android::base::GetExecutableDirectory();
     return baseDir + kDirPrefix + filename;
@@ -114,14 +214,14 @@ public:
             return;
         }
         mChangedUid = uid;
-        int64_t token = ((int64_t)mChangedUid << 32) | mCallingPid;
+        int64_t token = (static_cast<int64_t>(mChangedUid) << 32) | mCallingPid;
         IPCThreadState::self()->restoreCallingIdentity(token);
     }
     ~ScopedChangeCallingUid() {
         if (mCallingUid == mChangedUid) {
             return;
         }
-        int64_t token = ((int64_t)mCallingUid << 32) | mCallingPid;
+        int64_t token = (static_cast<int64_t>(mCallingUid) << 32) | mCallingPid;
         IPCThreadState::self()->restoreCallingIdentity(token);
     }
 
@@ -145,6 +245,15 @@ public:
         mServer->setLinkUnlinkImpl(std::move(impl));
         mBinder = mServer->asBinder();
         mServerProxy = ICarPowerPolicyServer::fromBinder(mBinder);
+    }
+
+    CarPowerPolicyServerPeer(
+        const std::function<std::unique_ptr<IVhalClient>()>& vhalCreationFn) {
+        std::unique_ptr<MockLinkUnlinkImpl> impl = std::make_unique<MockLinkUnlinkImpl>();
+        // We know this would be alive as long as server is alive.
+        mLinkUnlinkImpl = impl.get();
+        mServer = ndk::SharedRefBase::make<CarPowerPolicyServer>(vhalCreationFn);
+        mServer->setLinkUnlinkImpl(std::move(impl));
     }
 
     ~CarPowerPolicyServerPeer() {
@@ -192,11 +301,17 @@ public:
         return mServer->setPowerPolicyGroup(policyGroupId);
     }
 
-    void init() {
+    void init() { init(/*initializePowerPolicy=*/true); }
+
+    void init(bool initializePowerPolicy) {
         initializeLooper();
         ASSERT_NO_FATAL_FAILURE(initializePolicyManager());
         initializePowerComponentHandler();
-        ASSERT_NO_FATAL_FAILURE(applyInitialPolicy());
+        if (initializePowerPolicy) {
+            ASSERT_NO_FATAL_FAILURE(applyInitialPolicy());
+        } else {
+            mServer->connectToVhal();
+        }
     }
 
     void release() { finalizeLooper(); }
@@ -213,6 +328,11 @@ public:
 
     void expectLinkToDeathStatus(AIBinder* binder, status_t linkToDeathResult) {
         mLinkUnlinkImpl->expectLinkToDeathStatus(binder, linkToDeathResult);
+    }
+
+    void resetLinkUnlinkImpl() {
+        mServer->setLinkUnlinkImpl(nullptr);
+        mLinkUnlinkImpl = nullptr;
     }
 
 private:
@@ -274,7 +394,6 @@ private:
         mServer->mCurrentPowerPolicyMeta = *policyMeta;
     }
 
-private:
     class MockLinkUnlinkImpl : public CarPowerPolicyServer::LinkUnlinkImpl {
     public:
         MOCK_METHOD(binder_status_t, linkToDeath, (AIBinder*, AIBinder_DeathRecipient*, void*),
@@ -283,7 +402,7 @@ private:
                     (override));
 
         void expectLinkToDeathStatus(AIBinder* binder, binder_status_t linkToDeathResult) {
-            EXPECT_CALL(*this, linkToDeath(binder, _, _))
+            EXPECT_CALL(*this, linkToDeath(NotNull(), _, _))
                     .WillRepeatedly(
                             Invoke([this, linkToDeathResult](AIBinder*, AIBinder_DeathRecipient*,
                                                              void* cookie) {
@@ -327,7 +446,7 @@ public:
                 ndk::SharedRefBase::make<MockPowerPolicyChangeCallback>();
         return ICarPowerPolicyChangeCallback::fromBinder(callback->asBinder());
     }
-
+\
     // Sets calling UID to imitate System's process.
     void setSystemCallingUid() {
         mScopedChangeCallingUid = sp<ScopedChangeCallingUid>::make(AID_SYSTEM);
@@ -724,6 +843,103 @@ TEST_F(CarPowerPolicyServerTest, TestApplyPowerPolicyPerPowerStateChangeAsync_wi
 
     testApplyPowerPolicyPerPowerStateChangeAsyncInternal("basic_policy_group",
                                                          "policy_id_other_untouched");
+}
+
+
+TEST_F(CarPowerPolicyServerTest, TestVhalDelayedConnection) {
+    MockFunction<std::unique_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
+            fakeVhalCreationFn;
+    std::function<std::unique_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
+            vhalCreationFn = fakeVhalCreationFn.AsStdFunction();
+    EXPECT_CALL(fakeVhalCreationFn, Call())
+            .WillOnce(Return(nullptr))
+            .WillOnce(Return(nullptr))
+            .WillOnce(Return(nullptr))
+            .WillOnce(Return(nullptr))
+            .WillOnce(Return(nullptr))
+            .WillRepeatedly(Invoke(
+                    []() -> std::unique_ptr<FakeVhal> { return std::make_unique<FakeVhal>(); }));
+    sp<internal::CarPowerPolicyServerPeer> server =
+            sp<internal::CarPowerPolicyServerPeer>::make(vhalCreationFn);
+    std::shared_ptr<MockPowerPolicyDelegateCallback> callback =
+            ndk::SharedRefBase::make<MockPowerPolicyDelegateCallback>();
+    EXPECT_CALL(*callback, updatePowerComponents)
+            .WillRepeatedly(
+                    Invoke([]([[maybe_unused]] const CarPowerPolicy& policy) -> ScopedAStatus {
+                        return ScopedAStatus::ok();
+                    }));
+    EXPECT_CALL(*callback, onPowerPolicyChanged(_)).WillRepeatedly([] {
+        return ScopedAStatus::ok();
+    });
+    server->expectLinkToDeathStatus(callback->asBinder().get(), STATUS_OK);
+    server->init(/* initializePowerPolicy= */ false);
+    setSystemCallingUid();
+    PowerPolicyInitData initData;
+
+    ScopedAStatus status = server->notifyCarServiceReady(callback, &initData);
+
+    EXPECT_TRUE(status.isOk()) << "Notifying car service ready should be successful";
+}
+
+TEST_F(CarPowerPolicyServerTest, TestVhalConnectionTimesOut) {
+    MockFunction<std::unique_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
+            fakeVhalCreationFn;
+    std::function<std::unique_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
+            vhalCreationFn = fakeVhalCreationFn.AsStdFunction();
+    EXPECT_CALL(fakeVhalCreationFn, Call())
+            .WillRepeatedly(Invoke([]() -> std::unique_ptr<FakeVhal> {
+                // exceeds VHAL connection timeout
+                std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+                return std::make_unique<FakeVhal>();
+            }));
+    sp<internal::CarPowerPolicyServerPeer> server =
+            sp<internal::CarPowerPolicyServerPeer>::make(vhalCreationFn);
+    std::shared_ptr<MockPowerPolicyDelegateCallback> callback =
+            ndk::SharedRefBase::make<MockPowerPolicyDelegateCallback>();
+    EXPECT_CALL(*callback, updatePowerComponents)
+            .WillRepeatedly(
+                    Invoke([]([[maybe_unused]] const CarPowerPolicy& policy) -> ScopedAStatus {
+                        return ScopedAStatus::ok();
+                    }));
+    EXPECT_CALL(*callback, onPowerPolicyChanged(_)).WillRepeatedly([] {
+        return ScopedAStatus::ok();
+    });
+    server->expectLinkToDeathStatus(callback->asBinder().get(), STATUS_OK);
+    server->init(/* initializePowerPolicy= */ false);
+    setSystemCallingUid();
+    PowerPolicyInitData initData;
+
+    EXPECT_DEATH(server->notifyCarServiceReady(callback, &initData), HasSubstr(""))
+            << "Notifying car service ready should fail";
+}
+
+TEST_F(CarPowerPolicyServerTest, TestVhalConnectionTooManyRetries) {
+    MockFunction<std::unique_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
+            fakeVhalCreationFn;
+    std::function<std::unique_ptr<android::frameworks::automotive::vhal::IVhalClient>()>
+            vhalCreationFn = fakeVhalCreationFn.AsStdFunction();
+    EXPECT_CALL(fakeVhalCreationFn, Call()).WillRepeatedly([]() {
+        return std::unique_ptr<android::frameworks::automotive::vhal::IVhalClient>(nullptr);
+    });
+    sp<internal::CarPowerPolicyServerPeer> server =
+            sp<internal::CarPowerPolicyServerPeer>::make(vhalCreationFn);
+    std::shared_ptr<MockPowerPolicyDelegateCallback> callback =
+            ndk::SharedRefBase::make<MockPowerPolicyDelegateCallback>();
+    EXPECT_CALL(*callback, updatePowerComponents)
+            .WillRepeatedly(
+                    Invoke([]([[maybe_unused]] const CarPowerPolicy& policy) -> ScopedAStatus {
+                        return ScopedAStatus::ok();
+                    }));
+    EXPECT_CALL(*callback, onPowerPolicyChanged(_)).WillRepeatedly([] {
+        return ScopedAStatus::ok();
+    });
+    server->expectLinkToDeathStatus(callback->asBinder().get(), STATUS_OK);
+    server->init(/* initializePowerPolicy= */ false);
+    setSystemCallingUid();
+    PowerPolicyInitData initData;
+
+    EXPECT_DEATH(server->notifyCarServiceReady(callback, &initData), HasSubstr(""))
+            << "Notifying car service ready should fail";
 }
 
 }  // namespace powerpolicy
