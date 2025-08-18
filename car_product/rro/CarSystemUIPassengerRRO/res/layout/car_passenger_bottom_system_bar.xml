@@ -60,7 +60,7 @@
                 android:id="@+id/home"
                 android:contentDescription="@string/system_bar_passenger_home_label"
                 style="@style/SystemBarButton"
-                systemui:componentNames="com.android.car.multidisplay.passenger/.LauncherActivity"
+                systemui:componentNames="com.android.car.carlauncher/.CarLauncher"
                 systemui:highlightWhenSelected="true"
                 systemui:icon="@drawable/car_ic_home"
                 systemui:intent="intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;launchFlags=0x14000000;end"/>
