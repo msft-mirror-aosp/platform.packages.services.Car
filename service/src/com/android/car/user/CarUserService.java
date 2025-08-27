@@ -2507,6 +2507,9 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
 
         // Handle special cases first...
         switch (eventType) {
+            case CarUserManager.USER_LIFECYCLE_EVENT_TYPE_CREATED:
+                onUserCreated(userId);
+                break;
             case CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING:
                 onUserSwitching(fromUserId, toUserId);
                 break;
@@ -2842,6 +2845,14 @@ public final class CarUserService extends ICarUserService.Stub implements CarSer
             }
         }
         t.traceEnd(); // notify-listeners-user-USERID-event-EVENT_TYPE
+    }
+
+    private void onUserCreated(@UserIdInt int userId) {
+        if (DBG) {
+            Slogf.d(TAG, "onUserCreated(userId=%d)", userId);
+        }
+        // By default, Automotive users do not have a lock screen - set to disabled
+        LockPatternHelper.setLockScreenDisabled(mContext, userId, /* disabled= */ true);
     }
 
     private void onUserSwitching(@UserIdInt int fromUserId, @UserIdInt int toUserId) {

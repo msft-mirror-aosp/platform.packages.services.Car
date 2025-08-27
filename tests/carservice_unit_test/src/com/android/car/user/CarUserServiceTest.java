@@ -113,6 +113,7 @@ import android.view.Display;
 import com.android.car.hal.HalCallback;
 import com.android.car.internal.ResultCallbackImpl;
 import com.android.car.internal.util.DebugUtils;
+import com.android.dx.mockito.inline.extended.ExtendedMockito;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -163,7 +164,7 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         mMockSettings = new MockSettings(builder);
         super.onSessionBuilder(builder);
 
-        builder.spyStatic(Car.class).spyStatic(LockPatternHelper.class);
+        builder.spyStatic(Car.class).mockStatic(LockPatternHelper.class);
     }
 
     @Before
@@ -384,6 +385,14 @@ public final class CarUserServiceTest extends BaseCarUserServiceTestCase {
         verify(mockListener1, never()).onEvent(any(UserLifecycleEvent.class));
         verify(mockListener2, times(1)).onEvent(any(UserLifecycleEvent.class));
         verify(mockListener3, times(2)).onEvent(any(UserLifecycleEvent.class));
+    }
+
+    @Test
+    public void testOnUserCreated_lockScreenDisabled() {
+        sendUserCreatedEvent(mRegularUserId);
+
+        ExtendedMockito.verify(() -> LockPatternHelper.setLockScreenDisabled(any(Context.class),
+                eq(mRegularUserId), eq(true)));
     }
 
     @Test
