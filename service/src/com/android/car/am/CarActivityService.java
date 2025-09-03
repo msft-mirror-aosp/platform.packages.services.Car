@@ -204,6 +204,12 @@ public final class CarActivityService extends ICarActivityService.Stub
                 rootTaskToken);
     }
 
+    @Override
+    public void setLaunchBehaviorForRootTask(IBinder rootTaskToken, int behavior) {
+        ensurePermission(Car.PERMISSION_CONTROL_CAR_APP_LAUNCH);
+        CarServiceHelperWrapper.getInstance().setLaunchBehaviorForRootTask(rootTaskToken, behavior);
+    }
+
     @VisibleForTesting
     int getCaller() {  // Non static for mocking.
         return UserManagerHelper.getUserId(Binder.getCallingUid());
