@@ -19,6 +19,7 @@ package com.android.car.internal;
 import android.content.ComponentName;
 import android.os.UserHandle;
 
+import java.lang.String;
 import java.util.List;
 
 /**
@@ -131,4 +132,9 @@ interface ICarServiceHelper {
      * Sets the launch behavior for a Root Task.
      */
     void setLaunchBehaviorForRootTask(in IBinder rootTaskToken, int behavior) = 21;
+
+    /**
+    * Sets / replaces the list of allowed app install sources
+    */
+    void setAllowedAppInstallSources(in List<String> allowedAppInstallSources) = 22;
 }
