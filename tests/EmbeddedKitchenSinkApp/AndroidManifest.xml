@@ -510,5 +510,17 @@
                 <action android:name="android.car.remoteaccess.RemoteTaskClientService" />
             </intent-filter>
         </service>
+
+        <activity android:name=".activitylaunch.LaunchTestActivity1"
+            android:label="Launch Test Activity 1"
+            android:exported="true"
+            android:taskAffinity="com.google.android.car.kitchensink.LTA"
+            />
+
+        <activity android:name=".activitylaunch.LaunchTestActivity2"
+            android:label="Launch Test Activity 2"
+            android:exported="true"
+            android:taskAffinity="com.google.android.car.kitchensink.LTB"
+            />
     </application>
 </manifest>
