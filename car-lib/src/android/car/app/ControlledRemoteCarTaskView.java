@@ -28,11 +28,14 @@ import android.app.PendingIntent;
 import android.car.Car;
 import android.car.builtin.util.Slogf;
 import android.car.builtin.view.ViewHelper;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Rect;
 import android.graphics.Region;
 import android.os.Binder;
+import android.os.Build;
 import android.os.UserManager;
 import android.util.Slog;
 import android.view.Display;
@@ -68,6 +71,20 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
 
     private ActivityManager.RunningTaskInfo mTaskInfo;
     @Nullable private RunnerWithBackoff mStartActivityWithBackoff;
+
+    private final BroadcastReceiver mPackageBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (mConfig.mActivityIntent == null || mConfig.mActivityIntent.getComponent() == null) {
+                return;
+            }
+            String packageName = intent.getData().getSchemeSpecificPart();
+            if (mConfig.mActivityIntent.getComponent().getPackageName().equals(packageName)) {
+                Slogf.i(TAG, "Package updated: " + packageName + ", restarting task.");
+                startActivity();
+            }
+        }
+    };
 
     final ICarTaskViewClient mICarTaskViewClient = new ICarTaskViewClient.Stub() {
         @Override
@@ -137,6 +154,12 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
         mCallback = callback;
         mCarTaskViewController = carTaskViewController;
         mUserManager = userManager;
+
+        IntentFilter packageFilter = new IntentFilter();
+        packageFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        packageFilter.addDataScheme("package");
+        mContext.registerReceiver(mPackageBroadcastReceiver, packageFilter,
+                Context.RECEIVER_NOT_EXPORTED);
 
         mCallbackExecutor.execute(() -> mCallback.onTaskViewCreated(this));
         if (mConfig.mShouldAutoRestartOnTaskRemoval) {
@@ -234,6 +257,7 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
 
     @Override
     void onReleased() {
+        mContext.unregisterReceiver(mPackageBroadcastReceiver);
         mTaskInfo = null;
         mCallbackExecutor.execute(() -> mCallback.onTaskViewReleased());
         mCarTaskViewController.onRemoteCarTaskViewReleased(this);
@@ -286,7 +310,12 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
             // embedded activity should not be started.
             Slogf.i(TAG, "Restarting task " + taskInfo.baseActivity
                     + " in ControlledRemoteCarTaskView");
-            startActivity();
+        try {
+                startActivity();
+            } catch (SecurityException e) {
+                Slogf.w(TAG, "Cannot start activity in ControlledRemoteCarTaskView because"
+                        + " it is frozen.", e);
+            }
         }
         mCallbackExecutor.execute(() -> {
             if (isReleased()) {
