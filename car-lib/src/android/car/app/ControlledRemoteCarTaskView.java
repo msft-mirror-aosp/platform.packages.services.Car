@@ -35,7 +35,6 @@ import android.content.IntentFilter;
 import android.graphics.Rect;
 import android.graphics.Region;
 import android.os.Binder;
-import android.os.Build;
 import android.os.UserManager;
 import android.util.Slog;
 import android.view.Display;
@@ -82,6 +81,19 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
             if (mConfig.mActivityIntent.getComponent().getPackageName().equals(packageName)) {
                 Slogf.i(TAG, "Package updated: " + packageName + ", restarting task.");
                 startActivity();
+            }
+        }
+    };
+
+    private final BroadcastReceiver mLocaleChangeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (mCarTaskViewController.isHostVisible()) {
+                Slogf.i(TAG, "Locale changed, host is visible, restarting task.");
+                startActivity();
+            } else {
+                Slogf.i(TAG, "Locale changed, host is not visible, releasing task view.");
+                release();
             }
         }
     };
@@ -159,6 +171,10 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
         packageFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
         packageFilter.addDataScheme("package");
         mContext.registerReceiver(mPackageBroadcastReceiver, packageFilter,
+                Context.RECEIVER_NOT_EXPORTED);
+
+        IntentFilter localeFilter = new IntentFilter(Intent.ACTION_LOCALE_CHANGED);
+        mContext.registerReceiver(mLocaleChangeReceiver, localeFilter,
                 Context.RECEIVER_NOT_EXPORTED);
 
         mCallbackExecutor.execute(() -> mCallback.onTaskViewCreated(this));
@@ -258,6 +274,7 @@ public final class ControlledRemoteCarTaskView extends RemoteCarTaskView {
     @Override
     void onReleased() {
         mContext.unregisterReceiver(mPackageBroadcastReceiver);
+        mContext.unregisterReceiver(mLocaleChangeReceiver);
         mTaskInfo = null;
         mCallbackExecutor.execute(() -> mCallback.onTaskViewReleased());
         mCarTaskViewController.onRemoteCarTaskViewReleased(this);
