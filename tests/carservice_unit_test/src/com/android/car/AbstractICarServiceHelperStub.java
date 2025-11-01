@@ -169,4 +169,15 @@ abstract class AbstractICarServiceHelperStub extends ICarServiceHelper.Stub {
     public void onRootTaskVanished(String name) {
         Log.d(TAG, "onRootTaskVanished for root task " + name);
     }
+
+    @Override
+    public void setLaunchBehaviorForRootTask(IBinder rootTaskToken, int launchBehavior) {
+        Log.d(TAG, "setLaunchBehaviorForRootTask = " + rootTaskToken + " , behavior = "
+                + launchBehavior);
+    }
+
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppinstallSources) {
+        Log.d(TAG, "setAllowedAppInstallSources " + allowedAppinstallSources);
+    }
 }

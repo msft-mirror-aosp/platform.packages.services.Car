@@ -16,15 +16,36 @@
 
 package com.android.wm.shell.automotive;
 
+import com.android.wm.shell.dagger.ShellCreateTriggerOverride;
 import com.android.wm.shell.dagger.WMSingleton;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
+import dagger.multibindings.IntoSet;
 
 
 @Module
 public abstract class AutoShellModule {
+    public static final String AUTO_WM_SHELL = "AutoWmShell";
+
     @WMSingleton
     @Binds
     abstract AutoTaskStackController provideTaskStackController(AutoTaskStackControllerImpl impl);
+
+    @Binds
+    @IntoSet
+    abstract AutoShellInitializable bindAutoTaskStackControllerInitializer(
+            AutoTaskStackControllerImpl autoTaskStackController);
+
+    @Binds
+    @IntoSet
+    abstract AutoShellInitializable bindHomeTaskMonitor(AutoHomeTaskMonitor homeTaskMonitor);
+
+    @WMSingleton
+    @ShellCreateTriggerOverride
+    @Provides
+    static Object provideIndependentShellComponentsToCreate(AutoShellInitializer initializer) {
+        return new Object();
+    }
 }

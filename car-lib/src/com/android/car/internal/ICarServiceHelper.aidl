@@ -19,6 +19,7 @@ package com.android.car.internal;
 import android.content.ComponentName;
 import android.os.UserHandle;
 
+import java.lang.String;
 import java.util.List;
 
 /**
@@ -118,12 +119,22 @@ interface ICarServiceHelper {
     boolean requiresDisplayCompatForUser(String packageName, int userId) = 18;
 
     /**
-    * Reports that a Root Task is created.
-    */
+     * Reports that a Root Task is created.
+     */
     void onRootTaskAppeared(String name, in IBinder rootTaskToken) = 19;
 
     /**
-    * Reports that a Root Task has vanished.
-    */
+     * Reports that a Root Task has vanished.
+     */
     void onRootTaskVanished(String name) = 20;
+
+    /**
+     * Sets the launch behavior for a Root Task.
+     */
+    void setLaunchBehaviorForRootTask(in IBinder rootTaskToken, int behavior) = 21;
+
+    /**
+    * Sets / replaces the list of allowed app install sources
+    */
+    void setAllowedAppInstallSources(in List<String> allowedAppInstallSources) = 22;
 }

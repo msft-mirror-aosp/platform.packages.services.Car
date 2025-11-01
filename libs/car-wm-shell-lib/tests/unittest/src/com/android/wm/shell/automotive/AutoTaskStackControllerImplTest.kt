@@ -29,8 +29,9 @@ import android.os.IBinder
 import android.os.Looper
 import android.testing.AndroidTestingRunner
 import android.view.SurfaceControl
-import android.view.WindowManager.TRANSIT_OPEN
 import android.view.WindowManager
+import android.view.WindowManager.TRANSIT_OPEN
+import android.window.TaskOrganizer
 import android.window.TransitionInfo
 import android.window.TransitionRequestInfo
 import android.window.WindowContainerToken
@@ -44,7 +45,6 @@ import com.android.wm.shell.automotive.utility.TestRunningTaskInfoBuilder
 import com.android.wm.shell.automotive.utility.TestShellExecutor
 import com.android.wm.shell.automotive.utility.TransitionInfoBuilder
 import com.android.wm.shell.common.ShellExecutor
-import com.android.wm.shell.sysui.ShellInit
 import com.android.wm.shell.transition.Transitions
 import com.android.wm.shell.transition.Transitions.TransitionFinishCallback
 import com.google.common.truth.Truth.assertThat
@@ -78,9 +78,6 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
 
     @Mock
     lateinit var transitions: Transitions
-
-    @Mock
-    lateinit var shellInit: ShellInit
 
     @Mock
     lateinit var rootTdaOrganizer: RootTaskDisplayAreaOrganizer
@@ -166,13 +163,14 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         var listener: TaskListener? = null
         whenever(
             taskOrganizer.createRootTask(
-                eq(displayId),
-                anyOrNull(),
-                any(TaskListener::class.java),
-                eq(true)
+                TaskOrganizer.CreateRootTaskRequest()
+                    .setDisplayId(displayId)
+                    .setWindowingMode(anyOrNull())
+                    .setRemoveWithTaskOrganizer(true),
+                any(TaskListener::class.java)
             )
         ).thenAnswer {
-            listener = it.arguments[2] as ShellTaskOrganizer.TaskListener
+            listener = it.arguments[1] as ShellTaskOrganizer.TaskListener
             listener!!.onTaskAppeared(taskInfo, leash)
         }
         controller.createRootTaskStack(displayId, name, rootTaskStackListener)
@@ -203,13 +201,12 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             taskOrganizer,
             shellMainThread,
             transitions,
-            shellInit,
             rootTdaOrganizer,
             context,
             mAutoTaskRepository,
             mAutoWmShellCommandHandler
         )
-        controller.onInit()
+        controller.initialize()
         mMainThreadHandler = Handler(Looper.getMainLooper())
 
         controller.autoTransitionHandlerDelegate = delegate
@@ -224,13 +221,14 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         var listener: TaskListener? = null
         whenever(
             taskOrganizer.createRootTask(
-                eq(displayId),
-                anyOrNull(),
-                any(TaskListener::class.java),
-                eq(true)
+                TaskOrganizer.CreateRootTaskRequest()
+                    .setDisplayId(displayId)
+                    .setWindowingMode(anyOrNull())
+                    .setRemoveWithTaskOrganizer(true),
+                any(TaskListener::class.java)
             )
         ).thenAnswer {
-            listener = it.arguments[2] as ShellTaskOrganizer.TaskListener
+            listener = it.arguments[1] as ShellTaskOrganizer.TaskListener
             listener!!.onTaskAppeared(taskInfo, mock(SurfaceControl::class.java))
         }
         val name = ""

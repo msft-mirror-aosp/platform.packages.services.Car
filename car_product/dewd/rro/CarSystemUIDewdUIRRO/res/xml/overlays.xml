@@ -124,6 +124,8 @@
     <item target="id/title" value="@id/title" />
     <item target="id/customized_view_container" value="@id/customized_view_container" />
 
+    <item target="integer/config_systemBarSuwBehavior" value="@integer/config_systemBarSuwBehavior" />
+
     <item target="layout/text_toast" value="@layout/text_toast"/>
     <item target="layout/car_bottom_system_bar" value="@layout/car_bottom_system_bar"/>
     <item target="layout/car_bottom_system_bar_dock" value="@layout/car_bottom_system_bar"/>

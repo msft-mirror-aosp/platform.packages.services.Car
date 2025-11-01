@@ -34,6 +34,7 @@ import android.view.SurfaceControl
 import android.view.SurfaceControl.Transaction
 import android.view.WindowManager
 import android.view.WindowManager.TRANSIT_CHANGE
+import android.window.TaskOrganizer
 import android.window.TransitionInfo
 import android.window.TransitionRequestInfo
 import android.window.WindowContainerTransaction
@@ -43,7 +44,6 @@ import com.android.wm.shell.common.ShellExecutor
 import com.android.wm.shell.dagger.WMSingleton
 import com.android.wm.shell.shared.TransitionUtil
 import com.android.wm.shell.shared.annotations.ShellMainThread
-import com.android.wm.shell.sysui.ShellInit
 import com.android.wm.shell.transition.Transitions
 import com.android.wm.shell.transition.Transitions.TransitionFinishCallback
 import java.io.PrintWriter
@@ -57,12 +57,11 @@ class AutoTaskStackControllerImpl @Inject constructor(
     val taskOrganizer: ShellTaskOrganizer,
     @ShellMainThread private val shellMainThread: ShellExecutor,
     val transitions: Transitions,
-    val shellInit: ShellInit,
     val rootTdaOrganizer: RootTaskDisplayAreaOrganizer,
     val context: Context,
     val autoTaskRepository: AutoTaskRepository,
     val unused: AutoWmShellCommandHandler
-) : AutoTaskStackController, Transitions.TransitionHandler {
+) : AutoTaskStackController, Transitions.TransitionHandler, AutoShellInitializable {
     override var autoTransitionHandlerDelegate: AutoTaskStackTransitionHandlerDelegate? = null
 
     private val _taskStackStateMap: ConcurrentHashMap<Int, AutoTaskStackState> = ConcurrentHashMap()
@@ -80,11 +79,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
     private val appTasksMap = mutableMapOf<Int, ActivityManager.RunningTaskInfo>()
     private val defaultRootTaskPerDisplay = mutableMapOf<Int, Int>()
 
-    init {
-        shellInit.addInitCallback(this::onInit, this)
-    }
-
-    fun onInit() {
+    override fun initialize() {
         transitions.addHandler(this)
     }
 
@@ -333,13 +328,13 @@ class AutoTaskStackControllerImpl @Inject constructor(
         listener: RootTaskStackListener
     ) {
         shellMainThread.execute {
-            // TODO(b/400484573): Add name capability to the root task stack in core.
             taskOrganizer.createRootTask(
-                displayId,
-                WINDOWING_MODE_MULTI_WINDOW,
+                TaskOrganizer.CreateRootTaskRequest()
+                    .setName(name)
+                    .setDisplayId(displayId)
+                    .setWindowingMode(WINDOWING_MODE_MULTI_WINDOW)
+                    .setRemoveWithTaskOrganizer(true),
                 RootTaskStackListenerAdapter(listener, name),
-                /* removeWithTaskOrganizer= */
-                true
             )
         }
     }

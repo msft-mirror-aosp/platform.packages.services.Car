@@ -16,6 +16,9 @@
 
 # Common make file for all car builds
 
+# Automotive based devices do not use prebuilts, so build from source. See b/296307452.
+PRODUCT_MODULE_BUILD_FROM_SOURCE := true
+
 PRODUCT_PUBLIC_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/public
 PRODUCT_PRIVATE_SEPOLICY_DIRS += packages/services/Car/car_product/sepolicy/private
 ifeq ($(ENABLE_CARTELEMETRY_SERVICE), true)
@@ -211,7 +214,7 @@ PRODUCT_LOCALES := \
     de_DE \
     el_GR \
     en_AU en_CA en_GB en_IN en_XA \
-    es_ES es_US \
+    es_ES es_US es_AR \
     et_EE \
     eu_ES \
     fa_IR \

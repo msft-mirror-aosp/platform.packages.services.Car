@@ -228,4 +228,8 @@
     <!-- True if the device requires AppWidgetService even if it does not have
           the PackageManager.FEATURE_APP_WIDGETS feature. -->
     <bool name="config_enableAppWidgetService">true</bool>
+
+    <!-- Whether Activity.requestFullscreenMode() is enabled.
+         This is disabled on Automotive because it does not support this feature. -->
+    <bool name="config_fullscreenRequestSupported">false</bool>
 </resources>
