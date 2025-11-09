@@ -1020,6 +1020,7 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
             })
             .addChange(TransitionInfo.Change(rootTaskInfo2.token, taskLeash).apply {
                 taskInfo = rootTaskInfo2
+                mode = WindowManager.TRANSIT_TO_BACK
             })
             // Send an additional change for the rootTask3 child
             .addChange(TransitionInfo.Change(rootTask3Child.token, taskLeash).apply {
@@ -1040,6 +1041,10 @@ class AutoTaskStackControllerImplTest : CarWmShellTestCase() {
         // Assert
         assertThat(result).isTrue()
         assertThat(delegate.lastTaskStackStates).containsKey(rootTaskInfo3.taskId)
+        assertThat(delegate.lastTaskStackStates).containsEntry(
+            rootTaskInfo2.taskId,
+            AutoTaskStackState(Rect(10, 10, 40, 300), false, 0)
+        )
         assertThat(delegate.lastTaskStackStates).containsEntry(
             rootTaskInfo3.taskId,
             AutoTaskStackState(Rect(10, 10, 40, 300), true, 900)

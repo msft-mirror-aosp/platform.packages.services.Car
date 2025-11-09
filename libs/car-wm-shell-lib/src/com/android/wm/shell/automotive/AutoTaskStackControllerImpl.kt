@@ -27,6 +27,7 @@ import android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED
 import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import android.util.Slog
@@ -72,7 +73,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
             return _taskStackStateMap
         }
 
-    private val DBG = Log.isLoggable(TAG, Log.DEBUG)
+    private val DBG = Log.isLoggable(TAG, Log.DEBUG) || Build.IS_DEBUGGABLE
     private val taskStackMap = mutableMapOf<Int, AutoTaskStack>()
     private val pendingTransitions = ArrayList<PendingTransition>()
     private val mTaskStackStateTranslator = TaskStackStateTranslator()
@@ -125,7 +126,6 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 Slog.e(TAG, "Unsupported task stack, unable to reorder leash")
                 return
             }
-            Slog.d(TAG, "Setting the layer ${state.layer}")
             transaction.setLayer(taskStack.leash, state.layer)
         }
 
@@ -142,9 +142,6 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 Slog.e(TAG, "Cannot find the rootTDA for the root task stack ${taskStack.id}")
                 return
             }
-            if (DBG) {
-                Slog.d(TAG, "Reparenting ${taskStack.id} leash to DA ${rootTdaInfo.featureId}")
-            }
             transaction.reparent(
                 taskStack.leash,
                 rootTdaOrganizer.getDisplayAreaLeash(taskStack.displayId)
@@ -159,9 +156,6 @@ class AutoTaskStackControllerImpl @Inject constructor(
             if (taskStack !is RootTaskStack) {
                 Slog.e(TAG, "Unsupported task stack, unable to convertToWct")
                 return
-            }
-            if (DBG) {
-                Slog.d(TAG, "Setting safe region bounds $safeRegionBounds on ${taskStack.id}")
             }
             wct.setSafeRegionBounds(taskStack.rootTaskInfo.token, safeRegionBounds)
         }
@@ -399,12 +393,12 @@ class AutoTaskStackControllerImpl @Inject constructor(
     override fun startTransition(transaction: AutoTaskStackTransaction): IBinder? {
         // TODO(b/416504816): Remove this and use coroutine suspend functions to execute this
         // on main thread and still be able to able to return.
+        if (DBG) Slog.d(TAG, "startTransition\n\t${transaction.operations.joinToString("\n\t")}")
         shellMainThread.assertCurrentThread()
         if (transaction.operations.isEmpty()) {
             Slog.e(TAG, "Operations empty, no transaction started")
             return null
         }
-        if (DBG) Slog.d(TAG, "startTransaction ${transaction.operations}")
 
         var wct = WindowContainerTransaction()
         convertToWct(transaction, wct)
@@ -423,7 +417,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
         if (DBG) {
             Slog.d(
                 TAG,
-                "handle request, id=${request.debugId}, type=${request.type}, " +
+                "handleRequest, id=${request.debugId}, binder=$transition, type=${request.type}, " +
                         "triggertask = ${request.triggerTask?.toShortString()}"
             )
         }
@@ -435,7 +429,12 @@ class AutoTaskStackControllerImpl @Inject constructor(
             category?.contains(Intent.CATEGORY_HOME) == true &&
             TransitionUtil.isOpeningType(request.type)
         ) {
-            Slog.i(
+            // This is done for the home event only because home task is a fullscreen task that can
+            // cause a potential change in existing root-task visibilities.
+            // Any other task would open in a multi-window root task which won't affect visibility
+            // of any other root task and hence the states of other root tasks don't need to be
+            // restored for such cases.
+            Slog.v(
                 TAG,
                 "HOME transaction. Updating state for root tasks which are not " +
                     "updated by client."
@@ -453,7 +452,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
 
         val wct = WindowContainerTransaction()
         if (ast == null) {
-            Slog.i(
+            Slog.v(
                 TAG,
                 "A transition ${request.debugId} not being handled by Delegate. " +
                     "CarWmShell will take control"
@@ -465,6 +464,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
             )
             return wct
         }
+        if (DBG) Slog.d(TAG, "Sending ast = \n\t${ast.operations.joinToString("\n\t")}")
         // When ast.operations is empty, it will trigger the regular flow and transition will be
         // delegated to the client
         convertToWct(ast, wct)
@@ -479,10 +479,6 @@ class AutoTaskStackControllerImpl @Inject constructor(
                 "taskId=" + this.taskId +
                 " userId=" + this.userId +
                 " displayId=" + this.displayId +
-                " isFocused=" + this.isFocused +
-                " isVisible=" + this.isVisible +
-                " isRunning=" + this.isRunning +
-                " isSleeping=" + this.isSleeping +
                 " topActivity=" + this.topActivity +
                 " baseIntent=" + this.baseIntent +
                 " baseActivity=" + this.baseActivity +
@@ -493,6 +489,24 @@ class AutoTaskStackControllerImpl @Inject constructor(
         _taskStackStateMap.putAll(taskStatStates)
     }
 
+    /**
+     * Reconciles the requested task stack changes with the actual changes observed during a transition.
+     * This is necessary because the WindowManager might make changes to task visibility (e.g., hiding
+     * a task stack) that were not explicitly requested by the client in the [AutoTaskStackTransaction].
+     * This function ensures that the internal [AutoTaskStackState] accurately reflects the current
+     * state of the task stacks after a transition, handling cases where:
+     * 1. A task stack becomes invisible due to a closing transition, even if it was not explicitly
+     *    requested to be invisible by the client.
+     * 2. A task stack becoming visible due to an app task launching inside it (this happens
+     *    implicitly where core brings the task stack (or root task) to the front) even if it was
+     *    not explicitly requested by the client.
+     *
+     * @param requestedTaskStackChanges The task stack states requested by the client in the
+     *                                  [AutoTaskStackTransaction].
+     * @param changes The list of [TransitionInfo.Change] objects representing the actual changes
+     *                that occurred during the window transition.
+     * @return A map of task stack IDs to their reconciled [AutoTaskStackState]s.
+     */
     fun reconcileTaskStackStatesFromTransition(
         requestedTaskStackChanges: Map<Int, AutoTaskStackState>,
         changes: List<TransitionInfo.Change>
@@ -502,6 +516,44 @@ class AutoTaskStackControllerImpl @Inject constructor(
 
         for (chg in changes) {
             val taskInfo = chg.taskInfo ?: continue
+
+            // Process the task stack changes that have become invisible now but were either not
+            // requested in the transition or were requested to be visible
+            if (TransitionUtil.isClosingMode(chg.mode) &&
+                taskStackMap[taskInfo.taskId] != null) {
+                if (DBG) Slog.v(TAG, "Task stack " + taskInfo.taskId + " is hiding")
+
+                if (requestedTaskStackChanges[taskInfo.taskId] != null &&
+                    !requestedTaskStackChanges[taskInfo.taskId]!!.childrenTasksVisible) {
+                    if (DBG) {
+                        Slog.v(
+                            TAG,
+                            "Task stack ${taskInfo.taskId} is already being changed to invisible",
+                        )
+                    }
+                    continue
+                }
+                if (DBG) {
+                    Slog.v(
+                        TAG,
+                        "Task stack " + taskInfo.taskId + " is becoming " +
+                            "invisible but was not requested to be invisible"
+                    )
+                }
+
+                val taskStackLayer = (_taskStackStateMap[taskInfo.taskId]
+                    ?: requestedTaskStackChanges[taskInfo.taskId])
+                    ?.layer ?: AutoTaskStackController.UNKNOWN_Z_LAYER
+
+                changedTaskStacks[taskInfo.taskId] = AutoTaskStackState(
+                    bounds = (_taskStackStateMap[taskInfo.taskId]
+                        ?: requestedTaskStackChanges[taskInfo.taskId])?.bounds ?: Rect(),
+                    childrenTasksVisible = false,
+                    layer = taskStackLayer
+                )
+            }
+
+            // Process as an app task change now
             if (taskInfo.parentTaskId == INVALID_TASK_ID) continue
             if (taskStackMap[taskInfo.parentTaskId] == null) {
                 if (DBG) {
@@ -517,42 +569,40 @@ class AutoTaskStackControllerImpl @Inject constructor(
             // visible in original request.
 
             // Check for the change request if the change is for being visible. If not, ignore the
-            // change
-            if (!TransitionUtil.isOpeningMode(chg.mode)) {
-                if (DBG) Slog.v(TAG, "${taskInfo.taskId} is not opening type")
-                continue
-            }
-
-            // Check if the change was visible in original request, if it is, then there is no
-            // conflict.
-            if (requestedTaskStackChanges[taskInfo.parentTaskId] != null &&
-                requestedTaskStackChanges[taskInfo.parentTaskId]!!.childrenTasksVisible
-            ) {
-                if (DBG) {
-                    Slog.v(
-                        TAG,
-                        "${taskInfo.taskId}'s parent ${taskInfo.parentTaskId} is already " +
-                                "being changed to visible"
-                    )
+            // change. When app task is becoming visible, the parent root task is brought to front
+            // or made visible by the window manager automatically.
+            if (TransitionUtil.isOpeningMode(chg.mode)) {
+                // Check if the change was visible in original request, if it is, then there is no
+                // conflict.
+                if (requestedTaskStackChanges[taskInfo.parentTaskId] != null &&
+                    requestedTaskStackChanges[taskInfo.parentTaskId]!!.childrenTasksVisible
+                ) {
+                    if (DBG) {
+                        Slog.v(
+                            TAG,
+                            "${taskInfo.taskId}'s parent ${taskInfo.parentTaskId} is already " +
+                                    "being changed to visible"
+                        )
+                    }
+                    continue
                 }
-                continue
-            }
 
-            //  If the change was not visible in original request, but visible in change list,
-            //  it is a conflict, reconcile the unknown changes.
-            if (DBG) {
-                Slog.v(TAG, "${taskInfo.taskId} found conflicting task change")
-            }
-            val taskStackLayer = (_taskStackStateMap[taskInfo.parentTaskId]
-                ?: requestedTaskStackChanges[taskInfo.parentTaskId])
-                ?.layer ?: AutoTaskStackController.UNKNOWN_Z_LAYER
+                //  If the change was not visible in original request, but visible in change list,
+                //  it is a conflict, reconcile the unknown changes.
+                if (DBG) {
+                    Slog.v(TAG, "${taskInfo.taskId} found conflicting task change")
+                }
+                val taskStackLayer = (_taskStackStateMap[taskInfo.parentTaskId]
+                    ?: requestedTaskStackChanges[taskInfo.parentTaskId])
+                    ?.layer ?: AutoTaskStackController.UNKNOWN_Z_LAYER
 
-            changedTaskStacks[taskInfo.parentTaskId] = AutoTaskStackState(
-                bounds = (_taskStackStateMap[taskInfo.parentTaskId]
-                    ?: requestedTaskStackChanges[taskInfo.parentTaskId])?.bounds ?: Rect(),
-                childrenTasksVisible = true,
-                layer = taskStackLayer
-            )
+                changedTaskStacks[taskInfo.parentTaskId] = AutoTaskStackState(
+                    bounds = (_taskStackStateMap[taskInfo.parentTaskId]
+                        ?: requestedTaskStackChanges[taskInfo.parentTaskId])?.bounds ?: Rect(),
+                    childrenTasksVisible = true,
+                    layer = taskStackLayer
+                )
+            }
         }
         return changedTaskStacks
     }
@@ -564,7 +614,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
         finishTransaction: Transaction,
         finishCallback: TransitionFinishCallback
     ): Boolean {
-        if (DBG) Slog.d(TAG, "  startAnimation, id=${info.debugId} = changes=" + info.changes)
+        if (DBG) Slog.d(TAG, "startAnimation, id=${info.debugId} = changes=" + info.changes)
         val pending: PendingTransition? = findPending(transition)
         var changedTaskStacks = mutableMapOf<Int, AutoTaskStackState>()
         if (pending != null) {
@@ -603,6 +653,13 @@ class AutoTaskStackControllerImpl @Inject constructor(
             }
         }
 
+        if (DBG) {
+            Slog.d(
+                TAG,
+                " in startAnimation, id=${info.debugId}, changedTaskStacks=\n\t" +
+                changedTaskStacks.entries.joinToString("\n\t")
+            )
+        }
         if ((pending?.delegateToClient ?: true)) {
             val isPlayedByDelegate = autoTransitionHandlerDelegate?.startAnimation(
                 transition,
@@ -722,9 +779,32 @@ class AutoTaskStackControllerImpl @Inject constructor(
         mergeTarget: IBinder,
         finishCallback: TransitionFinishCallback
     ) {
+        if (DBG) Slog.d(TAG, "mergeAnimation, id=${info.debugId}, into target=" + mergeTarget)
         // If either of the current playing transition or the new one is not to be delegated to
         // client, skip sending the merge signal.
         val pending: PendingTransition? = findPending(transition)
+
+        // Update the task stack states as the client may handle the merge and startAnimation
+        // will never be called. Moreover, the changes on WM side have anyway been applied so
+        // updating the task stack states here is safe.
+        var changedTaskStacks = mutableMapOf<Int, AutoTaskStackState>()
+        if (pending != null) {
+            changedTaskStacks.putAll(
+                reconcileTaskStackStatesFromTransition(
+                    pending.transaction.getTaskStackStates(),
+                    info.changes
+                )
+            )
+            updateTaskStackStates(changedTaskStacks)
+        }
+        if (DBG) {
+            Slog.d(
+                TAG,
+                " in mergeAnimation, id=${info.debugId}, changedTaskStacks=\n\t\t" +
+                changedTaskStacks.entries.joinToString("\n\t\t")
+            )
+        }
+
         if (!(pending?.delegateToClient ?: true)) {
             return
         }
@@ -736,7 +816,7 @@ class AutoTaskStackControllerImpl @Inject constructor(
 
         autoTransitionHandlerDelegate?.mergeAnimation(
             transition,
-            pending?.transaction?.getTaskStackStates() ?: mapOf(),
+            changedTaskStacks,
             info,
             surfaceTransaction,
             mergeTarget,
