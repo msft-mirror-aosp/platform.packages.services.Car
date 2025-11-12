@@ -21,6 +21,7 @@ import android.content.res.Configuration;
 
 import com.android.systemui.car.dagger.CarSysUIDynamicOverride;
 import com.android.systemui.car.displayarea.CarDisplayAreaController;
+import com.android.systemui.car.flags.FlagManager;
 import com.android.systemui.car.systembar.element.CarSystemBarElementController;
 import com.android.systemui.dagger.SysUISingleton;
 
@@ -53,13 +54,14 @@ public abstract class CarUiPortraitSystemBarModule {
     @SysUISingleton
     @Provides
     @CarSysUIDynamicOverride
-    static ButtonSelectionStateController provideButtonSelectionStateController(Context context) {
+    static ButtonSelectionStateController provideButtonSelectionStateController(Context context,
+            FlagManager flagManager) {
         if (context.getResources().getConfiguration().orientation
                 == Configuration.ORIENTATION_LANDSCAPE) {
-            return new ButtonSelectionStateController(context);
+            return new ButtonSelectionStateController(context, flagManager);
         }
 
-        return new CarUiPortraitButtonSelectionStateController(context);
+        return new CarUiPortraitButtonSelectionStateController(context, flagManager);
     }
 
     /** Injects CarUiPortraitDockViewControllerWrapper */
