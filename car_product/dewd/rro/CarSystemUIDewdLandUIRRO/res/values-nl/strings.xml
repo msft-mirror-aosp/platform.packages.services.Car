@@ -17,13 +17,9 @@
 
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <!-- no translation found for appgrid_componentName (5706486560419184406) -->
-    <skip />
-    <!-- no translation found for home_componentName (4880881123602761445) -->
-    <skip />
-    <!-- no translation found for widget_component (682752761628080057) -->
-    <skip />
-    <!-- no translation found for mapsplaceholder_component (3655821692843094557) -->
-    <skip />
+    <string name="appgrid_componentName" msgid="5706486560419184406">"com.android.car.carlauncher/.AppGridActivity"</string>
+    <string name="home_componentName" msgid="4880881123602761445">"com.android.car.carlauncher/.CarLauncher"</string>
+    <string name="widget_component" msgid="682752761628080057">"com.android.car.carlauncher/.ControlBarActivity"</string>
+    <string name="mapsplaceholder_component" msgid="3655821692843094557">"com.android.car.mapsplaceholder/.MapsPlaceholderActivity"</string>
     <string name="default_config" msgid="4991509086562278086">"STANDAARD"</string>
 </resources>
