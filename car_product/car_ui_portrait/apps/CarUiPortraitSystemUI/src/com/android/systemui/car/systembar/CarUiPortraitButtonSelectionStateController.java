@@ -21,6 +21,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.view.View;
 
+import com.android.systemui.car.flags.FlagManager;
 import com.android.systemui.dagger.SysUISingleton;
 
 /**
@@ -37,8 +38,8 @@ public class CarUiPortraitButtonSelectionStateController extends ButtonSelection
     private CarUiPortraitAppGridButton mAppGridButton;
     private CarUiPortraitNotificationButton mNotificationButton;
 
-    public CarUiPortraitButtonSelectionStateController(Context context) {
-        super(context);
+    public CarUiPortraitButtonSelectionStateController(Context context, FlagManager flagManager) {
+        super(context, flagManager);
     }
 
     @Override

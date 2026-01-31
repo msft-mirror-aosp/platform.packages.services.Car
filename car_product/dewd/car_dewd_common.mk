@@ -14,7 +14,8 @@
 # limitations under the License.
 
 PRODUCT_PACKAGES += \
-    CarUiPortraitLauncher
+    CarUiPortraitLauncher \
+    StubCarLauncher
 
 PRODUCT_COPY_FILES += \
     packages/services/Car/car_product/dewd/car_dewd_hardware.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/car_dewd_hardware.xml

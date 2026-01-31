@@ -37,6 +37,7 @@ import android.view.WindowInsets.Type.InsetsType;
 import android.widget.Toast;
 
 import com.android.car.ui.R;
+import com.android.systemui.car.wm.CarWMUserHelper;
 import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.DisplayInsetsController;
 import com.android.wm.shell.dagger.WMSingleton;
@@ -68,14 +69,18 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
 
     private final CarDrivingStateManager.CarDrivingStateEventListener mDrivingStateEventListener =
             this::handleDrivingStateChange;
+    private final BarControlPolicy mBarControlPolicy;
 
     public CarUiPortraitDisplaySystemBarsController(Context context,
             IWindowManager wmService,
             DisplayController displayController,
             DisplayInsetsController displayInsetsController,
-            Handler mainHandler) {
-        super(context, wmService, displayController, displayInsetsController, mainHandler);
+            Handler mainHandler,
+            CarWMUserHelper carWMUserHelper) {
+        super(context, wmService, displayController, displayInsetsController, mainHandler,
+                carWMUserHelper);
         mComponentName = new ComponentName(context, this.getClass());
+        mBarControlPolicy = new BarControlPolicy();
 
         Car car = Car.createCar(context);
         if (car != null) {
@@ -95,14 +100,16 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
         pd.register();
         if (mCarUiPerDisplaySparseArray == null) {
             mCarUiPerDisplaySparseArray = new SparseArray<>();
-            BarControlPolicy.reloadFromSetting(mContext);
-            BarControlPolicy.registerContentObserver(mContext, mHandler, () -> {
-                int size = mCarUiPerDisplaySparseArray.size();
-                for (int i = 0; i < size; i++) {
-                    mCarUiPerDisplaySparseArray.valueAt(i)
-                            .updateDisplayWindowRequestedVisibleTypes();
-                }
-            });
+            mBarControlPolicy.reloadFromSetting(mContext);
+            mBarControlPolicy.registerSystemBarVisibilityOverrideObserver(mContext, mHandler,
+                    () -> {
+                        int size = mCarUiPerDisplaySparseArray.size();
+                        for (int i = 0; i < size; i++) {
+                            mCarUiPerDisplaySparseArray.valueAt(
+                                    i).updateDisplayWindowRequestedVisibleTypes();
+                        }
+                        return null;
+                    });
         }
         mCarUiPerDisplaySparseArray.put(displayId, pd);
     }
@@ -241,8 +248,10 @@ public class CarUiPortraitDisplaySystemBarsController extends DisplaySystemBarsC
             } else if (mImmersiveState == STATE_IMMERSIVE_WITH_NAV_BAR) {
                 barVisibilities = mImmersiveWithNavBarVisibilities;
             } else {
-                barVisibilities = BarControlPolicy.getBarVisibilities(
+                BarVisibility barVis = mBarControlPolicy.getBarVisibilities(
                         mPackageName, mWindowRequestedVisibleTypes);
+                barVisibilities =
+                        new int[]{barVis.getShowTypes(), barVis.getHideTypes()};
             }
 
             Slog.d(TAG, "Update barVisibilities to " + mImmersiveState);

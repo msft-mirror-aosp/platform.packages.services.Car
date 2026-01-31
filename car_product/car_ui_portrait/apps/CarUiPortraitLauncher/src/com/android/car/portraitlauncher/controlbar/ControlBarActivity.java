@@ -19,7 +19,9 @@ package com.android.car.portraitlauncher.controlbar;
 import static android.content.pm.ActivityInfo.CONFIG_UI_MODE;
 import static android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER;
 
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.INTENT_EXTRA_COLLAPSE_APPLICATION_PANEL;
 import static com.android.car.portraitlauncher.panel.TaskViewPanelStateChangeReason.ON_MEDIA_INTENT;
+import static com.android.car.caruiportrait.common.service.CarUiPortraitService.REQUEST_FROM_LAUNCHER;
 
 import android.annotation.Nullable;
 import android.app.ActivityManager;
@@ -32,13 +34,16 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.LinearLayout;
 
+import androidx.annotation.NonNull;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.android.car.carlauncher.homescreen.HomeCardModule;
 import com.android.car.carlauncher.homescreen.audio.IntentHandler;
-import com.android.car.carlauncher.homescreen.audio.media.MediaIntentRouter;
+import com.android.car.carlauncher.homescreen.audio.MediaLaunchHandler;
+import com.android.car.carlauncher.homescreen.audio.media.MediaLaunchRouter;
+import com.android.car.media.common.source.MediaSource;
 import com.android.car.portraitlauncher.R;
 import com.android.car.portraitlauncher.homeactivities.TaskCategoryManager;
 
@@ -68,10 +73,10 @@ public class ControlBarActivity extends FragmentActivity {
 
         initializeCards();
 
-        IntentHandler mediaIntentHandler = new ControlBarActivityIntentHandler(
+        MediaLaunchHandler mediaLaunchHandler = new ControlBarActivityIntentHandler(
                 TaskCategoryManager::isMediaApp, ON_MEDIA_INTENT);
 
-        MediaIntentRouter.getInstance().registerMediaIntentHandler(mediaIntentHandler);
+        MediaLaunchRouter.getInstance().registerMediaLaunchHandler(mediaLaunchHandler);
     }
 
     @Override
@@ -113,7 +118,13 @@ public class ControlBarActivity extends FragmentActivity {
         transaction.commitNow();
     }
 
-    private class ControlBarActivityIntentHandler implements IntentHandler {
+    private void requestPanelCollapse(String reason) {
+        Intent intent = new Intent(REQUEST_FROM_LAUNCHER);
+        intent.putExtra(INTENT_EXTRA_COLLAPSE_APPLICATION_PANEL, reason);
+        sendBroadcast(intent);
+    }
+
+    private class ControlBarActivityIntentHandler implements IntentHandler, MediaLaunchHandler {
         private final Function<ActivityManager.RunningTaskInfo, Boolean> mTaskChecker;
         private final String mReason;
 
@@ -144,6 +155,25 @@ public class ControlBarActivity extends FragmentActivity {
                 options.setLaunchTaskDisplayAreaFeatureId(FEATURE_DEFAULT_TASK_CONTAINER);
                 startActivity(intent, options.toBundle());
             }
+        }
+
+        @Override
+        public void handleLaunchMedia(@NonNull MediaSource mediaSource) {
+            if (DBG) {
+                Log.d(TAG, "handleLaunchMedia mCurrentTaskInApplicationPanel: "
+                        + mCurrentTaskInApplicationPanel
+                        + ", incoming mediaSource = "
+                        + mediaSource);
+            }
+
+            if (mTaskChecker.apply(mCurrentTaskInApplicationPanel) && mIsApplicationPanelOpen) {
+                requestPanelCollapse(mReason);
+                return;
+            }
+
+            ActivityOptions options = ActivityOptions.makeBasic();
+            options.setLaunchTaskDisplayAreaFeatureId(FEATURE_DEFAULT_TASK_CONTAINER);
+            mediaSource.launchActivity(ControlBarActivity.this, options);
         }
     }
 }

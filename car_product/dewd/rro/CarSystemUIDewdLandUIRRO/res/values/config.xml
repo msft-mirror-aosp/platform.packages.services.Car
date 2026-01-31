@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (C) 2025 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<resources>
+    <bool name="config_enableScalableUI">true</bool>
+    <bool name="config_enableClearBackStack">false</bool>
+    <string name="system_bar_app_drawer_intent" translatable="false">intent:#Intent;action=com.android.car.carlauncher.ACTION_APP_GRID;package=com.android.car.carlauncher;launchFlags=0x24000000;end</string>
+    <string name="config_appGridComponentName" translatable="false">@string/appgrid_componentName</string>
+    <string name="config_homeComponentName" translatable="false">@string/home_componentName</string>
+
+    <array name="window_states">
+        <item>@xml/app_panel</item>
+        <item>@xml/map_panel</item>
+        <item>@xml/widget_panel</item>
+    </array>
+
+    <string-array name="config_untrimmable_activities" translatable="false">
+        <item>@string/widget_component</item>
+        <item>@string/mapsplaceholder_component</item>
+    </string-array>
+
+    <string-array name="config_default_activities" translatable="false">
+        <item>app_grid_panel;com.android.car.carlauncher/.AppGridActivity</item>
+        <item>map_panel;com.android.car.mapsplaceholder/.MapsPlaceholderActivity</item>
+        <item>widget_panel;com.android.car.carlauncher/.ControlBarActivity</item>
+    </string-array>
+
+</resources>
