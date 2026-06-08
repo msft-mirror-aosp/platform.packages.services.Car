@@ -221,37 +221,7 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
             if (powerService == null) {
                 return;
             }
-            int powerState = powerService.getPowerState();
-            int powerCycle = carPowerStateToPowerCycle(powerState);
-            if (powerCycle < 0) {
-                return;
-            }
-            Trace.beginSection("CarWatchdogService-powerStateChanged-"
-                    + CarPowerManagementService.powerStateToString(powerState));
-            switch (powerCycle) {
-                case PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE:
-                    // Perform time consuming disk I/O operation during shutdown prepare to avoid
-                    // incomplete I/O.
-                    mWatchdogPerfHandler.writeMetadataFile();
-                    break;
-                case PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER:
-                    // Watchdog service and daemon performs garage mode monitoring so delay writing
-                    // to database until after shutdown enter.
-                    mWatchdogPerfHandler.writeToDatabase();
-                    break;
-                case PowerCycle.POWER_CYCLE_SUSPEND_EXIT:
-                    break;
-                // ON covers resume.
-                case PowerCycle.POWER_CYCLE_RESUME:
-                    // There might be outdated & incorrect info. We should reset them before
-                    // starting to do health check.
-                    mWatchdogProcessHandler.prepareHealthCheck();
-                    break;
-                default:
-                    return;
-            }
-            notifyPowerCycleChange(powerCycle);
-            Trace.endSection();
+            onPowerState(powerService.getPowerState());
         }
     };
 
@@ -548,6 +518,54 @@ public final class CarWatchdogService extends ICarWatchdogService.Stub implement
     public void controlProcessHealthCheck(boolean enable) {
         assertPermission(mContext, Car.PERMISSION_USE_CAR_WATCHDOG);
         mWatchdogProcessHandler.controlProcessHealthCheck(enable);
+    }
+
+    /**
+     * Injects power state signals.
+     *
+     * <p>Called by car shell command.
+     *
+     * @param powerState Power state to inject.
+     */
+    public void injectPowerState(int powerState) {
+        assertPermission(mContext, Car.PERMISSION_USE_CAR_WATCHDOG);
+        onPowerState(powerState);
+    }
+
+    /**
+     * Handles power state signals.
+     */
+    private void onPowerState(int powerState) {
+        int powerCycle = carPowerStateToPowerCycle(powerState);
+        if (powerCycle < 0) {
+            return;
+        }
+        Trace.beginSection("CarWatchdogService-powerStateChanged-"
+                + CarPowerManagementService.powerStateToString(powerState));
+        switch (powerCycle) {
+            case PowerCycle.POWER_CYCLE_SHUTDOWN_PREPARE:
+                // Perform time consuming disk I/O operation during shutdown prepare to avoid
+                // incomplete I/O.
+                mWatchdogPerfHandler.writeMetadataFile();
+                break;
+            case PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER:
+                // Watchdog service and daemon performs garage mode monitoring so delay writing
+                // to database until after shutdown enter.
+                mWatchdogPerfHandler.writeToDatabase();
+                break;
+            case PowerCycle.POWER_CYCLE_SUSPEND_EXIT:
+                break;
+            // ON covers resume.
+            case PowerCycle.POWER_CYCLE_RESUME:
+                // There might be outdated & incorrect info. We should reset them before
+                // starting to do health check.
+                mWatchdogProcessHandler.prepareHealthCheck();
+                break;
+            default:
+                return;
+        }
+        notifyPowerCycleChange(powerCycle);
+        Trace.endSection();
     }
 
     /**
