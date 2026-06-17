@@ -62,6 +62,7 @@ import android.car.builtin.widget.LockPatternHelper;
 import android.car.content.pm.CarPackageManager;
 import android.car.drivingstate.CarUxRestrictions;
 import android.car.feature.Flags;
+import android.car.hardware.power.CarPowerManager;
 import android.car.input.CarInputManager;
 import android.car.input.CustomInputEvent;
 import android.car.input.RotaryEvent;
@@ -290,6 +291,7 @@ final class CarShellCommand extends BasicShellCommandHandler {
             "watchdog-control-health-check";
     private static final String COMMAND_WATCHDOG_RESOURCE_OVERUSE_KILL =
             "watchdog-resource-overuse-kill";
+    private static final String COMMAND_WATCHDOG_INJECT_POWER_STATE = "watchdog-inject-power-state";
 
     private static final String COMMAND_DRIVING_SAFETY_SET_REGION =
             "set-drivingsafety-region";
@@ -428,6 +430,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_WATCHDOG_CONTROL_PROCESS_HEALTH_CHECK,
                 PERMISSION_USE_CAR_WATCHDOG);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_WATCHDOG_RESOURCE_OVERUSE_KILL,
+                PERMISSION_USE_CAR_WATCHDOG);
+        USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_WATCHDOG_INJECT_POWER_STATE,
                 PERMISSION_USE_CAR_WATCHDOG);
         USER_BUILD_COMMAND_TO_PERMISSION_MAP.put(COMMAND_CONTROL_COMPONENT_ENABLED_STATE,
                 android.Manifest.permission.CHANGE_COMPONENT_ENABLED_STATE);
@@ -1001,6 +1005,8 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 + "input descriptor.");
         pw.printf("\t%s <input descriptor>", COMMAND_REMOVE_INPUT_DESCRIPTOR_ASSOCIATION);
         pw.println("\t Remove association of the input device descriptor to any display.");
+        pw.printf("\t%s shutdown-prepare|shutdown-enter", COMMAND_WATCHDOG_INJECT_POWER_STATE);
+        pw.println("\t Sends a power signal to CarWatchdog.");
     }
 
     private static int showInvalidArguments(IndentingPrintWriter pw) {
@@ -1501,6 +1507,9 @@ final class CarShellCommand extends BasicShellCommandHandler {
                 break;
             case COMMAND_WATCHDOG_RESOURCE_OVERUSE_KILL:
                 performResourceOveruseKill(args, writer);
+                break;
+            case COMMAND_WATCHDOG_INJECT_POWER_STATE:
+                setWatchdogPowerState(args, writer);
                 break;
             case COMMAND_DRIVING_SAFETY_SET_REGION:
                 setDrivingSafetyRegion(args, writer);
@@ -3652,6 +3661,33 @@ final class CarShellCommand extends BasicShellCommandHandler {
         }
         mCarWatchdogService.controlProcessHealthCheck(Objects.equals(args[1], "enable"));
         writer.printf("Watchdog health checking is now %sd \n", args[1]);
+    }
+
+    private void setWatchdogPowerState(String[] args, IndentingPrintWriter writer) {
+        if (args.length != 2) {
+            showInvalidArguments(writer);
+            return;
+        }
+        int powerState = getPowerStateFromString(args[1]);
+        if (powerState == CarPowerManager.STATE_INVALID) {
+            writer.printf("Invalid power state received (%s). Valid arguments: "
+                    + "\"shutdown-prepare\" | \"shutdown-enter\"\n", args[1]);
+            return;
+        }
+
+        mCarWatchdogService.injectPowerState(powerState);
+    }
+
+    private int getPowerStateFromString(String powerState) {
+        switch (powerState) {
+            case "shutdown-prepare":
+                return CarPowerManager.STATE_SHUTDOWN_PREPARE;
+            case "shutdown-enter":
+                return CarPowerManager.STATE_SHUTDOWN_ENTER;
+            default:
+                Slogf.e(TAG, "Invalid power state: %s", powerState);
+        }
+        return CarPowerManager.STATE_INVALID;
     }
 
     private void performResourceOveruseKill(String[] args, IndentingPrintWriter writer) {
