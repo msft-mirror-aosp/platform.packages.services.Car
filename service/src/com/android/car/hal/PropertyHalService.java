@@ -528,13 +528,16 @@ public class PropertyHalService extends HalServiceBase {
                 // Get the current time after obtaining lock since it might take some time to get
                 // the lock.
                 long currentUptimeMs = SystemClock.uptimeMillis();
-                for (int i = 0; i < retryRequests.size(); i++) {
-                    AsyncPropRequestInfo requestInfo = retryRequests.get(i);
+                for (AsyncPropRequestInfo requestInfo : retryRequests) {
                     requestInfo.incrementRetryCount();
-                    long timeoutUptimeMs = requestInfo.getTimeoutUptimeMs();
-                    if (timeoutUptimeMs <= currentUptimeMs) {
+                    if (requestInfo.getTimeoutUptimeMs() <= currentUptimeMs) {
                         // The request already expired.
                         generateTimeoutResult(requestInfo, timeoutGetResults, timeoutSetResults);
+                        continue;
+                    }
+                    if (requestInfo.getRequestType() == GET_INITIAL_VALUE_FOR_SET
+                            && !isAssocSetRequestValidLocked(requestInfo)) {
+                        // Ignore this request as the associated set request is no longer valid.
                         continue;
                     }
 
@@ -544,16 +547,18 @@ public class PropertyHalService extends HalServiceBase {
                     pendingRetryRequests.add(requestInfo);
 
                     switch (requestInfo.getRequestType()) {
-                        case GET: // fallthrough
-                        case GET_INITIAL_VALUE_FOR_SET:
-                            vehicleStubAsyncGetRequests.add(vehicleStubAsyncRequest);
-                            break;
-                        case SET:
+                        case GET, GET_INITIAL_VALUE_FOR_SET ->
+                                vehicleStubAsyncGetRequests.add(vehicleStubAsyncRequest);
+                        case SET -> {
                             vehicleStubAsyncSetRequests.add(vehicleStubAsyncRequest);
                             if (requestInfo.isWaitForPropertyUpdate()) {
                                 registerWaitingSetRequestInfoLocked(requestInfo);
+                                AsyncGetSetRequest initValueVehicleStubRequest =
+                                        prepareGetInitialValueRequestLocked(
+                                                requestInfo, this, pendingRetryRequests);
+                                vehicleStubAsyncGetRequests.add(initValueVehicleStubRequest);
                             }
-                            break;
+                        }
                     }
                 }
 
@@ -576,6 +581,37 @@ public class PropertyHalService extends HalServiceBase {
             if (!vehicleStubAsyncSetRequests.isEmpty()) {
                 mVehicleHal.setAsync(vehicleStubAsyncSetRequests, this);
             }
+        }
+
+        @GuardedBy("mLock")
+        private boolean isAssocSetRequestValidLocked(AsyncPropRequestInfo requestInfo) {
+            AsyncPropRequestInfo assocSet = requestInfo.getAssocSetValueRequestInfo();
+            if (assocSet == null) {
+                Slogf.w(TAG, "GET_INITIAL_VALUE request has no associated SET request, skip retry");
+                return false;
+            }
+
+            boolean isAssocSetPending =
+                    getPendingAsyncPropRequestInfoLocked(assocSet.getServiceRequestId()) != null;
+            if (!isAssocSetPending) {
+                Slogf.i(
+                        TAG,
+                        "Associated SET request is no longer pending, skip retry of"
+                                + " GET_INITIAL_VALUE");
+                return false;
+            }
+
+            boolean isSameInitValueRequest =
+                    assocSet.getAssocGetInitValueRequestInfo() == requestInfo;
+            if (!isSameInitValueRequest) {
+                Slogf.i(
+                        TAG,
+                        "Associated SET request has been replaced with a new GET_INITIAL_VALUE"
+                                + " request, skip retry");
+                return false;
+            }
+
+            return true;
         }
 
         IBinder getClientBinder() {
@@ -780,6 +816,9 @@ public class PropertyHalService extends HalServiceBase {
 
                     if (carPropMgrErrorCode == CarPropertyErrorCodes.STATUS_TRY_AGAIN) {
                         // The request might need to be retried.
+                        if (DBG) {
+                            Slogf.d(TAG, "request: %s try again", clientRequestInfo);
+                        }
                         retryRequests.add(clientRequestInfo);
                         removePendingAsyncPropRequestInfoLocked(clientRequestInfo);
                         continue;
@@ -1653,11 +1692,34 @@ public class PropertyHalService extends HalServiceBase {
         }
     }
 
-    private List<AsyncGetSetRequest> prepareVehicleStubRequests(@AsyncRequestType int requestType,
+    @GuardedBy("mLock")
+    private AsyncGetSetRequest prepareGetInitialValueRequestLocked(
+            AsyncPropRequestInfo setRequestInfo,
+            VehicleStubCallback vehicleStubCallback,
+            List<AsyncPropRequestInfo> outPendingRequests) {
+        AsyncPropRequestInfo initValueRequestInfo =
+                new AsyncPropRequestInfo(
+                        GET_INITIAL_VALUE_FOR_SET,
+                        setRequestInfo.getPropSvcRequest(),
+                        setRequestInfo.getTimeoutUptimeMs(),
+                        vehicleStubCallback,
+                        setRequestInfo.getAsyncRequestStartTime());
+
+        setRequestInfo.setAssocGetInitValueRequestInfo(initValueRequestInfo);
+        initValueRequestInfo.setAssocSetValueRequestInfo(setRequestInfo);
+
+        AsyncGetSetRequest initValueVehicleStubRequest =
+                generateVehicleStubAsyncRequestLocked(initValueRequestInfo);
+
+        outPendingRequests.add(initValueRequestInfo);
+        return initValueVehicleStubRequest;
+    }
+
+    private List<AsyncGetSetRequest> prepareVehicleStubRequests(
+            @AsyncRequestType int requestType,
             List<AsyncPropertyServiceRequest> serviceRequests,
             long timeoutInMs,
             VehicleStubCallback vehicleStubCallback,
-            @Nullable List<AsyncPropRequestInfo> assocSetValueRequestInfo,
             @Nullable List<AsyncPropRequestInfo> outRequestInfo, long asyncRequestStartTime) {
         // TODO(b/242326085): Change local variables into memory pool to reduce memory
         //  allocation/release cycle
@@ -1685,11 +1747,6 @@ public class PropertyHalService extends HalServiceBase {
                 AsyncPropRequestInfo pendingRequest = new AsyncPropRequestInfo(requestType,
                         serviceRequest, nowUptimeMs + timeoutInMs, vehicleStubCallback,
                         asyncRequestStartTime);
-                if (assocSetValueRequestInfo != null) {
-                    // Link the async set value request and the get init value request together.
-                    pendingRequest.setAssocSetValueRequestInfo(assocSetValueRequestInfo.get(i));
-                    assocSetValueRequestInfo.get(i).setAssocGetInitValueRequestInfo(pendingRequest);
-                }
                 AsyncGetSetRequest vehicleStubRequest = generateVehicleStubAsyncRequestLocked(
                         pendingRequest);
                 vehicleStubRequests.add(vehicleStubRequest);
@@ -1751,10 +1808,14 @@ public class PropertyHalService extends HalServiceBase {
             long timeoutInMs, long asyncRequestStartTime) {
         VehicleStubCallback vehicleStubCallback = createVehicleStubCallback(
                 asyncPropertyResultCallback);
-        List<AsyncGetSetRequest> vehicleStubRequests = prepareVehicleStubRequests(
-                GET, serviceRequests, timeoutInMs, vehicleStubCallback,
-                /* assocSetValueRequestInfo= */ null, /* outRequestInfo= */ null,
-                asyncRequestStartTime);
+        List<AsyncGetSetRequest> vehicleStubRequests =
+                prepareVehicleStubRequests(
+                        GET,
+                        serviceRequests,
+                        timeoutInMs,
+                        vehicleStubCallback,
+                        /* outRequestInfo= */ null,
+                        asyncRequestStartTime);
         if (vehicleStubRequests.isEmpty()) {
             return;
         }
@@ -1794,20 +1855,21 @@ public class PropertyHalService extends HalServiceBase {
      * async get initial value request and subscribes to the property update event.
      */
     private void sendGetInitialValueAndSubscribeUpdateEvent(
-            List<AsyncPropertyServiceRequest> serviceRequests,
-            VehicleStubCallback vehicleStubCallback, long timeoutInMs,
-            List<AsyncPropRequestInfo> waitForUpdateSetRequestInfo, long asyncRequestStartTime) {
-        // Stores a list of async GET_INITIAL_VALUE request to be sent.
-        List<AsyncGetSetRequest> getInitValueRequests = prepareVehicleStubRequests(
-                GET_INITIAL_VALUE_FOR_SET, serviceRequests, timeoutInMs,
-                vehicleStubCallback, /* assocSetValueRequestInfo= */ waitForUpdateSetRequestInfo,
-                /* outRequestInfo= */ null, asyncRequestStartTime);
+            List<AsyncPropRequestInfo> waitForUpdateSetRequestInfo,
+            VehicleStubCallback vehicleStubCallback) {
+        List<AsyncGetSetRequest> getInitValueRequests = new ArrayList<>();
+        List<AsyncPropRequestInfo> pendingGetRequests = new ArrayList<>();
 
         // Subscribe to the property's change events before setting the property.
         synchronized (mLock) {
             for (AsyncPropRequestInfo setRequestInfo : waitForUpdateSetRequestInfo) {
                 registerWaitingSetRequestInfoLocked(setRequestInfo);
+                AsyncGetSetRequest getInitValueRequest =
+                        prepareGetInitialValueRequestLocked(
+                                setRequestInfo, vehicleStubCallback, pendingGetRequests);
+                getInitValueRequests.add(getInitValueRequest);
             }
+            mPendingAsyncRequests.addPendingRequests(pendingGetRequests);
             try {
                 updateSubscriptionRateLocked();
             } catch (ServiceSpecificException e) {
@@ -1830,20 +1892,20 @@ public class PropertyHalService extends HalServiceBase {
         List<AsyncPropRequestInfo> pendingSetRequestInfo = new ArrayList<>();
         VehicleStubCallback vehicleStubCallback = createVehicleStubCallback(
                 asyncPropertyResultCallback);
-        List<AsyncGetSetRequest> setValueRequests = prepareVehicleStubRequests(
-                SET, serviceRequests, timeoutInMs, vehicleStubCallback,
-                 /* assocSetValueRequestInfo= */ null, /* outRequestInfo= */ pendingSetRequestInfo,
-                asyncRequestStartTime);
+        List<AsyncGetSetRequest> setValueRequests =
+                prepareVehicleStubRequests(
+                        SET,
+                        serviceRequests,
+                        timeoutInMs,
+                        vehicleStubCallback,
+                        /* outRequestInfo= */ pendingSetRequestInfo,
+                        asyncRequestStartTime);
         List<AsyncPropRequestInfo> waitForUpdateSetRequestInfo = filterWaitForUpdateRequests(
                 pendingSetRequestInfo, (request) -> request.isWaitForPropertyUpdate());
 
         if (waitForUpdateSetRequestInfo.size() != 0) {
-            List<AsyncPropertyServiceRequest> waitForUpdateServiceRequests =
-                    filterWaitForUpdateRequests(serviceRequests,
-                            (request) -> request.isWaitForPropertyUpdate());
-            sendGetInitialValueAndSubscribeUpdateEvent(waitForUpdateServiceRequests,
-                    vehicleStubCallback, timeoutInMs, waitForUpdateSetRequestInfo,
-                    asyncRequestStartTime);
+            sendGetInitialValueAndSubscribeUpdateEvent(
+                    waitForUpdateSetRequestInfo, vehicleStubCallback);
         }
 
         sendVehicleStubRequests(SET, setValueRequests, vehicleStubCallback);
