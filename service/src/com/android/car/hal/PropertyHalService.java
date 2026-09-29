@@ -550,6 +550,9 @@ public class PropertyHalService extends HalServiceBase {
                             break;
                         case SET:
                             vehicleStubAsyncSetRequests.add(vehicleStubAsyncRequest);
+                            if (requestInfo.isWaitForPropertyUpdate()) {
+                                registerWaitingSetRequestInfoLocked(requestInfo);
+                            }
                             break;
                     }
                 }
@@ -557,6 +560,12 @@ public class PropertyHalService extends HalServiceBase {
                 // We already marked all the input requests as finished. Now for the new retry
                 // requests, we need to put them back into the pending request pool.
                 mPendingAsyncRequests.addPendingRequests(pendingRetryRequests);
+
+                try {
+                    updateSubscriptionRateLocked();
+                } catch (ServiceSpecificException e) {
+                    Slogf.e(TAG, "Failed to update subscription rate after retry", e);
+                }
             }
 
             sendGetValueResults(timeoutGetResults);
@@ -906,6 +915,33 @@ public class PropertyHalService extends HalServiceBase {
         }
 
         return pendingSetValueRequest.toSetValueResult(updateTimestampNanos);
+    }
+
+    @GuardedBy("mLock")
+    private void registerWaitingSetRequestInfoLocked(AsyncPropRequestInfo setRequestInfo) {
+        int halPropId = managerToHalPropId(setRequestInfo.getPropertyId());
+        // We already checked in {@code carPropertyValueToHalPropValueLocked} inside
+        // {@code prepareVehicleStubRequests}, this is guaranteed not to be null.
+        HalPropConfig halPropConfig = mHalPropIdToPropConfig.get(halPropId);
+
+        setRequestInfo.parseClientUpdateRateHz(halPropConfig.toCarPropertyConfig(
+                setRequestInfo.getPropertyId(), mPropertyHalServiceConfigs));
+
+        if (mHalPropIdToWaitingUpdateRequestInfo.get(halPropId) == null) {
+            mHalPropIdToWaitingUpdateRequestInfo.put(halPropId, new ArrayList<>());
+        }
+        mHalPropIdToWaitingUpdateRequestInfo.get(halPropId).add(setRequestInfo);
+        // Internally subscribe to the propId, areaId for property update events.
+        // We use the pending async service request ID as client key.
+        // Enable VUR for continuous since we only want to know when the value is
+        // updated.
+        boolean enableVur = (halPropConfig
+                .getChangeMode() == CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS);
+        mSubManager.stageNewOptions(new ClientType(setRequestInfo.getServiceRequestId()),
+                // Note that we use halPropId instead of mgrPropId in mSubManager.
+                List.of(newCarSubscription(halPropId,
+                        new int[] { setRequestInfo.getAreaId() },
+                        setRequestInfo.getUpdateRateHz(), enableVur)));
     }
 
     /**
@@ -1770,28 +1806,7 @@ public class PropertyHalService extends HalServiceBase {
         // Subscribe to the property's change events before setting the property.
         synchronized (mLock) {
             for (AsyncPropRequestInfo setRequestInfo : waitForUpdateSetRequestInfo) {
-                int halPropId = managerToHalPropId(setRequestInfo.getPropertyId());
-                // We already checked in {@code carPropertyValueToHalPropValueLocked} inside
-                // {@code prepareVehicleStubRequests}, this is guaranteed not to be null.
-                HalPropConfig halPropConfig = mHalPropIdToPropConfig.get(halPropId);
-
-                setRequestInfo.parseClientUpdateRateHz(halPropConfig.toCarPropertyConfig(
-                        setRequestInfo.getPropertyId(), mPropertyHalServiceConfigs));
-
-                if (mHalPropIdToWaitingUpdateRequestInfo.get(halPropId) == null) {
-                    mHalPropIdToWaitingUpdateRequestInfo.put(halPropId, new ArrayList<>());
-                }
-                mHalPropIdToWaitingUpdateRequestInfo.get(halPropId).add(setRequestInfo);
-                // Internally subscribe to the propId, areaId for property update events.
-                // We use the pending async service request ID as client key.
-                // Enable VUR for continuous since we only want to know when the value is updated.
-                boolean enableVur = (halPropConfig.getChangeMode()
-                        == CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS);
-                mSubManager.stageNewOptions(new ClientType(setRequestInfo.getServiceRequestId()),
-                        // Note that we use halPropId instead of mgrPropId in mSubManager.
-                        List.of(newCarSubscription(halPropId,
-                                new int[]{setRequestInfo.getAreaId()},
-                                setRequestInfo.getUpdateRateHz(), enableVur)));
+                registerWaitingSetRequestInfoLocked(setRequestInfo);
             }
             try {
                 updateSubscriptionRateLocked();
